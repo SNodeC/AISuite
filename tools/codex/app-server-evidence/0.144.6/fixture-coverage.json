@@ -18520,17 +18520,764 @@
       }
     }
   },
+  "a1_2_models_providers": {
+    "assignment_derived_notification_keys": [
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/rerouted"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/safetyBuffering/updated"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/verification"
+      }
+    ],
+    "assignment_derived_operation_keys": [
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "modelProvider/capabilities/read"
+      }
+    ],
+    "explicit_present_empty_arrays": {
+      "counts": {
+        "fixtures": 4,
+        "schema_paths": 8
+      },
+      "fixture_ids": [
+        "baseline:server_notification:model/safetyBuffering/updated:explicit-empty-array:reasons-use-cases",
+        "baseline:server_notification:model/verification:explicit-empty-array:verifications",
+        "operation:client_request:model/list:result:explicit-empty-array:data",
+        "operation:client_request:model/list:result:explicit-empty-array:model-collections"
+      ],
+      "path_evidence": [
+        {
+          "direction": "Decode",
+          "fixture_id": "operation:client_request:model/list:result:explicit-empty-array:data",
+          "instance_path": "$/data",
+          "root": "result",
+          "schema_path": "#/properties/data",
+          "surface_key": {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "model/list"
+          },
+          "value_state": "present_empty_array"
+        },
+        {
+          "direction": "Decode",
+          "fixture_id": "operation:client_request:model/list:result:explicit-empty-array:model-collections",
+          "instance_path": "$/data/0/additionalSpeedTiers",
+          "root": "result",
+          "schema_path": "#/definitions/Model/properties/additionalSpeedTiers",
+          "surface_key": {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "model/list"
+          },
+          "value_state": "present_empty_array"
+        },
+        {
+          "direction": "Decode",
+          "fixture_id": "operation:client_request:model/list:result:explicit-empty-array:model-collections",
+          "instance_path": "$/data/0/inputModalities",
+          "root": "result",
+          "schema_path": "#/definitions/Model/properties/inputModalities",
+          "surface_key": {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "model/list"
+          },
+          "value_state": "present_empty_array"
+        },
+        {
+          "direction": "Decode",
+          "fixture_id": "operation:client_request:model/list:result:explicit-empty-array:model-collections",
+          "instance_path": "$/data/0/serviceTiers",
+          "root": "result",
+          "schema_path": "#/definitions/Model/properties/serviceTiers",
+          "surface_key": {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "model/list"
+          },
+          "value_state": "present_empty_array"
+        },
+        {
+          "direction": "Decode",
+          "fixture_id": "operation:client_request:model/list:result:explicit-empty-array:model-collections",
+          "instance_path": "$/data/0/supportedReasoningEfforts",
+          "root": "result",
+          "schema_path": "#/definitions/Model/properties/supportedReasoningEfforts",
+          "surface_key": {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "model/list"
+          },
+          "value_state": "present_empty_array"
+        },
+        {
+          "direction": "Decode",
+          "fixture_id": "baseline:server_notification:model/safetyBuffering/updated:explicit-empty-array:reasons-use-cases",
+          "instance_path": "$/params/reasons",
+          "root": "params",
+          "schema_path": "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/reasons",
+          "surface_key": {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "model/safetyBuffering/updated"
+          },
+          "value_state": "present_empty_array"
+        },
+        {
+          "direction": "Decode",
+          "fixture_id": "baseline:server_notification:model/safetyBuffering/updated:explicit-empty-array:reasons-use-cases",
+          "instance_path": "$/params/useCases",
+          "root": "params",
+          "schema_path": "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/useCases",
+          "surface_key": {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "model/safetyBuffering/updated"
+          },
+          "value_state": "present_empty_array"
+        },
+        {
+          "direction": "Decode",
+          "fixture_id": "baseline:server_notification:model/verification:explicit-empty-array:verifications",
+          "instance_path": "$/params/verifications",
+          "root": "params",
+          "schema_path": "#/definitions/ModelVerificationNotification/properties/verifications",
+          "surface_key": {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "model/verification"
+          },
+          "value_state": "present_empty_array"
+        }
+      ]
+    },
+    "indexed_schema_coverage": {
+      "client_request:ClientRequest:method:model/list": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [
+          "enum:InputModality:image",
+          "enum:InputModality:text"
+        ],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:model/list:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [
+              "#/properties/cursor",
+              "#/properties/includeHidden",
+              "#/properties/limit"
+            ],
+            "optional_property_schema_paths": [
+              "#/properties/cursor",
+              "#/properties/includeHidden",
+              "#/properties/limit"
+            ],
+            "property_schema_paths": [
+              "#/properties/cursor",
+              "#/properties/includeHidden",
+              "#/properties/limit"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:model/list:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [
+              "#/definitions/Model/properties/availabilityNux",
+              "#/definitions/Model/properties/defaultServiceTier",
+              "#/definitions/Model/properties/upgrade",
+              "#/definitions/Model/properties/upgradeInfo",
+              "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown",
+              "#/definitions/ModelUpgradeInfo/properties/modelLink",
+              "#/definitions/ModelUpgradeInfo/properties/upgradeCopy",
+              "#/properties/nextCursor"
+            ],
+            "optional_property_schema_paths": [
+              "#/definitions/Model/properties/additionalSpeedTiers",
+              "#/definitions/Model/properties/availabilityNux",
+              "#/definitions/Model/properties/defaultServiceTier",
+              "#/definitions/Model/properties/inputModalities",
+              "#/definitions/Model/properties/serviceTiers",
+              "#/definitions/Model/properties/supportsPersonality",
+              "#/definitions/Model/properties/upgrade",
+              "#/definitions/Model/properties/upgradeInfo",
+              "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown",
+              "#/definitions/ModelUpgradeInfo/properties/modelLink",
+              "#/definitions/ModelUpgradeInfo/properties/upgradeCopy",
+              "#/properties/nextCursor"
+            ],
+            "property_schema_paths": [
+              "#/definitions/Model/properties/additionalSpeedTiers",
+              "#/definitions/Model/properties/availabilityNux",
+              "#/definitions/Model/properties/defaultReasoningEffort",
+              "#/definitions/Model/properties/defaultServiceTier",
+              "#/definitions/Model/properties/description",
+              "#/definitions/Model/properties/displayName",
+              "#/definitions/Model/properties/hidden",
+              "#/definitions/Model/properties/id",
+              "#/definitions/Model/properties/inputModalities",
+              "#/definitions/Model/properties/isDefault",
+              "#/definitions/Model/properties/model",
+              "#/definitions/Model/properties/serviceTiers",
+              "#/definitions/Model/properties/supportedReasoningEfforts",
+              "#/definitions/Model/properties/supportsPersonality",
+              "#/definitions/Model/properties/upgrade",
+              "#/definitions/Model/properties/upgradeInfo",
+              "#/definitions/ModelAvailabilityNux/properties/message",
+              "#/definitions/ModelServiceTier/properties/description",
+              "#/definitions/ModelServiceTier/properties/id",
+              "#/definitions/ModelServiceTier/properties/name",
+              "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown",
+              "#/definitions/ModelUpgradeInfo/properties/model",
+              "#/definitions/ModelUpgradeInfo/properties/modelLink",
+              "#/definitions/ModelUpgradeInfo/properties/upgradeCopy",
+              "#/definitions/ReasoningEffortOption/properties/description",
+              "#/definitions/ReasoningEffortOption/properties/reasoningEffort",
+              "#/properties/data",
+              "#/properties/nextCursor"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "client_request:ClientRequest:method:modelProvider/capabilities/read": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:modelProvider/capabilities/read:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:modelProvider/capabilities/read:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/properties/imageGeneration",
+              "#/properties/namespaceTools",
+              "#/properties/webSearch"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "server_notification:ServerNotification:method:model/rerouted": {
+        "base_fixture_id": "baseline:server_notification:ServerNotification:method:model/rerouted",
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_property_schema_paths": [],
+        "optional_property_schema_paths": [],
+        "property_schema_paths": [
+          "#/definitions/ModelReroutedNotification/properties/fromModel",
+          "#/definitions/ModelReroutedNotification/properties/reason",
+          "#/definitions/ModelReroutedNotification/properties/threadId",
+          "#/definitions/ModelReroutedNotification/properties/toModel",
+          "#/definitions/ModelReroutedNotification/properties/turnId",
+          "#/oneOf/47/properties/method",
+          "#/oneOf/47/properties/params"
+        ],
+        "reachable_definition_names": [
+          "ModelRerouteReason",
+          "ModelReroutedNotification"
+        ],
+        "required_reachable_fixture_ids": [
+          "enum:ModelRerouteReason:highRiskCyberActivity"
+        ],
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "server_notification:ServerNotification:method:model/safetyBuffering/updated": {
+        "base_fixture_id": "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated",
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_property_schema_paths": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel"
+        ],
+        "optional_property_schema_paths": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel"
+        ],
+        "property_schema_paths": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/model",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/reasons",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/showBufferingUi",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/threadId",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/turnId",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/useCases",
+          "#/oneOf/50/properties/method",
+          "#/oneOf/50/properties/params"
+        ],
+        "reachable_definition_names": [
+          "ModelSafetyBufferingUpdatedNotification"
+        ],
+        "required_reachable_fixture_ids": [],
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "server_notification:ServerNotification:method:model/verification": {
+        "base_fixture_id": "baseline:server_notification:ServerNotification:method:model/verification",
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_property_schema_paths": [],
+        "optional_property_schema_paths": [],
+        "property_schema_paths": [
+          "#/definitions/ModelVerificationNotification/properties/threadId",
+          "#/definitions/ModelVerificationNotification/properties/turnId",
+          "#/definitions/ModelVerificationNotification/properties/verifications",
+          "#/oneOf/48/properties/method",
+          "#/oneOf/48/properties/params"
+        ],
+        "reachable_definition_names": [
+          "ModelVerification",
+          "ModelVerificationNotification"
+        ],
+        "required_reachable_fixture_ids": [
+          "enum:ModelVerification:trustedAccessForCyber"
+        ],
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      }
+    },
+    "negative_coverage": {
+      "notification_payload_mutations": {
+        "counts": {
+          "base_generated": 2,
+          "missing_required": 20,
+          "nullable_null": 1,
+          "optional_omitted": 1,
+          "required_nullable_null": 0,
+          "wrong_type": 24,
+          "wrong_type_opaque_exclusions": 0
+        },
+        "opaque_exclusions": []
+      },
+      "open_string_enums": {
+        "InputModality": {
+          "directions_exercised": [
+            "Decode"
+          ],
+          "empty_value_fixture_id": "enum:InputModality:empty-unknown",
+          "future_value_fixture_id": "enum:InputModality:future-unknown",
+          "future_value_schema_diagnostic_codes": [
+            "one_of_zero"
+          ],
+          "known_value_fixture_ids": [
+            "enum:InputModality:text",
+            "enum:InputModality:image"
+          ]
+        },
+        "ModelRerouteReason": {
+          "directions_exercised": [
+            "Decode"
+          ],
+          "empty_value_fixture_id": "enum:ModelRerouteReason:empty-unknown",
+          "future_value_fixture_id": "enum:ModelRerouteReason:future-unknown",
+          "future_value_schema_diagnostic_codes": [
+            "enum_mismatch"
+          ],
+          "known_value_fixture_ids": [
+            "enum:ModelRerouteReason:highRiskCyberActivity"
+          ]
+        },
+        "ModelVerification": {
+          "directions_exercised": [
+            "Decode"
+          ],
+          "empty_value_fixture_id": "enum:ModelVerification:empty-unknown",
+          "future_value_fixture_id": "enum:ModelVerification:future-unknown",
+          "future_value_schema_diagnostic_codes": [
+            "enum_mismatch"
+          ],
+          "known_value_fixture_ids": [
+            "enum:ModelVerification:trustedAccessForCyber"
+          ]
+        }
+      },
+      "operation_opaque_exclusions": [],
+      "uint32_boundaries": {
+        "fixture_ids": [
+          "operation:client_request:model/list:params:uint32-zero",
+          "operation:client_request:model/list:params:uint32-maximum",
+          "operation:client_request:model/list:params:uint32-overflow",
+          "operation:client_request:model/list:params:uint32-negative",
+          "operation:client_request:model/list:params:uint32-fractional"
+        ],
+        "schema_invalid": [
+          "operation:client_request:model/list:params:uint32-negative",
+          "operation:client_request:model/list:params:uint32-fractional"
+        ],
+        "schema_valid_codec_valid": [
+          "operation:client_request:model/list:params:uint32-zero",
+          "operation:client_request:model/list:params:uint32-maximum"
+        ],
+        "schema_valid_typed_unrepresentable": [
+          "operation:client_request:model/list:params:uint32-overflow"
+        ]
+      }
+    },
+    "notification_root_fixture_plan": {
+      "server_notification:ServerNotification:method:model/rerouted": {
+        "base_fixture_id": "baseline:server_notification:ServerNotification:method:model/rerouted",
+        "base_fixture_reused": true,
+        "conflicting_discriminator_exclusion": "the pinned JSON representation has exactly one method property, so multiple discriminator values are not structurally representable",
+        "conflicting_discriminator_fixture_ids": [],
+        "future_method_fixture_id": "method:server_notification:future-unknown",
+        "missing_required_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/rerouted:missing-required:method",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:missing-required:params",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:missing-required:params-frommodel",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:missing-required:params-reason",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:missing-required:params-threadid",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:missing-required:params-tomodel",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:missing-required:params-turnid"
+        ],
+        "nullable_null_fixture_ids": [],
+        "optional_omitted_fixture_ids": [],
+        "required_nullable_null_fixture_ids": [],
+        "wrong_type_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/rerouted:wrong-type:method",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:wrong-type:params",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:wrong-type:params-frommodel",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:wrong-type:params-reason",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:wrong-type:params-threadid",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:wrong-type:params-tomodel",
+          "baseline:server_notification:ServerNotification:method:model/rerouted:wrong-type:params-turnid"
+        ]
+      },
+      "server_notification:ServerNotification:method:model/safetyBuffering/updated": {
+        "base_fixture_id": "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated",
+        "base_fixture_reused": false,
+        "conflicting_discriminator_exclusion": "the pinned JSON representation has exactly one method property, so multiple discriminator values are not structurally representable",
+        "conflicting_discriminator_fixture_ids": [],
+        "explicit_present_empty_array_fixture_ids": [
+          "baseline:server_notification:model/safetyBuffering/updated:explicit-empty-array:reasons-use-cases"
+        ],
+        "future_method_fixture_id": "method:server_notification:future-unknown",
+        "missing_required_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:method",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:params",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:params-model",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:params-reasons",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:params-showbufferingui",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:params-threadid",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:params-turnid",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:missing-required:params-usecases"
+        ],
+        "nullable_null_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:nullable-null:params-fastermodel"
+        ],
+        "optional_omitted_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:optional-omitted:params-fastermodel"
+        ],
+        "required_nullable_null_fixture_ids": [],
+        "wrong_type_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:method",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-fastermodel",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-model",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-reasons",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-reasons-0",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-showbufferingui",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-threadid",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-turnid",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-usecases",
+          "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:wrong-type:params-usecases-0"
+        ]
+      },
+      "server_notification:ServerNotification:method:model/verification": {
+        "base_fixture_id": "baseline:server_notification:ServerNotification:method:model/verification",
+        "base_fixture_reused": false,
+        "conflicting_discriminator_exclusion": "the pinned JSON representation has exactly one method property, so multiple discriminator values are not structurally representable",
+        "conflicting_discriminator_fixture_ids": [],
+        "explicit_present_empty_array_fixture_ids": [
+          "baseline:server_notification:model/verification:explicit-empty-array:verifications"
+        ],
+        "future_method_fixture_id": "method:server_notification:future-unknown",
+        "missing_required_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/verification:missing-required:method",
+          "baseline:server_notification:ServerNotification:method:model/verification:missing-required:params",
+          "baseline:server_notification:ServerNotification:method:model/verification:missing-required:params-threadid",
+          "baseline:server_notification:ServerNotification:method:model/verification:missing-required:params-turnid",
+          "baseline:server_notification:ServerNotification:method:model/verification:missing-required:params-verifications"
+        ],
+        "nullable_null_fixture_ids": [],
+        "optional_omitted_fixture_ids": [],
+        "required_nullable_null_fixture_ids": [],
+        "wrong_type_fixture_ids": [
+          "baseline:server_notification:ServerNotification:method:model/verification:wrong-type:method",
+          "baseline:server_notification:ServerNotification:method:model/verification:wrong-type:params",
+          "baseline:server_notification:ServerNotification:method:model/verification:wrong-type:params-threadid",
+          "baseline:server_notification:ServerNotification:method:model/verification:wrong-type:params-turnid",
+          "baseline:server_notification:ServerNotification:method:model/verification:wrong-type:params-verifications",
+          "baseline:server_notification:ServerNotification:method:model/verification:wrong-type:params-verifications-0"
+        ]
+      }
+    },
+    "operation_root_fixture_plan": {
+      "client_request:ClientRequest:method:model/list": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:model/list:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [],
+            "nullable_null_fixture_ids": [
+              "operation:client_request:model/list:params:nullable-null:cursor",
+              "operation:client_request:model/list:params:nullable-null:includehidden",
+              "operation:client_request:model/list:params:nullable-null:limit"
+            ],
+            "optional_omitted_fixture_ids": [
+              "operation:client_request:model/list:params:optional-omitted:cursor",
+              "operation:client_request:model/list:params:optional-omitted:includehidden",
+              "operation:client_request:model/list:params:optional-omitted:limit"
+            ],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:model/list:params:wrong-type:cursor",
+              "operation:client_request:model/list:params:wrong-type:includehidden",
+              "operation:client_request:model/list:params:wrong-type:limit"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:model/list:result",
+            "direction": "Decode",
+            "explicit_present_empty_array_fixture_ids": [
+              "operation:client_request:model/list:result:explicit-empty-array:data",
+              "operation:client_request:model/list:result:explicit-empty-array:model-collections"
+            ],
+            "missing_required_fixture_ids": [
+              "operation:client_request:model/list:result:missing-required:data",
+              "operation:client_request:model/list:result:missing-required:data-0-availabilitynux-message",
+              "operation:client_request:model/list:result:missing-required:data-0-defaultreasoningeffort",
+              "operation:client_request:model/list:result:missing-required:data-0-description",
+              "operation:client_request:model/list:result:missing-required:data-0-displayname",
+              "operation:client_request:model/list:result:missing-required:data-0-hidden",
+              "operation:client_request:model/list:result:missing-required:data-0-id",
+              "operation:client_request:model/list:result:missing-required:data-0-isdefault",
+              "operation:client_request:model/list:result:missing-required:data-0-model",
+              "operation:client_request:model/list:result:missing-required:data-0-servicetiers-0-description",
+              "operation:client_request:model/list:result:missing-required:data-0-servicetiers-0-id",
+              "operation:client_request:model/list:result:missing-required:data-0-servicetiers-0-name",
+              "operation:client_request:model/list:result:missing-required:data-0-supportedreasoningefforts",
+              "operation:client_request:model/list:result:missing-required:data-0-supportedreasoningefforts-0-description",
+              "operation:client_request:model/list:result:missing-required:data-0-supportedreasoningefforts-0-reasoningeffort",
+              "operation:client_request:model/list:result:missing-required:data-0-upgradeinfo-model"
+            ],
+            "nullable_null_fixture_ids": [
+              "operation:client_request:model/list:result:nullable-null:data-0-availabilitynux",
+              "operation:client_request:model/list:result:nullable-null:data-0-defaultservicetier",
+              "operation:client_request:model/list:result:nullable-null:data-0-upgrade",
+              "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo",
+              "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-migrationmarkdown",
+              "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-modellink",
+              "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-upgradecopy",
+              "operation:client_request:model/list:result:nullable-null:nextcursor"
+            ],
+            "optional_omitted_fixture_ids": [
+              "operation:client_request:model/list:result:optional-omitted:data-0-additionalspeedtiers",
+              "operation:client_request:model/list:result:optional-omitted:data-0-availabilitynux",
+              "operation:client_request:model/list:result:optional-omitted:data-0-defaultservicetier",
+              "operation:client_request:model/list:result:optional-omitted:data-0-inputmodalities",
+              "operation:client_request:model/list:result:optional-omitted:data-0-servicetiers",
+              "operation:client_request:model/list:result:optional-omitted:data-0-supportspersonality",
+              "operation:client_request:model/list:result:optional-omitted:data-0-upgrade",
+              "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo",
+              "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-migrationmarkdown",
+              "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-modellink",
+              "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-upgradecopy",
+              "operation:client_request:model/list:result:optional-omitted:nextcursor"
+            ],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:model/list:result:wrong-type:data",
+              "operation:client_request:model/list:result:wrong-type:data-0",
+              "operation:client_request:model/list:result:wrong-type:data-0-additionalspeedtiers",
+              "operation:client_request:model/list:result:wrong-type:data-0-additionalspeedtiers-0",
+              "operation:client_request:model/list:result:wrong-type:data-0-availabilitynux",
+              "operation:client_request:model/list:result:wrong-type:data-0-availabilitynux-message",
+              "operation:client_request:model/list:result:wrong-type:data-0-defaultreasoningeffort",
+              "operation:client_request:model/list:result:wrong-type:data-0-defaultservicetier",
+              "operation:client_request:model/list:result:wrong-type:data-0-description",
+              "operation:client_request:model/list:result:wrong-type:data-0-displayname",
+              "operation:client_request:model/list:result:wrong-type:data-0-hidden",
+              "operation:client_request:model/list:result:wrong-type:data-0-id",
+              "operation:client_request:model/list:result:wrong-type:data-0-inputmodalities",
+              "operation:client_request:model/list:result:wrong-type:data-0-inputmodalities-0",
+              "operation:client_request:model/list:result:wrong-type:data-0-isdefault",
+              "operation:client_request:model/list:result:wrong-type:data-0-model",
+              "operation:client_request:model/list:result:wrong-type:data-0-servicetiers",
+              "operation:client_request:model/list:result:wrong-type:data-0-servicetiers-0",
+              "operation:client_request:model/list:result:wrong-type:data-0-servicetiers-0-description",
+              "operation:client_request:model/list:result:wrong-type:data-0-servicetiers-0-id",
+              "operation:client_request:model/list:result:wrong-type:data-0-servicetiers-0-name",
+              "operation:client_request:model/list:result:wrong-type:data-0-supportedreasoningefforts",
+              "operation:client_request:model/list:result:wrong-type:data-0-supportedreasoningefforts-0",
+              "operation:client_request:model/list:result:wrong-type:data-0-supportedreasoningefforts-0-description",
+              "operation:client_request:model/list:result:wrong-type:data-0-supportedreasoningefforts-0-reasoningeffort",
+              "operation:client_request:model/list:result:wrong-type:data-0-supportspersonality",
+              "operation:client_request:model/list:result:wrong-type:data-0-upgrade",
+              "operation:client_request:model/list:result:wrong-type:data-0-upgradeinfo",
+              "operation:client_request:model/list:result:wrong-type:data-0-upgradeinfo-migrationmarkdown",
+              "operation:client_request:model/list:result:wrong-type:data-0-upgradeinfo-model",
+              "operation:client_request:model/list:result:wrong-type:data-0-upgradeinfo-modellink",
+              "operation:client_request:model/list:result:wrong-type:data-0-upgradeinfo-upgradecopy",
+              "operation:client_request:model/list:result:wrong-type:nextcursor"
+            ]
+          }
+        }
+      },
+      "client_request:ClientRequest:method:modelProvider/capabilities/read": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:modelProvider/capabilities/read:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": []
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:modelProvider/capabilities/read:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:modelProvider/capabilities/read:result:missing-required:imagegeneration",
+              "operation:client_request:modelProvider/capabilities/read:result:missing-required:namespacetools",
+              "operation:client_request:modelProvider/capabilities/read:result:missing-required:websearch"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:modelProvider/capabilities/read:result:wrong-type:imagegeneration",
+              "operation:client_request:modelProvider/capabilities/read:result:wrong-type:namespacetools",
+              "operation:client_request:modelProvider/capabilities/read:result:wrong-type:websearch"
+            ]
+          }
+        }
+      }
+    }
+  },
   "codex_version": "codex-cli 0.144.6",
   "counts": {
-    "identities_with_positive_fixtures": 259,
+    "identities_with_positive_fixtures": 261,
     "operation_role_actual": 194,
     "operation_role_expected": 194,
-    "optional_omissions_accepted": 15843,
-    "optional_present_locations": 15843,
-    "positive_fixtures": 1608,
-    "required_field_removals_rejected": 17511,
+    "optional_omissions_accepted": 16105,
+    "optional_present_locations": 16105,
+    "positive_fixtures": 1649,
+    "required_field_removals_rejected": 17878,
     "surface_identities": 387,
-    "wrong_type_mutations_rejected": 17446,
+    "wrong_type_mutations_rejected": 17813,
     "wrong_type_unconstrained_exclusions": 65
   },
   "fixtures": [
@@ -27220,13 +27967,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       },
       "file": "cases/baseline/server_notification/model-rerouted.json",
       "file_sha256": "be35e29e90590a3b49ed62801a15735993ff7b58a625def31d34c9fb3f0e95ab",
@@ -27243,6 +27990,25 @@
         "file": "stable/ServerNotification.json",
         "pointer": "#",
         "sha256": "67669e13a8af9449da30acdbd83a6108fd54ed92b79849dee381aece1521937f"
+      },
+      "schema_fixture_coverage": {
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_null_schema_paths": [],
+        "nullable_property_schema_paths": [],
+        "nullable_value_schema_paths": [],
+        "optional_property_schema_paths_omitted": [],
+        "optional_property_schema_paths_present": [],
+        "property_schema_paths_present": [
+          "#/definitions/ModelReroutedNotification/properties/fromModel",
+          "#/definitions/ModelReroutedNotification/properties/reason",
+          "#/definitions/ModelReroutedNotification/properties/threadId",
+          "#/definitions/ModelReroutedNotification/properties/toModel",
+          "#/definitions/ModelReroutedNotification/properties/turnId",
+          "#/oneOf/47/properties/method",
+          "#/oneOf/47/properties/params"
+        ]
       },
       "validation": {
         "all_globally_optional_omissions_accepted": true,
@@ -27376,6 +28142,495 @@
             ],
             "exclusion": null,
             "instance_path": "$/params/turnId",
+            "mutation_found": true,
+            "replacement_type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/baseline/server_notification/model-safetybuffering-updated.json",
+      "file_sha256": "79863f80f032f7696d0f0f1feb57318a18e265073a200cb6ef8b6badb1ed2f86",
+      "fixture_sha256": "79863f80f032f7696d0f0f1feb57318a18e265073a200cb6ef8b6badb1ed2f86",
+      "id": "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated",
+      "protocol_surface_key": {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/safetyBuffering/updated"
+      },
+      "role": "server_notification_identity",
+      "schema": {
+        "file": "stable/ServerNotification.json",
+        "pointer": "#",
+        "sha256": "67669e13a8af9449da30acdbd83a6108fd54ed92b79849dee381aece1521937f"
+      },
+      "schema_fixture_coverage": {
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_null_schema_paths": [],
+        "nullable_property_schema_paths": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel"
+        ],
+        "nullable_value_schema_paths": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "optional_property_schema_paths_present": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel"
+        ],
+        "property_schema_paths_present": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/model",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/reasons",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/showBufferingUi",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/threadId",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/turnId",
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/useCases",
+          "#/oneOf/50/properties/method",
+          "#/oneOf/50/properties/params"
+        ]
+      },
+      "validation": {
+        "all_globally_optional_omissions_accepted": true,
+        "all_required_field_mutations_rejected": true,
+        "alternative_branch_acceptances": 0,
+        "alternative_branch_removals": [],
+        "globally_optional_present_locations": 1,
+        "independent": true,
+        "one_of_branch_indices": [
+          50
+        ],
+        "optional_not_globally_optional": [],
+        "optional_not_globally_optional_locations": 0,
+        "optional_omission_mutations": 1,
+        "optional_omissions": [
+          {
+            "accepted": true,
+            "instance_path": "$/params/fasterModel"
+          }
+        ],
+        "removals": [
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/method",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/model",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/reasons",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/showBufferingUi",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/threadId",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/turnId",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/useCases",
+            "validation_scope": "root_schema"
+          }
+        ],
+        "required_field_mutations": 8,
+        "required_locations": 8,
+        "selected_branch_optional_present_locations": 1,
+        "selected_branch_required_locations": 8,
+        "wrong_type_mutations": 8,
+        "wrong_type_unconstrained_exclusions": 0,
+        "wrong_types": [
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/method",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/model",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/reasons",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/showBufferingUi",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/threadId",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/turnId",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/useCases",
+            "mutation_found": true,
+            "replacement_type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/notifications/server/model-safetybuffering-updated/supplements/nullable-null-params-fastermodel.json",
+      "file_sha256": "4c2e89d53dc2ee753b6ff6c64ba7c9342ebd20dcd83aaa3c2c96413534c6cb3a",
+      "fixture_sha256": "4c2e89d53dc2ee753b6ff6c64ba7c9342ebd20dcd83aaa3c2c96413534c6cb3a",
+      "id": "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:nullable-null:params-fastermodel",
+      "protocol_surface_key": {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/safetyBuffering/updated"
+      },
+      "role": "notification_nullable_null",
+      "schema": {
+        "file": "stable/ServerNotification.json",
+        "pointer": "#",
+        "sha256": "67669e13a8af9449da30acdbd83a6108fd54ed92b79849dee381aece1521937f"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "9bdb69055e5042844d2aaa781bfdad3803f965c305b096ac3872d51672d29aec"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 1,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 1,
+          "required_field_mutations": 8,
+          "required_locations": 8,
+          "selected_branch_optional_present_locations": 1,
+          "selected_branch_required_locations": 8,
+          "wrong_type_mutations": 8,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "44faf3642ac761ac7771000e6bfe9ed1353e9fe6505c13f297c50e852b361441",
+        "one_of_branch_indices": [
+          50
+        ]
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/notifications/server/model-safetybuffering-updated/supplements/optional-omitted-params-fastermodel.json",
+      "file_sha256": "a2ad7386f41c5f305cca629edaa86e6f4b31735bc03700fab402a44ff1b930e0",
+      "fixture_sha256": "a2ad7386f41c5f305cca629edaa86e6f4b31735bc03700fab402a44ff1b930e0",
+      "id": "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:optional-omitted:params-fastermodel",
+      "protocol_surface_key": {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/safetyBuffering/updated"
+      },
+      "role": "notification_optional_omitted",
+      "schema": {
+        "file": "stable/ServerNotification.json",
+        "pointer": "#",
+        "sha256": "67669e13a8af9449da30acdbd83a6108fd54ed92b79849dee381aece1521937f"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/ModelSafetyBufferingUpdatedNotification/properties/fasterModel"
+        ],
+        "schema_fixture_coverage_sha256": "e0c39a620f721df64278325ec3d8f68ab4aaf429cd2aedb2703624be5287e363"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 0,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 0,
+          "required_field_mutations": 8,
+          "required_locations": 8,
+          "selected_branch_optional_present_locations": 0,
+          "selected_branch_required_locations": 8,
+          "wrong_type_mutations": 8,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "e016fd0975f7b095ebc2878bddbdcfe682c120355ffd529e8de35a4841a83036",
+        "one_of_branch_indices": [
+          50
+        ]
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/baseline/server_notification/model-verification.json",
+      "file_sha256": "97ddcfff8c35537e11210810e2383e33f6d8b7180df209c3cf6d2759d5399088",
+      "fixture_sha256": "97ddcfff8c35537e11210810e2383e33f6d8b7180df209c3cf6d2759d5399088",
+      "id": "baseline:server_notification:ServerNotification:method:model/verification",
+      "protocol_surface_key": {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/verification"
+      },
+      "role": "server_notification_identity",
+      "schema": {
+        "file": "stable/ServerNotification.json",
+        "pointer": "#",
+        "sha256": "67669e13a8af9449da30acdbd83a6108fd54ed92b79849dee381aece1521937f"
+      },
+      "schema_fixture_coverage": {
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_null_schema_paths": [],
+        "nullable_property_schema_paths": [],
+        "nullable_value_schema_paths": [],
+        "optional_property_schema_paths_omitted": [],
+        "optional_property_schema_paths_present": [],
+        "property_schema_paths_present": [
+          "#/definitions/ModelVerificationNotification/properties/threadId",
+          "#/definitions/ModelVerificationNotification/properties/turnId",
+          "#/definitions/ModelVerificationNotification/properties/verifications",
+          "#/oneOf/48/properties/method",
+          "#/oneOf/48/properties/params"
+        ]
+      },
+      "validation": {
+        "all_globally_optional_omissions_accepted": true,
+        "all_required_field_mutations_rejected": true,
+        "alternative_branch_acceptances": 0,
+        "alternative_branch_removals": [],
+        "globally_optional_present_locations": 0,
+        "independent": true,
+        "one_of_branch_indices": [
+          48
+        ],
+        "optional_not_globally_optional": [],
+        "optional_not_globally_optional_locations": 0,
+        "optional_omission_mutations": 0,
+        "optional_omissions": [],
+        "removals": [
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/method",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/threadId",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/turnId",
+            "validation_scope": "root_schema"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "instance_path": "$/params/verifications",
+            "validation_scope": "root_schema"
+          }
+        ],
+        "required_field_mutations": 5,
+        "required_locations": 5,
+        "selected_branch_optional_present_locations": 0,
+        "selected_branch_required_locations": 5,
+        "wrong_type_mutations": 5,
+        "wrong_type_unconstrained_exclusions": 0,
+        "wrong_types": [
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/method",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/threadId",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/turnId",
+            "mutation_found": true,
+            "replacement_type": "null"
+          },
+          {
+            "diagnostic_codes": [
+              "one_of_zero"
+            ],
+            "exclusion": null,
+            "instance_path": "$/params/verifications",
             "mutation_found": true,
             "replacement_type": "null"
           }
@@ -39554,6 +40809,124 @@
         "mutation_evidence_sha256": "eec90aedb25cd6d18304575732e476c24e9d8bfbc7db1d1c4cb774a7fdf7f544",
         "one_of_branch_indices": [
           13
+        ]
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/notifications/server/model-safetybuffering-updated/supplements/explicit-empty-array-reasons-use-cases.json",
+      "file_sha256": "ed2e7ffa768ceacdeeef64adaa44a0848a23659596877e7f21bc5ccb535c196d",
+      "fixture_sha256": "ed2e7ffa768ceacdeeef64adaa44a0848a23659596877e7f21bc5ccb535c196d",
+      "id": "baseline:server_notification:model/safetyBuffering/updated:explicit-empty-array:reasons-use-cases",
+      "protocol_surface_key": {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/safetyBuffering/updated"
+      },
+      "role": "notification_explicit_empty_array",
+      "schema": {
+        "file": "stable/ServerNotification.json",
+        "pointer": "#",
+        "sha256": "67669e13a8af9449da30acdbd83a6108fd54ed92b79849dee381aece1521937f"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "ca071593e0e82bb80a348ab50fd8cdbebe7d38dd4f0c980f5d535868a2b1dbc7"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 1,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 1,
+          "required_field_mutations": 8,
+          "required_locations": 8,
+          "selected_branch_optional_present_locations": 1,
+          "selected_branch_required_locations": 8,
+          "wrong_type_mutations": 8,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "44faf3642ac761ac7771000e6bfe9ed1353e9fe6505c13f297c50e852b361441",
+        "one_of_branch_indices": [
+          50
+        ]
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/notifications/server/model-verification/supplements/explicit-empty-array-verifications.json",
+      "file_sha256": "56ae24a9ea5488bba7ebd7474239e504ff436a6bf215a3d55847f8ce561e83a1",
+      "fixture_sha256": "56ae24a9ea5488bba7ebd7474239e504ff436a6bf215a3d55847f8ce561e83a1",
+      "id": "baseline:server_notification:model/verification:explicit-empty-array:verifications",
+      "protocol_surface_key": {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "model/verification"
+      },
+      "role": "notification_explicit_empty_array",
+      "schema": {
+        "file": "stable/ServerNotification.json",
+        "pointer": "#",
+        "sha256": "67669e13a8af9449da30acdbd83a6108fd54ed92b79849dee381aece1521937f"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "ded3fb7514372fd3bdb1c577541f6bb2e0030567bdb37a793bb8eb32d50e5015"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 0,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 0,
+          "required_field_mutations": 5,
+          "required_locations": 5,
+          "selected_branch_optional_present_locations": 0,
+          "selected_branch_required_locations": 5,
+          "wrong_type_mutations": 5,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "ecfd8cb79b797a2e8194095a3f9859401b7282d2f17e887c8b77b61e6a91d904",
+        "one_of_branch_indices": [
+          48
         ]
       }
     },
@@ -55347,13 +56720,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       },
       "file": "cases/operations/client/model-list/params.json",
       "file_sha256": "8d46e655b29f8924197d583a267efbb0f13a27d9299c7a58ce1e8b762917ef57",
@@ -55370,6 +56743,33 @@
         "file": "stable/v2/ModelListParams.json",
         "pointer": "#",
         "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "directions_exercised": [
+          "Encode"
+        ],
+        "nullable_null_schema_paths": [],
+        "nullable_property_schema_paths": [
+          "#/properties/cursor",
+          "#/properties/includeHidden",
+          "#/properties/limit"
+        ],
+        "nullable_value_schema_paths": [
+          "#/properties/cursor",
+          "#/properties/includeHidden",
+          "#/properties/limit"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "optional_property_schema_paths_present": [
+          "#/properties/cursor",
+          "#/properties/includeHidden",
+          "#/properties/limit"
+        ],
+        "property_schema_paths_present": [
+          "#/properties/cursor",
+          "#/properties/includeHidden",
+          "#/properties/limit"
+        ]
       },
       "validation": {
         "all_globally_optional_omissions_accepted": true,
@@ -55412,13 +56812,537 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-nullable-null-cursor.json",
+      "file_sha256": "7e7685b8ec4807b81c0650ed2dc48772159c2bfdee62bd2512676c1c3a79398e",
+      "fixture_sha256": "7e7685b8ec4807b81c0650ed2dc48772159c2bfdee62bd2512676c1c3a79398e",
+      "id": "operation:client_request:model/list:params:nullable-null:cursor",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "577106f5306705c7b655b9ec53f7b9ec030702b2ba70e1b4a18f7db69136e419"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 3,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 3,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 3,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8971559091895d333fea0956c572949989cfd5e80e878d33a6bfd1432f30d312",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-nullable-null-includehidden.json",
+      "file_sha256": "f1923859861d456ea56c569a2791c4baf2d14cbbfa8fe0a2bf089317d528b3bc",
+      "fixture_sha256": "f1923859861d456ea56c569a2791c4baf2d14cbbfa8fe0a2bf089317d528b3bc",
+      "id": "operation:client_request:model/list:params:nullable-null:includehidden",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "a936e08fb804f07a739a40b96eb2e3277e55b372415f40cab10c9b8b1d790336"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 3,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 3,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 3,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8971559091895d333fea0956c572949989cfd5e80e878d33a6bfd1432f30d312",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-nullable-null-limit.json",
+      "file_sha256": "59b5afb8b437df72d5e8681e0be8414318afa6d26260207d50be82530d55a031",
+      "fixture_sha256": "59b5afb8b437df72d5e8681e0be8414318afa6d26260207d50be82530d55a031",
+      "id": "operation:client_request:model/list:params:nullable-null:limit",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "807217dceffecca3c07c8d90c0d3200145f56d1ff6dd42979048b84bd8d5d6e4"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 3,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 3,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 3,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8971559091895d333fea0956c572949989cfd5e80e878d33a6bfd1432f30d312",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-optional-omitted-cursor.json",
+      "file_sha256": "b59378e089d559ccb0a62b681abcc8a4dbece2974603cc2d6d1e9736e3b9868d",
+      "fixture_sha256": "b59378e089d559ccb0a62b681abcc8a4dbece2974603cc2d6d1e9736e3b9868d",
+      "id": "operation:client_request:model/list:params:optional-omitted:cursor",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/properties/cursor"
+        ],
+        "schema_fixture_coverage_sha256": "99eace8472d62ed4c1d98f12dd908142a631dc0381b788f11562878518def1b7"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 2,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 2,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 2,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "afc5fe45efcc909e408ed19b4db12b66ae3299ac68c53b9aa740eb5d02363c31",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-optional-omitted-includehidden.json",
+      "file_sha256": "f7dd35855e545991d9018ffe08c633e05036b52b141c7271ff6461e4a5536ed9",
+      "fixture_sha256": "f7dd35855e545991d9018ffe08c633e05036b52b141c7271ff6461e4a5536ed9",
+      "id": "operation:client_request:model/list:params:optional-omitted:includehidden",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/properties/includeHidden"
+        ],
+        "schema_fixture_coverage_sha256": "391aaf6e1b50e423e4da4da093a083e96e31cc5638fab30d3f26c46e9a037e3a"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 2,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 2,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 2,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "db1b71c03642247866d6b426f646f10a4e4a42ad6ae62ae44b57ee1c6cdbd590",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-optional-omitted-limit.json",
+      "file_sha256": "1099798258d95b83a2dc69e690232b2f9015021aca78e313446f4c3dc49d071a",
+      "fixture_sha256": "1099798258d95b83a2dc69e690232b2f9015021aca78e313446f4c3dc49d071a",
+      "id": "operation:client_request:model/list:params:optional-omitted:limit",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/properties/limit"
+        ],
+        "schema_fixture_coverage_sha256": "51eaa6603fff465005b89aeb46df5981afa2c5c02e8b1750e4c37a855221811a"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 2,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 2,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 2,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "029f5e606b1d703519b75be9d6a0fdf156b661b1ed7f698a24aee5b7f030e056",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-uint32-maximum.json",
+      "file_sha256": "c889bc4973a10d497beda629f6e0ce8ae90c000db27d329d43e95c55e683073f",
+      "fixture_sha256": "c889bc4973a10d497beda629f6e0ce8ae90c000db27d329d43e95c55e683073f",
+      "id": "operation:client_request:model/list:params:uint32-maximum",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_numeric_boundary",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "141a96389fa5ca97bdae9bc04df784f82c0705f99318c135439ee0045157dff2"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 3,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 3,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 3,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8971559091895d333fea0956c572949989cfd5e80e878d33a6bfd1432f30d312",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-uint32-overflow.json",
+      "file_sha256": "ba5eabd9b3385e309730f7f558411a01a7a27e4d61ef0702fc90ebcb32f21ff7",
+      "fixture_sha256": "ba5eabd9b3385e309730f7f558411a01a7a27e4d61ef0702fc90ebcb32f21ff7",
+      "id": "operation:client_request:model/list:params:uint32-overflow",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_pinned_format_unrepresentable",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "typed_state_boundary": {
+        "format": "uint32",
+        "maximum_representable": 4294967295,
+        "production_diagnostic_expected": false,
+        "production_evidence": [
+          "ModelListParams::limit is OptionalNullable<std::uint32_t>",
+          "CodexA12ModelWireTest encodes uint32 maximum exactly",
+          "compile-time numeric_limits<uint32_t> ratchet"
+        ],
+        "reason": "Draft-07 format is annotative; the pinned format:uint32 value is outside the public typed state and therefore cannot produce a runtime codec diagnostic",
+        "representable": false,
+        "schema_path": "#/properties/limit"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 3,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 3,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 3,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8971559091895d333fea0956c572949989cfd5e80e878d33a6bfd1432f30d312",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/params-uint32-zero.json",
+      "file_sha256": "8d46e655b29f8924197d583a267efbb0f13a27d9299c7a58ce1e8b762917ef57",
+      "fixture_sha256": "8d46e655b29f8924197d583a267efbb0f13a27d9299c7a58ce1e8b762917ef57",
+      "id": "operation:client_request:model/list:params:uint32-zero",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_numeric_boundary",
+      "schema": {
+        "file": "stable/v2/ModelListParams.json",
+        "pointer": "#",
+        "sha256": "10ac5c0cb8ddbe840527c8eb8053dc4ced32ea3efdfb200283cadc43447f9073"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Encode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "141a96389fa5ca97bdae9bc04df784f82c0705f99318c135439ee0045157dff2"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 3,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 3,
+          "required_field_mutations": 0,
+          "required_locations": 0,
+          "selected_branch_optional_present_locations": 3,
+          "selected_branch_required_locations": 0,
+          "wrong_type_mutations": 0,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8971559091895d333fea0956c572949989cfd5e80e878d33a6bfd1432f30d312",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       },
       "file": "cases/operations/client/model-list/result.json",
       "file_sha256": "180ec93b484bb6ce274573e981464dddaf7f09eac2a06afbfe00d216ab09a361",
@@ -55435,6 +57359,77 @@
         "file": "stable/v2/ModelListResponse.json",
         "pointer": "#",
         "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_null_schema_paths": [],
+        "nullable_property_schema_paths": [
+          "#/definitions/Model/properties/availabilityNux",
+          "#/definitions/Model/properties/defaultServiceTier",
+          "#/definitions/Model/properties/upgrade",
+          "#/definitions/Model/properties/upgradeInfo",
+          "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown",
+          "#/definitions/ModelUpgradeInfo/properties/modelLink",
+          "#/definitions/ModelUpgradeInfo/properties/upgradeCopy",
+          "#/properties/nextCursor"
+        ],
+        "nullable_value_schema_paths": [
+          "#/definitions/Model/properties/availabilityNux",
+          "#/definitions/Model/properties/defaultServiceTier",
+          "#/definitions/Model/properties/upgrade",
+          "#/definitions/Model/properties/upgradeInfo",
+          "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown",
+          "#/definitions/ModelUpgradeInfo/properties/modelLink",
+          "#/definitions/ModelUpgradeInfo/properties/upgradeCopy",
+          "#/properties/nextCursor"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "optional_property_schema_paths_present": [
+          "#/definitions/Model/properties/additionalSpeedTiers",
+          "#/definitions/Model/properties/availabilityNux",
+          "#/definitions/Model/properties/defaultServiceTier",
+          "#/definitions/Model/properties/inputModalities",
+          "#/definitions/Model/properties/serviceTiers",
+          "#/definitions/Model/properties/supportsPersonality",
+          "#/definitions/Model/properties/upgrade",
+          "#/definitions/Model/properties/upgradeInfo",
+          "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown",
+          "#/definitions/ModelUpgradeInfo/properties/modelLink",
+          "#/definitions/ModelUpgradeInfo/properties/upgradeCopy",
+          "#/properties/nextCursor"
+        ],
+        "property_schema_paths_present": [
+          "#/definitions/Model/properties/additionalSpeedTiers",
+          "#/definitions/Model/properties/availabilityNux",
+          "#/definitions/Model/properties/defaultReasoningEffort",
+          "#/definitions/Model/properties/defaultServiceTier",
+          "#/definitions/Model/properties/description",
+          "#/definitions/Model/properties/displayName",
+          "#/definitions/Model/properties/hidden",
+          "#/definitions/Model/properties/id",
+          "#/definitions/Model/properties/inputModalities",
+          "#/definitions/Model/properties/isDefault",
+          "#/definitions/Model/properties/model",
+          "#/definitions/Model/properties/serviceTiers",
+          "#/definitions/Model/properties/supportedReasoningEfforts",
+          "#/definitions/Model/properties/supportsPersonality",
+          "#/definitions/Model/properties/upgrade",
+          "#/definitions/Model/properties/upgradeInfo",
+          "#/definitions/ModelAvailabilityNux/properties/message",
+          "#/definitions/ModelServiceTier/properties/description",
+          "#/definitions/ModelServiceTier/properties/id",
+          "#/definitions/ModelServiceTier/properties/name",
+          "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown",
+          "#/definitions/ModelUpgradeInfo/properties/model",
+          "#/definitions/ModelUpgradeInfo/properties/modelLink",
+          "#/definitions/ModelUpgradeInfo/properties/upgradeCopy",
+          "#/definitions/ReasoningEffortOption/properties/description",
+          "#/definitions/ReasoningEffortOption/properties/reasoningEffort",
+          "#/properties/data",
+          "#/properties/nextCursor"
+        ]
       },
       "validation": {
         "all_globally_optional_omissions_accepted": true,
@@ -55771,13 +57766,1291 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-explicit-empty-array-data.json",
+      "file_sha256": "916d3f282557c83b617ed4772b8e3e770cec9b030b7c51f5888e57a76dbdf426",
+      "fixture_sha256": "916d3f282557c83b617ed4772b8e3e770cec9b030b7c51f5888e57a76dbdf426",
+      "id": "operation:client_request:model/list:result:explicit-empty-array:data",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_explicit_empty_array",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "76d65480730ae8b1813e0e22488af168749c57999e8cd12485b291a74f183aa7"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 1,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 1,
+          "required_field_mutations": 1,
+          "required_locations": 1,
+          "selected_branch_optional_present_locations": 1,
+          "selected_branch_required_locations": 1,
+          "wrong_type_mutations": 1,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "05964d22b48bbf38b60bc4195444d869ef92f66ef64378f31cc00f33a1cc66c6",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-explicit-empty-array-model-collections.json",
+      "file_sha256": "c6b7a3b3ceeb322afbfb9325adc52777fbf0bad166dd86102f69413169934c42",
+      "fixture_sha256": "c6b7a3b3ceeb322afbfb9325adc52777fbf0bad166dd86102f69413169934c42",
+      "id": "operation:client_request:model/list:result:explicit-empty-array:model-collections",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_explicit_empty_array",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "bf64fb5edd01d6b26f1ce58157ed3ea8c6527a18221b649bb4ae170cff50a265"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 11,
+          "required_locations": 11,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 11,
+          "wrong_type_mutations": 11,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "a31b3eb9590a9d58cf3720e8d71314ad9803838477b6a529915ee20c78437caf",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-data-0-availabilitynux.json",
+      "file_sha256": "557117d141410a9afe5befc93db6cf948d69189cac83fac373b66eaae44c1c31",
+      "fixture_sha256": "557117d141410a9afe5befc93db6cf948d69189cac83fac373b66eaae44c1c31",
+      "id": "operation:client_request:model/list:result:nullable-null:data-0-availabilitynux",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "19b7648a5c0d63c5de6a15672d06c8e03bad07863b003bd9d958b058816658d5"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 15,
+          "required_locations": 15,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 15,
+          "wrong_type_mutations": 15,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "193a28b92450d5604bd011551a28730ad4be311809a5ef225ec723eedf2abb47",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-data-0-defaultservicetier.json",
+      "file_sha256": "d730778f3db3acdc221c87e93ebe3685d84667b0f9db1c7354f2c5d6ab275c3d",
+      "fixture_sha256": "d730778f3db3acdc221c87e93ebe3685d84667b0f9db1c7354f2c5d6ab275c3d",
+      "id": "operation:client_request:model/list:result:nullable-null:data-0-defaultservicetier",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "6b7e6bbaf9496e3be5154708a1f5ee1bddeacd73ecd1ade8ad36d8e0c122d4f9"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8c035c9ff81ca816284c02c94690f76f48d78148d04f6d1fd74819fbb809297a",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-data-0-upgrade.json",
+      "file_sha256": "09ab0abad5e39be5397e454685f5742529388d73636dd0ef0280beffdeeaab1d",
+      "fixture_sha256": "09ab0abad5e39be5397e454685f5742529388d73636dd0ef0280beffdeeaab1d",
+      "id": "operation:client_request:model/list:result:nullable-null:data-0-upgrade",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "fefc60c526cfc823a067dd3a7960d927d2170b4e0a757fc2bfedd27cb03b4434"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8c035c9ff81ca816284c02c94690f76f48d78148d04f6d1fd74819fbb809297a",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-data-0-upgradeinfo.json",
+      "file_sha256": "f76a693b2fd9bd79410ab36fb6efe7478d5136371240109be0e6d8796001025c",
+      "fixture_sha256": "f76a693b2fd9bd79410ab36fb6efe7478d5136371240109be0e6d8796001025c",
+      "id": "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "966458938594126add549dee15e65fac9ff86e8ab6be2c7b928a39a7cb510008"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 9,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 9,
+          "required_field_mutations": 15,
+          "required_locations": 15,
+          "selected_branch_optional_present_locations": 9,
+          "selected_branch_required_locations": 15,
+          "wrong_type_mutations": 15,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "863665a0c63f361de303c843feb9db6d7ca9ee58e1420ba925a4982fd2b69cec",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-data-0-upgradeinfo-migrationmarkdown.json",
+      "file_sha256": "fbdf50a2e2ab0aaccd1b5f83ef561133351540cc1b1f679269baf22707a782be",
+      "fixture_sha256": "fbdf50a2e2ab0aaccd1b5f83ef561133351540cc1b1f679269baf22707a782be",
+      "id": "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-migrationmarkdown",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "8ddae24a5fb6f7e8b81c94474dd50e5f8584dd2bcdc50ab00483044944a860f8"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8c035c9ff81ca816284c02c94690f76f48d78148d04f6d1fd74819fbb809297a",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-data-0-upgradeinfo-modellink.json",
+      "file_sha256": "3b2bb9b41f60c3293fde733f1d916c1ea04ab9edeb172c8e5d4aa9f048ed2751",
+      "fixture_sha256": "3b2bb9b41f60c3293fde733f1d916c1ea04ab9edeb172c8e5d4aa9f048ed2751",
+      "id": "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-modellink",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "4466133fef681569c388a5eb5fb908b2661a959803752a26fa9dd61db8257e5e"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8c035c9ff81ca816284c02c94690f76f48d78148d04f6d1fd74819fbb809297a",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-data-0-upgradeinfo-upgradecopy.json",
+      "file_sha256": "52341c559eb03dce673d4814975c5b9000945daf70c87b9ae5efdec2705ecea7",
+      "fixture_sha256": "52341c559eb03dce673d4814975c5b9000945daf70c87b9ae5efdec2705ecea7",
+      "id": "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-upgradecopy",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "35fdff340e51d60abe638bbe478a1e5bd2a926188e49dd14fc0cf3540f4045b5"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8c035c9ff81ca816284c02c94690f76f48d78148d04f6d1fd74819fbb809297a",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-nullable-null-nextcursor.json",
+      "file_sha256": "768a634df223e34bad4059acf2d898e1bd0e0e6d2d8fb8bf2847a807ddc14412",
+      "fixture_sha256": "768a634df223e34bad4059acf2d898e1bd0e0e6d2d8fb8bf2847a807ddc14412",
+      "id": "operation:client_request:model/list:result:nullable-null:nextcursor",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_nullable_null",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [],
+        "schema_fixture_coverage_sha256": "08beb72a1f01f29081907fd8c038a3e88cab31c446dad47790130417f8c72d40"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 12,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 12,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 12,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "8c035c9ff81ca816284c02c94690f76f48d78148d04f6d1fd74819fbb809297a",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-additionalspeedtiers.json",
+      "file_sha256": "5f1e7a09b03f5fc3ea1252e41310d5a2e3ac4d493e1d8b6fc9f87804410a0a07",
+      "fixture_sha256": "5f1e7a09b03f5fc3ea1252e41310d5a2e3ac4d493e1d8b6fc9f87804410a0a07",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-additionalspeedtiers",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/additionalSpeedTiers"
+        ],
+        "schema_fixture_coverage_sha256": "548130eb6e3c35cfba1e1b06fe37e59adc7f5f45acfea2c9b4587c34d8bd8619"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "291afeac92ef770c4152192f4feb7c6e66b2833d51243d8a10f3705fd838d702",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-availabilitynux.json",
+      "file_sha256": "9accad94399d3cec8b6b64994ef85a6f9cefe436abcf25cb9d1b8b935504c3a1",
+      "fixture_sha256": "9accad94399d3cec8b6b64994ef85a6f9cefe436abcf25cb9d1b8b935504c3a1",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-availabilitynux",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/availabilityNux"
+        ],
+        "schema_fixture_coverage_sha256": "63d417f169eeb7ff392bb64561c46fe9cfc93a1cbee5f142079e4dfc8d14cdce"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 15,
+          "required_locations": 15,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 15,
+          "wrong_type_mutations": 15,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "b665d18f41832eb8bc3b5b7ead91f9fd7f0beaaedf510d3ab7cee66926006f3e",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-defaultservicetier.json",
+      "file_sha256": "6a6300c79c988bfd5e2ccd8c9fa4650127e11e28fa4e6beb587bbf255b6de34e",
+      "fixture_sha256": "6a6300c79c988bfd5e2ccd8c9fa4650127e11e28fa4e6beb587bbf255b6de34e",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-defaultservicetier",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/defaultServiceTier"
+        ],
+        "schema_fixture_coverage_sha256": "895ca80be9f31ce186c4166a6a0d0871ad4cb02150277a825721013de639b74a"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "5ac37633f1fd053d024809815afe93aaf4d99677db2db9238edb1a5ae2fafea8",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-inputmodalities.json",
+      "file_sha256": "2125784473b06d09dd19a9bd39a6f77c2178e9f2b4cc3aa3f7071e2a458ea44e",
+      "fixture_sha256": "2125784473b06d09dd19a9bd39a6f77c2178e9f2b4cc3aa3f7071e2a458ea44e",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-inputmodalities",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/inputModalities"
+        ],
+        "schema_fixture_coverage_sha256": "6d4e11b6ccc19e5f3ea3bccd825ca04a80ec41b257228809076ce0ba56404063"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "1720b38c26288a60690a04e105161afe425ab4c0f348465fe50dbe98d0538c9e",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-servicetiers.json",
+      "file_sha256": "92ef48e06a1d50d1bb88a248d3e9072a132593e956f91998fef9b4e84535ab15",
+      "fixture_sha256": "92ef48e06a1d50d1bb88a248d3e9072a132593e956f91998fef9b4e84535ab15",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-servicetiers",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/serviceTiers"
+        ],
+        "schema_fixture_coverage_sha256": "f089aecfd48773d6099858f6d227b580b9ef89e80076702a14b7a6fe437fcc71"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 13,
+          "required_locations": 13,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 13,
+          "wrong_type_mutations": 13,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "ce58315c772b3e5cea2ae37a8070e413e8d8e15c055db4f6cc8e21330b50227d",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-supportspersonality.json",
+      "file_sha256": "f20e5a60331efb62fdab280772befa340b7b4f4dc5b5b9d0f3c7f6c759146cd2",
+      "fixture_sha256": "f20e5a60331efb62fdab280772befa340b7b4f4dc5b5b9d0f3c7f6c759146cd2",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-supportspersonality",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/supportsPersonality"
+        ],
+        "schema_fixture_coverage_sha256": "0e81c8e7d4421b3fe87ea9890798c43ffe6105f1597f02492660c34781e225c9"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "4558ad9f5f5eee180e30aa4a7f1ce937198e48c8279584915fb2c261ba8c8f13",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-upgrade.json",
+      "file_sha256": "2f51d6c4b2157220baed37b968974c9fcac51799ee6d1a4582465a09bd455355",
+      "fixture_sha256": "2f51d6c4b2157220baed37b968974c9fcac51799ee6d1a4582465a09bd455355",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-upgrade",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/upgrade"
+        ],
+        "schema_fixture_coverage_sha256": "e86cf4143a5b4cb717dfb2ef05aefb3223d84e21fab9cafea9b416a566872dfc"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "e5dacfd3906116f480f24ae57ae4d8d9bb05beaf8898d3e513dd709e3de77304",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-upgradeinfo.json",
+      "file_sha256": "72d1ebfaec0cfcfffdbdc78d0281a0bdc3a865901be2b267cce73f226e674139",
+      "fixture_sha256": "72d1ebfaec0cfcfffdbdc78d0281a0bdc3a865901be2b267cce73f226e674139",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/Model/properties/upgradeInfo"
+        ],
+        "schema_fixture_coverage_sha256": "2e4fd330f6f6a2de3d5d9d88c96e7d34c12c6a1e4bf7bb593d8d582a10b12a91"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 8,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 8,
+          "required_field_mutations": 15,
+          "required_locations": 15,
+          "selected_branch_optional_present_locations": 8,
+          "selected_branch_required_locations": 15,
+          "wrong_type_mutations": 15,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "e74ea616a09ca77bb9ee225dc1e81a79b0f1085eae542464a918dbe5435860c3",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-upgradeinfo-migrationmarkdown.json",
+      "file_sha256": "7edd534a82917ff0593a3a3b7aca12512ead157f116a7112c7d5be583b57be8f",
+      "fixture_sha256": "7edd534a82917ff0593a3a3b7aca12512ead157f116a7112c7d5be583b57be8f",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-migrationmarkdown",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/ModelUpgradeInfo/properties/migrationMarkdown"
+        ],
+        "schema_fixture_coverage_sha256": "56e625ba3a3de3e592d943f2fe09ba22584d3baf8e66a0284b1820e11175fe9f"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "02448bfeeaf51d80603279493246dca29e4c5a987f8634f1273ee5a59bffed23",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-upgradeinfo-modellink.json",
+      "file_sha256": "ab4fc190823c90486284704a5f2cdad417e270193675edcca5e657bdeaae71af",
+      "fixture_sha256": "ab4fc190823c90486284704a5f2cdad417e270193675edcca5e657bdeaae71af",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-modellink",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/ModelUpgradeInfo/properties/modelLink"
+        ],
+        "schema_fixture_coverage_sha256": "c12a4a8d634fc6fb9a0034dc113ef08d470ca5c77ae4271247f0302d6e8cd106"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "f491da37efe3993f47408f419ade2501d9f33b3e2f2b1ceee7e149f5380fba7c",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-data-0-upgradeinfo-upgradecopy.json",
+      "file_sha256": "d300d3f5a028838cad6b658df9b423838d7f5592787951237d3167df20810252",
+      "fixture_sha256": "d300d3f5a028838cad6b658df9b423838d7f5592787951237d3167df20810252",
+      "id": "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-upgradecopy",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/definitions/ModelUpgradeInfo/properties/upgradeCopy"
+        ],
+        "schema_fixture_coverage_sha256": "5e261bea9e52283e22e1c31d06617dc551a69ea91204e4df7b31c85fc0aa44d7"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "2eb1a3725e3d57f71c001980ca686e89bd1eb98f7e25193063db4045d6482f62",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
+      },
+      "file": "cases/operations/client/model-list/supplements/result-optional-omitted-nextcursor.json",
+      "file_sha256": "b4be79eb2f83c449965cedac4f6ab12f785182ec55e24b6b551e1d24c4b50f45",
+      "fixture_sha256": "b4be79eb2f83c449965cedac4f6ab12f785182ec55e24b6b551e1d24c4b50f45",
+      "id": "operation:client_request:model/list:result:optional-omitted:nextcursor",
+      "protocol_surface_key": {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "model/list"
+      },
+      "role": "operation_optional_omitted",
+      "schema": {
+        "file": "stable/v2/ModelListResponse.json",
+        "pointer": "#",
+        "sha256": "59039842824f56f4fbdf0379b54a940986fca63e1f4577493d2498005dcbafe9"
+      },
+      "schema_fixture_coverage": {
+        "compact_schema_fixture_coverage": true,
+        "directions_exercised": [
+          "Decode"
+        ],
+        "optional_property_schema_paths_omitted": [
+          "#/properties/nextCursor"
+        ],
+        "schema_fixture_coverage_sha256": "a230f4c5e881c940e750b85ece7be698869f46001649770b38bed31b28e653eb"
+      },
+      "validation": {
+        "compact_mutation_evidence": true,
+        "independent": true,
+        "mutation_counts": {
+          "alternative_branch_acceptances": 0,
+          "globally_optional_present_locations": 11,
+          "optional_not_globally_optional_locations": 0,
+          "optional_omission_mutations": 11,
+          "required_field_mutations": 16,
+          "required_locations": 16,
+          "selected_branch_optional_present_locations": 11,
+          "selected_branch_required_locations": 16,
+          "wrong_type_mutations": 16,
+          "wrong_type_unconstrained_exclusions": 0
+        },
+        "mutation_evidence_sha256": "46a25dc556b1ba9c8f14bf17673608ef28388bbf5803c47030b0e41f5ccb97c5",
+        "one_of_branch_indices": []
+      }
+    },
+    {
+      "a1_slice": "A1.2",
+      "completeness_evidence": {
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       },
       "file": "cases/operations/client/modelprovider-capabilities-read/params.json",
       "file_sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
@@ -55794,6 +59067,17 @@
         "file": "stable/v2/ModelProviderCapabilitiesReadParams.json",
         "pointer": "#",
         "sha256": "9db732188a15476cabb42cf05e495ae0803a1ada993fca7348c21c30a998388d"
+      },
+      "schema_fixture_coverage": {
+        "directions_exercised": [
+          "Encode"
+        ],
+        "nullable_null_schema_paths": [],
+        "nullable_property_schema_paths": [],
+        "nullable_value_schema_paths": [],
+        "optional_property_schema_paths_omitted": [],
+        "optional_property_schema_paths_present": [],
+        "property_schema_paths_present": []
       },
       "validation": {
         "all_globally_optional_omissions_accepted": true,
@@ -55823,13 +59107,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       },
       "file": "cases/operations/client/modelprovider-capabilities-read/result.json",
       "file_sha256": "c850fdbe8fe50b44450bb7fb76cc6dff8b503c98259f464806310f26a2c857c0",
@@ -55846,6 +59130,21 @@
         "file": "stable/v2/ModelProviderCapabilitiesReadResponse.json",
         "pointer": "#",
         "sha256": "e5e93e7d50e0f7c2c640ffe4d53107b97e36943680504184932fcfab4c132e71"
+      },
+      "schema_fixture_coverage": {
+        "directions_exercised": [
+          "Decode"
+        ],
+        "nullable_null_schema_paths": [],
+        "nullable_property_schema_paths": [],
+        "nullable_value_schema_paths": [],
+        "optional_property_schema_paths_omitted": [],
+        "optional_property_schema_paths_present": [],
+        "property_schema_paths_present": [
+          "#/properties/imageGeneration",
+          "#/properties/namespaceTools",
+          "#/properties/webSearch"
+        ]
       },
       "validation": {
         "all_globally_optional_omissions_accepted": true,
@@ -174231,45 +177530,79 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       },
       "fixture_current": true,
       "fixture_ids": [
         "operation:client_request:model/list:params",
-        "operation:client_request:model/list:result"
+        "operation:client_request:model/list:params:nullable-null:cursor",
+        "operation:client_request:model/list:params:nullable-null:includehidden",
+        "operation:client_request:model/list:params:nullable-null:limit",
+        "operation:client_request:model/list:params:optional-omitted:cursor",
+        "operation:client_request:model/list:params:optional-omitted:includehidden",
+        "operation:client_request:model/list:params:optional-omitted:limit",
+        "operation:client_request:model/list:params:uint32-maximum",
+        "operation:client_request:model/list:params:uint32-overflow",
+        "operation:client_request:model/list:params:uint32-zero",
+        "operation:client_request:model/list:result",
+        "operation:client_request:model/list:result:explicit-empty-array:data",
+        "operation:client_request:model/list:result:explicit-empty-array:model-collections",
+        "operation:client_request:model/list:result:nullable-null:data-0-availabilitynux",
+        "operation:client_request:model/list:result:nullable-null:data-0-defaultservicetier",
+        "operation:client_request:model/list:result:nullable-null:data-0-upgrade",
+        "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo",
+        "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-migrationmarkdown",
+        "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-modellink",
+        "operation:client_request:model/list:result:nullable-null:data-0-upgradeinfo-upgradecopy",
+        "operation:client_request:model/list:result:nullable-null:nextcursor",
+        "operation:client_request:model/list:result:optional-omitted:data-0-additionalspeedtiers",
+        "operation:client_request:model/list:result:optional-omitted:data-0-availabilitynux",
+        "operation:client_request:model/list:result:optional-omitted:data-0-defaultservicetier",
+        "operation:client_request:model/list:result:optional-omitted:data-0-inputmodalities",
+        "operation:client_request:model/list:result:optional-omitted:data-0-servicetiers",
+        "operation:client_request:model/list:result:optional-omitted:data-0-supportspersonality",
+        "operation:client_request:model/list:result:optional-omitted:data-0-upgrade",
+        "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo",
+        "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-migrationmarkdown",
+        "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-modellink",
+        "operation:client_request:model/list:result:optional-omitted:data-0-upgradeinfo-upgradecopy",
+        "operation:client_request:model/list:result:optional-omitted:nextcursor"
       ],
       "independently_schema_validated": true,
-      "optional_omission_mutations": 15,
-      "positive_fixture_count": 2,
+      "optional_omission_mutations": 274,
+      "positive_fixture_count": 33,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
         "domain": "ClientRequest",
         "name": "model/list"
       },
-      "required_field_mutations": 16,
-      "schema_direction_coverage": false,
-      "schema_directions_exercised": [],
-      "wrong_type_mutations": 16
+      "required_field_mutations": 341,
+      "schema_direction_coverage": true,
+      "schema_directions_exercised": [
+        "Decode",
+        "Encode"
+      ],
+      "wrong_type_mutations": 341
     },
     {
       "completeness_evidence": {
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       },
       "fixture_current": true,
       "fixture_ids": [
@@ -174286,8 +177619,11 @@
         "name": "modelProvider/capabilities/read"
       },
       "required_field_mutations": 3,
-      "schema_direction_coverage": false,
-      "schema_directions_exercised": [],
+      "schema_direction_coverage": true,
+      "schema_directions_exercised": [
+        "Decode",
+        "Encode"
+      ],
       "wrong_type_mutations": 3
     },
     {
@@ -179383,13 +182719,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       },
       "fixture_current": true,
       "fixture_ids": [
@@ -179405,67 +182741,81 @@
         "name": "model/rerouted"
       },
       "required_field_mutations": 7,
-      "schema_direction_coverage": false,
-      "schema_directions_exercised": [],
+      "schema_direction_coverage": true,
+      "schema_directions_exercised": [
+        "Decode"
+      ],
       "wrong_type_mutations": 7
     },
     {
       "completeness_evidence": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       },
-      "fixture_current": false,
-      "fixture_ids": [],
-      "independently_schema_validated": false,
-      "optional_omission_mutations": 0,
-      "positive_fixture_count": 0,
+      "fixture_current": true,
+      "fixture_ids": [
+        "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated",
+        "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:nullable-null:params-fastermodel",
+        "baseline:server_notification:ServerNotification:method:model/safetyBuffering/updated:optional-omitted:params-fastermodel",
+        "baseline:server_notification:model/safetyBuffering/updated:explicit-empty-array:reasons-use-cases"
+      ],
+      "independently_schema_validated": true,
+      "optional_omission_mutations": 3,
+      "positive_fixture_count": 4,
       "protocol_surface_key": {
         "category": "server_notification",
         "discriminator_field": "method",
         "domain": "ServerNotification",
         "name": "model/safetyBuffering/updated"
       },
-      "required_field_mutations": 0,
-      "schema_direction_coverage": false,
-      "schema_directions_exercised": [],
-      "wrong_type_mutations": 0
+      "required_field_mutations": 32,
+      "schema_direction_coverage": true,
+      "schema_directions_exercised": [
+        "Decode"
+      ],
+      "wrong_type_mutations": 32
     },
     {
       "completeness_evidence": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       },
-      "fixture_current": false,
-      "fixture_ids": [],
-      "independently_schema_validated": false,
+      "fixture_current": true,
+      "fixture_ids": [
+        "baseline:server_notification:ServerNotification:method:model/verification",
+        "baseline:server_notification:model/verification:explicit-empty-array:verifications"
+      ],
+      "independently_schema_validated": true,
       "optional_omission_mutations": 0,
-      "positive_fixture_count": 0,
+      "positive_fixture_count": 2,
       "protocol_surface_key": {
         "category": "server_notification",
         "discriminator_field": "method",
         "domain": "ServerNotification",
         "name": "model/verification"
       },
-      "required_field_mutations": 0,
-      "schema_direction_coverage": false,
-      "schema_directions_exercised": [],
-      "wrong_type_mutations": 0
+      "required_field_mutations": 10,
+      "schema_direction_coverage": true,
+      "schema_directions_exercised": [
+        "Decode"
+      ],
+      "wrong_type_mutations": 10
     },
     {
       "completeness_evidence": {
@@ -185779,7 +189129,7 @@
   ],
   "sources": {
     "experimental_schema_aggregate_sha256": "4a0ef96787255364d99b15fe40fcfd6227901978d0cddc8b20340bfef98a0d1b",
-    "generator_sha256": "ab835afdcf57a27d9a6e4fae95d413537cd1942fca0ac394764fbc8b718aab22",
+    "generator_sha256": "b0ff8b2fe6a5936f3d53ab3c1f88239f479cc209753cd223f204f5523d95861d",
     "operation_contracts_sha256": "226c552c5602301966c39539bbf466f345d4aa625e06d6ca603a9dbcd25e3a9e",
     "stable_schema_aggregate_sha256": "cee1ac3bcaf95e5fcdcf07499c7e6b00fc423b90c670ea3380f1799434b72add",
     "surface_manifest_sha256": "b975aa514fd951161cc68eb26aac2b291b894afb62fd6cc3982bfeacf56a7021",
