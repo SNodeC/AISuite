@@ -104,7 +104,7 @@
       "conflicting_discriminator_applicable": 4,
       "conflicting_discriminator_cases": 151,
       "conflicting_discriminator_not_applicable": 147,
-      "current_a1_1_positive_records": 426,
+      "current_a1_1_positive_records": 980,
       "future_discriminator_applicable": 151,
       "future_discriminator_cases": 151,
       "future_discriminator_not_applicable": 0,
@@ -129,7 +129,7 @@
       "optional_field_omission_applicable": 477,
       "optional_field_omission_cases": 477,
       "optional_field_omission_not_applicable": 0,
-      "planned_positive_fixtures": 41,
+      "planned_positive_fixtures": 25,
       "required_field_removal_applicable": 810,
       "required_field_removal_cases": 810,
       "required_field_removal_not_applicable": 0,
@@ -1813,7 +1813,80 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:thread/fork:params",
-        "operation:client_request:thread/fork:result"
+        "operation:client_request:thread/fork:params:nullable-null:approvalpolicy",
+        "operation:client_request:thread/fork:params:nullable-null:approvalsreviewer",
+        "operation:client_request:thread/fork:params:nullable-null:baseinstructions",
+        "operation:client_request:thread/fork:params:nullable-null:config",
+        "operation:client_request:thread/fork:params:nullable-null:cwd",
+        "operation:client_request:thread/fork:params:nullable-null:developerinstructions",
+        "operation:client_request:thread/fork:params:nullable-null:lastturnid",
+        "operation:client_request:thread/fork:params:nullable-null:model",
+        "operation:client_request:thread/fork:params:nullable-null:modelprovider",
+        "operation:client_request:thread/fork:params:nullable-null:sandbox",
+        "operation:client_request:thread/fork:params:nullable-null:servicetier",
+        "operation:client_request:thread/fork:params:nullable-null:threadsource",
+        "operation:client_request:thread/fork:params:opaque-config-map-value",
+        "operation:client_request:thread/fork:params:optional-omitted:approvalpolicy",
+        "operation:client_request:thread/fork:params:optional-omitted:approvalsreviewer",
+        "operation:client_request:thread/fork:params:optional-omitted:baseinstructions",
+        "operation:client_request:thread/fork:params:optional-omitted:config",
+        "operation:client_request:thread/fork:params:optional-omitted:cwd",
+        "operation:client_request:thread/fork:params:optional-omitted:developerinstructions",
+        "operation:client_request:thread/fork:params:optional-omitted:ephemeral",
+        "operation:client_request:thread/fork:params:optional-omitted:lastturnid",
+        "operation:client_request:thread/fork:params:optional-omitted:model",
+        "operation:client_request:thread/fork:params:optional-omitted:modelprovider",
+        "operation:client_request:thread/fork:params:optional-omitted:sandbox",
+        "operation:client_request:thread/fork:params:optional-omitted:servicetier",
+        "operation:client_request:thread/fork:params:optional-omitted:threadsource",
+        "operation:client_request:thread/fork:result",
+        "operation:client_request:thread/fork:result:nullable-null:reasoningeffort",
+        "operation:client_request:thread/fork:result:nullable-null:servicetier",
+        "operation:client_request:thread/fork:result:nullable-null:thread-agentnickname",
+        "operation:client_request:thread/fork:result:nullable-null:thread-agentrole",
+        "operation:client_request:thread/fork:result:nullable-null:thread-forkedfromid",
+        "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo",
+        "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo-branch",
+        "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo-originurl",
+        "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo-sha",
+        "operation:client_request:thread/fork:result:nullable-null:thread-name",
+        "operation:client_request:thread/fork:result:nullable-null:thread-parentthreadid",
+        "operation:client_request:thread/fork:result:nullable-null:thread-path",
+        "operation:client_request:thread/fork:result:nullable-null:thread-recencyat",
+        "operation:client_request:thread/fork:result:nullable-null:thread-threadsource",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-completedat",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-durationms",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-error",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-startedat",
+        "operation:client_request:thread/fork:result:optional-omitted:instructionsources",
+        "operation:client_request:thread/fork:result:optional-omitted:reasoningeffort",
+        "operation:client_request:thread/fork:result:optional-omitted:servicetier",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-agentnickname",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-agentrole",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-forkedfromid",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo-branch",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo-originurl",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo-sha",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-name",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-parentthreadid",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-path",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-recencyat",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-threadsource",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-completedat",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-durationms",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-error",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-itemsview",
+        "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-startedat"
       ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "Deferred",
@@ -5071,7 +5144,80 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:thread/fork:params",
-          "operation:client_request:thread/fork:result"
+          "operation:client_request:thread/fork:params:nullable-null:approvalpolicy",
+          "operation:client_request:thread/fork:params:nullable-null:approvalsreviewer",
+          "operation:client_request:thread/fork:params:nullable-null:baseinstructions",
+          "operation:client_request:thread/fork:params:nullable-null:config",
+          "operation:client_request:thread/fork:params:nullable-null:cwd",
+          "operation:client_request:thread/fork:params:nullable-null:developerinstructions",
+          "operation:client_request:thread/fork:params:nullable-null:lastturnid",
+          "operation:client_request:thread/fork:params:nullable-null:model",
+          "operation:client_request:thread/fork:params:nullable-null:modelprovider",
+          "operation:client_request:thread/fork:params:nullable-null:sandbox",
+          "operation:client_request:thread/fork:params:nullable-null:servicetier",
+          "operation:client_request:thread/fork:params:nullable-null:threadsource",
+          "operation:client_request:thread/fork:params:opaque-config-map-value",
+          "operation:client_request:thread/fork:params:optional-omitted:approvalpolicy",
+          "operation:client_request:thread/fork:params:optional-omitted:approvalsreviewer",
+          "operation:client_request:thread/fork:params:optional-omitted:baseinstructions",
+          "operation:client_request:thread/fork:params:optional-omitted:config",
+          "operation:client_request:thread/fork:params:optional-omitted:cwd",
+          "operation:client_request:thread/fork:params:optional-omitted:developerinstructions",
+          "operation:client_request:thread/fork:params:optional-omitted:ephemeral",
+          "operation:client_request:thread/fork:params:optional-omitted:lastturnid",
+          "operation:client_request:thread/fork:params:optional-omitted:model",
+          "operation:client_request:thread/fork:params:optional-omitted:modelprovider",
+          "operation:client_request:thread/fork:params:optional-omitted:sandbox",
+          "operation:client_request:thread/fork:params:optional-omitted:servicetier",
+          "operation:client_request:thread/fork:params:optional-omitted:threadsource",
+          "operation:client_request:thread/fork:result",
+          "operation:client_request:thread/fork:result:nullable-null:reasoningeffort",
+          "operation:client_request:thread/fork:result:nullable-null:servicetier",
+          "operation:client_request:thread/fork:result:nullable-null:thread-agentnickname",
+          "operation:client_request:thread/fork:result:nullable-null:thread-agentrole",
+          "operation:client_request:thread/fork:result:nullable-null:thread-forkedfromid",
+          "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo",
+          "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo-branch",
+          "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo-originurl",
+          "operation:client_request:thread/fork:result:nullable-null:thread-gitinfo-sha",
+          "operation:client_request:thread/fork:result:nullable-null:thread-name",
+          "operation:client_request:thread/fork:result:nullable-null:thread-parentthreadid",
+          "operation:client_request:thread/fork:result:nullable-null:thread-path",
+          "operation:client_request:thread/fork:result:nullable-null:thread-recencyat",
+          "operation:client_request:thread/fork:result:nullable-null:thread-threadsource",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-completedat",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-durationms",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-error",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/fork:result:nullable-null:thread-turns-0-startedat",
+          "operation:client_request:thread/fork:result:optional-omitted:instructionsources",
+          "operation:client_request:thread/fork:result:optional-omitted:reasoningeffort",
+          "operation:client_request:thread/fork:result:optional-omitted:servicetier",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-agentnickname",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-agentrole",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-forkedfromid",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo-branch",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo-originurl",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-gitinfo-sha",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-name",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-parentthreadid",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-path",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-recencyat",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-threadsource",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-completedat",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-durationms",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-error",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-itemsview",
+          "operation:client_request:thread/fork:result:optional-omitted:thread-turns-0-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -5362,7 +5508,11 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:thread/goal/get:params",
-        "operation:client_request:thread/goal/get:result"
+        "operation:client_request:thread/goal/get:result",
+        "operation:client_request:thread/goal/get:result:nullable-null:goal",
+        "operation:client_request:thread/goal/get:result:nullable-null:goal-tokenbudget",
+        "operation:client_request:thread/goal/get:result:optional-omitted:goal",
+        "operation:client_request:thread/goal/get:result:optional-omitted:goal-tokenbudget"
       ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "Deferred",
@@ -5893,7 +6043,11 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:thread/goal/get:params",
-          "operation:client_request:thread/goal/get:result"
+          "operation:client_request:thread/goal/get:result",
+          "operation:client_request:thread/goal/get:result:nullable-null:goal",
+          "operation:client_request:thread/goal/get:result:nullable-null:goal-tokenbudget",
+          "operation:client_request:thread/goal/get:result:optional-omitted:goal",
+          "operation:client_request:thread/goal/get:result:optional-omitted:goal-tokenbudget"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -5930,7 +6084,15 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:thread/goal/set:params",
-        "operation:client_request:thread/goal/set:result"
+        "operation:client_request:thread/goal/set:params:nullable-null:objective",
+        "operation:client_request:thread/goal/set:params:nullable-null:status",
+        "operation:client_request:thread/goal/set:params:nullable-null:tokenbudget",
+        "operation:client_request:thread/goal/set:params:optional-omitted:objective",
+        "operation:client_request:thread/goal/set:params:optional-omitted:status",
+        "operation:client_request:thread/goal/set:params:optional-omitted:tokenbudget",
+        "operation:client_request:thread/goal/set:result",
+        "operation:client_request:thread/goal/set:result:nullable-null:goal-tokenbudget",
+        "operation:client_request:thread/goal/set:result:optional-omitted:goal-tokenbudget"
       ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "Deferred",
@@ -6620,7 +6782,15 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:thread/goal/set:params",
-          "operation:client_request:thread/goal/set:result"
+          "operation:client_request:thread/goal/set:params:nullable-null:objective",
+          "operation:client_request:thread/goal/set:params:nullable-null:status",
+          "operation:client_request:thread/goal/set:params:nullable-null:tokenbudget",
+          "operation:client_request:thread/goal/set:params:optional-omitted:objective",
+          "operation:client_request:thread/goal/set:params:optional-omitted:status",
+          "operation:client_request:thread/goal/set:params:optional-omitted:tokenbudget",
+          "operation:client_request:thread/goal/set:result",
+          "operation:client_request:thread/goal/set:result:nullable-null:goal-tokenbudget",
+          "operation:client_request:thread/goal/set:result:optional-omitted:goal-tokenbudget"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -6916,7 +7086,72 @@
       "current_fixture_ids": [
         "baseline:client_request:ClientRequest:method:thread/list",
         "operation:client_request:thread/list:params",
-        "operation:client_request:thread/list:result"
+        "operation:client_request:thread/list:params:nullable-null:archived",
+        "operation:client_request:thread/list:params:nullable-null:cursor",
+        "operation:client_request:thread/list:params:nullable-null:cwd",
+        "operation:client_request:thread/list:params:nullable-null:limit",
+        "operation:client_request:thread/list:params:nullable-null:modelproviders",
+        "operation:client_request:thread/list:params:nullable-null:searchterm",
+        "operation:client_request:thread/list:params:nullable-null:sortdirection",
+        "operation:client_request:thread/list:params:nullable-null:sortkey",
+        "operation:client_request:thread/list:params:nullable-null:sourcekinds",
+        "operation:client_request:thread/list:params:optional-omitted:archived",
+        "operation:client_request:thread/list:params:optional-omitted:cursor",
+        "operation:client_request:thread/list:params:optional-omitted:cwd",
+        "operation:client_request:thread/list:params:optional-omitted:limit",
+        "operation:client_request:thread/list:params:optional-omitted:modelproviders",
+        "operation:client_request:thread/list:params:optional-omitted:searchterm",
+        "operation:client_request:thread/list:params:optional-omitted:sortdirection",
+        "operation:client_request:thread/list:params:optional-omitted:sortkey",
+        "operation:client_request:thread/list:params:optional-omitted:sourcekinds",
+        "operation:client_request:thread/list:params:optional-omitted:usestatedbonly",
+        "operation:client_request:thread/list:result",
+        "operation:client_request:thread/list:result:nullable-null:backwardscursor",
+        "operation:client_request:thread/list:result:nullable-null:data-0-agentnickname",
+        "operation:client_request:thread/list:result:nullable-null:data-0-agentrole",
+        "operation:client_request:thread/list:result:nullable-null:data-0-forkedfromid",
+        "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo",
+        "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo-branch",
+        "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo-originurl",
+        "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo-sha",
+        "operation:client_request:thread/list:result:nullable-null:data-0-name",
+        "operation:client_request:thread/list:result:nullable-null:data-0-parentthreadid",
+        "operation:client_request:thread/list:result:nullable-null:data-0-path",
+        "operation:client_request:thread/list:result:nullable-null:data-0-recencyat",
+        "operation:client_request:thread/list:result:nullable-null:data-0-threadsource",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-completedat",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-durationms",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-error",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-error-additionaldetails",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-items-0-clientid",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-startedat",
+        "operation:client_request:thread/list:result:nullable-null:nextcursor",
+        "operation:client_request:thread/list:result:optional-omitted:backwardscursor",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-agentnickname",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-agentrole",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-forkedfromid",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo-branch",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo-originurl",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo-sha",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-name",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-parentthreadid",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-path",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-recencyat",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-threadsource",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-completedat",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-durationms",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-error",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-error-additionaldetails",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-items-0-clientid",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-itemsview",
+        "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-startedat",
+        "operation:client_request:thread/list:result:optional-omitted:nextcursor"
       ],
       "current_implementation_status": "Implemented",
       "current_runtime_disposition": "Typed",
@@ -9741,7 +9976,72 @@
         "existing_fixture_ids": [
           "baseline:client_request:ClientRequest:method:thread/list",
           "operation:client_request:thread/list:params",
-          "operation:client_request:thread/list:result"
+          "operation:client_request:thread/list:params:nullable-null:archived",
+          "operation:client_request:thread/list:params:nullable-null:cursor",
+          "operation:client_request:thread/list:params:nullable-null:cwd",
+          "operation:client_request:thread/list:params:nullable-null:limit",
+          "operation:client_request:thread/list:params:nullable-null:modelproviders",
+          "operation:client_request:thread/list:params:nullable-null:searchterm",
+          "operation:client_request:thread/list:params:nullable-null:sortdirection",
+          "operation:client_request:thread/list:params:nullable-null:sortkey",
+          "operation:client_request:thread/list:params:nullable-null:sourcekinds",
+          "operation:client_request:thread/list:params:optional-omitted:archived",
+          "operation:client_request:thread/list:params:optional-omitted:cursor",
+          "operation:client_request:thread/list:params:optional-omitted:cwd",
+          "operation:client_request:thread/list:params:optional-omitted:limit",
+          "operation:client_request:thread/list:params:optional-omitted:modelproviders",
+          "operation:client_request:thread/list:params:optional-omitted:searchterm",
+          "operation:client_request:thread/list:params:optional-omitted:sortdirection",
+          "operation:client_request:thread/list:params:optional-omitted:sortkey",
+          "operation:client_request:thread/list:params:optional-omitted:sourcekinds",
+          "operation:client_request:thread/list:params:optional-omitted:usestatedbonly",
+          "operation:client_request:thread/list:result",
+          "operation:client_request:thread/list:result:nullable-null:backwardscursor",
+          "operation:client_request:thread/list:result:nullable-null:data-0-agentnickname",
+          "operation:client_request:thread/list:result:nullable-null:data-0-agentrole",
+          "operation:client_request:thread/list:result:nullable-null:data-0-forkedfromid",
+          "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo",
+          "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo-branch",
+          "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo-originurl",
+          "operation:client_request:thread/list:result:nullable-null:data-0-gitinfo-sha",
+          "operation:client_request:thread/list:result:nullable-null:data-0-name",
+          "operation:client_request:thread/list:result:nullable-null:data-0-parentthreadid",
+          "operation:client_request:thread/list:result:nullable-null:data-0-path",
+          "operation:client_request:thread/list:result:nullable-null:data-0-recencyat",
+          "operation:client_request:thread/list:result:nullable-null:data-0-threadsource",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-completedat",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-durationms",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-error",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-error-additionaldetails",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-items-0-clientid",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/list:result:nullable-null:data-0-turns-0-startedat",
+          "operation:client_request:thread/list:result:nullable-null:nextcursor",
+          "operation:client_request:thread/list:result:optional-omitted:backwardscursor",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-agentnickname",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-agentrole",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-forkedfromid",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo-branch",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo-originurl",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-gitinfo-sha",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-name",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-parentthreadid",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-path",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-recencyat",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-threadsource",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-completedat",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-durationms",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-error",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-error-additionaldetails",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-items-0-clientid",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-itemsview",
+          "operation:client_request:thread/list:result:optional-omitted:data-0-turns-0-startedat",
+          "operation:client_request:thread/list:result:optional-omitted:nextcursor"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -9778,7 +10078,13 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:thread/loaded/list:params",
-        "operation:client_request:thread/loaded/list:result"
+        "operation:client_request:thread/loaded/list:params:nullable-null:cursor",
+        "operation:client_request:thread/loaded/list:params:nullable-null:limit",
+        "operation:client_request:thread/loaded/list:params:optional-omitted:cursor",
+        "operation:client_request:thread/loaded/list:params:optional-omitted:limit",
+        "operation:client_request:thread/loaded/list:result",
+        "operation:client_request:thread/loaded/list:result:nullable-null:nextcursor",
+        "operation:client_request:thread/loaded/list:result:optional-omitted:nextcursor"
       ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "Deferred",
@@ -10137,7 +10443,13 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:thread/loaded/list:params",
-          "operation:client_request:thread/loaded/list:result"
+          "operation:client_request:thread/loaded/list:params:nullable-null:cursor",
+          "operation:client_request:thread/loaded/list:params:nullable-null:limit",
+          "operation:client_request:thread/loaded/list:params:optional-omitted:cursor",
+          "operation:client_request:thread/loaded/list:params:optional-omitted:limit",
+          "operation:client_request:thread/loaded/list:result",
+          "operation:client_request:thread/loaded/list:result:nullable-null:nextcursor",
+          "operation:client_request:thread/loaded/list:result:optional-omitted:nextcursor"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -10174,7 +10486,57 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:thread/metadata/update:params",
-        "operation:client_request:thread/metadata/update:result"
+        "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo",
+        "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo-branch",
+        "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo-originurl",
+        "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo-sha",
+        "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo",
+        "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo-branch",
+        "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo-originurl",
+        "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo-sha",
+        "operation:client_request:thread/metadata/update:result",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-agentnickname",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-agentrole",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-forkedfromid",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo-branch",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo-originurl",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo-sha",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-name",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-parentthreadid",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-path",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-recencyat",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-threadsource",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-completedat",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-durationms",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-error",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-startedat",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-agentnickname",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-agentrole",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-forkedfromid",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo-branch",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo-originurl",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo-sha",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-name",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-parentthreadid",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-path",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-recencyat",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-threadsource",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-completedat",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-durationms",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-error",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-itemsview",
+        "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-startedat"
       ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "Deferred",
@@ -12559,7 +12921,57 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:thread/metadata/update:params",
-          "operation:client_request:thread/metadata/update:result"
+          "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo",
+          "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo-branch",
+          "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo-originurl",
+          "operation:client_request:thread/metadata/update:params:nullable-null:gitinfo-sha",
+          "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo",
+          "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo-branch",
+          "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo-originurl",
+          "operation:client_request:thread/metadata/update:params:optional-omitted:gitinfo-sha",
+          "operation:client_request:thread/metadata/update:result",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-agentnickname",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-agentrole",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-forkedfromid",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo-branch",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo-originurl",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-gitinfo-sha",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-name",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-parentthreadid",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-path",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-recencyat",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-threadsource",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-completedat",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-durationms",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-error",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/metadata/update:result:nullable-null:thread-turns-0-startedat",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-agentnickname",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-agentrole",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-forkedfromid",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo-branch",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo-originurl",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-gitinfo-sha",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-name",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-parentthreadid",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-path",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-recencyat",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-threadsource",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-completedat",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-durationms",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-error",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-itemsview",
+          "operation:client_request:thread/metadata/update:result:optional-omitted:thread-turns-0-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -12855,7 +13267,50 @@
       "current_fixture_ids": [
         "baseline:client_request:ClientRequest:method:thread/read",
         "operation:client_request:thread/read:params",
-        "operation:client_request:thread/read:result"
+        "operation:client_request:thread/read:params:optional-omitted:includeturns",
+        "operation:client_request:thread/read:result",
+        "operation:client_request:thread/read:result:nullable-null:thread-agentnickname",
+        "operation:client_request:thread/read:result:nullable-null:thread-agentrole",
+        "operation:client_request:thread/read:result:nullable-null:thread-forkedfromid",
+        "operation:client_request:thread/read:result:nullable-null:thread-gitinfo",
+        "operation:client_request:thread/read:result:nullable-null:thread-gitinfo-branch",
+        "operation:client_request:thread/read:result:nullable-null:thread-gitinfo-originurl",
+        "operation:client_request:thread/read:result:nullable-null:thread-gitinfo-sha",
+        "operation:client_request:thread/read:result:nullable-null:thread-name",
+        "operation:client_request:thread/read:result:nullable-null:thread-parentthreadid",
+        "operation:client_request:thread/read:result:nullable-null:thread-path",
+        "operation:client_request:thread/read:result:nullable-null:thread-recencyat",
+        "operation:client_request:thread/read:result:nullable-null:thread-threadsource",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-completedat",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-durationms",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-error",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/read:result:nullable-null:thread-turns-0-startedat",
+        "operation:client_request:thread/read:result:optional-omitted:thread-agentnickname",
+        "operation:client_request:thread/read:result:optional-omitted:thread-agentrole",
+        "operation:client_request:thread/read:result:optional-omitted:thread-forkedfromid",
+        "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo",
+        "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo-branch",
+        "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo-originurl",
+        "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo-sha",
+        "operation:client_request:thread/read:result:optional-omitted:thread-name",
+        "operation:client_request:thread/read:result:optional-omitted:thread-parentthreadid",
+        "operation:client_request:thread/read:result:optional-omitted:thread-path",
+        "operation:client_request:thread/read:result:optional-omitted:thread-recencyat",
+        "operation:client_request:thread/read:result:optional-omitted:thread-threadsource",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-completedat",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-durationms",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-error",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-itemsview",
+        "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-startedat"
       ],
       "current_implementation_status": "Implemented",
       "current_runtime_disposition": "Typed",
@@ -15043,7 +15498,50 @@
         "existing_fixture_ids": [
           "baseline:client_request:ClientRequest:method:thread/read",
           "operation:client_request:thread/read:params",
-          "operation:client_request:thread/read:result"
+          "operation:client_request:thread/read:params:optional-omitted:includeturns",
+          "operation:client_request:thread/read:result",
+          "operation:client_request:thread/read:result:nullable-null:thread-agentnickname",
+          "operation:client_request:thread/read:result:nullable-null:thread-agentrole",
+          "operation:client_request:thread/read:result:nullable-null:thread-forkedfromid",
+          "operation:client_request:thread/read:result:nullable-null:thread-gitinfo",
+          "operation:client_request:thread/read:result:nullable-null:thread-gitinfo-branch",
+          "operation:client_request:thread/read:result:nullable-null:thread-gitinfo-originurl",
+          "operation:client_request:thread/read:result:nullable-null:thread-gitinfo-sha",
+          "operation:client_request:thread/read:result:nullable-null:thread-name",
+          "operation:client_request:thread/read:result:nullable-null:thread-parentthreadid",
+          "operation:client_request:thread/read:result:nullable-null:thread-path",
+          "operation:client_request:thread/read:result:nullable-null:thread-recencyat",
+          "operation:client_request:thread/read:result:nullable-null:thread-threadsource",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-completedat",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-durationms",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-error",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/read:result:nullable-null:thread-turns-0-startedat",
+          "operation:client_request:thread/read:result:optional-omitted:thread-agentnickname",
+          "operation:client_request:thread/read:result:optional-omitted:thread-agentrole",
+          "operation:client_request:thread/read:result:optional-omitted:thread-forkedfromid",
+          "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo",
+          "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo-branch",
+          "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo-originurl",
+          "operation:client_request:thread/read:result:optional-omitted:thread-gitinfo-sha",
+          "operation:client_request:thread/read:result:optional-omitted:thread-name",
+          "operation:client_request:thread/read:result:optional-omitted:thread-parentthreadid",
+          "operation:client_request:thread/read:result:optional-omitted:thread-path",
+          "operation:client_request:thread/read:result:optional-omitted:thread-recencyat",
+          "operation:client_request:thread/read:result:optional-omitted:thread-threadsource",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-completedat",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-durationms",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-error",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-itemsview",
+          "operation:client_request:thread/read:result:optional-omitted:thread-turns-0-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -15081,7 +15579,77 @@
       "current_fixture_ids": [
         "baseline:client_request:ClientRequest:method:thread/resume",
         "operation:client_request:thread/resume:params",
-        "operation:client_request:thread/resume:result"
+        "operation:client_request:thread/resume:params:nullable-null:approvalpolicy",
+        "operation:client_request:thread/resume:params:nullable-null:approvalsreviewer",
+        "operation:client_request:thread/resume:params:nullable-null:baseinstructions",
+        "operation:client_request:thread/resume:params:nullable-null:config",
+        "operation:client_request:thread/resume:params:nullable-null:cwd",
+        "operation:client_request:thread/resume:params:nullable-null:developerinstructions",
+        "operation:client_request:thread/resume:params:nullable-null:model",
+        "operation:client_request:thread/resume:params:nullable-null:modelprovider",
+        "operation:client_request:thread/resume:params:nullable-null:personality",
+        "operation:client_request:thread/resume:params:nullable-null:sandbox",
+        "operation:client_request:thread/resume:params:nullable-null:servicetier",
+        "operation:client_request:thread/resume:params:opaque-config-map-value",
+        "operation:client_request:thread/resume:params:optional-omitted:approvalpolicy",
+        "operation:client_request:thread/resume:params:optional-omitted:approvalsreviewer",
+        "operation:client_request:thread/resume:params:optional-omitted:baseinstructions",
+        "operation:client_request:thread/resume:params:optional-omitted:config",
+        "operation:client_request:thread/resume:params:optional-omitted:cwd",
+        "operation:client_request:thread/resume:params:optional-omitted:developerinstructions",
+        "operation:client_request:thread/resume:params:optional-omitted:model",
+        "operation:client_request:thread/resume:params:optional-omitted:modelprovider",
+        "operation:client_request:thread/resume:params:optional-omitted:personality",
+        "operation:client_request:thread/resume:params:optional-omitted:sandbox",
+        "operation:client_request:thread/resume:params:optional-omitted:servicetier",
+        "operation:client_request:thread/resume:result",
+        "operation:client_request:thread/resume:result:nullable-null:reasoningeffort",
+        "operation:client_request:thread/resume:result:nullable-null:servicetier",
+        "operation:client_request:thread/resume:result:nullable-null:thread-agentnickname",
+        "operation:client_request:thread/resume:result:nullable-null:thread-agentrole",
+        "operation:client_request:thread/resume:result:nullable-null:thread-forkedfromid",
+        "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo",
+        "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo-branch",
+        "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo-originurl",
+        "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo-sha",
+        "operation:client_request:thread/resume:result:nullable-null:thread-name",
+        "operation:client_request:thread/resume:result:nullable-null:thread-parentthreadid",
+        "operation:client_request:thread/resume:result:nullable-null:thread-path",
+        "operation:client_request:thread/resume:result:nullable-null:thread-recencyat",
+        "operation:client_request:thread/resume:result:nullable-null:thread-threadsource",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-completedat",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-durationms",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-error",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-startedat",
+        "operation:client_request:thread/resume:result:optional-omitted:instructionsources",
+        "operation:client_request:thread/resume:result:optional-omitted:reasoningeffort",
+        "operation:client_request:thread/resume:result:optional-omitted:servicetier",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-agentnickname",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-agentrole",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-forkedfromid",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo-branch",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo-originurl",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo-sha",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-name",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-parentthreadid",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-path",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-recencyat",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-threadsource",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-completedat",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-durationms",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-error",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-itemsview",
+        "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-startedat"
       ],
       "current_implementation_status": "Implemented",
       "current_runtime_disposition": "Typed",
@@ -18275,7 +18843,77 @@
         "existing_fixture_ids": [
           "baseline:client_request:ClientRequest:method:thread/resume",
           "operation:client_request:thread/resume:params",
-          "operation:client_request:thread/resume:result"
+          "operation:client_request:thread/resume:params:nullable-null:approvalpolicy",
+          "operation:client_request:thread/resume:params:nullable-null:approvalsreviewer",
+          "operation:client_request:thread/resume:params:nullable-null:baseinstructions",
+          "operation:client_request:thread/resume:params:nullable-null:config",
+          "operation:client_request:thread/resume:params:nullable-null:cwd",
+          "operation:client_request:thread/resume:params:nullable-null:developerinstructions",
+          "operation:client_request:thread/resume:params:nullable-null:model",
+          "operation:client_request:thread/resume:params:nullable-null:modelprovider",
+          "operation:client_request:thread/resume:params:nullable-null:personality",
+          "operation:client_request:thread/resume:params:nullable-null:sandbox",
+          "operation:client_request:thread/resume:params:nullable-null:servicetier",
+          "operation:client_request:thread/resume:params:opaque-config-map-value",
+          "operation:client_request:thread/resume:params:optional-omitted:approvalpolicy",
+          "operation:client_request:thread/resume:params:optional-omitted:approvalsreviewer",
+          "operation:client_request:thread/resume:params:optional-omitted:baseinstructions",
+          "operation:client_request:thread/resume:params:optional-omitted:config",
+          "operation:client_request:thread/resume:params:optional-omitted:cwd",
+          "operation:client_request:thread/resume:params:optional-omitted:developerinstructions",
+          "operation:client_request:thread/resume:params:optional-omitted:model",
+          "operation:client_request:thread/resume:params:optional-omitted:modelprovider",
+          "operation:client_request:thread/resume:params:optional-omitted:personality",
+          "operation:client_request:thread/resume:params:optional-omitted:sandbox",
+          "operation:client_request:thread/resume:params:optional-omitted:servicetier",
+          "operation:client_request:thread/resume:result",
+          "operation:client_request:thread/resume:result:nullable-null:reasoningeffort",
+          "operation:client_request:thread/resume:result:nullable-null:servicetier",
+          "operation:client_request:thread/resume:result:nullable-null:thread-agentnickname",
+          "operation:client_request:thread/resume:result:nullable-null:thread-agentrole",
+          "operation:client_request:thread/resume:result:nullable-null:thread-forkedfromid",
+          "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo",
+          "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo-branch",
+          "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo-originurl",
+          "operation:client_request:thread/resume:result:nullable-null:thread-gitinfo-sha",
+          "operation:client_request:thread/resume:result:nullable-null:thread-name",
+          "operation:client_request:thread/resume:result:nullable-null:thread-parentthreadid",
+          "operation:client_request:thread/resume:result:nullable-null:thread-path",
+          "operation:client_request:thread/resume:result:nullable-null:thread-recencyat",
+          "operation:client_request:thread/resume:result:nullable-null:thread-threadsource",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-completedat",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-durationms",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-error",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/resume:result:nullable-null:thread-turns-0-startedat",
+          "operation:client_request:thread/resume:result:optional-omitted:instructionsources",
+          "operation:client_request:thread/resume:result:optional-omitted:reasoningeffort",
+          "operation:client_request:thread/resume:result:optional-omitted:servicetier",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-agentnickname",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-agentrole",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-forkedfromid",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo-branch",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo-originurl",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-gitinfo-sha",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-name",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-parentthreadid",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-path",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-recencyat",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-threadsource",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-completedat",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-durationms",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-error",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-itemsview",
+          "operation:client_request:thread/resume:result:optional-omitted:thread-turns-0-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -18312,7 +18950,52 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:thread/rollback:params",
-        "operation:client_request:thread/rollback:result"
+        "operation:client_request:thread/rollback:params:uint32-maximum",
+        "operation:client_request:thread/rollback:params:uint32-overflow",
+        "operation:client_request:thread/rollback:params:uint32-zero",
+        "operation:client_request:thread/rollback:result",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-agentnickname",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-agentrole",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-forkedfromid",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo-branch",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo-originurl",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo-sha",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-name",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-parentthreadid",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-path",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-recencyat",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-threadsource",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-completedat",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-durationms",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-error",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-startedat",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-agentnickname",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-agentrole",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-forkedfromid",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo-branch",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo-originurl",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo-sha",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-name",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-parentthreadid",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-path",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-recencyat",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-threadsource",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-completedat",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-durationms",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-error",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-itemsview",
+        "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-startedat"
       ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "Deferred",
@@ -20503,7 +21186,52 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:thread/rollback:params",
-          "operation:client_request:thread/rollback:result"
+          "operation:client_request:thread/rollback:params:uint32-maximum",
+          "operation:client_request:thread/rollback:params:uint32-overflow",
+          "operation:client_request:thread/rollback:params:uint32-zero",
+          "operation:client_request:thread/rollback:result",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-agentnickname",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-agentrole",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-forkedfromid",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo-branch",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo-originurl",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-gitinfo-sha",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-name",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-parentthreadid",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-path",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-recencyat",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-threadsource",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-completedat",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-durationms",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-error",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/rollback:result:nullable-null:thread-turns-0-startedat",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-agentnickname",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-agentrole",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-forkedfromid",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo-branch",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo-originurl",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-gitinfo-sha",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-name",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-parentthreadid",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-path",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-recencyat",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-threadsource",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-completedat",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-durationms",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-error",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-itemsview",
+          "operation:client_request:thread/rollback:result:optional-omitted:thread-turns-0-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -20799,7 +21527,85 @@
       "current_fixture_ids": [
         "baseline:client_request:ClientRequest:method:thread/start",
         "operation:client_request:thread/start:params",
-        "operation:client_request:thread/start:result"
+        "operation:client_request:thread/start:params:nullable-null:approvalpolicy",
+        "operation:client_request:thread/start:params:nullable-null:approvalsreviewer",
+        "operation:client_request:thread/start:params:nullable-null:baseinstructions",
+        "operation:client_request:thread/start:params:nullable-null:config",
+        "operation:client_request:thread/start:params:nullable-null:cwd",
+        "operation:client_request:thread/start:params:nullable-null:developerinstructions",
+        "operation:client_request:thread/start:params:nullable-null:ephemeral",
+        "operation:client_request:thread/start:params:nullable-null:model",
+        "operation:client_request:thread/start:params:nullable-null:modelprovider",
+        "operation:client_request:thread/start:params:nullable-null:personality",
+        "operation:client_request:thread/start:params:nullable-null:sandbox",
+        "operation:client_request:thread/start:params:nullable-null:servicename",
+        "operation:client_request:thread/start:params:nullable-null:servicetier",
+        "operation:client_request:thread/start:params:nullable-null:sessionstartsource",
+        "operation:client_request:thread/start:params:nullable-null:threadsource",
+        "operation:client_request:thread/start:params:opaque-config-map-value",
+        "operation:client_request:thread/start:params:optional-omitted:approvalpolicy",
+        "operation:client_request:thread/start:params:optional-omitted:approvalsreviewer",
+        "operation:client_request:thread/start:params:optional-omitted:baseinstructions",
+        "operation:client_request:thread/start:params:optional-omitted:config",
+        "operation:client_request:thread/start:params:optional-omitted:cwd",
+        "operation:client_request:thread/start:params:optional-omitted:developerinstructions",
+        "operation:client_request:thread/start:params:optional-omitted:ephemeral",
+        "operation:client_request:thread/start:params:optional-omitted:model",
+        "operation:client_request:thread/start:params:optional-omitted:modelprovider",
+        "operation:client_request:thread/start:params:optional-omitted:personality",
+        "operation:client_request:thread/start:params:optional-omitted:sandbox",
+        "operation:client_request:thread/start:params:optional-omitted:servicename",
+        "operation:client_request:thread/start:params:optional-omitted:servicetier",
+        "operation:client_request:thread/start:params:optional-omitted:sessionstartsource",
+        "operation:client_request:thread/start:params:optional-omitted:threadsource",
+        "operation:client_request:thread/start:result",
+        "operation:client_request:thread/start:result:nullable-null:reasoningeffort",
+        "operation:client_request:thread/start:result:nullable-null:servicetier",
+        "operation:client_request:thread/start:result:nullable-null:thread-agentnickname",
+        "operation:client_request:thread/start:result:nullable-null:thread-agentrole",
+        "operation:client_request:thread/start:result:nullable-null:thread-forkedfromid",
+        "operation:client_request:thread/start:result:nullable-null:thread-gitinfo",
+        "operation:client_request:thread/start:result:nullable-null:thread-gitinfo-branch",
+        "operation:client_request:thread/start:result:nullable-null:thread-gitinfo-originurl",
+        "operation:client_request:thread/start:result:nullable-null:thread-gitinfo-sha",
+        "operation:client_request:thread/start:result:nullable-null:thread-name",
+        "operation:client_request:thread/start:result:nullable-null:thread-parentthreadid",
+        "operation:client_request:thread/start:result:nullable-null:thread-path",
+        "operation:client_request:thread/start:result:nullable-null:thread-recencyat",
+        "operation:client_request:thread/start:result:nullable-null:thread-threadsource",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-completedat",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-durationms",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-error",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/start:result:nullable-null:thread-turns-0-startedat",
+        "operation:client_request:thread/start:result:optional-omitted:instructionsources",
+        "operation:client_request:thread/start:result:optional-omitted:reasoningeffort",
+        "operation:client_request:thread/start:result:optional-omitted:servicetier",
+        "operation:client_request:thread/start:result:optional-omitted:thread-agentnickname",
+        "operation:client_request:thread/start:result:optional-omitted:thread-agentrole",
+        "operation:client_request:thread/start:result:optional-omitted:thread-forkedfromid",
+        "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo",
+        "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo-branch",
+        "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo-originurl",
+        "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo-sha",
+        "operation:client_request:thread/start:result:optional-omitted:thread-name",
+        "operation:client_request:thread/start:result:optional-omitted:thread-parentthreadid",
+        "operation:client_request:thread/start:result:optional-omitted:thread-path",
+        "operation:client_request:thread/start:result:optional-omitted:thread-recencyat",
+        "operation:client_request:thread/start:result:optional-omitted:thread-threadsource",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-completedat",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-durationms",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-error",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-itemsview",
+        "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-startedat"
       ],
       "current_implementation_status": "Implemented",
       "current_runtime_disposition": "Typed",
@@ -24204,7 +25010,85 @@
         "existing_fixture_ids": [
           "baseline:client_request:ClientRequest:method:thread/start",
           "operation:client_request:thread/start:params",
-          "operation:client_request:thread/start:result"
+          "operation:client_request:thread/start:params:nullable-null:approvalpolicy",
+          "operation:client_request:thread/start:params:nullable-null:approvalsreviewer",
+          "operation:client_request:thread/start:params:nullable-null:baseinstructions",
+          "operation:client_request:thread/start:params:nullable-null:config",
+          "operation:client_request:thread/start:params:nullable-null:cwd",
+          "operation:client_request:thread/start:params:nullable-null:developerinstructions",
+          "operation:client_request:thread/start:params:nullable-null:ephemeral",
+          "operation:client_request:thread/start:params:nullable-null:model",
+          "operation:client_request:thread/start:params:nullable-null:modelprovider",
+          "operation:client_request:thread/start:params:nullable-null:personality",
+          "operation:client_request:thread/start:params:nullable-null:sandbox",
+          "operation:client_request:thread/start:params:nullable-null:servicename",
+          "operation:client_request:thread/start:params:nullable-null:servicetier",
+          "operation:client_request:thread/start:params:nullable-null:sessionstartsource",
+          "operation:client_request:thread/start:params:nullable-null:threadsource",
+          "operation:client_request:thread/start:params:opaque-config-map-value",
+          "operation:client_request:thread/start:params:optional-omitted:approvalpolicy",
+          "operation:client_request:thread/start:params:optional-omitted:approvalsreviewer",
+          "operation:client_request:thread/start:params:optional-omitted:baseinstructions",
+          "operation:client_request:thread/start:params:optional-omitted:config",
+          "operation:client_request:thread/start:params:optional-omitted:cwd",
+          "operation:client_request:thread/start:params:optional-omitted:developerinstructions",
+          "operation:client_request:thread/start:params:optional-omitted:ephemeral",
+          "operation:client_request:thread/start:params:optional-omitted:model",
+          "operation:client_request:thread/start:params:optional-omitted:modelprovider",
+          "operation:client_request:thread/start:params:optional-omitted:personality",
+          "operation:client_request:thread/start:params:optional-omitted:sandbox",
+          "operation:client_request:thread/start:params:optional-omitted:servicename",
+          "operation:client_request:thread/start:params:optional-omitted:servicetier",
+          "operation:client_request:thread/start:params:optional-omitted:sessionstartsource",
+          "operation:client_request:thread/start:params:optional-omitted:threadsource",
+          "operation:client_request:thread/start:result",
+          "operation:client_request:thread/start:result:nullable-null:reasoningeffort",
+          "operation:client_request:thread/start:result:nullable-null:servicetier",
+          "operation:client_request:thread/start:result:nullable-null:thread-agentnickname",
+          "operation:client_request:thread/start:result:nullable-null:thread-agentrole",
+          "operation:client_request:thread/start:result:nullable-null:thread-forkedfromid",
+          "operation:client_request:thread/start:result:nullable-null:thread-gitinfo",
+          "operation:client_request:thread/start:result:nullable-null:thread-gitinfo-branch",
+          "operation:client_request:thread/start:result:nullable-null:thread-gitinfo-originurl",
+          "operation:client_request:thread/start:result:nullable-null:thread-gitinfo-sha",
+          "operation:client_request:thread/start:result:nullable-null:thread-name",
+          "operation:client_request:thread/start:result:nullable-null:thread-parentthreadid",
+          "operation:client_request:thread/start:result:nullable-null:thread-path",
+          "operation:client_request:thread/start:result:nullable-null:thread-recencyat",
+          "operation:client_request:thread/start:result:nullable-null:thread-threadsource",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-completedat",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-durationms",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-error",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/start:result:nullable-null:thread-turns-0-startedat",
+          "operation:client_request:thread/start:result:optional-omitted:instructionsources",
+          "operation:client_request:thread/start:result:optional-omitted:reasoningeffort",
+          "operation:client_request:thread/start:result:optional-omitted:servicetier",
+          "operation:client_request:thread/start:result:optional-omitted:thread-agentnickname",
+          "operation:client_request:thread/start:result:optional-omitted:thread-agentrole",
+          "operation:client_request:thread/start:result:optional-omitted:thread-forkedfromid",
+          "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo",
+          "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo-branch",
+          "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo-originurl",
+          "operation:client_request:thread/start:result:optional-omitted:thread-gitinfo-sha",
+          "operation:client_request:thread/start:result:optional-omitted:thread-name",
+          "operation:client_request:thread/start:result:optional-omitted:thread-parentthreadid",
+          "operation:client_request:thread/start:result:optional-omitted:thread-path",
+          "operation:client_request:thread/start:result:optional-omitted:thread-recencyat",
+          "operation:client_request:thread/start:result:optional-omitted:thread-threadsource",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-completedat",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-durationms",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-error",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-itemsview",
+          "operation:client_request:thread/start:result:optional-omitted:thread-turns-0-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -24241,7 +25125,49 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:thread/unarchive:params",
-        "operation:client_request:thread/unarchive:result"
+        "operation:client_request:thread/unarchive:result",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-agentnickname",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-agentrole",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-forkedfromid",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo-branch",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo-originurl",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo-sha",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-name",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-parentthreadid",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-path",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-recencyat",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-threadsource",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-completedat",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-durationms",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-error",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-startedat",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-agentnickname",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-agentrole",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-forkedfromid",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo-branch",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo-originurl",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo-sha",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-name",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-parentthreadid",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-path",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-recencyat",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-threadsource",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-completedat",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-durationms",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-error",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-error-additionaldetails",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-items-0-clientid",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-itemsview",
+        "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-startedat"
       ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "Deferred",
@@ -26402,7 +27328,49 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:thread/unarchive:params",
-          "operation:client_request:thread/unarchive:result"
+          "operation:client_request:thread/unarchive:result",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-agentnickname",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-agentrole",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-forkedfromid",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo-branch",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo-originurl",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-gitinfo-sha",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-name",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-parentthreadid",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-path",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-recencyat",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-threadsource",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-completedat",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-durationms",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-error",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/unarchive:result:nullable-null:thread-turns-0-startedat",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-agentnickname",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-agentrole",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-forkedfromid",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo-branch",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo-originurl",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-gitinfo-sha",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-name",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-parentthreadid",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-path",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-recencyat",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-threadsource",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-completedat",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-durationms",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-error",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-error-additionaldetails",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-error-codexerrorinfo",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-items-0-clientid",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-itemsview",
+          "operation:client_request:thread/unarchive:result:optional-omitted:thread-turns-0-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -26972,7 +27940,50 @@
       "current_fixture_ids": [
         "baseline:client_request:ClientRequest:method:turn/start",
         "operation:client_request:turn/start:params",
-        "operation:client_request:turn/start:result"
+        "operation:client_request:turn/start:params:nullable-null:approvalpolicy",
+        "operation:client_request:turn/start:params:nullable-null:approvalsreviewer",
+        "operation:client_request:turn/start:params:nullable-null:clientusermessageid",
+        "operation:client_request:turn/start:params:nullable-null:cwd",
+        "operation:client_request:turn/start:params:nullable-null:effort",
+        "operation:client_request:turn/start:params:nullable-null:input-0-text_elements-0-placeholder",
+        "operation:client_request:turn/start:params:nullable-null:model",
+        "operation:client_request:turn/start:params:nullable-null:outputschema",
+        "operation:client_request:turn/start:params:nullable-null:personality",
+        "operation:client_request:turn/start:params:nullable-null:sandboxpolicy",
+        "operation:client_request:turn/start:params:nullable-null:servicetier",
+        "operation:client_request:turn/start:params:nullable-null:summary",
+        "operation:client_request:turn/start:params:optional-omitted:approvalpolicy",
+        "operation:client_request:turn/start:params:optional-omitted:approvalsreviewer",
+        "operation:client_request:turn/start:params:optional-omitted:clientusermessageid",
+        "operation:client_request:turn/start:params:optional-omitted:cwd",
+        "operation:client_request:turn/start:params:optional-omitted:effort",
+        "operation:client_request:turn/start:params:optional-omitted:input-0-text_elements",
+        "operation:client_request:turn/start:params:optional-omitted:input-0-text_elements-0-placeholder",
+        "operation:client_request:turn/start:params:optional-omitted:model",
+        "operation:client_request:turn/start:params:optional-omitted:outputschema",
+        "operation:client_request:turn/start:params:optional-omitted:personality",
+        "operation:client_request:turn/start:params:optional-omitted:sandboxpolicy",
+        "operation:client_request:turn/start:params:optional-omitted:servicetier",
+        "operation:client_request:turn/start:params:optional-omitted:summary",
+        "operation:client_request:turn/start:result",
+        "operation:client_request:turn/start:result:nullable-null:turn-completedat",
+        "operation:client_request:turn/start:result:nullable-null:turn-durationms",
+        "operation:client_request:turn/start:result:nullable-null:turn-error",
+        "operation:client_request:turn/start:result:nullable-null:turn-error-additionaldetails",
+        "operation:client_request:turn/start:result:nullable-null:turn-error-codexerrorinfo",
+        "operation:client_request:turn/start:result:nullable-null:turn-items-0-clientid",
+        "operation:client_request:turn/start:result:nullable-null:turn-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:turn/start:result:nullable-null:turn-startedat",
+        "operation:client_request:turn/start:result:optional-omitted:turn-completedat",
+        "operation:client_request:turn/start:result:optional-omitted:turn-durationms",
+        "operation:client_request:turn/start:result:optional-omitted:turn-error",
+        "operation:client_request:turn/start:result:optional-omitted:turn-error-additionaldetails",
+        "operation:client_request:turn/start:result:optional-omitted:turn-error-codexerrorinfo",
+        "operation:client_request:turn/start:result:optional-omitted:turn-items-0-clientid",
+        "operation:client_request:turn/start:result:optional-omitted:turn-items-0-content-0-text_elements",
+        "operation:client_request:turn/start:result:optional-omitted:turn-items-0-content-0-text_elements-0-placeholder",
+        "operation:client_request:turn/start:result:optional-omitted:turn-itemsview",
+        "operation:client_request:turn/start:result:optional-omitted:turn-startedat"
       ],
       "current_implementation_status": "Implemented",
       "current_runtime_disposition": "Typed",
@@ -29009,7 +30020,50 @@
         "existing_fixture_ids": [
           "baseline:client_request:ClientRequest:method:turn/start",
           "operation:client_request:turn/start:params",
-          "operation:client_request:turn/start:result"
+          "operation:client_request:turn/start:params:nullable-null:approvalpolicy",
+          "operation:client_request:turn/start:params:nullable-null:approvalsreviewer",
+          "operation:client_request:turn/start:params:nullable-null:clientusermessageid",
+          "operation:client_request:turn/start:params:nullable-null:cwd",
+          "operation:client_request:turn/start:params:nullable-null:effort",
+          "operation:client_request:turn/start:params:nullable-null:input-0-text_elements-0-placeholder",
+          "operation:client_request:turn/start:params:nullable-null:model",
+          "operation:client_request:turn/start:params:nullable-null:outputschema",
+          "operation:client_request:turn/start:params:nullable-null:personality",
+          "operation:client_request:turn/start:params:nullable-null:sandboxpolicy",
+          "operation:client_request:turn/start:params:nullable-null:servicetier",
+          "operation:client_request:turn/start:params:nullable-null:summary",
+          "operation:client_request:turn/start:params:optional-omitted:approvalpolicy",
+          "operation:client_request:turn/start:params:optional-omitted:approvalsreviewer",
+          "operation:client_request:turn/start:params:optional-omitted:clientusermessageid",
+          "operation:client_request:turn/start:params:optional-omitted:cwd",
+          "operation:client_request:turn/start:params:optional-omitted:effort",
+          "operation:client_request:turn/start:params:optional-omitted:input-0-text_elements",
+          "operation:client_request:turn/start:params:optional-omitted:input-0-text_elements-0-placeholder",
+          "operation:client_request:turn/start:params:optional-omitted:model",
+          "operation:client_request:turn/start:params:optional-omitted:outputschema",
+          "operation:client_request:turn/start:params:optional-omitted:personality",
+          "operation:client_request:turn/start:params:optional-omitted:sandboxpolicy",
+          "operation:client_request:turn/start:params:optional-omitted:servicetier",
+          "operation:client_request:turn/start:params:optional-omitted:summary",
+          "operation:client_request:turn/start:result",
+          "operation:client_request:turn/start:result:nullable-null:turn-completedat",
+          "operation:client_request:turn/start:result:nullable-null:turn-durationms",
+          "operation:client_request:turn/start:result:nullable-null:turn-error",
+          "operation:client_request:turn/start:result:nullable-null:turn-error-additionaldetails",
+          "operation:client_request:turn/start:result:nullable-null:turn-error-codexerrorinfo",
+          "operation:client_request:turn/start:result:nullable-null:turn-items-0-clientid",
+          "operation:client_request:turn/start:result:nullable-null:turn-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:turn/start:result:nullable-null:turn-startedat",
+          "operation:client_request:turn/start:result:optional-omitted:turn-completedat",
+          "operation:client_request:turn/start:result:optional-omitted:turn-durationms",
+          "operation:client_request:turn/start:result:optional-omitted:turn-error",
+          "operation:client_request:turn/start:result:optional-omitted:turn-error-additionaldetails",
+          "operation:client_request:turn/start:result:optional-omitted:turn-error-codexerrorinfo",
+          "operation:client_request:turn/start:result:optional-omitted:turn-items-0-clientid",
+          "operation:client_request:turn/start:result:optional-omitted:turn-items-0-content-0-text_elements",
+          "operation:client_request:turn/start:result:optional-omitted:turn-items-0-content-0-text_elements-0-placeholder",
+          "operation:client_request:turn/start:result:optional-omitted:turn-itemsview",
+          "operation:client_request:turn/start:result:optional-omitted:turn-startedat"
         ],
         "planned_fixture_ids": [],
         "required_fixture_ids": [
@@ -29046,6 +30100,11 @@
       "classification": "StablePublicRoot",
       "current_fixture_ids": [
         "operation:client_request:turn/steer:params",
+        "operation:client_request:turn/steer:params:nullable-null:clientusermessageid",
+        "operation:client_request:turn/steer:params:nullable-null:input-0-text_elements-0-placeholder",
+        "operation:client_request:turn/steer:params:optional-omitted:clientusermessageid",
+        "operation:client_request:turn/steer:params:optional-omitted:input-0-text_elements",
+        "operation:client_request:turn/steer:params:optional-omitted:input-0-text_elements-0-placeholder",
         "operation:client_request:turn/steer:result"
       ],
       "current_implementation_status": "NotImplemented",
@@ -29615,6 +30674,11 @@
         ],
         "existing_fixture_ids": [
           "operation:client_request:turn/steer:params",
+          "operation:client_request:turn/steer:params:nullable-null:clientusermessageid",
+          "operation:client_request:turn/steer:params:nullable-null:input-0-text_elements-0-placeholder",
+          "operation:client_request:turn/steer:params:optional-omitted:clientusermessageid",
+          "operation:client_request:turn/steer:params:optional-omitted:input-0-text_elements",
+          "operation:client_request:turn/steer:params:optional-omitted:input-0-text_elements-0-placeholder",
           "operation:client_request:turn/steer:result"
         ],
         "planned_fixture_ids": [],
@@ -75021,7 +76085,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SessionSource:appServer"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -75227,13 +76293,13 @@
               "pointer": "#/definitions/SessionSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SessionSource:appServer"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SessionSource:appServer"
         ]
@@ -75266,7 +76332,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SessionSource:cli"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -75472,13 +76540,13 @@
               "pointer": "#/definitions/SessionSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SessionSource:cli"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SessionSource:cli"
         ]
@@ -75511,7 +76579,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SessionSource:custom"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -75768,13 +76838,13 @@
               "pointer": "#/definitions/SessionSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SessionSource:custom"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SessionSource:custom"
         ]
@@ -75807,7 +76877,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SessionSource:exec"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -76013,13 +77085,13 @@
               "pointer": "#/definitions/SessionSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SessionSource:exec"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SessionSource:exec"
         ]
@@ -76052,7 +77124,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SessionSource:subAgent"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -76309,13 +77383,13 @@
               "pointer": "#/definitions/SessionSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SessionSource:subAgent"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SessionSource:subAgent"
         ]
@@ -76348,7 +77422,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SessionSource:unknown"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -76554,13 +77630,13 @@
               "pointer": "#/definitions/SessionSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SessionSource:unknown"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SessionSource:unknown"
         ]
@@ -76593,7 +77669,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SessionSource:vscode"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -76799,13 +77877,13 @@
               "pointer": "#/definitions/SessionSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SessionSource:vscode"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SessionSource:vscode"
         ]
@@ -76838,7 +77916,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SubAgentSource:compact"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -77044,13 +78124,13 @@
               "pointer": "#/definitions/SubAgentSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SubAgentSource:compact"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SubAgentSource:compact"
         ]
@@ -77083,7 +78163,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SubAgentSource:memory_consolidation"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -77289,13 +78371,13 @@
               "pointer": "#/definitions/SubAgentSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SubAgentSource:memory_consolidation"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SubAgentSource:memory_consolidation"
         ]
@@ -77328,7 +78410,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SubAgentSource:other"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -77585,13 +78669,13 @@
               "pointer": "#/definitions/SubAgentSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SubAgentSource:other"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SubAgentSource:other"
         ]
@@ -77624,7 +78708,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SubAgentSource:review"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -77830,13 +78916,13 @@
               "pointer": "#/definitions/SubAgentSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:SubAgentSource:review"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SubAgentSource:review"
         ]
@@ -77869,7 +78955,15 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:SubAgentSource:thread_spawn",
+        "union:SubAgentSource:thread_spawn:nullable-null:thread_spawn-agent_nickname",
+        "union:SubAgentSource:thread_spawn:nullable-null:thread_spawn-agent_path",
+        "union:SubAgentSource:thread_spawn:nullable-null:thread_spawn-agent_role",
+        "union:SubAgentSource:thread_spawn:optional-omitted:thread_spawn-agent_nickname",
+        "union:SubAgentSource:thread_spawn:optional-omitted:thread_spawn-agent_path",
+        "union:SubAgentSource:thread_spawn:optional-omitted:thread_spawn-agent_role"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -78358,13 +79452,19 @@
               "pointer": "#/definitions/SubAgentSource",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
-          "union:SubAgentSource:thread_spawn"
+        "existing_fixture_ids": [
+          "union:SubAgentSource:thread_spawn",
+          "union:SubAgentSource:thread_spawn:nullable-null:thread_spawn-agent_nickname",
+          "union:SubAgentSource:thread_spawn:nullable-null:thread_spawn-agent_path",
+          "union:SubAgentSource:thread_spawn:nullable-null:thread_spawn-agent_role",
+          "union:SubAgentSource:thread_spawn:optional-omitted:thread_spawn-agent_nickname",
+          "union:SubAgentSource:thread_spawn:optional-omitted:thread_spawn-agent_path",
+          "union:SubAgentSource:thread_spawn:optional-omitted:thread_spawn-agent_role"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:SubAgentSource:thread_spawn"
         ]
@@ -78397,7 +79497,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:ThreadStatus:active"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -78705,13 +79807,13 @@
               "pointer": "#/definitions/ThreadStatus",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:ThreadStatus:active"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:ThreadStatus:active"
         ]
@@ -78744,7 +79846,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:ThreadStatus:idle"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -79000,13 +80104,13 @@
               "pointer": "#/definitions/ThreadStatus",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:ThreadStatus:idle"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:ThreadStatus:idle"
         ]
@@ -79039,7 +80143,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:ThreadStatus:notLoaded"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -79295,13 +80401,13 @@
               "pointer": "#/definitions/ThreadStatus",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:ThreadStatus:notLoaded"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:ThreadStatus:notLoaded"
         ]
@@ -79334,7 +80440,9 @@
     {
       "category": "tagged_union_discriminator",
       "classification": "SharedWithinSlice",
-      "current_fixture_ids": [],
+      "current_fixture_ids": [
+        "union:ThreadStatus:systemError"
+      ],
       "current_implementation_status": "NotImplemented",
       "current_runtime_disposition": "OpaquePreserved",
       "current_runtime_target": "std::monostate{}",
@@ -79590,13 +80698,13 @@
               "pointer": "#/definitions/ThreadStatus",
               "sha256": "ffbe34c1b8e9ebeef3f23859a3dcc3d8cb26044d7799557ba688e39bff1c656a"
             },
-            "status": "planned"
+            "status": "existing"
           }
         ],
-        "existing_fixture_ids": [],
-        "planned_fixture_ids": [
+        "existing_fixture_ids": [
           "union:ThreadStatus:systemError"
         ],
+        "planned_fixture_ids": [],
         "required_fixture_ids": [
           "union:ThreadStatus:systemError"
         ]
@@ -83822,7 +84930,7 @@
   "sources": {
     "app_server_surface_generator": {
       "path": "tools/codex/app_server_surface.py",
-      "sha256": "81361d4242303701f7916ee7cecfb62a6012b6d2a2a6123b28cdd6ea625c777c"
+      "sha256": "f23bf9c70c08b7c1bf2a66915a0d285cb7f5bf489597a9c9837de69d6088c79d"
     },
     "assignments": {
       "path": "tools/codex/app-server-evidence/0.144.6/module-slice-assignment.json",
@@ -83834,15 +84942,15 @@
     },
     "fixture_generator": {
       "path": "tools/codex/app_server_fixtures.py",
-      "sha256": "b6573075207d92b5e9e2e42154cd44e6d59b8eadaabf49b2a494acecde89d8c3"
+      "sha256": "31a2febfeab325076b1ea8aabcbdc5725834771fb3d55d01931098b7fc8eb7b5"
     },
     "fixture_index": {
       "path": "tools/codex/app-server-fixtures/0.144.6/index.json",
-      "sha256": "74789dbf9bed1dfdf51d73fdd4e804a6312059c45ebf2a9fbfde1320c9598967"
+      "sha256": "100a09cf909c79064808d4522cdd35a688c189fb79fc45eada85926fc5813a41"
     },
     "generator": {
       "path": "tools/codex/app_server_a1_1.py",
-      "sha256": "a957d0fb41743ab9fa4de3ae8268c55af2af71a8b79d1917b7ebb917c12446b1"
+      "sha256": "c43edb4770a1db34f2ea8c0b5d33650d1d20242229a4cd1d4428c472f8257bff"
     },
     "manifest": {
       "path": "tools/codex/app-server-surface/0.144.6.json",
