@@ -792,11 +792,10 @@ namespace {
                               fractionalItem->diagnostic->fieldPath == "$.memoryCitation.entries[0].lineEnd",
                           "MemoryCitationEntry rejects fractional numbers at the exact field path");
 
-        typed::ReasoningThreadItem legacyAggregate{
-            typed::ItemMetadata{},
-            std::vector<std::string>{"legacy-summary"},
-            std::vector<std::string>{"legacy-content"},
-        };
+        typed::ReasoningThreadItem legacyAggregate{};
+        legacyAggregate.metadata = typed::ItemMetadata{};
+        legacyAggregate.summary = std::vector<std::string>{"legacy-summary"};
+        legacyAggregate.content = std::vector<std::string>{"legacy-content"};
         result.expectTrue(legacyAggregate.summary && legacyAggregate.summary->front() == "legacy-summary" &&
                               legacyAggregate.content && legacyAggregate.content->front() == "legacy-content",
                           "ReasoningThreadItem preserves the legacy aggregate order metadata, summary, content");

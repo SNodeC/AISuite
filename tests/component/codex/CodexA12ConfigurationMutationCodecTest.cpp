@@ -104,11 +104,10 @@ namespace {
         result.expectTrue(encodedValue == expectedValue && error.empty(),
                           "config/value/write retains arbitrary JSON and exact omitted/null/value semantics");
 
-        typed::ConfigValueWriteParams nullValue{
-            .keyPath = typed::ConfigKeyPath{"features.null"},
-            .mergeStrategy = typed::MergeStrategy::upsert(),
-            .value = std::nullopt,
-        };
+        typed::ConfigValueWriteParams nullValue{};
+        nullValue.keyPath = typed::ConfigKeyPath{"features.null"};
+        nullValue.mergeStrategy = typed::MergeStrategy::upsert();
+        nullValue.value = std::nullopt;
         const auto encodedNullValue = detail::encodeConfigValueWriteParams(nullValue, error);
         result.expectTrue(encodedNullValue == codex::Json{{"keyPath", "features.null"}, {"mergeStrategy", "upsert"}, {"value", nullptr}},
                           "config/value/write represents the required nullable JSON value as explicit null, never omission");
@@ -119,10 +118,9 @@ namespace {
         result.expectTrue(!rejectedBatch && error.find("$.expectedVersion") != std::string::npos,
                           "config/batchWrite rejects an inconsistent omitted expectedVersion at its exact path");
 
-        typed::ConfigValueWriteParams inconsistentValue{
-            .keyPath = typed::ConfigKeyPath{"features.invalid"},
-            .mergeStrategy = typed::MergeStrategy::replace(),
-        };
+        typed::ConfigValueWriteParams inconsistentValue{};
+        inconsistentValue.keyPath = typed::ConfigKeyPath{"features.invalid"};
+        inconsistentValue.mergeStrategy = typed::MergeStrategy::replace();
         inconsistentValue.filePath.value = typed::AbsolutePathBuf{"/must-not-encode"};
         const auto rejectedValue = detail::encodeConfigValueWriteParams(inconsistentValue, error);
         result.expectTrue(!rejectedValue && error.find("$.filePath") != std::string::npos,

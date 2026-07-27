@@ -1,9 +1,9 @@
 {
   "counts": {
-    "immutable_copies": 6786,
+    "immutable_copies": 6758,
     "imported_files": 6805,
     "new_standalone_files": 29,
-    "standalone_adaptations": 19
+    "standalone_adaptations": 47
   },
   "dependency_boundary": {
     "findings": [],
@@ -1138,7 +1138,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "9ee7b4b90b0f39a40f4384b82f208350023f6d26acf66485275b4031ea735734",
+      "final_sha256": "5ef1a99dcaf8d5efb10b9d29c59edd9998bc09bcd358c9edbc9a087d04384490",
       "path": "tests/component/codex/CodexA11ArtifactByteIdentityTest.py",
       "source_blob": "fa5058a83361c1564553ed4f60542f9787748dbc",
       "source_sha256": "d2e9541af6cf56fc20b7346c0be5903e5154a9688e8afb377b0b0e36a2da0dd2"
@@ -1158,8 +1158,8 @@
       "source_sha256": "8019a1664daca9c857b2f0fa9eb13e97e7bc285b34d5aade2f8a57f410e1fb92"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "9b4389369212f5941b09120b9feeee49ca7e35e59dd63bf65c98f861057adf55",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "9ed39539c3c39b57e5b823dd4945dc271eb93d686f8db296568bc50d66ac940f",
       "path": "tests/component/codex/CodexA11ItemCodecTest.cpp",
       "source_blob": "4285b13b2e8c30e9211f215ab216d2a486786907",
       "source_sha256": "9b4389369212f5941b09120b9feeee49ca7e35e59dd63bf65c98f861057adf55"
@@ -1193,8 +1193,8 @@
       "source_sha256": "9e6a103a8e6d5bfed3918f0b9f732295d4463bddc2663d586bd71ea4eaa5d1d4"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "e82d7631ff2f6f1da0646b0cca07c88e9a919caaef66701ebdfc70eb257409f9",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "ba98e6f8afa6058a6c802c046ad1a30c7731d13114235aa34895fa5e818d9d9c",
       "path": "tests/component/codex/CodexA11OperationWireTest.cpp",
       "source_blob": "bcfdda68dd7f8240163108abb2b1a8cc6240a73a",
       "source_sha256": "e82d7631ff2f6f1da0646b0cca07c88e9a919caaef66701ebdfc70eb257409f9"
@@ -1242,8 +1242,8 @@
       "source_sha256": "8eb11c4b5facf66396b91e870fdcc2ed68f0d162940781c734846e99f47fd817"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "1267966d8905124efbcd6673ce2914c3e9687a019f753bd03b63d654d1a7aeab",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "584e781a39354100726b5fab1d9129a4eef72ecf4220edf60014864db507813b",
       "path": "tests/component/codex/CodexA12ConfigurationMutationCodecTest.cpp",
       "source_blob": "87e6e091a71eb23856113f422e5f6839bca2da26",
       "source_sha256": "1267966d8905124efbcd6673ce2914c3e9687a019f753bd03b63d654d1a7aeab"
@@ -1256,8 +1256,8 @@
       "source_sha256": "39db38d9f0d68e5e13ea3614bddb0d733d4db41148a8a8a47ce8467983655470"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "c478bec06cb3498c414c61c67ac937b95ea4354558ebf659e802cbfa68093624",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "c3a123fbd34bb4b4799b15e7dfc0329a97048f8a179738cd473d2901e235ae80",
       "path": "tests/component/codex/CodexA12ConfigurationReadBackendPreservationTest.cpp",
       "source_blob": "6fdfccd9e6f32216cb9f34450e7961df10a6c5e3",
       "source_sha256": "c478bec06cb3498c414c61c67ac937b95ea4354558ebf659e802cbfa68093624"
@@ -1334,21 +1334,21 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "a0252c44e6f90cd2a4ea5c2bc1d34f09c7053ee50402e2aa747adce572023269",
+      "final_sha256": "f74094161b794c020bb018182a02dc9f70f864e066aa3a3fd09a8d48136a611e",
       "path": "tests/component/codex/CodexA13ClosureEvidenceTest.py",
       "source_blob": "9c1ad1c3e812959cf3e1bfb1680342277f4eb6fb",
       "source_sha256": "75d1a29e82629f8ef2d8eaa019c5d4a0b20d4d90305322e1014bee16a6db7260"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "85844fac9cb2a65516dc48a43d3c21bd3e72cb102a36deaf566a58fd793b0895",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "8ba4fd92ef19fe67eb5a359be39171c548ab7704a6d5c4e099aab5f53e4510da",
       "path": "tests/component/codex/CodexA13CommandBackendCompatibilityTest.cpp",
       "source_blob": "0c261a593b0bcccfa7ac3a5f09fd97df90232904",
       "source_sha256": "85844fac9cb2a65516dc48a43d3c21bd3e72cb102a36deaf566a58fd793b0895"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "3185eeae8db5752a544b705cb2087d2f49656d276ce98a1c5f56ebca202c2717",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "900d91b8a29d484dd55926db5a98a4d95a85e85898718ca7c3f59425c4904fb9",
       "path": "tests/component/codex/CodexA13CommandCodecTest.cpp",
       "source_blob": "40effe83cad208a0a5e37896183bf6a294baac7b",
       "source_sha256": "3185eeae8db5752a544b705cb2087d2f49656d276ce98a1c5f56ebca202c2717"
@@ -1361,15 +1361,15 @@
       "source_sha256": "280440ff80625f2e90d38b28ed0a3154585e55c179e85ba6d559458ffc35f35d"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "4cc3c5966244d154564a79640e779febee085ecada64000b4a468e4921ad7d99",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "6ee2a1658f7fa8dc75c59726ba811d1373d6b3150730bbb39d1a7dc9f8616179",
       "path": "tests/component/codex/CodexA13FilesystemBackendCompatibilityTest.cpp",
       "source_blob": "bb484e0397b5049d492a917597e944ec7854b62a",
       "source_sha256": "4cc3c5966244d154564a79640e779febee085ecada64000b4a468e4921ad7d99"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "4d58c891278964d1ee226180b312bb402cf09f4fca38d0233e207b2ab48b00f5",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "7b4fe20644ee5f0e45439aff3118277b851ec5d4ce7e59fe9f3c52c7a6dfe6ce",
       "path": "tests/component/codex/CodexA13FilesystemCodecTest.cpp",
       "source_blob": "99b65c4ecd202ed06f2f33bffb0909e93994cc5c",
       "source_sha256": "4d58c891278964d1ee226180b312bb402cf09f4fca38d0233e207b2ab48b00f5"
@@ -1382,8 +1382,8 @@
       "source_sha256": "a16647c9e023cf68ec955d1a9aa08612113e3470e20a1bf758eb0c2d2ecb1579"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "79682ba6fd8f4f6777794316513c4ed8f926388e24578a7dcea2e88660f49ccd",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "2b635f62915bae47a63c301f6c8e7d2329e520da5cd7af654038875c3ed9288d",
       "path": "tests/component/codex/CodexA13ReviewBackendCompatibilityTest.cpp",
       "source_blob": "f82ce604acbbdf53daaf6f1cb9840b8bd79a03f9",
       "source_sha256": "79682ba6fd8f4f6777794316513c4ed8f926388e24578a7dcea2e88660f49ccd"
@@ -1438,8 +1438,8 @@
       "source_sha256": "48bdc037ce7e35515aeb55b746cbaddcf500b91170672feb94cf99c2e787a56b"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "1d0c9b1632d014ae201f944a6b04868608675084c002406c887d48f80867738e",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "c711649dd8163bb28d1faead46d417d43ac95f694bd40a66ca241b6badc9d2d3",
       "path": "tests/component/codex/CodexBackendClientCommandDrainTest.cpp",
       "source_blob": "af1e80b84580801865c3bad9359cecdc0a13e525",
       "source_sha256": "1d0c9b1632d014ae201f944a6b04868608675084c002406c887d48f80867738e"
@@ -1466,8 +1466,8 @@
       "source_sha256": "ae739a2051c9bd5f6aed08aea97cd8c47aefd9e0c4e5f4e8791d8c729f125f4a"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "a1724a309a0c14fbdb37985bbb8535a19c2371b400e63db566193fdc77e54764",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "ce58c4147f8ad0b6c3dc735d7f93ec40bf8e074858bde3e2d441e3a6b31437c6",
       "path": "tests/component/codex/CodexBackendClientRealBackendAcceptanceTest.cpp",
       "source_blob": "1ca41f9e7ce8c59270ad5a6d6c54753b7d64b51e",
       "source_sha256": "a1724a309a0c14fbdb37985bbb8535a19c2371b400e63db566193fdc77e54764"
@@ -1487,8 +1487,8 @@
       "source_sha256": "7acb45ba88c12a3533805b464e80295778beaf9ba0df1b2672ee2ed8dd928ce8"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "d4ab8e86e41aaa428c4331def452d013de68f97db8e8e0c1d3eebd43d76cbaa3",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "89738fefbc5649fa8abfb8642b1d63af9b74ba83531bbc88c47ee57445802ae6",
       "path": "tests/component/codex/CodexBackendCoreTest.cpp",
       "source_blob": "dd985fd1b311c94b68538363fb84bdae704e3359",
       "source_sha256": "d4ab8e86e41aaa428c4331def452d013de68f97db8e8e0c1d3eebd43d76cbaa3"
@@ -1501,8 +1501,8 @@
       "source_sha256": "7acd1c83e438742c0e77aa50b5d21933bd62f321dcce48d12d720d7d2c580206"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "6b721b6fd085a55535e7edc8dd372a79f25aea0d1dca015689cdf8fd3962fb63",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "c7f4d046547566c6187f1cfd9ac28fef8e95cf5bfdd68c5f4f3517ccfa68dcee",
       "path": "tests/component/codex/CodexBackendReducerTest.cpp",
       "source_blob": "6492e0c60381ce0e08f8544a9795a8ac693bf1e5",
       "source_sha256": "6b721b6fd085a55535e7edc8dd372a79f25aea0d1dca015689cdf8fd3962fb63"
@@ -1536,15 +1536,15 @@
       "source_sha256": "1ba4d3893a2e75d0d33b4a346d91c5714f1cb809f637ecbdd9310e59e8a62689"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "b046a3278aa21e1243e868ab66d75ed0482d071a6ab188ad7f0c00b5537fc3af",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "e4f25e90504eb8deffab5cce53e3395cc76b4c83ffc91e0963bac844eb6eb8aa",
       "path": "tests/component/codex/CodexConversationB4NestedCodecTest.cpp",
       "source_blob": "5c3170ccab8117c7f3df90419db13d9b27f8d26c",
       "source_sha256": "b046a3278aa21e1243e868ab66d75ed0482d071a6ab188ad7f0c00b5537fc3af"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "66639e4339d35075aa49cff482787e0886d42ab344726b2114e1d3dedd2841c3",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "a71c05c39533df392874a1a3987a0764422c8024aecbfac42e13fcbec1b77b1b",
       "path": "tests/component/codex/CodexConversationCodecTest.cpp",
       "source_blob": "7e74cff0151796753c1e55fdb2c00bd5193b2fb0",
       "source_sha256": "66639e4339d35075aa49cff482787e0886d42ab344726b2114e1d3dedd2841c3"
@@ -1606,8 +1606,8 @@
       "source_sha256": "aba91d072ab93cc951d1d4e4178abb57fd4299fe0ee1b3223f1800ad40a8f204"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "e0ef053176f86432892e0c0c5aa563a736d06f129c145cce3587218acccfedf2",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "7492e389802ccedad10891920b2034d67bff8174b03611870362aad7c300d097",
       "path": "tests/component/codex/CodexFrontendProtocolV1Test.cpp",
       "source_blob": "d07b1e420fb71d39075bc9d359fb3891c3ba84f1",
       "source_sha256": "e0ef053176f86432892e0c0c5aa563a736d06f129c145cce3587218acccfedf2"
@@ -1620,15 +1620,15 @@
       "source_sha256": "4e25519b30643d431fb4db16087a93c111104b327ad6d98f280001f6be646d0b"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "b25aba126f89f6e3a51e8e50dc9f1379493d1edfec945117f5c381eb5c664497",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "9097f5efa74c1c7c3d62d1c777126c7a3719e54110be721eb907fca06b5ed640",
       "path": "tests/component/codex/CodexProtocolCodecTest.cpp",
       "source_blob": "b44d8eda253ab2d9a35189f38739d3eb18a5a19b",
       "source_sha256": "b25aba126f89f6e3a51e8e50dc9f1379493d1edfec945117f5c381eb5c664497"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "767498abce8cde7b942f019ecc73256a6fff4626daed1c06ed9ea97cab66b6af",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "77ddc255cb144bcd0b96a6e2d5a3f26ebc3c03e5a3790d4e63c6a07431390e4b",
       "path": "tests/component/codex/CodexProtocolEngineTest.cpp",
       "source_blob": "bb8d9898ac9296f09d49296d03fc67541528eb54",
       "source_sha256": "767498abce8cde7b942f019ecc73256a6fff4626daed1c06ed9ea97cab66b6af"
@@ -1648,8 +1648,8 @@
       "source_sha256": "f1d948387a9844a9b8905efacd2a171b557cae6bae2755ff45db259a2121996e"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "be2a0a99ca5609cbb347e18a6f32ab48476f947b435e1ad5419d6ba04373fc5e",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "888d6032b221f247f183d0730e32e8e72a6ad8c5321621f3ebf5b821192a5990",
       "path": "tests/component/codex/CodexSchemaTranscriptUnixTest.cpp",
       "source_blob": "aaf753fe152e575f70ee898773fddd96b977b861",
       "source_sha256": "be2a0a99ca5609cbb347e18a6f32ab48476f947b435e1ad5419d6ba04373fc5e"
@@ -1669,8 +1669,8 @@
       "source_sha256": "c2f2410e0bc3e31fd5637aba16aa769e1665393ed4d04d9917267422a92b1302"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "b988a3b447ccb06c4c9ca56c197d9f9abd17cb1805b32ef273aa7e1af7f3315f",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "b882d42d3e233cf6a68d84605197837eb060c897dbb1df1a03c654701618dfac",
       "path": "tests/component/codex/CodexStdioProtocolFlowTest.cpp",
       "source_blob": "6940f60baefe4494ddf04535a661208af4337fc5",
       "source_sha256": "b988a3b447ccb06c4c9ca56c197d9f9abd17cb1805b32ef273aa7e1af7f3315f"
@@ -1683,15 +1683,15 @@
       "source_sha256": "f479fd925761c2a0ebe6079edda956b51af9369128c55ac943c06748d6bfe202"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "e1137e6deee71f87b72243c346dce9030c5ac96e3c46e359cf5e1e4a379e27e4",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "0c0badc5565ea55ff61b09c11fb2ed85a14148750333ff190813f3d4b6771dff",
       "path": "tests/component/codex/CodexThreadItemBackendParityTest.cpp",
       "source_blob": "54e3483365d9727e99af2e6f2e0b60c63fb4c2ea",
       "source_sha256": "e1137e6deee71f87b72243c346dce9030c5ac96e3c46e359cf5e1e4a379e27e4"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "49e1fbe522381638e7598df71724e58685c7163876f9c927d738648644e12aca",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "9d5222961a0cd8caa7f1547395335c60ba521aacf5f426367cf6eaf180412b2f",
       "path": "tests/component/codex/CodexTypedAppServerIntegrationTest.cpp",
       "source_blob": "ffa706d23ca3ea205e75d16594851fbd682fa0a2",
       "source_sha256": "49e1fbe522381638e7598df71724e58685c7163876f9c927d738648644e12aca"
@@ -1725,15 +1725,15 @@
       "source_sha256": "388a39b16b04cb7dfdad16e61caead0c4873a1e26e0c052b820d08f477fe6c8c"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "1b95d9ddea0c7d38920c3c2eb468980b4c2801e6e2a31a15edb929cc4c570dca",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "5b5a275b4b56d42477d7a63c9cafecbefc96536ad057a4b7c4202b704a064dcf",
       "path": "tests/component/codex/CodexTypedProtocolEngineTest.cpp",
       "source_blob": "a9bf39ef1a020df80fc462b2e50b8a0c06696690",
       "source_sha256": "1b95d9ddea0c7d38920c3c2eb468980b4c2801e6e2a31a15edb929cc4c570dca"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "6dc5687de6302e499cefd2da19470307574943d498614aec6e9f726166a601f9",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "14da9b81f2a2eb12f876c1d45eedd84ac53ccf9cd35cc4c5ab1c316d0a8aed39",
       "path": "tests/component/codex/CodexTypedServerRequestDecoderTest.cpp",
       "source_blob": "c508e41dd92e6c08fed361c402c078ea06b7fb77",
       "source_sha256": "6dc5687de6302e499cefd2da19470307574943d498614aec6e9f726166a601f9"
@@ -1753,8 +1753,8 @@
       "source_sha256": "a270630b722809f252785bfea3fb45781a8e29c91a24beb79717eb11e3438d16"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "2e32b3c38db99280386bd825ab45f619fe25f0a0ae6ddd70c778394bdf1df17a",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "57521a1ea7b4bf8d1fa55611b21ddccce7a2fd4cac04ce33528e4f9b4ec45ff1",
       "path": "tests/component/codex/CodexTypedTurnCodecTest.cpp",
       "source_blob": "05d5d25a4d79390b66be156d4b756a04babade85",
       "source_sha256": "2e32b3c38db99280386bd825ab45f619fe25f0a0ae6ddd70c778394bdf1df17a"
@@ -1830,8 +1830,8 @@
       "source_sha256": "786f16c8dd5ca80e9f70da74fccdb83d34eab63dab068ac2fc9b2ac0ccfbfdf7"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "56759411a2c4c3b1065a2656ef6bdb6c5e36599249821a0fb15512dcdc6d9918",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "10f75ee8885f77c426bcba001c19b41fa7a23e3dd948eeee105f39ad1751b58a",
       "path": "tests/installed/codex/CodexBackendFrontendConsumer.cpp",
       "source_blob": "bf781cd33e8da983db5caacb7dc5a0fcc56597fe",
       "source_sha256": "56759411a2c4c3b1065a2656ef6bdb6c5e36599249821a0fb15512dcdc6d9918"
@@ -1915,7 +1915,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "049c2cfb29637ae4b453bac2875856b5154384159df4c254074fc93c96f6ffd1",
+      "final_sha256": "1c26d53cc1e678c4ea8f901cae443e70f83cfd8dbca11cb292260af89cad1f23",
       "path": "tools/codex/app-server-evidence/0.144.6/a1-1-closure-report.json",
       "source_blob": "d75029d54e07bc0190b03a8fbe921d4a141750f4",
       "source_sha256": "be9e5f028de164b57519a956a0b2615b15faa238d889b7f1391b07c3b473fb41"
@@ -1935,8 +1935,8 @@
       "source_sha256": "191c9e9152fe6c3a2fd052f542911c510e6643e78bfaf2b293729f9bfe7e62b0"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "9e9cc9a58651d39f2e2b5e9ee9cdb712a6338660029a77814988a7e904ef156e",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "2301645d02f15892987eba73f92b7962f3545aa75520eabca48b473dc55f6664",
       "path": "tools/codex/app-server-evidence/0.144.6/a1-1-operation-production-coverage.json",
       "source_blob": "d25dd4338cedf5096ce8c4e40522b98a2eec1d2f",
       "source_sha256": "9e9cc9a58651d39f2e2b5e9ee9cdb712a6338660029a77814988a7e904ef156e"
@@ -1992,7 +1992,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "2674582b248c2c637e268950ebd62323060fb202446cec9f1b8e6643ad197ce2",
+      "final_sha256": "d36f9f7b5be03efc396ea0bb3f84af7358f5e79e47189cf5994d0db02fccc7e6",
       "path": "tools/codex/app-server-evidence/0.144.6/a1-3-closure-report.json",
       "source_blob": "a406f1ef7e1ef2e0e6840949d71f09044db1438a",
       "source_sha256": "3eb5d5c7a0691e59f8a4910334b2661f171d331cd5994d88457a3421c4d3e592"
@@ -2027,7 +2027,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "9b302e2d39e61763412d7e7b8351d53d3e49969dd3122663c59ee0ea01a430bd",
+      "final_sha256": "ec2991d6b81e6bcabad58a3787621136fbf829253ac823bae6a5b96ca851e57d",
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-start-state.json",
       "source_blob": "179d2d9048effa2a4a4e63e0f8bab15750d60632",
       "source_sha256": "a9dfea82e640e62ed3126d66f16e4e1aea7c27455f0e99aadb46c04c99f50c62"
@@ -47575,15 +47575,15 @@
       "source_sha256": "b975aa514fd951161cc68eb26aac2b291b894afb62fd6cc3982bfeacf56a7021"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "110deb543b6a02237e4a2e690a56701938f824591e813e63641bbe78c7b88a45",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "209bf737ec4513ac8d0626a96238f6604216523b22f74276ee53bfc2cf207d73",
       "path": "tools/codex/app_server_a1_1.py",
       "source_blob": "de37d53ed6f3f683296fa132980ba5c1eaf66944",
       "source_sha256": "110deb543b6a02237e4a2e690a56701938f824591e813e63641bbe78c7b88a45"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "99ec723b762cf744cd2566b49df9e7f4887f367074941b66d38a0125b83c8025",
+      "final_sha256": "d3ed2035a1e7977f8144b70d31cd6210a3bd98464ecb2d0a4eb7753062a656e8",
       "path": "tools/codex/app_server_a1_1_closure.py",
       "source_blob": "93f5468eee6525564ddb52b0a3c400ceb45a1da4",
       "source_sha256": "53261ce796e2b09f7539b0364f124f3709f09ebc832c86990487e79afb5f7aa7"
@@ -47714,7 +47714,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "1087951ae2a90dfd0d812d267af1ec887ae7a36127694c16ca73481a4e2fc58d"
+      "sha256": "cb516e88d858d82692ff3186202ff99212cd960d98a43eca69d40834cabb4bed"
     },
     {
       "path": ".gitignore",
@@ -47790,11 +47790,11 @@
     },
     {
       "path": "tests/support/TestResult.cpp",
-      "sha256": "116882de113d0ac8a6e1629043fc3beaded2aee482d52a2d2e66c1ff8ecd0169"
+      "sha256": "f13d4bb1ae9548142e63168c3e1984947ef3bf3bd744d19933512af41bd49596"
     },
     {
       "path": "tests/support/TestResult.h",
-      "sha256": "37513fb6f9adb337d85e33a9a3773e7e709d23bae4958ff0a3e4179e99139c06"
+      "sha256": "afd88b00da34c1ec0ea1cfbfbe639a891e8e01ca8d314fec911dcc6c08414990"
     },
     {
       "path": "tools/extraction/filter_history.py",

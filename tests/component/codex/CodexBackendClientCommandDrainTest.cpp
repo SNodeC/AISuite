@@ -564,9 +564,13 @@ namespace {
     void testResponsePresentationCorrelation(tests::support::TestResult& result) {
         Harness harness;
         harness.establishAndSynchronize();
+        frontend::ThreadResume resume;
+        resume.threadId = "thread-resumed";
+        frontend::TurnStart turn;
+        turn.threadId = "thread-turned";
         result.expectTrue(harness.controller.enqueue(command("friendly-start", frontend::ThreadStart{})) &&
-                              harness.controller.enqueue(command("friendly-resume", frontend::ThreadResume{"thread-resumed"})) &&
-                              harness.controller.enqueue(command("friendly-turn", frontend::TurnStart{"thread-turned"})),
+                              harness.controller.enqueue(command("friendly-resume", std::move(resume))) &&
+                              harness.controller.enqueue(command("friendly-turn", std::move(turn))),
                           "friendly typed commands are accepted for presentation correlation");
 
         const auto resumed =

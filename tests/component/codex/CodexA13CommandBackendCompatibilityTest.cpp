@@ -108,14 +108,13 @@ namespace {
     }
 
     void testRedactionIsMethodSpecific(tests::support::TestResult& result) {
-        const backend::ExtensionSnapshot unrelated = backend::makeExtensionSnapshot({
-            .method = "future/extension",
-            .payload =
-                {
-                    {"deltaBase64", "ordinary-future-value"},
-                    {"processId", "ordinary-future-id"},
-                },
-        });
+        backend::ExtensionRecord unrelatedRecord{};
+        unrelatedRecord.method = "future/extension";
+        unrelatedRecord.payload = {
+            {"deltaBase64", "ordinary-future-value"},
+            {"processId", "ordinary-future-id"},
+        };
+        const backend::ExtensionSnapshot unrelated = backend::makeExtensionSnapshot(unrelatedRecord);
         result.expectTrue(!unrelated.sensitiveFieldsRedacted && unrelated.payload.value("deltaBase64", "") == "ordinary-future-value" &&
                               unrelated.payload.value("processId", "") == "ordinary-future-id",
                           "command redaction does not broaden generic extension key semantics");

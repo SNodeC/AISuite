@@ -1381,16 +1381,19 @@ namespace {
                                                   return threads.injectItems(std::move(params), std::move(handler));
                                               }));
 
+            typed::ThreadGoalSetParams goalOmitted{};
+            goalOmitted.threadId = threadId();
             encodingCases.push_back(makeEncodingCase<typed::ThreadGoalSetResponse>("thread/goal/set:omitted",
                                                                                    "thread/goal/set",
                                                                                    "thread-goal-set",
-                                                                                   typed::ThreadGoalSetParams{threadId()},
+                                                                                   std::move(goalOmitted),
                                                                                    {{"threadId", ThreadIdValue}},
                                                                                    [&threads](auto params, auto handler) {
                                                                                        return threads.setGoal(std::move(params),
                                                                                                               std::move(handler));
                                                                                    }));
-            typed::ThreadGoalSetParams goalNull{threadId()};
+            typed::ThreadGoalSetParams goalNull{};
+            goalNull.threadId = threadId();
             goalNull.objective = decltype(goalNull.objective)::explicitNull();
             goalNull.status = decltype(goalNull.status)::explicitNull();
             goalNull.tokenBudget = decltype(goalNull.tokenBudget)::explicitNull();
@@ -1485,16 +1488,19 @@ namespace {
                                                                                                                     std::move(handler));
                                                                                       }));
 
+            typed::ThreadMetadataUpdateParams metadataOmitted{};
+            metadataOmitted.threadId = threadId();
             encodingCases.push_back(makeEncodingCase<typed::ThreadMetadataUpdateResponse>("thread/metadata/update:omitted",
                                                                                           "thread/metadata/update",
                                                                                           "thread-metadata-update",
-                                                                                          typed::ThreadMetadataUpdateParams{threadId()},
+                                                                                          std::move(metadataOmitted),
                                                                                           {{"threadId", ThreadIdValue}},
                                                                                           [&threads](auto params, auto handler) {
                                                                                               return threads.updateMetadata(
                                                                                                   std::move(params), std::move(handler));
                                                                                           }));
-            typed::ThreadMetadataUpdateParams metadataNull{threadId()};
+            typed::ThreadMetadataUpdateParams metadataNull{};
+            metadataNull.threadId = threadId();
             metadataNull.gitInfo = decltype(metadataNull.gitInfo)::explicitNull();
             encodingCases.push_back(makeEncodingCase<typed::ThreadMetadataUpdateResponse>(
                 "thread/metadata/update:null",
@@ -1505,7 +1511,8 @@ namespace {
                 [&threads](auto params, auto handler) {
                     return threads.updateMetadata(std::move(params), std::move(handler));
                 }));
-            typed::ThreadMetadataUpdateParams metadataNestedOmitted{threadId()};
+            typed::ThreadMetadataUpdateParams metadataNestedOmitted{};
+            metadataNestedOmitted.threadId = threadId();
             metadataNestedOmitted.gitInfo = typed::ThreadMetadataGitInfoUpdateParams{};
             encodingCases.push_back(makeEncodingCase<typed::ThreadMetadataUpdateResponse>(
                 "thread/metadata/update:gitinfo-members-omitted",
@@ -1520,7 +1527,8 @@ namespace {
             nullGitInfo.branch = decltype(nullGitInfo.branch)::explicitNull();
             nullGitInfo.originUrl = decltype(nullGitInfo.originUrl)::explicitNull();
             nullGitInfo.sha = decltype(nullGitInfo.sha)::explicitNull();
-            typed::ThreadMetadataUpdateParams metadataNestedNull{threadId()};
+            typed::ThreadMetadataUpdateParams metadataNestedNull{};
+            metadataNestedNull.threadId = threadId();
             metadataNestedNull.gitInfo = std::move(nullGitInfo);
             encodingCases.push_back(makeEncodingCase<typed::ThreadMetadataUpdateResponse>(
                 "thread/metadata/update:gitinfo-members-null",

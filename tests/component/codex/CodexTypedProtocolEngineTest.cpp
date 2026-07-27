@@ -160,6 +160,12 @@ namespace {
         };
     }
 
+    TextInput textInput(std::string text) {
+        TextInput input;
+        input.text = std::move(text);
+        return input;
+    }
+
     Json threadOperationResult(const std::string& id) {
         return {
             {"approvalPolicy", "on-request"},
@@ -298,11 +304,13 @@ namespace {
             installStandardSendHook();
             client = std::make_unique<TestClient>(state);
 
-            ThreadStartOptions notReadyOptions;
-            notReadyOptions.cwd = "/not-ready";
-            const auto localFailure = client->typed().threads().start(std::move(notReadyOptions), [this](const OperationResult<Thread>&) {
-                ++localSubmissionCallbacks;
-            });
+            ThreadStartParams notReadyParams;
+            notReadyParams.cwd = OptionalNullable<std::string>::withValue(std::string{"/not-ready"});
+            const auto localFailure = client->typed().threads().start(
+                std::move(notReadyParams),
+                [this](const OperationResult<ThreadStartResponse>&) {
+                    ++localSubmissionCallbacks;
+                });
             expect(!localFailure && localFailure.error && localFailure.error->category == Error::Category::InvalidState,
                    "typed operation submission fails locally while the client is not ready");
 
@@ -379,13 +387,14 @@ namespace {
         }
 
         void launchCoreChecks() {
-            ThreadStartOptions malformedOptions;
-            malformedOptions.cwd = "/malformed";
+            ThreadStartParams malformedParams;
+            malformedParams.cwd = OptionalNullable<std::string>::withValue(std::string{"/malformed"});
             insideMalformedSubmission = true;
-            const auto malformed =
-                client->typed().threads().start(std::move(malformedOptions), [this](const OperationResult<Thread>& result) {
+            const auto malformed = client->typed().threads().start(
+                std::move(malformedParams),
+                [this](const OperationResult<ThreadStartResponse>& result) {
                 expect(!insideMalformedSubmission, "typed decoding callback remains asynchronous with a synchronous fake response");
-                expect(result.kind == OperationResult<Thread>::Kind::LocalError && result.localError &&
+                expect(result.kind == OperationResult<ThreadStartResponse>::Kind::LocalError && result.localError &&
                            result.localError->category == Error::Category::Protocol && result.raw == malformedThreadResult,
                        "malformed successful result becomes a typed LocalError and preserves raw result JSON");
                 ++malformedCallbacks;
@@ -393,13 +402,16 @@ namespace {
             insideMalformedSubmission = false;
             expect(static_cast<bool>(malformed), "malformed-result typed operation is accepted for asynchronous completion");
 
+            ThreadResumeParams remoteParams;
+            remoteParams.threadId = ThreadId{"thread-remote"};
             insideRemoteSubmission = true;
-            const auto remote =
-                client->typed().threads().resume(ThreadId{"thread-remote"}, {}, [this](const OperationResult<Thread>& result) {
+            const auto remote = client->typed().threads().resume(
+                std::move(remoteParams),
+                [this](const OperationResult<ThreadResumeResponse>& result) {
                 expect(!insideRemoteSubmission, "typed RemoteError callback remains asynchronous");
                 const auto* structuredInfo =
                     result.codexErrorInfo ? std::get_if<HttpConnectionFailedCodexErrorInfo>(&*result.codexErrorInfo) : nullptr;
-                expect(result.kind == OperationResult<Thread>::Kind::RemoteError && result.remoteError &&
+                expect(result.kind == OperationResult<ThreadResumeResponse>::Kind::RemoteError && result.remoteError &&
                            result.remoteError->code == -32'001 && result.remoteError->message == "typed remote error" &&
                            result.remoteError->data == std::optional<Json>(remoteTurnErrorData()) && structuredInfo &&
                            structuredInfo->httpStatusCode.present && structuredInfo->httpStatusCode.value == 503 &&
@@ -411,7 +423,10 @@ namespace {
             insideRemoteSubmission = false;
             expect(static_cast<bool>(remote), "remote-error typed operation is submitted successfully");
 
-            const auto pendingList = client->typed().threads().list({}, [this](const OperationResult<ThreadPage>& result) {
+            ThreadListParams pendingListParams;
+            const auto pendingList = client->typed().threads().list(
+                std::move(pendingListParams),
+                [this](const OperationResult<ThreadListResponse>& result) {
                 expect(result.kind == OperationResult<ThreadPage>::Kind::Cancelled && result.localError &&
                            result.localError->category == Error::Category::Cancelled,
                        "pending typed request receives a typed cancellation");
@@ -419,23 +434,29 @@ namespace {
             });
             expect(static_cast<bool>(pendingList), "typed request intended for cancellation is accepted");
 
-            ThreadStartOptions chainOptions;
-            chainOptions.cwd = "/chain";
+            ThreadStartParams chainParams;
+            chainParams.cwd = OptionalNullable<std::string>::withValue(std::string{"/chain"});
             insideChainSubmission = true;
-            const auto chain =
-                client->typed().threads().start(std::move(chainOptions), [this](const OperationResult<Thread>& result) {
-                expect(!insideChainSubmission && static_cast<bool>(result) && result.value && result.value->id.value == "thread-chain",
+            const auto chain = client->typed().threads().start(
+                std::move(chainParams),
+                [this](const OperationResult<ThreadStartResponse>& result) {
+                expect(!insideChainSubmission && static_cast<bool>(result) && result.value &&
+                           result.value->thread.id.value == "thread-chain",
                        "first callback in a typed operation chain is asynchronous and successfully decoded");
                 ++chainThreadCallbacks;
                 if (!result.value) {
                     return;
                 }
 
+                TurnStartParams turnParams;
+                turnParams.threadId = result.value->thread.id;
+                turnParams.input = {textInput("continue the typed chain")};
                 insideTurnSubmission = true;
                 const auto turn = client->typed().turns().start(
-                    result.value->id, {TextInput{"continue the typed chain"}}, {}, [this](const OperationResult<Turn>& turnResult) {
+                    std::move(turnParams),
+                    [this](const OperationResult<TurnStartResponse>& turnResult) {
                         expect(!insideTurnSubmission && static_cast<bool>(turnResult) && turnResult.value &&
-                                   turnResult.value->id.value == "turn-chain",
+                                   turnResult.value->turn.id.value == "turn-chain",
                                "typed operation callback can submit another typed operation with asynchronous completion");
                         ++chainTurnCallbacks;
                     });
@@ -679,9 +700,13 @@ namespace {
         }
 
         void beginGenerationChecks() {
-            const auto stale = client->typed().threads().read(ThreadId{"thread-old"}, [this](const OperationResult<Thread>&) {
-                ++staleCompletionCallbacks;
-            });
+            ThreadReadParams staleParams;
+            staleParams.threadId = ThreadId{"thread-old"};
+            const auto stale = client->typed().threads().read(
+                std::move(staleParams),
+                [this](const OperationResult<ThreadReadResponse>&) {
+                    ++staleCompletionCallbacks;
+                });
             expect(static_cast<bool>(stale), "generation-safety typed operation is accepted");
             if (!stale || !stale.id) {
                 coreFinalStop = true;
@@ -767,11 +792,13 @@ namespace {
             client = std::make_unique<TestClient>(state);
             client->setOnStateChanged([this](const StateChange& change) {
                 if (change.current == State::Ready) {
-                    ThreadStartOptions options;
-                    options.cwd = "/destroy";
-                    const auto submission =
-                        client->typed().threads().start(std::move(options), [this](const OperationResult<Thread>& result) {
-                        expect(static_cast<bool>(result) && result.value && result.value->id.value == "thread-destroy",
+                    ThreadStartParams params;
+                    params.cwd = OptionalNullable<std::string>::withValue(std::string{"/destroy"});
+                    const auto submission = client->typed().threads().start(
+                        std::move(params),
+                        [this](const OperationResult<ThreadStartResponse>& result) {
+                        expect(static_cast<bool>(result) && result.value &&
+                                   result.value->thread.id.value == "thread-destroy",
                                "typed operation completion receives its value before destroying the parent client");
                         ++destroyOperationCallbacks;
                         client.reset();

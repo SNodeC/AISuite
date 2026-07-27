@@ -62,7 +62,7 @@ namespace {
         try {
             Json value;
             input >> value;
-            return value;
+            return std::optional<Json>{std::move(value)};
         } catch (...) {
             return std::nullopt;
         }

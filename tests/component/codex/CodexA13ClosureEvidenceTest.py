@@ -406,13 +406,13 @@ class CodexA13ClosureEvidenceTest(unittest.TestCase):
         evidence = OPTIONS.repo_root / "tools/codex/app-server-evidence/0.144.6"
         expected = {
             "a1-1-closure-report.json":
-                "049c2cfb29637ae4b453bac2875856b5154384159df4c254074fc93c96f6ffd1",
+                "1c26d53cc1e678c4ea8f901cae443e70f83cfd8dbca11cb292260af89cad1f23",
             "a1-1-implementation-plan.json":
                 "59fbbd1e6c1ffcd5e0064e7ff7e2a6a68673ececac5ccb19d3d46cc57eda7661",
             "a1-1-notification-production-coverage.json":
                 "191c9e9152fe6c3a2fd052f542911c510e6643e78bfaf2b293729f9bfe7e62b0",
             "a1-1-operation-production-coverage.json":
-                "9e9cc9a58651d39f2e2b5e9ee9cdb712a6338660029a77814988a7e904ef156e",
+                "2301645d02f15892987eba73f92b7962f3545aa75520eabca48b473dc55f6664",
             "a1-1-start-state.json":
                 "1614414ea6320f8ac5eb47ef928c4bc8de587c9f429f86d7f94ffeb437b6c705",
             "a1-1-type-closure.json":

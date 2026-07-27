@@ -41,7 +41,13 @@ namespace {
             {"params", params},
             {"futureEnvelope", std::move(envelopeExtension)},
         };
-        return {std::move(id), std::move(method), std::move(params), std::move(raw)};
+        return ServerRequest{
+            std::move(id),
+            std::move(method),
+            std::move(params),
+            std::move(raw),
+            ai::openai::codex::ServerRequestToken{},
+        };
     }
 
     bool hasIntegerId(const ServerRequestId& id, std::int64_t expected) {

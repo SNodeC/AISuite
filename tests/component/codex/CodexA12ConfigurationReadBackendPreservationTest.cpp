@@ -150,18 +150,20 @@ namespace {
     }
 
     void testMethodSpecificTriStateRedaction(tests::support::TestResult& result) {
-        const backend::ExtensionSnapshot explicitNull = backend::makeExtensionSnapshot(backend::ExtensionRecord{
-            .method = "configWarning",
-            .payload = {{"details", nullptr}, {"summary", "null details"}},
-        });
-        const backend::ExtensionSnapshot omitted = backend::makeExtensionSnapshot(backend::ExtensionRecord{
-            .method = "configWarning",
-            .payload = {{"summary", "omitted details"}},
-        });
-        const backend::ExtensionSnapshot unrelated = backend::makeExtensionSnapshot(backend::ExtensionRecord{
-            .method = "future/extension",
-            .payload = {{"details", "ordinary unrelated details"}, {"summary", "safe"}},
-        });
+        backend::ExtensionRecord explicitNullRecord{};
+        explicitNullRecord.method = "configWarning";
+        explicitNullRecord.payload = {{"details", nullptr}, {"summary", "null details"}};
+        const backend::ExtensionSnapshot explicitNull = backend::makeExtensionSnapshot(explicitNullRecord);
+
+        backend::ExtensionRecord omittedRecord{};
+        omittedRecord.method = "configWarning";
+        omittedRecord.payload = {{"summary", "omitted details"}};
+        const backend::ExtensionSnapshot omitted = backend::makeExtensionSnapshot(omittedRecord);
+
+        backend::ExtensionRecord unrelatedRecord{};
+        unrelatedRecord.method = "future/extension";
+        unrelatedRecord.payload = {{"details", "ordinary unrelated details"}, {"summary", "safe"}};
+        const backend::ExtensionSnapshot unrelated = backend::makeExtensionSnapshot(unrelatedRecord);
 
         result.expectTrue(!explicitNull.sensitiveFieldsRedacted && explicitNull.payload.contains("details") &&
                               explicitNull.payload.at("details").is_null() && explicitNull.payload.value("summary", "") == "null details",

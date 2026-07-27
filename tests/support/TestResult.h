@@ -44,6 +44,7 @@
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
+#include <cstddef>
 #include <string>
 
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -62,6 +63,7 @@ namespace tests::support {
 
         void expectTrue(bool condition, const std::string& message);
         void expectEqual(int expected, int actual, const std::string& message);
+        void expectEqual(std::size_t expected, std::size_t actual, const std::string& message);
 
         int processResult() const;
 

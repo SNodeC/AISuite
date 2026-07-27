@@ -303,7 +303,7 @@ namespace {
         const ProtocolError rejection = {
             .code = -32000,
             .message = "Request rejected",
-            .data = Json{{"reason", "policy"}},
+            .data = std::optional<Json>{Json{{"reason", "policy"}}},
             .raw = Json{{"code", 17}, {"message", "must not override typed fields"}, {"future", "incoming-only"}},
         };
         const std::optional<std::string> encodedRejection = ProtocolCodec::encodeErrorResponse(stringResponseId, rejection, errorMessage);
@@ -330,7 +330,7 @@ namespace {
         const ProtocolError rejectionWithNullData = {
             .code = -2,
             .message = "null data",
-            .data = Json(nullptr),
+            .data = std::optional<Json>{Json(nullptr)},
         };
         const std::optional<std::string> encodedWithNullData =
             ProtocolCodec::encodeErrorResponse(integerResponseId, rejectionWithNullData, errorMessage);

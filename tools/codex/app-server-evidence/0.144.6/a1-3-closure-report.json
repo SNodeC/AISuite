@@ -2933,7 +2933,7 @@
     },
     "closure_test": {
       "path": "tests/component/codex/CodexA13ClosureEvidenceTest.py",
-      "sha256": "a0252c44e6f90cd2a4ea5c2bc1d34f09c7053ee50402e2aa747adce572023269"
+      "sha256": "f74094161b794c020bb018182a02dc9f70f864e066aa3a3fd09a8d48136a611e"
     },
     "component_test_registration": {
       "path": "tests/component/codex/CMakeLists.txt",
@@ -4346,11 +4346,11 @@
       },
       "CodexA13CommandBackendCompatibilityTest.cpp": {
         "path": "tests/component/codex/CodexA13CommandBackendCompatibilityTest.cpp",
-        "sha256": "85844fac9cb2a65516dc48a43d3c21bd3e72cb102a36deaf566a58fd793b0895"
+        "sha256": "8ba4fd92ef19fe67eb5a359be39171c548ab7704a6d5c4e099aab5f53e4510da"
       },
       "CodexA13CommandCodecTest.cpp": {
         "path": "tests/component/codex/CodexA13CommandCodecTest.cpp",
-        "sha256": "3185eeae8db5752a544b705cb2087d2f49656d276ce98a1c5f56ebca202c2717"
+        "sha256": "900d91b8a29d484dd55926db5a98a4d95a85e85898718ca7c3f59425c4904fb9"
       },
       "CodexA13CommandWireTest.cpp": {
         "path": "tests/component/codex/CodexA13CommandWireTest.cpp",
@@ -4358,11 +4358,11 @@
       },
       "CodexA13FilesystemBackendCompatibilityTest.cpp": {
         "path": "tests/component/codex/CodexA13FilesystemBackendCompatibilityTest.cpp",
-        "sha256": "4cc3c5966244d154564a79640e779febee085ecada64000b4a468e4921ad7d99"
+        "sha256": "6ee2a1658f7fa8dc75c59726ba811d1373d6b3150730bbb39d1a7dc9f8616179"
       },
       "CodexA13FilesystemCodecTest.cpp": {
         "path": "tests/component/codex/CodexA13FilesystemCodecTest.cpp",
-        "sha256": "4d58c891278964d1ee226180b312bb402cf09f4fca38d0233e207b2ab48b00f5"
+        "sha256": "7b4fe20644ee5f0e45439aff3118277b851ec5d4ce7e59fe9f3c52c7a6dfe6ce"
       },
       "CodexA13FilesystemWireTest.cpp": {
         "path": "tests/component/codex/CodexA13FilesystemWireTest.cpp",
@@ -4370,7 +4370,7 @@
       },
       "CodexA13ReviewBackendCompatibilityTest.cpp": {
         "path": "tests/component/codex/CodexA13ReviewBackendCompatibilityTest.cpp",
-        "sha256": "79682ba6fd8f4f6777794316513c4ed8f926388e24578a7dcea2e88660f49ccd"
+        "sha256": "2b635f62915bae47a63c301f6c8e7d2329e520da5cd7af654038875c3ed9288d"
       },
       "CodexA13ReviewCodecTest.cpp": {
         "path": "tests/component/codex/CodexA13ReviewCodecTest.cpp",

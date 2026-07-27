@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # Resolve indirect DSOs from the pinned staged SNode.C install both while
+  # linking test executables and while executing focused tests.
+  LDFLAGS: -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib
+  LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib
+
 jobs:
   gcc-debug:
     runs-on: ubuntu-24.04
@@ -23,25 +29,77 @@ jobs:
 
       - name: Build and install pinned SNode.C dependency
         run: |
-          git clone https://github.com/SNodeC/snode.c.git snodec
-          git -C snodec checkout d18b231a1d2ec2235fd6f204786b0a761cc24ff5
-          cmake -S snodec -B snodec-build \
+          git clone https://github.com/SNodeC/snode.c.git ../snodec
+          git -C ../snodec checkout d18b231a1d2ec2235fd6f204786b0a761cc24ff5
+          cmake -S ../snodec -B ../snodec-build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_INSTALL_PREFIX="$PWD/snodec-stage" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/../snodec-stage" \
             -DSNODEC_BUILD_TESTS=OFF \
             -DSNODEC_BUILD_APPS=OFF
-          cmake --build snodec-build --parallel 2
-          cmake --install snodec-build
+          cmake --build ../snodec-build --parallel 2
+          cmake --install ../snodec-build
 
       - name: Configure
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH="$PWD/snodec-stage" \
+            -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
             -DAISUITE_BUILD_TESTS=ON
 
       - name: Build
         run: cmake --build build --parallel 2
+
+      - name: Focused tests
+        run: |
+          ctest --test-dir build \
+            -L 'ai|openai|codex|extraction' \
+            --output-on-failure \
+            --parallel 2
+
+  gcc-15-debug:
+    runs-on: ubuntu-24.04
+    container: gcc:15.3.0-trixie
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y cmake ninja-build python3 pkg-config libssl-dev nlohmann-json3-dev
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          getent group snodec >/dev/null || groupadd --system snodec
+
+      - name: Record toolchain
+        run: |
+          g++ --version
+          cmake --version
+          ninja --version
+          dpkg-query -W -f='${Version}\n' nlohmann-json3-dev
+
+      - name: Build and install pinned SNode.C dependency
+        run: |
+          git clone https://github.com/SNodeC/snode.c.git ../snodec
+          git -C ../snodec checkout d18b231a1d2ec2235fd6f204786b0a761cc24ff5
+          cmake -S ../snodec -B ../snodec-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_INSTALL_PREFIX="$PWD/../snodec-stage" \
+            -DSNODEC_BUILD_TESTS=OFF \
+            -DSNODEC_BUILD_APPS=OFF
+          cmake --build ../snodec-build --parallel 2
+          cmake --install ../snodec-build
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
+            -DAISUITE_BUILD_TESTS=ON \
+            -DAISUITE_BUILD_APPS=ON
+
+      - name: Build all targets
+        run: cmake --build build --target all --parallel 2
 
       - name: Focused tests
         run: |

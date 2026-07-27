@@ -524,7 +524,12 @@ namespace {
                        "failed response enqueue remains observable and retains server-request ownership");
 
                 const auto rejection =
-                    client->raw().reject(request.id, ProtocolError{-32001, "Request rejected", Json{{"reason", "test rejection"}}});
+                    client->raw().reject(request.id,
+                                         ProtocolError{
+                                             -32001,
+                                             "Request rejected",
+                                             std::optional<Json>{Json{{"reason", "test rejection"}}},
+                                         });
                 expect(rejection && state->outgoing.back()["id"] == "approval-123" && state->outgoing.back()["error"]["code"] == -32001 &&
                            state->outgoing.back()["error"]["message"] == "Request rejected" &&
                            state->outgoing.back()["error"]["data"] == Json{{"reason", "test rejection"}},
