@@ -1,0 +1,6 @@
+/build*/
+/stage*/
+/package*/
+*.user
+__pycache__/
+*.pyc

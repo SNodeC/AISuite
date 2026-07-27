@@ -1,12 +1,3 @@
-# SNode.C - A Slim Toolkit for Network Communication
-# Copyright (C) Volker Christian <me@vchrist.at>
-#               2020, 2021, 2022, 2023, 2024, 2025, 2026
-
-cmake_minimum_required(VERSION 3.18)
-
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(CODEX_NLOHMANN_JSON REQUIRED nlohmann_json>=3.11)
-
 set(AI_OPENAI_CODEX_CPP
     AppServerClient.cpp
     detail/AccountCodec.cpp
@@ -36,38 +27,10 @@ set(AI_OPENAI_CODEX_CPP
     typed/Types.cpp
 )
 
-set(AI_OPENAI_CODEX_H
+set(AI_OPENAI_CODEX_PUBLIC_H
     AppServerClient.h
     Protocol.h
-    detail/AccountCodec.h
-    detail/AccountsModelsConfigurationUnionCodecDescriptors.inc
-    detail/ApprovalCodec.h
-    detail/CodexErrorInfoCodec.h
-    detail/ClientOperationCodec.h
-    detail/CommandCodec.h
-    detail/CommandsFilesystemReviewsApprovalsUnionCodecDescriptors.inc
-    detail/ConfigurationCodec.h
-    detail/ConversationCodec.h
-    detail/ConversationUnionCodecDescriptors.inc
-    detail/ThreadItemCodecDescriptors.inc
-    detail/ResponseItemCodecDescriptors.inc
-    detail/ServerNotificationCodecDescriptors.inc
-    detail/ServerRequestCodecDescriptors.inc
-    detail/DecodeDiagnostic.h
-    detail/EventDecoder.h
-    detail/FilesystemCodec.h
-    detail/ItemDecoder.h
-    detail/ModelCodec.h
-    detail/ProtocolCodec.h
-    detail/ProtocolSurfaceRegistry.h
-    detail/ProtocolSurfaceRegistryData.inc
-    detail/ReviewCodec.h
-    detail/ServerRequestDecoder.h
-    detail/ThreadCodec.h
-    detail/Transport.h
-    detail/TurnCodec.h
     stdio/Client.h
-    stdio/StdioTransport.h
     typed/Accounts.h
     typed/Client.h
     typed/CodexErrorInfo.h
@@ -87,73 +50,64 @@ set(AI_OPENAI_CODEX_H
     typed/Types.h
 )
 
-add_library(ai-openai-codex SHARED ${AI_OPENAI_CODEX_CPP} ${AI_OPENAI_CODEX_H})
+add_library(ai-openai-codex SHARED ${AI_OPENAI_CODEX_CPP})
+add_library(AISuite::OpenAICodex ALIAS ai-openai-codex)
 add_library(snodec::ai-openai-codex ALIAS ai-openai-codex)
+set_target_properties(ai-openai-codex PROPERTIES EXPORT_NAME OpenAICodex)
 
 target_include_directories(
     ai-openai-codex
-    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>"
-           "$<INSTALL_INTERFACE:include/snode.c>"
-           ${CODEX_NLOHMANN_JSON_INCLUDE_DIRS}
+    PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/aisuite>"
 )
-
 target_compile_features(ai-openai-codex PUBLIC cxx_std_20)
-
-target_link_libraries(ai-openai-codex PRIVATE core)
-
+target_link_libraries(
+    ai-openai-codex
+    PUBLIC nlohmann_json::nlohmann_json
+    PRIVATE core
+)
 set_target_properties(
     ai-openai-codex
-    PROPERTIES VERSION ${SNode.C_VERSION}
-               SOVERSION ${SNODEC_SOVERSION}
-               OUTPUT_NAME snodec-ai-openai-codex
+    PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${AISUITE_CODEX_SOVERSION}
+        OUTPUT_NAME aisuite-openai-codex
 )
-
 install(
     TARGETS ai-openai-codex
-    EXPORT snodec_ai-openai-codex_Targets
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT ai-openai-codex
+    EXPORT AISuiteTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
 install(
     FILES AppServerClient.h Protocol.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snode.c/ai/openai/codex
-    COMPONENT ai-openai-codex
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex
 )
-
-install(
-    FILES typed/Accounts.h
-          typed/Client.h
-          typed/CodexErrorInfo.h
-          typed/Commands.h
-          typed/Configuration.h
-          typed/Conversation.h
-          typed/Events.h
-          typed/Filesystem.h
-          typed/Items.h
-          typed/Models.h
-          typed/PermissionProfiles.h
-          typed/Reviews.h
-          typed/Results.h
-          typed/ServerRequests.h
-          typed/Threads.h
-          typed/Turns.h
-          typed/Types.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snode.c/ai/openai/codex/typed
-    COMPONENT ai-openai-codex
-)
-
 install(
     FILES stdio/Client.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snode.c/ai/openai/codex/stdio
-    COMPONENT ai-openai-codex
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/stdio
 )
-
 install(
-    EXPORT snodec_ai-openai-codex_Targets
-    FILE snodec_ai-openai-codex_Targets.cmake
-    NAMESPACE snodec::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/snodec
-    COMPONENT ai-openai-codex
+    FILES
+        typed/Accounts.h
+        typed/Client.h
+        typed/CodexErrorInfo.h
+        typed/Commands.h
+        typed/Configuration.h
+        typed/Conversation.h
+        typed/Events.h
+        typed/Filesystem.h
+        typed/Items.h
+        typed/Models.h
+        typed/PermissionProfiles.h
+        typed/Reviews.h
+        typed/Results.h
+        typed/ServerRequests.h
+        typed/Threads.h
+        typed/Turns.h
+        typed/Types.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/typed
 )
 
 add_subdirectory(backend)

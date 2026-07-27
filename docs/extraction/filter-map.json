@@ -1,0 +1,907 @@
+{
+  "commits": [
+    {
+      "filtered": "dd60910233ccce457401d464e1ea479ca7468ef0",
+      "filtered_parents": [],
+      "ordinal": 1,
+      "source": "2b96d898e6d5952f179dfd0562aadaafdddc47ae",
+      "source_parents": [
+        "04ca25f5e3c71d412a1416db9ee87180b249c119"
+      ],
+      "subject": "Added codex AI front end as a codex client.",
+      "tree": "fda7912c06664eb2e22740a952e2a94f25cb8327"
+    },
+    {
+      "filtered": "16b2fe1f699de92f508538014dce216fc95a7ac4",
+      "filtered_parents": [
+        "dd60910233ccce457401d464e1ea479ca7468ef0"
+      ],
+      "ordinal": 2,
+      "source": "a48f217cbcb90325231f87aa762f0bed11670cd0",
+      "source_parents": [
+        "2b96d898e6d5952f179dfd0562aadaafdddc47ae"
+      ],
+      "subject": "Next round codex-integration",
+      "tree": "1767bbcb1ea37d4a51ac12fc18b6375cb212d94d"
+    },
+    {
+      "filtered": "84276705c18cc2f88ac8288b642f037f78be0be0",
+      "filtered_parents": [
+        "16b2fe1f699de92f508538014dce216fc95a7ac4"
+      ],
+      "ordinal": 3,
+      "source": "441b1b487ea2ddd51deb119642de460b1ada41a7",
+      "source_parents": [
+        "a48f217cbcb90325231f87aa762f0bed11670cd0"
+      ],
+      "subject": "Slim clear shutdown live cycle event (onSignal -> onShutdown)",
+      "tree": "ead3d9c8c58880421d3c27e05d12350c5b49eeed"
+    },
+    {
+      "filtered": "933144ac72db1c4162d3d44c0cfb75c3a5f8b7a7",
+      "filtered_parents": [
+        "84276705c18cc2f88ac8288b642f037f78be0be0"
+      ],
+      "ordinal": 4,
+      "source": "6b8f07a9e1d1269309d062a9087a42b77ab47d26",
+      "source_parents": [
+        "441b1b487ea2ddd51deb119642de460b1ada41a7"
+      ],
+      "subject": "Add shutdown tests and update docs for new DescriptorEventReceiver callback",
+      "tree": "b53630c88dbd0af028d0efd67a15520236b806aa"
+    },
+    {
+      "filtered": "c6583aed707c26e2b545c53a4d148ea159e42887",
+      "filtered_parents": [
+        "933144ac72db1c4162d3d44c0cfb75c3a5f8b7a7"
+      ],
+      "ordinal": 5,
+      "source": "d18e0c100320a9d887d1d9803382492e7ddc3c7a",
+      "source_parents": [
+        "6b8f07a9e1d1269309d062a9087a42b77ab47d26"
+      ],
+      "subject": "Finish codex foundation",
+      "tree": "7e1c4795dea20baec18accf300d00f598ebe5608"
+    },
+    {
+      "filtered": "89da66c966767d15df7c8263a1e93cbebb2f9055",
+      "filtered_parents": [
+        "c6583aed707c26e2b545c53a4d148ea159e42887"
+      ],
+      "ordinal": 6,
+      "source": "5e60c26213372497a93bde82104739773217a56c",
+      "source_parents": [
+        "04ca25f5e3c71d412a1416db9ee87180b249c119",
+        "1ef811f05eb9493833e9c06f75e8ebf171dd4743"
+      ],
+      "subject": "Merge pull request #206 from SNodeC/feature/codex-app-server-client-foundation",
+      "tree": "7e1c4795dea20baec18accf300d00f598ebe5608"
+    },
+    {
+      "filtered": "bd2b1d214a81a7ce4049a868748ab9fd983ea77d",
+      "filtered_parents": [
+        "89da66c966767d15df7c8263a1e93cbebb2f9055"
+      ],
+      "ordinal": 7,
+      "source": "850b0e971561a529da243344646caf647f57dc8f",
+      "source_parents": [
+        "5e60c26213372497a93bde82104739773217a56c"
+      ],
+      "subject": "Implement full protocol engine",
+      "tree": "2a7adb9e5c93c84335f3cc89bc356b9f0a9f104d"
+    },
+    {
+      "filtered": "6f4ca283e2918d58a0f87525700702d79d186edf",
+      "filtered_parents": [
+        "bd2b1d214a81a7ce4049a868748ab9fd983ea77d"
+      ],
+      "ordinal": 8,
+      "source": "be586f5c3d71332cdae45035f0c0826b3d191b5b",
+      "source_parents": [
+        "850b0e971561a529da243344646caf647f57dc8f"
+      ],
+      "subject": "Add tests and protocol handling for server-request ID reuse and callback generation",
+      "tree": "3b68ba44be948df04082e04593a9a59cc90299b6"
+    },
+    {
+      "filtered": "77dca2a016ac3230423a948c46de844bbe9bacb0",
+      "filtered_parents": [
+        "6f4ca283e2918d58a0f87525700702d79d186edf"
+      ],
+      "ordinal": 9,
+      "source": "f7406d3c17346b3dde5f249d0b7822ed78e8cb60",
+      "source_parents": [
+        "5e60c26213372497a93bde82104739773217a56c",
+        "be586f5c3d71332cdae45035f0c0826b3d191b5b"
+      ],
+      "subject": "Merge pull request #207 from SNodeC/feature/codex-app-server-protocol-core",
+      "tree": "3b68ba44be948df04082e04593a9a59cc90299b6"
+    },
+    {
+      "filtered": "52b0afe061023ad5c152d8a7444ef2fd55a00385",
+      "filtered_parents": [
+        "77dca2a016ac3230423a948c46de844bbe9bacb0"
+      ],
+      "ordinal": 10,
+      "source": "e5162068c2c7376612e8217bf33dc81d4f15a7d5",
+      "source_parents": [
+        "f7406d3c17346b3dde5f249d0b7822ed78e8cb60"
+      ],
+      "subject": "Codex app-server typed API",
+      "tree": "abb8bb92582c019dc7042332328458fa2b6cae50"
+    },
+    {
+      "filtered": "4b5b2ae7839b20c4cc9668e82d97e1696c2ef3fd",
+      "filtered_parents": [
+        "52b0afe061023ad5c152d8a7444ef2fd55a00385"
+      ],
+      "ordinal": 11,
+      "source": "1071d67b2debbe09b65529939aa336794a75054d",
+      "source_parents": [
+        "f7406d3c17346b3dde5f249d0b7822ed78e8cb60",
+        "e5162068c2c7376612e8217bf33dc81d4f15a7d5"
+      ],
+      "subject": "Merge pull request #208 from SNodeC/feature/codex-app-server-typed-api",
+      "tree": "abb8bb92582c019dc7042332328458fa2b6cae50"
+    },
+    {
+      "filtered": "f5a4ae43620418d670180ce1c408242341553ec9",
+      "filtered_parents": [
+        "4b5b2ae7839b20c4cc9668e82d97e1696c2ef3fd"
+      ],
+      "ordinal": 12,
+      "source": "25ce53fdc67380456dc870f78907b43b12527d2d",
+      "source_parents": [
+        "1071d67b2debbe09b65529939aa336794a75054d"
+      ],
+      "subject": "First example app for codex-module",
+      "tree": "e10423d2279ae1a4440f78792b967c3852d761fe"
+    },
+    {
+      "filtered": "71fcc18f5a2222191e98568515f5c883fc23d1bd",
+      "filtered_parents": [
+        "f5a4ae43620418d670180ce1c408242341553ec9"
+      ],
+      "ordinal": 13,
+      "source": "a0042563b399b015bbaf6b2135bf43b5b80add64",
+      "source_parents": [
+        "25ce53fdc67380456dc870f78907b43b12527d2d"
+      ],
+      "subject": "First example app for codex-module",
+      "tree": "5b869f272d9ba37b065382e671de89a560d3e2fe"
+    },
+    {
+      "filtered": "06e35405291569a852804dbb7194a73c1fcb20a0",
+      "filtered_parents": [
+        "71fcc18f5a2222191e98568515f5c883fc23d1bd"
+      ],
+      "ordinal": 14,
+      "source": "c60b19c0e4a86e06de7a77085de194a5f56bff6b",
+      "source_parents": [
+        "a0042563b399b015bbaf6b2135bf43b5b80add64"
+      ],
+      "subject": "Add unix-domain socket client prove of concept.",
+      "tree": "dabf47e10bcbfe3e093a0c030fa6fb1792f26efe"
+    },
+    {
+      "filtered": "f7ff11407dfc72bcd19f498b85b22dfc58d4df5d",
+      "filtered_parents": [
+        "06e35405291569a852804dbb7194a73c1fcb20a0"
+      ],
+      "ordinal": 15,
+      "source": "79825125441c7b4dc2c0b8978c3d4a69a15679c7",
+      "source_parents": [
+        "c60b19c0e4a86e06de7a77085de194a5f56bff6b"
+      ],
+      "subject": "Fix small regressions",
+      "tree": "a1793925b8234ae0742e396146ef112ad95d3aa8"
+    },
+    {
+      "filtered": "76155ac70d9d273dab6806319e8e4e6f882677e2",
+      "filtered_parents": [
+        "f7ff11407dfc72bcd19f498b85b22dfc58d4df5d"
+      ],
+      "ordinal": 16,
+      "source": "2ec8348b5d3a6ec0080ac770e25648961a5d7983",
+      "source_parents": [
+        "79825125441c7b4dc2c0b8978c3d4a69a15679c7"
+      ],
+      "subject": "Update - still not fixed!",
+      "tree": "0f201c72a44431308bfe896c280676baa476da1c"
+    },
+    {
+      "filtered": "65f4fc640834e74ee04f9f05ace2a6148ff25d90",
+      "filtered_parents": [
+        "76155ac70d9d273dab6806319e8e4e6f882677e2"
+      ],
+      "ordinal": 17,
+      "source": "411073d98532cec4ae6498509a28a001f7966e94",
+      "source_parents": [
+        "2ec8348b5d3a6ec0080ac770e25648961a5d7983"
+      ],
+      "subject": "Fix keyboard reader",
+      "tree": "47c5ec954ac2d369b49209f46804e90c0789f139"
+    },
+    {
+      "filtered": "74384162338de31129183f6f803392e479e1aabb",
+      "filtered_parents": [
+        "65f4fc640834e74ee04f9f05ace2a6148ff25d90"
+      ],
+      "ordinal": 18,
+      "source": "0282539f5c5cdce38c2b6c7fb3c3fe0f66e1c816",
+      "source_parents": [
+        "a0042563b399b015bbaf6b2135bf43b5b80add64",
+        "411073d98532cec4ae6498509a28a001f7966e94"
+      ],
+      "subject": "Merge pull request #209 from SNodeC/feature/codex-backend-client",
+      "tree": "47c5ec954ac2d369b49209f46804e90c0789f139"
+    },
+    {
+      "filtered": "0aa15a046db0ef4087e87793a0ce67703a66ea92",
+      "filtered_parents": [
+        "74384162338de31129183f6f803392e479e1aabb"
+      ],
+      "ordinal": 19,
+      "source": "799dcf43cab817dd66c5d3ed2e4d161b1006526e",
+      "source_parents": [
+        "0282539f5c5cdce38c2b6c7fb3c3fe0f66e1c816"
+      ],
+      "subject": "Complete codex backend client thread management",
+      "tree": "0a7bae2bab9e81ae364cd81cb90627a0ddad4973"
+    },
+    {
+      "filtered": "8939a826d703043eb1891a5ac7d2ae2347c9e539",
+      "filtered_parents": [
+        "0aa15a046db0ef4087e87793a0ce67703a66ea92"
+      ],
+      "ordinal": 20,
+      "source": "968cb0bca5fc6848f0af87e1939a0f6db7db3e0a",
+      "source_parents": [
+        "799dcf43cab817dd66c5d3ed2e4d161b1006526e"
+      ],
+      "subject": "Fix Codex user-message item canonicalization",
+      "tree": "222367d220d23b709719f3ad3136c641eecf8b5b"
+    },
+    {
+      "filtered": "437f1c0389b0b57ebd273e1641506ab2ce659e03",
+      "filtered_parents": [
+        "8939a826d703043eb1891a5ac7d2ae2347c9e539"
+      ],
+      "ordinal": 21,
+      "source": "e9fdb1158d09aac902ab0472388c37587825c443",
+      "source_parents": [
+        "968cb0bca5fc6848f0af87e1939a0f6db7db3e0a"
+      ],
+      "subject": "Completed the schema/documentation portion.",
+      "tree": "570dd4d1347e7466947a69a776d0ec56cbbdf037"
+    },
+    {
+      "filtered": "72097c2a6d6bf05cc56d7271fea496a3e024718a",
+      "filtered_parents": [
+        "437f1c0389b0b57ebd273e1641506ab2ce659e03"
+      ],
+      "ordinal": 22,
+      "source": "90f35c76831b4a57f5b4b731b0c36acb47e879c5",
+      "source_parents": [
+        "0282539f5c5cdce38c2b6c7fb3c3fe0f66e1c816",
+        "e9fdb1158d09aac902ab0472388c37587825c443"
+      ],
+      "subject": "Complete Codex backend client and canonicalize user messages",
+      "tree": "570dd4d1347e7466947a69a776d0ec56cbbdf037"
+    },
+    {
+      "filtered": "80cb87ce355c78a3226c29a7cc9039f6a8cfd39f",
+      "filtered_parents": [
+        "72097c2a6d6bf05cc56d7271fea496a3e024718a"
+      ],
+      "ordinal": 23,
+      "source": "571ace1ccfda7433e01e4e545a1524d70ef78f86",
+      "source_parents": [
+        "8edceb6cba90d1306464a4befe7ac3f3065ed999"
+      ],
+      "subject": "Rename receiver shutdown dispatch to shutdownEvent",
+      "tree": "3ac4d42e2c5423ab4450d583a731febbec8f09e4"
+    },
+    {
+      "filtered": "e0c92d0bea273cfef7cc208969bad2b0a49293da",
+      "filtered_parents": [
+        "80cb87ce355c78a3226c29a7cc9039f6a8cfd39f"
+      ],
+      "ordinal": 24,
+      "source": "43cad7513e7eb712afcd142b8ea0bedd1bb58c85",
+      "source_parents": [
+        "90f35c76831b4a57f5b4b731b0c36acb47e879c5",
+        "571ace1ccfda7433e01e4e545a1524d70ef78f86"
+      ],
+      "subject": "Coordinate established stream shutdown and preserve logging-context lifetimes",
+      "tree": "3ac4d42e2c5423ab4450d583a731febbec8f09e4"
+    },
+    {
+      "filtered": "98f9c75756eadbf64c5a585ac45691df22d6222f",
+      "filtered_parents": [
+        "e0c92d0bea273cfef7cc208969bad2b0a49293da"
+      ],
+      "ordinal": 25,
+      "source": "4ae35698b30d90482361a71630afa33a278ca51a",
+      "source_parents": [
+        "d4b4f1ce07e9775b81edd7937a687efc08db5691"
+      ],
+      "subject": "Normalize Codex stdio and child process lifecycle records",
+      "tree": "f21797275ed172905a5c5c3e20678a35d52ecb07"
+    },
+    {
+      "filtered": "333011f4dd363f91216db9589676d9dedc9601ca",
+      "filtered_parents": [
+        "98f9c75756eadbf64c5a585ac45691df22d6222f"
+      ],
+      "ordinal": 26,
+      "source": "d228cafd8e3e735e995bb6068251b27f4d80a750",
+      "source_parents": [
+        "4ae35698b30d90482361a71630afa33a278ca51a"
+      ],
+      "subject": "Add transport and attempt lifecycle coverage",
+      "tree": "0cc78b12f3df830d191214eeeb1674c9833d7bf8"
+    },
+    {
+      "filtered": "10d61db6fdcb6c8a647596cc57917a461228bd83",
+      "filtered_parents": [
+        "333011f4dd363f91216db9589676d9dedc9601ca"
+      ],
+      "ordinal": 27,
+      "source": "fffe267fb71a41755f9c66d07274b215e3fa2016",
+      "source_parents": [
+        "43cad7513e7eb712afcd142b8ea0bedd1bb58c85",
+        "ae97962c50f3de79c275080e90e1b6e0bd5f764b"
+      ],
+      "subject": "Merge pull request #212 from SNodeC/codex/logging-phase-2-transport-attempt-lifecycle",
+      "tree": "0cc78b12f3df830d191214eeeb1674c9833d7bf8"
+    },
+    {
+      "filtered": "4f9300dcfe055ed1cab489a3b8a631824708cda2",
+      "filtered_parents": [
+        "10d61db6fdcb6c8a647596cc57917a461228bd83"
+      ],
+      "ordinal": 28,
+      "source": "e2cf4b5b91c7f31bea341c708796af5ac11d7ffc",
+      "source_parents": [
+        "58e28944fdc2c4d62d21e015c26b97ec8e81cde9"
+      ],
+      "subject": "refactor(logging): normalize Codex request and turn lifecycles",
+      "tree": "50b0e998c09594ada0188170fd832e10c042c89f"
+    },
+    {
+      "filtered": "6b79f1b4337798bd01027bdb361e258434516a67",
+      "filtered_parents": [
+        "4f9300dcfe055ed1cab489a3b8a631824708cda2"
+      ],
+      "ordinal": 29,
+      "source": "efb81c6933252a00210826c369a172c8d9aa3e7f",
+      "source_parents": [
+        "6b2e3d01908fd4fddae637a15199ba17a6230acf"
+      ],
+      "subject": "refactor(logging): keep lifecycle bookkeeping internal",
+      "tree": "ff0a176d747a4625e043bbb0651263a921d73892"
+    },
+    {
+      "filtered": "147cc25a778eceda0cba7276baa232c6393fab88",
+      "filtered_parents": [
+        "6b79f1b4337798bd01027bdb361e258434516a67"
+      ],
+      "ordinal": 30,
+      "source": "8cc9560401dfcadb69344708458025a3028cb786",
+      "source_parents": [
+        "c00d49a16958c1dd86a4c857ab13939f05f055af"
+      ],
+      "subject": "refactor(logging): remove residual semantic identity prefixes",
+      "tree": "d0933c7887247f8fb690f706675c9270b2c932ab"
+    },
+    {
+      "filtered": "8c57d63ce4a78bfccfc5851a1bc7d9ce4559ed4a",
+      "filtered_parents": [
+        "147cc25a778eceda0cba7276baa232c6393fab88"
+      ],
+      "ordinal": 31,
+      "source": "6fb9171f08a68d79771187155873a448b47a4aee",
+      "source_parents": [
+        "fffe267fb71a41755f9c66d07274b215e3fa2016",
+        "9c6ceaae0963dba41600b59d2d500ba183546f54"
+      ],
+      "subject": "Merge pull request #213 from SNodeC/codex/logging-phase-3-protocol-session-request-lifecycle",
+      "tree": "d0933c7887247f8fb690f706675c9270b2c932ab"
+    },
+    {
+      "filtered": "0ab3aed344613b865a3e0847da016fc0cdb97c48",
+      "filtered_parents": [
+        "8c57d63ce4a78bfccfc5851a1bc7d9ce4559ed4a"
+      ],
+      "ordinal": 32,
+      "source": "529337a9fd5996532bdbbba86492f5b1d5469a48",
+      "source_parents": [
+        "9e9b9c6322e8a86509c40dab07f635e1103290ac"
+      ],
+      "subject": "test(lifecycle): extract permanent migration regressions",
+      "tree": "ea0d532e505392944f10d6d152bad62d0e74be12"
+    },
+    {
+      "filtered": "35200d9bebb5805f596e30e29784b5554684370c",
+      "filtered_parents": [
+        "0ab3aed344613b865a3e0847da016fc0cdb97c48"
+      ],
+      "ordinal": 33,
+      "source": "138f5022c19b24847bee42a21242aaaf7dde5a04",
+      "source_parents": [
+        "6fb9171f08a68d79771187155873a448b47a4aee",
+        "3464ae9683574d6894c1c184aad26a4ae5c4aaeb"
+      ],
+      "subject": "Merge pull request #214 from SNodeC/codex/test-suite-consolidation",
+      "tree": "ea0d532e505392944f10d6d152bad62d0e74be12"
+    },
+    {
+      "filtered": "6d382a5025079cf2e8f84193024ce19870f1067f",
+      "filtered_parents": [
+        "35200d9bebb5805f596e30e29784b5554684370c"
+      ],
+      "ordinal": 34,
+      "source": "594d9447fade6e7a833043d2ef934ae6217a578d",
+      "source_parents": [
+        "138f5022c19b24847bee42a21242aaaf7dde5a04"
+      ],
+      "subject": "Vendor Codex 0.144.6 App Server schemas",
+      "tree": "ed751872d87005ffad388d711b58942ad0c868c6"
+    },
+    {
+      "filtered": "f2a805ac22a1df4ddf0b3db015e60f0aca3c80b1",
+      "filtered_parents": [
+        "6d382a5025079cf2e8f84193024ce19870f1067f"
+      ],
+      "ordinal": 35,
+      "source": "677397d0327f9d521afa87ce5c2b54a4ddbb9e11",
+      "source_parents": [
+        "594d9447fade6e7a833043d2ef934ae6217a578d"
+      ],
+      "subject": "Add canonical Codex protocol surface registry",
+      "tree": "f1d1417e33066db27e28df09c7fec810c41e8002"
+    },
+    {
+      "filtered": "69f0c132c83921936f2c1d11dad60fd70342cf9f",
+      "filtered_parents": [
+        "f2a805ac22a1df4ddf0b3db015e60f0aca3c80b1"
+      ],
+      "ordinal": 36,
+      "source": "a8caebae3f24293342ec88435445463193a7ee1b",
+      "source_parents": [
+        "677397d0327f9d521afa87ce5c2b54a4ddbb9e11"
+      ],
+      "subject": "Guard and document the Codex Phase A0 census",
+      "tree": "2e75a620fb9f98a175a674c2d5061baa764ec949"
+    },
+    {
+      "filtered": "c87b5f5fd9d45c1fca056b4af3b96ca5c20ceb8b",
+      "filtered_parents": [
+        "69f0c132c83921936f2c1d11dad60fd70342cf9f"
+      ],
+      "ordinal": 37,
+      "source": "8bc370726ec45fd54477d05f0738878d2bb51742",
+      "source_parents": [
+        "a8caebae3f24293342ec88435445463193a7ee1b"
+      ],
+      "subject": "Strengthen Codex protocol surface guards",
+      "tree": "0bef8c458a5d31af92d3e3c1d7dac672f7f18994"
+    },
+    {
+      "filtered": "13a9b36dc9a6de5a266a984fc6e77570c694dc33",
+      "filtered_parents": [
+        "c87b5f5fd9d45c1fca056b4af3b96ca5c20ceb8b"
+      ],
+      "ordinal": 38,
+      "source": "81fd2e712e6cfaa45177709f0645eabf41adc6fe",
+      "source_parents": [
+        "8bc370726ec45fd54477d05f0738878d2bb51742"
+      ],
+      "subject": "Audit Codex A0 provenance and packaging",
+      "tree": "78ff356261192d2c03e5f13455759c2244b88dbb"
+    },
+    {
+      "filtered": "3e5f04c0edda846d1bf3f2ef82d182c5ba35b7c4",
+      "filtered_parents": [
+        "13a9b36dc9a6de5a266a984fc6e77570c694dc33"
+      ],
+      "ordinal": 39,
+      "source": "6c0396526c6a06cd2f3d9a05e7d24163c9a980e6",
+      "source_parents": [
+        "138f5022c19b24847bee42a21242aaaf7dde5a04",
+        "81fd2e712e6cfaa45177709f0645eabf41adc6fe"
+      ],
+      "subject": "Merge pull request #215 from SNodeC/codex/phase-a0-app-server-census",
+      "tree": "78ff356261192d2c03e5f13455759c2244b88dbb"
+    },
+    {
+      "filtered": "68e1d707482c9fa59e271a7bc35edb67012a3727",
+      "filtered_parents": [
+        "3e5f04c0edda846d1bf3f2ef82d182c5ba35b7c4"
+      ],
+      "ordinal": 40,
+      "source": "7377f3581bab2af0bf3e18edbfbb49a91157d03b",
+      "source_parents": [
+        "6c0396526c6a06cd2f3d9a05e7d24163c9a980e6"
+      ],
+      "subject": "Establish offline Codex operation evidence",
+      "tree": "db312f5ee2d9790e220f7c81c046c7565f0da952"
+    },
+    {
+      "filtered": "6bd40b02d0de2aecfba91fe6f661483a94e2a274",
+      "filtered_parents": [
+        "68e1d707482c9fa59e271a7bc35edb67012a3727"
+      ],
+      "ordinal": 41,
+      "source": "cfc129ec879c70fc09c165035f6d1390f61289b8",
+      "source_parents": [
+        "7377f3581bab2af0bf3e18edbfbb49a91157d03b"
+      ],
+      "subject": "Introduce Codex typed foundation and migrate existing surface",
+      "tree": "cf52059caf9e3f51e80d88e3a88338ba4c8830a2"
+    },
+    {
+      "filtered": "ec410ffb0cfcc4823212d3262377082c908a990a",
+      "filtered_parents": [
+        "6bd40b02d0de2aecfba91fe6f661483a94e2a274"
+      ],
+      "ordinal": 42,
+      "source": "a226e3df5efd55b5dbef12cb1760674388909d7c",
+      "source_parents": [
+        "6c0396526c6a06cd2f3d9a05e7d24163c9a980e6",
+        "cfc129ec879c70fc09c165035f6d1390f61289b8"
+      ],
+      "subject": "Merge pull request #218 from SNodeC/codex/phase-a1-0-typed-foundation",
+      "tree": "cf52059caf9e3f51e80d88e3a88338ba4c8830a2"
+    },
+    {
+      "filtered": "1c843d2cec30e5cef8837b5fc9092c70e3278182",
+      "filtered_parents": [
+        "ec410ffb0cfcc4823212d3262377082c908a990a"
+      ],
+      "ordinal": 43,
+      "source": "6953b9205d900c72cdb0a3389b0c8ff9037bfd79",
+      "source_parents": [
+        "a226e3df5efd55b5dbef12cb1760674388909d7c"
+      ],
+      "subject": "Audit and freeze Codex A1.1 implementation batches",
+      "tree": "22451cf231d12dab231cff20893c45db633edbe4"
+    },
+    {
+      "filtered": "f8916f9f7cf2ce2d7467ace1d18989ea9cedbf9e",
+      "filtered_parents": [
+        "1c843d2cec30e5cef8837b5fc9092c70e3278182"
+      ],
+      "ordinal": 44,
+      "source": "8007d602915a402f9c29661e162142990060c744",
+      "source_parents": [
+        "6953b9205d900c72cdb0a3389b0c8ff9037bfd79"
+      ],
+      "subject": "Add Codex conversation union and value foundations",
+      "tree": "3f435ff2a781dc03b5e6417c9b1a304dde512c0d"
+    },
+    {
+      "filtered": "a0353b13998838e3e796c1df591b26817effca1e",
+      "filtered_parents": [
+        "f8916f9f7cf2ce2d7467ace1d18989ea9cedbf9e"
+      ],
+      "ordinal": 45,
+      "source": "8fc94aa93fffb11038984f81f11d9a23878eb230",
+      "source_parents": [
+        "8007d602915a402f9c29661e162142990060c744"
+      ],
+      "subject": "Complete Codex ThreadItem and ResponseItem models",
+      "tree": "553f9dbec2b4c6577bacdb481b4199217ab9c445"
+    },
+    {
+      "filtered": "1661e20872da3835870e6a31367000a3120fe36b",
+      "filtered_parents": [
+        "a0353b13998838e3e796c1df591b26817effca1e"
+      ],
+      "ordinal": 46,
+      "source": "61f0ffd16781d9c465b7c983e3055591c938377b",
+      "source_parents": [
+        "8fc94aa93fffb11038984f81f11d9a23878eb230"
+      ],
+      "subject": "Complete Codex thread and turn operations",
+      "tree": "0e35c805da1d2daf31b7c1dc1cd7644600bbbfa8"
+    },
+    {
+      "filtered": "f487d433866f011db9801e1617e23f2a27cf1d68",
+      "filtered_parents": [
+        "1661e20872da3835870e6a31367000a3120fe36b"
+      ],
+      "ordinal": 47,
+      "source": "bb43f4f022fe5b1fe354c98b089d0991313be3eb",
+      "source_parents": [
+        "61f0ffd16781d9c465b7c983e3055591c938377b"
+      ],
+      "subject": "Complete Codex A1.1 notifications and preservation",
+      "tree": "aab564c3bc38b134a491cb7c86f65efeb523e48d"
+    },
+    {
+      "filtered": "ff4d051ee23342e3482690e6b40f28c2172c804b",
+      "filtered_parents": [
+        "f487d433866f011db9801e1617e23f2a27cf1d68"
+      ],
+      "ordinal": 48,
+      "source": "b087c1931ea348df330d323599087aefc1490d96",
+      "source_parents": [
+        "bb43f4f022fe5b1fe354c98b089d0991313be3eb"
+      ],
+      "subject": "Close and verify the Codex A1.1 slice",
+      "tree": "f6c0467cea0926d2d17bb0be7927f528705ed182"
+    },
+    {
+      "filtered": "5e87a1fdf100ef276712438ec2fa0df753995040",
+      "filtered_parents": [
+        "ff4d051ee23342e3482690e6b40f28c2172c804b"
+      ],
+      "ordinal": 49,
+      "source": "d32d1cb03aea86b9dcd8deb8078f02a5cee7e5ad",
+      "source_parents": [
+        "b087c1931ea348df330d323599087aefc1490d96"
+      ],
+      "subject": "Preserve only params field in Codex extension payload and update tests",
+      "tree": "9e3ac0da6e4a86c464bcfe1d92d4913a56265d07"
+    },
+    {
+      "filtered": "2fe1daef351453e8f1f2d90230c213d6c733b248",
+      "filtered_parents": [
+        "5e87a1fdf100ef276712438ec2fa0df753995040"
+      ],
+      "ordinal": 50,
+      "source": "9f7b2955d017cab189fb7b7a80211d0c2788f819",
+      "source_parents": [
+        "a226e3df5efd55b5dbef12cb1760674388909d7c",
+        "d32d1cb03aea86b9dcd8deb8078f02a5cee7e5ad"
+      ],
+      "subject": "Merge pull request #220 from SNodeC/codex/phase-a1-1-conversation-domain",
+      "tree": "9e3ac0da6e4a86c464bcfe1d92d4913a56265d07"
+    },
+    {
+      "filtered": "ef2f7e7cb34e72196427f362d25cd65fd0d65d7d",
+      "filtered_parents": [
+        "2fe1daef351453e8f1f2d90230c213d6c733b248"
+      ],
+      "ordinal": 51,
+      "source": "98556b899a8e956366089fdd3bf7bd2949613310",
+      "source_parents": [
+        "9f7b2955d017cab189fb7b7a80211d0c2788f819"
+      ],
+      "subject": "Audit and freeze Codex A1.2 implementation batches",
+      "tree": "1f6604d001d29c99bc47e15e189ce9945c1ec3f2"
+    },
+    {
+      "filtered": "da04deb3f562af9b1575e1df23a0c67d52f1ccf4",
+      "filtered_parents": [
+        "ef2f7e7cb34e72196427f362d25cd65fd0d65d7d"
+      ],
+      "ordinal": 52,
+      "source": "3cbbafe633dae54d388f6670b28e3589a9bee452",
+      "source_parents": [
+        "98556b899a8e956366089fdd3bf7bd2949613310"
+      ],
+      "subject": "Complete Codex account and authentication surface",
+      "tree": "c1f3322be0a8e1f4f86d3a8f77c58a0bf1031e13"
+    },
+    {
+      "filtered": "4b5c7755bd0eab9306772602b82c3bfba29719c1",
+      "filtered_parents": [
+        "da04deb3f562af9b1575e1df23a0c67d52f1ccf4"
+      ],
+      "ordinal": 53,
+      "source": "fef4d7d479642441b908d77e22d1ef5ae5929e7f",
+      "source_parents": [
+        "3cbbafe633dae54d388f6670b28e3589a9bee452"
+      ],
+      "subject": "Complete Codex model and provider surface",
+      "tree": "edd7420c4ce0b8a191d3f167da47c5c57703a001"
+    },
+    {
+      "filtered": "acba199663ed366ac5085be6b75081ee229a8a1f",
+      "filtered_parents": [
+        "4b5c7755bd0eab9306772602b82c3bfba29719c1"
+      ],
+      "ordinal": 54,
+      "source": "77113414a988504e25cbd09f635cd08529b90ac6",
+      "source_parents": [
+        "fef4d7d479642441b908d77e22d1ef5ae5929e7f"
+      ],
+      "subject": "Complete Codex configuration read surface",
+      "tree": "187d9684c509e2732bc21c1a56263698bf075e53"
+    },
+    {
+      "filtered": "5fb948418e6d56b72341f99a11e9e35fa42dce36",
+      "filtered_parents": [
+        "acba199663ed366ac5085be6b75081ee229a8a1f"
+      ],
+      "ordinal": 55,
+      "source": "29a065a715fbf7e4223876b1c3cc8dc33475f02d",
+      "source_parents": [
+        "77113414a988504e25cbd09f635cd08529b90ac6"
+      ],
+      "subject": "Complete Codex configuration mutation and feature surface",
+      "tree": "992081f4f516d762437702d0281c81114b15d416"
+    },
+    {
+      "filtered": "3b6dc0538118d746314a03b37dfb04a9cd9d120f",
+      "filtered_parents": [
+        "5fb948418e6d56b72341f99a11e9e35fa42dce36"
+      ],
+      "ordinal": 56,
+      "source": "86658033f56d0da406e0654115a5d5f020996dc5",
+      "source_parents": [
+        "29a065a715fbf7e4223876b1c3cc8dc33475f02d"
+      ],
+      "subject": "Close and verify the Codex A1.2 slice",
+      "tree": "fae583cbd0388701434e4885b299c019db029fef"
+    },
+    {
+      "filtered": "0e14efa5da2338e2af1bf4999bfe1254a1c50181",
+      "filtered_parents": [
+        "3b6dc0538118d746314a03b37dfb04a9cd9d120f"
+      ],
+      "ordinal": 57,
+      "source": "304a817d371597fc764c3404c36cc880bf65536d",
+      "source_parents": [
+        "9f7b2955d017cab189fb7b7a80211d0c2788f819",
+        "86658033f56d0da406e0654115a5d5f020996dc5"
+      ],
+      "subject": "Merge pull request #221 from SNodeC/codex/phase-a1-2-accounts-models-configuration",
+      "tree": "fae583cbd0388701434e4885b299c019db029fef"
+    },
+    {
+      "filtered": "4f98eb9e940095ee356685e80d39f5cf5e72c861",
+      "filtered_parents": [
+        "0e14efa5da2338e2af1bf4999bfe1254a1c50181"
+      ],
+      "ordinal": 58,
+      "source": "d30efe858c6296109b9251ed6eda49e17e319f16",
+      "source_parents": [
+        "304a817d371597fc764c3404c36cc880bf65536d"
+      ],
+      "subject": "Audit and freeze Codex A1.3 implementation batches",
+      "tree": "dd553d70c4fee76a41bc66dac956727317b0a698"
+    },
+    {
+      "filtered": "35267d82c2757759fe972e9334d2ff08fa13d0e4",
+      "filtered_parents": [
+        "4f98eb9e940095ee356685e80d39f5cf5e72c861"
+      ],
+      "ordinal": 59,
+      "source": "febeb39c06b718f09b70f83d6728f7eabb7bca0a",
+      "source_parents": [
+        "d30efe858c6296109b9251ed6eda49e17e319f16"
+      ],
+      "subject": "Complete Codex one-off command execution",
+      "tree": "779e5428f1bd468997f708bc02b3935f60ad3bfb"
+    },
+    {
+      "filtered": "bd4d9e830083b4700d83861d95c09d77305d52a4",
+      "filtered_parents": [
+        "35267d82c2757759fe972e9334d2ff08fa13d0e4"
+      ],
+      "ordinal": 60,
+      "source": "a9b0b1b200e3f2e11be9cbdb4aa64e215dcedee8",
+      "source_parents": [
+        "febeb39c06b718f09b70f83d6728f7eabb7bca0a"
+      ],
+      "subject": "Complete Codex filesystem and fuzzy search",
+      "tree": "019597fd0e304068d54bec3c09e68523d0e86b30"
+    },
+    {
+      "filtered": "8cbe9fb6052dcacb788fab75c6350ea9b16ef9a8",
+      "filtered_parents": [
+        "bd4d9e830083b4700d83861d95c09d77305d52a4"
+      ],
+      "ordinal": 61,
+      "source": "346d6d80a2d95405894a187cccb1ad96cfe9bfae",
+      "source_parents": [
+        "a9b0b1b200e3f2e11be9cbdb4aa64e215dcedee8"
+      ],
+      "subject": "Complete Codex approvals, permissions, and file changes",
+      "tree": "4f4a7d1c341b96b390e75a3060f2efc44c68ee8b"
+    },
+    {
+      "filtered": "c5c21ed3b0cd9bd9a30e6544b4ab06a6f9e9930a",
+      "filtered_parents": [
+        "8cbe9fb6052dcacb788fab75c6350ea9b16ef9a8"
+      ],
+      "ordinal": 62,
+      "source": "8673c4eb4a11bba7483fee409b742cfbc2d514a9",
+      "source_parents": [
+        "346d6d80a2d95405894a187cccb1ad96cfe9bfae"
+      ],
+      "subject": "Complete Codex reviews and guardian protocol",
+      "tree": "86b7d074b4fff3fb110c25208d979ea648d7c39a"
+    },
+    {
+      "filtered": "11396e396600e4285245e58fe08eeff48834a069",
+      "filtered_parents": [
+        "c5c21ed3b0cd9bd9a30e6544b4ab06a6f9e9930a"
+      ],
+      "ordinal": 63,
+      "source": "f131715b6a8b2be28d292c296910efab1bb4aa1f",
+      "source_parents": [
+        "8673c4eb4a11bba7483fee409b742cfbc2d514a9"
+      ],
+      "subject": "Close and verify the Codex A1.3 slice",
+      "tree": "cfdef22b03e8fb7c070cfc43e64da9004626f6fd"
+    },
+    {
+      "filtered": "df4ff8627a29206e1d08b27bc6c8cdecc18e4daf",
+      "filtered_parents": [
+        "11396e396600e4285245e58fe08eeff48834a069"
+      ],
+      "ordinal": 64,
+      "source": "bed5ee05184739d54cddc6518bd43b264e2b496d",
+      "source_parents": [
+        "304a817d371597fc764c3404c36cc880bf65536d",
+        "f131715b6a8b2be28d292c296910efab1bb4aa1f"
+      ],
+      "subject": "Merge pull request #222 from SNodeC/codex/a1-3-commands-filesystem-reviews-approvals",
+      "tree": "cfdef22b03e8fb7c070cfc43e64da9004626f6fd"
+    },
+    {
+      "filtered": "a43d2183a82892243449cb43d0acb7336654f201",
+      "filtered_parents": [
+        "df4ff8627a29206e1d08b27bc6c8cdecc18e4daf"
+      ],
+      "ordinal": 65,
+      "source": "a2af0ccf6e5ab6402fd48a5177eddc679c50376b",
+      "source_parents": [
+        "bed5ee05184739d54cddc6518bd43b264e2b496d"
+      ],
+      "subject": "Audit the Codex A1.4 residue and total partition",
+      "tree": "9fc307688827c6e794f3c5b00b4f99569c61a9ef"
+    },
+    {
+      "filtered": "d1526ef8bac05ba3c36f5c696de58cdf00084743",
+      "filtered_parents": [
+        "a43d2183a82892243449cb43d0acb7336654f201"
+      ],
+      "ordinal": 66,
+      "source": "46edab0cc800a2e8a2d799a644962861b6d2cd78",
+      "source_parents": [
+        "a2af0ccf6e5ab6402fd48a5177eddc679c50376b"
+      ],
+      "subject": "Freeze the Codex A1.4 implementation and A1 closure plan",
+      "tree": "1f73dc729745da3ee167c26123e8403b70b477f8"
+    },
+    {
+      "filtered": "a7ad35d8caba4ecef9d0397cf7c9338e835e497b",
+      "filtered_parents": [
+        "d1526ef8bac05ba3c36f5c696de58cdf00084743"
+      ],
+      "ordinal": 67,
+      "source": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+      "source_parents": [
+        "bed5ee05184739d54cddc6518bd43b264e2b496d",
+        "46edab0cc800a2e8a2d799a644962861b6d2cd78"
+      ],
+      "subject": "Merge pull request #223 from SNodeC/codex/a1-4-residue-audit",
+      "tree": "1f73dc729745da3ee167c26123e8403b70b477f8"
+    }
+  ],
+  "filtered_head": "a7ad35d8caba4ecef9d0397cf7c9338e835e497b",
+  "filtered_tree": "1f73dc729745da3ee167c26123e8403b70b477f8",
+  "format_version": 1,
+  "retained_commit_count": 67,
+  "selected_paths": [
+    "src/ai/openai/codex",
+    "src/apps/codex-backend",
+    "src/apps/codex-backend-client",
+    "docs/ai/openai/codex",
+    "tools/codex",
+    "tests/component/codex",
+    "tests/installed/codex",
+    "tests/CodexBinaryPackageTest.cmake",
+    "tests/CodexSourcePackageTest.cmake",
+    "tests/policy/security/CodexSyntheticSecretLeakGuardTest.py"
+  ],
+  "source_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+  "source_repository": "https://github.com/SNodeC/snode.c",
+  "source_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069"
+}
