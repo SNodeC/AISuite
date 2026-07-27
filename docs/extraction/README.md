@@ -28,6 +28,7 @@ The filtered history contains only:
 - `tests/component/codex/`
 - `tests/installed/codex/`
 - the two Codex package tests
+- `tests/policy/security/CodexSyntheticSecretLeakGuardTest.py`
 
 Standalone project, package, CI, and extraction-validation files are introduced
 as new AISuite commits after the preserved history.
@@ -38,3 +39,26 @@ Until the later SNode.C cutover, both repositories contain a Codex
 implementation. Install them into separate prefixes. AISuite libraries use
 `aisuite-` output names and install headers below `include/aisuite`, preventing
 file collisions with the unchanged SNode.C installation.
+
+
+## Standalone dependency boundary
+
+AISuite consumes SNode.C only through the installed `snodec` CMake package.
+The extraction must not use a sibling checkout, private SNode.C headers, or
+source-relative include paths. The installed-consumer test resolves both
+packages from staging prefixes.
+
+## Protocol state at extraction
+
+The extraction intentionally preserves the post-PR-#223 state:
+
+```text
+Complete:       280
+Partial:          4
+NotImplemented:  55
+NotApplicable:   48
+```
+
+No A1.4 implementation identity is promoted by the repository move. The
+remaining implementation sequence is PR A, PR B, PR C, and final A1 closure
+in AISuite.

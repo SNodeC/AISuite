@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gcc-debug:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ pkg-config libssl-dev nlohmann-json3-dev
+
+      - name: Build and install pinned SNode.C dependency
+        run: |
+          git clone https://github.com/SNodeC/snode.c.git snodec
+          git -C snodec checkout d18b231a1d2ec2235fd6f204786b0a761cc24ff5
+          cmake -S snodec -B snodec-build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_INSTALL_PREFIX="$PWD/snodec-stage" \
+            -DSNODEC_BUILD_TESTS=OFF \
+            -DSNODEC_BUILD_APPS=OFF
+          cmake --build snodec-build --parallel 2
+          cmake --install snodec-build
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="$PWD/snodec-stage" \
+            -DAISUITE_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Focused tests
+        run: |
+          ctest --test-dir build \
+            -L 'ai|openai|codex|extraction' \
+            --output-on-failure \
+            --parallel 2
