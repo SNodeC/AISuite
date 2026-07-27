@@ -15,7 +15,7 @@ sys.dont_write_bytecode = True
 
 EXPECTED_SHA256 = {
     "a1-1-closure-report.json": (
-        "be9e5f028de164b57519a956a0b2615b15faa238d889b7f1391b07c3b473fb41"
+        "049c2cfb29637ae4b453bac2875856b5154384159df4c254074fc93c96f6ffd1"
     ),
     "a1-1-implementation-plan.json": (
         "59fbbd1e6c1ffcd5e0064e7ff7e2a6a68673ececac5ccb19d3d46cc57eda7661"

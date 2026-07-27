@@ -124,22 +124,22 @@ EXPECTED_TREE_FINGERPRINTS = {
     "src/ai/openai/codex/backend": {
         "file_count": 14,
         "sha256":
-            "00fb78d5b7f2451cad7c8e81cd9716af23dca0e58c932c18d8d86b152c6c5261",
+            "bae965d7b525831c4aa4a2f950fb58d78fad6ecec884572471354292f465aa61",
     },
     "src/ai/openai/codex/frontend": {
         "file_count": 14,
         "sha256":
-            "2f87dfea3a01a2e74b8b9637b156f8535351c880b6c2d92d0723765e484583ff",
+            "d948be658725ee887b39092c3fac7a376ecdce92b543f5b02e6d27e16c77b60b",
     },
     "src/apps/codex-backend": {
         "file_count": 10,
         "sha256":
-            "2e3bebfbd4a3060eb7b39a6dfa2f5590175a4bc7874594f77de6f31a983737b9",
+            "1f7247e25e13440da0c785919c9bd04ccc59b47a89eb89f7a6bac07ef57c3dd7",
     },
     "src/apps/codex-backend-client": {
         "file_count": 21,
         "sha256":
-            "c96bb51b727fd4f6a8a31034f906476e1e10aa1357ae889b9a664f11c09ea337",
+            "3b7e5a858ab4ef96f3d037fbff88bfe3e82cc4d2b0e90def73e2730f34b3a44c",
     },
 }
 EXPECTED_IMMUTABLE_BACKEND_HEADERS = {
@@ -816,15 +816,18 @@ def validate_public_api(
         "A1.3 public API plan changed",
         "ClosurePublicApiMismatch",
     )
+    install_destination = (
+        "DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/typed"
+    )
     cmake = require_tokens(
         arguments.codex_cmake,
-        ("DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snode.c/ai/openai/codex/typed",),
+        (install_destination,),
         "ClosureInstalledHeaderMismatch",
         "Codex install CMake",
     )
     match = re.search(
-        r"install\(\s*FILES (?P<body>typed/Accounts\.h.*?)"
-        r"DESTINATION \$\{CMAKE_INSTALL_INCLUDEDIR\}/snode\.c/"
+        r"install\(\s*FILES\s+(?P<body>typed/Accounts\.h.*?)"
+        r"DESTINATION \$\{CMAKE_INSTALL_INCLUDEDIR\}/aisuite/"
         r"ai/openai/codex/typed",
         cmake,
         flags=re.DOTALL,
@@ -1106,7 +1109,7 @@ def validate_package_and_integrity(
     )
     del integrity
     require_tokens(
-        arguments.repo_root / "tests/policy/CMakeLists.txt",
+        arguments.repo_root / "tests/CMakeLists.txt",
         ("CodexSyntheticSecretLeakGuardTest",),
         "ClosureSecurityGuardMismatch",
         "security-test registration",
@@ -1167,42 +1170,28 @@ def validate_package_and_integrity(
     source_package = require_tokens(
         arguments.source_package_test,
         (
-            'assert_retained_prefix("tools/codex/app-server-evidence/0.144.6" 27)',
-            'assert_retained_prefix("docs/ai/openai/codex" 19)',
-            "top_level_codex_tool_count EQUAL 14",
-            '"tools/codex/app_server_a1_3.py"',
-            '"tools/codex/app_server_a1_3_closure.py"',
-            '"tools/codex/app-server-evidence/0.144.6/a1-3-closure-report.json"',
-            '"tools/codex/app-server-evidence/0.144.6/a1-3-api-abi-evidence.json"',
-            '"tests/component/codex/CodexA13ClosureEvidenceTest.py"',
-            '"tests/installed/codex/CodexA13AbiLayoutProbe.cpp"',
-            '"docs/ai/openai/codex/a1-3-test-integrity.md"',
-            '"A1.3 implementation-plan/type-closure audit"',
-            '"A1.3 final closure report"',
-            '"tools/codex/app_server_a1_4.py"',
-            '"tools/codex/app-server-evidence/0.144.6/a1-4-start-state.json"',
-            '"tools/codex/app-server-evidence/0.144.6/a1-4-total-partition.json"',
-            '"tools/codex/app-server-evidence/0.144.6/a1-4-type-closure.json"',
-            '"tools/codex/app-server-evidence/0.144.6/a1-4-implementation-plan.json"',
-            '"tools/codex/app-server-evidence/0.144.6/a1-final-cross-slice-ledger.json"',
-            '"tests/component/codex/CodexA14AuditToolTest.py"',
-            '"A1.4 partition and implementation-plan audit"',
+            "AISuite source package",
+            "tools/codex/app_server_a1_4.py",
+            "tools/codex/app-server-schema/0.144.6/PROVENANCE.json",
+            "tools/codex/app-server-evidence/0.144.6/a1-4-implementation-plan.json",
+            "tests/component/codex/CodexA14AuditToolTest.py",
+            "docs/extraction/README.md",
+            "docs/extraction/filter-map.json",
         ),
         "ClosurePackageMismatch",
-        "source-package closure guard",
+        "AISuite source-package closure guard",
     )
     del source_package
     binary_package = require_tokens(
         arguments.binary_package_test,
         (
-            '"typed/Commands.h"',
-            '"typed/Filesystem.h"',
-            '"typed/PermissionProfiles.h"',
-            '"typed/Reviews.h"',
-            "forbidden_binary_patterns",
+            "include/aisuite/ai/openai/codex/AppServerClient.h",
+            "lib/libaisuite-openai-codex.so.1",
+            "src/ai/openai/codex/detail/",
+            "ProtocolSurfaceRegistryData.inc",
         ),
         "ClosurePackageMismatch",
-        "binary-package API guard",
+        "AISuite binary-package API guard",
     )
     del binary_package
     typed_consumer = require_tokens(
@@ -1808,12 +1797,12 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument(
         "--source-package-test",
         type=Path,
-        default=repo_root / "tests/CodexSourcePackageTest.cmake",
+        default=repo_root / "tests/AISuiteSourcePackageTest.cmake",
     )
     result.add_argument(
         "--binary-package-test",
         type=Path,
-        default=repo_root / "tests/CodexBinaryPackageTest.cmake",
+        default=repo_root / "tests/AISuiteBinaryPackageTest.cmake",
     )
     result.add_argument(
         "--documentation",

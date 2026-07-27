@@ -1128,9 +1128,9 @@ class CodexA14AuditToolTest(unittest.TestCase):
             soversion["final_action"]["decision"],
         )
         self.assertEqual(
-            68,
+            3,
             soversion["current_authority"][
-                "declarations_using_global_authority"
+                "declarations_using_codex_authority"
             ],
         )
         self.assertEqual(

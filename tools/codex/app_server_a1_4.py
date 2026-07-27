@@ -34,9 +34,9 @@ UPSTREAM_TAG = "rust-v0.144.6"
 UPSTREAM_SOURCE_COMMIT = "5d1fbf26c43abc65a203928b2e31561cb039e06d"
 A1_4_SLICE = "A1.4"
 A1_4_MODULE = "IntegrationsAndLongTail"
-EXPECTED_BASE_SHA = "bed5ee05184739d54cddc6518bd43b264e2b496d"
-EXPECTED_BASE_TREE = "8bf44f0eed6bd8c9d5309176db07a7d6a6240ef3"
-EXPECTED_PRODUCTION_TREE = "a1833fa778e97d29b9294627842ff9bd04f22379"
+EXPECTED_BASE_SHA = "21e557d9019f334ff0b1e2c29aacd3c6b0795463"
+EXPECTED_BASE_TREE = "d8d239df3f695314f63ffa758c4e7499ce4cc728"
+EXPECTED_PRODUCTION_TREE = "4fba3b9ef0889e7a783a045b1cacbd561f323f8e"
 EXPECTED_FIXTURE_TREE = "be1eb65746c93a22a516af9bc1d1916ee8f2aa67"
 EXPECTED_FRONTEND_PROTOCOL_BLOB = (
     "bb5abb687323c0a7e5ecc51bd9d5d58d0108a4da"
@@ -3326,14 +3326,13 @@ def _soversion_inventory(
     root_source = root_cmake.read_text(encoding="utf-8")
     require(
         re.search(
-            r"project\(\s*SNode\.C\b.*?\bVERSION\s+1\.0\.1\s*\)",
+            r"project\(\s*AISuite\b.*?\bVERSION\s+0\.1\.0\b",
             root_source,
             flags=re.DOTALL,
         )
         is not None
-        and "set(SNODEC_SOVERSION ${SNode.C_VERSION_MAJOR})"
-        in root_source,
-        "root SOVERSION authority changed",
+        and "set(AISUITE_CODEX_SOVERSION 1)" in root_source,
+        "AISuite Codex SOVERSION authority changed",
         "SOVERSIONDecisionMissing",
     )
     declaration_count = 0
@@ -3348,15 +3347,15 @@ def _soversion_inventory(
         ):
             continue
         count = path.read_text(encoding="utf-8").count(
-            "SOVERSION ${SNODEC_SOVERSION}"
+            "SOVERSION ${AISUITE_CODEX_SOVERSION}"
         )
         if count:
             declaration_count += count
             declaration_paths.extend([relative.as_posix()] * count)
     require(
-        declaration_count == 68,
+        declaration_count == 3,
         (
-            "global SNODEC_SOVERSION declaration count changed: "
+            "AISuite Codex SOVERSION declaration count changed: "
             f"{declaration_count}"
         ),
         "SOVERSIONDecisionMissing",
@@ -3367,12 +3366,9 @@ def _soversion_inventory(
         "src/ai/openai/codex/frontend/CMakeLists.txt",
     }
     require(
-        {
-            path for path in declaration_paths if path in codex_paths
-        }
-        == codex_paths
-        and sum(path in codex_paths for path in declaration_paths) == 3,
-        "the three Codex shared-library SOVERSION consumers changed",
+        set(declaration_paths) == codex_paths
+        and len(declaration_paths) == 3,
+        "the three AISuite Codex shared-library SOVERSION consumers changed",
         "SOVERSIONDecisionMissing",
     )
     a1_3_abi_path = (
@@ -3392,17 +3388,13 @@ def _soversion_inventory(
     )
     return {
         "current_authority": {
-            "project_version": "1.0.1",
-            "SNODEC_SOVERSION": 1,
-            "definition": (
-                "SNODEC_SOVERSION = SNode.C_VERSION_MAJOR"
-            ),
-            "root_source": _source(
-                root_cmake, arguments.repo_root
-            ),
-            "declarations_using_global_authority": declaration_count,
+            "project_version": "0.1.0",
+            "AISUITE_CODEX_SOVERSION": 1,
+            "definition": "AISUITE_CODEX_SOVERSION = 1",
+            "root_source": _source(root_cmake, arguments.repo_root),
+            "declarations_using_codex_authority": declaration_count,
             "codex_declarations": sorted(codex_paths),
-            "unrelated_declarations": declaration_count - 3,
+            "unrelated_declarations": 0,
         },
         "existing_a1_policy": {
             "source": (
@@ -3415,9 +3407,7 @@ def _soversion_inventory(
             ),
         },
         "actual_abi_evidence": {
-            "source": _source(
-                a1_3_abi_path, arguments.repo_root
-            ),
+            "source": _source(a1_3_abi_path, arguments.repo_root),
             "binary_compatible": False,
             "installed_consumers_must_rebuild": True,
             "base_typed_server_request_size": 312,
@@ -3427,46 +3417,6 @@ def _soversion_inventory(
             "removed_symbols_at_a1_3_boundary": 6286,
             "added_symbols_at_a1_3_boundary": 15733,
         },
-        "final_action": {
-            "decision": "bump Codex SOVERSION 1 -> 2",
-            "scope": sorted(
-                [
-                    "ai-openai-codex",
-                    "ai-openai-codex-backend",
-                    "ai-openai-codex-frontend",
-                ]
-            ),
-            "mechanism": (
-                "introduce a Codex-specific SOVERSION authority at "
-                "final closure; do not bump 65 unrelated targets"
-            ),
-            "sequence_point": (
-                "after the 339 Complete / 0 Partial / 0 "
-                "NotImplemented / 48 NotApplicable proof, before final "
-                "ABI and package capture"
-            ),
-            "binary_package_change": ".so.1 -> .so.2",
-            "installed_consumer_action": (
-                "rebuild and relink every installed consumer"
-            ),
-            "earlier_pr_rule": (
-                "an unchanged SONAME 1 is not a binary-compatibility "
-                "claim during native A1.4 implementation"
-            ),
-        },
-        "required_layout_probes": [
-            "AppServerClient",
-            "typed::Client",
-            "Event",
-            "CanonicalServerNotification",
-            "TypedServerRequest",
-            "UserInputRequest",
-            "TurnErrorEvent",
-            "ClientInfo",
-            "InitializeResult",
-            "every introduced public aggregate and variant",
-            "every new typed facade object",
-        ],
         "expected_api_abi_changes": {
             "variants_gain_alternatives": [
                 "CanonicalServerNotification",
@@ -3489,8 +3439,44 @@ def _soversion_inventory(
             ],
             "intentional_symbols_removed": [],
         },
+        "required_layout_probes": [
+            "AppServerClient",
+            "typed::Client",
+            "Event",
+            "CanonicalServerNotification",
+            "TypedServerRequest",
+            "UserInputRequest",
+            "TurnErrorEvent",
+            "ClientInfo",
+            "InitializeResult",
+            "every introduced public aggregate and variant",
+            "every new typed facade object",
+        ],
+        "final_action": {
+            "decision": "bump Codex SOVERSION 1 -> 2",
+            "scope": [
+                "aisuite-openai-codex",
+                "aisuite-openai-codex-backend",
+                "aisuite-openai-codex-frontend",
+            ],
+            "mechanism": (
+                "change the AISuite Codex-specific SOVERSION authority at "
+                "final A1 closure"
+            ),
+            "sequence_point": (
+                "after the 339 Complete / 0 Partial / 0 NotImplemented / "
+                "48 NotApplicable proof, before final ABI and package capture"
+            ),
+            "installed_consumer_action": (
+                "rebuild and relink every installed consumer"
+            ),
+            "binary_package_change": ".so.1 -> .so.2",
+            "earlier_pr_rule": (
+                "an unchanged SONAME 1 is not a binary-compatibility claim "
+                "during native A1.4 implementation"
+            ),
+        },
     }
-
 
 def implementation_plan_document(
     arguments: argparse.Namespace,

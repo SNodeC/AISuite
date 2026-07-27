@@ -1,0 +1,5 @@
+function(snodec_add_test target)
+    add_executable(${target} ${ARGN})
+    add_test(NAME ${target} COMMAND ${target})
+    set_tests_properties(${target} PROPERTIES TIMEOUT 10)
+endfunction()

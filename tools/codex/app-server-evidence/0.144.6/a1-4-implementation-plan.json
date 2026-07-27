@@ -25,20 +25,20 @@
       }
     },
     "current_authority": {
-      "SNODEC_SOVERSION": 1,
+      "AISUITE_CODEX_SOVERSION": 1,
       "codex_declarations": [
         "src/ai/openai/codex/CMakeLists.txt",
         "src/ai/openai/codex/backend/CMakeLists.txt",
         "src/ai/openai/codex/frontend/CMakeLists.txt"
       ],
-      "declarations_using_global_authority": 68,
-      "definition": "SNODEC_SOVERSION = SNode.C_VERSION_MAJOR",
-      "project_version": "1.0.1",
+      "declarations_using_codex_authority": 3,
+      "definition": "AISUITE_CODEX_SOVERSION = 1",
+      "project_version": "0.1.0",
       "root_source": {
         "path": "CMakeLists.txt",
-        "sha256": "2f96eb43d668348121fcad099714eaef13de5fab919a40984ec6abd021d2bfa3"
+        "sha256": "bf1ad87f6f5172c9c7a5d9a307af7502b46ce1b412e9ae1603804d5df353d336"
       },
-      "unrelated_declarations": 65
+      "unrelated_declarations": 0
     },
     "existing_a1_policy": {
       "decision": "remain at 1 through native A1.4 implementation, then bump once at final A1 closure",
@@ -71,11 +71,11 @@
       "decision": "bump Codex SOVERSION 1 -> 2",
       "earlier_pr_rule": "an unchanged SONAME 1 is not a binary-compatibility claim during native A1.4 implementation",
       "installed_consumer_action": "rebuild and relink every installed consumer",
-      "mechanism": "introduce a Codex-specific SOVERSION authority at final closure; do not bump 65 unrelated targets",
+      "mechanism": "change the AISuite Codex-specific SOVERSION authority at final A1 closure",
       "scope": [
-        "ai-openai-codex",
-        "ai-openai-codex-backend",
-        "ai-openai-codex-frontend"
+        "aisuite-openai-codex",
+        "aisuite-openai-codex-backend",
+        "aisuite-openai-codex-frontend"
       ],
       "sequence_point": "after the 339 Complete / 0 Partial / 0 NotImplemented / 48 NotApplicable proof, before final ABI and package capture"
     },
@@ -94,8 +94,8 @@
     ]
   },
   "authority": {
-    "base_sha": "bed5ee05184739d54cddc6518bd43b264e2b496d",
-    "base_tree": "8bf44f0eed6bd8c9d5309176db07a7d6a6240ef3",
+    "base_sha": "21e557d9019f334ff0b1e2c29aacd3c6b0795463",
+    "base_tree": "d8d239df3f695314f63ffa758c4e7499ce4cc728",
     "codex_version": "codex-cli 0.144.6",
     "cross_slice_ledger": "tools/codex/app-server-evidence/0.144.6/a1-final-cross-slice-ledger.json",
     "partition_report": {

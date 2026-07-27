@@ -207,7 +207,16 @@ def packaged_allowlist_path(
         and relative.parts[0] == "codex-source-package-audit"
         and relative.parts[1] == "extracted"
     )
-    if not in_cpack_stage and not in_extracted_source_audit:
+    in_aisuite_source_package = (
+        len(relative.parts) >= 2
+        and relative.parts[0] == "source-package-extract"
+        and relative.parts[1].startswith("AISuite-")
+    )
+    if (
+        not in_cpack_stage
+        and not in_extracted_source_audit
+        and not in_aisuite_source_package
+    ):
         return None
 
     matches = tuple(

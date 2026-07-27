@@ -1,6 +1,6 @@
 {
-  "base_sha": "bed5ee05184739d54cddc6518bd43b264e2b496d",
-  "base_tree": "8bf44f0eed6bd8c9d5309176db07a7d6a6240ef3",
+  "base_sha": "21e557d9019f334ff0b1e2c29aacd3c6b0795463",
+  "base_tree": "d8d239df3f695314f63ffa758c4e7499ce4cc728",
   "capture_sources": {
     "assignment": {
       "path": "tools/codex/app-server-evidence/0.144.6/module-slice-assignment.json",
@@ -40,7 +40,7 @@
     },
     "soversion_authority": {
       "path": "CMakeLists.txt",
-      "sha256": "2f96eb43d668348121fcad099714eaef13de5fab919a40984ec6abd021d2bfa3"
+      "sha256": "bf1ad87f6f5172c9c7a5d9a307af7502b46ce1b412e9ae1603804d5df353d336"
     }
   },
   "codex_version": "codex-cli 0.144.6",
@@ -3518,18 +3518,18 @@
     "name": "item/tool/requestUserInput"
   },
   "protected_predecessor_evidence": {
-    "tools/codex/app-server-evidence/0.144.6/a1-1-closure-report.json": "be9e5f028de164b57519a956a0b2615b15faa238d889b7f1391b07c3b473fb41",
+    "tools/codex/app-server-evidence/0.144.6/a1-1-closure-report.json": "049c2cfb29637ae4b453bac2875856b5154384159df4c254074fc93c96f6ffd1",
     "tools/codex/app-server-evidence/0.144.6/a1-1-implementation-plan.json": "59fbbd1e6c1ffcd5e0064e7ff7e2a6a68673ececac5ccb19d3d46cc57eda7661",
     "tools/codex/app-server-evidence/0.144.6/a1-1-notification-production-coverage.json": "191c9e9152fe6c3a2fd052f542911c510e6643e78bfaf2b293729f9bfe7e62b0",
     "tools/codex/app-server-evidence/0.144.6/a1-1-operation-production-coverage.json": "9e9cc9a58651d39f2e2b5e9ee9cdb712a6338660029a77814988a7e904ef156e",
     "tools/codex/app-server-evidence/0.144.6/a1-1-start-state.json": "1614414ea6320f8ac5eb47ef928c4bc8de587c9f429f86d7f94ffeb437b6c705",
     "tools/codex/app-server-evidence/0.144.6/a1-1-type-closure.json": "187db47c37d094b5f22c27cb0a6c1fc656cd0b3e34c63faf9b81ededce2f8bfc",
-    "tools/codex/app-server-evidence/0.144.6/a1-2-closure-report.json": "6324a85d998fdbf6c3601f7e19b90c61cea472fde63b49c676511ce1654494cc",
+    "tools/codex/app-server-evidence/0.144.6/a1-2-closure-report.json": "e5f23423904d4c4960f2f83755963622c131cb28b7a4ba319698271c231e51a9",
     "tools/codex/app-server-evidence/0.144.6/a1-2-implementation-plan.json": "ff5ab66b79cd53c614a93a8d5cd1a065c54b8a251c706adeb805c900f43f44c4",
     "tools/codex/app-server-evidence/0.144.6/a1-2-start-state.json": "86dc9319ab212c3bdea0d483a6759dfde7d7eba7d5ab92a440a206d1097ab7b9",
     "tools/codex/app-server-evidence/0.144.6/a1-2-type-closure.json": "2b8bc5de1c56b1ce7b809939a744ec1027a78574adfc9e5e8c1e966a385047cb",
     "tools/codex/app-server-evidence/0.144.6/a1-3-api-abi-evidence.json": "b6d05bd993ec421aa7d2ff3e720a399fc54d801305c906f3a8c9c7557be9b611",
-    "tools/codex/app-server-evidence/0.144.6/a1-3-closure-report.json": "3eb5d5c7a0691e59f8a4910334b2661f171d331cd5994d88457a3421c4d3e592",
+    "tools/codex/app-server-evidence/0.144.6/a1-3-closure-report.json": "2674582b248c2c637e268950ebd62323060fb202446cec9f1b8e6643ad197ce2",
     "tools/codex/app-server-evidence/0.144.6/a1-3-implementation-plan.json": "d5905f4f60f1ca2a298c2a910d2effbde13a9bfa6b755d5896dc2d5b6b21034d",
     "tools/codex/app-server-evidence/0.144.6/a1-3-start-state.json": "ee93456760b366e399f55ba48f3aea343d836dd2544b09a4274bc60850bb16fb",
     "tools/codex/app-server-evidence/0.144.6/a1-3-type-closure.json": "223e10abd517ac63481276905a19605ed7dd5bd34f806f0adc15a698b8f88e0e"

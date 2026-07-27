@@ -169,17 +169,17 @@ EXPECTED_TREE_FINGERPRINTS = {
     "src/ai/openai/codex/frontend": {
         "file_count": 14,
         "sha256":
-            "2f87dfea3a01a2e74b8b9637b156f8535351c880b6c2d92d0723765e484583ff",
+            "d948be658725ee887b39092c3fac7a376ecdce92b543f5b02e6d27e16c77b60b",
     },
     "src/apps/codex-backend": {
         "file_count": 10,
         "sha256":
-            "2e3bebfbd4a3060eb7b39a6dfa2f5590175a4bc7874594f77de6f31a983737b9",
+            "1f7247e25e13440da0c785919c9bd04ccc59b47a89eb89f7a6bac07ef57c3dd7",
     },
     "src/apps/codex-backend-client": {
         "file_count": 21,
         "sha256":
-            "c96bb51b727fd4f6a8a31034f906476e1e10aa1357ae889b9a664f11c09ea337",
+            "3b7e5a858ab4ef96f3d037fbff88bfe3e82cc4d2b0e90def73e2730f34b3a44c",
     },
 }
 EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS = {
@@ -187,7 +187,7 @@ EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS = {
     "src/ai/openai/codex/backend": {
         "file_count": 14,
         "sha256":
-            "00fb78d5b7f2451cad7c8e81cd9716af23dca0e58c932c18d8d86b152c6c5261",
+            "bae965d7b525831c4aa4a2f950fb58d78fad6ecec884572471354292f465aa61",
     },
 }
 EXPECTED_FRONTEND_PROTOCOL_FINGERPRINTS = {
