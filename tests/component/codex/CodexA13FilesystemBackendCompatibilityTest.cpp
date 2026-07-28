@@ -152,17 +152,16 @@ namespace {
     }
 
     void testRedactionIsMethodSpecific(tests::support::TestResult& result) {
-        const backend::ExtensionSnapshot unrelated = backend::makeExtensionSnapshot({
-            .method = "future/extension",
-            .payload =
-                {
-                    {"changedPaths", "ordinary-value"},
-                    {"files", "ordinary-files"},
-                    {"query", "ordinary-query"},
-                    {"sessionId", "ordinary-session"},
-                    {"watchId", "ordinary-watch"},
-                },
-        });
+        backend::ExtensionRecord unrelatedRecord{};
+        unrelatedRecord.method = "future/extension";
+        unrelatedRecord.payload = {
+            {"changedPaths", "ordinary-value"},
+            {"files", "ordinary-files"},
+            {"query", "ordinary-query"},
+            {"sessionId", "ordinary-session"},
+            {"watchId", "ordinary-watch"},
+        };
+        const backend::ExtensionSnapshot unrelated = backend::makeExtensionSnapshot(unrelatedRecord);
         result.expectTrue(!unrelated.sensitiveFieldsRedacted && unrelated.payload.value("changedPaths", "") == "ordinary-value" &&
                               unrelated.payload.value("files", "") == "ordinary-files" &&
                               unrelated.payload.value("query", "") == "ordinary-query" &&

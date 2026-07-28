@@ -161,8 +161,9 @@ int main() {
     const std::optional<std::string> receivedDelta = transfer(server.get(), client.get(), deltaFixture);
     const std::optional<detail::ProtocolMessage> deltaMessage =
         receivedDelta ? decodeJsonLine(*receivedDelta, decodingError) : std::nullopt;
-    const typed::Event deltaEvent = deltaMessage ? detail::decodeEvent(asNotification(*deltaMessage))
-                                                 : typed::Event{typed::UnknownEvent{"missing", nullptr, nullptr, decodingError}};
+    const typed::Event deltaEvent =
+        deltaMessage ? detail::decodeEvent(asNotification(*deltaMessage))
+                     : typed::Event{typed::UnknownEvent{"missing", nullptr, nullptr, decodingError, std::nullopt}};
     const typed::AgentMessageDelta* delta = std::get_if<typed::AgentMessageDelta>(&deltaEvent);
     result.expectTrue(receivedDelta == deltaFixture && deltaMessage && deltaMessage->kind == detail::ProtocolMessage::Kind::Notification &&
                           delta && delta->text == "hello" && delta->threadId.value == "thread-1" && delta->turnId.value == "turn-1" &&
@@ -172,8 +173,9 @@ int main() {
     const std::string itemFixture = fixture("item-started.jsonl");
     const std::optional<std::string> receivedItem = transfer(server.get(), client.get(), itemFixture);
     const std::optional<detail::ProtocolMessage> itemMessage = receivedItem ? decodeJsonLine(*receivedItem, decodingError) : std::nullopt;
-    const typed::Event itemEvent = itemMessage ? detail::decodeEvent(asNotification(*itemMessage))
-                                               : typed::Event{typed::UnknownEvent{"missing", nullptr, nullptr, decodingError}};
+    const typed::Event itemEvent =
+        itemMessage ? detail::decodeEvent(asNotification(*itemMessage))
+                    : typed::Event{typed::UnknownEvent{"missing", nullptr, nullptr, decodingError, std::nullopt}};
     const typed::ItemStarted* started = std::get_if<typed::ItemStarted>(&itemEvent);
     const typed::AgentMessageItem* agent = started ? std::get_if<typed::AgentMessageItem>(&started->item) : nullptr;
     const detail::ProtocolSurfaceEntry* itemEntry =
@@ -190,7 +192,7 @@ int main() {
     const typed::TypedServerRequest typedServerRequest =
         serverRequestMessage ? detail::decodeServerRequest(asServerRequest(*serverRequestMessage))
                              : typed::TypedServerRequest{typed::UnknownServerRequest{
-                                   ServerRequestId{0}, ServerRequestToken{}, "missing", nullptr, nullptr, decodingError}};
+                                   ServerRequestId{0}, ServerRequestToken{}, "missing", nullptr, nullptr, decodingError, std::nullopt}};
     const typed::CommandApprovalRequest* approval = std::get_if<typed::CommandApprovalRequest>(&typedServerRequest);
     result.expectTrue(receivedServerRequest == serverRequestFixture && serverRequestMessage &&
                           serverRequestMessage->kind == detail::ProtocolMessage::Kind::Request && approval &&
@@ -208,8 +210,9 @@ int main() {
         const std::optional<std::string> receivedUnknown = transfer(server.get(), client.get(), unknownFixture);
         const std::optional<detail::ProtocolMessage> unknownMessage =
             receivedUnknown ? decodeJsonLine(*receivedUnknown, decodingError) : std::nullopt;
-        const typed::Event unknownEvent = unknownMessage ? detail::decodeEvent(asNotification(*unknownMessage))
-                                                         : typed::Event{typed::UnknownEvent{"missing", nullptr, nullptr, decodingError}};
+        const typed::Event unknownEvent =
+            unknownMessage ? detail::decodeEvent(asNotification(*unknownMessage))
+                           : typed::Event{typed::UnknownEvent{"missing", nullptr, nullptr, decodingError, std::nullopt}};
         const typed::UnknownEvent* unknown = std::get_if<typed::UnknownEvent>(&unknownEvent);
         unknownWireAndDecode =
             unknownWireAndDecode && receivedUnknown == unknownFixture && unknownMessage && unknown && unknown->raw == unknownMessage->raw;

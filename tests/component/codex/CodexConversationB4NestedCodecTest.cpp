@@ -113,6 +113,8 @@ namespace {
         switch (direction) {
             case DecodeOnly:
                 return "DecodeOnly";
+            case EncodeOnly:
+                return "EncodeOnly";
             case Bidirectional:
                 return "Bidirectional";
             case Count:

@@ -6,9 +6,9 @@
  */
 
 #include <cstdint>
-#include <snode.c/ai/openai/codex/backend/BackendCore.h>
-#include <snode.c/ai/openai/codex/frontend/Protocol.h>
-#include <snode.c/ai/openai/codex/stdio/Client.h>
+#include <ai/openai/codex/backend/BackendCore.h>
+#include <ai/openai/codex/frontend/Protocol.h>
+#include <ai/openai/codex/stdio/Client.h>
 #include <string_view>
 
 int main() {

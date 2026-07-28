@@ -883,17 +883,21 @@ namespace {
     }
 
     typed::CommandApprovalRequest approvalRequest() {
-        return typed::CommandApprovalRequest{ServerRequestId{std::string("server-request")},
-                                             ServerRequestToken{77},
-                                             typed::ThreadId{"thread-request"},
-                                             typed::TurnId{"turn-request"},
-                                             typed::ItemId{"item-request"},
-                                             13,
-                                             std::string("make test"),
-                                             std::string("/tmp/project"),
-                                             std::string("needs approval"),
-                                             Json{{"future", true}},
-                                             Json{{"privateOccurrence", 77}}};
+        return typed::CommandApprovalRequest{
+            .requestId = ServerRequestId{std::string("server-request")},
+            .requestToken = ServerRequestToken{77},
+            .threadId = typed::ThreadId{"thread-request"},
+            .turnId = typed::TurnId{"turn-request"},
+            .itemId = typed::ItemId{"item-request"},
+            .startedAtMs = 13,
+            .command = std::string("make test"),
+            .cwd = std::string("/tmp/project"),
+            .reason = std::string("needs approval"),
+            .details = Json{{"future", true}},
+            .raw = Json{{"privateOccurrence", 77}},
+            .canonicalParams = {},
+            .diagnostics = {},
+        };
     }
 
     void testPendingRequestsAndSessions(tests::support::TestResult& result) {

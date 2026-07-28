@@ -394,12 +394,14 @@ namespace {
     void testFuzzyResponseDecoding(tests::support::TestResult& result) {
         std::string error = "stale";
         const codex::Json first = fuzzyResult("first.cpp",
-                                              codex::Json::array({0, std::numeric_limits<std::uint32_t>::max()}),
+                                              std::optional<codex::Json>{
+                                                  codex::Json::array({0, std::numeric_limits<std::uint32_t>::max()})},
                                               "file",
                                               "src/first.cpp",
                                               "/synthetic/root-b",
                                               std::numeric_limits<std::uint32_t>::max());
-        codex::Json second = fuzzyResult("second", codex::Json(nullptr), "future-match", "second", "/synthetic/root-a", 0);
+        codex::Json second =
+            fuzzyResult("second", std::optional<codex::Json>{codex::Json(nullptr)}, "future-match", "second", "/synthetic/root-a", 0);
         second["futureResultField"] = true;
         const codex::Json wire{
             {"files", codex::Json::array({first, second})},
@@ -426,19 +428,24 @@ namespace {
         result.expectTrue(omitted && omitted->files[0].indices.isOmitted() &&
                               omitted->files[0].matchType == typed::FuzzyFileSearchMatchType::directory(),
                           "fuzzy result distinguishes omitted indices and known directory");
-        const codex::Json emptyIndices = fuzzyResult("empty", codex::Json::array(), "file", "empty", "/root", 1);
+        const codex::Json emptyIndices =
+            fuzzyResult("empty", std::optional<codex::Json>{codex::Json::array()}, "file", "empty", "/root", 1);
         const auto empty = detail::decodeFuzzyFileSearchResponse({{"files", codex::Json::array({emptyIndices})}}, error);
         result.expectTrue(empty && empty->files[0].indices.hasValue() && empty->files[0].indices->empty(),
                           "fuzzy result preserves a present empty indices array");
 
         const auto below = detail::decodeFuzzyFileSearchResponse(
-            {{"files", codex::Json::array({fuzzyResult("bad", codex::Json::array(), "file", "bad", "/root", -1)})}}, error);
+            {{"files",
+              codex::Json::array(
+                  {fuzzyResult("bad", std::optional<codex::Json>{codex::Json::array()}, "file", "bad", "/root", -1)})}},
+            error);
         result.expectTrue(!below && error.find("$.files[0].score") != std::string::npos, "fuzzy result rejects a negative uint32 score");
         const auto above = detail::decodeFuzzyFileSearchResponse(
             {{"files",
               codex::Json::array(
                   {fuzzyResult("bad",
-                               codex::Json::array({static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U}),
+                               std::optional<codex::Json>{codex::Json::array(
+                                   {static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U})},
                                "file",
                                "bad",
                                "/root",
@@ -446,9 +453,13 @@ namespace {
             error);
         result.expectTrue(!above && error.find("$.files[0].indices[0]") != std::string::npos, "fuzzy result rejects an index above uint32");
         const auto malformedKnown = detail::decodeFuzzyFileSearchResponse(
-            {{"files", codex::Json::array({fuzzyResult("bad", codex::Json::array(), "file", "bad", "/root", 1)})}}, error);
+            {{"files",
+              codex::Json::array(
+                  {fuzzyResult("bad", std::optional<codex::Json>{codex::Json::array()}, "file", "bad", "/root", 1)})}},
+            error);
         result.expectTrue(malformedKnown.has_value(), "known fuzzy file alternative decodes when structurally valid");
-        codex::Json wrongMatch = fuzzyResult("bad", codex::Json::array(), "file", "bad", "/root", 1);
+        codex::Json wrongMatch =
+            fuzzyResult("bad", std::optional<codex::Json>{codex::Json::array()}, "file", "bad", "/root", 1);
         wrongMatch["match_type"] = codex::Json::object();
         result.expectTrue(!detail::decodeFuzzyFileSearchResponse({{"files", codex::Json::array({std::move(wrongMatch)})}}, error) &&
                               error.find("$.files[0].match_type") != std::string::npos,
@@ -484,7 +495,8 @@ namespace {
         result.expectTrue(completedDecoded && completedDecoded->sessionId == "stable/session" && completedDecoded->raw == completed.raw,
                           "stable fuzzy completion notification preserves session identity and raw");
 
-        const codex::Json updatedFuture = fuzzyResult("future", codex::Json(nullptr), "future-match", "future/path", "/synthetic/root", 9);
+        const codex::Json updatedFuture = fuzzyResult(
+            "future", std::optional<codex::Json>{codex::Json(nullptr)}, "future-match", "future/path", "/synthetic/root", 9);
         const codex::Notification updated = notification("fuzzyFileSearch/sessionUpdated",
                                                          {
                                                              {"files", codex::Json::array({updatedFuture})},

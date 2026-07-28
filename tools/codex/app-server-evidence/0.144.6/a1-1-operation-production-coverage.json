@@ -130,8 +130,8 @@
     },
     {
       "path": "tests/component/codex/CodexConversationB4NestedCodecTest.cpp",
-      "bytes": 32527,
-      "sha256": "b046a3278aa21e1243e868ab66d75ed0482d071a6ab188ad7f0c00b5537fc3af"
+      "bytes": 32593,
+      "sha256": "e4f25e90504eb8deffab5cce53e3395cc76b4c83ffc91e0963bac844eb6eb8aa"
     },
     {
       "path": "tests/component/codex/CodexTypedThreadCodecTest.cpp",
@@ -140,8 +140,8 @@
     },
     {
       "path": "tests/component/codex/CodexA11OperationWireTest.cpp",
-      "bytes": 123443,
-      "sha256": "e82d7631ff2f6f1da0646b0cca07c88e9a919caaef66701ebdfc70eb257409f9"
+      "bytes": 123788,
+      "sha256": "ba98e6f8afa6058a6c802c046ad1a30c7731d13114235aa34895fa5e818d9d9c"
     },
     {
       "path": "tests/installed/codex/CodexTypedConsumer.cpp",

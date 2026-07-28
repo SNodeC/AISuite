@@ -357,7 +357,6 @@ namespace {
             client::CommandParser parser("thread-workflow");
             client::ClientConnection* connectionHandle = nullptr;
             client::StdinReader* stdinReaderHandle = nullptr;
-            client::CommandDrainController* lifecycleHandle = nullptr;
 
             client::CommandDrainController lifecycle(client::CommandDrainCallbacks{
                 .send =
@@ -396,7 +395,6 @@ namespace {
                         lifecycleFailures.push_back(message);
                         presenter.error(std::move(message));
                     }});
-            lifecycleHandle = &lifecycle;
 
             client::ClientConnection connection(client::ClientConnectionCallbacks{
                 .onConnected =

@@ -209,7 +209,9 @@ namespace {
     void testInputEncoding(tests::support::TestResult& testResult) {
         std::string error = "stale";
 
-        const std::optional<Json> text = encodeTurnInput(TextInput{"Analyse the branch."}, error);
+        TextInput textInput{};
+        textInput.text = "Analyse the branch.";
+        const std::optional<Json> text = encodeTurnInput(textInput, error);
         const Json expectedText = {
             {"type", "text"},
             {"text", "Analyse the branch."},
@@ -219,35 +221,63 @@ namespace {
                               "text input uses the exact discriminator and emits the required empty text_elements array");
         testResult.expectTrue(error.empty(), "successful text input encoding clears a previous error");
 
-        const std::optional<Json> image = encodeTurnInput(ImageUrlInput{"https://example.test/image.png", ImageDetail{"high"}}, error);
+        ImageUrlInput imageInput{};
+        imageInput.url = "https://example.test/image.png";
+        imageInput.detail = ImageDetail{"high"};
+        const std::optional<Json> image = encodeTurnInput(imageInput, error);
         testResult.expectTrue(image && *image == Json{{"type", "image"}, {"url", "https://example.test/image.png"}, {"detail", "high"}},
                               "image URL input uses the current 'image' discriminator and detail field");
 
-        const std::optional<Json> localImage = encodeTurnInput(LocalImageInput{"/tmp/image.png", std::nullopt}, error);
+        LocalImageInput localImageInput{};
+        localImageInput.path = "/tmp/image.png";
+        localImageInput.detail = std::nullopt;
+        const std::optional<Json> localImage = encodeTurnInput(localImageInput, error);
         testResult.expectTrue(localImage && *localImage == Json{{"type", "localImage"}, {"path", "/tmp/image.png"}},
                               "local image input uses the current camel-case discriminator and omits absent detail");
 
-        const std::optional<Json> skill = encodeTurnInput(SkillInput{"review", "/tmp/SKILL.md"}, error);
+        SkillInput skillInput{};
+        skillInput.name = "review";
+        skillInput.path = "/tmp/SKILL.md";
+        const std::optional<Json> skill = encodeTurnInput(skillInput, error);
         testResult.expectTrue(skill && *skill == Json{{"type", "skill"}, {"name", "review"}, {"path", "/tmp/SKILL.md"}},
                               "skill input encodes its exact current-schema shape");
 
-        const std::optional<Json> mention = encodeTurnInput(MentionInput{"README", "/tmp/README.md"}, error);
+        MentionInput mentionInput{};
+        mentionInput.name = "README";
+        mentionInput.path = "/tmp/README.md";
+        const std::optional<Json> mention = encodeTurnInput(mentionInput, error);
         testResult.expectTrue(mention && *mention == Json{{"type", "mention"}, {"name", "README"}, {"path", "/tmp/README.md"}},
                               "mention input encodes its exact current-schema shape");
 
-        const UnknownTurnInput futureInput{"futureInput", Json{{"type", "futureInput"}, {"payload", true}}};
+        UnknownTurnInput futureInput{};
+        futureInput.type = "futureInput";
+        futureInput.raw = Json{{"type", "futureInput"}, {"payload", true}};
         const std::optional<Json> unknown = encodeTurnInput(futureInput, error);
         testResult.expectTrue(!unknown && !error.empty(),
                               "UnknownTurnInput is rejected locally instead of guessing a future outgoing wire shape");
     }
 
     void testTurnStartEncoding(tests::support::TestResult& testResult) {
+        TextInput firstInput{};
+        firstInput.text = "first";
+        ImageUrlInput imageInput{};
+        imageInput.url = "https://example.test/image.png";
+        imageInput.detail = ImageDetail{"original"};
+        LocalImageInput localImageInput{};
+        localImageInput.path = "/tmp/image.png";
+        localImageInput.detail = ImageDetail{"low"};
+        SkillInput skillInput{};
+        skillInput.name = "skill";
+        skillInput.path = "/tmp/SKILL.md";
+        MentionInput mentionInput{};
+        mentionInput.name = "file";
+        mentionInput.path = "/tmp/file.cpp";
         const std::vector<TurnInput> inputs = {
-            TextInput{"first"},
-            ImageUrlInput{"https://example.test/image.png", ImageDetail{"original"}},
-            LocalImageInput{"/tmp/image.png", ImageDetail{"low"}},
-            SkillInput{"skill", "/tmp/SKILL.md"},
-            MentionInput{"file", "/tmp/file.cpp"},
+            std::move(firstInput),
+            std::move(imageInput),
+            std::move(localImageInput),
+            std::move(skillInput),
+            std::move(mentionInput),
         };
         TurnStartOptions options;
         options.cwd = "/tmp/project";
@@ -313,22 +343,28 @@ namespace {
         testResult.expectTrue(!encodeTurnStartParams(ThreadId{"thread-1"}, {}, invalidEffort, error) && !error.empty(),
                               "turn/start rejects an empty reasoning effort prohibited by the current schema");
 
-        const std::vector<TurnInput> unknownInputs = {
-            TextInput{"before"},
-            UnknownTurnInput{"future", Json{{"type", "future"}}},
-        };
+        TextInput beforeInput{};
+        beforeInput.text = "before";
+        UnknownTurnInput futureUnknownInput{};
+        futureUnknownInput.type = "future";
+        futureUnknownInput.raw = Json{{"type", "future"}};
+        const std::vector<TurnInput> unknownInputs = {std::move(beforeInput), std::move(futureUnknownInput)};
         testResult.expectTrue(!encodeTurnStartParams(ThreadId{"thread-1"}, unknownInputs, {}, error) && !error.empty(),
                               "turn/start rejects a mixed input list containing an unknown outgoing variant");
 
         TurnStartOptions readOnly;
-        readOnly.sandboxPolicy = ReadOnlySandboxPolicy{false};
+        ReadOnlySandboxPolicy readOnlyPolicy{};
+        readOnlyPolicy.networkAccess = false;
+        readOnly.sandboxPolicy = std::move(readOnlyPolicy);
         const auto encodedReadOnly = encodeTurnStartParams(ThreadId{"thread-1"}, {}, readOnly, error);
         testResult.expectTrue(encodedReadOnly &&
                                   (*encodedReadOnly)["sandboxPolicy"] == Json{{"type", "readOnly"}, {"networkAccess", false}},
                               "turn/start encodes the current read-only sandbox policy shape");
 
         TurnStartOptions external;
-        external.sandboxPolicy = ExternalSandboxPolicy{NetworkAccess::enabled()};
+        ExternalSandboxPolicy externalPolicy{};
+        externalPolicy.networkAccess = NetworkAccess::enabled();
+        external.sandboxPolicy = std::move(externalPolicy);
         const auto encodedExternal = encodeTurnStartParams(ThreadId{"thread-1"}, {}, external, error);
         testResult.expectTrue(encodedExternal &&
                                   (*encodedExternal)["sandboxPolicy"] == Json{{"type", "externalSandbox"}, {"networkAccess", "enabled"}},

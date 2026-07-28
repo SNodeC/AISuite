@@ -79,7 +79,9 @@ namespace {
 
     Observation observeAskForApproval(const Json& raw) {
         const auto decoded = detail::decodeAskForApproval(raw);
-        Observation result{.hasValue = decoded.value.has_value(), .diagnostic = decoded.diagnostic};
+        Observation result{};
+        result.hasValue = decoded.value.has_value();
+        result.diagnostic = decoded.diagnostic;
         if (!decoded.value) {
             return result;
         }
@@ -112,7 +114,9 @@ namespace {
 
     Observation observeCommandAction(const Json& raw) {
         const auto decoded = detail::decodeCommandAction(raw);
-        Observation result{.hasValue = decoded.value.has_value(), .diagnostic = decoded.diagnostic};
+        Observation result{};
+        result.hasValue = decoded.value.has_value();
+        result.diagnostic = decoded.diagnostic;
         if (!decoded.value) {
             return result;
         }
@@ -158,7 +162,9 @@ namespace {
 
     Observation observeDynamicOutput(const Json& raw) {
         const auto decoded = detail::decodeDynamicToolCallOutputContentItem(raw);
-        Observation result{.hasValue = decoded.value.has_value(), .diagnostic = decoded.diagnostic};
+        Observation result{};
+        result.hasValue = decoded.value.has_value();
+        result.diagnostic = decoded.diagnostic;
         if (!decoded.value) {
             return result;
         }
@@ -184,7 +190,9 @@ namespace {
 
     Observation observePatchChangeKind(const Json& raw) {
         const auto decoded = detail::decodePatchChangeKind(raw);
-        Observation result{.hasValue = decoded.value.has_value(), .diagnostic = decoded.diagnostic};
+        Observation result{};
+        result.hasValue = decoded.value.has_value();
+        result.diagnostic = decoded.diagnostic;
         if (!decoded.value) {
             return result;
         }
@@ -215,7 +223,9 @@ namespace {
 
     Observation observeSandboxPolicy(const Json& raw) {
         const auto decoded = detail::decodeSandboxPolicy(raw);
-        Observation result{.hasValue = decoded.value.has_value(), .diagnostic = decoded.diagnostic};
+        Observation result{};
+        result.hasValue = decoded.value.has_value();
+        result.diagnostic = decoded.diagnostic;
         if (!decoded.value) {
             return result;
         }
@@ -283,7 +293,9 @@ namespace {
 
     Observation observeUserInput(const Json& raw) {
         const auto decoded = detail::decodeUserInput(raw);
-        Observation result{.hasValue = decoded.value.has_value(), .diagnostic = decoded.diagnostic};
+        Observation result{};
+        result.hasValue = decoded.value.has_value();
+        result.diagnostic = decoded.diagnostic;
         if (!decoded.value) {
             return result;
         }
@@ -326,7 +338,9 @@ namespace {
 
     Observation observeWebSearchAction(const Json& raw) {
         const auto decoded = detail::decodeWebSearchAction(raw);
-        Observation result{.hasValue = decoded.value.has_value(), .diagnostic = decoded.diagnostic};
+        Observation result{};
+        result.hasValue = decoded.value.has_value();
+        result.diagnostic = decoded.diagnostic;
         if (!decoded.value) {
             return result;
         }
@@ -658,15 +672,16 @@ int main() {
                       "malformed diagnostics contain identity/path only while raw input retains the sensitive value");
 
     std::string encodeError;
-    const std::optional<Json> unknownEncoding =
-        detail::encodeUserInput(typed::UserInput{typed::UnknownUserInput{.type = "future", .raw = {{"type", "future"}}}}, encodeError);
+    typed::UnknownUserInput unknownInput{};
+    unknownInput.type = "future";
+    unknownInput.raw = {{"type", "future"}};
+    const std::optional<Json> unknownEncoding = detail::encodeUserInput(typed::UserInput{unknownInput}, encodeError);
     result.expectTrue(!unknownEncoding && !encodeError.empty(),
                       "outgoing explicit unknown UserInput is rejected synchronously in favor of the raw API");
 
-    typed::ImageUserInput inconsistent{
-        .url = "https://example.test/image",
-        .detail = typed::OptionalNullable<typed::ImageDetail>::omitted(),
-    };
+    typed::ImageUserInput inconsistent{};
+    inconsistent.url = "https://example.test/image";
+    inconsistent.detail = typed::OptionalNullable<typed::ImageDetail>::omitted();
     inconsistent.detail.value = typed::ImageDetail::high();
     encodeError.clear();
     const std::optional<Json> inconsistentEncoding = detail::encodeUserInput(typed::UserInput{inconsistent}, encodeError);

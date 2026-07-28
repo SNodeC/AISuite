@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -342,7 +343,9 @@ int main() {
     commands.push_back(command("user-input", UserInputRespond{"42", {{"question-1", {"answer"}}}}));
     commands.push_back(command("authentication", AuthenticationRespond{"43", "secret-token", "account", "plus"}));
     commands.push_back(command("unknown-response", UnknownRequestRespond{"44", Json{{"accepted", false}}}));
-    commands.push_back(command("unknown-reject", UnknownRequestReject{"45", -32001, "unsupported", Json{{"reason", "test"}}}));
+    commands.push_back(command(
+        "unknown-reject",
+        UnknownRequestReject{"45", -32001, "unsupported", std::optional<Json>{Json{{"reason", "test"}}}}));
 
     for (const Command& value : commands) {
         expectClientRoundTrip(result, ClientMessage{value}, "command " + value.requestId);

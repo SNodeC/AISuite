@@ -73,6 +73,12 @@ namespace {
 
         return "local error " + std::to_string(error->code) + ": " + error->message;
     }
+
+    ai::openai::codex::typed::TextInput textInput(std::string text) {
+        ai::openai::codex::typed::TextInput input;
+        input.text = std::move(text);
+        return input;
+    }
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -225,16 +231,19 @@ int main(int argc, char* argv[]) {
         states.push_back(stateChange.current);
 
         if (stateChange.current == codex::State::Ready) {
-            typed::ThreadStartOptions options;
-            options.cwd = workspace.string();
-            options.approvalPolicy = typed::ApprovalPolicy::never();
-            options.sandboxMode = typed::SandboxMode::readOnly();
-            options.ephemeral = true;
+            typed::ThreadStartParams params;
+            params.cwd = typed::OptionalNullable<std::string>::withValue(workspace.string());
+            params.approvalPolicy = typed::OptionalNullable<typed::AskForApproval>::withValue(
+                typed::AskForApproval{typed::ApprovalPolicy::never()});
+            params.sandbox =
+                typed::OptionalNullable<typed::SandboxMode>::withValue(typed::SandboxMode::readOnly());
+            params.ephemeral = typed::OptionalNullable<bool>::withValue(true);
 
             threadStartAttempted = true;
-            const auto submission =
-                client.typed().threads().start(std::move(options), [&](const typed::OperationResult<typed::Thread>& result) {
-                using Result = typed::OperationResult<typed::Thread>;
+            const auto submission = client.typed().threads().start(
+                std::move(params),
+                [&](const typed::OperationResult<typed::ThreadStartResponse>& result) {
+                using Result = typed::OperationResult<typed::ThreadStartResponse>;
 
                 if (result.kind == Result::Kind::RemoteError) {
                     skipRuntime("typed thread/start was unavailable: " + describeRemoteError(result.remoteError));
@@ -249,18 +258,22 @@ int main(int argc, char* argv[]) {
                 }
 
                 threadStartSucceeded = true;
-                typed::TurnStartOptions turnOptions;
-                turnOptions.cwd = workspace.string();
-                turnOptions.approvalPolicy = typed::ApprovalPolicy::never();
-                turnOptions.sandboxPolicy = typed::ReadOnlySandboxPolicy{false};
+                typed::ReadOnlySandboxPolicy readOnlySandbox;
+                readOnlySandbox.networkAccess = false;
+                typed::TurnStartParams turnParams;
+                turnParams.threadId = result.value->thread.id;
+                turnParams.input = {textInput("Reply with exactly OK. Do not use tools and do not modify any files.")};
+                turnParams.cwd = typed::OptionalNullable<std::string>::withValue(workspace.string());
+                turnParams.approvalPolicy = typed::OptionalNullable<typed::AskForApproval>::withValue(
+                    typed::AskForApproval{typed::ApprovalPolicy::never()});
+                turnParams.sandboxPolicy = typed::OptionalNullable<typed::SandboxPolicy>::withValue(
+                    typed::SandboxPolicy{std::move(readOnlySandbox)});
 
                 turnStartAttempted = true;
                 const auto turnSubmission = client.typed().turns().start(
-                    result.value->id,
-                    {typed::TextInput{"Reply with exactly OK. Do not use tools and do not modify any files."}},
-                    std::move(turnOptions),
-                    [&](const typed::OperationResult<typed::Turn>& turnResult) {
-                        using TurnResult = typed::OperationResult<typed::Turn>;
+                    std::move(turnParams),
+                    [&](const typed::OperationResult<typed::TurnStartResponse>& turnResult) {
+                        using TurnResult = typed::OperationResult<typed::TurnStartResponse>;
 
                         turnResultCallbackSeen = true;
                         if (turnResult.kind == TurnResult::Kind::RemoteError) {

@@ -80,6 +80,13 @@ namespace tests::support {
         }
     }
 
+    void TestResult::expectEqual(std::size_t expected, std::size_t actual, const std::string& message) {
+        if (expected != actual) {
+            std::cerr << "FAIL: " << message << " expected=" << expected << " actual=" << actual << std::endl;
+            result = EXIT_FAILURE;
+        }
+    }
+
     int TestResult::processResult() const {
         return result;
     }

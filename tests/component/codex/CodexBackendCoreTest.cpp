@@ -40,6 +40,12 @@ namespace {
         return {{"type", "agentMessage"}, {"id", id}, {"text", text}};
     }
 
+    typed::TextInput textInput(std::string text) {
+        typed::TextInput input;
+        input.text = std::move(text);
+        return input;
+    }
+
     class BackendCoreConstructionClient;
 
     struct ClientOwnershipProbe {
@@ -248,7 +254,7 @@ namespace {
                     if (completion.requestId == "start-success" && completionCounts[completion.requestId] == 1) {
                         backend::TurnStart command;
                         command.threadId = typed::ThreadId{"thread-success"};
-                        command.input = {typed::TextInput{"submitted reentrantly"}};
+                        command.input = {textInput("submitted reentrantly")};
                         expect(static_cast<bool>(controller.submit("turn-reentrant", std::move(command))),
                                "a command completion callback can submit another typed command reentrantly");
                     }
@@ -396,7 +402,7 @@ namespace {
 
             backend::TurnStart startTurn;
             startTurn.threadId = typed::ThreadId{"thread-success"};
-            startTurn.input = {typed::TextInput{"start a turn"}};
+            startTurn.input = {textInput("start a turn")};
             expect(static_cast<bool>(controller.submit("turn-start", std::move(startTurn))), "controller submits turn/start");
 
             backend::TurnInterrupt interrupt;

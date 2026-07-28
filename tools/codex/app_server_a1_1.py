@@ -107,7 +107,7 @@ FROZEN_A1_1_PRODUCTION_EVIDENCE_SHA256 = {
     "notification_production_coverage":
         "191c9e9152fe6c3a2fd052f542911c510e6643e78bfaf2b293729f9bfe7e62b0",
     "operation_production_coverage":
-        "9e9cc9a58651d39f2e2b5e9ee9cdb712a6338660029a77814988a7e904ef156e",
+        "2301645d02f15892987eba73f92b7962f3545aa75520eabca48b473dc55f6664",
     "type_closure":
         "187db47c37d094b5f22c27cb0a6c1fc656cd0b3e34c63faf9b81ededce2f8bfc",
 }

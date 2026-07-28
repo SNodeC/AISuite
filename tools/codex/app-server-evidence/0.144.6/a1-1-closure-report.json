@@ -5223,7 +5223,7 @@
     },
     "operation_production_coverage": {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-1-operation-production-coverage.json",
-      "sha256": "9e9cc9a58651d39f2e2b5e9ee9cdb712a6338660029a77814988a7e904ef156e"
+      "sha256": "2301645d02f15892987eba73f92b7962f3545aa75520eabca48b473dc55f6664"
     },
     "registry": {
       "path": "src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc",

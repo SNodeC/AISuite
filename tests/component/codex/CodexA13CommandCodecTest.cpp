@@ -62,7 +62,9 @@ namespace {
 
     void testExecEncoding(tests::support::TestResult& result) {
         std::string error = "stale";
-        const auto minimum = detail::encodeCommandExecParams({.command = {"synthetic-command"}}, error);
+        typed::CommandExecParams minimumParams{};
+        minimumParams.command = {"synthetic-command"};
+        const auto minimum = detail::encodeCommandExecParams(minimumParams, error);
         result.expectTrue(minimum == codex::Json{{"command", codex::Json::array({"synthetic-command"})}} && error.empty(),
                           "command/exec minimum request emits only its required argv vector");
 
@@ -79,6 +81,7 @@ namespace {
             .networkAccess = false,
             .excludeTmpdirEnvVar = true,
             .excludeSlashTmp = false,
+            .diagnostics = {},
         };
         const typed::CommandExecParams full{
             .command =
@@ -141,16 +144,15 @@ namespace {
                           "command/exec preserves every argv element, nullable environment entry, "
                           "integer boundary, sandbox policy, and stable-only field");
 
-        const typed::CommandExecParams explicitNulls{
-            .command = {"synthetic-command"},
-            .cwd = typed::OptionalNullable<std::string>::explicitNull(),
-            .env = typed::OptionalNullable<std::map<std::string, std::optional<std::string>>>::explicitNull(),
-            .outputBytesCap = typed::OptionalNullable<std::uint64_t>::explicitNull(),
-            .processId = typed::OptionalNullable<typed::CommandExecProcessId>::explicitNull(),
-            .sandboxPolicy = typed::OptionalNullable<typed::SandboxPolicy>::explicitNull(),
-            .size = typed::OptionalNullable<typed::CommandExecTerminalSize>::explicitNull(),
-            .timeoutMs = typed::OptionalNullable<std::int64_t>::explicitNull(),
-        };
+        typed::CommandExecParams explicitNulls{};
+        explicitNulls.command = {"synthetic-command"};
+        explicitNulls.cwd = typed::OptionalNullable<std::string>::explicitNull();
+        explicitNulls.env = typed::OptionalNullable<std::map<std::string, std::optional<std::string>>>::explicitNull();
+        explicitNulls.outputBytesCap = typed::OptionalNullable<std::uint64_t>::explicitNull();
+        explicitNulls.processId = typed::OptionalNullable<typed::CommandExecProcessId>::explicitNull();
+        explicitNulls.sandboxPolicy = typed::OptionalNullable<typed::SandboxPolicy>::explicitNull();
+        explicitNulls.size = typed::OptionalNullable<typed::CommandExecTerminalSize>::explicitNull();
+        explicitNulls.timeoutMs = typed::OptionalNullable<std::int64_t>::explicitNull();
         const codex::Json expectedNulls{
             {"command", codex::Json::array({"synthetic-command"})},
             {"cwd", nullptr},
@@ -165,7 +167,8 @@ namespace {
                           "command/exec distinguishes explicit null from omission for all "
                           "nullable fields");
 
-        typed::CommandExecParams inconsistent{.command = {"synthetic-command"}};
+        typed::CommandExecParams inconsistent{};
+        inconsistent.command = {"synthetic-command"};
         inconsistent.cwd.value = "./must-not-encode";
         const auto rejected = detail::encodeCommandExecParams(inconsistent, error);
         result.expectTrue(!rejected && error.find("$.cwd") != std::string::npos && error.find("must-not-encode") == std::string::npos,
@@ -196,7 +199,9 @@ namespace {
                           "command/exec/terminate preserves even an empty supplied process "
                           "identifier because the stable schema permits it");
 
-        const auto minimumWrite = detail::encodeCommandExecWriteParams({.processId = processId}, error);
+        typed::CommandExecWriteParams minimumWriteParams{};
+        minimumWriteParams.processId = processId;
+        const auto minimumWrite = detail::encodeCommandExecWriteParams(minimumWriteParams, error);
         result.expectTrue(minimumWrite == codex::Json{{"processId", "process/with spaces"}} && error.empty(),
                           "command/exec/write minimum request omits both optional fields");
 
@@ -215,7 +220,8 @@ namespace {
                               error.empty(),
                           "command/exec/write preserves encoded stdin and present false closeStdin");
 
-        typed::CommandExecWriteParams nullWrite{.processId = processId};
+        typed::CommandExecWriteParams nullWrite{};
+        nullWrite.processId = processId;
         nullWrite.deltaBase64 = typed::OptionalNullable<std::string>::explicitNull();
         nullWrite.closeStdin = true;
         result.expectTrue(detail::encodeCommandExecWriteParams(nullWrite, error) ==
