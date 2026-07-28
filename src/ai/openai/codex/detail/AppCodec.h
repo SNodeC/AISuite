@@ -24,8 +24,7 @@ namespace ai::openai::codex::detail {
                                                                                       std::string& error) noexcept;
 
     // Shared App-domain leaves used by plugin catalog responses.
-    std::optional<typed::AppSummary>
-    decodeAppSummary(const Json& value, std::string& error, std::string_view fieldPath = "$") noexcept;
+    std::optional<typed::AppSummary> decodeAppSummary(const Json& value, std::string& error, std::string_view fieldPath = "$") noexcept;
     std::optional<typed::AppTemplateSummary>
     decodeAppTemplateSummary(const Json& value, std::string& error, std::string_view fieldPath = "$") noexcept;
 

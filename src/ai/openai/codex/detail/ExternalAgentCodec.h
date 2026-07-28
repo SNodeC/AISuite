@@ -17,14 +17,14 @@
 namespace ai::openai::codex::detail {
 
     std::optional<Json> encodeExternalAgentConfigDetectParams(const typed::ExternalAgentConfigDetectParams& value,
-                                                               std::string& error) noexcept;
+                                                              std::string& error) noexcept;
     std::optional<Json> encodeExternalAgentConfigImportParams(const typed::ExternalAgentConfigImportParams& value,
-                                                               std::string& error) noexcept;
+                                                              std::string& error) noexcept;
 
-    std::optional<typed::ExternalAgentConfigDetectResponse>
-    decodeExternalAgentConfigDetectResponse(const Json& value, std::string& error) noexcept;
-    std::optional<typed::ExternalAgentConfigImportResponse>
-    decodeExternalAgentConfigImportResponse(const Json& value, std::string& error) noexcept;
+    std::optional<typed::ExternalAgentConfigDetectResponse> decodeExternalAgentConfigDetectResponse(const Json& value,
+                                                                                                    std::string& error) noexcept;
+    std::optional<typed::ExternalAgentConfigImportResponse> decodeExternalAgentConfigImportResponse(const Json& value,
+                                                                                                    std::string& error) noexcept;
     std::optional<typed::ExternalAgentConfigImportHistoriesReadResponse>
     decodeExternalAgentConfigImportHistoriesReadResponse(const Json& value, std::string& error) noexcept;
     std::optional<typed::ExternalAgentConfigImportCompletedNotification>

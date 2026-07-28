@@ -192,8 +192,8 @@ int main() {
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
-    result.expectTrue(schemaComplete == 305 && schemaPartial == 4 && schemaNotImplemented == 30 && schemaNotApplicable == 48,
-                      "the A1.4 user-integration Commit-4 checkpoint reaches the exact 305/4/30/48 global completeness metrics");
+    result.expectTrue(schemaComplete == 313 && schemaPartial == 4 && schemaNotImplemented == 22 && schemaNotApplicable == 48,
+                      "the completed A1.4 user-integration PR-A reaches the exact 313/4/22/48 global completeness metrics");
     result.expectTrue(slices == std::array<std::size_t, 6>{19, 151, 45, 68, 56, 48} && codexErrorInfoA1_0 == 16 &&
                           stableUnreachableInventory == 12,
                       "registry preserves the frozen A1 slice assignment, CodexErrorInfo exception, and 12 stable unreachable rows");
@@ -206,7 +206,7 @@ int main() {
                       "every identity has one fixed module/slice assignment and a mechanically derived schema status");
 
     expectTargets<detail::ClientRequestTarget>(result,
-                                               std::array<std::string_view, 77>{"initialize",
+                                               std::array<std::string_view, 81>{"initialize",
                                                                                 "account/login/cancel",
                                                                                 "account/login/start",
                                                                                 "account/logout",
@@ -282,7 +282,11 @@ int main() {
                                                                                 "plugin/uninstall",
                                                                                 "skills/config/write",
                                                                                 "skills/extraRoots/set",
-                                                                                "skills/list"},
+                                                                                "skills/list",
+                                                                                "plugin/installed",
+                                                                                "plugin/list",
+                                                                                "plugin/read",
+                                                                                "plugin/share/list"},
                                                "every typed outgoing request target resolves to its exact registered wire method");
     expectTargets<detail::ClientNotificationTarget>(result,
                                                     std::array<std::string_view, 1>{"initialized"},

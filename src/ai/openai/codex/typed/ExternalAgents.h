@@ -61,9 +61,8 @@ namespace ai::openai::codex::typed {
         }
 
         [[nodiscard]] bool isKnown() const noexcept {
-            return value == "AGENTS_MD" || value == "CONFIG" || value == "SKILLS" || value == "PLUGINS" ||
-                   value == "MCP_SERVER_CONFIG" || value == "SUBAGENTS" || value == "HOOKS" || value == "COMMANDS" ||
-                   value == "SESSIONS";
+            return value == "AGENTS_MD" || value == "CONFIG" || value == "SKILLS" || value == "PLUGINS" || value == "MCP_SERVER_CONFIG" ||
+                   value == "SUBAGENTS" || value == "HOOKS" || value == "COMMANDS" || value == "SESSIONS";
         }
 
         auto operator<=>(const ExternalAgentConfigMigrationItemType&) const = default;

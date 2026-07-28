@@ -348,10 +348,26 @@ A14_USER_INTEGRATIONS_COMMIT_4 = frozenset(
         ("client_request", "ClientRequest", "method", "plugin/uninstall"),
     }
 )
+# PR-A Commit 5 closes the four PluginSource-bearing catalog requests and the
+# four known PluginSource alternatives. The alternative order is the exact
+# production-registry order, independent from the stable schema's oneOf order.
+A14_USER_INTEGRATIONS_COMMIT_5 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "plugin/installed"),
+        ("client_request", "ClientRequest", "method", "plugin/list"),
+        ("client_request", "ClientRequest", "method", "plugin/read"),
+        ("client_request", "ClientRequest", "method", "plugin/share/list"),
+        ("tagged_union_discriminator", "PluginSource", "type", "git"),
+        ("tagged_union_discriminator", "PluginSource", "type", "local"),
+        ("tagged_union_discriminator", "PluginSource", "type", "npm"),
+        ("tagged_union_discriminator", "PluginSource", "type", "remote"),
+    }
+)
 A14_USER_INTEGRATIONS_IMPLEMENTED = (
     A14_USER_INTEGRATIONS_COMMIT_2
     | A14_USER_INTEGRATIONS_COMMIT_3
     | A14_USER_INTEGRATIONS_COMMIT_4
+    | A14_USER_INTEGRATIONS_COMMIT_5
 )
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
@@ -1726,6 +1742,26 @@ COMMANDS_FILESYSTEM_REVIEWS_APPROVALS_UNION_CODECS = {
     for name in names
 }
 
+INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS = {
+    (
+        "tagged_union_discriminator",
+        "PluginSource",
+        "type",
+        name,
+    ): (
+        "IntegrationsAndLongTailUnionTarget::"
+        + {
+            "git": "PluginSourceGit",
+            "local": "PluginSourceLocal",
+            "npm": "PluginSourceNpm",
+            "remote": "PluginSourceRemote",
+        }[name],
+        "ConversationUnionCodecShape::InternallyTaggedObject",
+        "ConversationUnionCodecDirection::DecodeOnly",
+    )
+    for name in ("git", "local", "npm", "remote")
+}
+
 RUNTIME_TARGETS = {
     ("client_request", "ClientRequest", "method", "initialize"): "ClientRequestTarget::Initialize",
     (
@@ -1846,6 +1882,24 @@ RUNTIME_TARGETS = {
         "client_request",
         "ClientRequest",
         "method",
+        "plugin/installed",
+    ): "ClientRequestTarget::PluginInstalled",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/list",
+    ): "ClientRequestTarget::PluginList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/read",
+    ): "ClientRequestTarget::PluginRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
         "plugin/share/checkout",
     ): "ClientRequestTarget::PluginShareCheckout",
     (
@@ -1854,6 +1908,12 @@ RUNTIME_TARGETS = {
         "method",
         "plugin/share/delete",
     ): "ClientRequestTarget::PluginShareDelete",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/list",
+    ): "ClientRequestTarget::PluginShareList",
     (
         "client_request",
         "ClientRequest",
@@ -2763,6 +2823,16 @@ RUNTIME_TARGETS.update(
         for key, descriptor in (
             COMMANDS_FILESYSTEM_REVIEWS_APPROVALS_UNION_CODECS.items()
         )
+    }
+)
+if set(RUNTIME_TARGETS) & set(INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS):
+    raise AssertionError(
+        "integrations/long-tail union targets duplicate an existing runtime mapping"
+    )
+RUNTIME_TARGETS.update(
+    {
+        key: descriptor[0]
+        for key, descriptor in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.items()
     }
 )
 
@@ -6100,7 +6170,7 @@ def registry_statuses(
         evidence["opaque_fields_declared"] = True
         evidence["no_known_schema_fields_dropped"] = True
     if identity in A14_USER_INTEGRATIONS_IMPLEMENTED and target is not None:
-        # PR-A Commits 2 through 4 bind each exact implemented integration root to a
+        # PR-A Commits 2 through 5 bind each exact implemented integration root to a
         # reviewed schema-complete codec, generated descriptor, grouped facade,
         # schema-derived fixture, and focused wire/notification test.  All
         # objects in this closure are open; raw retention supplements the
@@ -6711,6 +6781,115 @@ def generate_commands_filesystem_reviews_approvals_union_descriptor_data(
     return "\n".join(lines) + "\n"
 
 
+def generate_integrations_and_long_tail_union_descriptor_data(
+    manifest: dict[str, Any],
+    schema_root: Path,
+    evidence: dict[str, Any] | None = None,
+) -> str:
+    """Generate the exact registry-ordered PR-A PluginSource metadata."""
+
+    evidence = (
+        evidence if evidence is not None else load_a1_registry_evidence()
+    )
+    assignments = assignment_by_key(manifest, evidence["assignments"])
+    expected_keys = {
+        key
+        for key, assignment in assignments.items()
+        if assignment.get("slice") == "A1.4"
+        and assignment.get("module") == "IntegrationsAndLongTail"
+        and key[0] == "tagged_union_discriminator"
+        and key[1] == "PluginSource"
+        and assignment.get("stability") == "stable"
+    }
+    descriptor_keys = set(INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS)
+    descriptor_order = [
+        surface_key(entry)
+        for entry in manifest.get("entries", [])
+        if surface_key(entry) in descriptor_keys
+    ]
+    registry_order = tuple(key[3] for key in descriptor_order)
+    if (
+        expected_keys != descriptor_keys
+        or len(descriptor_keys) != 4
+        or registry_order != ("git", "local", "npm", "remote")
+    ):
+        raise SurfaceError(
+            "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch: "
+            "PluginSource must retain exactly git/local/npm/remote in "
+            "production-registry order"
+        )
+    targets = [
+        metadata[0]
+        for metadata in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.values()
+    ]
+    if len(set(targets)) != 4:
+        raise SurfaceError(
+            "DuplicateIntegrationsAndLongTailUnionDescriptorTarget: "
+            "each PluginSource identity must own one unique runtime target"
+        )
+    if any(
+        metadata[1]
+        != "ConversationUnionCodecShape::InternallyTaggedObject"
+        or metadata[2]
+        != "ConversationUnionCodecDirection::DecodeOnly"
+        for metadata in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.values()
+    ):
+        raise SurfaceError(
+            "IntegrationsAndLongTailUnionDescriptorDirectionMismatch: "
+            "all four PluginSource alternatives must remain internally "
+            "tagged decode-only result metadata"
+        )
+
+    entries = {
+        surface_key(entry): entry
+        for entry in manifest.get("entries", [])
+    }
+    lines = [
+        (
+            "// Generated by tools/codex/app_server_surface.py "
+            "integrations-and-long-tail-union-descriptors; do not edit."
+        ),
+        "// Exact keys remain subordinate to ProtocolSurfaceRegistryData.inc.",
+        (
+            "// Registry order, shape, and direction are private codec "
+            "metadata, not production dispositions."
+        ),
+    ]
+    for key in descriptor_order:
+        entry = entries.get(key)
+        if (
+            entry is None
+            or entry.get("stability") != "stable"
+            or entry.get("category")
+            != "tagged_union_discriminator"
+        ):
+            raise SurfaceError(
+                "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch: "
+                f"missing stable tagged-union manifest entry for {key}"
+            )
+        target, shape, direction = (
+            INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS[key]
+        )
+        branch = _conversation_union_schema_branch(entry, schema_root)
+        _validate_conversation_union_descriptor_shape(entry, branch, shape)
+        lines.append(
+            "CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR("
+            + ", ".join(
+                (
+                    CPP_CATEGORIES[key[0]],
+                    cpp_string(key[1]),
+                    cpp_string(key[2]),
+                    cpp_string(key[3]),
+                    target,
+                    shape,
+                    direction,
+                )
+            )
+            + ")"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def generate_server_request_descriptor_data(
     manifest: dict[str, Any],
     evidence: dict[str, Any] | None = None,
@@ -6914,9 +7093,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 76
+        len(expected_keys) != 80
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 76
+        or len(set(targets.values())) != 80
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -6927,7 +7106,7 @@ def generate_client_operation_descriptor_data(
             "the exact 22 stable A1.1, 9 A1.2 B2, 2 A1.2 B3, 2 A1.2 B4, "
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
             "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
-            "19 A1.4 user-integration "
+            "23 A1.4 user-integration "
             "client requests must each own one unique ClientRequestTarget; "
             f"expected_keys={len(expected_keys)}, targets={len(targets)}, "
             f"unique_targets={len(set(targets.values()))}"
@@ -6968,7 +7147,7 @@ def generate_client_operation_descriptor_data(
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 55
+        or len(expected_keys - unit_keys) != 59
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -6976,8 +7155,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 plus PR-A Commits 2-4 requests must remain "
-            "exactly 21 Unit and 55 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus all PR-A requests must remain "
+            "exactly 21 Unit and 59 Concrete requests"
         )
 
     result_decoders = {
@@ -7015,6 +7194,10 @@ def generate_client_operation_descriptor_data(
         "MarketplaceRemoveResponse",
         "MarketplaceUpgradeResponse",
         "PluginInstallResponse",
+        "PluginInstalledResponse",
+        "PluginListResponse",
+        "PluginReadResponse",
+        "PluginShareListResponse",
         "PluginShareCheckoutResponse",
         "PluginShareSaveResponse",
         "PluginShareUpdateTargetsResponse",
@@ -9971,6 +10154,22 @@ def command_commands_filesystem_reviews_approvals_union_descriptors(
     )
 
 
+def command_integrations_and_long_tail_union_descriptors(
+    arguments: argparse.Namespace,
+) -> None:
+    manifest = load_json(arguments.manifest)
+    evidence = load_a1_registry_evidence(arguments.evidence_root)
+    generated = generate_integrations_and_long_tail_union_descriptor_data(
+        manifest, arguments.schema_root, evidence
+    )
+    write_or_check_generated_descriptors(
+        arguments.output,
+        generated,
+        arguments.check,
+        "IntegrationsAndLongTailUnion",
+    )
+
+
 def command_server_request_descriptors(
     arguments: argparse.Namespace,
 ) -> None:
@@ -10338,6 +10537,31 @@ def parser() -> argparse.ArgumentParser:
         function=(
             command_commands_filesystem_reviews_approvals_union_descriptors
         )
+    )
+
+    integrations_union_descriptors = subparsers.add_parser(
+        "integrations-and-long-tail-union-descriptors",
+        help=(
+            "generate private A1.4 integrations/long-tail union codec descriptors"
+        ),
+    )
+    integrations_union_descriptors.add_argument(
+        "--manifest", type=Path, required=True
+    )
+    integrations_union_descriptors.add_argument(
+        "--schema-root", type=Path, required=True
+    )
+    integrations_union_descriptors.add_argument(
+        "--evidence-root", type=Path, default=DEFAULT_A1_EVIDENCE_ROOT
+    )
+    integrations_union_descriptors.add_argument(
+        "--output", type=Path, required=True
+    )
+    integrations_union_descriptors.add_argument(
+        "--check", action="store_true"
+    )
+    integrations_union_descriptors.set_defaults(
+        function=command_integrations_and_long_tail_union_descriptors
     )
 
     server_request_descriptors = subparsers.add_parser(

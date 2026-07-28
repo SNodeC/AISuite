@@ -89,6 +89,10 @@ namespace ai::openai::codex::detail {
             "PluginSkillReadResponse",
             "SkillsConfigWriteResponse",
             "SkillsListResponse",
+            "PluginInstalledResponse",
+            "PluginListResponse",
+            "PluginReadResponse",
+            "PluginShareListResponse",
         }};
 
         std::string_view resultDecoderIdentity(ClientOperationResultDecoder decoder) noexcept {
@@ -114,10 +118,10 @@ namespace ai::openai::codex::detail {
                    target == PermissionProfileList || target == ReviewStart || target == ThreadApproveGuardianDeniedAction ||
                    target == AppsList || target == ExternalAgentConfigDetect || target == ExternalAgentConfigImport ||
                    target == ExternalAgentConfigImportHistoriesRead || target == FeedbackUpload || target == HooksList ||
-                   target == MarketplaceAdd || target == MarketplaceRemove || target == MarketplaceUpgrade ||
-                   target == PluginInstall || target == PluginShareCheckout || target == PluginShareDelete ||
-                   target == PluginShareSave || target == PluginShareUpdateTargets || target == PluginSkillRead ||
-                   target == PluginUninstall ||
+                   target == MarketplaceAdd || target == MarketplaceRemove || target == MarketplaceUpgrade || target == PluginInstall ||
+                   target == PluginShareCheckout || target == PluginShareDelete || target == PluginShareSave ||
+                   target == PluginShareUpdateTargets || target == PluginSkillRead || target == PluginUninstall ||
+                   target == PluginInstalled || target == PluginList || target == PluginRead || target == PluginShareList ||
                    target == SkillsConfigWrite || target == SkillsExtraRootsSet || target == SkillsList;
         }
 
@@ -342,6 +346,14 @@ namespace ai::openai::codex::detail {
                     return decode(target, key, decodeSkillsConfigWriteResponse(raw, error), error);
                 case SkillsListResponse:
                     return decode(target, key, decodeSkillsListResponse(raw, error), error);
+                case PluginInstalledResponse:
+                    return decode(target, key, decodePluginInstalledResponse(raw, error), error);
+                case PluginListResponse:
+                    return decode(target, key, decodePluginListResponse(raw, error), error);
+                case PluginReadResponse:
+                    return decode(target, key, decodePluginReadResponse(raw, error), error);
+                case PluginShareListResponse:
+                    return decode(target, key, decodePluginShareListResponse(raw, error), error);
                 case Count:
                     break;
             }

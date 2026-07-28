@@ -1,0 +1,58 @@
+{
+  "plugin": {
+    "appTemplates": [
+      {
+        "canonicalConnectorId": "synthetic-531685556f",
+        "category": "synthetic-eda3ed441f",
+        "description": "synthetic-bd4aa48f6f",
+        "logoUrl": "synthetic-290fd12d96",
+        "logoUrlDark": "synthetic-6d9fa2d607",
+        "materializedAppIds": [
+          "synthetic-84f786f707"
+        ],
+        "name": "synthetic-24a64cf3a5",
+        "reason": "NOT_CONFIGURED_FOR_WORKSPACE",
+        "templateId": "synthetic-21ad3bd9a3"
+      }
+    ],
+    "apps": [
+      {
+        "category": "synthetic-38be64503e",
+        "description": "synthetic-b281efc61f",
+        "id": "synthetic-d7ec39bc06",
+        "installUrl": "synthetic-9f23abd7f0",
+        "name": "synthetic-df42bd798e"
+      }
+    ],
+    "description": "synthetic-001dfcad52",
+    "hooks": [
+      {
+        "eventName": "preToolUse",
+        "key": "synthetic-7e7777c014"
+      }
+    ],
+    "marketplaceName": "synthetic-5e5a635cb5",
+    "marketplacePath": "synthetic-75177d933c",
+    "mcpServers": [
+      "synthetic-f957574fee"
+    ],
+    "shareUrl": "synthetic-bfd580468a",
+    "skills": [
+      {
+        "description": "synthetic-69bf3be211",
+        "enabled": false,
+        "interface": {
+          "brandColor": "synthetic-7a404de3bb",
+          "defaultPrompt": "synthetic-01859e99a2",
+          "displayName": "synthetic-a5660e1221",
+          "iconLarge": "synthetic-75177d933c",
+          "iconSmall": "synthetic-75177d933c",
+          "shortDescription": "synthetic-5726a5a749"
+        },
+        "name": "synthetic-9c642c9e92",
+        "path": "synthetic-75177d933c",
+        "shortDescription": "synthetic-ebd8146162"
+      }
+    ]
+  }
+}

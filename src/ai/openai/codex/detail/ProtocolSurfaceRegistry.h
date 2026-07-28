@@ -142,6 +142,10 @@ namespace ai::openai::codex::detail {
         SkillsConfigWrite,
         SkillsExtraRootsSet,
         SkillsList,
+        PluginInstalled,
+        PluginList,
+        PluginRead,
+        PluginShareList,
         Count
     };
 
@@ -416,6 +420,8 @@ namespace ai::openai::codex::detail {
         Count
     };
 
+    enum class IntegrationsAndLongTailUnionTarget { PluginSourceGit, PluginSourceLocal, PluginSourceNpm, PluginSourceRemote, Count };
+
     enum class ConversationUnionCodecShape { ScalarString, ExternallyTaggedObject, InternallyTaggedObject, Count };
 
     enum class ConversationUnionCodecDirection { DecodeOnly, EncodeOnly, Bidirectional, Count };
@@ -476,6 +482,10 @@ namespace ai::openai::codex::detail {
         PluginSkillReadResponse,
         SkillsConfigWriteResponse,
         SkillsListResponse,
+        PluginInstalledResponse,
+        PluginListResponse,
+        PluginReadResponse,
+        PluginShareListResponse,
         Count
     };
 
@@ -489,7 +499,8 @@ namespace ai::openai::codex::detail {
                                        CodexErrorInfoTarget,
                                        ConversationUnionTarget,
                                        AccountsModelsConfigurationUnionTarget,
-                                       CommandsFilesystemReviewsApprovalsUnionTarget>;
+                                       CommandsFilesystemReviewsApprovalsUnionTarget,
+                                       IntegrationsAndLongTailUnionTarget>;
 
     struct ProtocolSurfaceKey {
         SurfaceCategory category = SurfaceCategory::TaggedUnionDiscriminator;
@@ -523,6 +534,13 @@ namespace ai::openai::codex::detail {
     struct CommandsFilesystemReviewsApprovalsUnionCodecDescriptor {
         ProtocolSurfaceKey key;
         CommandsFilesystemReviewsApprovalsUnionTarget target = CommandsFilesystemReviewsApprovalsUnionTarget::Count;
+        ConversationUnionCodecShape shape = ConversationUnionCodecShape::Count;
+        ConversationUnionCodecDirection direction = ConversationUnionCodecDirection::Count;
+    };
+
+    struct IntegrationsAndLongTailUnionCodecDescriptor {
+        ProtocolSurfaceKey key;
+        IntegrationsAndLongTailUnionTarget target = IntegrationsAndLongTailUnionTarget::Count;
         ConversationUnionCodecShape shape = ConversationUnionCodecShape::Count;
         ConversationUnionCodecDirection direction = ConversationUnionCodecDirection::Count;
     };
@@ -700,12 +718,14 @@ namespace ai::openai::codex::detail {
     const ProtocolSurfaceEntry& entryFor(ConversationUnionTarget target);
     const ProtocolSurfaceEntry& entryFor(AccountsModelsConfigurationUnionTarget target);
     const ProtocolSurfaceEntry& entryFor(CommandsFilesystemReviewsApprovalsUnionTarget target);
+    const ProtocolSurfaceEntry& entryFor(IntegrationsAndLongTailUnionTarget target);
 
     std::span<const ConversationUnionCodecDescriptor> conversationUnionCodecDescriptors() noexcept;
     std::span<const AccountsModelsConfigurationUnionCodecDescriptor>
     accountsModelsConfigurationUnionCodecDescriptors() noexcept;
     std::span<const CommandsFilesystemReviewsApprovalsUnionCodecDescriptor>
     commandsFilesystemReviewsApprovalsUnionCodecDescriptors() noexcept;
+    std::span<const IntegrationsAndLongTailUnionCodecDescriptor> integrationsAndLongTailUnionCodecDescriptors() noexcept;
     std::span<const ClientOperationCodecDescriptor> clientOperationCodecDescriptors() noexcept;
     std::span<const ServerNotificationCodecDescriptor> serverNotificationCodecDescriptors() noexcept;
     std::span<const ServerRequestCodecDescriptor> serverRequestCodecDescriptors() noexcept;

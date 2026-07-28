@@ -56,11 +56,7 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeString(const Json& value,
-                          std::string& output,
-                          std::string& error,
-                          std::string_view surface,
-                          std::string_view path) {
+        bool decodeString(const Json& value, std::string& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!value.is_string()) {
                 expected(error, surface, path, "a string");
                 return false;
@@ -69,11 +65,7 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeBoolean(const Json& value,
-                           bool& output,
-                           std::string& error,
-                           std::string_view surface,
-                           std::string_view path) {
+        bool decodeBoolean(const Json& value, bool& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!value.is_boolean()) {
                 expected(error, surface, path, "a boolean");
                 return false;
@@ -105,11 +97,8 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeStringArray(const Json& value,
-                               std::vector<std::string>& output,
-                               std::string& error,
-                               std::string_view surface,
-                               std::string_view path) {
+        bool decodeStringArray(
+            const Json& value, std::vector<std::string>& output, std::string& error, std::string_view surface, std::string_view path) {
             return decodeArray<std::string>(value, output, error, surface, path, decodeString);
         }
 
@@ -201,27 +190,15 @@ namespace ai::openai::codex::detail {
             parent.diagnostics.insert(parent.diagnostics.end(), child.diagnostics.begin(), child.diagnostics.end());
         }
 
-        bool decodeAppReviewValue(const Json& value,
-                                  typed::AppReview& output,
-                                  std::string& error,
-                                  std::string_view surface,
-                                  std::string_view path);
-        bool decodeAppScreenshotValue(const Json& value,
-                                      typed::AppScreenshot& output,
-                                      std::string& error,
-                                      std::string_view surface,
-                                      std::string_view path);
-        bool decodeAppMetadataValue(const Json& value,
-                                    typed::AppMetadata& output,
-                                    std::string& error,
-                                    std::string_view surface,
-                                    std::string_view path);
+        bool decodeAppReviewValue(
+            const Json& value, typed::AppReview& output, std::string& error, std::string_view surface, std::string_view path);
+        bool decodeAppScreenshotValue(
+            const Json& value, typed::AppScreenshot& output, std::string& error, std::string_view surface, std::string_view path);
+        bool decodeAppMetadataValue(
+            const Json& value, typed::AppMetadata& output, std::string& error, std::string_view surface, std::string_view path);
 
-        bool decodeAppBrandingValue(const Json& value,
-                                    typed::AppBranding& output,
-                                    std::string& error,
-                                    std::string_view surface,
-                                    std::string_view path) {
+        bool decodeAppBrandingValue(
+            const Json& value, typed::AppBranding& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -235,11 +212,8 @@ namespace ai::openai::codex::detail {
                    decodeOptionalNullable(value, "website", output.website, error, surface, path, decodeString);
         }
 
-        bool decodeAppReviewValue(const Json& value,
-                                  typed::AppReview& output,
-                                  std::string& error,
-                                  std::string_view surface,
-                                  std::string_view path) {
+        bool decodeAppReviewValue(
+            const Json& value, typed::AppReview& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -248,11 +222,8 @@ namespace ai::openai::codex::detail {
             return decodeRequired(value, "status", output.status, error, surface, path, decodeString);
         }
 
-        bool decodeAppScreenshotValue(const Json& value,
-                                      typed::AppScreenshot& output,
-                                      std::string& error,
-                                      std::string_view surface,
-                                      std::string_view path) {
+        bool decodeAppScreenshotValue(
+            const Json& value, typed::AppScreenshot& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -263,11 +234,8 @@ namespace ai::openai::codex::detail {
                    decodeRequired(value, "userPrompt", output.userPrompt, error, surface, path, decodeString);
         }
 
-        bool decodeAppMetadataValue(const Json& value,
-                                    typed::AppMetadata& output,
-                                    std::string& error,
-                                    std::string_view surface,
-                                    std::string_view path) {
+        bool decodeAppMetadataValue(
+            const Json& value, typed::AppMetadata& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -279,21 +247,20 @@ namespace ai::openai::codex::detail {
                     value, "firstPartyRequiresInstall", output.firstPartyRequiresInstall, error, surface, path, decodeBoolean) ||
                 !decodeOptionalNullable(value, "firstPartyType", output.firstPartyType, error, surface, path, decodeString) ||
                 !decodeOptionalNullable(value, "review", output.review, error, surface, path, decodeAppReviewValue) ||
-                !decodeOptionalNullable(
-                    value,
-                    "screenshots",
-                    output.screenshots,
-                    error,
-                    surface,
-                    path,
-                    [](const Json& input,
-                       std::vector<typed::AppScreenshot>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::AppScreenshot>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeAppScreenshotValue);
-                    }) ||
+                !decodeOptionalNullable(value,
+                                        "screenshots",
+                                        output.screenshots,
+                                        error,
+                                        surface,
+                                        path,
+                                        [](const Json& input,
+                                           std::vector<typed::AppScreenshot>& decoded,
+                                           std::string& nestedError,
+                                           std::string_view nestedSurface,
+                                           std::string_view nestedPath) {
+                                            return decodeArray<typed::AppScreenshot>(
+                                                input, decoded, nestedError, nestedSurface, nestedPath, decodeAppScreenshotValue);
+                                        }) ||
                 !decodeOptionalNullable(value, "seoDescription", output.seoDescription, error, surface, path, decodeString) ||
                 !decodeOptionalNullable(
                     value, "showInComposerWhenUnlinked", output.showInComposerWhenUnlinked, error, surface, path, decodeBoolean) ||
@@ -314,11 +281,8 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeAppInfoValue(const Json& value,
-                                typed::AppInfo& output,
-                                std::string& error,
-                                std::string_view surface,
-                                std::string_view path) {
+        bool
+        decodeAppInfoValue(const Json& value, typed::AppInfo& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -350,11 +314,8 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeAppSummaryValue(const Json& value,
-                                   typed::AppSummary& output,
-                                   std::string& error,
-                                   std::string_view surface,
-                                   std::string_view path) {
+        bool decodeAppSummaryValue(
+            const Json& value, typed::AppSummary& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -382,11 +343,8 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeAppTemplateSummaryValue(const Json& value,
-                                           typed::AppTemplateSummary& output,
-                                           std::string& error,
-                                           std::string_view surface,
-                                           std::string_view path) {
+        bool decodeAppTemplateSummaryValue(
+            const Json& value, typed::AppTemplateSummary& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -399,21 +357,20 @@ namespace ai::openai::codex::detail {
                    decodeOptionalNullable(value, "logoUrlDark", output.logoUrlDark, error, surface, path, decodeString) &&
                    decodeRequired(value, "materializedAppIds", output.materializedAppIds, error, surface, path, decodeStringArray) &&
                    decodeRequired(value, "name", output.name, error, surface, path, decodeString) &&
-                   decodeOptionalNullable(
-                       value,
-                       "reason",
-                       output.reason,
-                       error,
-                       surface,
-                       path,
-                       [&](const Json& input,
-                           typed::AppTemplateUnavailableReason& decoded,
-                           std::string& nestedError,
-                           std::string_view nestedSurface,
-                           std::string_view nestedPath) {
-                           return decodeTemplateReason(
-                               input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
-                       }) &&
+                   decodeOptionalNullable(value,
+                                          "reason",
+                                          output.reason,
+                                          error,
+                                          surface,
+                                          path,
+                                          [&](const Json& input,
+                                              typed::AppTemplateUnavailableReason& decoded,
+                                              std::string& nestedError,
+                                              std::string_view nestedSurface,
+                                              std::string_view nestedPath) {
+                                              return decodeTemplateReason(
+                                                  input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
+                                          }) &&
                    decodeRequired(value, "templateId", output.templateId, error, surface, path, decodeString);
         }
 
@@ -425,25 +382,23 @@ namespace ai::openai::codex::detail {
                                    std::string_view surface,
                                    std::string_view path) {
             if (!decodeObject(value, error, surface, path) ||
-                !decodeRequired(
-                    value,
-                    "data",
-                    data,
-                    error,
-                    surface,
-                    path,
-                    [](const Json& input,
-                       std::vector<typed::AppInfo>& output,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::AppInfo>(
-                            input, output, nestedError, nestedSurface, nestedPath, decodeAppInfoValue);
-                    })) {
+                !decodeRequired(value,
+                                "data",
+                                data,
+                                error,
+                                surface,
+                                path,
+                                [](const Json& input,
+                                   std::vector<typed::AppInfo>& output,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::AppInfo>(
+                                        input, output, nestedError, nestedSurface, nestedPath, decodeAppInfoValue);
+                                })) {
                 return false;
             }
-            if (nextCursor != nullptr &&
-                !decodeOptionalNullable(value, "nextCursor", *nextCursor, error, surface, path, decodeString)) {
+            if (nextCursor != nullptr && !decodeOptionalNullable(value, "nextCursor", *nextCursor, error, surface, path, decodeString)) {
                 return false;
             }
             for (const auto& app : data) {
@@ -499,22 +454,15 @@ namespace ai::openai::codex::detail {
     std::optional<Json> encodeAppsListParams(const typed::AppsListParams& value, std::string& error) noexcept {
         try {
             error.clear();
-            Json result = encoderObject(
-                value.raw, error, "AppsListParams", "$.raw", {"cursor", "forceRefetch", "limit", "threadId"});
+            Json result = encoderObject(value.raw, error, "AppsListParams", "$.raw", {"cursor", "forceRefetch", "limit", "threadId"});
             if (!error.empty()) {
                 return std::nullopt;
             }
             if (!encodeOptionalNullable(result, "cursor", value.cursor, error, "AppsListParams", scalar<std::string>) ||
                 !encodeOptionalNullable(result, "limit", value.limit, error, "AppsListParams", scalar<std::uint32_t>) ||
-                !encodeOptionalNullable(
-                    result,
-                    "threadId",
-                    value.threadId,
-                    error,
-                    "AppsListParams",
-                    [](const typed::ThreadId& id) {
-                        return Json(id.value);
-                    })) {
+                !encodeOptionalNullable(result, "threadId", value.threadId, error, "AppsListParams", [](const typed::ThreadId& id) {
+                    return Json(id.value);
+                })) {
                 return std::nullopt;
             }
             if (value.forceRefetch) {
@@ -532,8 +480,7 @@ namespace ai::openai::codex::detail {
             error.clear();
             typed::AppsListResponse result;
             result.raw = value;
-            if (!decodeAppsListPayload(
-                    value, result.data, &result.nextCursor, result.diagnostics, error, "AppsListResponse", "$")) {
+            if (!decodeAppsListPayload(value, result.data, &result.nextCursor, result.diagnostics, error, "AppsListResponse", "$")) {
                 return std::nullopt;
             }
             return result;
@@ -543,8 +490,8 @@ namespace ai::openai::codex::detail {
         }
     }
 
-    std::optional<typed::AppListUpdatedNotification>
-    decodeAppListUpdatedNotification(const Notification& notification, std::string& error) noexcept {
+    std::optional<typed::AppListUpdatedNotification> decodeAppListUpdatedNotification(const Notification& notification,
+                                                                                      std::string& error) noexcept {
         try {
             error.clear();
             typed::AppListUpdatedNotification result;
@@ -560,8 +507,7 @@ namespace ai::openai::codex::detail {
         }
     }
 
-    std::optional<typed::AppSummary>
-    decodeAppSummary(const Json& value, std::string& error, std::string_view fieldPathValue) noexcept {
+    std::optional<typed::AppSummary> decodeAppSummary(const Json& value, std::string& error, std::string_view fieldPathValue) noexcept {
         try {
             error.clear();
             typed::AppSummary result;

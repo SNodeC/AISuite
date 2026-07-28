@@ -103,7 +103,11 @@ namespace ai::openai::codex::detail {
                                                      typed::PluginShareUpdateTargetsResponse,
                                                      typed::PluginSkillReadResponse,
                                                      typed::SkillsConfigWriteResponse,
-                                                     typed::SkillsListResponse>;
+                                                     typed::SkillsListResponse,
+                                                     typed::PluginInstalledResponse,
+                                                     typed::PluginListResponse,
+                                                     typed::PluginReadResponse,
+                                                     typed::PluginShareListResponse>;
 
     struct ClientOperationDecodeDiagnostic {
         ClientOperationDecodeCode code = ClientOperationDecodeCode::MalformedKnownPayload;

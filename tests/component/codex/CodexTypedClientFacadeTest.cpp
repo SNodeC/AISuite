@@ -302,28 +302,22 @@ int main() {
                                  typed::ItemGuardianApprovalReviewCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<50, typed::CanonicalServerNotification>,
                                  typed::ItemGuardianApprovalReviewStartedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>,
-                                 typed::AppListUpdatedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
                                  typed::ExternalAgentConfigImportCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<53, typed::CanonicalServerNotification>,
                                  typed::ExternalAgentConfigImportProgressNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<54, typed::CanonicalServerNotification>,
-                                 typed::HookCompletedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<55, typed::CanonicalServerNotification>,
-                                 typed::HookStartedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<56, typed::CanonicalServerNotification>,
-                                 typed::SkillsChangedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<54, typed::CanonicalServerNotification>, typed::HookCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<55, typed::CanonicalServerNotification>, typed::HookStartedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<56, typed::CanonicalServerNotification>, typed::SkillsChangedNotification>);
     static_assert(std::variant_size_v<typed::Event> == 59);
     static_assert(std::is_same_v<std::variant_alternative_t<49, typed::Event>, typed::FuzzyFileSearchSessionUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<50, typed::Event>, typed::GuardianWarningNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::Event>, typed::ItemGuardianApprovalReviewCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::Event>, typed::ItemGuardianApprovalReviewStartedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<53, typed::Event>, typed::AppListUpdatedNotification>);
-    static_assert(
-        std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
-    static_assert(
-        std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<56, typed::Event>, typed::HookCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<57, typed::Event>, typed::HookStartedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<58, typed::Event>, typed::SkillsChangedNotification>);

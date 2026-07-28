@@ -136,9 +136,46 @@ remove, share, or execute plugins locally. Plugin names, paths, principals,
 targets, skill contents, and opaque future fields are never included in
 production diagnostics.
 
-The four catalog operations `plugin/installed`, `plugin/list`, `plugin/read`,
-and `plugin/share/list` remain deferred with the `git`, `local`, `npm`, and
-`remote` `PluginSource` alternatives until the next production batch. This
-checkpoint introduces no npm build or runtime dependency and does not execute
-npm. Notification variants remain at their final 57 and 59 alternatives, and
-Codex SOVERSION remains 1.
+The final production batch completes the four catalog operations that reach
+`PluginSource`:
+
+- `plugin/installed`;
+- `plugin/list`;
+- `plugin/read`; and
+- `plugin/share/list`.
+
+It also completes the four known `PluginSource` identities in exact
+production-registry order: `git`, `local`, `npm`, and `remote`. The public
+variant appends `UnknownPluginSource` after those known alternatives. `git`
+requires `url` and distinguishes omitted, null, and present `path`, `refName`,
+and `sha`; `local` requires `path`; `npm` requires `package` and preserves the
+three states of `registry` and `version`; `remote` has no field beyond its
+required discriminator. Every alternative retains the original open-object
+JSON alongside its typed fields.
+
+A future discriminator decodes nonfatally into `UnknownPluginSource`, retains
+the discriminator and complete raw object, and records a forward-compatibility
+diagnostic. A known discriminator with a missing or wrong-typed required field
+also retains the raw object but records a malformed-known diagnostic; it is
+never relabeled as a future alternative. Diagnostics identify only structural
+paths and expected types, never plugin values.
+
+At this checkpoint A14-UserIntegrations is complete: native A1.4 is exactly 33
+Complete, 1 Partial, and 22 NotImplemented. The global registry is exactly 313
+Complete, 4 Partial, 22 NotImplemented, and 48 NotApplicable. Native A1.4
+remains in progress: PR B and PR C stay unimplemented, and
+`item/tool/requestUserInput` remains Partial alongside the inherited A1.0
+Partials `initialize`, `initialized`, and `error`.
+
+The `Plugins` facade now exposes all eleven PR-A methods: `install`,
+`installed`, `list`, `read`, `shareCheckout`, `shareDelete`, `shareList`,
+`shareSave`, `shareUpdateTargets`, `readSkill`, and `uninstall`. Each method
+continues to submit through the one existing `RawProtocol`; AISuite performs no
+catalog scan, installation, sharing, or source retrieval itself.
+
+`npm` is only a Codex protocol discriminator and data structure. This
+milestone adds no Node.js or npm build/runtime dependency and executes neither.
+Notification variants remain at their final 57 and 59 alternatives. Codex
+SOVERSION remains 1; the public aggregate and variant additions have real ABI
+impact even though the frozen SONAME policy defers the scoped bump to final A1
+closure.

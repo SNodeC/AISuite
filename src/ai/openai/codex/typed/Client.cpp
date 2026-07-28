@@ -525,8 +525,11 @@ namespace ai::openai::codex::typed {
     }
 
     Skills::Submission Skills::setExtraRoots(SkillsExtraRootsSetParams params, SetExtraRootsResultHandler handler) {
-        return submitTypedRequest<Unit>(
-            protocol, detail::ClientRequestTarget::SkillsExtraRootsSet, params, std::move(handler), detail::encodeSkillsExtraRootsSetParams);
+        return submitTypedRequest<Unit>(protocol,
+                                        detail::ClientRequestTarget::SkillsExtraRootsSet,
+                                        params,
+                                        std::move(handler),
+                                        detail::encodeSkillsExtraRootsSetParams);
     }
 
     Skills::Submission Skills::list(SkillsListParams params, ListResultHandler handler) {
@@ -543,6 +546,21 @@ namespace ai::openai::codex::typed {
             protocol, detail::ClientRequestTarget::PluginInstall, params, std::move(handler), detail::encodePluginInstallParams);
     }
 
+    Plugins::Submission Plugins::installed(PluginInstalledParams params, InstalledResultHandler handler) {
+        return submitTypedRequest<PluginInstalledResponse>(
+            protocol, detail::ClientRequestTarget::PluginInstalled, params, std::move(handler), detail::encodePluginInstalledParams);
+    }
+
+    Plugins::Submission Plugins::list(PluginListParams params, ListResultHandler handler) {
+        return submitTypedRequest<PluginListResponse>(
+            protocol, detail::ClientRequestTarget::PluginList, params, std::move(handler), detail::encodePluginListParams);
+    }
+
+    Plugins::Submission Plugins::read(PluginReadParams params, ReadResultHandler handler) {
+        return submitTypedRequest<PluginReadResponse>(
+            protocol, detail::ClientRequestTarget::PluginRead, params, std::move(handler), detail::encodePluginReadParams);
+    }
+
     Plugins::Submission Plugins::shareCheckout(PluginShareCheckoutParams params, ShareCheckoutResultHandler handler) {
         return submitTypedRequest<PluginShareCheckoutResponse>(protocol,
                                                                detail::ClientRequestTarget::PluginShareCheckout,
@@ -552,11 +570,13 @@ namespace ai::openai::codex::typed {
     }
 
     Plugins::Submission Plugins::shareDelete(PluginShareDeleteParams params, ShareDeleteResultHandler handler) {
-        return submitTypedRequest<Unit>(protocol,
-                                        detail::ClientRequestTarget::PluginShareDelete,
-                                        params,
-                                        std::move(handler),
-                                        detail::encodePluginShareDeleteParams);
+        return submitTypedRequest<Unit>(
+            protocol, detail::ClientRequestTarget::PluginShareDelete, params, std::move(handler), detail::encodePluginShareDeleteParams);
+    }
+
+    Plugins::Submission Plugins::shareList(PluginShareListParams params, ShareListResultHandler handler) {
+        return submitTypedRequest<PluginShareListResponse>(
+            protocol, detail::ClientRequestTarget::PluginShareList, params, std::move(handler), detail::encodePluginShareListParams);
     }
 
     Plugins::Submission Plugins::shareSave(PluginShareSaveParams params, ShareSaveResultHandler handler) {
@@ -564,8 +584,7 @@ namespace ai::openai::codex::typed {
             protocol, detail::ClientRequestTarget::PluginShareSave, params, std::move(handler), detail::encodePluginShareSaveParams);
     }
 
-    Plugins::Submission Plugins::shareUpdateTargets(PluginShareUpdateTargetsParams params,
-                                                    ShareUpdateTargetsResultHandler handler) {
+    Plugins::Submission Plugins::shareUpdateTargets(PluginShareUpdateTargetsParams params, ShareUpdateTargetsResultHandler handler) {
         return submitTypedRequest<PluginShareUpdateTargetsResponse>(protocol,
                                                                     detail::ClientRequestTarget::PluginShareUpdateTargets,
                                                                     params,

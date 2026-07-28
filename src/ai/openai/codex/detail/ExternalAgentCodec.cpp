@@ -49,10 +49,7 @@ namespace ai::openai::codex::detail {
             return found == object.end() ? nullptr : &*found;
         }
 
-        bool decodeObject(const Json& value,
-                          std::string& error,
-                          std::string_view surface,
-                          std::string_view path) {
+        bool decodeObject(const Json& value, std::string& error, std::string_view surface, std::string_view path) {
             if (!value.is_object()) {
                 expected(error, surface, path, "an object");
                 return false;
@@ -60,11 +57,7 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeString(const Json& value,
-                          std::string& output,
-                          std::string& error,
-                          std::string_view surface,
-                          std::string_view path) {
+        bool decodeString(const Json& value, std::string& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!value.is_string()) {
                 expected(error, surface, path, "a string");
                 return false;
@@ -73,11 +66,7 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeInt64(const Json& value,
-                         std::int64_t& output,
-                         std::string& error,
-                         std::string_view surface,
-                         std::string_view path) {
+        bool decodeInt64(const Json& value, std::int64_t& output, std::string& error, std::string_view surface, std::string_view path) {
             if (value.is_number_unsigned()) {
                 const std::uint64_t number = value.get<std::uint64_t>();
                 if (number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
@@ -118,11 +107,8 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeStringArray(const Json& value,
-                               std::vector<std::string>& output,
-                               std::string& error,
-                               std::string_view surface,
-                               std::string_view path) {
+        bool decodeStringArray(
+            const Json& value, std::vector<std::string>& output, std::string& error, std::string_view surface, std::string_view path) {
             return decodeArray<std::string>(value, output, error, surface, path, decodeString);
         }
 
@@ -210,11 +196,8 @@ namespace ai::openai::codex::detail {
         }
 
         template <typename Migration>
-        bool decodeNamedMigration(const Json& value,
-                                  Migration& output,
-                                  std::string& error,
-                                  std::string_view surface,
-                                  std::string_view path) {
+        bool
+        decodeNamedMigration(const Json& value, Migration& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -223,11 +206,8 @@ namespace ai::openai::codex::detail {
             return decodeRequired(value, "name", output.name, error, surface, path, decodeString);
         }
 
-        bool decodePluginsMigration(const Json& value,
-                                    typed::PluginsMigration& output,
-                                    std::string& error,
-                                    std::string_view surface,
-                                    std::string_view path) {
+        bool decodePluginsMigration(
+            const Json& value, typed::PluginsMigration& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -237,11 +217,8 @@ namespace ai::openai::codex::detail {
                    decodeRequired(value, "pluginNames", output.pluginNames, error, surface, path, decodeStringArray);
         }
 
-        bool decodeSessionMigration(const Json& value,
-                                    typed::SessionMigration& output,
-                                    std::string& error,
-                                    std::string_view surface,
-                                    std::string_view path) {
+        bool decodeSessionMigration(
+            const Json& value, typed::SessionMigration& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -252,11 +229,8 @@ namespace ai::openai::codex::detail {
                    decodeOptionalNullable(value, "title", output.title, error, surface, path, decodeString);
         }
 
-        bool decodeMigrationDetails(const Json& value,
-                                    typed::MigrationDetails& output,
-                                    std::string& error,
-                                    std::string_view surface,
-                                    std::string_view path) {
+        bool decodeMigrationDetails(
+            const Json& value, typed::MigrationDetails& output, std::string& error, std::string_view surface, std::string_view path) {
             if (!decodeObject(value, error, surface, path)) {
                 return false;
             }
@@ -307,36 +281,34 @@ namespace ai::openai::codex::detail {
                            return decodeArray<typed::McpServerMigration>(
                                input, decoded, nestedError, nestedSurface, nestedPath, decodeNamedMigration<typed::McpServerMigration>);
                        }) &&
-                   decodeOptional(
-                       value,
-                       "plugins",
-                       output.plugins,
-                       error,
-                       surface,
-                       path,
-                       [](const Json& input,
-                          std::vector<typed::PluginsMigration>& decoded,
-                          std::string& nestedError,
-                          std::string_view nestedSurface,
-                          std::string_view nestedPath) {
-                           return decodeArray<typed::PluginsMigration>(
-                               input, decoded, nestedError, nestedSurface, nestedPath, decodePluginsMigration);
-                       }) &&
-                   decodeOptional(
-                       value,
-                       "sessions",
-                       output.sessions,
-                       error,
-                       surface,
-                       path,
-                       [](const Json& input,
-                          std::vector<typed::SessionMigration>& decoded,
-                          std::string& nestedError,
-                          std::string_view nestedSurface,
-                          std::string_view nestedPath) {
-                           return decodeArray<typed::SessionMigration>(
-                               input, decoded, nestedError, nestedSurface, nestedPath, decodeSessionMigration);
-                       }) &&
+                   decodeOptional(value,
+                                  "plugins",
+                                  output.plugins,
+                                  error,
+                                  surface,
+                                  path,
+                                  [](const Json& input,
+                                     std::vector<typed::PluginsMigration>& decoded,
+                                     std::string& nestedError,
+                                     std::string_view nestedSurface,
+                                     std::string_view nestedPath) {
+                                      return decodeArray<typed::PluginsMigration>(
+                                          input, decoded, nestedError, nestedSurface, nestedPath, decodePluginsMigration);
+                                  }) &&
+                   decodeOptional(value,
+                                  "sessions",
+                                  output.sessions,
+                                  error,
+                                  surface,
+                                  path,
+                                  [](const Json& input,
+                                     std::vector<typed::SessionMigration>& decoded,
+                                     std::string& nestedError,
+                                     std::string_view nestedSurface,
+                                     std::string_view nestedPath) {
+                                      return decodeArray<typed::SessionMigration>(
+                                          input, decoded, nestedError, nestedSurface, nestedPath, decodeSessionMigration);
+                                  }) &&
                    decodeOptional(
                        value,
                        "skills",
@@ -382,21 +354,20 @@ namespace ai::openai::codex::detail {
             if (!decodeOptionalNullable(value, "cwd", output.cwd, error, surface, path, decodeString) ||
                 !decodeRequired(value, "description", output.description, error, surface, path, decodeString) ||
                 !decodeOptionalNullable(value, "details", output.details, error, surface, path, decodeMigrationDetails) ||
-                !decodeRequired(
-                    value,
-                    "itemType",
-                    output.itemType,
-                    error,
-                    surface,
-                    path,
-                    [&](const Json& input,
-                        typed::ExternalAgentConfigMigrationItemType& decoded,
-                        std::string& nestedError,
-                        std::string_view nestedSurface,
-                        std::string_view nestedPath) {
-                        return decodeMigrationItemType(
-                            input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
-                    })) {
+                !decodeRequired(value,
+                                "itemType",
+                                output.itemType,
+                                error,
+                                surface,
+                                path,
+                                [&](const Json& input,
+                                    typed::ExternalAgentConfigMigrationItemType& decoded,
+                                    std::string& nestedError,
+                                    std::string_view nestedSurface,
+                                    std::string_view nestedPath) {
+                                    return decodeMigrationItemType(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
+                                })) {
                 return false;
             }
             if (output.details.hasValue()) {
@@ -418,21 +389,20 @@ namespace ai::openai::codex::detail {
             return decodeOptionalNullable(value, "cwd", output.cwd, error, surface, path, decodeString) &&
                    decodeOptionalNullable(value, "errorType", output.errorType, error, surface, path, decodeString) &&
                    decodeRequired(value, "failureStage", output.failureStage, error, surface, path, decodeString) &&
-                   decodeRequired(
-                       value,
-                       "itemType",
-                       output.itemType,
-                       error,
-                       surface,
-                       path,
-                       [&](const Json& input,
-                           typed::ExternalAgentConfigMigrationItemType& decoded,
-                           std::string& nestedError,
-                           std::string_view nestedSurface,
-                           std::string_view nestedPath) {
-                           return decodeMigrationItemType(
-                               input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
-                       }) &&
+                   decodeRequired(value,
+                                  "itemType",
+                                  output.itemType,
+                                  error,
+                                  surface,
+                                  path,
+                                  [&](const Json& input,
+                                      typed::ExternalAgentConfigMigrationItemType& decoded,
+                                      std::string& nestedError,
+                                      std::string_view nestedSurface,
+                                      std::string_view nestedPath) {
+                                      return decodeMigrationItemType(
+                                          input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
+                                  }) &&
                    decodeRequired(value, "message", output.message, error, surface, path, decodeString) &&
                    decodeOptionalNullable(value, "source", output.source, error, surface, path, decodeString);
         }
@@ -448,21 +418,20 @@ namespace ai::openai::codex::detail {
             output.raw = value;
             output.diagnostics.clear();
             return decodeOptionalNullable(value, "cwd", output.cwd, error, surface, path, decodeString) &&
-                   decodeRequired(
-                       value,
-                       "itemType",
-                       output.itemType,
-                       error,
-                       surface,
-                       path,
-                       [&](const Json& input,
-                           typed::ExternalAgentConfigMigrationItemType& decoded,
-                           std::string& nestedError,
-                           std::string_view nestedSurface,
-                           std::string_view nestedPath) {
-                           return decodeMigrationItemType(
-                               input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
-                       }) &&
+                   decodeRequired(value,
+                                  "itemType",
+                                  output.itemType,
+                                  error,
+                                  surface,
+                                  path,
+                                  [&](const Json& input,
+                                      typed::ExternalAgentConfigMigrationItemType& decoded,
+                                      std::string& nestedError,
+                                      std::string_view nestedSurface,
+                                      std::string_view nestedPath) {
+                                      return decodeMigrationItemType(
+                                          input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
+                                  }) &&
                    decodeOptionalNullable(value, "source", output.source, error, surface, path, decodeString) &&
                    decodeOptionalNullable(value, "target", output.target, error, surface, path, decodeString);
         }
@@ -477,51 +446,48 @@ namespace ai::openai::codex::detail {
             }
             output.raw = value;
             output.diagnostics.clear();
-            if (!decodeRequired(
-                    value,
-                    "failures",
-                    output.failures,
-                    error,
-                    surface,
-                    path,
-                    [](const Json& input,
-                       std::vector<typed::ExternalAgentConfigImportItemTypeFailure>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::ExternalAgentConfigImportItemTypeFailure>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeImportFailure);
-                    }) ||
-                !decodeRequired(
-                    value,
-                    "itemType",
-                    output.itemType,
-                    error,
-                    surface,
-                    path,
-                    [&](const Json& input,
-                        typed::ExternalAgentConfigMigrationItemType& decoded,
-                        std::string& nestedError,
-                        std::string_view nestedSurface,
-                        std::string_view nestedPath) {
-                        return decodeMigrationItemType(
-                            input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
-                    }) ||
-                !decodeRequired(
-                    value,
-                    "successes",
-                    output.successes,
-                    error,
-                    surface,
-                    path,
-                    [](const Json& input,
-                       std::vector<typed::ExternalAgentConfigImportItemTypeSuccess>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::ExternalAgentConfigImportItemTypeSuccess>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeImportSuccess);
-                    })) {
+            if (!decodeRequired(value,
+                                "failures",
+                                output.failures,
+                                error,
+                                surface,
+                                path,
+                                [](const Json& input,
+                                   std::vector<typed::ExternalAgentConfigImportItemTypeFailure>& decoded,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::ExternalAgentConfigImportItemTypeFailure>(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, decodeImportFailure);
+                                }) ||
+                !decodeRequired(value,
+                                "itemType",
+                                output.itemType,
+                                error,
+                                surface,
+                                path,
+                                [&](const Json& input,
+                                    typed::ExternalAgentConfigMigrationItemType& decoded,
+                                    std::string& nestedError,
+                                    std::string_view nestedSurface,
+                                    std::string_view nestedPath) {
+                                    return decodeMigrationItemType(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, output.diagnostics);
+                                }) ||
+                !decodeRequired(value,
+                                "successes",
+                                output.successes,
+                                error,
+                                surface,
+                                path,
+                                [](const Json& input,
+                                   std::vector<typed::ExternalAgentConfigImportItemTypeSuccess>& decoded,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::ExternalAgentConfigImportItemTypeSuccess>(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, decodeImportSuccess);
+                                })) {
                 return false;
             }
             for (const auto& failure : output.failures) {
@@ -544,37 +510,35 @@ namespace ai::openai::codex::detail {
             output.raw = value;
             output.diagnostics.clear();
             if (!decodeRequired(value, "completedAtMs", output.completedAtMs, error, surface, path, decodeInt64) ||
-                !decodeRequired(
-                    value,
-                    "failures",
-                    output.failures,
-                    error,
-                    surface,
-                    path,
-                    [](const Json& input,
-                       std::vector<typed::ExternalAgentConfigImportItemTypeFailure>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::ExternalAgentConfigImportItemTypeFailure>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeImportFailure);
-                    }) ||
+                !decodeRequired(value,
+                                "failures",
+                                output.failures,
+                                error,
+                                surface,
+                                path,
+                                [](const Json& input,
+                                   std::vector<typed::ExternalAgentConfigImportItemTypeFailure>& decoded,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::ExternalAgentConfigImportItemTypeFailure>(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, decodeImportFailure);
+                                }) ||
                 !decodeRequired(value, "importId", output.importId, error, surface, path, decodeString) ||
-                !decodeRequired(
-                    value,
-                    "successes",
-                    output.successes,
-                    error,
-                    surface,
-                    path,
-                    [](const Json& input,
-                       std::vector<typed::ExternalAgentConfigImportItemTypeSuccess>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::ExternalAgentConfigImportItemTypeSuccess>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeImportSuccess);
-                    })) {
+                !decodeRequired(value,
+                                "successes",
+                                output.successes,
+                                error,
+                                surface,
+                                path,
+                                [](const Json& input,
+                                   std::vector<typed::ExternalAgentConfigImportItemTypeSuccess>& decoded,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::ExternalAgentConfigImportItemTypeSuccess>(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, decodeImportSuccess);
+                                })) {
                 return false;
             }
             for (const auto& failure : output.failures) {
@@ -687,42 +651,36 @@ namespace ai::openai::codex::detail {
         }
 
         std::optional<Json> encodeMigrationDetails(const typed::MigrationDetails& value, std::string& error) {
-            Json result = encoderObject(
-                value.raw, error, "MigrationDetails", "$.raw", {"commands", "hooks", "mcpServers", "plugins", "sessions", "skills", "subagents"});
+            Json result = encoderObject(value.raw,
+                                        error,
+                                        "MigrationDetails",
+                                        "$.raw",
+                                        {"commands", "hooks", "mcpServers", "plugins", "sessions", "skills", "subagents"});
             if (!error.empty()) {
                 return std::nullopt;
             }
             if (value.commands) {
-                auto encoded = encodeArray(
-                    *value.commands,
-                    error,
-                    [](const typed::CommandMigration& item, std::string& nestedError) {
-                        return encodeNamedMigration(item, nestedError, "CommandMigration");
-                    });
+                auto encoded = encodeArray(*value.commands, error, [](const typed::CommandMigration& item, std::string& nestedError) {
+                    return encodeNamedMigration(item, nestedError, "CommandMigration");
+                });
                 if (!encoded) {
                     return std::nullopt;
                 }
                 result["commands"] = std::move(*encoded);
             }
             if (value.hooks) {
-                auto encoded = encodeArray(
-                    *value.hooks,
-                    error,
-                    [](const typed::HookMigration& item, std::string& nestedError) {
-                        return encodeNamedMigration(item, nestedError, "HookMigration");
-                    });
+                auto encoded = encodeArray(*value.hooks, error, [](const typed::HookMigration& item, std::string& nestedError) {
+                    return encodeNamedMigration(item, nestedError, "HookMigration");
+                });
                 if (!encoded) {
                     return std::nullopt;
                 }
                 result["hooks"] = std::move(*encoded);
             }
             if (value.mcpServers) {
-                auto encoded = encodeArray(
-                    *value.mcpServers,
-                    error,
-                    [](const typed::McpServerMigration& item, std::string& nestedError) {
-                        return encodeNamedMigration(item, nestedError, "McpServerMigration");
-                    });
+                auto encoded = encodeArray(*value.mcpServers, error, [](const typed::McpServerMigration& item, std::string& nestedError) {
+                    return encodeNamedMigration(item, nestedError, "McpServerMigration");
+                });
                 if (!encoded) {
                     return std::nullopt;
                 }
@@ -743,24 +701,18 @@ namespace ai::openai::codex::detail {
                 result["sessions"] = std::move(*encoded);
             }
             if (value.skills) {
-                auto encoded = encodeArray(
-                    *value.skills,
-                    error,
-                    [](const typed::SkillMigration& item, std::string& nestedError) {
-                        return encodeNamedMigration(item, nestedError, "SkillMigration");
-                    });
+                auto encoded = encodeArray(*value.skills, error, [](const typed::SkillMigration& item, std::string& nestedError) {
+                    return encodeNamedMigration(item, nestedError, "SkillMigration");
+                });
                 if (!encoded) {
                     return std::nullopt;
                 }
                 result["skills"] = std::move(*encoded);
             }
             if (value.subagents) {
-                auto encoded = encodeArray(
-                    *value.subagents,
-                    error,
-                    [](const typed::SubagentMigration& item, std::string& nestedError) {
-                        return encodeNamedMigration(item, nestedError, "SubagentMigration");
-                    });
+                auto encoded = encodeArray(*value.subagents, error, [](const typed::SubagentMigration& item, std::string& nestedError) {
+                    return encodeNamedMigration(item, nestedError, "SubagentMigration");
+                });
                 if (!encoded) {
                     return std::nullopt;
                 }
@@ -770,8 +722,8 @@ namespace ai::openai::codex::detail {
         }
 
         std::optional<Json> encodeMigrationItem(const typed::ExternalAgentConfigMigrationItem& value, std::string& error) {
-            Json result = encoderObject(
-                value.raw, error, "ExternalAgentConfigMigrationItem", "$.raw", {"cwd", "description", "details", "itemType"});
+            Json result =
+                encoderObject(value.raw, error, "ExternalAgentConfigMigrationItem", "$.raw", {"cwd", "description", "details", "itemType"});
             if (!error.empty()) {
                 return std::nullopt;
             }
@@ -786,30 +738,28 @@ namespace ai::openai::codex::detail {
         }
 
         template <typename NotificationType>
-        std::optional<NotificationType> decodeImportNotification(const Notification& notification,
-                                                                 std::string& error,
-                                                                 std::string_view surface) {
+        std::optional<NotificationType>
+        decodeImportNotification(const Notification& notification, std::string& error, std::string_view surface) {
             if (!decodeObject(notification.params, error, surface, "$.params")) {
                 return std::nullopt;
             }
             NotificationType result;
             result.raw = notification.raw;
             if (!decodeRequired(notification.params, "importId", result.importId, error, surface, "$.params", decodeString) ||
-                !decodeRequired(
-                    notification.params,
-                    "itemTypeResults",
-                    result.itemTypeResults,
-                    error,
-                    surface,
-                    "$.params",
-                    [](const Json& input,
-                       std::vector<typed::ExternalAgentConfigImportTypeResult>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::ExternalAgentConfigImportTypeResult>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeImportTypeResult);
-                    })) {
+                !decodeRequired(notification.params,
+                                "itemTypeResults",
+                                result.itemTypeResults,
+                                error,
+                                surface,
+                                "$.params",
+                                [](const Json& input,
+                                   std::vector<typed::ExternalAgentConfigImportTypeResult>& decoded,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::ExternalAgentConfigImportTypeResult>(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, decodeImportTypeResult);
+                                })) {
                 return std::nullopt;
             }
             for (const auto& item : result.itemTypeResults) {
@@ -819,17 +769,15 @@ namespace ai::openai::codex::detail {
         }
     } // namespace
 
-    std::optional<Json>
-    encodeExternalAgentConfigDetectParams(const typed::ExternalAgentConfigDetectParams& value, std::string& error) noexcept {
+    std::optional<Json> encodeExternalAgentConfigDetectParams(const typed::ExternalAgentConfigDetectParams& value,
+                                                              std::string& error) noexcept {
         try {
             error.clear();
-            Json result = encoderObject(
-                value.raw, error, "ExternalAgentConfigDetectParams", "$.raw", {"cwds", "includeHome"});
+            Json result = encoderObject(value.raw, error, "ExternalAgentConfigDetectParams", "$.raw", {"cwds", "includeHome"});
             if (!error.empty()) {
                 return std::nullopt;
             }
-            if (!encodeOptionalNullable(
-                    result, "cwds", value.cwds, error, "ExternalAgentConfigDetectParams", encodeStringArray)) {
+            if (!encodeOptionalNullable(result, "cwds", value.cwds, error, "ExternalAgentConfigDetectParams", encodeStringArray)) {
                 return std::nullopt;
             }
             if (value.includeHome) {
@@ -842,12 +790,11 @@ namespace ai::openai::codex::detail {
         }
     }
 
-    std::optional<Json>
-    encodeExternalAgentConfigImportParams(const typed::ExternalAgentConfigImportParams& value, std::string& error) noexcept {
+    std::optional<Json> encodeExternalAgentConfigImportParams(const typed::ExternalAgentConfigImportParams& value,
+                                                              std::string& error) noexcept {
         try {
             error.clear();
-            Json result = encoderObject(
-                value.raw, error, "ExternalAgentConfigImportParams", "$.raw", {"migrationItems", "source"});
+            Json result = encoderObject(value.raw, error, "ExternalAgentConfigImportParams", "$.raw", {"migrationItems", "source"});
             if (!error.empty()) {
                 return std::nullopt;
             }
@@ -864,8 +811,8 @@ namespace ai::openai::codex::detail {
         }
     }
 
-    std::optional<typed::ExternalAgentConfigDetectResponse>
-    decodeExternalAgentConfigDetectResponse(const Json& value, std::string& error) noexcept {
+    std::optional<typed::ExternalAgentConfigDetectResponse> decodeExternalAgentConfigDetectResponse(const Json& value,
+                                                                                                    std::string& error) noexcept {
         try {
             error.clear();
             if (!decodeObject(value, error, "ExternalAgentConfigDetectResponse", "$")) {
@@ -873,21 +820,20 @@ namespace ai::openai::codex::detail {
             }
             typed::ExternalAgentConfigDetectResponse result;
             result.raw = value;
-            if (!decodeRequired(
-                    value,
-                    "items",
-                    result.items,
-                    error,
-                    "ExternalAgentConfigDetectResponse",
-                    "$",
-                    [](const Json& input,
-                       std::vector<typed::ExternalAgentConfigMigrationItem>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::ExternalAgentConfigMigrationItem>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeMigrationItem);
-                    })) {
+            if (!decodeRequired(value,
+                                "items",
+                                result.items,
+                                error,
+                                "ExternalAgentConfigDetectResponse",
+                                "$",
+                                [](const Json& input,
+                                   std::vector<typed::ExternalAgentConfigMigrationItem>& decoded,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::ExternalAgentConfigMigrationItem>(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, decodeMigrationItem);
+                                })) {
                 return std::nullopt;
             }
             for (const auto& item : result.items) {
@@ -900,8 +846,8 @@ namespace ai::openai::codex::detail {
         }
     }
 
-    std::optional<typed::ExternalAgentConfigImportResponse>
-    decodeExternalAgentConfigImportResponse(const Json& value, std::string& error) noexcept {
+    std::optional<typed::ExternalAgentConfigImportResponse> decodeExternalAgentConfigImportResponse(const Json& value,
+                                                                                                    std::string& error) noexcept {
         try {
             error.clear();
             if (!decodeObject(value, error, "ExternalAgentConfigImportResponse", "$")) {
@@ -928,21 +874,20 @@ namespace ai::openai::codex::detail {
             }
             typed::ExternalAgentConfigImportHistoriesReadResponse result;
             result.raw = value;
-            if (!decodeRequired(
-                    value,
-                    "data",
-                    result.data,
-                    error,
-                    "ExternalAgentConfigImportHistoriesReadResponse",
-                    "$",
-                    [](const Json& input,
-                       std::vector<typed::ExternalAgentConfigImportHistory>& decoded,
-                       std::string& nestedError,
-                       std::string_view nestedSurface,
-                       std::string_view nestedPath) {
-                        return decodeArray<typed::ExternalAgentConfigImportHistory>(
-                            input, decoded, nestedError, nestedSurface, nestedPath, decodeImportHistory);
-                    })) {
+            if (!decodeRequired(value,
+                                "data",
+                                result.data,
+                                error,
+                                "ExternalAgentConfigImportHistoriesReadResponse",
+                                "$",
+                                [](const Json& input,
+                                   std::vector<typed::ExternalAgentConfigImportHistory>& decoded,
+                                   std::string& nestedError,
+                                   std::string_view nestedSurface,
+                                   std::string_view nestedPath) {
+                                    return decodeArray<typed::ExternalAgentConfigImportHistory>(
+                                        input, decoded, nestedError, nestedSurface, nestedPath, decodeImportHistory);
+                                })) {
                 return std::nullopt;
             }
             for (const auto& history : result.data) {

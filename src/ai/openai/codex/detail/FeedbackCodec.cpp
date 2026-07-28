@@ -26,11 +26,8 @@ namespace ai::openai::codex::detail {
         }
 
         template <typename T, typename Encoder>
-        bool encodeOptionalNullable(Json& object,
-                                    std::string_view field,
-                                    const typed::OptionalNullable<T>& value,
-                                    std::string& error,
-                                    Encoder&& encoder) {
+        bool encodeOptionalNullable(
+            Json& object, std::string_view field, const typed::OptionalNullable<T>& value, std::string& error, Encoder&& encoder) {
             if (!value.present && value.value.has_value()) {
                 error = "FeedbackUploadParams field '$." + std::string(field) + "' has an inconsistent omission state";
                 return false;
@@ -76,23 +73,17 @@ namespace ai::openai::codex::detail {
             }
             result["classification"] = value.classification;
             if (!encodeOptionalNullable(result, "extraLogFiles", value.extraLogFiles, error, stringArray) ||
-                !encodeOptionalNullable(
-                    result,
-                    "reason",
-                    value.reason,
-                    error,
-                    [](const std::string& input) {
-                        return Json(input);
-                    }) ||
+                !encodeOptionalNullable(result,
+                                        "reason",
+                                        value.reason,
+                                        error,
+                                        [](const std::string& input) {
+                                            return Json(input);
+                                        }) ||
                 !encodeOptionalNullable(result, "tags", value.tags, error, stringMap) ||
-                !encodeOptionalNullable(
-                    result,
-                    "threadId",
-                    value.threadId,
-                    error,
-                    [](const typed::ThreadId& input) {
-                        return Json(input.value);
-                    })) {
+                !encodeOptionalNullable(result, "threadId", value.threadId, error, [](const typed::ThreadId& input) {
+                    return Json(input.value);
+                })) {
                 return std::nullopt;
             }
             if (value.includeLogs) {

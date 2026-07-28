@@ -375,13 +375,13 @@ namespace {
             "plugin/skill/read",
             "plugin/uninstall",
         }};
-        constexpr std::array<std::string_view, 4> PluginSourceDeferred{{
+        constexpr std::array<std::string_view, 4> Commit5Requests{{
             "plugin/installed",
             "plugin/list",
             "plugin/read",
             "plugin/share/list",
         }};
-        constexpr std::array<std::string_view, 25> ExpectedA14Complete{{
+        constexpr std::array<std::string_view, 33> ExpectedA14Complete{{
             "app/list",
             "app/list/updated",
             "externalAgentConfig/detect",
@@ -397,8 +397,12 @@ namespace {
             "marketplace/remove",
             "marketplace/upgrade",
             "plugin/install",
+            "plugin/installed",
+            "plugin/list",
+            "plugin/read",
             "plugin/share/checkout",
             "plugin/share/delete",
+            "plugin/share/list",
             "plugin/share/save",
             "plugin/share/updateTargets",
             "plugin/skill/read",
@@ -407,6 +411,10 @@ namespace {
             "skills/config/write",
             "skills/extraRoots/set",
             "skills/list",
+            "git",
+            "local",
+            "npm",
+            "remote",
         }};
 
         std::size_t complete = 0;
@@ -450,12 +458,12 @@ namespace {
             }
         }
 
-        result.expectTrue(complete == 305 && partial == 4 && notImplemented == 30 && notApplicable == 48,
-                          "Commit-4 global registry arithmetic is exactly 305/4/30/48");
-        result.expectTrue(nativeComplete == 25 && nativePartial == 1 && nativeNotImplemented == 30,
-                          "Commit-4 native A1.4 registry arithmetic is exactly 25/1/30");
+        result.expectTrue(complete == 313 && partial == 4 && notImplemented == 22 && notApplicable == 48,
+                          "final PR-A global registry arithmetic is exactly 313/4/22/48");
+        result.expectTrue(nativeComplete == 33 && nativePartial == 1 && nativeNotImplemented == 22,
+                          "final PR-A native A1.4 registry arithmetic is exactly 33/1/22");
         result.expectEqual(
-            ExpectedA14Complete.size(), completedA14.size(), "exactly the first twenty-five native A1.4 identities are Complete");
+            ExpectedA14Complete.size(), completedA14.size(), "exactly the thirty-three PR-A native A1.4 identities are Complete");
         for (std::string_view identity : ExpectedA14Complete) {
             bool found = false;
             for (const std::string& actual : completedA14) {
@@ -476,13 +484,17 @@ namespace {
                                   std::holds_alternative<detail::ClientRequestTarget>(row->runtimeTarget) && descriptorFound,
                               std::string(identity) + " has one typed target and one result descriptor");
         }
-        for (std::string_view identity : PluginSourceDeferred) {
+        for (std::string_view identity : Commit5Requests) {
             const detail::ProtocolSurfaceEntry* row =
                 detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", identity);
-            result.expectTrue(row != nullptr && row->typedSchemaStatus == detail::TypedSchemaStatus::NotImplemented &&
-                                  row->runtimeDisposition == detail::RuntimeDisposition::Deferred &&
-                                  std::holds_alternative<std::monostate>(row->runtimeTarget),
-                              std::string(identity) + " remains deferred until the PluginSource commit");
+            bool descriptorFound = false;
+            for (const detail::ClientOperationCodecDescriptor& descriptor : detail::clientOperationCodecDescriptors()) {
+                descriptorFound = descriptorFound || descriptor.key.name == identity;
+            }
+            result.expectTrue(row != nullptr && row->typedSchemaStatus == detail::TypedSchemaStatus::Complete &&
+                                  row->runtimeDisposition == detail::RuntimeDisposition::Typed &&
+                                  std::holds_alternative<detail::ClientRequestTarget>(row->runtimeTarget) && descriptorFound,
+                              std::string(identity) + " has one typed target and one result descriptor");
         }
     }
 } // namespace
