@@ -21,6 +21,7 @@
 #include "ai/openai/codex/typed/Marketplace.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
+#include "ai/openai/codex/typed/Plugins.h"
 #include "ai/openai/codex/typed/Results.h"
 #include "ai/openai/codex/typed/Reviews.h"
 #include "ai/openai/codex/typed/Skills.h"
@@ -96,6 +97,11 @@ namespace ai::openai::codex::detail {
                                                      typed::MarketplaceAddResponse,
                                                      typed::MarketplaceRemoveResponse,
                                                      typed::MarketplaceUpgradeResponse,
+                                                     typed::PluginInstallResponse,
+                                                     typed::PluginShareCheckoutResponse,
+                                                     typed::PluginShareSaveResponse,
+                                                     typed::PluginShareUpdateTargetsResponse,
+                                                     typed::PluginSkillReadResponse,
                                                      typed::SkillsConfigWriteResponse,
                                                      typed::SkillsListResponse>;
 

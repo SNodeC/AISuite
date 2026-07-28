@@ -192,8 +192,8 @@ int main() {
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
-    result.expectTrue(schemaComplete == 298 && schemaPartial == 4 && schemaNotImplemented == 37 && schemaNotApplicable == 48,
-                      "the A1.4 user-integration Commit-3 checkpoint reaches the exact 298/4/37/48 global completeness metrics");
+    result.expectTrue(schemaComplete == 305 && schemaPartial == 4 && schemaNotImplemented == 30 && schemaNotApplicable == 48,
+                      "the A1.4 user-integration Commit-4 checkpoint reaches the exact 305/4/30/48 global completeness metrics");
     result.expectTrue(slices == std::array<std::size_t, 6>{19, 151, 45, 68, 56, 48} && codexErrorInfoA1_0 == 16 &&
                           stableUnreachableInventory == 12,
                       "registry preserves the frozen A1 slice assignment, CodexErrorInfo exception, and 12 stable unreachable rows");
@@ -206,7 +206,7 @@ int main() {
                       "every identity has one fixed module/slice assignment and a mechanically derived schema status");
 
     expectTargets<detail::ClientRequestTarget>(result,
-                                               std::array<std::string_view, 70>{"initialize",
+                                               std::array<std::string_view, 77>{"initialize",
                                                                                 "account/login/cancel",
                                                                                 "account/login/start",
                                                                                 "account/logout",
@@ -273,6 +273,13 @@ int main() {
                                                                                 "marketplace/add",
                                                                                 "marketplace/remove",
                                                                                 "marketplace/upgrade",
+                                                                                "plugin/install",
+                                                                                "plugin/share/checkout",
+                                                                                "plugin/share/delete",
+                                                                                "plugin/share/save",
+                                                                                "plugin/share/updateTargets",
+                                                                                "plugin/skill/read",
+                                                                                "plugin/uninstall",
                                                                                 "skills/config/write",
                                                                                 "skills/extraRoots/set",
                                                                                 "skills/list"},

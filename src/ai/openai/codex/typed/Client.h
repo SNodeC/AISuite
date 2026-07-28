@@ -20,6 +20,7 @@
 #include "ai/openai/codex/typed/Marketplace.h"    // IWYU pragma: export
 #include "ai/openai/codex/typed/Models.h"         // IWYU pragma: export
 #include "ai/openai/codex/typed/PermissionProfiles.h" // IWYU pragma: export
+#include "ai/openai/codex/typed/Plugins.h"            // IWYU pragma: export
 #include "ai/openai/codex/typed/Reviews.h"            // IWYU pragma: export
 #include "ai/openai/codex/typed/ServerRequests.h" // IWYU pragma: export
 #include "ai/openai/codex/typed/Skills.h"         // IWYU pragma: export
@@ -77,6 +78,9 @@ namespace ai::openai::codex::typed {
         PermissionProfiles& permissionProfiles() noexcept;
         const PermissionProfiles& permissionProfiles() const noexcept;
 
+        Plugins& plugins() noexcept;
+        const Plugins& plugins() const noexcept;
+
         Reviews& reviews() noexcept;
         const Reviews& reviews() const noexcept;
 
@@ -109,6 +113,7 @@ namespace ai::openai::codex::typed {
                std::unique_ptr<Marketplace> marketplace,
                std::unique_ptr<Models> models,
                std::unique_ptr<PermissionProfiles> permissionProfiles,
+               std::unique_ptr<Plugins> plugins,
                std::unique_ptr<Reviews> reviews,
                std::unique_ptr<Skills> skills,
                std::unique_ptr<Threads> threads,

@@ -16,6 +16,7 @@ set(AI_OPENAI_CODEX_CPP
     detail/ItemDecoder.cpp
     detail/MarketplaceCodec.cpp
     detail/ModelCodec.cpp
+    detail/PluginCodec.cpp
     detail/ProtocolCodec.cpp
     detail/ProtocolSurfaceRegistry.cpp
     detail/ReviewCodec.cpp
@@ -53,6 +54,7 @@ set(AI_OPENAI_CODEX_PUBLIC_H
     typed/Marketplace.h
     typed/Models.h
     typed/PermissionProfiles.h
+    typed/Plugins.h
     typed/Reviews.h
     typed/Results.h
     typed/ServerRequests.h
@@ -118,6 +120,7 @@ install(
         typed/Marketplace.h
         typed/Models.h
         typed/PermissionProfiles.h
+        typed/Plugins.h
         typed/Reviews.h
         typed/Results.h
         typed/ServerRequests.h

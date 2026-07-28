@@ -1,0 +1,11 @@
+{
+  "discoverability": "LISTED",
+  "pluginPath": "synthetic-75177d933c",
+  "shareTargets": [
+    {
+      "principalId": "synthetic-f6fc1bc0f6",
+      "principalType": "user",
+      "role": "reader"
+    }
+  ]
+}

@@ -18,6 +18,7 @@
 #include "ai/openai/codex/detail/HookCodec.h"
 #include "ai/openai/codex/detail/MarketplaceCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
+#include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
 #include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
@@ -81,6 +82,11 @@ namespace ai::openai::codex::detail {
             "MarketplaceAddResponse",
             "MarketplaceRemoveResponse",
             "MarketplaceUpgradeResponse",
+            "PluginInstallResponse",
+            "PluginShareCheckoutResponse",
+            "PluginShareSaveResponse",
+            "PluginShareUpdateTargetsResponse",
+            "PluginSkillReadResponse",
             "SkillsConfigWriteResponse",
             "SkillsListResponse",
         }};
@@ -109,6 +115,9 @@ namespace ai::openai::codex::detail {
                    target == AppsList || target == ExternalAgentConfigDetect || target == ExternalAgentConfigImport ||
                    target == ExternalAgentConfigImportHistoriesRead || target == FeedbackUpload || target == HooksList ||
                    target == MarketplaceAdd || target == MarketplaceRemove || target == MarketplaceUpgrade ||
+                   target == PluginInstall || target == PluginShareCheckout || target == PluginShareDelete ||
+                   target == PluginShareSave || target == PluginShareUpdateTargets || target == PluginSkillRead ||
+                   target == PluginUninstall ||
                    target == SkillsConfigWrite || target == SkillsExtraRootsSet || target == SkillsList;
         }
 
@@ -319,6 +328,16 @@ namespace ai::openai::codex::detail {
                     return decode(target, key, decodeMarketplaceRemoveResponse(raw, error), error);
                 case MarketplaceUpgradeResponse:
                     return decode(target, key, decodeMarketplaceUpgradeResponse(raw, error), error);
+                case PluginInstallResponse:
+                    return decode(target, key, decodePluginInstallResponse(raw, error), error);
+                case PluginShareCheckoutResponse:
+                    return decode(target, key, decodePluginShareCheckoutResponse(raw, error), error);
+                case PluginShareSaveResponse:
+                    return decode(target, key, decodePluginShareSaveResponse(raw, error), error);
+                case PluginShareUpdateTargetsResponse:
+                    return decode(target, key, decodePluginShareUpdateTargetsResponse(raw, error), error);
+                case PluginSkillReadResponse:
+                    return decode(target, key, decodePluginSkillReadResponse(raw, error), error);
                 case SkillsConfigWriteResponse:
                     return decode(target, key, decodeSkillsConfigWriteResponse(raw, error), error);
                 case SkillsListResponse:

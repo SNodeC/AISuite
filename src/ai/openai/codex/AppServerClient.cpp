@@ -1134,6 +1134,7 @@ namespace ai::openai::codex {
                               std::unique_ptr<typed::Marketplace>(new typed::Marketplace(impl->raw())),
                               std::unique_ptr<typed::Models>(new typed::Models(impl->raw())),
                               std::unique_ptr<typed::PermissionProfiles>(new typed::PermissionProfiles(impl->raw())),
+                              std::unique_ptr<typed::Plugins>(new typed::Plugins(impl->raw())),
                               std::unique_ptr<typed::Reviews>(new typed::Reviews(impl->raw())),
                               std::unique_ptr<typed::Skills>(new typed::Skills(impl->raw())),
                               std::unique_ptr<typed::Threads>(new typed::Threads(impl->raw())),

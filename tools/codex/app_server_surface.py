@@ -324,8 +324,34 @@ A14_USER_INTEGRATIONS_COMMIT_3 = frozenset(
         ),
     }
 )
+# PR-A Commit 4 exact-key production ownership. These plugin roots do not
+# transitively reach PluginSource; the four catalog/source-bearing operations
+# and four PluginSource alternatives remain reserved for Commit 5.
+A14_USER_INTEGRATIONS_COMMIT_4 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "plugin/install"),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "plugin/share/checkout",
+        ),
+        ("client_request", "ClientRequest", "method", "plugin/share/delete"),
+        ("client_request", "ClientRequest", "method", "plugin/share/save"),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "plugin/share/updateTargets",
+        ),
+        ("client_request", "ClientRequest", "method", "plugin/skill/read"),
+        ("client_request", "ClientRequest", "method", "plugin/uninstall"),
+    }
+)
 A14_USER_INTEGRATIONS_IMPLEMENTED = (
-    A14_USER_INTEGRATIONS_COMMIT_2 | A14_USER_INTEGRATIONS_COMMIT_3
+    A14_USER_INTEGRATIONS_COMMIT_2
+    | A14_USER_INTEGRATIONS_COMMIT_3
+    | A14_USER_INTEGRATIONS_COMMIT_4
 )
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
@@ -1810,6 +1836,48 @@ RUNTIME_TARGETS = {
         "method",
         "marketplace/upgrade",
     ): "ClientRequestTarget::MarketplaceUpgrade",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/install",
+    ): "ClientRequestTarget::PluginInstall",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/checkout",
+    ): "ClientRequestTarget::PluginShareCheckout",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/delete",
+    ): "ClientRequestTarget::PluginShareDelete",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/save",
+    ): "ClientRequestTarget::PluginShareSave",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/updateTargets",
+    ): "ClientRequestTarget::PluginShareUpdateTargets",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/skill/read",
+    ): "ClientRequestTarget::PluginSkillRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/uninstall",
+    ): "ClientRequestTarget::PluginUninstall",
     (
         "client_request",
         "ClientRequest",
@@ -6032,7 +6100,7 @@ def registry_statuses(
         evidence["opaque_fields_declared"] = True
         evidence["no_known_schema_fields_dropped"] = True
     if identity in A14_USER_INTEGRATIONS_IMPLEMENTED and target is not None:
-        # PR-A Commits 2 and 3 bind each exact implemented integration root to a
+        # PR-A Commits 2 through 4 bind each exact implemented integration root to a
         # reviewed schema-complete codec, generated descriptor, grouped facade,
         # schema-derived fixture, and focused wire/notification test.  All
         # objects in this closure are open; raw retention supplements the
@@ -6846,9 +6914,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 69
+        len(expected_keys) != 76
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 69
+        or len(set(targets.values())) != 76
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -6859,7 +6927,7 @@ def generate_client_operation_descriptor_data(
             "the exact 22 stable A1.1, 9 A1.2 B2, 2 A1.2 B3, 2 A1.2 B4, "
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
             "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
-            "5 A1.4 user-integration "
+            "19 A1.4 user-integration "
             "client requests must each own one unique ClientRequestTarget; "
             f"expected_keys={len(expected_keys)}, targets={len(targets)}, "
             f"unique_targets={len(set(targets.values()))}"
@@ -6895,10 +6963,12 @@ def generate_client_operation_descriptor_data(
         "fs/writeFile",
         "thread/approveGuardianDeniedAction",
         "skills/extraRoots/set",
+        "plugin/share/delete",
+        "plugin/uninstall",
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 50
+        or len(expected_keys - unit_keys) != 55
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -6906,8 +6976,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 plus PR-A Commits 2-3 requests must remain "
-            "exactly 19 Unit and 50 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus PR-A Commits 2-4 requests must remain "
+            "exactly 21 Unit and 55 Concrete requests"
         )
 
     result_decoders = {
@@ -6944,6 +7014,11 @@ def generate_client_operation_descriptor_data(
         "MarketplaceAddResponse",
         "MarketplaceRemoveResponse",
         "MarketplaceUpgradeResponse",
+        "PluginInstallResponse",
+        "PluginShareCheckoutResponse",
+        "PluginShareSaveResponse",
+        "PluginShareUpdateTargetsResponse",
+        "PluginSkillReadResponse",
         "SkillsConfigWriteResponse",
         "SkillsListResponse",
         "ThreadForkResponse",

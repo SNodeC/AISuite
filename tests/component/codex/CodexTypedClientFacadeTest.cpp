@@ -67,6 +67,9 @@ namespace {
     concept HasDirectPermissionProfilesAccessor = requires(Client& client) { client.permissionProfiles(); };
 
     template <typename Client>
+    concept HasDirectPluginsAccessor = requires(Client& client) { client.plugins(); };
+
+    template <typename Client>
     concept HasDirectReviewsAccessor = requires(Client& client) { client.reviews(); };
 
     template <typename Client>
@@ -287,6 +290,7 @@ int main() {
     static_assert(!HasDirectMarketplaceAccessor<codex::AppServerClient>);
     static_assert(!HasDirectModelsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectPermissionProfilesAccessor<codex::AppServerClient>);
+    static_assert(!HasDirectPluginsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectReviewsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectSkillsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectConfigurationAccessor<codex::AppServerClient>);
@@ -351,6 +355,8 @@ int main() {
     result.expectTrue(&client.typed().permissionProfiles() == &constClient.typed().permissionProfiles(),
                       "permissionProfiles() returns the same facade backed by the grouped "
                       "client's one RawProtocol");
+    result.expectTrue(&client.typed().plugins() == &constClient.typed().plugins(),
+                      "plugins() returns the same facade backed by the grouped client's one RawProtocol");
     result.expectTrue(&client.typed().reviews() == &constClient.typed().reviews(),
                       "reviews() returns the same facade backed by the grouped client's one RawProtocol");
     result.expectTrue(&client.typed().skills() == &constClient.typed().skills(),

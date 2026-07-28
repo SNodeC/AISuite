@@ -1,0 +1,10 @@
+{
+  "discoverability": "UNLISTED",
+  "remotePluginId": "synthetic-c9bb99dc7a",
+  "shareTargets": [
+    {
+      "principalType": "user",
+      "role": "reader"
+    }
+  ]
+}

@@ -6,13 +6,13 @@
       "authoritative_root_association": 322,
       "fixture_current": 322,
       "independently_schema_validated": 322,
-      "nullable_semantics_exercised": 298,
+      "nullable_semantics_exercised": 305,
       "optional_omitted_exercised": 322,
       "optional_present_exercised": 322,
       "positive_fixture_coverage": 322,
-      "reachable_union_alternatives_exercised": 298,
+      "reachable_union_alternatives_exercised": 305,
       "required_fields_exercised": 322,
-      "schema_properties_exercised": 298
+      "schema_properties_exercised": 305
     },
     "identities_with_positive_fixtures": 322,
     "surface_identities": 387
@@ -2031,9 +2031,23 @@
     {
       "fixture_ids": [
         "operation:client_request:plugin/install:params",
-        "operation:client_request:plugin/install:result"
+        "operation:client_request:plugin/install:params:future-open-object:root",
+        "operation:client_request:plugin/install:params:nullable-null:marketplacepath",
+        "operation:client_request:plugin/install:params:nullable-null:remotemarketplacename",
+        "operation:client_request:plugin/install:params:optional-omitted:marketplacepath",
+        "operation:client_request:plugin/install:params:optional-omitted:remotemarketplacename",
+        "operation:client_request:plugin/install:result",
+        "operation:client_request:plugin/install:result:explicit-empty-array:appsneedingauth",
+        "operation:client_request:plugin/install:result:future-open-object:appsneedingauth-0",
+        "operation:client_request:plugin/install:result:future-open-object:root",
+        "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-category",
+        "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-description",
+        "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-installurl",
+        "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-category",
+        "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-description",
+        "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-installurl"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 16,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2044,13 +2058,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -2131,9 +2145,13 @@
     {
       "fixture_ids": [
         "operation:client_request:plugin/share/checkout:params",
-        "operation:client_request:plugin/share/checkout:result"
+        "operation:client_request:plugin/share/checkout:params:future-open-object:root",
+        "operation:client_request:plugin/share/checkout:result",
+        "operation:client_request:plugin/share/checkout:result:future-open-object:root",
+        "operation:client_request:plugin/share/checkout:result:nullable-null:remoteversion",
+        "operation:client_request:plugin/share/checkout:result:optional-omitted:remoteversion"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 6,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2144,21 +2162,23 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:plugin/share/delete:params",
-        "operation:client_request:plugin/share/delete:result"
+        "operation:client_request:plugin/share/delete:params:future-open-object:root",
+        "operation:client_request:plugin/share/delete:result",
+        "operation:client_request:plugin/share/delete:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 4,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2169,13 +2189,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -2206,9 +2226,19 @@
     {
       "fixture_ids": [
         "operation:client_request:plugin/share/save:params",
-        "operation:client_request:plugin/share/save:result"
+        "operation:client_request:plugin/share/save:params:explicit-empty-array:sharetargets",
+        "operation:client_request:plugin/share/save:params:future-open-object:root",
+        "operation:client_request:plugin/share/save:params:future-open-object:sharetargets-0",
+        "operation:client_request:plugin/share/save:params:nullable-null:discoverability",
+        "operation:client_request:plugin/share/save:params:nullable-null:remotepluginid",
+        "operation:client_request:plugin/share/save:params:nullable-null:sharetargets",
+        "operation:client_request:plugin/share/save:params:optional-omitted:discoverability",
+        "operation:client_request:plugin/share/save:params:optional-omitted:remotepluginid",
+        "operation:client_request:plugin/share/save:params:optional-omitted:sharetargets",
+        "operation:client_request:plugin/share/save:result",
+        "operation:client_request:plugin/share/save:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 12,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2219,21 +2249,27 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:plugin/share/updateTargets:params",
-        "operation:client_request:plugin/share/updateTargets:result"
+        "operation:client_request:plugin/share/updateTargets:params:explicit-empty-array:sharetargets",
+        "operation:client_request:plugin/share/updateTargets:params:future-open-object:root",
+        "operation:client_request:plugin/share/updateTargets:params:future-open-object:sharetargets-0",
+        "operation:client_request:plugin/share/updateTargets:result",
+        "operation:client_request:plugin/share/updateTargets:result:explicit-empty-array:principals",
+        "operation:client_request:plugin/share/updateTargets:result:future-open-object:principals-0",
+        "operation:client_request:plugin/share/updateTargets:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 8,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2244,21 +2280,25 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:plugin/skill/read:params",
-        "operation:client_request:plugin/skill/read:result"
+        "operation:client_request:plugin/skill/read:params:future-open-object:root",
+        "operation:client_request:plugin/skill/read:result",
+        "operation:client_request:plugin/skill/read:result:future-open-object:root",
+        "operation:client_request:plugin/skill/read:result:nullable-null:contents",
+        "operation:client_request:plugin/skill/read:result:optional-omitted:contents"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 6,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2269,21 +2309,23 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:plugin/uninstall:params",
-        "operation:client_request:plugin/uninstall:result"
+        "operation:client_request:plugin/uninstall:params:future-open-object:root",
+        "operation:client_request:plugin/uninstall:result",
+        "operation:client_request:plugin/uninstall:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 4,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2294,13 +2336,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {

@@ -23,6 +23,7 @@
 #include "ai/openai/codex/detail/HookCodec.h"
 #include "ai/openai/codex/detail/MarketplaceCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
+#include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
 #include "ai/openai/codex/detail/ServerRequestDecoder.h"
@@ -42,6 +43,7 @@
 #include "ai/openai/codex/typed/Marketplace.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
+#include "ai/openai/codex/typed/Plugins.h"
 #include "ai/openai/codex/typed/Results.h"
 #include "ai/openai/codex/typed/Reviews.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
@@ -79,6 +81,7 @@ namespace ai::openai::codex::typed {
              std::unique_ptr<Marketplace> marketplace,
              std::unique_ptr<Models> models,
              std::unique_ptr<PermissionProfiles> permissionProfiles,
+             std::unique_ptr<Plugins> plugins,
              std::unique_ptr<Reviews> reviews,
              std::unique_ptr<Skills> skills,
              std::unique_ptr<Threads> threads,
@@ -96,6 +99,7 @@ namespace ai::openai::codex::typed {
             , marketplace(std::move(marketplace))
             , models(std::move(models))
             , permissionProfiles(std::move(permissionProfiles))
+            , plugins(std::move(plugins))
             , reviews(std::move(reviews))
             , skills(std::move(skills))
             , threads(std::move(threads))
@@ -115,6 +119,7 @@ namespace ai::openai::codex::typed {
         std::unique_ptr<Marketplace> marketplace;
         std::unique_ptr<Models> models;
         std::unique_ptr<PermissionProfiles> permissionProfiles;
+        std::unique_ptr<Plugins> plugins;
         std::unique_ptr<Reviews> reviews;
         std::unique_ptr<Skills> skills;
         std::unique_ptr<Threads> threads;
@@ -134,6 +139,7 @@ namespace ai::openai::codex::typed {
                    std::unique_ptr<Marketplace> marketplace,
                    std::unique_ptr<Models> models,
                    std::unique_ptr<PermissionProfiles> permissionProfiles,
+                   std::unique_ptr<Plugins> plugins,
                    std::unique_ptr<Reviews> reviews,
                    std::unique_ptr<Skills> skills,
                    std::unique_ptr<Threads> threads,
@@ -151,6 +157,7 @@ namespace ai::openai::codex::typed {
                                       std::move(marketplace),
                                       std::move(models),
                                       std::move(permissionProfiles),
+                                      std::move(plugins),
                                       std::move(reviews),
                                       std::move(skills),
                                       std::move(threads),
@@ -247,6 +254,14 @@ namespace ai::openai::codex::typed {
 
     const PermissionProfiles& Client::permissionProfiles() const noexcept {
         return *impl->permissionProfiles;
+    }
+
+    Plugins& Client::plugins() noexcept {
+        return *impl->plugins;
+    }
+
+    const Plugins& Client::plugins() const noexcept {
+        return *impl->plugins;
     }
 
     Reviews& Client::reviews() noexcept {
@@ -517,6 +532,55 @@ namespace ai::openai::codex::typed {
     Skills::Submission Skills::list(SkillsListParams params, ListResultHandler handler) {
         return submitTypedRequest<SkillsListResponse>(
             protocol, detail::ClientRequestTarget::SkillsList, params, std::move(handler), detail::encodeSkillsListParams);
+    }
+
+    Plugins::Plugins(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Plugins::Submission Plugins::install(PluginInstallParams params, InstallResultHandler handler) {
+        return submitTypedRequest<PluginInstallResponse>(
+            protocol, detail::ClientRequestTarget::PluginInstall, params, std::move(handler), detail::encodePluginInstallParams);
+    }
+
+    Plugins::Submission Plugins::shareCheckout(PluginShareCheckoutParams params, ShareCheckoutResultHandler handler) {
+        return submitTypedRequest<PluginShareCheckoutResponse>(protocol,
+                                                               detail::ClientRequestTarget::PluginShareCheckout,
+                                                               params,
+                                                               std::move(handler),
+                                                               detail::encodePluginShareCheckoutParams);
+    }
+
+    Plugins::Submission Plugins::shareDelete(PluginShareDeleteParams params, ShareDeleteResultHandler handler) {
+        return submitTypedRequest<Unit>(protocol,
+                                        detail::ClientRequestTarget::PluginShareDelete,
+                                        params,
+                                        std::move(handler),
+                                        detail::encodePluginShareDeleteParams);
+    }
+
+    Plugins::Submission Plugins::shareSave(PluginShareSaveParams params, ShareSaveResultHandler handler) {
+        return submitTypedRequest<PluginShareSaveResponse>(
+            protocol, detail::ClientRequestTarget::PluginShareSave, params, std::move(handler), detail::encodePluginShareSaveParams);
+    }
+
+    Plugins::Submission Plugins::shareUpdateTargets(PluginShareUpdateTargetsParams params,
+                                                    ShareUpdateTargetsResultHandler handler) {
+        return submitTypedRequest<PluginShareUpdateTargetsResponse>(protocol,
+                                                                    detail::ClientRequestTarget::PluginShareUpdateTargets,
+                                                                    params,
+                                                                    std::move(handler),
+                                                                    detail::encodePluginShareUpdateTargetsParams);
+    }
+
+    Plugins::Submission Plugins::readSkill(PluginSkillReadParams params, ReadSkillResultHandler handler) {
+        return submitTypedRequest<PluginSkillReadResponse>(
+            protocol, detail::ClientRequestTarget::PluginSkillRead, params, std::move(handler), detail::encodePluginSkillReadParams);
+    }
+
+    Plugins::Submission Plugins::uninstall(PluginUninstallParams params, UninstallResultHandler handler) {
+        return submitTypedRequest<Unit>(
+            protocol, detail::ClientRequestTarget::PluginUninstall, params, std::move(handler), detail::encodePluginUninstallParams);
     }
 
     Accounts::Accounts(AppServerClient::RawProtocol& protocol) noexcept

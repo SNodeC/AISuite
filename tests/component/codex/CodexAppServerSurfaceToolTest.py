@@ -378,9 +378,9 @@ def test_operation_descriptor_guards(
         for line in generated.splitlines()
         if line.startswith("CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR(")
     ]
-    if len(rows) != 69:
+    if len(rows) != 76:
         raise AssertionError(
-            "client-operation descriptor must contain exactly 69 rows"
+            "client-operation descriptor must contain exactly 76 rows"
         )
     method_rows = {
         match.group(1): line
@@ -464,8 +464,17 @@ def test_operation_descriptor_guards(
         "skills/extraRoots/set",
         "skills/list",
     }
+    a1_4_user_integration_commit_4_methods = {
+        "plugin/install",
+        "plugin/share/checkout",
+        "plugin/share/delete",
+        "plugin/share/save",
+        "plugin/share/updateTargets",
+        "plugin/skill/read",
+        "plugin/uninstall",
+    }
     if (
-        len(method_rows) != 69
+        len(method_rows) != 76
         or len(a1_1_methods) != 22
         or set(method_rows)
         != a1_1_methods
@@ -479,6 +488,7 @@ def test_operation_descriptor_guards(
         | a1_3_review_guardian_methods
         | a1_4_user_integration_commit_2_methods
         | a1_4_user_integration_commit_3_methods
+        | a1_4_user_integration_commit_4_methods
         or a1_1_methods & a1_2_b2_methods
         or (a1_1_methods | a1_2_b2_methods) & a1_2_b3_methods
         or (
@@ -555,13 +565,27 @@ def test_operation_descriptor_guards(
             | a1_4_user_integration_commit_2_methods
         )
         & a1_4_user_integration_commit_3_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_2_b5_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_permission_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
+        )
+        & a1_4_user_integration_commit_4_methods
     ):
         raise AssertionError(
             "client-operation descriptors lost the exact 22 A1.1 / "
             "nine A1.2 B2 / two A1.2 B3 / two A1.2 B4 / five A1.2 B5 "
             "/ four A1.3 command / ten A1.3 filesystem/fuzzy / one A1.3 "
             "permission-profile / two A1.3 review/guardian / five A1.4 "
-            "user-integration Commit-2 / seven Commit-3 projection"
+            "user-integration Commit-2 / seven Commit-3 / seven Commit-4 projection"
         )
     targets = {
         match.group(1)
@@ -572,7 +596,7 @@ def test_operation_descriptor_guards(
             )
         )
     }
-    if len(targets) != 69:
+    if len(targets) != 76:
         raise AssertionError(
             "client-operation descriptor targets are not an exact bijection"
         )
@@ -593,13 +617,13 @@ def test_operation_descriptor_guards(
             "ClientOperationResultDecoder::Unit)" in line
             for line in rows
         )
-        != 19
+        != 21
         or sum(
             "ResultContractKind::Concrete, "
             "ClientOperationResultDecoder::" in line
             for line in rows
         )
-        != 50
+        != 55
     ):
         raise AssertionError(
             "client-operation descriptor result-kind split changed"
@@ -692,6 +716,16 @@ def test_operation_descriptor_guards(
             for method in a1_4_user_integration_commit_3_methods
         )
         != 6
+        or sum(
+            "ResultContractKind::Unit" in method_rows[method]
+            for method in a1_4_user_integration_commit_4_methods
+        )
+        != 2
+        or sum(
+            "ResultContractKind::Concrete" in method_rows[method]
+            for method in a1_4_user_integration_commit_4_methods
+        )
+        != 5
         or any(
             expected not in method_rows[method]
             for method, expected in {

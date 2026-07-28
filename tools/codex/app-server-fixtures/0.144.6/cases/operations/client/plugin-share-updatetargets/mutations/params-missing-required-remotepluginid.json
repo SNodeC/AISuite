@@ -1,0 +1,10 @@
+{
+  "discoverability": "UNLISTED",
+  "shareTargets": [
+    {
+      "principalId": "synthetic-f6fc1bc0f6",
+      "principalType": "user",
+      "role": "reader"
+    }
+  ]
+}

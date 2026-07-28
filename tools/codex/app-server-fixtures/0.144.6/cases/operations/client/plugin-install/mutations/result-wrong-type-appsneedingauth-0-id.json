@@ -1,0 +1,12 @@
+{
+  "appsNeedingAuth": [
+    {
+      "category": "synthetic-38be64503e",
+      "description": "synthetic-b281efc61f",
+      "id": null,
+      "installUrl": "synthetic-9f23abd7f0",
+      "name": "synthetic-df42bd798e"
+    }
+  ],
+  "authPolicy": "ON_INSTALL"
+}

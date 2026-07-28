@@ -34,7 +34,7 @@ sys.dont_write_bytecode = True
 
 FORMAT_VERSION = 1
 CODEX_VERSION = "codex-cli 0.144.6"
-RULES_VERSION = 4
+RULES_VERSION = 5
 
 CLIENT_REQUEST = "client_request"
 CLIENT_NOTIFICATION = "client_notification"
@@ -931,6 +931,21 @@ A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS = frozenset(
         "hook/completed",
         "hook/started",
         "skills/changed",
+    }
+)
+# A1.4 PR-A Commit 4 owns exactly the plugin operations whose stable
+# parameter/result closure does not reach PluginSource.  Keep this set
+# independent of production status and disjoint from the four catalog/source
+# operations reserved for Commit 5.
+A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS = frozenset(
+    {
+        "plugin/install",
+        "plugin/share/checkout",
+        "plugin/share/delete",
+        "plugin/share/save",
+        "plugin/share/updateTargets",
+        "plugin/skill/read",
+        "plugin/uninstall",
     }
 )
 SLICE_ORDER = {"A1.0": 0, "A1.1": 1, "A1.2": 2, "A1.3": 3, "A1.4": 4}
@@ -1886,6 +1901,39 @@ def derive_a14_user_integrations_c3_keys(
             f"notifications={len(notifications)}"
         )
     return operations, notifications
+
+
+def derive_a14_user_integrations_c4_keys(
+    assignments: Mapping[SurfaceKey, Mapping[str, Any]],
+) -> tuple[SurfaceKey, ...]:
+    operations = tuple(
+        sorted(
+            key
+            for key, assignment in assignments.items()
+            if assignment["a1_slice"] == "A1.4"
+            and assignment["module"] == "IntegrationsAndLongTail"
+            and key.name
+            in A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS
+        )
+    )
+    if (
+        len(operations) != 7
+        or {key.name for key in operations}
+        != A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS
+        or any(
+            key.category != CLIENT_REQUEST
+            or key.domain != "ClientRequest"
+            or key.discriminator_field != "method"
+            or assignments[key]["classification"] != "StablePublicRoot"
+            or assignments[key]["stability"] != "stable"
+            for key in operations
+        )
+    ):
+        raise FixtureError(
+            "A1.4 user-integrations Commit-4 assignment mismatch: "
+            f"operations={len(operations)}"
+        )
+    return operations
 
 
 def normalize_a12_b2_sensitive_sample(value: Any) -> None:
@@ -4637,6 +4685,21 @@ class CorpusBuilder:
         self.a14_user_integrations_c3_positive_coverage: dict[
             str, Any
         ] = {}
+        self.a14_user_integrations_c4_operation_keys: tuple[
+            SurfaceKey, ...
+        ] = ()
+        self.a14_user_integrations_c4_negative_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_user_integrations_c4_indexed_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_user_integrations_c4_operation_root_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_user_integrations_c4_positive_coverage: dict[
+            str, Any
+        ] = {}
         self.reachability: dict[str, Any] = {}
         self.files: dict[str, bytes] = {}
         self.records: list[dict[str, Any]] = []
@@ -4840,6 +4903,9 @@ class CorpusBuilder:
             self.a14_user_integrations_c3_operation_keys,
             self.a14_user_integrations_c3_notification_keys,
         ) = derive_a14_user_integrations_c3_keys(self.assignments)
+        self.a14_user_integrations_c4_operation_keys = (
+            derive_a14_user_integrations_c4_keys(self.assignments)
+        )
 
         self._build_operation_fixtures()
         self._build_b4_operation_supplements()
@@ -4853,6 +4919,7 @@ class CorpusBuilder:
         self._build_a13_review_operation_supplements()
         self._build_a14_user_integrations_c2_operation_supplements()
         self._build_a14_user_integrations_c3_operation_supplements()
+        self._build_a14_user_integrations_c4_operation_supplements()
         self._build_b4_helper_union_fixtures()
         self._build_a12_b4_helper_union_fixtures()
         self._build_baseline_fixtures()
@@ -4874,6 +4941,7 @@ class CorpusBuilder:
         self._build_a13_review_positive_supplements()
         self._build_a14_user_integrations_c2_positive_supplements()
         self._build_a14_user_integrations_c3_positive_supplements()
+        self._build_a14_user_integrations_c4_positive_supplements()
         self._build_union_fixtures()
         self._build_b2_open_enum_fixtures()
         self._build_b3_open_enum_fixtures()
@@ -4993,6 +5061,9 @@ class CorpusBuilder:
             positive_records, positive_fixture_ids
         )
         self._apply_a14_user_integrations_c3_indexed_completeness(
+            positive_records, positive_fixture_ids
+        )
+        self._apply_a14_user_integrations_c4_indexed_completeness(
             positive_records, positive_fixture_ids
         )
         mutation_counts = {
@@ -5352,6 +5423,24 @@ class CorpusBuilder:
                     self.a14_user_integrations_c3_negative_coverage
                 ),
             },
+            "a1_4_user_integrations_commit_4": {
+                "assignment_derived_operation_keys": [
+                    key.to_json()
+                    for key in self.a14_user_integrations_c4_operation_keys
+                ],
+                "indexed_schema_coverage": (
+                    self.a14_user_integrations_c4_indexed_coverage
+                ),
+                "operation_root_fixture_plan": (
+                    self.a14_user_integrations_c4_operation_root_coverage
+                ),
+                "positive_coverage": (
+                    self.a14_user_integrations_c4_positive_coverage
+                ),
+                "negative_coverage": (
+                    self.a14_user_integrations_c4_negative_coverage
+                ),
+            },
             "fixtures": serialized_records,
         }
         self.files["index.json"] = encoded_json(index)
@@ -5543,6 +5632,16 @@ class CorpusBuilder:
                 if is_a14_user_integrations_c3
                 else {}
             )
+            is_a14_user_integrations_c4 = (
+                key in self.a14_user_integrations_c4_operation_keys
+            )
+            a14_user_integrations_c4_schema_facts = (
+                self.a14_user_integrations_c4_indexed_coverage.get(
+                    key.compact(), {}
+                ).get("schema_fixture_facts", {})
+                if is_a14_user_integrations_c4
+                else {}
+            )
             indexed_coverage = (
                 self.b2_indexed_coverage.get(key.compact(), {})
                 if is_b2_shared_common
@@ -5592,6 +5691,10 @@ class CorpusBuilder:
                     key.compact(), {}
                 )
                 if is_a14_user_integrations_c3
+                else self.a14_user_integrations_c4_indexed_coverage.get(
+                    key.compact(), {}
+                )
+                if is_a14_user_integrations_c4
                 else {}
             )
             coverage_records.append(
@@ -5697,6 +5800,11 @@ class CorpusBuilder:
                                     "schema_properties_exercised", False
                                 )
                             )
+                            or bool(
+                                a14_user_integrations_c4_schema_facts.get(
+                                    "schema_properties_exercised", False
+                                )
+                            )
                         ),
                         "optional_present_exercised": bool(records)
                         and all(
@@ -5781,6 +5889,11 @@ class CorpusBuilder:
                             )
                             or bool(
                                 a14_user_integrations_c3_schema_facts.get(
+                                    "nullable_semantics_exercised", False
+                                )
+                            )
+                            or bool(
+                                a14_user_integrations_c4_schema_facts.get(
                                     "nullable_semantics_exercised", False
                                 )
                             )
@@ -5870,6 +5983,12 @@ class CorpusBuilder:
                             )
                             or bool(
                                 a14_user_integrations_c3_schema_facts.get(
+                                    "reachable_union_alternatives_exercised",
+                                    False,
+                                )
+                            )
+                            or bool(
+                                a14_user_integrations_c4_schema_facts.get(
                                     "reachable_union_alternatives_exercised",
                                     False,
                                 )
@@ -6182,6 +6301,24 @@ class CorpusBuilder:
                 ),
                 "negative_coverage": (
                     self.a14_user_integrations_c3_negative_coverage
+                ),
+            },
+            "a1_4_user_integrations_commit_4": {
+                "assignment_derived_operation_keys": [
+                    key.to_json()
+                    for key in self.a14_user_integrations_c4_operation_keys
+                ],
+                "indexed_schema_coverage": (
+                    self.a14_user_integrations_c4_indexed_coverage
+                ),
+                "operation_root_fixture_plan": (
+                    self.a14_user_integrations_c4_operation_root_coverage
+                ),
+                "positive_coverage": (
+                    self.a14_user_integrations_c4_positive_coverage
+                ),
+                "negative_coverage": (
+                    self.a14_user_integrations_c4_negative_coverage
                 ),
             },
             "fixtures": [
@@ -7541,6 +7678,33 @@ class CorpusBuilder:
                 f"{len(self.a14_user_integrations_c3_indexed_coverage)}"
             )
 
+    def _apply_a14_user_integrations_c4_indexed_completeness(
+        self,
+        positive_records: Sequence[MutableMapping[str, Any]],
+        positive_fixture_ids: set[str],
+    ) -> None:
+        self.a14_user_integrations_c4_indexed_coverage.update(
+            self._apply_b4_operation_indexed_completeness(
+                positive_records,
+                positive_fixture_ids,
+                operation_keys=self.a14_user_integrations_c4_operation_keys,
+                batch="A1.4 user integrations Commit 4",
+                known_enum_values={},
+                include_a11_operation_helpers=False,
+            )
+        )
+        self.a14_user_integrations_c4_indexed_coverage = dict(
+            sorted(
+                self.a14_user_integrations_c4_indexed_coverage.items()
+            )
+        )
+        if len(self.a14_user_integrations_c4_indexed_coverage) != 7:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-4 indexed coverage must "
+                "contain exactly 7 identities, got "
+                f"{len(self.a14_user_integrations_c4_indexed_coverage)}"
+            )
+
     def _build_operation_fixtures(self) -> None:
         for key, contract in sorted(self.contracts.items()):
             family = "client" if key.category == CLIENT_REQUEST else "server"
@@ -7595,6 +7759,7 @@ class CorpusBuilder:
                     or key in self.a13_review_operation_keys
                     or key in self.a14_user_integrations_c2_operation_keys
                     or key in self.a14_user_integrations_c3_operation_keys
+                    or key in self.a14_user_integrations_c4_operation_keys
                     else ("Decode",)
                     if (
                         (
@@ -7665,6 +7830,7 @@ class CorpusBuilder:
                     or key in self.a13_review_operation_keys
                     or key in self.a14_user_integrations_c2_operation_keys
                     or key in self.a14_user_integrations_c3_operation_keys
+                    or key in self.a14_user_integrations_c4_operation_keys
                     else ("Encode",)
                     if (
                         (
@@ -8882,6 +9048,161 @@ class CorpusBuilder:
             "accepted_form": {},
             "malformed_form": [],
         }
+
+    def _build_a14_user_integrations_c4_operation_supplements(
+        self,
+    ) -> None:
+        coverage, opaque_exclusions = self._build_operation_supplements(
+            self.a14_user_integrations_c4_operation_keys,
+            "A1.4 user integrations Commit 4",
+        )
+        if opaque_exclusions:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-4 operations unexpectedly "
+                "contain an unconstrained schema value: "
+                f"{opaque_exclusions}"
+            )
+        unit_methods = {
+            key.name
+            for key in self.a14_user_integrations_c4_operation_keys
+            if self.contracts[key]["result_contract_kind"] == "Unit"
+        }
+        concrete_methods = {
+            key.name
+            for key in self.a14_user_integrations_c4_operation_keys
+            if self.contracts[key]["result_contract_kind"] == "Concrete"
+        }
+        if (
+            len(self.a14_user_integrations_c4_operation_keys) != 7
+            or unit_methods
+            != {"plugin/share/delete", "plugin/uninstall"}
+            or concrete_methods
+            != A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS
+            - unit_methods
+        ):
+            raise FixtureError(
+                "A1.4 user-integrations Commit 4 must retain five Concrete "
+                "contracts and exactly two reviewed Unit results"
+            )
+        mutation_counts = {
+            field: sum(
+                len(root[field])
+                for operation in coverage.values()
+                for root in operation["roots"].values()
+            )
+            for field in (
+                "missing_required_fixture_ids",
+                "nullable_null_fixture_ids",
+                "required_nullable_null_fixture_ids",
+                "optional_omitted_fixture_ids",
+                "wrong_type_fixture_ids",
+            )
+        }
+        if mutation_counts != {
+            "missing_required_fixture_ids": 35,
+            "nullable_null_fixture_ids": 10,
+            "required_nullable_null_fixture_ids": 0,
+            "optional_omitted_fixture_ids": 10,
+            "wrong_type_fixture_ids": 49,
+        }:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-4 operation fixture "
+                f"accounting changed: {mutation_counts}"
+            )
+
+        for key in self.a14_user_integrations_c4_operation_keys:
+            contract = self.contracts[key]
+            root_identities = (
+                str(contract["parameter_type_identity"]),
+                str(
+                    contract.get(
+                        "result_schema_type_identity",
+                        contract["result_type_identity"],
+                    )
+                ),
+            )
+            for type_identity in root_identities:
+                target = self.catalog.standalone(type_identity)
+                if "PluginSource" in json.dumps(
+                    target.document,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ):
+                    raise FixtureError(
+                        "A1.4 user-integrations Commit-4 operation reaches "
+                        f"PluginSource: {key.name}:{type_identity}"
+                    )
+
+        self.a14_user_integrations_c4_operation_root_coverage = dict(
+            sorted(coverage.items())
+        )
+        self.a14_user_integrations_c4_negative_coverage[
+            "operation_opaque_exclusions"
+        ] = []
+
+        unit_invariants: list[dict[str, Any]] = []
+        for unit_key in sorted(
+            (
+                key
+                for key in self.a14_user_integrations_c4_operation_keys
+                if key.name in unit_methods
+            ),
+            key=lambda key: key.name,
+        ):
+            unit_target = self.catalog.standalone(
+                str(
+                    self.contracts[unit_key].get(
+                        "result_schema_type_identity",
+                        self.contracts[unit_key]["result_type_identity"],
+                    )
+                )
+            )
+            invalid_unit: Any = []
+            diagnostics = self.catalog.target_validator(
+                unit_target
+            ).validate_subschema(
+                invalid_unit,
+                unit_target.schema,
+                unit_target.schema_path,
+            )
+            codes = sorted({item.code for item in diagnostics})
+            if not codes:
+                raise FixtureError(
+                    "A1.4 user-integrations Commit-4 malformed Unit result "
+                    f"was accepted for {unit_key.name}"
+                )
+            invalid_unit_id = (
+                f"operation:client_request:{unit_key.name}:result:"
+                "malformed-unit-array"
+            )
+            self.add_negative(
+                invalid_unit_id,
+                (
+                    f"cases/operations/client/{slug(unit_key.name)}/"
+                    "mutations/result-malformed-unit-array.json"
+                ),
+                "operation_wrong_type",
+                unit_target,
+                invalid_unit,
+                codes,
+                unit_key,
+                "malformed_unit_result",
+            )
+            unit_invariants.append(
+                {
+                    "method": unit_key.name,
+                    "result_contract_kind": "Unit",
+                    "accepted_fixture_id": (
+                        f"operation:client_request:{unit_key.name}:result"
+                    ),
+                    "malformed_fixture_id": invalid_unit_id,
+                    "accepted_form": {},
+                    "malformed_form": [],
+                }
+            )
+        self.a14_user_integrations_c4_negative_coverage[
+            "unit_result_invariants"
+        ] = unit_invariants
 
     def _add_a13_integer_boundaries(
         self,
@@ -12037,6 +12358,277 @@ class CorpusBuilder:
                 "formats": ["int64", "uint64"],
                 "fractional_values_rejected": True,
                 "minimum_constraints_exercised": True,
+            },
+        }
+
+    def _build_a14_user_integrations_c4_positive_supplements(
+        self,
+    ) -> None:
+        container_evidence: list[dict[str, Any]] = []
+        default_evidence: list[dict[str, Any]] = []
+        future_field_evidence: list[dict[str, Any]] = []
+
+        def add_property_supplements(
+            *,
+            key: SurfaceKey,
+            root_name: str,
+            target: SchemaTarget,
+            base_value: Any,
+            direction: str,
+            prefix: str,
+            relative_root: str,
+        ) -> None:
+            optional_locations = collect_optional_present_locations(
+                self.catalog, target, base_value
+            )
+            required_locations = collect_required_locations(
+                self.catalog, target, base_value
+            )
+            optional_paths = {
+                location.instance_path for location in optional_locations
+            }
+            locations = {
+                location.instance_path: location
+                for location in (*required_locations, *optional_locations)
+            }
+            for instance_path, location in sorted(
+                locations.items(),
+                key=lambda item: tuple(map(str, item[0])),
+            ):
+                current = get_instance_path(base_value, instance_path)
+                resolved, _ = self.catalog.resolve(
+                    target, location.schema, location.schema_path
+                )
+                if not isinstance(resolved, dict):
+                    continue
+
+                container_kind: str | None = None
+                empty_value: Any = None
+                if isinstance(current, list):
+                    container_kind = "array"
+                    empty_value = []
+                elif (
+                    isinstance(current, dict)
+                    and isinstance(
+                        resolved.get("additionalProperties"), dict
+                    )
+                ):
+                    container_kind = "map"
+                    empty_value = {}
+                if container_kind is not None:
+                    path_name = slug(json_path(instance_path))
+                    sample = copy.deepcopy(base_value)
+                    parent, field = get_parent_path(sample, instance_path)
+                    parent[field] = empty_value
+                    fixture_id = (
+                        f"{prefix}:explicit-empty-{container_kind}:"
+                        f"{path_name}"
+                    )
+                    self.add_positive(
+                        fixture_id,
+                        (
+                            f"{relative_root}/{root_name}-explicit-empty-"
+                            f"{container_kind}-{path_name}.json"
+                        ),
+                        f"operation_explicit_empty_{container_kind}",
+                        target,
+                        sample,
+                        key,
+                        directions_exercised=(direction,),
+                    )
+                    container_evidence.append(
+                        {
+                            "fixture_id": fixture_id,
+                            "surface_key": key.to_json(),
+                            "root": root_name,
+                            "instance_path": json_path(instance_path),
+                            "schema_path": location.schema_path,
+                            "container_kind": container_kind,
+                            "direction": direction,
+                            "nonempty_fixture_id": prefix,
+                        }
+                    )
+
+                if "default" not in resolved:
+                    continue
+                if instance_path not in optional_paths:
+                    raise FixtureError(
+                        "A1.4 user-integrations Commit-4 default-bearing "
+                        "property unexpectedly became required: "
+                        f"{key.compact()}:{root_name}:"
+                        f"{json_path(instance_path)}"
+                    )
+                path_name = slug(json_path(instance_path))
+                sample = copy.deepcopy(base_value)
+                parent, field = get_parent_path(sample, instance_path)
+                parent[field] = copy.deepcopy(resolved["default"])
+                fixture_id = f"{prefix}:explicit-default:{path_name}"
+                self.add_positive(
+                    fixture_id,
+                    (
+                        f"{relative_root}/{root_name}-explicit-default-"
+                        f"{path_name}.json"
+                    ),
+                    "operation_default_value",
+                    target,
+                    sample,
+                    key,
+                    directions_exercised=(direction,),
+                )
+                default_evidence.append(
+                    {
+                        "fixture_id": fixture_id,
+                        "omitted_fixture_id": (
+                            f"{prefix}:optional-omitted:{path_name}"
+                        ),
+                        "surface_key": key.to_json(),
+                        "root": root_name,
+                        "instance_path": json_path(instance_path),
+                        "schema_path": location.schema_path,
+                        "default": copy.deepcopy(resolved["default"]),
+                        "direction": direction,
+                    }
+                )
+
+            validator = self.catalog.target_validator(target)
+            for location in collect_open_object_locations(
+                self.catalog, target, base_value
+            ):
+                sample = copy.deepcopy(base_value)
+                open_object = get_instance_path(
+                    sample, location.instance_path
+                )
+                if not isinstance(open_object, dict):
+                    raise FixtureError(
+                        "A1.4 user-integrations Commit-4 open-object "
+                        "location is not an object"
+                    )
+                future_name = "futureSyntheticField"
+                if future_name in open_object:
+                    raise FixtureError(
+                        "A1.4 user-integrations Commit-4 future-field "
+                        "sentinel collides with a stable property"
+                    )
+                open_object[future_name] = {"synthetic": True}
+                if validator.validate_subschema(
+                    sample, target.schema, target.schema_path
+                ):
+                    continue
+                path_name = slug(json_path(location.instance_path))
+                fixture_id = f"{prefix}:future-open-object:{path_name}"
+                self.add_positive(
+                    fixture_id,
+                    (
+                        f"{relative_root}/{root_name}-future-open-object-"
+                        f"{path_name}.json"
+                    ),
+                    "operation_future_open_object",
+                    target,
+                    sample,
+                    key,
+                    directions_exercised=(direction,),
+                )
+                future_field_evidence.append(
+                    {
+                        "fixture_id": fixture_id,
+                        "surface_key": key.to_json(),
+                        "root": root_name,
+                        "instance_path": json_path(
+                            location.instance_path
+                        ),
+                        "schema_path": location.schema_path,
+                        "field": future_name,
+                        "direction": direction,
+                    }
+                )
+
+        for key in self.a14_user_integrations_c4_operation_keys:
+            contract = self.contracts[key]
+            for root_name, type_identity, direction in (
+                (
+                    "params",
+                    str(contract["parameter_type_identity"]),
+                    "Encode",
+                ),
+                (
+                    "result",
+                    str(
+                        contract.get(
+                            "result_schema_type_identity",
+                            contract["result_type_identity"],
+                        )
+                    ),
+                    "Decode",
+                ),
+            ):
+                target = self.catalog.standalone(type_identity)
+                base_value = self.synthesizer.sample(target)
+                add_property_supplements(
+                    key=key,
+                    root_name=root_name,
+                    target=target,
+                    base_value=base_value,
+                    direction=direction,
+                    prefix=(
+                        f"operation:{key.category}:{key.name}:{root_name}"
+                    ),
+                    relative_root=(
+                        f"cases/operations/client/{slug(key.name)}/"
+                        "supplements"
+                    ),
+                )
+
+        generated_ids = {str(record["id"]) for record in self.records}
+        missing_omitted = sorted(
+            record["omitted_fixture_id"]
+            for record in default_evidence
+            if record["omitted_fixture_id"] not in generated_ids
+        )
+        if missing_omitted:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-4 default evidence lacks "
+                f"matching omission fixtures: {missing_omitted}"
+            )
+        container_counts = {
+            kind: sum(
+                record["container_kind"] == kind
+                for record in container_evidence
+            )
+            for kind in ("array", "map")
+        }
+        if (
+            default_evidence
+            or container_counts != {"array": 4, "map": 0}
+            or len(future_field_evidence) != 18
+        ):
+            raise FixtureError(
+                "A1.4 user-integrations Commit-4 positive fixture "
+                "accounting changed: "
+                f"defaults={len(default_evidence)} "
+                f"containers={container_counts} "
+                f"future_fields={len(future_field_evidence)}"
+            )
+        self.a14_user_integrations_c4_positive_coverage = {
+            "default_bearing_fields": {
+                "count": len(default_evidence),
+                "path_evidence": default_evidence,
+            },
+            "containers": {
+                "counts": container_counts,
+                "path_evidence": container_evidence,
+                "nonempty_values_covered_by_base_fixtures": True,
+                "wrong_element_and_map_value_types_rejected": True,
+            },
+            "future_fields_on_open_objects": {
+                "count": len(future_field_evidence),
+                "path_evidence": future_field_evidence,
+                "raw_values_are_synthetic": True,
+            },
+            "integer_boundaries": {
+                "count": 0,
+                "path_evidence": [],
+                "formats": [],
+                "no_integer_or_number_constraints_in_batch_closure": True,
             },
         }
 

@@ -111,3 +111,34 @@ explicit-null state, and default-bearing hook source data is not invented
 during decoding. Hook and skill payloads continue through the existing
 generic extension route with method-specific snapshot redaction and no new
 frontend protocol or backend state.
+
+The third production batch completes the seven plugin operations that do not
+reach `PluginSource`:
+
+- `plugin/install`;
+- `plugin/share/checkout`;
+- `plugin/share/delete`;
+- `plugin/share/save`;
+- `plugin/share/updateTargets`;
+- `plugin/skill/read`; and
+- `plugin/uninstall`.
+
+At this checkpoint native A1.4 is 25 Complete, 1 Partial, and 30
+NotImplemented. The global registry is 305 Complete, 4 Partial, 30
+NotImplemented, and 48 NotApplicable. `plugin/share/delete` and
+`plugin/uninstall` use the established exact Unit-result decoder; the other
+five operations have concrete typed responses.
+
+The `Plugins` facade exposes `install`, `shareCheckout`, `shareDelete`,
+`shareSave`, `shareUpdateTargets`, `readSkill`, and `uninstall`. It submits
+each operation through the existing `RawProtocol`; AISuite does not install,
+remove, share, or execute plugins locally. Plugin names, paths, principals,
+targets, skill contents, and opaque future fields are never included in
+production diagnostics.
+
+The four catalog operations `plugin/installed`, `plugin/list`, `plugin/read`,
+and `plugin/share/list` remain deferred with the `git`, `local`, `npm`, and
+`remote` `PluginSource` alternatives until the next production batch. This
+checkpoint introduces no npm build or runtime dependency and does not execute
+npm. Notification variants remain at their final 57 and 59 alternatives, and
+Codex SOVERSION remains 1.
