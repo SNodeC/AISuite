@@ -3,18 +3,18 @@
   "codex_version": "codex-cli 0.144.6",
   "counts": {
     "facts_true_by_field": {
-      "authoritative_root_association": 319,
-      "fixture_current": 319,
-      "independently_schema_validated": 319,
-      "nullable_semantics_exercised": 288,
-      "optional_omitted_exercised": 319,
-      "optional_present_exercised": 319,
-      "positive_fixture_coverage": 319,
-      "reachable_union_alternatives_exercised": 288,
-      "required_fields_exercised": 319,
-      "schema_properties_exercised": 288
+      "authoritative_root_association": 322,
+      "fixture_current": 322,
+      "independently_schema_validated": 322,
+      "nullable_semantics_exercised": 298,
+      "optional_omitted_exercised": 322,
+      "optional_present_exercised": 322,
+      "positive_fixture_coverage": 322,
+      "reachable_union_alternatives_exercised": 298,
+      "required_fields_exercised": 322,
+      "schema_properties_exercised": 298
     },
-    "identities_with_positive_fixtures": 319,
+    "identities_with_positive_fixtures": 322,
     "surface_identities": 387
   },
   "format_version": 1,
@@ -1594,9 +1594,35 @@
     {
       "fixture_ids": [
         "operation:client_request:hooks/list:params",
-        "operation:client_request:hooks/list:result"
+        "operation:client_request:hooks/list:params:explicit-empty-array:cwds",
+        "operation:client_request:hooks/list:params:future-open-object:root",
+        "operation:client_request:hooks/list:params:optional-omitted:cwds",
+        "operation:client_request:hooks/list:result",
+        "operation:client_request:hooks/list:result:explicit-empty-array:data",
+        "operation:client_request:hooks/list:result:explicit-empty-array:data-0-errors",
+        "operation:client_request:hooks/list:result:explicit-empty-array:data-0-hooks",
+        "operation:client_request:hooks/list:result:explicit-empty-array:data-0-warnings",
+        "operation:client_request:hooks/list:result:future-open-object:data-0",
+        "operation:client_request:hooks/list:result:future-open-object:data-0-errors-0",
+        "operation:client_request:hooks/list:result:future-open-object:data-0-hooks-0",
+        "operation:client_request:hooks/list:result:future-open-object:root",
+        "operation:client_request:hooks/list:result:int64-data-0-hooks-0-displayorder-maximum",
+        "operation:client_request:hooks/list:result:int64-data-0-hooks-0-displayorder-minimum",
+        "operation:client_request:hooks/list:result:int64-data-0-hooks-0-displayorder-overflow",
+        "operation:client_request:hooks/list:result:int64-data-0-hooks-0-displayorder-underflow",
+        "operation:client_request:hooks/list:result:nullable-null:data-0-hooks-0-command",
+        "operation:client_request:hooks/list:result:nullable-null:data-0-hooks-0-matcher",
+        "operation:client_request:hooks/list:result:nullable-null:data-0-hooks-0-pluginid",
+        "operation:client_request:hooks/list:result:nullable-null:data-0-hooks-0-statusmessage",
+        "operation:client_request:hooks/list:result:optional-omitted:data-0-hooks-0-command",
+        "operation:client_request:hooks/list:result:optional-omitted:data-0-hooks-0-matcher",
+        "operation:client_request:hooks/list:result:optional-omitted:data-0-hooks-0-pluginid",
+        "operation:client_request:hooks/list:result:optional-omitted:data-0-hooks-0-statusmessage",
+        "operation:client_request:hooks/list:result:uint64-data-0-hooks-0-timeoutsec-maximum",
+        "operation:client_request:hooks/list:result:uint64-data-0-hooks-0-timeoutsec-minimum",
+        "operation:client_request:hooks/list:result:uint64-data-0-hooks-0-timeoutsec-overflow"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 28,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1607,13 +1633,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -1645,9 +1671,16 @@
     {
       "fixture_ids": [
         "operation:client_request:marketplace/add:params",
-        "operation:client_request:marketplace/add:result"
+        "operation:client_request:marketplace/add:params:explicit-empty-array:sparsepaths",
+        "operation:client_request:marketplace/add:params:future-open-object:root",
+        "operation:client_request:marketplace/add:params:nullable-null:refname",
+        "operation:client_request:marketplace/add:params:nullable-null:sparsepaths",
+        "operation:client_request:marketplace/add:params:optional-omitted:refname",
+        "operation:client_request:marketplace/add:params:optional-omitted:sparsepaths",
+        "operation:client_request:marketplace/add:result",
+        "operation:client_request:marketplace/add:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 9,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1658,21 +1691,25 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:marketplace/remove:params",
-        "operation:client_request:marketplace/remove:result"
+        "operation:client_request:marketplace/remove:params:future-open-object:root",
+        "operation:client_request:marketplace/remove:result",
+        "operation:client_request:marketplace/remove:result:future-open-object:root",
+        "operation:client_request:marketplace/remove:result:nullable-null:installedroot",
+        "operation:client_request:marketplace/remove:result:optional-omitted:installedroot"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 6,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1683,21 +1720,29 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:marketplace/upgrade:params",
-        "operation:client_request:marketplace/upgrade:result"
+        "operation:client_request:marketplace/upgrade:params:future-open-object:root",
+        "operation:client_request:marketplace/upgrade:params:nullable-null:marketplacename",
+        "operation:client_request:marketplace/upgrade:params:optional-omitted:marketplacename",
+        "operation:client_request:marketplace/upgrade:result",
+        "operation:client_request:marketplace/upgrade:result:explicit-empty-array:errors",
+        "operation:client_request:marketplace/upgrade:result:explicit-empty-array:selectedmarketplaces",
+        "operation:client_request:marketplace/upgrade:result:explicit-empty-array:upgradedroots",
+        "operation:client_request:marketplace/upgrade:result:future-open-object:errors-0",
+        "operation:client_request:marketplace/upgrade:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 10,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1708,13 +1753,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -2555,9 +2600,15 @@
     {
       "fixture_ids": [
         "operation:client_request:skills/config/write:params",
-        "operation:client_request:skills/config/write:result"
+        "operation:client_request:skills/config/write:params:future-open-object:root",
+        "operation:client_request:skills/config/write:params:nullable-null:name",
+        "operation:client_request:skills/config/write:params:nullable-null:path",
+        "operation:client_request:skills/config/write:params:optional-omitted:name",
+        "operation:client_request:skills/config/write:params:optional-omitted:path",
+        "operation:client_request:skills/config/write:result",
+        "operation:client_request:skills/config/write:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 8,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2568,21 +2619,24 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:skills/extraRoots/set:params",
-        "operation:client_request:skills/extraRoots/set:result"
+        "operation:client_request:skills/extraRoots/set:params:explicit-empty-array:extraroots",
+        "operation:client_request:skills/extraRoots/set:params:future-open-object:root",
+        "operation:client_request:skills/extraRoots/set:result",
+        "operation:client_request:skills/extraRoots/set:result:future-open-object:root"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 5,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2593,21 +2647,62 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:skills/list:params",
-        "operation:client_request:skills/list:result"
+        "operation:client_request:skills/list:params:explicit-empty-array:cwds",
+        "operation:client_request:skills/list:params:future-open-object:root",
+        "operation:client_request:skills/list:params:optional-omitted:cwds",
+        "operation:client_request:skills/list:params:optional-omitted:forcereload",
+        "operation:client_request:skills/list:result",
+        "operation:client_request:skills/list:result:explicit-empty-array:data",
+        "operation:client_request:skills/list:result:explicit-empty-array:data-0-errors",
+        "operation:client_request:skills/list:result:explicit-empty-array:data-0-skills",
+        "operation:client_request:skills/list:result:explicit-empty-array:data-0-skills-0-dependencies-tools",
+        "operation:client_request:skills/list:result:future-open-object:data-0",
+        "operation:client_request:skills/list:result:future-open-object:data-0-errors-0",
+        "operation:client_request:skills/list:result:future-open-object:data-0-skills-0",
+        "operation:client_request:skills/list:result:future-open-object:data-0-skills-0-dependencies",
+        "operation:client_request:skills/list:result:future-open-object:data-0-skills-0-dependencies-tools-0",
+        "operation:client_request:skills/list:result:future-open-object:data-0-skills-0-interface",
+        "operation:client_request:skills/list:result:future-open-object:root",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-dependencies",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-dependencies-tools-0-command",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-dependencies-tools-0-description",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-dependencies-tools-0-transport",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-dependencies-tools-0-url",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-interface",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-interface-brandcolor",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-interface-defaultprompt",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-interface-displayname",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-interface-iconlarge",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-interface-iconsmall",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-interface-shortdescription",
+        "operation:client_request:skills/list:result:nullable-null:data-0-skills-0-shortdescription",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-dependencies",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-dependencies-tools-0-command",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-dependencies-tools-0-description",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-dependencies-tools-0-transport",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-dependencies-tools-0-url",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-interface",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-interface-brandcolor",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-interface-defaultprompt",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-interface-displayname",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-interface-iconlarge",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-interface-iconsmall",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-interface-shortdescription",
+        "operation:client_request:skills/list:result:optional-omitted:data-0-skills-0-shortdescription"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 43,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -2618,13 +2713,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -5681,8 +5776,41 @@
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "baseline:server_notification:ServerNotification:method:hook/completed",
+        "baseline:server_notification:ServerNotification:method:hook/completed:explicit-default:params-run-source",
+        "baseline:server_notification:ServerNotification:method:hook/completed:explicit-empty-array:params-run-entries",
+        "baseline:server_notification:ServerNotification:method:hook/completed:future-open-object:params",
+        "baseline:server_notification:ServerNotification:method:hook/completed:future-open-object:params-run",
+        "baseline:server_notification:ServerNotification:method:hook/completed:future-open-object:params-run-entries-0",
+        "baseline:server_notification:ServerNotification:method:hook/completed:future-open-object:root",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-completedat-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-completedat-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-completedat-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-completedat-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-displayorder-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-displayorder-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-displayorder-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-displayorder-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-durationms-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-durationms-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-durationms-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-durationms-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-startedat-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-startedat-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-startedat-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:int64-params-run-startedat-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/completed:nullable-null:params-run-completedat",
+        "baseline:server_notification:ServerNotification:method:hook/completed:nullable-null:params-run-durationms",
+        "baseline:server_notification:ServerNotification:method:hook/completed:nullable-null:params-run-statusmessage",
+        "baseline:server_notification:ServerNotification:method:hook/completed:nullable-null:params-turnid",
+        "baseline:server_notification:ServerNotification:method:hook/completed:optional-omitted:params-run-completedat",
+        "baseline:server_notification:ServerNotification:method:hook/completed:optional-omitted:params-run-durationms",
+        "baseline:server_notification:ServerNotification:method:hook/completed:optional-omitted:params-run-source",
+        "baseline:server_notification:ServerNotification:method:hook/completed:optional-omitted:params-run-statusmessage",
+        "baseline:server_notification:ServerNotification:method:hook/completed:optional-omitted:params-turnid"
+      ],
+      "positive_fixture_count": 32,
       "protocol_surface_key": {
         "category": "server_notification",
         "discriminator_field": "method",
@@ -5690,21 +5818,54 @@
         "name": "hook/completed"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "baseline:server_notification:ServerNotification:method:hook/started",
+        "baseline:server_notification:ServerNotification:method:hook/started:explicit-default:params-run-source",
+        "baseline:server_notification:ServerNotification:method:hook/started:explicit-empty-array:params-run-entries",
+        "baseline:server_notification:ServerNotification:method:hook/started:future-open-object:params",
+        "baseline:server_notification:ServerNotification:method:hook/started:future-open-object:params-run",
+        "baseline:server_notification:ServerNotification:method:hook/started:future-open-object:params-run-entries-0",
+        "baseline:server_notification:ServerNotification:method:hook/started:future-open-object:root",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-completedat-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-completedat-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-completedat-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-completedat-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-displayorder-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-displayorder-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-displayorder-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-displayorder-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-durationms-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-durationms-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-durationms-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-durationms-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-startedat-maximum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-startedat-minimum",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-startedat-overflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:int64-params-run-startedat-underflow",
+        "baseline:server_notification:ServerNotification:method:hook/started:nullable-null:params-run-completedat",
+        "baseline:server_notification:ServerNotification:method:hook/started:nullable-null:params-run-durationms",
+        "baseline:server_notification:ServerNotification:method:hook/started:nullable-null:params-run-statusmessage",
+        "baseline:server_notification:ServerNotification:method:hook/started:nullable-null:params-turnid",
+        "baseline:server_notification:ServerNotification:method:hook/started:optional-omitted:params-run-completedat",
+        "baseline:server_notification:ServerNotification:method:hook/started:optional-omitted:params-run-durationms",
+        "baseline:server_notification:ServerNotification:method:hook/started:optional-omitted:params-run-source",
+        "baseline:server_notification:ServerNotification:method:hook/started:optional-omitted:params-run-statusmessage",
+        "baseline:server_notification:ServerNotification:method:hook/started:optional-omitted:params-turnid"
+      ],
+      "positive_fixture_count": 32,
       "protocol_surface_key": {
         "category": "server_notification",
         "discriminator_field": "method",
@@ -5712,16 +5873,16 @@
         "name": "hook/started"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {
@@ -6307,8 +6468,12 @@
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "baseline:server_notification:ServerNotification:method:skills/changed",
+        "baseline:server_notification:ServerNotification:method:skills/changed:future-open-object:params",
+        "baseline:server_notification:ServerNotification:method:skills/changed:future-open-object:root"
+      ],
+      "positive_fixture_count": 3,
       "protocol_surface_key": {
         "category": "server_notification",
         "discriminator_field": "method",
@@ -6316,16 +6481,16 @@
         "name": "skills/changed"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {

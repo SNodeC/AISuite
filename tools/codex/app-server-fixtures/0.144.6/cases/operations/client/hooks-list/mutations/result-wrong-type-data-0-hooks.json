@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "cwd": "synthetic-cf295cdac4",
+      "errors": [
+        {
+          "message": "synthetic-25061d7f56",
+          "path": "synthetic-a815c8eb04"
+        }
+      ],
+      "hooks": null,
+      "warnings": [
+        "synthetic-7d80e26d6d"
+      ]
+    }
+  ]
+}

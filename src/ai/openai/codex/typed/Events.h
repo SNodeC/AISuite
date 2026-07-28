@@ -16,8 +16,10 @@
 #include "ai/openai/codex/typed/Configuration.h"
 #include "ai/openai/codex/typed/ExternalAgents.h"
 #include "ai/openai/codex/typed/Filesystem.h"
+#include "ai/openai/codex/typed/Hooks.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/Reviews.h"
+#include "ai/openai/codex/typed/Skills.h"
 #include "ai/openai/codex/typed/Threads.h"
 
 #include <compare>
@@ -510,7 +512,10 @@ namespace ai::openai::codex::typed {
                                                      ItemGuardianApprovalReviewStartedNotification,
                                                      AppListUpdatedNotification,
                                                      ExternalAgentConfigImportCompletedNotification,
-                                                     ExternalAgentConfigImportProgressNotification>;
+                                                     ExternalAgentConfigImportProgressNotification,
+                                                     HookCompletedNotification,
+                                                     HookStartedNotification,
+                                                     SkillsChangedNotification>;
 
     struct ThreadStarted {
         Thread thread;
@@ -689,7 +694,10 @@ namespace ai::openai::codex::typed {
                                ItemGuardianApprovalReviewStartedNotification,
                                AppListUpdatedNotification,
                                ExternalAgentConfigImportCompletedNotification,
-                               ExternalAgentConfigImportProgressNotification>;
+                               ExternalAgentConfigImportProgressNotification,
+                               HookCompletedNotification,
+                               HookStartedNotification,
+                               SkillsChangedNotification>;
 
     class Events {
     public:

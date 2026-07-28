@@ -15,8 +15,11 @@
 #include "ai/openai/codex/detail/ExternalAgentCodec.h"
 #include "ai/openai/codex/detail/FeedbackCodec.h"
 #include "ai/openai/codex/detail/FilesystemCodec.h"
+#include "ai/openai/codex/detail/HookCodec.h"
+#include "ai/openai/codex/detail/MarketplaceCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
+#include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
 
@@ -74,6 +77,12 @@ namespace ai::openai::codex::detail {
             "ExternalAgentConfigImportResponse",
             "ExternalAgentConfigImportHistoriesReadResponse",
             "FeedbackUploadResponse",
+            "HooksListResponse",
+            "MarketplaceAddResponse",
+            "MarketplaceRemoveResponse",
+            "MarketplaceUpgradeResponse",
+            "SkillsConfigWriteResponse",
+            "SkillsListResponse",
         }};
 
         std::string_view resultDecoderIdentity(ClientOperationResultDecoder decoder) noexcept {
@@ -98,7 +107,9 @@ namespace ai::openai::codex::detail {
                    target == FsRemove || target == FsUnwatch || target == FsWatch || target == FsWriteFile || target == FuzzyFileSearch ||
                    target == PermissionProfileList || target == ReviewStart || target == ThreadApproveGuardianDeniedAction ||
                    target == AppsList || target == ExternalAgentConfigDetect || target == ExternalAgentConfigImport ||
-                   target == ExternalAgentConfigImportHistoriesRead || target == FeedbackUpload;
+                   target == ExternalAgentConfigImportHistoriesRead || target == FeedbackUpload || target == HooksList ||
+                   target == MarketplaceAdd || target == MarketplaceRemove || target == MarketplaceUpgrade ||
+                   target == SkillsConfigWrite || target == SkillsExtraRootsSet || target == SkillsList;
         }
 
         std::string decoderFieldPath(ClientRequestTarget target,
@@ -300,6 +311,18 @@ namespace ai::openai::codex::detail {
                     return decode(target, key, decodeExternalAgentConfigImportHistoriesReadResponse(raw, error), error);
                 case FeedbackUploadResponse:
                     return decode(target, key, decodeFeedbackUploadResponse(raw, error), error);
+                case HooksListResponse:
+                    return decode(target, key, decodeHooksListResponse(raw, error), error);
+                case MarketplaceAddResponse:
+                    return decode(target, key, decodeMarketplaceAddResponse(raw, error), error);
+                case MarketplaceRemoveResponse:
+                    return decode(target, key, decodeMarketplaceRemoveResponse(raw, error), error);
+                case MarketplaceUpgradeResponse:
+                    return decode(target, key, decodeMarketplaceUpgradeResponse(raw, error), error);
+                case SkillsConfigWriteResponse:
+                    return decode(target, key, decodeSkillsConfigWriteResponse(raw, error), error);
+                case SkillsListResponse:
+                    return decode(target, key, decodeSkillsListResponse(raw, error), error);
                 case Count:
                     break;
             }

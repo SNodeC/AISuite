@@ -1,0 +1,8 @@
+{
+  "method": "skills/changed",
+  "params": {
+    "futureSyntheticField": {
+      "synthetic": true
+    }
+  }
+}

@@ -77,3 +77,37 @@ Native A1.4 remains in progress after this checkpoint. Hooks, marketplace,
 skills, and plugins are completed by the following production batches; PR B,
 PR C, inherited A1.0 Partials, and InventoryOnly identities remain untouched.
 Codex SOVERSION remains 1 under the frozen milestone policy.
+
+The second production batch completes:
+
+- `hooks/list`;
+- `marketplace/add`;
+- `marketplace/remove`;
+- `marketplace/upgrade`;
+- `skills/config/write`;
+- `skills/extraRoots/set`;
+- `skills/list`;
+- `hook/completed`;
+- `hook/started`; and
+- `skills/changed`.
+
+At this checkpoint native A1.4 is 18 Complete, 1 Partial, and 37
+NotImplemented. The global registry is 298 Complete, 4 Partial, 37
+NotImplemented, and 48 NotApplicable.
+
+The batch adds the `Hooks`, `Marketplace`, and `Skills` facades without adding
+local hook execution, marketplace management, or skill scanning. Their public
+methods are `Hooks::list`, `Marketplace::add`, `Marketplace::remove`,
+`Marketplace::upgrade`, `Skills::writeConfig`, `Skills::setExtraRoots`, and
+`Skills::list`. `skills/extraRoots/set` is the first PR-A Unit-result
+operation; the other six requests have concrete typed responses.
+
+`HookCompletedNotification`, `HookStartedNotification`, and
+`SkillsChangedNotification` append at canonical notification indices 54–56
+and Event indices 56–58. The resulting variants have 57 and 59 alternatives,
+respectively, while every predecessor index remains unchanged. Open stable
+objects preserve future fields, nullable fields retain omission versus
+explicit-null state, and default-bearing hook source data is not invented
+during decoding. Hook and skill payloads continue through the existing
+generic extension route with method-specific snapshot redaction and no new
+frontend protocol or backend state.

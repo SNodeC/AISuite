@@ -34,7 +34,7 @@ sys.dont_write_bytecode = True
 
 FORMAT_VERSION = 1
 CODEX_VERSION = "codex-cli 0.144.6"
-RULES_VERSION = 3
+RULES_VERSION = 4
 
 CLIENT_REQUEST = "client_request"
 CLIENT_NOTIFICATION = "client_notification"
@@ -910,6 +910,27 @@ A14_USER_INTEGRATIONS_C2_NOTIFICATION_METHODS = frozenset(
         "app/list/updated",
         "externalAgentConfig/import/completed",
         "externalAgentConfig/import/progress",
+    }
+)
+# A1.4 PR-A Commit 3 owns exactly the hooks, marketplace, and skills roots.
+# This list remains independent of production registry status and explicitly
+# excludes every plugin, MCP, sandbox, and long-tail successor identity.
+A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS = frozenset(
+    {
+        "hooks/list",
+        "marketplace/add",
+        "marketplace/remove",
+        "marketplace/upgrade",
+        "skills/config/write",
+        "skills/extraRoots/set",
+        "skills/list",
+    }
+)
+A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS = frozenset(
+    {
+        "hook/completed",
+        "hook/started",
+        "skills/changed",
     }
 )
 SLICE_ORDER = {"A1.0": 0, "A1.1": 1, "A1.2": 2, "A1.3": 3, "A1.4": 4}
@@ -1816,6 +1837,51 @@ def derive_a14_user_integrations_c2_keys(
     ):
         raise FixtureError(
             "A1.4 user-integrations Commit-2 assignment mismatch: "
+            f"batch={len(batch)} operations={len(operations)} "
+            f"notifications={len(notifications)}"
+        )
+    return operations, notifications
+
+
+def derive_a14_user_integrations_c3_keys(
+    assignments: Mapping[SurfaceKey, Mapping[str, Any]],
+) -> tuple[tuple[SurfaceKey, ...], tuple[SurfaceKey, ...]]:
+    batch = tuple(
+        sorted(
+            key
+            for key, assignment in assignments.items()
+            if assignment["a1_slice"] == "A1.4"
+            and assignment["module"] == "IntegrationsAndLongTail"
+            and (
+                key.name in A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS
+                or key.name
+                in A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS
+            )
+        )
+    )
+    operations = tuple(
+        key for key in batch if key.category == CLIENT_REQUEST
+    )
+    notifications = tuple(
+        key for key in batch if key.category == SERVER_NOTIFICATION
+    )
+    if (
+        len(batch) != 10
+        or len(operations) != 7
+        or len(notifications) != 3
+        or {key.name for key in operations}
+        != A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS
+        or {key.name for key in notifications}
+        != A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS
+        or any(
+            key.discriminator_field != "method"
+            or assignments[key]["classification"] != "StablePublicRoot"
+            or assignments[key]["stability"] != "stable"
+            for key in batch
+        )
+    ):
+        raise FixtureError(
+            "A1.4 user-integrations Commit-3 assignment mismatch: "
             f"batch={len(batch)} operations={len(operations)} "
             f"notifications={len(notifications)}"
         )
@@ -2775,6 +2841,128 @@ class ReferencedDefinitionLocation:
     instance_path: tuple[str | int, ...]
     definition_name: str
     schema_path: str
+
+
+def collect_open_object_locations(
+    catalog: SchemaCatalog,
+    target: SchemaTarget,
+    instance: Any,
+) -> list[ContainerValueLocation]:
+    """Collect selected object instances that accept unknown properties."""
+
+    validator = catalog.target_validator(target)
+    found: dict[tuple[str | int, ...], ContainerValueLocation] = {}
+    active: set[tuple[tuple[str | int, ...], str]] = set()
+
+    def walk(
+        value: Any,
+        schema: Any,
+        schema_path: str,
+        instance_path: tuple[str | int, ...],
+    ) -> None:
+        if isinstance(schema, bool) or not isinstance(schema, dict):
+            return
+        if "$ref" in schema:
+            resolved, resolved_path = validator.resolve_reference(
+                schema["$ref"], pointer_child(schema_path, "$ref")
+            )
+            marker = (instance_path, resolved_path)
+            if marker in active:
+                return
+            active.add(marker)
+            walk(value, resolved, resolved_path, instance_path)
+            active.remove(marker)
+            return
+
+        for index, child in enumerate(schema.get("allOf", [])):
+            walk(
+                value,
+                child,
+                pointer_child(pointer_child(schema_path, "allOf"), index),
+                instance_path,
+            )
+        for keyword in ("oneOf", "anyOf"):
+            branches = schema.get(keyword, [])
+            matches = [
+                (index, child)
+                for index, child in enumerate(branches)
+                if not validator.validate_subschema(
+                    value,
+                    child,
+                    pointer_child(
+                        pointer_child(schema_path, keyword), index
+                    ),
+                )
+            ]
+            if keyword == "anyOf":
+                matches = matches[:1]
+            for index, child in matches:
+                walk(
+                    value,
+                    child,
+                    pointer_child(
+                        pointer_child(schema_path, keyword), index
+                    ),
+                    instance_path,
+                )
+
+        if isinstance(value, dict):
+            object_schema = (
+                schema.get("type") == "object"
+                or "properties" in schema
+                or "required" in schema
+            )
+            if (
+                object_schema
+                and schema.get("additionalProperties", True) is True
+            ):
+                found.setdefault(
+                    instance_path,
+                    ContainerValueLocation(
+                        instance_path,
+                        schema,
+                        schema_path,
+                    ),
+                )
+            properties = schema.get("properties", {})
+            for name, child in properties.items():
+                if name in value:
+                    walk(
+                        value[name],
+                        child,
+                        pointer_child(
+                            pointer_child(schema_path, "properties"), name
+                        ),
+                        instance_child(instance_path, name),
+                    )
+        elif isinstance(value, list):
+            items = schema.get("items")
+            if isinstance(items, list):
+                for index, (child_value, child) in enumerate(
+                    zip(value, items)
+                ):
+                    walk(
+                        child_value,
+                        child,
+                        pointer_child(
+                            pointer_child(schema_path, "items"), index
+                        ),
+                        instance_child(instance_path, index),
+                    )
+            elif isinstance(items, (bool, dict)):
+                for index, child_value in enumerate(value):
+                    walk(
+                        child_value,
+                        items,
+                        pointer_child(schema_path, "items"),
+                        instance_child(instance_path, index),
+                    )
+
+    walk(instance, target.schema, target.schema_path, ())
+    return [
+        found[path]
+        for path in sorted(found, key=lambda value: tuple(map(str, value)))
+    ]
 
 
 def collect_referenced_definition_locations(
@@ -4428,6 +4616,27 @@ class CorpusBuilder:
         self.a14_user_integrations_c2_positive_coverage: dict[
             str, Any
         ] = {}
+        self.a14_user_integrations_c3_operation_keys: tuple[
+            SurfaceKey, ...
+        ] = ()
+        self.a14_user_integrations_c3_notification_keys: tuple[
+            SurfaceKey, ...
+        ] = ()
+        self.a14_user_integrations_c3_negative_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_user_integrations_c3_indexed_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_user_integrations_c3_operation_root_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_user_integrations_c3_notification_root_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_user_integrations_c3_positive_coverage: dict[
+            str, Any
+        ] = {}
         self.reachability: dict[str, Any] = {}
         self.files: dict[str, bytes] = {}
         self.records: list[dict[str, Any]] = []
@@ -4627,6 +4836,10 @@ class CorpusBuilder:
             self.a14_user_integrations_c2_operation_keys,
             self.a14_user_integrations_c2_notification_keys,
         ) = derive_a14_user_integrations_c2_keys(self.assignments)
+        (
+            self.a14_user_integrations_c3_operation_keys,
+            self.a14_user_integrations_c3_notification_keys,
+        ) = derive_a14_user_integrations_c3_keys(self.assignments)
 
         self._build_operation_fixtures()
         self._build_b4_operation_supplements()
@@ -4639,6 +4852,7 @@ class CorpusBuilder:
         self._build_a13_approval_operation_supplements()
         self._build_a13_review_operation_supplements()
         self._build_a14_user_integrations_c2_operation_supplements()
+        self._build_a14_user_integrations_c3_operation_supplements()
         self._build_b4_helper_union_fixtures()
         self._build_a12_b4_helper_union_fixtures()
         self._build_baseline_fixtures()
@@ -4651,6 +4865,7 @@ class CorpusBuilder:
         self._build_a13_filesystem_notification_fixtures()
         self._build_a13_review_notification_fixtures()
         self._build_a14_user_integrations_c2_notification_fixtures()
+        self._build_a14_user_integrations_c3_notification_fixtures()
         self._build_a12_b4_positive_supplements()
         self._build_a12_b5_positive_supplements()
         self._build_a13_command_positive_supplements()
@@ -4658,6 +4873,7 @@ class CorpusBuilder:
         self._build_a13_approval_positive_supplements()
         self._build_a13_review_positive_supplements()
         self._build_a14_user_integrations_c2_positive_supplements()
+        self._build_a14_user_integrations_c3_positive_supplements()
         self._build_union_fixtures()
         self._build_b2_open_enum_fixtures()
         self._build_b3_open_enum_fixtures()
@@ -4774,6 +4990,9 @@ class CorpusBuilder:
             positive_records, positive_fixture_ids
         )
         self._apply_a14_user_integrations_c2_indexed_completeness(
+            positive_records, positive_fixture_ids
+        )
+        self._apply_a14_user_integrations_c3_indexed_completeness(
             positive_records, positive_fixture_ids
         )
         mutation_counts = {
@@ -5106,6 +5325,33 @@ class CorpusBuilder:
                     self.a14_user_integrations_c2_negative_coverage
                 ),
             },
+            "a1_4_user_integrations_commit_3": {
+                "assignment_derived_operation_keys": [
+                    key.to_json()
+                    for key in self.a14_user_integrations_c3_operation_keys
+                ],
+                "assignment_derived_notification_keys": [
+                    key.to_json()
+                    for key in (
+                        self.a14_user_integrations_c3_notification_keys
+                    )
+                ],
+                "indexed_schema_coverage": (
+                    self.a14_user_integrations_c3_indexed_coverage
+                ),
+                "operation_root_fixture_plan": (
+                    self.a14_user_integrations_c3_operation_root_coverage
+                ),
+                "notification_root_fixture_plan": (
+                    self.a14_user_integrations_c3_notification_root_coverage
+                ),
+                "positive_coverage": (
+                    self.a14_user_integrations_c3_positive_coverage
+                ),
+                "negative_coverage": (
+                    self.a14_user_integrations_c3_negative_coverage
+                ),
+            },
             "fixtures": serialized_records,
         }
         self.files["index.json"] = encoded_json(index)
@@ -5286,6 +5532,17 @@ class CorpusBuilder:
                 if is_a14_user_integrations_c2
                 else {}
             )
+            is_a14_user_integrations_c3 = key in {
+                *self.a14_user_integrations_c3_operation_keys,
+                *self.a14_user_integrations_c3_notification_keys,
+            }
+            a14_user_integrations_c3_schema_facts = (
+                self.a14_user_integrations_c3_indexed_coverage.get(
+                    key.compact(), {}
+                ).get("schema_fixture_facts", {})
+                if is_a14_user_integrations_c3
+                else {}
+            )
             indexed_coverage = (
                 self.b2_indexed_coverage.get(key.compact(), {})
                 if is_b2_shared_common
@@ -5331,6 +5588,10 @@ class CorpusBuilder:
                     key.compact(), {}
                 )
                 if is_a14_user_integrations_c2
+                else self.a14_user_integrations_c3_indexed_coverage.get(
+                    key.compact(), {}
+                )
+                if is_a14_user_integrations_c3
                 else {}
             )
             coverage_records.append(
@@ -5431,6 +5692,11 @@ class CorpusBuilder:
                                     "schema_properties_exercised", False
                                 )
                             )
+                            or bool(
+                                a14_user_integrations_c3_schema_facts.get(
+                                    "schema_properties_exercised", False
+                                )
+                            )
                         ),
                         "optional_present_exercised": bool(records)
                         and all(
@@ -5510,6 +5776,11 @@ class CorpusBuilder:
                             )
                             or bool(
                                 a14_user_integrations_c2_schema_facts.get(
+                                    "nullable_semantics_exercised", False
+                                )
+                            )
+                            or bool(
+                                a14_user_integrations_c3_schema_facts.get(
                                     "nullable_semantics_exercised", False
                                 )
                             )
@@ -5593,6 +5864,12 @@ class CorpusBuilder:
                             )
                             or bool(
                                 a14_user_integrations_c2_schema_facts.get(
+                                    "reachable_union_alternatives_exercised",
+                                    False,
+                                )
+                            )
+                            or bool(
+                                a14_user_integrations_c3_schema_facts.get(
                                     "reachable_union_alternatives_exercised",
                                     False,
                                 )
@@ -5878,6 +6155,33 @@ class CorpusBuilder:
                 ),
                 "negative_coverage": (
                     self.a14_user_integrations_c2_negative_coverage
+                ),
+            },
+            "a1_4_user_integrations_commit_3": {
+                "assignment_derived_operation_keys": [
+                    key.to_json()
+                    for key in self.a14_user_integrations_c3_operation_keys
+                ],
+                "assignment_derived_notification_keys": [
+                    key.to_json()
+                    for key in (
+                        self.a14_user_integrations_c3_notification_keys
+                    )
+                ],
+                "indexed_schema_coverage": (
+                    self.a14_user_integrations_c3_indexed_coverage
+                ),
+                "operation_root_fixture_plan": (
+                    self.a14_user_integrations_c3_operation_root_coverage
+                ),
+                "notification_root_fixture_plan": (
+                    self.a14_user_integrations_c3_notification_root_coverage
+                ),
+                "positive_coverage": (
+                    self.a14_user_integrations_c3_positive_coverage
+                ),
+                "negative_coverage": (
+                    self.a14_user_integrations_c3_negative_coverage
                 ),
             },
             "fixtures": [
@@ -7200,6 +7504,43 @@ class CorpusBuilder:
                 f"{len(self.a14_user_integrations_c2_indexed_coverage)}"
             )
 
+    def _apply_a14_user_integrations_c3_indexed_completeness(
+        self,
+        positive_records: Sequence[MutableMapping[str, Any]],
+        positive_fixture_ids: set[str],
+    ) -> None:
+        self.a14_user_integrations_c3_indexed_coverage.update(
+            self._apply_b4_operation_indexed_completeness(
+                positive_records,
+                positive_fixture_ids,
+                operation_keys=self.a14_user_integrations_c3_operation_keys,
+                batch="A1.4 user integrations Commit 3",
+                known_enum_values={},
+                include_a11_operation_helpers=False,
+            )
+        )
+        self.a14_user_integrations_c3_indexed_coverage.update(
+            self._apply_b5_notification_indexed_completeness(
+                positive_records,
+                positive_fixture_ids,
+                notification_keys=(
+                    self.a14_user_integrations_c3_notification_keys
+                ),
+                batch="A1.4 user integrations Commit 3",
+            )
+        )
+        self.a14_user_integrations_c3_indexed_coverage = dict(
+            sorted(
+                self.a14_user_integrations_c3_indexed_coverage.items()
+            )
+        )
+        if len(self.a14_user_integrations_c3_indexed_coverage) != 10:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-3 indexed coverage must "
+                "contain exactly 10 identities, got "
+                f"{len(self.a14_user_integrations_c3_indexed_coverage)}"
+            )
+
     def _build_operation_fixtures(self) -> None:
         for key, contract in sorted(self.contracts.items()):
             family = "client" if key.category == CLIENT_REQUEST else "server"
@@ -7253,6 +7594,7 @@ class CorpusBuilder:
                     )
                     or key in self.a13_review_operation_keys
                     or key in self.a14_user_integrations_c2_operation_keys
+                    or key in self.a14_user_integrations_c3_operation_keys
                     else ("Decode",)
                     if (
                         (
@@ -7322,6 +7664,7 @@ class CorpusBuilder:
                     )
                     or key in self.a13_review_operation_keys
                     or key in self.a14_user_integrations_c2_operation_keys
+                    or key in self.a14_user_integrations_c3_operation_keys
                     else ("Encode",)
                     if (
                         (
@@ -8442,6 +8785,103 @@ class CorpusBuilder:
         self.a14_user_integrations_c2_negative_coverage[
             "operation_opaque_exclusions"
         ] = []
+
+    def _build_a14_user_integrations_c3_operation_supplements(
+        self,
+    ) -> None:
+        coverage, opaque_exclusions = self._build_operation_supplements(
+            self.a14_user_integrations_c3_operation_keys,
+            "A1.4 user integrations Commit 3",
+        )
+        if opaque_exclusions:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-3 operations unexpectedly "
+                "contain an unconstrained schema value: "
+                f"{opaque_exclusions}"
+            )
+        unit_methods = {
+            key.name
+            for key in self.a14_user_integrations_c3_operation_keys
+            if self.contracts[key]["result_contract_kind"] == "Unit"
+        }
+        concrete_methods = {
+            key.name
+            for key in self.a14_user_integrations_c3_operation_keys
+            if self.contracts[key]["result_contract_kind"] == "Concrete"
+        }
+        if (
+            len(self.a14_user_integrations_c3_operation_keys) != 7
+            or unit_methods != {"skills/extraRoots/set"}
+            or concrete_methods
+            != A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS
+            - unit_methods
+        ):
+            raise FixtureError(
+                "A1.4 user-integrations Commit 3 must retain six Concrete "
+                "contracts and the sole skills/extraRoots/set Unit result"
+            )
+        self.a14_user_integrations_c3_operation_root_coverage = dict(
+            sorted(coverage.items())
+        )
+        self.a14_user_integrations_c3_negative_coverage[
+            "operation_opaque_exclusions"
+        ] = []
+        unit_key = next(
+            key
+            for key in self.a14_user_integrations_c3_operation_keys
+            if key.name == "skills/extraRoots/set"
+        )
+        unit_target = self.catalog.standalone(
+            str(
+                self.contracts[unit_key].get(
+                    "result_schema_type_identity",
+                    self.contracts[unit_key]["result_type_identity"],
+                )
+            )
+        )
+        invalid_unit: Any = []
+        diagnostics = self.catalog.target_validator(
+            unit_target
+        ).validate_subschema(
+            invalid_unit,
+            unit_target.schema,
+            unit_target.schema_path,
+        )
+        codes = sorted({item.code for item in diagnostics})
+        if not codes:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-3 malformed Unit result "
+                "was accepted by the pinned response schema"
+            )
+        invalid_unit_id = (
+            "operation:client_request:skills/extraRoots/set:result:"
+            "malformed-unit-array"
+        )
+        self.add_negative(
+            invalid_unit_id,
+            (
+                "cases/operations/client/skills-extraroots-set/mutations/"
+                "result-malformed-unit-array.json"
+            ),
+            "operation_wrong_type",
+            unit_target,
+            invalid_unit,
+            codes,
+            unit_key,
+            "malformed_unit_result",
+        )
+        self.a14_user_integrations_c3_negative_coverage[
+            "unit_result_invariants"
+        ] = {
+            "method": unit_key.name,
+            "result_contract_kind": "Unit",
+            "accepted_fixture_id": (
+                "operation:client_request:skills/extraRoots/set:result"
+            ),
+            "malformed_fixture_id": invalid_unit_id,
+            "accepted_form": {},
+            "malformed_form": [],
+        }
 
     def _add_a13_integer_boundaries(
         self,
@@ -10699,6 +11139,32 @@ class CorpusBuilder:
             "notification_payload_mutations"
         ] = payload_mutations
 
+    def _build_a14_user_integrations_c3_notification_fixtures(
+        self,
+    ) -> None:
+        (
+            self.a14_user_integrations_c3_notification_root_coverage,
+            payload_mutations,
+        ) = self._build_notification_fixtures(
+            self.a14_user_integrations_c3_notification_keys,
+            batch="A1.4 user integrations Commit 3",
+            expected_existing=0,
+            expected_generated=3,
+            expected_counts={
+                "base_generated": 3,
+                "missing_required": 34,
+                "nullable_null": 8,
+                "optional_omitted": 10,
+                "required_nullable_null": 0,
+                "wrong_type": 46,
+                "wrong_type_opaque_exclusions": 0,
+            },
+            expected_opaque_paths=set(),
+        )
+        self.a14_user_integrations_c3_negative_coverage[
+            "notification_payload_mutations"
+        ] = payload_mutations
+
     def _build_a14_user_integrations_c2_positive_supplements(
         self,
     ) -> None:
@@ -10991,6 +11457,586 @@ class CorpusBuilder:
                     ),
                     **int64_coverage,
                 },
+            },
+        }
+
+    def _build_a14_user_integrations_c3_positive_supplements(
+        self,
+    ) -> None:
+        container_evidence: list[dict[str, Any]] = []
+        default_evidence: list[dict[str, Any]] = []
+        future_field_evidence: list[dict[str, Any]] = []
+        integer_boundary_evidence: list[dict[str, Any]] = []
+
+        def add_property_supplements(
+            *,
+            key: SurfaceKey,
+            root_name: str,
+            target: SchemaTarget,
+            base_value: Any,
+            direction: str,
+            prefix: str,
+            relative_root: str,
+            intended_branch_indices: tuple[int, ...] = (),
+        ) -> None:
+            optional_locations = collect_optional_present_locations(
+                self.catalog, target, base_value
+            )
+            required_locations = collect_required_locations(
+                self.catalog, target, base_value
+            )
+            optional_paths = {
+                location.instance_path for location in optional_locations
+            }
+            locations = {
+                location.instance_path: location
+                for location in (*required_locations, *optional_locations)
+            }
+            for instance_path, location in sorted(
+                locations.items(),
+                key=lambda item: tuple(map(str, item[0])),
+            ):
+                current = get_instance_path(base_value, instance_path)
+                resolved, _ = self.catalog.resolve(
+                    target, location.schema, location.schema_path
+                )
+                if not isinstance(resolved, dict):
+                    continue
+
+                container_kind: str | None = None
+                empty_value: Any = None
+                if isinstance(current, list):
+                    container_kind = "array"
+                    empty_value = []
+                elif (
+                    isinstance(current, dict)
+                    and isinstance(
+                        resolved.get("additionalProperties"), dict
+                    )
+                ):
+                    container_kind = "map"
+                    empty_value = {}
+                if container_kind is not None:
+                    path_name = slug(json_path(instance_path))
+                    sample = copy.deepcopy(base_value)
+                    parent, field = get_parent_path(sample, instance_path)
+                    parent[field] = empty_value
+                    fixture_id = (
+                        f"{prefix}:explicit-empty-{container_kind}:"
+                        f"{path_name}"
+                    )
+                    self.add_positive(
+                        fixture_id,
+                        (
+                            f"{relative_root}/{root_name}-explicit-empty-"
+                            f"{container_kind}-{path_name}.json"
+                        ),
+                        (
+                            "notification_explicit_empty_"
+                            if key.category == SERVER_NOTIFICATION
+                            else "operation_explicit_empty_"
+                        )
+                        + container_kind,
+                        target,
+                        sample,
+                        key,
+                        intended_branch_indices,
+                        directions_exercised=(direction,),
+                    )
+                    container_evidence.append(
+                        {
+                            "fixture_id": fixture_id,
+                            "surface_key": key.to_json(),
+                            "root": root_name,
+                            "instance_path": json_path(instance_path),
+                            "schema_path": location.schema_path,
+                            "container_kind": container_kind,
+                            "direction": direction,
+                            "nonempty_fixture_id": prefix,
+                        }
+                    )
+
+                if "default" not in resolved:
+                    continue
+                if instance_path not in optional_paths:
+                    raise FixtureError(
+                        "A1.4 user-integrations Commit-3 default-bearing "
+                        "property unexpectedly became required: "
+                        f"{key.compact()}:{root_name}:"
+                        f"{json_path(instance_path)}"
+                    )
+                path_name = slug(json_path(instance_path))
+                sample = copy.deepcopy(base_value)
+                parent, field = get_parent_path(sample, instance_path)
+                parent[field] = copy.deepcopy(resolved["default"])
+                fixture_id = f"{prefix}:explicit-default:{path_name}"
+                self.add_positive(
+                    fixture_id,
+                    (
+                        f"{relative_root}/{root_name}-explicit-default-"
+                        f"{path_name}.json"
+                    ),
+                    (
+                        "notification_default_value"
+                        if key.category == SERVER_NOTIFICATION
+                        else "operation_default_value"
+                    ),
+                    target,
+                    sample,
+                    key,
+                    intended_branch_indices,
+                    directions_exercised=(direction,),
+                )
+                default_evidence.append(
+                    {
+                        "fixture_id": fixture_id,
+                        "omitted_fixture_id": (
+                            f"{prefix}:optional-omitted:{path_name}"
+                        ),
+                        "surface_key": key.to_json(),
+                        "root": root_name,
+                        "instance_path": json_path(instance_path),
+                        "schema_path": location.schema_path,
+                        "default": copy.deepcopy(resolved["default"]),
+                        "direction": direction,
+                    }
+                )
+
+            validator = self.catalog.target_validator(target)
+            for location in collect_open_object_locations(
+                self.catalog, target, base_value
+            ):
+                sample = copy.deepcopy(base_value)
+                open_object = get_instance_path(
+                    sample, location.instance_path
+                )
+                if not isinstance(open_object, dict):
+                    raise FixtureError(
+                        "A1.4 user-integrations Commit-3 open-object "
+                        "location is not an object"
+                    )
+                future_name = "futureSyntheticField"
+                if future_name in open_object:
+                    raise FixtureError(
+                        "A1.4 user-integrations Commit-3 future-field "
+                        "sentinel collides with a stable property"
+                    )
+                open_object[future_name] = {
+                    "synthetic": True,
+                }
+                if validator.validate_subschema(
+                    sample, target.schema, target.schema_path
+                ):
+                    continue
+                path_name = slug(json_path(location.instance_path))
+                fixture_id = (
+                    f"{prefix}:future-open-object:{path_name}"
+                )
+                self.add_positive(
+                    fixture_id,
+                    (
+                        f"{relative_root}/{root_name}-future-open-object-"
+                        f"{path_name}.json"
+                    ),
+                    (
+                        "notification_future_open_object"
+                        if key.category == SERVER_NOTIFICATION
+                        else "operation_future_open_object"
+                    ),
+                    target,
+                    sample,
+                    key,
+                    intended_branch_indices,
+                    directions_exercised=(direction,),
+                )
+                future_field_evidence.append(
+                    {
+                        "fixture_id": fixture_id,
+                        "surface_key": key.to_json(),
+                        "root": root_name,
+                        "instance_path": json_path(
+                            location.instance_path
+                        ),
+                        "schema_path": location.schema_path,
+                        "field": future_name,
+                        "direction": direction,
+                    }
+                )
+
+        def add_integer_boundaries(
+            *,
+            key: SurfaceKey,
+            root_name: str,
+            target: SchemaTarget,
+            base_value: Any,
+            direction: str,
+            prefix: str,
+            relative_root: str,
+            instance_path: tuple[str | int, ...],
+            format_name: str,
+            minimum_representable: int,
+            maximum_representable: int,
+            unsigned: bool,
+            intended_branch_indices: tuple[int, ...] = (),
+        ) -> None:
+            validator = self.catalog.target_validator(target)
+            path_name = slug(json_path(instance_path))
+            cases = (
+                (
+                    "minimum",
+                    minimum_representable,
+                    True,
+                ),
+                (
+                    "maximum",
+                    maximum_representable,
+                    True,
+                ),
+                (
+                    "overflow",
+                    maximum_representable + 1,
+                    False,
+                ),
+                (
+                    "negative" if unsigned else "underflow",
+                    -1 if unsigned else minimum_representable - 1,
+                    False,
+                ),
+            )
+            representable_ids: list[str] = []
+            unrepresentable_ids: list[str] = []
+            invalid_ids: list[str] = []
+            for case, number, representable in cases:
+                sample = copy.deepcopy(base_value)
+                parent, field = get_parent_path(sample, instance_path)
+                parent[field] = number
+                diagnostics = validator.validate_subschema(
+                    sample, target.schema, target.schema_path
+                )
+                schema_valid = not diagnostics
+                fixture_id = (
+                    f"{prefix}:{format_name}-{path_name}-{case}"
+                )
+                relative = (
+                    f"{relative_root}/"
+                    f"{root_name}-{format_name}-{path_name}-{case}.json"
+                )
+                if schema_valid:
+                    self.add_positive(
+                        fixture_id,
+                        relative,
+                        (
+                            "notification_numeric_boundary"
+                            if key.category == SERVER_NOTIFICATION
+                            and representable
+                            else "notification_pinned_format_unrepresentable"
+                            if key.category == SERVER_NOTIFICATION
+                            else "operation_numeric_boundary"
+                            if representable
+                            else "operation_pinned_format_unrepresentable"
+                        ),
+                        target,
+                        sample,
+                        key,
+                        intended_branch_indices,
+                        directions_exercised=(
+                            (direction,) if representable else ()
+                        ),
+                    )
+                    if representable:
+                        representable_ids.append(fixture_id)
+                    else:
+                        unrepresentable_ids.append(fixture_id)
+                        self.records[-1]["typed_state_boundary"] = {
+                            "representable": False,
+                            "production_diagnostic_expected": False,
+                            "instance_path": json_path(instance_path),
+                            "format": format_name,
+                            "minimum_representable": (
+                                minimum_representable
+                            ),
+                            "maximum_representable": (
+                                maximum_representable
+                            ),
+                            "reason": (
+                                "Draft-07 format is annotative; this pinned "
+                                f"{format_name} value is outside the reviewed "
+                                "public typed state and cannot reach the "
+                                "runtime codec"
+                            ),
+                        }
+                else:
+                    codes = sorted({item.code for item in diagnostics})
+                    self.add_negative(
+                        fixture_id,
+                        relative.replace(
+                            "/supplements/", "/mutations/"
+                        ),
+                        (
+                            "notification_numeric_boundary_invalid"
+                            if key.category == SERVER_NOTIFICATION
+                            else "operation_numeric_boundary_invalid"
+                        ),
+                        target,
+                        sample,
+                        codes,
+                        key,
+                        f"{format_name}_{case}",
+                    )
+                    invalid_ids.append(fixture_id)
+
+            fractional = copy.deepcopy(base_value)
+            parent, field = get_parent_path(fractional, instance_path)
+            parent[field] = 0.5
+            diagnostics = validator.validate_subschema(
+                fractional, target.schema, target.schema_path
+            )
+            codes = sorted({item.code for item in diagnostics})
+            if not codes:
+                raise FixtureError(
+                    "A1.4 user-integrations Commit-3 fractional integer "
+                    f"boundary was accepted: {key.name}:{root_name}:"
+                    f"{json_path(instance_path)}"
+                )
+            fractional_id = (
+                f"{prefix}:{format_name}-{path_name}-fractional"
+            )
+            self.add_negative(
+                fractional_id,
+                (
+                    f"{relative_root.replace('/supplements', '/mutations')}/"
+                    f"{root_name}-{format_name}-{path_name}-fractional.json"
+                ),
+                (
+                    "notification_numeric_boundary_invalid"
+                    if key.category == SERVER_NOTIFICATION
+                    else "operation_numeric_boundary_invalid"
+                ),
+                target,
+                fractional,
+                codes,
+                key,
+                f"{format_name}_fractional",
+            )
+            invalid_ids.append(fractional_id)
+            integer_boundary_evidence.append(
+                {
+                    "surface_key": key.to_json(),
+                    "root": root_name,
+                    "instance_path": json_path(instance_path),
+                    "format": format_name,
+                    "minimum_representable": minimum_representable,
+                    "maximum_representable": maximum_representable,
+                    "schema_valid_typed_representable": representable_ids,
+                    "schema_valid_typed_unrepresentable": (
+                        unrepresentable_ids
+                    ),
+                    "schema_invalid": invalid_ids,
+                    "direction": direction,
+                }
+            )
+
+        for key in self.a14_user_integrations_c3_operation_keys:
+            contract = self.contracts[key]
+            for root_name, type_identity, direction in (
+                (
+                    "params",
+                    str(contract["parameter_type_identity"]),
+                    "Encode",
+                ),
+                (
+                    "result",
+                    str(
+                        contract.get(
+                            "result_schema_type_identity",
+                            contract["result_type_identity"],
+                        )
+                    ),
+                    "Decode",
+                ),
+            ):
+                target = self.catalog.standalone(type_identity)
+                base_value = self.synthesizer.sample(target)
+                add_property_supplements(
+                    key=key,
+                    root_name=root_name,
+                    target=target,
+                    base_value=base_value,
+                    direction=direction,
+                    prefix=(
+                        f"operation:{key.category}:{key.name}:{root_name}"
+                    ),
+                    relative_root=(
+                        f"cases/operations/client/{slug(key.name)}/"
+                        "supplements"
+                    ),
+                )
+
+        for key in self.a14_user_integrations_c3_notification_keys:
+            target, index, branch = self.catalog.method_target(
+                key.category, key.name
+            )
+            branch_path = pointer_child(
+                pointer_child(target.schema_path, "oneOf"), index
+            )
+            base_value = self.synthesizer.sample(
+                target, branch, branch_path
+            )
+            add_property_supplements(
+                key=key,
+                root_name="notification",
+                target=target,
+                base_value=base_value,
+                direction="Decode",
+                prefix=f"baseline:{key.compact()}",
+                relative_root=(
+                    f"cases/notifications/server/{slug(key.name)}/"
+                    "supplements"
+                ),
+                intended_branch_indices=(index,),
+            )
+
+        hooks_list_key = next(
+            key
+            for key in self.a14_user_integrations_c3_operation_keys
+            if key.name == "hooks/list"
+        )
+        hooks_list_target = self.catalog.standalone("HooksListResponse")
+        hooks_list_value = self.synthesizer.sample(hooks_list_target)
+        hooks_list_prefix = (
+            "operation:client_request:hooks/list:result"
+        )
+        hooks_list_relative = (
+            "cases/operations/client/hooks-list/supplements"
+        )
+        add_integer_boundaries(
+            key=hooks_list_key,
+            root_name="result",
+            target=hooks_list_target,
+            base_value=hooks_list_value,
+            direction="Decode",
+            prefix=hooks_list_prefix,
+            relative_root=hooks_list_relative,
+            instance_path=("data", 0, "hooks", 0, "displayOrder"),
+            format_name="int64",
+            minimum_representable=-9_223_372_036_854_775_808,
+            maximum_representable=9_223_372_036_854_775_807,
+            unsigned=False,
+        )
+        add_integer_boundaries(
+            key=hooks_list_key,
+            root_name="result",
+            target=hooks_list_target,
+            base_value=hooks_list_value,
+            direction="Decode",
+            prefix=hooks_list_prefix,
+            relative_root=hooks_list_relative,
+            instance_path=("data", 0, "hooks", 0, "timeoutSec"),
+            format_name="uint64",
+            minimum_representable=0,
+            maximum_representable=18_446_744_073_709_551_615,
+            unsigned=True,
+        )
+
+        for method in ("hook/completed", "hook/started"):
+            key = next(
+                candidate
+                for candidate
+                in self.a14_user_integrations_c3_notification_keys
+                if candidate.name == method
+            )
+            target, index, branch = self.catalog.method_target(
+                key.category, key.name
+            )
+            branch_path = pointer_child(
+                pointer_child(target.schema_path, "oneOf"), index
+            )
+            base_value = self.synthesizer.sample(
+                target, branch, branch_path
+            )
+            for field in (
+                "completedAt",
+                "displayOrder",
+                "durationMs",
+                "startedAt",
+            ):
+                add_integer_boundaries(
+                    key=key,
+                    root_name="notification",
+                    target=target,
+                    base_value=base_value,
+                    direction="Decode",
+                    prefix=f"baseline:{key.compact()}",
+                    relative_root=(
+                        f"cases/notifications/server/{slug(key.name)}/"
+                        "supplements"
+                    ),
+                    instance_path=("params", "run", field),
+                    format_name="int64",
+                    minimum_representable=(
+                        -9_223_372_036_854_775_808
+                    ),
+                    maximum_representable=(
+                        9_223_372_036_854_775_807
+                    ),
+                    unsigned=False,
+                    intended_branch_indices=(index,),
+                )
+
+        generated_ids = {str(record["id"]) for record in self.records}
+        missing_omitted = sorted(
+            record["omitted_fixture_id"]
+            for record in default_evidence
+            if record["omitted_fixture_id"] not in generated_ids
+        )
+        if missing_omitted:
+            raise FixtureError(
+                "A1.4 user-integrations Commit-3 default evidence lacks "
+                f"matching omission fixtures: {missing_omitted}"
+            )
+        container_counts = {
+            kind: sum(
+                record["container_kind"] == kind
+                for record in container_evidence
+            )
+            for kind in ("array", "map")
+        }
+        if (
+            len(default_evidence) != 2
+            or container_counts != {"array": 17, "map": 0}
+            or len(future_field_evidence) != 34
+            or len(integer_boundary_evidence) != 10
+        ):
+            raise FixtureError(
+                "A1.4 user-integrations Commit-3 positive fixture "
+                "accounting changed: "
+                f"defaults={len(default_evidence)} "
+                f"containers={container_counts} "
+                f"future_fields={len(future_field_evidence)} "
+                f"integer_paths={len(integer_boundary_evidence)}"
+            )
+        self.a14_user_integrations_c3_positive_coverage = {
+            "default_bearing_fields": {
+                "count": len(default_evidence),
+                "path_evidence": default_evidence,
+            },
+            "containers": {
+                "counts": container_counts,
+                "path_evidence": container_evidence,
+                "nonempty_values_covered_by_base_fixtures": True,
+                "wrong_element_and_map_value_types_rejected": True,
+            },
+            "future_fields_on_open_objects": {
+                "count": len(future_field_evidence),
+                "path_evidence": future_field_evidence,
+                "raw_values_are_synthetic": True,
+            },
+            "integer_boundaries": {
+                "count": len(integer_boundary_evidence),
+                "path_evidence": integer_boundary_evidence,
+                "formats": ["int64", "uint64"],
+                "fractional_values_rejected": True,
+                "minimum_constraints_exercised": True,
             },
         }
 

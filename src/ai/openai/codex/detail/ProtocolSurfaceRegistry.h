@@ -128,6 +128,13 @@ namespace ai::openai::codex::detail {
         ExternalAgentConfigImport,
         ExternalAgentConfigImportHistoriesRead,
         FeedbackUpload,
+        HooksList,
+        MarketplaceAdd,
+        MarketplaceRemove,
+        MarketplaceUpgrade,
+        SkillsConfigWrite,
+        SkillsExtraRootsSet,
+        SkillsList,
         Count
     };
 
@@ -189,6 +196,9 @@ namespace ai::openai::codex::detail {
         AppListUpdated,
         ExternalAgentConfigImportCompleted,
         ExternalAgentConfigImportProgress,
+        HookCompleted,
+        HookStarted,
+        SkillsChanged,
         Count
     };
 
@@ -448,6 +458,12 @@ namespace ai::openai::codex::detail {
         ExternalAgentConfigImportResponse,
         ExternalAgentConfigImportHistoriesReadResponse,
         FeedbackUploadResponse,
+        HooksListResponse,
+        MarketplaceAddResponse,
+        MarketplaceRemoveResponse,
+        MarketplaceUpgradeResponse,
+        SkillsConfigWriteResponse,
+        SkillsListResponse,
         Count
     };
 

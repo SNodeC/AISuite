@@ -20,10 +20,13 @@
 #include "ai/openai/codex/detail/ExternalAgentCodec.h"
 #include "ai/openai/codex/detail/FeedbackCodec.h"
 #include "ai/openai/codex/detail/FilesystemCodec.h"
+#include "ai/openai/codex/detail/HookCodec.h"
+#include "ai/openai/codex/detail/MarketplaceCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
 #include "ai/openai/codex/detail/ServerRequestDecoder.h"
+#include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
 #include "ai/openai/codex/typed/Accounts.h"
@@ -35,11 +38,14 @@
 #include "ai/openai/codex/typed/ExternalAgents.h"
 #include "ai/openai/codex/typed/Feedback.h"
 #include "ai/openai/codex/typed/Filesystem.h"
+#include "ai/openai/codex/typed/Hooks.h"
+#include "ai/openai/codex/typed/Marketplace.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
 #include "ai/openai/codex/typed/Results.h"
 #include "ai/openai/codex/typed/Reviews.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
+#include "ai/openai/codex/typed/Skills.h"
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
@@ -69,9 +75,12 @@ namespace ai::openai::codex::typed {
              std::unique_ptr<Configuration> configuration,
              std::unique_ptr<ExternalAgents> externalAgents,
              std::unique_ptr<Feedback> feedback,
+             std::unique_ptr<Hooks> hooks,
+             std::unique_ptr<Marketplace> marketplace,
              std::unique_ptr<Models> models,
              std::unique_ptr<PermissionProfiles> permissionProfiles,
              std::unique_ptr<Reviews> reviews,
+             std::unique_ptr<Skills> skills,
              std::unique_ptr<Threads> threads,
              std::unique_ptr<Turns> turns,
              std::unique_ptr<Events> events,
@@ -83,9 +92,12 @@ namespace ai::openai::codex::typed {
             , configuration(std::move(configuration))
             , externalAgents(std::move(externalAgents))
             , feedback(std::move(feedback))
+            , hooks(std::move(hooks))
+            , marketplace(std::move(marketplace))
             , models(std::move(models))
             , permissionProfiles(std::move(permissionProfiles))
             , reviews(std::move(reviews))
+            , skills(std::move(skills))
             , threads(std::move(threads))
             , turns(std::move(turns))
             , events(std::move(events))
@@ -99,9 +111,12 @@ namespace ai::openai::codex::typed {
         std::unique_ptr<Configuration> configuration;
         std::unique_ptr<ExternalAgents> externalAgents;
         std::unique_ptr<Feedback> feedback;
+        std::unique_ptr<Hooks> hooks;
+        std::unique_ptr<Marketplace> marketplace;
         std::unique_ptr<Models> models;
         std::unique_ptr<PermissionProfiles> permissionProfiles;
         std::unique_ptr<Reviews> reviews;
+        std::unique_ptr<Skills> skills;
         std::unique_ptr<Threads> threads;
         std::unique_ptr<Turns> turns;
         std::unique_ptr<Events> events;
@@ -115,9 +130,12 @@ namespace ai::openai::codex::typed {
                    std::unique_ptr<Configuration> configuration,
                    std::unique_ptr<ExternalAgents> externalAgents,
                    std::unique_ptr<Feedback> feedback,
+                   std::unique_ptr<Hooks> hooks,
+                   std::unique_ptr<Marketplace> marketplace,
                    std::unique_ptr<Models> models,
                    std::unique_ptr<PermissionProfiles> permissionProfiles,
                    std::unique_ptr<Reviews> reviews,
+                   std::unique_ptr<Skills> skills,
                    std::unique_ptr<Threads> threads,
                    std::unique_ptr<Turns> turns,
                    std::unique_ptr<Events> events,
@@ -129,9 +147,12 @@ namespace ai::openai::codex::typed {
                                       std::move(configuration),
                                       std::move(externalAgents),
                                       std::move(feedback),
+                                      std::move(hooks),
+                                      std::move(marketplace),
                                       std::move(models),
                                       std::move(permissionProfiles),
                                       std::move(reviews),
+                                      std::move(skills),
                                       std::move(threads),
                                       std::move(turns),
                                       std::move(events),
@@ -196,6 +217,22 @@ namespace ai::openai::codex::typed {
         return *impl->feedback;
     }
 
+    Hooks& Client::hooks() noexcept {
+        return *impl->hooks;
+    }
+
+    const Hooks& Client::hooks() const noexcept {
+        return *impl->hooks;
+    }
+
+    Marketplace& Client::marketplace() noexcept {
+        return *impl->marketplace;
+    }
+
+    const Marketplace& Client::marketplace() const noexcept {
+        return *impl->marketplace;
+    }
+
     Models& Client::models() noexcept {
         return *impl->models;
     }
@@ -218,6 +255,14 @@ namespace ai::openai::codex::typed {
 
     const Reviews& Client::reviews() const noexcept {
         return *impl->reviews;
+    }
+
+    Skills& Client::skills() noexcept {
+        return *impl->skills;
+    }
+
+    const Skills& Client::skills() const noexcept {
+        return *impl->skills;
     }
 
     Threads& Client::threads() noexcept {
@@ -425,6 +470,53 @@ namespace ai::openai::codex::typed {
     Feedback::Submission Feedback::upload(FeedbackUploadParams params, UploadResultHandler handler) {
         return submitTypedRequest<FeedbackUploadResponse>(
             protocol, detail::ClientRequestTarget::FeedbackUpload, params, std::move(handler), detail::encodeFeedbackUploadParams);
+    }
+
+    Hooks::Hooks(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Hooks::Submission Hooks::list(HooksListParams params, ListResultHandler handler) {
+        return submitTypedRequest<HooksListResponse>(
+            protocol, detail::ClientRequestTarget::HooksList, params, std::move(handler), detail::encodeHooksListParams);
+    }
+
+    Marketplace::Marketplace(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Marketplace::Submission Marketplace::add(MarketplaceAddParams params, AddResultHandler handler) {
+        return submitTypedRequest<MarketplaceAddResponse>(
+            protocol, detail::ClientRequestTarget::MarketplaceAdd, params, std::move(handler), detail::encodeMarketplaceAddParams);
+    }
+
+    Marketplace::Submission Marketplace::remove(MarketplaceRemoveParams params, RemoveResultHandler handler) {
+        return submitTypedRequest<MarketplaceRemoveResponse>(
+            protocol, detail::ClientRequestTarget::MarketplaceRemove, params, std::move(handler), detail::encodeMarketplaceRemoveParams);
+    }
+
+    Marketplace::Submission Marketplace::upgrade(MarketplaceUpgradeParams params, UpgradeResultHandler handler) {
+        return submitTypedRequest<MarketplaceUpgradeResponse>(
+            protocol, detail::ClientRequestTarget::MarketplaceUpgrade, params, std::move(handler), detail::encodeMarketplaceUpgradeParams);
+    }
+
+    Skills::Skills(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Skills::Submission Skills::writeConfig(SkillsConfigWriteParams params, WriteConfigResultHandler handler) {
+        return submitTypedRequest<SkillsConfigWriteResponse>(
+            protocol, detail::ClientRequestTarget::SkillsConfigWrite, params, std::move(handler), detail::encodeSkillsConfigWriteParams);
+    }
+
+    Skills::Submission Skills::setExtraRoots(SkillsExtraRootsSetParams params, SetExtraRootsResultHandler handler) {
+        return submitTypedRequest<Unit>(
+            protocol, detail::ClientRequestTarget::SkillsExtraRootsSet, params, std::move(handler), detail::encodeSkillsExtraRootsSetParams);
+    }
+
+    Skills::Submission Skills::list(SkillsListParams params, ListResultHandler handler) {
+        return submitTypedRequest<SkillsListResponse>(
+            protocol, detail::ClientRequestTarget::SkillsList, params, std::move(handler), detail::encodeSkillsListParams);
     }
 
     Accounts::Accounts(AppServerClient::RawProtocol& protocol) noexcept

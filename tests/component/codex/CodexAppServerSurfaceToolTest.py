@@ -378,9 +378,9 @@ def test_operation_descriptor_guards(
         for line in generated.splitlines()
         if line.startswith("CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR(")
     ]
-    if len(rows) != 62:
+    if len(rows) != 69:
         raise AssertionError(
-            "client-operation descriptor must contain exactly 62 rows"
+            "client-operation descriptor must contain exactly 69 rows"
         )
     method_rows = {
         match.group(1): line
@@ -455,8 +455,17 @@ def test_operation_descriptor_guards(
         "externalAgentConfig/import/readHistories",
         "feedback/upload",
     }
+    a1_4_user_integration_commit_3_methods = {
+        "hooks/list",
+        "marketplace/add",
+        "marketplace/remove",
+        "marketplace/upgrade",
+        "skills/config/write",
+        "skills/extraRoots/set",
+        "skills/list",
+    }
     if (
-        len(method_rows) != 62
+        len(method_rows) != 69
         or len(a1_1_methods) != 22
         or set(method_rows)
         != a1_1_methods
@@ -469,6 +478,7 @@ def test_operation_descriptor_guards(
         | a1_3_permission_methods
         | a1_3_review_guardian_methods
         | a1_4_user_integration_commit_2_methods
+        | a1_4_user_integration_commit_3_methods
         or a1_1_methods & a1_2_b2_methods
         or (a1_1_methods | a1_2_b2_methods) & a1_2_b3_methods
         or (
@@ -532,13 +542,26 @@ def test_operation_descriptor_guards(
             | a1_3_review_guardian_methods
         )
         & a1_4_user_integration_commit_2_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_2_b5_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_permission_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+        )
+        & a1_4_user_integration_commit_3_methods
     ):
         raise AssertionError(
             "client-operation descriptors lost the exact 22 A1.1 / "
             "nine A1.2 B2 / two A1.2 B3 / two A1.2 B4 / five A1.2 B5 "
             "/ four A1.3 command / ten A1.3 filesystem/fuzzy / one A1.3 "
             "permission-profile / two A1.3 review/guardian / five A1.4 "
-            "user-integration Commit-2 projection"
+            "user-integration Commit-2 / seven Commit-3 projection"
         )
     targets = {
         match.group(1)
@@ -549,7 +572,7 @@ def test_operation_descriptor_guards(
             )
         )
     }
-    if len(targets) != 62:
+    if len(targets) != 69:
         raise AssertionError(
             "client-operation descriptor targets are not an exact bijection"
         )
@@ -570,13 +593,13 @@ def test_operation_descriptor_guards(
             "ClientOperationResultDecoder::Unit)" in line
             for line in rows
         )
-        != 18
+        != 19
         or sum(
             "ResultContractKind::Concrete, "
             "ClientOperationResultDecoder::" in line
             for line in rows
         )
-        != 44
+        != 50
     ):
         raise AssertionError(
             "client-operation descriptor result-kind split changed"
@@ -659,6 +682,16 @@ def test_operation_descriptor_guards(
             for method in a1_4_user_integration_commit_2_methods
         )
         != 5
+        or sum(
+            "ResultContractKind::Unit" in method_rows[method]
+            for method in a1_4_user_integration_commit_3_methods
+        )
+        != 1
+        or sum(
+            "ResultContractKind::Concrete" in method_rows[method]
+            for method in a1_4_user_integration_commit_3_methods
+        )
+        != 6
         or any(
             expected not in method_rows[method]
             for method, expected in {
@@ -1189,11 +1222,16 @@ def test_notification_descriptor_guards(
         "externalAgentConfig/import/completed",
         "externalAgentConfig/import/progress",
     }
+    a1_4_user_integration_commit_3_methods = {
+        "hook/completed",
+        "hook/started",
+        "skills/changed",
+    }
     residual_methods = {"error"}
     if (
-        len(rows) != 55
-        or len(targets) != 55
-        or len(method_rows) != 55
+        len(rows) != 58
+        or len(targets) != 58
+        or len(method_rows) != 58
         or len(a1_1_methods) != 37
         or set(method_rows)
         != (
@@ -1205,6 +1243,7 @@ def test_notification_descriptor_guards(
             | a1_3_filesystem_methods
             | a1_3_review_guardian_methods
             | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
             | residual_methods
         )
         or (
@@ -1216,6 +1255,7 @@ def test_notification_descriptor_guards(
             | a1_3_filesystem_methods
             | a1_3_review_guardian_methods
             | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
         )
         & residual_methods
         or a1_1_methods & a1_2_b2_methods
@@ -1258,14 +1298,25 @@ def test_notification_descriptor_guards(
             | a1_3_review_guardian_methods
         )
         & a1_4_user_integration_commit_2_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+        )
+        & a1_4_user_integration_commit_3_methods
     ):
         raise AssertionError(
-            "server-notification descriptors are not an exact 55-row "
+            "server-notification descriptors are not an exact 58-row "
             "target bijection with the reviewed slice projection"
         )
     if (
         sum(line.endswith(", true)") for line in rows) != 37
-        or sum(line.endswith(", false)") for line in rows) != 18
+        or sum(line.endswith(", false)") for line in rows) != 21
         or any(
             not method_rows[method].endswith(", true)")
             for method in a1_1_methods
@@ -1280,6 +1331,7 @@ def test_notification_descriptor_guards(
                 | a1_3_filesystem_methods
                 | a1_3_review_guardian_methods
                 | a1_4_user_integration_commit_2_methods
+                | a1_4_user_integration_commit_3_methods
                 | residual_methods
             )
         )

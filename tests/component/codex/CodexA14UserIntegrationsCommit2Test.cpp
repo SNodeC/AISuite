@@ -375,10 +375,10 @@ namespace {
             }
         }
 
-        result.expectTrue(complete == 288 && partial == 4 && notImplemented == 47 && notApplicable == 48,
-                          "Commit-2 global registry arithmetic is exactly 288/4/47/48");
-        result.expectTrue(nativeComplete == 8 && nativePartial == 1 && nativeNotImplemented == 47,
-                          "Commit-2 native A1.4 registry arithmetic is exactly 8/1/47");
+        result.expectTrue(complete == 298 && partial == 4 && notImplemented == 37 && notApplicable == 48,
+                          "Commit-3 global registry arithmetic is exactly 298/4/37/48");
+        result.expectTrue(nativeComplete == 18 && nativePartial == 1 && nativeNotImplemented == 37,
+                          "Commit-3 native A1.4 registry arithmetic is exactly 18/1/37");
 
         const std::array<std::string_view, 8> expectedCompleted{{
             "app/list",
@@ -390,7 +390,6 @@ namespace {
             "externalAgentConfig/import/readHistories",
             "feedback/upload",
         }};
-        result.expectEqual(expectedCompleted.size(), completedA14.size(), "only eight native A1.4 identities are Complete after Commit 2");
         for (std::string_view identity : expectedCompleted) {
             bool found = false;
             for (const std::string& actual : completedA14) {
@@ -512,8 +511,8 @@ int main() {
     using FeedbackAccessor = typed::Feedback& (typed::Client::*) () noexcept;
     using ConstFeedbackAccessor = const typed::Feedback& (typed::Client::*) () const noexcept;
 
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 54);
-    static_assert(std::variant_size_v<typed::Event> == 56);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 57);
+    static_assert(std::variant_size_v<typed::Event> == 59);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
                                  typed::ExternalAgentConfigImportCompletedNotification>);

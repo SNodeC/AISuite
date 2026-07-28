@@ -12,12 +12,15 @@ set(AI_OPENAI_CODEX_CPP
     detail/ExternalAgentCodec.cpp
     detail/FeedbackCodec.cpp
     detail/FilesystemCodec.cpp
+    detail/HookCodec.cpp
     detail/ItemDecoder.cpp
+    detail/MarketplaceCodec.cpp
     detail/ModelCodec.cpp
     detail/ProtocolCodec.cpp
     detail/ProtocolSurfaceRegistry.cpp
     detail/ReviewCodec.cpp
     detail/ServerRequestDecoder.cpp
+    detail/SkillCodec.cpp
     detail/ThreadCodec.cpp
     detail/Transport.cpp
     detail/TurnCodec.cpp
@@ -45,12 +48,15 @@ set(AI_OPENAI_CODEX_PUBLIC_H
     typed/ExternalAgents.h
     typed/Feedback.h
     typed/Filesystem.h
+    typed/Hooks.h
     typed/Items.h
+    typed/Marketplace.h
     typed/Models.h
     typed/PermissionProfiles.h
     typed/Reviews.h
     typed/Results.h
     typed/ServerRequests.h
+    typed/Skills.h
     typed/Threads.h
     typed/Turns.h
     typed/Types.h
@@ -107,12 +113,15 @@ install(
         typed/ExternalAgents.h
         typed/Feedback.h
         typed/Filesystem.h
+        typed/Hooks.h
         typed/Items.h
+        typed/Marketplace.h
         typed/Models.h
         typed/PermissionProfiles.h
         typed/Reviews.h
         typed/Results.h
         typed/ServerRequests.h
+        typed/Skills.h
         typed/Threads.h
         typed/Turns.h
         typed/Types.h

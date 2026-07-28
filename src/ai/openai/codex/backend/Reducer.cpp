@@ -838,6 +838,15 @@ namespace ai::openai::codex::backend {
                 },
                 [](const typed::ExternalAgentConfigImportProgressNotification& value) -> std::vector<BackendEvent> {
                     return preserveTypedNotification(value, ServerNotificationTarget::ExternalAgentConfigImportProgress);
+                },
+                [](const typed::HookCompletedNotification& value) -> std::vector<BackendEvent> {
+                    return preserveTypedNotification(value, ServerNotificationTarget::HookCompleted);
+                },
+                [](const typed::HookStartedNotification& value) -> std::vector<BackendEvent> {
+                    return preserveTypedNotification(value, ServerNotificationTarget::HookStarted);
+                },
+                [](const typed::SkillsChangedNotification& value) -> std::vector<BackendEvent> {
+                    return preserveTypedNotification(value, ServerNotificationTarget::SkillsChanged);
                 }},
             event);
     }

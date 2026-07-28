@@ -16,10 +16,13 @@
 #include "ai/openai/codex/typed/ExternalAgents.h" // IWYU pragma: export
 #include "ai/openai/codex/typed/Feedback.h"       // IWYU pragma: export
 #include "ai/openai/codex/typed/Filesystem.h"     // IWYU pragma: export
+#include "ai/openai/codex/typed/Hooks.h"          // IWYU pragma: export
+#include "ai/openai/codex/typed/Marketplace.h"    // IWYU pragma: export
 #include "ai/openai/codex/typed/Models.h"         // IWYU pragma: export
 #include "ai/openai/codex/typed/PermissionProfiles.h" // IWYU pragma: export
 #include "ai/openai/codex/typed/Reviews.h"            // IWYU pragma: export
 #include "ai/openai/codex/typed/ServerRequests.h" // IWYU pragma: export
+#include "ai/openai/codex/typed/Skills.h"         // IWYU pragma: export
 #include "ai/openai/codex/typed/Threads.h"        // IWYU pragma: export
 #include "ai/openai/codex/typed/Turns.h"          // IWYU pragma: export
 
@@ -62,6 +65,12 @@ namespace ai::openai::codex::typed {
         Feedback& feedback() noexcept;
         const Feedback& feedback() const noexcept;
 
+        Hooks& hooks() noexcept;
+        const Hooks& hooks() const noexcept;
+
+        Marketplace& marketplace() noexcept;
+        const Marketplace& marketplace() const noexcept;
+
         Models& models() noexcept;
         const Models& models() const noexcept;
 
@@ -70,6 +79,9 @@ namespace ai::openai::codex::typed {
 
         Reviews& reviews() noexcept;
         const Reviews& reviews() const noexcept;
+
+        Skills& skills() noexcept;
+        const Skills& skills() const noexcept;
 
         Threads& threads() noexcept;
         const Threads& threads() const noexcept;
@@ -93,9 +105,12 @@ namespace ai::openai::codex::typed {
                std::unique_ptr<Configuration> configuration,
                std::unique_ptr<ExternalAgents> externalAgents,
                std::unique_ptr<Feedback> feedback,
+               std::unique_ptr<Hooks> hooks,
+               std::unique_ptr<Marketplace> marketplace,
                std::unique_ptr<Models> models,
                std::unique_ptr<PermissionProfiles> permissionProfiles,
                std::unique_ptr<Reviews> reviews,
+               std::unique_ptr<Skills> skills,
                std::unique_ptr<Threads> threads,
                std::unique_ptr<Turns> turns,
                std::unique_ptr<Events> events,

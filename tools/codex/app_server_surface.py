@@ -292,6 +292,41 @@ A14_USER_INTEGRATIONS_COMMIT_2 = frozenset(
         ),
     }
 )
+# PR-A Commit 3 exact-key production ownership. These identities advance
+# together with their types, codecs, descriptors, facades, fixtures, and
+# focused tests.
+A14_USER_INTEGRATIONS_COMMIT_3 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "hooks/list"),
+        ("client_request", "ClientRequest", "method", "marketplace/add"),
+        ("client_request", "ClientRequest", "method", "marketplace/remove"),
+        ("client_request", "ClientRequest", "method", "marketplace/upgrade"),
+        ("client_request", "ClientRequest", "method", "skills/config/write"),
+        ("client_request", "ClientRequest", "method", "skills/extraRoots/set"),
+        ("client_request", "ClientRequest", "method", "skills/list"),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "hook/completed",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "hook/started",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "skills/changed",
+        ),
+    }
+)
+A14_USER_INTEGRATIONS_IMPLEMENTED = (
+    A14_USER_INTEGRATIONS_COMMIT_2 | A14_USER_INTEGRATIONS_COMMIT_3
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -1755,6 +1790,48 @@ RUNTIME_TARGETS = {
         "client_request",
         "ClientRequest",
         "method",
+        "hooks/list",
+    ): "ClientRequestTarget::HooksList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "marketplace/add",
+    ): "ClientRequestTarget::MarketplaceAdd",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "marketplace/remove",
+    ): "ClientRequestTarget::MarketplaceRemove",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "marketplace/upgrade",
+    ): "ClientRequestTarget::MarketplaceUpgrade",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "skills/config/write",
+    ): "ClientRequestTarget::SkillsConfigWrite",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "skills/extraRoots/set",
+    ): "ClientRequestTarget::SkillsExtraRootsSet",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "skills/list",
+    ): "ClientRequestTarget::SkillsList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
         "model/list",
     ): "ClientRequestTarget::ModelList",
     (
@@ -2051,6 +2128,24 @@ RUNTIME_TARGETS = {
         "method",
         "externalAgentConfig/import/progress",
     ): "ServerNotificationTarget::ExternalAgentConfigImportProgress",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "hook/completed",
+    ): "ServerNotificationTarget::HookCompleted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "hook/started",
+    ): "ServerNotificationTarget::HookStarted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "skills/changed",
+    ): "ServerNotificationTarget::SkillsChanged",
     (
         "server_notification",
         "ServerNotification",
@@ -2617,6 +2712,8 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "externalAgentConfig/import/progress": (
         "typed::ExternalAgentConfigImportProgressNotification"
     ),
+    "hook/completed": "typed::HookCompletedNotification",
+    "hook/started": "typed::HookStartedNotification",
     "fs/changed": "typed::FsChangedNotification",
     "fuzzyFileSearch/sessionCompleted": (
         "typed::FuzzyFileSearchSessionCompletedNotification"
@@ -2643,6 +2740,7 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "item/reasoning/summaryTextDelta": "typed::ReasoningSummaryTextDeltaNotification",
     "item/reasoning/textDelta": "typed::ReasoningTextDeltaNotification",
     "item/started": "typed::ItemStartedNotification",
+    "skills/changed": "typed::SkillsChangedNotification",
     "model/rerouted": "typed::ModelRerouted",
     "model/safetyBuffering/updated": "typed::ModelSafetyBufferingUpdatedNotification",
     "model/verification": "typed::ModelVerificationNotification",
@@ -2717,7 +2815,7 @@ SERVER_NOTIFICATION_CODECS = {
     if key[0] == "server_notification"
 }
 if (
-    len(SERVER_NOTIFICATION_CODECS) != 55
+    len(SERVER_NOTIFICATION_CODECS) != 58
     or set(SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD)
     != {key[3] for key in SERVER_NOTIFICATION_CODECS}
 ):
@@ -5933,8 +6031,8 @@ def registry_statuses(
         evidence["runtime_decoder_matches_registry"] = True
         evidence["opaque_fields_declared"] = True
         evidence["no_known_schema_fields_dropped"] = True
-    if identity in A14_USER_INTEGRATIONS_COMMIT_2 and target is not None:
-        # PR-A Commit 2 binds each exact app/external-agent/feedback root to a
+    if identity in A14_USER_INTEGRATIONS_IMPLEMENTED and target is not None:
+        # PR-A Commits 2 and 3 bind each exact implemented integration root to a
         # reviewed schema-complete codec, generated descriptor, grouped facade,
         # schema-derived fixture, and focused wire/notification test.  All
         # objects in this closure are open; raw retention supplements the
@@ -6736,7 +6834,7 @@ def generate_client_operation_descriptor_data(
             or (
                 assignment.get("slice") == "A1.4"
                 and assignment.get("module") == "IntegrationsAndLongTail"
-                and key in A14_USER_INTEGRATIONS_COMMIT_2
+                and key in A14_USER_INTEGRATIONS_IMPLEMENTED
             )
         )
         and assignment.get("classification") == "StablePublicRoot"
@@ -6748,9 +6846,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 62
+        len(expected_keys) != 69
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 62
+        or len(set(targets.values())) != 69
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -6762,7 +6860,9 @@ def generate_client_operation_descriptor_data(
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
             "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
             "5 A1.4 user-integration "
-            "client requests must each own one unique ClientRequestTarget"
+            "client requests must each own one unique ClientRequestTarget; "
+            f"expected_keys={len(expected_keys)}, targets={len(targets)}, "
+            f"unique_targets={len(set(targets.values()))}"
         )
     if set(contracts) & expected_keys != expected_keys:
         raise SurfaceError(
@@ -6794,10 +6894,11 @@ def generate_client_operation_descriptor_data(
         "fs/unwatch",
         "fs/writeFile",
         "thread/approveGuardianDeniedAction",
+        "skills/extraRoots/set",
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 44
+        or len(expected_keys - unit_keys) != 50
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -6805,8 +6906,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 plus PR-A Commit 2 requests must remain "
-            "exactly 18 Unit and 44 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus PR-A Commits 2-3 requests must remain "
+            "exactly 19 Unit and 50 Concrete requests"
         )
 
     result_decoders = {
@@ -6839,6 +6940,12 @@ def generate_client_operation_descriptor_data(
         "ExternalAgentConfigImportResponse",
         "ExternalAgentConfigImportHistoriesReadResponse",
         "FeedbackUploadResponse",
+        "HooksListResponse",
+        "MarketplaceAddResponse",
+        "MarketplaceRemoveResponse",
+        "MarketplaceUpgradeResponse",
+        "SkillsConfigWriteResponse",
+        "SkillsListResponse",
         "ThreadForkResponse",
         "ThreadGoalClearResponse",
         "ThreadGoalGetResponse",
@@ -6914,14 +7021,14 @@ def generate_server_notification_descriptor_data(
     }
     descriptor_keys = set(SERVER_NOTIFICATION_CODECS)
     if (
-        len(expected_keys) != 55
+        len(expected_keys) != 58
         or descriptor_keys != expected_keys
         or len({metadata[0] for metadata in SERVER_NOTIFICATION_CODECS.values()})
-        != 55
+        != 58
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorAssignmentMismatch: "
-            "every one of the 55 typed server-notification targets must own "
+            "every one of the 58 typed server-notification targets must own "
             "one exact generated descriptor"
         )
 
@@ -7002,7 +7109,7 @@ def generate_server_notification_descriptor_data(
     a14_user_integration_keys = {
         key
         for key in residual_keys
-        if key in A14_USER_INTEGRATIONS_COMMIT_2
+        if key in A14_USER_INTEGRATIONS_IMPLEMENTED
         and assignments[key].get("slice") == "A1.4"
         and assignments[key].get("module") == "IntegrationsAndLongTail"
     }
@@ -7015,7 +7122,7 @@ def generate_server_notification_descriptor_data(
         or len(a13_command_keys) != 1
         or len(a13_filesystem_keys) != 3
         or len(a13_review_guardian_keys) != 3
-        or len(a14_user_integration_keys) != 3
+        or len(a14_user_integration_keys) != 6
         or {key[3] for key in residual_keys} != {"error"}
     ):
         raise SurfaceError(
