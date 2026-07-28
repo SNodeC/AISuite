@@ -9,9 +9,12 @@
 #define AI_OPENAI_CODEX_TYPED_CLIENT_H
 
 #include "ai/openai/codex/typed/Accounts.h"       // IWYU pragma: export
+#include "ai/openai/codex/typed/Apps.h"           // IWYU pragma: export
 #include "ai/openai/codex/typed/Commands.h"       // IWYU pragma: export
 #include "ai/openai/codex/typed/Configuration.h"  // IWYU pragma: export
 #include "ai/openai/codex/typed/Events.h"         // IWYU pragma: export
+#include "ai/openai/codex/typed/ExternalAgents.h" // IWYU pragma: export
+#include "ai/openai/codex/typed/Feedback.h"       // IWYU pragma: export
 #include "ai/openai/codex/typed/Filesystem.h"     // IWYU pragma: export
 #include "ai/openai/codex/typed/Models.h"         // IWYU pragma: export
 #include "ai/openai/codex/typed/PermissionProfiles.h" // IWYU pragma: export
@@ -41,6 +44,9 @@ namespace ai::openai::codex::typed {
         Accounts& accounts() noexcept;
         const Accounts& accounts() const noexcept;
 
+        Apps& apps() noexcept;
+        const Apps& apps() const noexcept;
+
         Commands& commands() noexcept;
         const Commands& commands() const noexcept;
 
@@ -49,6 +55,12 @@ namespace ai::openai::codex::typed {
 
         Configuration& configuration() noexcept;
         const Configuration& configuration() const noexcept;
+
+        ExternalAgents& externalAgents() noexcept;
+        const ExternalAgents& externalAgents() const noexcept;
+
+        Feedback& feedback() noexcept;
+        const Feedback& feedback() const noexcept;
 
         Models& models() noexcept;
         const Models& models() const noexcept;
@@ -75,9 +87,12 @@ namespace ai::openai::codex::typed {
         friend class ::ai::openai::codex::AppServerClient;
 
         Client(std::unique_ptr<Accounts> accounts,
+               std::unique_ptr<Apps> apps,
                std::unique_ptr<Commands> commands,
                std::unique_ptr<Filesystem> filesystem,
                std::unique_ptr<Configuration> configuration,
+               std::unique_ptr<ExternalAgents> externalAgents,
+               std::unique_ptr<Feedback> feedback,
                std::unique_ptr<Models> models,
                std::unique_ptr<PermissionProfiles> permissionProfiles,
                std::unique_ptr<Reviews> reviews,

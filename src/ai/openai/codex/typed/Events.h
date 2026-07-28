@@ -10,9 +10,11 @@
 
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/typed/Accounts.h"
+#include "ai/openai/codex/typed/Apps.h"
 #include "ai/openai/codex/typed/CodexErrorInfo.h"
 #include "ai/openai/codex/typed/Commands.h"
 #include "ai/openai/codex/typed/Configuration.h"
+#include "ai/openai/codex/typed/ExternalAgents.h"
 #include "ai/openai/codex/typed/Filesystem.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/Reviews.h"
@@ -505,7 +507,10 @@ namespace ai::openai::codex::typed {
                                                      FuzzyFileSearchSessionUpdatedNotification,
                                                      GuardianWarningNotification,
                                                      ItemGuardianApprovalReviewCompletedNotification,
-                                                     ItemGuardianApprovalReviewStartedNotification>;
+                                                     ItemGuardianApprovalReviewStartedNotification,
+                                                     AppListUpdatedNotification,
+                                                     ExternalAgentConfigImportCompletedNotification,
+                                                     ExternalAgentConfigImportProgressNotification>;
 
     struct ThreadStarted {
         Thread thread;
@@ -681,7 +686,10 @@ namespace ai::openai::codex::typed {
                                FuzzyFileSearchSessionUpdatedNotification,
                                GuardianWarningNotification,
                                ItemGuardianApprovalReviewCompletedNotification,
-                               ItemGuardianApprovalReviewStartedNotification>;
+                               ItemGuardianApprovalReviewStartedNotification,
+                               AppListUpdatedNotification,
+                               ExternalAgentConfigImportCompletedNotification,
+                               ExternalAgentConfigImportProgressNotification>;
 
     class Events {
     public:

@@ -246,6 +246,52 @@ A1_4_PUBLIC_ROOTS = {
         }
     ),
 }
+
+# PR-A Commit 2 exact-key production ownership.  These identities advance
+# together with their types, codecs, descriptors, facades, fixtures, and
+# focused tests; no other A1.4 identity is included.
+A14_USER_INTEGRATIONS_COMMIT_2 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "app/list"),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "externalAgentConfig/detect",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "externalAgentConfig/import",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "externalAgentConfig/import/readHistories",
+        ),
+        ("client_request", "ClientRequest", "method", "feedback/upload"),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "app/list/updated",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "externalAgentConfig/import/completed",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "externalAgentConfig/import/progress",
+        ),
+    }
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -1679,6 +1725,36 @@ RUNTIME_TARGETS = {
         "client_request",
         "ClientRequest",
         "method",
+        "app/list",
+    ): "ClientRequestTarget::AppsList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "externalAgentConfig/detect",
+    ): "ClientRequestTarget::ExternalAgentConfigDetect",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "externalAgentConfig/import",
+    ): "ClientRequestTarget::ExternalAgentConfigImport",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "externalAgentConfig/import/readHistories",
+    ): "ClientRequestTarget::ExternalAgentConfigImportHistoriesRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "feedback/upload",
+    ): "ClientRequestTarget::FeedbackUpload",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
         "model/list",
     ): "ClientRequestTarget::ModelList",
     (
@@ -1957,6 +2033,24 @@ RUNTIME_TARGETS = {
         "method",
         "item/autoApprovalReview/started",
     ): "ServerNotificationTarget::ItemGuardianApprovalReviewStarted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "app/list/updated",
+    ): "ServerNotificationTarget::AppListUpdated",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "externalAgentConfig/import/completed",
+    ): "ServerNotificationTarget::ExternalAgentConfigImportCompleted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "externalAgentConfig/import/progress",
+    ): "ServerNotificationTarget::ExternalAgentConfigImportProgress",
     (
         "server_notification",
         "ServerNotification",
@@ -2513,9 +2607,16 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "account/login/completed": "typed::AccountLoginCompletedNotification",
     "account/rateLimits/updated": "typed::AccountRateLimitsUpdatedNotification",
     "account/updated": "typed::AccountUpdatedNotification",
+    "app/list/updated": "typed::AppListUpdatedNotification",
     "command/exec/outputDelta": "typed::CommandExecOutputDeltaNotification",
     "configWarning": "typed::ConfigWarningNotification",
     "error": "typed::TurnErrorEvent",
+    "externalAgentConfig/import/completed": (
+        "typed::ExternalAgentConfigImportCompletedNotification"
+    ),
+    "externalAgentConfig/import/progress": (
+        "typed::ExternalAgentConfigImportProgressNotification"
+    ),
     "fs/changed": "typed::FsChangedNotification",
     "fuzzyFileSearch/sessionCompleted": (
         "typed::FuzzyFileSearchSessionCompletedNotification"
@@ -2616,7 +2717,7 @@ SERVER_NOTIFICATION_CODECS = {
     if key[0] == "server_notification"
 }
 if (
-    len(SERVER_NOTIFICATION_CODECS) != 52
+    len(SERVER_NOTIFICATION_CODECS) != 55
     or set(SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD)
     != {key[3] for key in SERVER_NOTIFICATION_CODECS}
 ):
@@ -5832,6 +5933,14 @@ def registry_statuses(
         evidence["runtime_decoder_matches_registry"] = True
         evidence["opaque_fields_declared"] = True
         evidence["no_known_schema_fields_dropped"] = True
+    if identity in A14_USER_INTEGRATIONS_COMMIT_2 and target is not None:
+        # PR-A Commit 2 binds each exact app/external-agent/feedback root to a
+        # reviewed schema-complete codec, generated descriptor, grouped facade,
+        # schema-derived fixture, and focused wire/notification test.  All
+        # objects in this closure are open; raw retention supplements the
+        # explicit known-field mapping and no opaque schema field is claimed.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
     if (
         identity[0] == "client_request"
         and assignment.get("slice") == "A1.1"
@@ -6624,6 +6733,11 @@ def generate_client_operation_descriptor_data(
                     "thread/approveGuardianDeniedAction",
                 }
             )
+            or (
+                assignment.get("slice") == "A1.4"
+                and assignment.get("module") == "IntegrationsAndLongTail"
+                and key in A14_USER_INTEGRATIONS_COMMIT_2
+            )
         )
         and assignment.get("classification") == "StablePublicRoot"
         and assignment.get("stability") == "stable"
@@ -6634,9 +6748,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 57
+        len(expected_keys) != 62
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 57
+        or len(set(targets.values())) != 62
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -6646,7 +6760,8 @@ def generate_client_operation_descriptor_data(
             "ClientOperationDescriptorAssignmentMismatch: "
             "the exact 22 stable A1.1, 9 A1.2 B2, 2 A1.2 B3, 2 A1.2 B4, "
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
-            "1 A1.3 permission-profile, and 2 A1.3 review/guardian "
+            "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
+            "5 A1.4 user-integration "
             "client requests must each own one unique ClientRequestTarget"
         )
     if set(contracts) & expected_keys != expected_keys:
@@ -6682,7 +6797,7 @@ def generate_client_operation_descriptor_data(
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 39
+        or len(expected_keys - unit_keys) != 44
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -6690,8 +6805,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 requests must remain exactly 18 Unit and "
-            "39 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus PR-A Commit 2 requests must remain "
+            "exactly 18 Unit and 44 Concrete requests"
         )
 
     result_decoders = {
@@ -6719,6 +6834,11 @@ def generate_client_operation_descriptor_data(
         "PermissionProfileListResponse",
         "ReviewStartResponse",
         "SendAddCreditsNudgeEmailResponse",
+        "AppsListResponse",
+        "ExternalAgentConfigDetectResponse",
+        "ExternalAgentConfigImportResponse",
+        "ExternalAgentConfigImportHistoriesReadResponse",
+        "FeedbackUploadResponse",
         "ThreadForkResponse",
         "ThreadGoalClearResponse",
         "ThreadGoalGetResponse",
@@ -6794,14 +6914,14 @@ def generate_server_notification_descriptor_data(
     }
     descriptor_keys = set(SERVER_NOTIFICATION_CODECS)
     if (
-        len(expected_keys) != 52
+        len(expected_keys) != 55
         or descriptor_keys != expected_keys
         or len({metadata[0] for metadata in SERVER_NOTIFICATION_CODECS.values()})
-        != 52
+        != 55
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorAssignmentMismatch: "
-            "every one of the 52 typed server-notification targets must own "
+            "every one of the 55 typed server-notification targets must own "
             "one exact generated descriptor"
         )
 
@@ -6879,6 +6999,14 @@ def generate_server_notification_descriptor_data(
         }
     }
     residual_keys -= a13_review_guardian_keys
+    a14_user_integration_keys = {
+        key
+        for key in residual_keys
+        if key in A14_USER_INTEGRATIONS_COMMIT_2
+        and assignments[key].get("slice") == "A1.4"
+        and assignments[key].get("module") == "IntegrationsAndLongTail"
+    }
+    residual_keys -= a14_user_integration_keys
     if (
         len(a11_keys) != 37
         or len(a12_b2_keys) != 3
@@ -6887,13 +7015,15 @@ def generate_server_notification_descriptor_data(
         or len(a13_command_keys) != 1
         or len(a13_filesystem_keys) != 3
         or len(a13_review_guardian_keys) != 3
+        or len(a14_user_integration_keys) != 3
         or {key[3] for key in residual_keys} != {"error"}
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorSliceMismatch: "
             "descriptors must distinguish the exact 37 A1.1, 3 A1.2 B2, "
             "3 A1.2 B3, 1 A1.2 B4, 1 A1.3 command, and 3 A1.3 "
-            "filesystem/fuzzy, and 3 A1.3 review/guardian rows from the "
+            "filesystem/fuzzy, 3 A1.3 review/guardian, and 3 A1.4 "
+            "user-integration rows from the "
             "residual partial error row"
         )
 

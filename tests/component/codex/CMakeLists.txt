@@ -598,6 +598,51 @@ set_tests_properties(
         TIMEOUT 10
 )
 
+snodec_add_test(
+    CodexA14UserIntegrationsCommit2Test
+    CodexA14UserIntegrationsCommit2Test.cpp
+)
+target_link_libraries(
+    CodexA14UserIntegrationsCommit2Test
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex-backend
+)
+target_compile_features(
+    CodexA14UserIntegrationsCommit2Test PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14UserIntegrationsCommit2Test
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;apps;external-agent;feedback;backend;codec;a1-4;user-integrations;commit-2"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14UserIntegrationsCommit2WireTest
+    CodexA14UserIntegrationsCommit2WireTest.cpp
+)
+target_link_libraries(
+    CodexA14UserIntegrationsCommit2WireTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+        snodec::core
+)
+target_compile_features(
+    CodexA14UserIntegrationsCommit2WireTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14UserIntegrationsCommit2WireTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;apps;external-agent;feedback;operation;wire;lifecycle;a1-4;user-integrations;commit-2"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 20
+)
+
 snodec_add_test(CodexA12ModelWireTest CodexA12ModelWireTest.cpp)
 target_link_libraries(
     CodexA12ModelWireTest

@@ -123,6 +123,11 @@ namespace ai::openai::codex::detail {
         PermissionProfileList,
         ReviewStart,
         ThreadApproveGuardianDeniedAction,
+        AppsList,
+        ExternalAgentConfigDetect,
+        ExternalAgentConfigImport,
+        ExternalAgentConfigImportHistoriesRead,
+        FeedbackUpload,
         Count
     };
 
@@ -181,6 +186,9 @@ namespace ai::openai::codex::detail {
         GuardianWarning,
         ItemGuardianApprovalReviewCompleted,
         ItemGuardianApprovalReviewStarted,
+        AppListUpdated,
+        ExternalAgentConfigImportCompleted,
+        ExternalAgentConfigImportProgress,
         Count
     };
 
@@ -435,6 +443,11 @@ namespace ai::openai::codex::detail {
         FuzzyFileSearchResponse,
         PermissionProfileListResponse,
         ReviewStartResponse,
+        AppsListResponse,
+        ExternalAgentConfigDetectResponse,
+        ExternalAgentConfigImportResponse,
+        ExternalAgentConfigImportHistoriesReadResponse,
+        FeedbackUploadResponse,
         Count
     };
 

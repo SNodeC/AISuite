@@ -11,8 +11,11 @@
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/typed/Accounts.h"
+#include "ai/openai/codex/typed/Apps.h"
 #include "ai/openai/codex/typed/Commands.h"
 #include "ai/openai/codex/typed/Configuration.h"
+#include "ai/openai/codex/typed/ExternalAgents.h"
+#include "ai/openai/codex/typed/Feedback.h"
 #include "ai/openai/codex/typed/Filesystem.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
@@ -80,7 +83,12 @@ namespace ai::openai::codex::detail {
                                                      typed::FsWatchResponse,
                                                      typed::FuzzyFileSearchResponse,
                                                      typed::PermissionProfileListResponse,
-                                                     typed::ReviewStartResponse>;
+                                                     typed::ReviewStartResponse,
+                                                     typed::AppsListResponse,
+                                                     typed::ExternalAgentConfigDetectResponse,
+                                                     typed::ExternalAgentConfigImportResponse,
+                                                     typed::ExternalAgentConfigImportHistoriesReadResponse,
+                                                     typed::FeedbackUploadResponse>;
 
     struct ClientOperationDecodeDiagnostic {
         ClientOperationDecodeCode code = ClientOperationDecodeCode::MalformedKnownPayload;

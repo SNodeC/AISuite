@@ -38,10 +38,19 @@ namespace {
     };
 
     template <typename Client>
+    concept HasDirectAppsAccessor = requires(Client& client) { client.apps(); };
+
+    template <typename Client>
     concept HasDirectCommandsAccessor = requires(Client& client) { client.commands(); };
 
     template <typename Client>
     concept HasDirectFilesystemAccessor = requires(Client& client) { client.filesystem(); };
+
+    template <typename Client>
+    concept HasDirectExternalAgentsAccessor = requires(Client& client) { client.externalAgents(); };
+
+    template <typename Client>
+    concept HasDirectFeedbackAccessor = requires(Client& client) { client.feedback(); };
 
     template <typename Client>
     concept HasDirectModelsAccessor = requires(Client& client) {
@@ -260,13 +269,16 @@ int main() {
     static_assert(std::is_same_v<decltype(std::declval<codex::AppServerClient&>().typed()), codex::typed::Client&>);
     static_assert(std::is_same_v<decltype(std::declval<const codex::AppServerClient&>().typed()), const codex::typed::Client&>);
     static_assert(!HasDirectAccountsAccessor<codex::AppServerClient>);
+    static_assert(!HasDirectAppsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectCommandsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectFilesystemAccessor<codex::AppServerClient>);
+    static_assert(!HasDirectExternalAgentsAccessor<codex::AppServerClient>);
+    static_assert(!HasDirectFeedbackAccessor<codex::AppServerClient>);
     static_assert(!HasDirectModelsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectPermissionProfilesAccessor<codex::AppServerClient>);
     static_assert(!HasDirectReviewsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectConfigurationAccessor<codex::AppServerClient>);
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 51);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 54);
     static_assert(std::is_same_v<std::variant_alternative_t<47, typed::CanonicalServerNotification>,
                                  typed::FuzzyFileSearchSessionUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<48, typed::CanonicalServerNotification>, typed::GuardianWarningNotification>);
@@ -274,11 +286,22 @@ int main() {
                                  typed::ItemGuardianApprovalReviewCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<50, typed::CanonicalServerNotification>,
                                  typed::ItemGuardianApprovalReviewStartedNotification>);
-    static_assert(std::variant_size_v<typed::Event> == 53);
+    static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>,
+                                 typed::AppListUpdatedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
+                                 typed::ExternalAgentConfigImportCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<53, typed::CanonicalServerNotification>,
+                                 typed::ExternalAgentConfigImportProgressNotification>);
+    static_assert(std::variant_size_v<typed::Event> == 56);
     static_assert(std::is_same_v<std::variant_alternative_t<49, typed::Event>, typed::FuzzyFileSearchSessionUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<50, typed::Event>, typed::GuardianWarningNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::Event>, typed::ItemGuardianApprovalReviewCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::Event>, typed::ItemGuardianApprovalReviewStartedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<53, typed::Event>, typed::AppListUpdatedNotification>);
+    static_assert(
+        std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
+    static_assert(
+        std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
 
     tests::support::TestResult result;
     TestClient client;
@@ -288,10 +311,16 @@ int main() {
     result.expectTrue(&constClient.typed() == &client.typed(), "const typed() returns the same grouped facade");
     result.expectTrue(&client.typed().accounts() == &constClient.typed().accounts(),
                       "accounts() returns the same facade backed by the grouped client's one RawProtocol");
+    result.expectTrue(&client.typed().apps() == &constClient.typed().apps(),
+                      "apps() returns the same facade backed by the grouped client's one RawProtocol");
     result.expectTrue(&client.typed().commands() == &constClient.typed().commands(),
                       "commands() returns the same facade backed by the grouped client's one RawProtocol");
     result.expectTrue(&client.typed().filesystem() == &constClient.typed().filesystem(),
                       "filesystem() returns the same facade backed by the grouped client's one RawProtocol");
+    result.expectTrue(&client.typed().externalAgents() == &constClient.typed().externalAgents(),
+                      "externalAgents() returns the same facade backed by the grouped client's one RawProtocol");
+    result.expectTrue(&client.typed().feedback() == &constClient.typed().feedback(),
+                      "feedback() returns the same facade backed by the grouped client's one RawProtocol");
     result.expectTrue(&client.typed().models() == &constClient.typed().models(),
                       "models() returns the same facade backed by the grouped client's one RawProtocol");
     result.expectTrue(&client.typed().permissionProfiles() == &constClient.typed().permissionProfiles(),

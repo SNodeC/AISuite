@@ -8,9 +8,12 @@
 #include "ai/openai/codex/detail/ClientOperationCodec.h"
 
 #include "ai/openai/codex/detail/AccountCodec.h"
+#include "ai/openai/codex/detail/AppCodec.h"
 #include "ai/openai/codex/detail/ApprovalCodec.h"
 #include "ai/openai/codex/detail/CommandCodec.h"
 #include "ai/openai/codex/detail/ConfigurationCodec.h"
+#include "ai/openai/codex/detail/ExternalAgentCodec.h"
+#include "ai/openai/codex/detail/FeedbackCodec.h"
 #include "ai/openai/codex/detail/FilesystemCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
@@ -66,6 +69,11 @@ namespace ai::openai::codex::detail {
             "FuzzyFileSearchResponse",
             "PermissionProfileListResponse",
             "ReviewStartResponse",
+            "AppsListResponse",
+            "ExternalAgentConfigDetectResponse",
+            "ExternalAgentConfigImportResponse",
+            "ExternalAgentConfigImportHistoriesReadResponse",
+            "FeedbackUploadResponse",
         }};
 
         std::string_view resultDecoderIdentity(ClientOperationResultDecoder decoder) noexcept {
@@ -88,7 +96,9 @@ namespace ai::openai::codex::detail {
                    target == ModelList || target == ModelProviderCapabilitiesRead || target == CommandExec || target == FsCopy ||
                    target == FsCreateDirectory || target == FsGetMetadata || target == FsReadDirectory || target == FsReadFile ||
                    target == FsRemove || target == FsUnwatch || target == FsWatch || target == FsWriteFile || target == FuzzyFileSearch ||
-                   target == PermissionProfileList || target == ReviewStart || target == ThreadApproveGuardianDeniedAction;
+                   target == PermissionProfileList || target == ReviewStart || target == ThreadApproveGuardianDeniedAction ||
+                   target == AppsList || target == ExternalAgentConfigDetect || target == ExternalAgentConfigImport ||
+                   target == ExternalAgentConfigImportHistoriesRead || target == FeedbackUpload;
         }
 
         std::string decoderFieldPath(ClientRequestTarget target,
@@ -280,6 +290,16 @@ namespace ai::openai::codex::detail {
                     return decode(target, key, decodePermissionProfileListResponse(raw, error), error);
                 case ReviewStartResponse:
                     return decode(target, key, decodeReviewStartResponse(raw, error), error);
+                case AppsListResponse:
+                    return decode(target, key, decodeAppsListResponse(raw, error), error);
+                case ExternalAgentConfigDetectResponse:
+                    return decode(target, key, decodeExternalAgentConfigDetectResponse(raw, error), error);
+                case ExternalAgentConfigImportResponse:
+                    return decode(target, key, decodeExternalAgentConfigImportResponse(raw, error), error);
+                case ExternalAgentConfigImportHistoriesReadResponse:
+                    return decode(target, key, decodeExternalAgentConfigImportHistoriesReadResponse(raw, error), error);
+                case FeedbackUploadResponse:
+                    return decode(target, key, decodeFeedbackUploadResponse(raw, error), error);
                 case Count:
                     break;
             }

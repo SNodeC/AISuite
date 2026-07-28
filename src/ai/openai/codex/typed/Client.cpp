@@ -10,12 +10,15 @@
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/AccountCodec.h"
+#include "ai/openai/codex/detail/AppCodec.h"
 #include "ai/openai/codex/detail/ApprovalCodec.h"
 #include "ai/openai/codex/detail/ClientOperationCodec.h"
 #include "ai/openai/codex/detail/CodexErrorInfoCodec.h"
 #include "ai/openai/codex/detail/CommandCodec.h"
 #include "ai/openai/codex/detail/ConfigurationCodec.h"
 #include "ai/openai/codex/detail/EventDecoder.h"
+#include "ai/openai/codex/detail/ExternalAgentCodec.h"
+#include "ai/openai/codex/detail/FeedbackCodec.h"
 #include "ai/openai/codex/detail/FilesystemCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
@@ -24,10 +27,13 @@
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
 #include "ai/openai/codex/typed/Accounts.h"
+#include "ai/openai/codex/typed/Apps.h"
 #include "ai/openai/codex/typed/Commands.h"
 #include "ai/openai/codex/typed/Configuration.h"
 #include "ai/openai/codex/typed/Conversation.h"
 #include "ai/openai/codex/typed/Events.h"
+#include "ai/openai/codex/typed/ExternalAgents.h"
+#include "ai/openai/codex/typed/Feedback.h"
 #include "ai/openai/codex/typed/Filesystem.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
@@ -57,9 +63,12 @@ namespace ai::openai::codex::typed {
     class Client::Impl {
     public:
         Impl(std::unique_ptr<Accounts> accounts,
+             std::unique_ptr<Apps> apps,
              std::unique_ptr<Commands> commands,
              std::unique_ptr<Filesystem> filesystem,
              std::unique_ptr<Configuration> configuration,
+             std::unique_ptr<ExternalAgents> externalAgents,
+             std::unique_ptr<Feedback> feedback,
              std::unique_ptr<Models> models,
              std::unique_ptr<PermissionProfiles> permissionProfiles,
              std::unique_ptr<Reviews> reviews,
@@ -68,9 +77,12 @@ namespace ai::openai::codex::typed {
              std::unique_ptr<Events> events,
              std::unique_ptr<Requests> requests)
             : accounts(std::move(accounts))
+            , apps(std::move(apps))
             , commands(std::move(commands))
             , filesystem(std::move(filesystem))
             , configuration(std::move(configuration))
+            , externalAgents(std::move(externalAgents))
+            , feedback(std::move(feedback))
             , models(std::move(models))
             , permissionProfiles(std::move(permissionProfiles))
             , reviews(std::move(reviews))
@@ -81,9 +93,12 @@ namespace ai::openai::codex::typed {
         }
 
         std::unique_ptr<Accounts> accounts;
+        std::unique_ptr<Apps> apps;
         std::unique_ptr<Commands> commands;
         std::unique_ptr<Filesystem> filesystem;
         std::unique_ptr<Configuration> configuration;
+        std::unique_ptr<ExternalAgents> externalAgents;
+        std::unique_ptr<Feedback> feedback;
         std::unique_ptr<Models> models;
         std::unique_ptr<PermissionProfiles> permissionProfiles;
         std::unique_ptr<Reviews> reviews;
@@ -94,9 +109,12 @@ namespace ai::openai::codex::typed {
     };
 
     Client::Client(std::unique_ptr<Accounts> accounts,
+                   std::unique_ptr<Apps> apps,
                    std::unique_ptr<Commands> commands,
                    std::unique_ptr<Filesystem> filesystem,
                    std::unique_ptr<Configuration> configuration,
+                   std::unique_ptr<ExternalAgents> externalAgents,
+                   std::unique_ptr<Feedback> feedback,
                    std::unique_ptr<Models> models,
                    std::unique_ptr<PermissionProfiles> permissionProfiles,
                    std::unique_ptr<Reviews> reviews,
@@ -105,9 +123,12 @@ namespace ai::openai::codex::typed {
                    std::unique_ptr<Events> events,
                    std::unique_ptr<Requests> requests)
         : impl(std::make_unique<Impl>(std::move(accounts),
+                                      std::move(apps),
                                       std::move(commands),
                                       std::move(filesystem),
                                       std::move(configuration),
+                                      std::move(externalAgents),
+                                      std::move(feedback),
                                       std::move(models),
                                       std::move(permissionProfiles),
                                       std::move(reviews),
@@ -125,6 +146,14 @@ namespace ai::openai::codex::typed {
 
     const Accounts& Client::accounts() const noexcept {
         return *impl->accounts;
+    }
+
+    Apps& Client::apps() noexcept {
+        return *impl->apps;
+    }
+
+    const Apps& Client::apps() const noexcept {
+        return *impl->apps;
     }
 
     Commands& Client::commands() noexcept {
@@ -149,6 +178,22 @@ namespace ai::openai::codex::typed {
 
     const Configuration& Client::configuration() const noexcept {
         return *impl->configuration;
+    }
+
+    ExternalAgents& Client::externalAgents() noexcept {
+        return *impl->externalAgents;
+    }
+
+    const ExternalAgents& Client::externalAgents() const noexcept {
+        return *impl->externalAgents;
+    }
+
+    Feedback& Client::feedback() noexcept {
+        return *impl->feedback;
+    }
+
+    const Feedback& Client::feedback() const noexcept {
+        return *impl->feedback;
     }
 
     Models& Client::models() noexcept {
@@ -337,6 +382,50 @@ namespace ai::openai::codex::typed {
             return result;
         }
     } // namespace
+
+    Apps::Apps(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Apps::Submission Apps::list(AppsListParams params, ListResultHandler handler) {
+        return submitTypedRequest<AppsListResponse>(
+            protocol, detail::ClientRequestTarget::AppsList, params, std::move(handler), detail::encodeAppsListParams);
+    }
+
+    ExternalAgents::ExternalAgents(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    ExternalAgents::Submission ExternalAgents::detect(ExternalAgentConfigDetectParams params, DetectResultHandler handler) {
+        return submitTypedRequest<ExternalAgentConfigDetectResponse>(protocol,
+                                                                     detail::ClientRequestTarget::ExternalAgentConfigDetect,
+                                                                     params,
+                                                                     std::move(handler),
+                                                                     detail::encodeExternalAgentConfigDetectParams);
+    }
+
+    ExternalAgents::Submission ExternalAgents::importConfiguration(ExternalAgentConfigImportParams params,
+                                                                   ImportConfigurationResultHandler handler) {
+        return submitTypedRequest<ExternalAgentConfigImportResponse>(protocol,
+                                                                     detail::ClientRequestTarget::ExternalAgentConfigImport,
+                                                                     params,
+                                                                     std::move(handler),
+                                                                     detail::encodeExternalAgentConfigImportParams);
+    }
+
+    ExternalAgents::Submission ExternalAgents::readImportHistories(Unit params, ReadImportHistoriesResultHandler handler) {
+        return submitTypedRequest<ExternalAgentConfigImportHistoriesReadResponse>(
+            protocol, detail::ClientRequestTarget::ExternalAgentConfigImportHistoriesRead, params, std::move(handler), encodeUnitParams);
+    }
+
+    Feedback::Feedback(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Feedback::Submission Feedback::upload(FeedbackUploadParams params, UploadResultHandler handler) {
+        return submitTypedRequest<FeedbackUploadResponse>(
+            protocol, detail::ClientRequestTarget::FeedbackUpload, params, std::move(handler), detail::encodeFeedbackUploadParams);
+    }
 
     Accounts::Accounts(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {

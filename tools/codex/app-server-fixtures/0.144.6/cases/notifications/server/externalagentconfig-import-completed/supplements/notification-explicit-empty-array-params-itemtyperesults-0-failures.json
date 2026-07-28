@@ -1,0 +1,20 @@
+{
+  "method": "externalAgentConfig/import/completed",
+  "params": {
+    "importId": "synthetic-09d08d1dcb",
+    "itemTypeResults": [
+      {
+        "failures": [],
+        "itemType": "AGENTS_MD",
+        "successes": [
+          {
+            "cwd": "synthetic-25a309bfef",
+            "itemType": "AGENTS_MD",
+            "source": "synthetic-07176564b1",
+            "target": "synthetic-2f0134da5f"
+          }
+        ]
+      }
+    ]
+  }
+}

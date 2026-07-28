@@ -1124,9 +1124,12 @@ namespace ai::openai::codex {
         : impl(std::make_unique<Impl>(std::move(transport), std::move(clientInfo))) {
         impl->installTypedClient(std::unique_ptr<typed::Client>(
             new typed::Client(std::unique_ptr<typed::Accounts>(new typed::Accounts(impl->raw())),
+                              std::unique_ptr<typed::Apps>(new typed::Apps(impl->raw())),
                               std::unique_ptr<typed::Commands>(new typed::Commands(impl->raw())),
                               std::unique_ptr<typed::Filesystem>(new typed::Filesystem(impl->raw())),
                               std::unique_ptr<typed::Configuration>(new typed::Configuration(impl->raw())),
+                              std::unique_ptr<typed::ExternalAgents>(new typed::ExternalAgents(impl->raw())),
+                              std::unique_ptr<typed::Feedback>(new typed::Feedback(impl->raw())),
                               std::unique_ptr<typed::Models>(new typed::Models(impl->raw())),
                               std::unique_ptr<typed::PermissionProfiles>(new typed::PermissionProfiles(impl->raw())),
                               std::unique_ptr<typed::Reviews>(new typed::Reviews(impl->raw())),
