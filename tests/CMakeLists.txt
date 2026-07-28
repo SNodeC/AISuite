@@ -101,6 +101,26 @@ set_tests_properties(
 )
 
 add_test(
+    NAME CodexA14UserIntegrationsAuditTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14UserIntegrationsAuditTest.py
+        --tool ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_user_integrations.py
+        --repo-root ${PROJECT_SOURCE_DIR}
+        --start-state ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-start-state.json
+        --batch-plan ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-batch-plan.json
+)
+set_tests_properties(
+    CodexA14UserIntegrationsAuditTest
+    PROPERTIES
+        DEPENDS CodexA14AuditToolTest
+        LABELS "component;ai;openai;codex;phase-a1-4;user-integrations;schema;audit;generated;extraction"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 90
+)
+
+add_test(
     NAME CodexSyntheticSecretLeakGuardTest
     COMMAND
         ${Python3_EXECUTABLE}
