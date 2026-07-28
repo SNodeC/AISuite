@@ -179,3 +179,72 @@ Notification variants remain at their final 57 and 59 alternatives. Codex
 SOVERSION remains 1; the public aggregate and variant additions have real ABI
 impact even though the frozen SONAME policy defers the scoped bump to final A1
 closure.
+
+## Closure, packaging, and integrity
+
+The PR-specific audit freezes the exact `23 / 6 / 0 / 4` taxonomy, `20 / 3`
+concrete/Unit result split, `52 / 118 / 411` stable schema closure, batch
+ownership, public methods, descriptors, fixtures, and installed headers.
+Planted-failure tests require stable diagnostic codes for scope leakage,
+result-contract drift, schema-closure drift, false completion, package
+boundary violations, predecessor or appended variant movement, SOVERSION
+drift, predecessor-evidence drift, and second-pass nondeterminism.
+
+The installed-consumer gate uses disjoint SNode.C source/build/install,
+AISuite source/build/install, and consumer source/build directories. It builds
+the pinned SNode.C commit into a fresh prefix, builds AISuite only against that
+installed package, and configures the external consumer with package
+registries disabled and inherited compiler, linker, loader, include, CMake,
+and pkg-config search variables removed. Cache, compile-command, verbose-link,
+`readelf`, and `ldd` evidence must resolve AISuite and SNode.C headers and
+libraries only from the two install prefixes while rejecting the original
+checkouts and every outer or fresh source/build prefix. A small installed
+public-header consumer links `snodec::core` directly and must compile with the
+fresh `include/snode.c` root. The sanitized consumers exercise all seven new
+facades, all six appended notification types, and the five-alternative
+`PluginSource` variant through installed public headers.
+
+Local validation supplies a clean clone containing the pinned SNode.C commit
+through `AISUITE_TEST_SNODEC_SOURCE_REPOSITORY`. Source packages contain no
+`.git`, cannot discover an enclosing checkout under their
+`GIT_CEILING_DIRECTORIES`, retain the three full-corpus generation-proof JSON
+files, and run package-safe extraction, API/ABI, and closure checks. Binary
+packages require all seven facade headers and exclude private tools, tests,
+evidence, and codec implementation files.
+
+The complete inherited and PR-A generated corpus is regenerated with the
+authoritative repository tools in dependency order. Predecessor deltas are
+accepted only where hashes or derived evidence changed because of reviewed
+production/test inputs; identity keys, schema paths, contracts, ownership,
+predecessor variant order, protocol pins, and frozen InventoryOnly boundaries
+must remain unchanged. A second complete generator pass must be byte-identical
+to the first for every target-corpus path, byte count, and SHA-256. That target
+includes the static closure report and the extraction manifest. Exactly three
+proof metadata files sit outside the target they describe; extraction records
+only their fixed paths, while the specialized closure guard canonically hashes
+and validates them and requires the final live target to equal both passes.
+The extraction manifest is the unique last generator in each pass and retains
+the original SNode.C source commit, tree, filtered-history baseline, commit
+map, and original source hashes.
+
+`AppServerClient` and `typed::Client` retain their PIMPL ownership model and no
+predecessor variant index moves. The appended public notification alternatives,
+the new public aggregates, and `PluginSource` nevertheless change the public
+C++ API/ABI. SOVERSION intentionally remains 1 under the frozen PR-A policy;
+that unchanged SONAME is not a binary-compatibility claim, and consumers must
+be rebuilt with the updated library.
+
+The authoritative
+`app_server_a1_4_user_integrations_abi.py` generator records 112 layout and
+variant observations from
+`CodexA14UserIntegrationsAbiLayoutProbe.cpp`, hashes every affected public
+header, and captures a sorted manifest of 715 strong exported Codex symbols.
+The generated API/ABI JSON and symbol manifest are checked against both the
+current public headers and the strict GCC library; they are package and
+full-corpus generation inputs rather than a compatibility claim.
+
+Sensitive app, external-agent, feedback, hook, marketplace, plugin, skill,
+thread, turn, opaque JSON, and raw-envelope values remain outside production
+diagnostics and logs. The generic backend extension path remains bounded and
+redacted, and neither backend state nor Frontend Protocol gains a
+user-integration product surface.

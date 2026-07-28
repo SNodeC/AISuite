@@ -21,6 +21,11 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
+Test-enabled builds must also set
+`AISUITE_TEST_SNODEC_SOURCE_REPOSITORY=/absolute/path/to/snode.c` to a clean
+clone containing the pinned extraction dependency; the installed-consumer gate
+exports that pinned tree and rebuilds both packages in disjoint directories.
+
 ## CMake consumption
 
 ```cmake
@@ -31,15 +36,24 @@ target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
 ```
 
 The public C++ namespace remains `ai::openai::codex` and public includes retain
-forms such as `<ai/openai/codex/AppServerClient.h>`.
+forms such as `<ai/openai/codex/AppServerClient.h>`. The typed client now
+groups user-facing integrations behind the installed `Apps`,
+`ExternalAgents`, `Feedback`, `Hooks`, `Marketplace`, `Plugins`, and `Skills`
+facades.
 
 ## Current protocol status
 
-The extraction intentionally preserves the post-A1.3/A1.4-audit state:
+The A14-UserIntegrations milestone completes exactly 33 A1.4 identities:
+23 client requests, six server notifications, and four `PluginSource`
+alternatives. The live registry is:
 
-- 280 Complete
+- 313 Complete
 - 4 Partial
-- 55 NotImplemented
+- 22 NotImplemented
 - 48 NotApplicable
 
-No A1.4 production implementation is part of the extraction.
+Native A1.4 remains in progress at 33 Complete, 1 Partial, and 22
+NotImplemented. PR B, PR C, the inherited A1.0 Partials, and InventoryOnly
+identities remain untouched. See the
+[user-facing integrations report](docs/ai/openai/codex/a1-4-user-facing-integrations.md)
+for the exact scope and verification boundary.

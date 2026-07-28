@@ -21,11 +21,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ pkg-config libssl-dev nlohmann-json3-dev
+          sudo apt-get install -y cmake g++ ninja-build python3 pkg-config libssl-dev nlohmann-json3-dev
 
       - name: Build and install pinned SNode.C dependency
         run: |
@@ -36,15 +37,26 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$PWD/../snodec-stage" \
             -DSNODEC_BUILD_TESTS=OFF \
             -DSNODEC_BUILD_APPS=OFF
-          cmake --build ../snodec-build --parallel 2
-          cmake --install ../snodec-build
+          cmake --build ../snodec-build \
+            --target net-un-stream-legacy \
+            --parallel 2
+          for component in \
+            logger utils mux-epoll core core-socket core-socket-stream \
+            core-socket-stream-legacy net net-un net-un-phy \
+            net-un-phy-stream net-un-sphy-tream net-un-stream \
+            net-un-stream-legacy
+          do
+            cmake --install ../snodec-build --component "${component}"
+          done
 
       - name: Configure
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
-            -DAISUITE_BUILD_TESTS=ON
+            -DAISUITE_TEST_SNODEC_SOURCE_REPOSITORY="$PWD/../snodec" \
+            -DAISUITE_BUILD_TESTS=ON \
+            -DAISUITE_BUILD_APPS=ON
 
       - name: Build
         run: cmake --build build --parallel 2
@@ -63,6 +75,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install dependencies
         run: |
@@ -87,14 +100,24 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$PWD/../snodec-stage" \
             -DSNODEC_BUILD_TESTS=OFF \
             -DSNODEC_BUILD_APPS=OFF
-          cmake --build ../snodec-build --parallel 2
-          cmake --install ../snodec-build
+          cmake --build ../snodec-build \
+            --target net-un-stream-legacy \
+            --parallel 2
+          for component in \
+            logger utils mux-epoll core core-socket core-socket-stream \
+            core-socket-stream-legacy net net-un net-un-phy \
+            net-un-phy-stream net-un-sphy-tream net-un-stream \
+            net-un-stream-legacy
+          do
+            cmake --install ../snodec-build --component "${component}"
+          done
 
       - name: Configure
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
+            -DAISUITE_TEST_SNODEC_SOURCE_REPOSITORY="$PWD/../snodec" \
             -DAISUITE_BUILD_TESTS=ON \
             -DAISUITE_BUILD_APPS=ON
 

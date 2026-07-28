@@ -40,13 +40,19 @@ implementation. Install them into separate prefixes. AISuite libraries use
 `aisuite-` output names and install headers below `include/aisuite`, preventing
 file collisions with the unchanged SNode.C installation.
 
-
 ## Standalone dependency boundary
 
 AISuite consumes SNode.C only through the installed `snodec` CMake package.
 The extraction must not use a sibling checkout, private SNode.C headers, or
-source-relative include paths. The installed-consumer test resolves both
-packages from staging prefixes.
+source-relative include paths. The installed-consumer test independently
+builds and installs the pinned SNode.C tree and AISuite into disjoint prefixes,
+disables CMake package registries, scrubs inherited build and package-search
+environment variables, and rejects source/build/outer-stage header, library,
+cache, RPATH, RUNPATH, and `ldd` resolution. Its direct `snodec::core`
+public-header probe proves that the fresh SNode.C include and library prefixes
+are used. Configure local test builds with
+`AISUITE_TEST_SNODEC_SOURCE_REPOSITORY=/absolute/path/to/snode.c`, pointing at
+a clean clone containing the pinned extraction commit.
 
 ## Protocol state at extraction
 
@@ -60,5 +66,22 @@ NotApplicable:   48
 ```
 
 No A1.4 implementation identity is promoted by the repository move. The
-remaining implementation sequence is PR A, PR B, PR C, and final A1 closure
-in AISuite.
+successor A14-UserIntegrations milestone in AISuite later promotes exactly 33
+A1.4 identities. That successor work does not alter this extraction baseline,
+the SNode.C source commit/tree, the filtered-history map, the Codex pin, or any
+original source hash.
+
+## Current successor status
+
+After A14-UserIntegrations, the live registry is:
+
+```text
+Complete:       313
+Partial:          4
+NotImplemented:  22
+NotApplicable:   48
+```
+
+Native A1.4 is `33 / 1 / 22`; it remains in progress. PR B, PR C, inherited
+A1.0 Partials, and InventoryOnly identities remain unchanged, and Codex
+SOVERSION remains 1.

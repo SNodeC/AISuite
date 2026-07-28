@@ -314,6 +314,42 @@ class CodexA14AuditToolTest(unittest.TestCase):
             },
         )
 
+    def test_exact_user_integration_successor_isolated_mutation(self) -> None:
+        rows = self.tool.surface.parse_registry_data(
+            self.arguments.registry
+        )
+        live = {
+            self.tool.Key.from_row(row): row for row in rows
+        }
+        start = json.loads(
+            self.arguments.start_state.read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            "Commit 5",
+            self.tool.validate_user_integration_successor(live, start),
+        )
+
+        changed = copy.deepcopy(live)
+        key = next(
+            value for value in changed if value.name == "app/list"
+        )
+        self.assertEqual(
+            "AppsListResponse",
+            changed[key]["result_type_identity"],
+        )
+        changed[key]["result_type_identity"] = "Unit"
+        with self.assertRaises(self.tool.AuditError) as raised:
+            self.tool.validate_user_integration_successor(
+                changed, start
+            )
+        self.assertEqual(
+            "PredecessorEvidenceMismatch", raised.exception.code
+        )
+        self.assertEqual(
+            "Commit 5",
+            self.tool.validate_user_integration_successor(live, start),
+        )
+
     def test_inventory_only_and_asymmetries_are_hard_boundaries(
         self,
     ) -> None:

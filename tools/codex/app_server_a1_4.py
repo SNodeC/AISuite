@@ -24,6 +24,7 @@ sys.dont_write_bytecode = True
 
 import app_server_a1_shared as shared
 import app_server_fixtures as fixtures
+import app_server_a1_4_user_integrations as user_integrations
 import app_server_schema_paths as schema_paths
 import app_server_surface as surface
 
@@ -41,6 +42,22 @@ EXPECTED_FIXTURE_TREE = "be1eb65746c93a22a516af9bc1d1916ee8f2aa67"
 EXPECTED_FRONTEND_PROTOCOL_BLOB = (
     "bb5abb687323c0a7e5ecc51bd9d5d58d0108a4da"
 )
+EXPECTED_FROZEN_START_STATE_SHA256 = (
+    "ec2991d6b81e6bcabad58a3787621136fbf829253ac823bae6a5b96ca851e57d"
+)
+EXPECTED_SUCCESSOR_BASE_SHA = user_integrations.EXPECTED_BASE_SHA
+SUCCESSOR_PROMOTION_FIELDS = {
+    "runtime_disposition",
+    "runtime_target",
+    "schema_completeness",
+    "typed_schema_status",
+    "typed_status",
+}
+SUCCESSOR_MUTABLE_START_SOURCES = {
+    "fixture_coverage",
+    "registry",
+    "schema_completeness",
+}
 EXPECTED_SCHEMA_AGGREGATES = {
     "stable": "cee1ac3bcaf95e5fcdcf07499c7e6b00fc423b90c670ea3380f1799434b72add",
     "experimental": "4a0ef96787255364d99b15fe40fcfd6227901978d0cddc8b20340bfef98a0d1b",
@@ -999,6 +1016,20 @@ def _try_git(repo_root: Path, *arguments: str) -> str | None:
     return completed.stdout.strip()
 
 
+def _try_git_blob(repo_root: Path, revision: str, relative: str) -> bytes | None:
+    """Return an exact historical blob, or None in a shallow/source archive."""
+
+    completed = subprocess.run(
+        ["git", "show", f"{revision}:{relative}"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode:
+        return None
+    return completed.stdout
+
+
 def _source(path: Path, repo_root: Path) -> dict[str, str]:
     return {
         "path": path.resolve().relative_to(repo_root).as_posix(),
@@ -1059,6 +1090,159 @@ def expected_a1_4_keys() -> set[Key]:
     return result
 
 
+def _user_integration_stage_keys(
+    stage: Mapping[str, Any],
+) -> set[Key]:
+    return {
+        *(
+            Key(
+                "client_request",
+                "ClientRequest",
+                "method",
+                str(name),
+            )
+            for name in stage["requests"]
+        ),
+        *(
+            Key(
+                "server_notification",
+                "ServerNotification",
+                "method",
+                str(name),
+            )
+            for name in stage["notifications"]
+        ),
+        *(
+            Key(
+                "tagged_union_discriminator",
+                "PluginSource",
+                "type",
+                str(name),
+            )
+            for name in stage["unions"]
+        ),
+    }
+
+
+def _frozen_native_registry(
+    start_state: Mapping[str, Any],
+) -> dict[Key, dict[str, Any]]:
+    identities = start_state.get("identities")
+    require(
+        isinstance(identities, list),
+        "frozen A1.4 identities are absent",
+        "StartStateSourceMismatch",
+    )
+    result: dict[Key, dict[str, Any]] = {}
+    for row in identities:
+        require(
+            isinstance(row, Mapping)
+            and isinstance(row.get("protocol_surface_key"), Mapping)
+            and isinstance(row.get("registry"), Mapping),
+            "frozen A1.4 identity record is malformed",
+            "StartStateSourceMismatch",
+        )
+        key = Key.from_row(row["protocol_surface_key"])
+        require(
+            key not in result,
+            f"duplicate frozen A1.4 identity: {key.compact()}",
+            "StartStateSourceMismatch",
+        )
+        result[key] = dict(row["registry"])
+    require(
+        set(result) == expected_a1_4_keys(),
+        "frozen A1.4 identity set changed",
+        "StartStateSourceMismatch",
+    )
+    return result
+
+
+def validate_user_integration_successor(
+    registry: Mapping[Key, Mapping[str, Any]],
+    start_state: Mapping[str, Any],
+) -> str:
+    """Return Start or the exact reviewed PR-A stage for a live registry."""
+
+    global_status = _status_counter(registry.values())
+    if global_status == EXPECTED_GLOBAL_START_STATUS:
+        stage_name = "Start"
+        promoted: set[Key] = set()
+    else:
+        matching = [
+            stage
+            for stage in user_integrations.STAGES
+            if global_status == dict(stage["global"])
+        ]
+        require(
+            len(matching) == 1,
+            (
+                "live registry is neither the frozen A1.4 start nor an "
+                f"exact PR-A stage: {global_status}"
+            ),
+            "PredecessorEvidenceMismatch",
+        )
+        selected = matching[0]
+        stage_name = f"Commit {selected['commit']}"
+        promoted = set()
+        for stage in user_integrations.STAGES:
+            promoted |= _user_integration_stage_keys(stage)
+            if stage is selected:
+                break
+
+    frozen = _frozen_native_registry(start_state)
+    changed: set[Key] = set()
+    for key, before in frozen.items():
+        current = registry.get(key)
+        require(
+            current is not None,
+            f"native A1.4 registry row disappeared: {key.compact()}",
+            "PredecessorEvidenceMismatch",
+        )
+        if current == before:
+            continue
+        changed.add(key)
+        changed_fields = {
+            field
+            for field in set(before) | set(current)
+            if before.get(field) != current.get(field)
+        }
+        completeness = current.get("schema_completeness")
+        require(
+            key in promoted
+            and changed_fields == SUCCESSOR_PROMOTION_FIELDS
+            and current.get("runtime_disposition") == "Typed"
+            and current.get("typed_status") == "Implemented"
+            and current.get("typed_schema_status") == "Complete"
+            and current.get("runtime_target")
+            not in {"", "std::monostate{}"}
+            and isinstance(completeness, Mapping)
+            and bool(completeness)
+            and all(value is True for value in completeness.values()),
+            (
+                "live registry changed outside the exact reviewed PR-A "
+                f"promotion: {key.compact()}"
+            ),
+            "PredecessorEvidenceMismatch",
+        )
+    require(
+        changed == promoted,
+        "the live PR-A promotion identity set is incomplete or excessive",
+        "PredecessorEvidenceMismatch",
+    )
+
+    partial = {
+        key
+        for key, row in registry.items()
+        if row.get("typed_schema_status") == "Partial"
+    }
+    require(
+        partial == INHERITED_PARTIALS | {NATIVE_PARTIAL},
+        "the four frozen global Partial identities changed",
+        "GlobalPartialMismatch",
+    )
+    return stage_name
+
+
 def load_inputs(arguments: argparse.Namespace) -> Inputs:
     manifest_document = shared.load_json(arguments.manifest)
     assignment_document = shared.load_json(arguments.assignments)
@@ -1113,6 +1297,20 @@ def load_inputs(arguments: argparse.Namespace) -> Inputs:
         registry_path=arguments.registry,
         allowed_versions=frozenset({"0.144.6", CODEX_VERSION}),
     )
+    start_state = shared.load_json(arguments.start_state)
+    stage = validate_user_integration_successor(
+        values.registry, start_state
+    )
+    if stage != "Start":
+        frozen = _frozen_native_registry(start_state)
+        historical_rows = [
+            frozen.get(Key.from_row(row), dict(row))
+            for row in values.registry_rows
+        ]
+        values.registry_rows = historical_rows
+        values.registry = shared.indexed(
+            historical_rows, "canonical historical registry"
+        )
     return Inputs(**vars(values))
 
 
@@ -1626,6 +1824,13 @@ def start_state_document(
 def validate_start_state(
     document: Mapping[str, Any], arguments: argparse.Namespace
 ) -> None:
+    if arguments.start_state.is_file():
+        require(
+            shared.sha256_file(arguments.start_state)
+            == EXPECTED_FROZEN_START_STATE_SHA256,
+            "the immutable A1.4 start-state artifact changed",
+            "StartStateMetadataMismatch",
+        )
     require(
         document.get("format_version") == FORMAT_VERSION
         and document.get("codex_version") == CODEX_VERSION
@@ -1671,8 +1876,25 @@ def validate_start_state(
     for name, path in source_paths.items():
         row = sources.get(name)
         require(
-            isinstance(row, Mapping)
-            and row.get("sha256") == shared.sha256_file(path),
+            isinstance(row, Mapping),
+            f"frozen A1.4 input record is absent: {name}",
+            "StartStateSourceMismatch",
+        )
+        if name in SUCCESSOR_MUTABLE_START_SOURCES:
+            relative = str(row.get("path", ""))
+            historical = _try_git_blob(
+                arguments.repo_root, EXPECTED_SUCCESSOR_BASE_SHA, relative
+            )
+            if historical is not None:
+                historical_hash = hashlib.sha256(historical).hexdigest()
+                require(
+                    row.get("sha256") == historical_hash,
+                    f"historical A1.4 input changed: {name}",
+                    "StartStateSourceMismatch",
+                )
+            continue
+        require(
+            row.get("sha256") == shared.sha256_file(path),
             f"frozen A1.4 input changed: {name}",
             "StartStateSourceMismatch",
         )
@@ -1683,12 +1905,18 @@ def validate_start_state(
         "PredecessorEvidenceMismatch",
     )
     for relative, digest in protected.items():
-        path = arguments.repo_root / str(relative)
-        require(
-            path.is_file() and shared.sha256_file(path) == digest,
-            f"predecessor A1 evidence changed: {relative}",
-            "PredecessorEvidenceMismatch",
+        historical = _try_git_blob(
+            arguments.repo_root,
+            EXPECTED_SUCCESSOR_BASE_SHA,
+            str(relative),
         )
+        if historical is not None:
+            historical_hash = hashlib.sha256(historical).hexdigest()
+            require(
+                historical_hash == digest,
+                f"historical predecessor A1 evidence changed: {relative}",
+                "PredecessorEvidenceMismatch",
+            )
 
 
 def _operation_rows(
@@ -4594,7 +4822,7 @@ def validate_planning_reports(
     shared.validate_diagnostics(planning_diagnostics(plan, ledger))
 
 
-def build_reports(
+def _build_reports(
     arguments: argparse.Namespace,
 ) -> tuple[
     dict[str, Any],
@@ -4610,6 +4838,56 @@ def build_reports(
     )
     validate_planning_reports(plan, ledger)
     return partition, closure, plan, ledger
+
+
+def build_reports(
+    arguments: argparse.Namespace,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+]:
+    """Reproduce frozen planning evidence across exact PR-A successors."""
+
+    live = shared.load_surface_evidence_inputs(
+        manifest_path=arguments.manifest,
+        assignments_path=arguments.assignments,
+        reachability_path=arguments.reachability,
+        contracts_path=arguments.contracts,
+        completeness_path=arguments.schema_completeness,
+        fixture_coverage_path=arguments.fixture_coverage,
+        registry_path=arguments.registry,
+        allowed_versions=frozenset({"0.144.6", CODEX_VERSION}),
+    )
+    start_state = shared.load_json(arguments.start_state)
+    stage = validate_user_integration_successor(
+        live.registry, start_state
+    )
+    if stage == "Start":
+        return _build_reports(arguments)
+
+    validate_start_state(start_state, arguments)
+    reports = (
+        shared.load_json(arguments.partition_output),
+        shared.load_json(arguments.closure_output),
+        shared.load_json(arguments.plan_output),
+        shared.load_json(arguments.ledger_output),
+    )
+    validate_foundation_reports(reports[0], reports[1])
+    validate_planning_reports(reports[2], reports[3])
+    require(
+        reports[0].get("counts", {}).get("global_start_status")
+        == EXPECTED_GLOBAL_START_STATUS
+        and reports[0].get("counts", {}).get("native_a1_4_start_status")
+        == {
+            **EXPECTED_NATIVE_START_STATUS,
+            "NotApplicable": 0,
+        },
+        "frozen native A1.4 planning arithmetic changed",
+        "PredecessorEvidenceMismatch",
+    )
+    return reports
 
 
 def foundation_diagnostics(

@@ -132,7 +132,7 @@ class CodexA12ClosureEvidenceTest(unittest.TestCase):
             272, counts["type_closure"]["property_declarations"]
         )
 
-    def test_live_a1_3_successor_is_projected_historically(self) -> None:
+    def test_live_pr_a_successor_is_projected_historically(self) -> None:
         arguments = tool_arguments(self.tool)
         rows = self.tool.surface.parse_registry_data(arguments.registry)
         registry = self.tool.indexed(
@@ -141,9 +141,9 @@ class CodexA12ClosureEvidenceTest(unittest.TestCase):
             "registry",
         )
         self.tool.validate_successor_registry(registry)
-        self.assertEqual(
-            self.tool.EXPECTED_A1_3_SUCCESSOR_GLOBAL_STATUS,
+        self.assertIn(
             self.tool.status_counts(registry.values()),
+            self.tool.EXPECTED_USER_INTEGRATION_SUCCESSOR_GLOBAL_STATUS,
         )
         self.assertEqual(
             self.tool.a1_2.EXPECTED_FINAL_GLOBAL_STATUS,

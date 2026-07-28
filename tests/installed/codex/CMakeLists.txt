@@ -4,6 +4,17 @@ project(AISuiteInstalledCodexConsumer LANGUAGES CXX)
 
 find_package(AISuite CONFIG REQUIRED)
 
+add_executable(
+    AISuiteInstalledSNodeCoreConsumer
+    SNodeInstalledCoreConsumer.cpp
+)
+target_compile_features(
+    AISuiteInstalledSNodeCoreConsumer PRIVATE cxx_std_20
+)
+target_link_libraries(
+    AISuiteInstalledSNodeCoreConsumer PRIVATE snodec::core
+)
+
 add_executable(AISuiteInstalledCodexConsumer CodexRawConsumer.cpp)
 target_compile_features(AISuiteInstalledCodexConsumer PRIVATE cxx_std_20)
 target_link_libraries(

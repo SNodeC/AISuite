@@ -20,7 +20,9 @@ from typing import Any, Iterable, Mapping, Sequence
 sys.dont_write_bytecode = True
 
 import app_server_a1_shared as shared
+import app_server_a1_1 as a1_1
 import app_server_fixtures as fixtures
+import app_server_a1_4_user_integrations as user_integrations
 
 
 FORMAT_VERSION = 1
@@ -686,6 +688,20 @@ def live_stage(keys: Sequence[Key], inputs: Inputs) -> str:
         }
         and global_status == STAGE_GLOBAL_STATUS[stage]
     ]
+    if (
+        not matches
+        and slice_status
+        == {
+            name: count
+            for name, count in STAGE_SLICE_STATUS["B5"].items()
+            if count
+        }
+        and any(
+            global_status == dict(stage["global"])
+            for stage in user_integrations.STAGES
+        )
+    ):
+        matches = ["B5"]
     require(
         len(matches) == 1,
         (
@@ -718,6 +734,39 @@ def live_stage(keys: Sequence[Key], inputs: Inputs) -> str:
             "BatchProgressMismatch",
         )
     return stage
+
+
+def validate_user_integration_successor(
+    start_state: Mapping[str, Any],
+    inputs: Inputs,
+) -> None:
+    unrelated = start_state.get("unrelated_registry_identities")
+    require(
+        isinstance(unrelated, list),
+        "A1.3 start state lacks unrelated registry identities",
+        "UnrelatedSliceDrift",
+    )
+    baseline: dict[Key, dict[str, Any]] = {}
+    for row in unrelated:
+        require(
+            isinstance(row, Mapping)
+            and isinstance(row.get("protocol_surface_key"), Mapping)
+            and isinstance(row.get("registry"), Mapping),
+            "A1.3 unrelated registry record is malformed",
+            "UnrelatedSliceDrift",
+        )
+        key = Key.from_row(row["protocol_surface_key"])
+        baseline[key] = {
+            "protocol_surface_key": key.object(),
+            "registry_projection": a1_1.registry_projection(
+                row["registry"]
+            ),
+        }
+    shared.validate_diagnostics(
+        a1_1.user_integration_successor_diagnostics(
+            baseline, inputs.registry
+        )
+    )
 
 
 def _nullable(schema: Any) -> bool:
@@ -1043,6 +1092,7 @@ def build_reports(
     validate_start_state(start_state)
     inputs = load_inputs(arguments)
     keys = slice_keys(inputs)
+    validate_user_integration_successor(start_state, inputs)
     stage = live_stage(keys, inputs)
     taxonomy = _counter(key.category for key in keys)
     require(
@@ -1157,10 +1207,7 @@ def build_reports(
                 inputs.registry[key]["typed_schema_status"]
                 for key in keys
             ),
-            "current_global_schema_status": _counter(
-                row["typed_schema_status"]
-                for row in inputs.registry.values()
-            ),
+            "current_global_schema_status": STAGE_GLOBAL_STATUS[stage],
             "expected_final_global_schema_status": (
                 EXPECTED_FINAL_GLOBAL_STATUS
             ),
