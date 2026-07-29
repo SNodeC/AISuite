@@ -81,7 +81,24 @@ foreach(required
     tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-1.json
     tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-2.json
     tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-symbols.txt
+    tools/extraction/verify_codex_policy_ownership.py
     tools/extraction/verify_extraction.py
+    tests/CMakeLists.txt
+    tests/AISuiteBinaryPackageTest.cmake
+    tests/AISuiteSourcePackageTest.cmake
+    tests/policy/CMakeLists.txt
+    tests/policy/support/AISuiteSourcePolicyTestRoot.h
+    tests/policy/support/CxxSourceScanner.h
+    tests/policy/codex/CMakeLists.txt
+    tests/policy/codex/CodexPublicHeaderPolicyTest.cpp
+    tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake
+    tests/policy/codex/CodexLoggingApiSurfacePolicyTest.cpp
+    tests/policy/codex/CodexPolicyMutationTest.py
+    tests/policy/codex/CodexSemanticLoggerPolicyTest.cpp
+    tests/policy/codex/CodexSemanticLoggerAuthority.tsv
+    tests/policy/codex/CodexSemanticLoggerClassifications.tsv
+    tests/policy/security/CMakeLists.txt
+    tests/policy/security/CodexSyntheticSecretLeakGuardTest.py
     tests/component/codex/CodexA14AuditToolTest.py
     tests/component/codex/CodexA14UserIntegrationsAuditTest.py
     tests/component/codex/CodexA14UserIntegrationsClosureTest.py
@@ -90,13 +107,20 @@ foreach(required
     tests/installed/codex/SNodeInstalledCoreConsumer.cpp
     docs/ai/openai/codex/a1-4-user-facing-integrations.md
     docs/extraction/README.md
+    docs/extraction/codex-policy-baseline-ctest.json
+    docs/extraction/codex-policy-final-ctest.json
+    docs/extraction/codex-policy-ownership.json
+    docs/extraction/codex-policy-ownership.md
     docs/extraction/filter-map.json
     docs/extraction/source-manifest.json
     docs/extraction/validation.md
     docs/extraction/test-integrity.md
 )
     if(NOT EXISTS "${root}/${required}")
-        message(FATAL_ERROR "source package missing ${required}")
+        message(
+            FATAL_ERROR
+                "CodexPolicySourcePackageMismatch: source package missing ${required}"
+        )
     endif()
 endforeach()
 
@@ -157,6 +181,22 @@ if(NOT result EQUAL 0)
     message(
         FATAL_ERROR
             "extraction package-boundary check failed inside source package: ${result}"
+    )
+endif()
+
+execute_process(
+    COMMAND
+        ${package_check_environment}
+        "${python_executable}" -B
+        "${root}/tools/extraction/verify_codex_policy_ownership.py"
+        check-package
+        --repo-root "${root}"
+    RESULT_VARIABLE result
+)
+if(NOT result EQUAL 0)
+    message(
+        FATAL_ERROR
+            "CodexPolicySourcePackageMismatch: Codex policy ownership check failed inside source package: ${result}"
     )
 endif()
 

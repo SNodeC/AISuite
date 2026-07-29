@@ -163,7 +163,7 @@
   "shared_library_symbols": {
     "extract_policy": "nm -D --defined-only --format=posix; retain strong B/D/R/T symbols; LC_ALL=C lexical unique sort",
     "library_basename": "libaisuite-openai-codex.so.0.1.0",
-    "library_sha256": "37e437b0a66911297a167062e3c94ff233a8f8f365f2d641166c19b947182bb3",
+    "library_sha256": "aab30613b7f12dc2e7294d98618274751999b4704ae7229bb19457b382a7e9a8",
     "symbol_count": 715,
     "symbol_list": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-symbols.txt",
     "symbol_list_sha256": "35fd7fdb8690049adc15df8c6d1eadc50eff0f4538bdecbba048f0a329e0bccc"

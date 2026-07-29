@@ -57,6 +57,34 @@ REQUIRED_COMMIT_SUBJECTS = (
 )
 COMMIT_5_SUBJECT = REQUIRED_COMMIT_SUBJECTS[4]
 FINAL_COMMIT_SUBJECT = REQUIRED_COMMIT_SUBJECTS[5]
+PR_A_MERGE_SHA = "19de4f50be64e187761274f043091090609d27a3"
+PR_A_MERGE_TREE = "c71a91e545d70d649446ca9d698d729c307a480a"
+PR_A_MERGE_PARENTS = (
+    audit.EXPECTED_BASE_SHA,
+    "7c89ecdf5247ed58acc2b2e9901cb30cb48896bd",
+)
+PR_A_MERGE_SUBJECT = (
+    "Merge pull request #2 from SNodeC/codex/a1-4-user-integrations"
+)
+POLICY_OWNERSHIP_COMMIT_SUBJECTS = (
+    "Complete extracted Codex source-policy coverage",
+    "Verify AISuite Codex policy ownership",
+)
+POLICY_OWNERSHIP_COMMIT_1_SHA = (
+    "ab0c734143eddcd1d5b20d29ac7f61baa25711bf"
+)
+POLICY_OWNERSHIP_MERGE_SUBJECT = (
+    "Merge pull request #3 from "
+    "SNodeC/extraction/complete-codex-policy-ownership"
+)
+PROTOCOL_REGISTRY_RELATIVE_PATH = (
+    "src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc"
+)
+POLICY_OWNERSHIP_EVIDENCE_RELATIVE_PATHS = (
+    "docs/extraction/codex-policy-ownership.json",
+    "docs/extraction/codex-policy-baseline-ctest.json",
+    "docs/extraction/codex-policy-final-ctest.json",
+)
 GENERATION_PROOF_FILENAMES = (
     "a1-4-user-integrations-generation-pre.json",
     "a1-4-user-integrations-generation-pass-1.json",
@@ -194,6 +222,39 @@ class ClosureError(RuntimeError):
                 for row in diagnostics
             )
         )
+
+
+@dataclass(frozen=True)
+class PolicyHistoryCommit:
+    """One commit in the testable policy-ownership history model."""
+
+    sha: str
+    tree: str
+    parents: tuple[str, ...]
+    subject: str
+
+
+@dataclass(frozen=True)
+class PolicyHistoryModel:
+    """History facts needed to bound the reviewed policy-ownership range."""
+
+    head: str
+    commits: Mapping[str, PolicyHistoryCommit]
+    reachable_from_head: frozenset[str]
+    policy_merge_candidates: tuple[str, ...]
+    src_changes_by_commit: Mapping[str, tuple[str, ...]]
+    registry_blobs: Mapping[str, bytes]
+    worktree_src_changes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PolicyHistoryValidation:
+    """Structurally validated boundary of the policy-ownership PR."""
+
+    state: str
+    policy_commit_2: str | None
+    policy_merge: str | None
+    bounded_policy_end: str
 
 
 Key = tuple[str, str, str, str]
@@ -765,8 +826,13 @@ def _package_boundary(arguments: argparse.Namespace) -> dict[str, Any]:
     source_package_tokens = (
         "GIT_CEILING_DIRECTORIES=",
         "verify_extraction.py",
+        "verify_codex_policy_ownership.py",
         "app_server_a1_4_user_integrations_closure.py",
         "check-package",
+        *(
+            Path(path).name
+            for path in POLICY_OWNERSHIP_EVIDENCE_RELATIVE_PATHS
+        ),
         *GENERATION_PROOF_FILENAMES,
     )
     missing_source_package = [
@@ -775,11 +841,11 @@ def _package_boundary(arguments: argparse.Namespace) -> dict[str, Any]:
     ]
     _require(
         not missing_source_package
-        and source_package.count("check-package") >= 2,
+        and source_package.count("check-package") >= 3,
         "UserIntegrationPackageBoundaryMismatch",
         "$.package_boundary.source_package",
         (
-            "source package lacks no-history extraction/closure proof: "
+            "source package lacks no-history extraction/policy/closure proof: "
             f"{missing_source_package}"
         ),
     )
@@ -980,35 +1046,351 @@ def _expected_history_policy() -> dict[str, Any]:
         "commit_6_subject": FINAL_COMMIT_SUBJECT,
         "commit_6_production_implementation_forbidden": True,
         "commit_6_registry_promotion_forbidden": True,
+        "merged_pr_a": {
+            "sha": PR_A_MERGE_SHA,
+            "tree": PR_A_MERGE_TREE,
+            "parents": list(PR_A_MERGE_PARENTS),
+            "subject": PR_A_MERGE_SUBJECT,
+        },
+        "policy_ownership_base_sha": PR_A_MERGE_SHA,
+        "policy_ownership_base_tree": PR_A_MERGE_TREE,
+        "policy_ownership_commit_1": {
+            "sha": POLICY_OWNERSHIP_COMMIT_1_SHA,
+            "subject": POLICY_OWNERSHIP_COMMIT_SUBJECTS[0],
+            "parents": [PR_A_MERGE_SHA],
+        },
+        "required_policy_ownership_commit_count": 2,
+        "required_policy_ownership_subjects": list(
+            POLICY_OWNERSHIP_COMMIT_SUBJECTS
+        ),
+        "policy_ownership_commit_2_subject": (
+            POLICY_OWNERSHIP_COMMIT_SUBJECTS[1]
+        ),
+        "accepted_policy_ownership_states": [
+            "commit-1-construction",
+            "unmerged-two-commit-branch",
+            "merged-pr-3-or-later-descendant",
+        ],
+        "policy_ownership_merge": {
+            "subject": POLICY_OWNERSHIP_MERGE_SUBJECT,
+            "parent_count": 2,
+            "first_parent": PR_A_MERGE_SHA,
+            "second_parent": "structurally-validated-policy-commit-2",
+            "tree_equals_policy_commit_2": True,
+            "unique_in_head_ancestry": True,
+        },
+        "bounded_reviewed_policy_range": {
+            "start_exclusive": PR_A_MERGE_SHA,
+            "end_inclusive": "structurally-validated-policy-commit-2",
+            "production_changes_forbidden": True,
+            "registry_changes_forbidden": True,
+        },
+        "later_descendants_outside_reviewed_policy_range": True,
+        "later_descendant_production_changes_may_be_reviewed_separately": True,
+        "policy_ownership_production_implementation_forbidden": True,
+        "policy_ownership_registry_promotion_forbidden": True,
         "final_sha_or_tree_embedded": False,
     }
 
 
-def _history_policy(repo_root: Path) -> dict[str, Any]:
-    """Validate the immutable six-commit boundary without publishing C6 IDs.
+def _policy_history_commit(
+    model: PolicyHistoryModel,
+    sha: str,
+    *,
+    location: str,
+) -> PolicyHistoryCommit:
+    commit = model.commits.get(sha)
+    if commit is None or commit.sha != sha:
+        _fail(
+            "UserIntegrationPromotionStageMismatch",
+            location,
+            f"required history commit {sha} is missing or malformed",
+        )
+    return commit
 
-    The report is generated while Commit 6 is an uncommitted worktree on the
-    exact Commit-5 head.  The same bytes must remain valid after Commit 6 is
-    created, so this section contains only the static policy.  The live guard
-    accepts either state and validates the corresponding repository facts.
-    """
 
+def _require_policy_commit_content(
+    model: PolicyHistoryModel,
+    sha: str,
+    *,
+    label: str,
+) -> None:
+    _require(
+        sha in model.src_changes_by_commit,
+        "UserIntegrationPromotionStageMismatch",
+        f"$.history_policy.{label}.src_evidence",
+        "policy commit source-change evidence is missing",
+    )
+    changes = model.src_changes_by_commit[sha]
+    _require(
+        not changes,
+        "UserIntegrationFalseComplete",
+        f"$.history_policy.{label}.src",
+        (
+            "reviewed policy commit contains forbidden production changes: "
+            f"{list(changes)}"
+        ),
+    )
+    _require(
+        PR_A_MERGE_SHA in model.registry_blobs
+        and sha in model.registry_blobs,
+        "UserIntegrationPromotionStageMismatch",
+        f"$.history_policy.{label}.registry_evidence",
+        "policy commit registry evidence is missing",
+    )
+    _require(
+        model.registry_blobs[sha] == model.registry_blobs[PR_A_MERGE_SHA],
+        "UserIntegrationFalseComplete",
+        f"$.history_policy.{label}.registry",
+        "reviewed policy commit changes the production protocol registry",
+    )
+
+
+def _validate_policy_commit_2(
+    model: PolicyHistoryModel,
+    sha: str,
+) -> PolicyHistoryCommit:
+    commit = _policy_history_commit(
+        model,
+        sha,
+        location="$.history_policy.policy_ownership_commit_2",
+    )
+    _require(
+        sha != POLICY_OWNERSHIP_COMMIT_1_SHA
+        and commit.subject == POLICY_OWNERSHIP_COMMIT_SUBJECTS[1]
+        and commit.parents == (POLICY_OWNERSHIP_COMMIT_1_SHA,),
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_ownership_commit_2",
+        (
+            "Commit 2 must be the direct single-parent child of unchanged "
+            "Commit 1 with the exact reviewed subject"
+        ),
+    )
+    _require(
+        sha in model.reachable_from_head,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_ownership_commit_2",
+        "the structurally selected Commit 2 is not an ancestor of HEAD",
+    )
+    _require_policy_commit_content(
+        model,
+        sha,
+        label="policy_ownership_commit_2",
+    )
+    return commit
+
+
+def _validate_policy_history_model(
+    model: PolicyHistoryModel,
+) -> PolicyHistoryValidation:
+    """Validate the exact reviewed policy range independently of later work."""
+
+    commit_1 = _policy_history_commit(
+        model,
+        POLICY_OWNERSHIP_COMMIT_1_SHA,
+        location="$.history_policy.policy_ownership_commit_1",
+    )
+    _require(
+        commit_1.subject == POLICY_OWNERSHIP_COMMIT_SUBJECTS[0]
+        and commit_1.parents == (PR_A_MERGE_SHA,),
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_ownership_commit_1",
+        (
+            "Commit 1 SHA, subject, or single-parent relationship to the "
+            "policy base changed"
+        ),
+    )
+    _require(
+        POLICY_OWNERSHIP_COMMIT_1_SHA in model.reachable_from_head,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_ownership_commit_1",
+        "unchanged Commit 1 is not an ancestor of HEAD",
+    )
+    _require_policy_commit_content(
+        model,
+        POLICY_OWNERSHIP_COMMIT_1_SHA,
+        label="policy_ownership_commit_1",
+    )
+
+    candidates = model.policy_merge_candidates
+    _require(
+        len(candidates) <= 1,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_merge",
+        "multiple reachable policy PR #3 merge candidates are ambiguous",
+    )
+    for candidate in candidates:
+        merge = _policy_history_commit(
+            model,
+            candidate,
+            location="$.history_policy.policy_merge",
+        )
+        _require(
+            merge.subject == POLICY_OWNERSHIP_MERGE_SUBJECT,
+            "UserIntegrationPromotionStageMismatch",
+            "$.history_policy.policy_merge.subject",
+            "policy merge candidate has the wrong first-line subject",
+        )
+        _require(
+            candidate in model.reachable_from_head,
+            "UserIntegrationPromotionStageMismatch",
+            "$.history_policy.policy_merge.ancestry",
+            "policy merge candidate is not an ancestor of HEAD",
+        )
+
+    if model.head == POLICY_OWNERSHIP_COMMIT_1_SHA:
+        _require(
+            not candidates,
+            "UserIntegrationPromotionStageMismatch",
+            "$.history_policy.policy_merge",
+            "Commit-1 construction state cannot contain a policy merge",
+        )
+        _require(
+            not model.worktree_src_changes,
+            "UserIntegrationFalseComplete",
+            "$.history_policy.policy_ownership_worktree",
+            (
+                "Commit-2 construction worktree contains forbidden "
+                f"production changes: {list(model.worktree_src_changes)}"
+            ),
+        )
+        return PolicyHistoryValidation(
+            state="commit-1-construction",
+            policy_commit_2=None,
+            policy_merge=None,
+            bounded_policy_end=POLICY_OWNERSHIP_COMMIT_1_SHA,
+        )
+
+    if not candidates:
+        commit_2 = _validate_policy_commit_2(model, model.head)
+        _require(
+            not model.worktree_src_changes,
+            "UserIntegrationFalseComplete",
+            "$.history_policy.policy_ownership_worktree",
+            (
+                "unmerged policy branch worktree contains forbidden "
+                f"production changes: {list(model.worktree_src_changes)}"
+            ),
+        )
+        return PolicyHistoryValidation(
+            state="unmerged-two-commit-branch",
+            policy_commit_2=commit_2.sha,
+            policy_merge=None,
+            bounded_policy_end=commit_2.sha,
+        )
+
+    merge_sha = candidates[0]
+    merge = _policy_history_commit(
+        model,
+        merge_sha,
+        location="$.history_policy.policy_merge",
+    )
+    _require(
+        len(merge.parents) == 2,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_merge.parents",
+        "the normal policy PR #3 merge must have exactly two parents",
+    )
+    _require(
+        merge.parents[0] == PR_A_MERGE_SHA,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_merge.parents",
+        "the policy merge first parent is not the unchanged policy base",
+    )
+    commit_2 = _validate_policy_commit_2(model, merge.parents[1])
+    _require(
+        merge.tree == commit_2.tree,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_merge.tree",
+        "the policy merge introduces tree changes beyond Commit 2",
+    )
+    _require(
+        merge_sha in model.registry_blobs,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_merge.registry_evidence",
+        "policy merge registry evidence is missing",
+    )
+    _require(
+        model.registry_blobs[merge_sha]
+        == model.registry_blobs[commit_2.sha]
+        == model.registry_blobs[POLICY_OWNERSHIP_COMMIT_1_SHA]
+        == model.registry_blobs[PR_A_MERGE_SHA],
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.policy_merge.registry",
+        "the policy merge tree does not preserve the bounded registry",
+    )
+    return PolicyHistoryValidation(
+        state="merged-pr-3-or-later-descendant",
+        policy_commit_2=commit_2.sha,
+        policy_merge=merge.sha,
+        bounded_policy_end=commit_2.sha,
+    )
+
+
+def _live_policy_history_model(repo_root: Path) -> PolicyHistoryModel:
     rows = _run(
         repo_root,
         "git",
         "log",
-        "--reverse",
-        "--format=%H%x09%s",
-        f"{audit.EXPECTED_BASE_SHA}..HEAD",
+        "--format=%H%x09%T%x09%P%x09%s",
+        "HEAD",
     ).splitlines()
-    parsed = [
-        tuple(row.split("\t", 1))
-        for row in rows
-        if "\t" in row
-    ]
-    subjects = tuple(row[1] for row in parsed)
-    first_five = REQUIRED_COMMIT_SUBJECTS[:5]
-    registry = "src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc"
+    commits: dict[str, PolicyHistoryCommit] = {}
+    for row in rows:
+        fields = row.split("\t", 3)
+        if len(fields) != 4:
+            continue
+        sha, tree, parents, subject = fields
+        commits[sha] = PolicyHistoryCommit(
+            sha=sha,
+            tree=tree,
+            parents=tuple(parents.split()),
+            subject=subject,
+        )
+    head = _run(repo_root, "git", "rev-parse", "HEAD")
+    reachable = frozenset(commits)
+    candidates = tuple(
+        commit.sha
+        for commit in commits.values()
+        if commit.subject == POLICY_OWNERSHIP_MERGE_SUBJECT
+    )
+
+    relevant = {
+        PR_A_MERGE_SHA,
+        POLICY_OWNERSHIP_COMMIT_1_SHA,
+        head,
+        *candidates,
+    }
+    for candidate in candidates:
+        relevant.update(commits[candidate].parents)
+
+    src_changes: dict[str, tuple[str, ...]] = {}
+    registry_blobs: dict[str, bytes] = {}
+    for sha in sorted(relevant):
+        if sha not in commits:
+            continue
+        src_changes[sha] = tuple(
+            _run(
+                repo_root,
+                "git",
+                "diff-tree",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                sha,
+                "--",
+                "src",
+            ).splitlines()
+        )
+        try:
+            registry_blobs[sha] = _git_blob_bytes(
+                repo_root,
+                sha,
+                PROTOCOL_REGISTRY_RELATIVE_PATH,
+            )
+        except subprocess.CalledProcessError:
+            pass
+
     worktree_src = set(
         _run(
             repo_root,
@@ -1031,69 +1413,112 @@ def _history_policy(repo_root: Path) -> dict[str, Any]:
             "src",
         ).splitlines()
     )
+    return PolicyHistoryModel(
+        head=head,
+        commits=commits,
+        reachable_from_head=reachable,
+        policy_merge_candidates=candidates,
+        src_changes_by_commit=src_changes,
+        registry_blobs=registry_blobs,
+        worktree_src_changes=tuple(sorted(worktree_src)),
+    )
 
-    if subjects == first_five:
-        _require(
-            not worktree_src,
-            "UserIntegrationPromotionStageMismatch"
-            if registry in worktree_src
-            else "UserIntegrationFalseComplete",
-            "$.history_policy.precommit_commit_6",
-            (
-                "precommit Commit-6 worktree contains production or registry "
-                f"changes: {sorted(worktree_src)}"
-            ),
-        )
-    else:
-        _require(
-            subjects == REQUIRED_COMMIT_SUBJECTS,
-            "UserIntegrationPromotionStageMismatch",
-            "$.history_policy.subjects",
-            (
-                "history must be either the exact Commit-5 precommit boundary "
-                "or the exact six-commit PR-A history"
-            ),
-        )
-        _require(
-            not worktree_src,
-            "UserIntegrationPromotionStageMismatch"
-            if registry in worktree_src
-            else "UserIntegrationFalseComplete",
-            "$.history_policy.postcommit_worktree",
-            (
-                "postcommit worktree contains production or registry "
-                f"changes: {sorted(worktree_src)}"
-            ),
-        )
-        commit_5 = parsed[4][0]
-        changed_src = _run(
+
+def _history_policy(repo_root: Path) -> dict[str, Any]:
+    """Validate PR-A and the bounded policy PR across all reviewed states."""
+
+    rows = _run(
+        repo_root,
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x09%P%x09%s",
+        f"{audit.EXPECTED_BASE_SHA}..HEAD",
+    ).splitlines()
+    parsed = [
+        tuple(row.split("\t", 2))
+        for row in rows
+        if row.count("\t") == 2
+    ]
+    subjects = tuple(row[2] for row in parsed)
+    required_prefix = (*REQUIRED_COMMIT_SUBJECTS, PR_A_MERGE_SUBJECT)
+    _require(
+        subjects[: len(required_prefix)] == required_prefix,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.pr_a_subjects",
+        (
+            "history does not preserve the exact six-commit PR-A subject "
+            "sequence followed by its reviewed merge"
+        ),
+    )
+
+    merge_sha, merge_parents, merge_subject = parsed[
+        len(REQUIRED_COMMIT_SUBJECTS)
+    ]
+    _require(
+        merge_sha == PR_A_MERGE_SHA
+        and tuple(merge_parents.split()) == PR_A_MERGE_PARENTS
+        and merge_subject == PR_A_MERGE_SUBJECT
+        and _run(
             repo_root,
             "git",
-            "diff",
-            "--name-only",
-            f"{commit_5}..HEAD",
-            "--",
-            "src",
-        ).splitlines()
-        _require(
-            not changed_src,
-            "UserIntegrationPromotionStageMismatch"
-            if registry in changed_src
-            else "UserIntegrationFalseComplete",
-            "$.history_policy.commit_6",
-            (
-                "Commit 6 contains production or registry changes: "
-                f"{changed_src}"
-            ),
+            "show",
+            "-s",
+            "--format=%T",
+            merge_sha,
         )
-        _require(
-            _git_blob_bytes(repo_root, commit_5, registry)
-            == _git_blob_bytes(repo_root, "HEAD", registry),
-            "UserIntegrationPromotionStageMismatch",
-            "$.history_policy.commit_6.registry",
-            "Commit 6 changed the production status registry",
-        )
+        == PR_A_MERGE_TREE,
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.merged_pr_a",
+        "the pinned PR-A merge SHA, tree, parents, or subject changed",
+    )
 
+    commit_5 = parsed[4][0]
+    commit_6 = parsed[5][0]
+    commit_6_src = _run(
+        repo_root,
+        "git",
+        "diff",
+        "--name-only",
+        f"{commit_5}..{commit_6}",
+        "--",
+        "src",
+    ).splitlines()
+    _require(
+        not commit_6_src,
+        (
+            "UserIntegrationPromotionStageMismatch"
+            if PROTOCOL_REGISTRY_RELATIVE_PATH in commit_6_src
+            else "UserIntegrationFalseComplete"
+        ),
+        "$.history_policy.commit_6",
+        (
+            "the original PR-A Commit 6 contains production or registry "
+            f"changes: {commit_6_src}"
+        ),
+    )
+    _require(
+        _git_blob_bytes(
+            repo_root,
+            commit_5,
+            PROTOCOL_REGISTRY_RELATIVE_PATH,
+        )
+        == _git_blob_bytes(
+            repo_root,
+            commit_6,
+            PROTOCOL_REGISTRY_RELATIVE_PATH,
+        )
+        == _git_blob_bytes(
+            repo_root,
+            PR_A_MERGE_SHA,
+            PROTOCOL_REGISTRY_RELATIVE_PATH,
+        ),
+        "UserIntegrationPromotionStageMismatch",
+        "$.history_policy.registry",
+        "PR-A closure or merge changed the status registry",
+    )
+
+    _validate_policy_history_model(_live_policy_history_model(repo_root))
     return _expected_history_policy()
 
 
@@ -1244,6 +1669,26 @@ def _proof_relative_paths(arguments: argparse.Namespace) -> list[str]:
     ]
 
 
+def _policy_ownership_evidence_paths(
+    arguments: argparse.Namespace,
+) -> tuple[Path, ...]:
+    ownership = arguments.policy_ownership_output.resolve()
+    _require(
+        _relative_command_path(ownership, arguments.repo_root)
+        == POLICY_OWNERSHIP_EVIDENCE_RELATIVE_PATHS[0],
+        "UserIntegrationPredecessorEvidenceDrift",
+        "$.generation_sequence.codex-policy-ownership.output",
+        "Codex policy ownership output path changed",
+    )
+    return (
+        ownership,
+        *(
+            (arguments.repo_root / relative).resolve()
+            for relative in POLICY_OWNERSHIP_EVIDENCE_RELATIVE_PATHS[1:]
+        ),
+    )
+
+
 def _validate_extraction_proof_exclusions(
     arguments: argparse.Namespace,
 ) -> None:
@@ -1330,6 +1775,7 @@ def _generated_paths(arguments: argparse.Namespace) -> list[Path]:
             arguments.coverage_document,
             arguments.security_document,
             arguments.extraction_manifest,
+            *_policy_ownership_evidence_paths(arguments),
             arguments.abi_tool,
             arguments.abi_probe,
         )
@@ -1544,6 +1990,21 @@ def _generation_steps(
         str(arguments.abi_library)
         if arguments.abi_library is not None
         else "{abi-library}"
+    )
+    policy_baseline_ctest = (
+        str(arguments.policy_baseline_ctest)
+        if arguments.policy_baseline_ctest is not None
+        else "{policy-baseline-ctest}"
+    )
+    policy_final_ctest = (
+        str(arguments.policy_final_ctest)
+        if arguments.policy_final_ctest is not None
+        else "{policy-final-ctest}"
+    )
+    policy_snodec_root = (
+        str(arguments.policy_snodec_root)
+        if arguments.policy_snodec_root is not None
+        else "{policy-snodec-root}"
     )
 
     steps: list[GenerationStep] = [
@@ -1917,6 +2378,30 @@ def _generation_steps(
     steps.append(
         _python_step(
             arguments,
+            "codex-policy-ownership",
+            "tools/extraction/verify_codex_policy_ownership.py",
+            (
+                "generate",
+                "--repo-root",
+                str(root),
+                "--baseline-ctest",
+                policy_baseline_ctest,
+                "--final-ctest",
+                policy_final_ctest,
+                "--snodec-root",
+                policy_snodec_root,
+                "--output",
+                str(arguments.policy_ownership_output),
+            ),
+            tuple(
+                _relative_command_path(path, root)
+                for path in _policy_ownership_evidence_paths(arguments)
+            ),
+        )
+    )
+    steps.append(
+        _python_step(
+            arguments,
             "extraction-manifest-last",
             "tools/extraction/verify_extraction.py",
             (
@@ -1938,9 +2423,19 @@ def _render_step(step: GenerationStep, repo_root: Path) -> dict[str, Any]:
     command: list[str] = []
     after_abi_compiler = False
     after_abi_library = False
+    policy_placeholder: str | None = None
+    policy_argument_placeholders = {
+        "--baseline-ctest": "{policy-baseline-ctest}",
+        "--final-ctest": "{policy-final-ctest}",
+        "--snodec-root": "{policy-snodec-root}",
+    }
     for index, argument in enumerate(step.arguments):
         if index == 0:
             command.append("{python}")
+            continue
+        if policy_placeholder is not None:
+            command.append(policy_placeholder)
+            policy_placeholder = None
             continue
         if after_abi_compiler:
             command.append("{abi-compiler}")
@@ -1960,6 +2455,13 @@ def _render_step(step: GenerationStep, repo_root: Path) -> dict[str, Any]:
         if argument == "--library" and step.name == "pr-a-api-abi-evidence":
             command.append(argument)
             after_abi_library = True
+            continue
+        if (
+            step.name == "codex-policy-ownership"
+            and argument in policy_argument_placeholders
+        ):
+            command.append(argument)
+            policy_placeholder = policy_argument_placeholders[argument]
             continue
         try:
             candidate = Path(argument)
@@ -1985,13 +2487,21 @@ def _run_generation_pass(
     steps = _generation_steps(arguments)
     _require(
         steps[-1].name == "extraction-manifest-last"
+        and steps[-2].name == "codex-policy-ownership"
         and all(
             step.name != "extraction-manifest-last"
             for step in steps[:-1]
+        )
+        and all(
+            step.name != "codex-policy-ownership"
+            for step in steps[:-2]
         ),
         "UserIntegrationPredecessorEvidenceDrift",
         "$.generation_sequence",
-        "extraction manifest is not the unique final generator step",
+        (
+            "Codex policy ownership does not immediately precede the unique "
+            "final extraction-manifest generator step"
+        ),
     )
     rendered_steps: list[dict[str, Any]] = []
     for index, step in enumerate(steps, start=1):
@@ -2278,6 +2788,10 @@ def _reviewed_change_inputs(
         "--exclude-standard",
     ).splitlines()
     paths = sorted(set((*tracked, *untracked)))
+    policy_evidence = {
+        _relative_command_path(path, arguments.repo_root)
+        for path in _policy_ownership_evidence_paths(arguments)
+    }
     return {
         "base_sha": audit.EXPECTED_BASE_SHA,
         "test_sources": [
@@ -2294,7 +2808,11 @@ def _reviewed_change_inputs(
                 and path.endswith(".py")
                 and path.count("/") == 2
             )
-            or path == "tools/extraction/verify_extraction.py"
+            or path
+            in {
+                "tools/extraction/verify_extraction.py",
+                "tools/extraction/verify_codex_policy_ownership.py",
+            }
         ],
         "documentation_and_build_guards": [
             path
@@ -2303,17 +2821,20 @@ def _reviewed_change_inputs(
             or (
                 path.startswith(("docs/", ".github/"))
                 and path
-                not in {
-                    "docs/extraction/source-manifest.json",
-                    (
-                        "docs/ai/openai/codex/"
-                        "app-server-api-coverage.md"
-                    ),
-                    (
-                        "docs/ai/openai/codex/"
-                        "app-server-security-decisions.md"
-                    ),
-                }
+                not in (
+                    {
+                        "docs/extraction/source-manifest.json",
+                        (
+                            "docs/ai/openai/codex/"
+                            "app-server-api-coverage.md"
+                        ),
+                        (
+                            "docs/ai/openai/codex/"
+                            "app-server-security-decisions.md"
+                        ),
+                    }
+                    | policy_evidence
+                )
             )
             or (
                 path.startswith("tests/")
@@ -2374,6 +2895,8 @@ def _generator_for_path(path: str) -> str:
         )
     if name.startswith("a1-4-") or name == "a1-final-cross-slice-ledger.json":
         return "tools/codex/app_server_a1_4.py"
+    if path in POLICY_OWNERSHIP_EVIDENCE_RELATIVE_PATHS:
+        return "tools/extraction/verify_codex_policy_ownership.py generate"
     if path == "docs/extraction/source-manifest.json":
         return "tools/extraction/verify_extraction.py generate"
     return "tools/codex/app_server_surface.py"
@@ -2445,6 +2968,14 @@ def _delta_classification(
                 "reviewed PR-A implementation, test, generator, evidence, "
                 "documentation, package-guard, and CI final hashes"
             )
+        elif path in POLICY_OWNERSHIP_EVIDENCE_RELATIVE_PATHS:
+            semantic_classification = (
+                "reviewed-codex-policy-ownership-derived-evidence"
+            )
+            cause = (
+                "authoritative Codex policy ownership and configured CTest "
+                "model regeneration"
+            )
         elif path == _relative_command_path(
             arguments.output, arguments.repo_root
         ):
@@ -2490,8 +3021,9 @@ def _proof_hash_domain() -> dict[str, Any]:
         "description": (
             "Complete inherited and PR-A generated corpus, including "
             "all fixtures, evidence, descriptor/registry tables, "
-            "generated coverage/security documents, the PR-A closure "
-            "report, and the extraction manifest."
+            "generated coverage/security documents, Codex policy ownership "
+            "and configured CTest evidence, the PR-A closure report, and "
+            "the extraction manifest."
         ),
         "self_reference_exclusions": list(
             GENERATION_PROOF_RELATIVE_PATHS
@@ -2871,13 +3403,18 @@ def _validate_generation_proof(
         _relative_command_path(arguments.abi_symbols, arguments.repo_root),
         _relative_command_path(arguments.abi_tool, arguments.repo_root),
         _relative_command_path(arguments.abi_probe, arguments.repo_root),
+        *(
+            _relative_command_path(path, arguments.repo_root)
+            for path in _policy_ownership_evidence_paths(arguments)
+        ),
     }
     _require(
         required_paths <= set(pass_rows),
         "UserIntegrationSecondPassNondeterminism",
         "$.deterministic_generation.hash_domain",
         (
-            "full corpus omits required closure/extraction/API-ABI paths: "
+            "full corpus omits required closure/extraction/API-ABI/policy "
+            "ownership paths: "
             f"{sorted(required_paths - set(pass_rows))}"
         ),
     )
@@ -2970,7 +3507,8 @@ def _generation_report_section(
         "scope": (
             "complete inherited and PR-A generated corpus, including every "
             "fixture, evidence artifact, generated registry/descriptor/"
-            "document, this closure report, and the extraction manifest"
+            "document, Codex policy ownership/configured CTest evidence, "
+            "this closure report, and the extraction manifest"
         ),
         "proof_manifests": proof_paths,
         "target_corpus_metadata_exclusions": proof_paths,
@@ -2997,6 +3535,7 @@ def _generation_report_section(
             "UserIntegrationExtractionProofExclusionMismatch"
         ),
         "extraction_is_unique_final_generator_step": True,
+        "policy_ownership_immediately_precedes_extraction_manifest": True,
     }
 
 
@@ -3028,6 +3567,10 @@ def _require_published_generation_proof(
     _require(
         isinstance(section, Mapping)
         and section.get("live_target_corpus_equality_required") is True
+        and section.get(
+            "policy_ownership_immediately_precedes_extraction_manifest"
+        )
+        is True
         and not (forbidden_keys & nested_keys),
         "UserIntegrationSecondPassNondeterminism",
         "$.deterministic_generation.proof_publication",
@@ -3230,6 +3773,20 @@ def regenerate_all(arguments: argparse.Namespace) -> None:
         "UserIntegrationPredecessorEvidenceDrift",
         "$.generation_sequence.pr-a-api-abi-evidence",
         "regenerate requires an existing --abi-library",
+    )
+    _require(
+        arguments.policy_baseline_ctest is not None
+        and arguments.policy_baseline_ctest.is_file()
+        and arguments.policy_final_ctest is not None
+        and arguments.policy_final_ctest.is_file()
+        and arguments.policy_snodec_root is not None
+        and arguments.policy_snodec_root.is_dir(),
+        "UserIntegrationPredecessorEvidenceDrift",
+        "$.generation_sequence.codex-policy-ownership",
+        (
+            "regenerate requires --policy-baseline-ctest, "
+            "--policy-final-ctest, and --policy-snodec-root authorities"
+        ),
     )
     expected_steps = [
         _render_step(step, arguments.repo_root)
@@ -4003,6 +4560,14 @@ def parser() -> argparse.ArgumentParser:
         "--extraction-manifest",
         type=Path,
         default=repo / "docs/extraction/source-manifest.json",
+    )
+    result.add_argument("--policy-baseline-ctest", type=Path)
+    result.add_argument("--policy-final-ctest", type=Path)
+    result.add_argument("--policy-snodec-root", type=Path)
+    result.add_argument(
+        "--policy-ownership-output",
+        type=Path,
+        default=repo / POLICY_OWNERSHIP_EVIDENCE_RELATIVE_PATHS[0],
     )
     result.add_argument(
         "--registry",

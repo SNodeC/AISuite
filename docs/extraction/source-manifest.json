@@ -2,7 +2,7 @@
   "counts": {
     "immutable_copies": 6726,
     "imported_files": 6805,
-    "new_standalone_files": 2022,
+    "new_standalone_files": 2039,
     "standalone_adaptations": 79
   },
   "dependency_boundary": {
@@ -47743,7 +47743,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "3f5860b7517ab12129c287b66a55483311b141fedfe18ded0308f5060e17d845"
+      "sha256": "2055ba946363a9f5b6b008f828fff2001d6e7510f5f64861b47c3a616f24c094"
     },
     {
       "path": "cmake/AISuiteConfig.cmake.in",
@@ -47755,7 +47755,23 @@
     },
     {
       "path": "docs/extraction/README.md",
-      "sha256": "23c2662a3dc3f1acc6b2f5c3c698b630d02e3da9a184426f218f6755f75caf1d"
+      "sha256": "bbd6948fb1ff10fa8946618e3cc4a6500411f7bfae1cbe122d1ed6440009e512"
+    },
+    {
+      "path": "docs/extraction/codex-policy-baseline-ctest.json",
+      "sha256": "15b9e64c9e446b1dfc17894c488ab363891f1b8ceceb0a7adc97c58bbaedd7f8"
+    },
+    {
+      "path": "docs/extraction/codex-policy-final-ctest.json",
+      "sha256": "8b964bec33044cd823f8ad0985035a1d19486647dcb9d2595d581195a189dc41"
+    },
+    {
+      "path": "docs/extraction/codex-policy-ownership.json",
+      "sha256": "13d104f575f7abfd5842930756c5d93eeb0ed6031547447debafc808a3637651"
+    },
+    {
+      "path": "docs/extraction/codex-policy-ownership.md",
+      "sha256": "9d065e15573ec9a31899bc54b058f5931aeaaa29431859af4066c773a715c728"
     },
     {
       "path": "docs/extraction/filter-map.json",
@@ -47763,11 +47779,11 @@
     },
     {
       "path": "docs/extraction/test-integrity.md",
-      "sha256": "165170380e2ddf942b70d09e28536bf2cf021c71974c1b15cadc0207d630eae2"
+      "sha256": "1af020f31d6898880491d01f44683ca328e22f04a0268e952c1742a490771de0"
     },
     {
       "path": "docs/extraction/validation.md",
-      "sha256": "1c591476d76ebf9be348fd6ee6f226e041a692ac019a6825d1db1f1117ead8e4"
+      "sha256": "5535696da083eeefb3bad8431e2ab8199376096f6890888cec10d660201f550f"
     },
     {
       "path": "src/ai/openai/codex/detail/AppCodec.cpp",
@@ -47859,7 +47875,7 @@
     },
     {
       "path": "tests/AISuiteBinaryPackageTest.cmake",
-      "sha256": "1fae8cda13b696a44b68a5672cf0bb2fe973f267647bed37ee2bf5cfe27a720c"
+      "sha256": "08e0ce31138b4c228dcb216d334bc8a3542de1b68d7f41ef1bbf10669d8cc0ab"
     },
     {
       "path": "tests/AISuiteInstalledConsumerTest.cmake",
@@ -47867,11 +47883,11 @@
     },
     {
       "path": "tests/AISuiteSourcePackageTest.cmake",
-      "sha256": "927b00a91de4d388f52b9dab562903a40695651b255252acced1bf63a3ba20a8"
+      "sha256": "634d051607eab1a998766b425d8ae8d47cc88425aaa9113a16242ed2514fec6e"
     },
     {
       "path": "tests/CMakeLists.txt",
-      "sha256": "58d9638605aa0033582b5fc9c3b4effac177b04ac9835c6ed0cf52755c3f981b"
+      "sha256": "44f037ae44186511de38e579c82665c1a439a98cb89b3fad366d4a8abf739726"
     },
     {
       "path": "tests/cmake/AddAISuiteTest.cmake",
@@ -47883,7 +47899,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsClosureTest.py",
-      "sha256": "1a27315ca92cae072d318f88caae9a4a8432996a9a78e7b0b6bd59c0b8abcc4a"
+      "sha256": "6f7c4fe8b449eb4b9f49a45a47a6aa7335fc78169bdf08f79d3171ec1198bf80"
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit2Test.cpp",
@@ -47926,6 +47942,54 @@
       "sha256": "c7a4732123644035bda1e307c719dcb86dab8a6d2f69d0eefda1e95a28329217"
     },
     {
+      "path": "tests/policy/CMakeLists.txt",
+      "sha256": "4f182996e3645704ed39abc5c795d9f23fadbad6704d5134aad6a485c26b7751"
+    },
+    {
+      "path": "tests/policy/codex/CMakeLists.txt",
+      "sha256": "d7057e8a82ca004105bc8516ca4a3312fc3725e11adebc0d230ff54a5bce4ce0"
+    },
+    {
+      "path": "tests/policy/codex/CodexLoggingApiSurfacePolicyTest.cpp",
+      "sha256": "00b5f150ae7848e7fb52ea7a8b038116019ab6f80ff368769db66300fb662c4a"
+    },
+    {
+      "path": "tests/policy/codex/CodexPolicyMutationTest.py",
+      "sha256": "47fc4971ce59bb7e11e5bc9654b22fc370eec51172d15778525e85e673e6316c"
+    },
+    {
+      "path": "tests/policy/codex/CodexPublicHeaderPolicyTest.cpp",
+      "sha256": "5d82494de631c6f4f493f237b1e088ba6aa329b0eb59226d367fd8132c980de2"
+    },
+    {
+      "path": "tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake",
+      "sha256": "61787690c735157e1ca773e1a474d9ab24401771d8e46a13c4c30e6ef6d763ae"
+    },
+    {
+      "path": "tests/policy/codex/CodexSemanticLoggerAuthority.tsv",
+      "sha256": "7866a4a5e767fc1e6f299c788562cfeff96abdd670c3ae9dce6c5828c699b773"
+    },
+    {
+      "path": "tests/policy/codex/CodexSemanticLoggerClassifications.tsv",
+      "sha256": "55ae2caec27218b930095356cd2ed6a9269f0c0da5e7902300e031ed5f0d10eb"
+    },
+    {
+      "path": "tests/policy/codex/CodexSemanticLoggerPolicyTest.cpp",
+      "sha256": "90517668c9f9c1d3ca5ccaf679038344e0e7830b071c82ad502f4be2b9983862"
+    },
+    {
+      "path": "tests/policy/security/CMakeLists.txt",
+      "sha256": "8df380b20825ba458aaabd3bf1e540c5227f0b5f009fc863fbea5d95734976e6"
+    },
+    {
+      "path": "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+      "sha256": "3a65c68572e490416c5a041eb353c2fd3240d377f22a2dbe8a2466dc49230321"
+    },
+    {
+      "path": "tests/policy/support/CxxSourceScanner.h",
+      "sha256": "6ee3a610baa2071be05d9429a74a054c105108d1eb6b3fbc9e0383ba55353e1e"
+    },
+    {
       "path": "tests/support/DescriptorRegistrationFailure.h",
       "sha256": "6f96634c8293cd9f0f9cbd2d601423a67b1371590f8598d4f15c9bdbcf2aa2e8"
     },
@@ -47943,7 +48007,7 @@
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
-      "sha256": "cd94d823f45b35f49fc19236940e0188040bb95b18914788148a1ba60ba4bf37"
+      "sha256": "2e2f4166065076798512cc1dbd4aab6a4032c391d8f080b806993691e15c43a1"
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-batch-plan.json",
@@ -47951,7 +48015,7 @@
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-closure-report.json",
-      "sha256": "ef0d6a77a3203cdb6cf61d14ea262edb161b699ab57008b48fdfeb92c0a56952"
+      "sha256": "12e8204b2bfe68d12075f538418cdf5c3ca65ccfeee82bea59f61f4193169860"
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-start-state.json",
@@ -55771,11 +55835,15 @@
     },
     {
       "path": "tools/codex/app_server_a1_4_user_integrations_closure.py",
-      "sha256": "b5e211da8c210da8c4439b4ef4dc94e52667919dc98b39680e9a39f41781dd2d"
+      "sha256": "585f22e965a983143b0b190f130e90e15e769fa262638e3b481a83a24fae5a28"
     },
     {
       "path": "tools/extraction/filter_history.py",
       "sha256": "67b6771646459e79e9f6b5e36d7eaa2aad5cd9209ad888a32e7562dffa34e01d"
+    },
+    {
+      "path": "tools/extraction/verify_codex_policy_ownership.py",
+      "sha256": "cb123129cb33bc699f137a626a5db11c3f436aa5bab308e38d6152f3556e41a9"
     },
     {
       "path": "tools/extraction/verify_extraction.py",

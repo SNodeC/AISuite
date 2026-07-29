@@ -7,10 +7,12 @@ import argparse
 import copy
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
@@ -163,6 +165,588 @@ class CodexA14UserIntegrationsClosureTest(unittest.TestCase):
         # Every planted failure is isolated from the checked-in valid model.
         self.tool.validate_report(self.expected, self.expected)
 
+    @staticmethod
+    def history_reachable(
+        commits: dict[str, Any],
+        head: str,
+    ) -> frozenset[str]:
+        reachable: set[str] = set()
+        pending = [head]
+        while pending:
+            sha = pending.pop()
+            if sha in reachable:
+                continue
+            reachable.add(sha)
+            commit = commits.get(sha)
+            if commit is not None:
+                pending.extend(commit.parents)
+        return frozenset(reachable)
+
+    def history_model(self, state: str) -> Any:
+        base = self.tool.PR_A_MERGE_SHA
+        commit_1 = self.tool.POLICY_OWNERSHIP_COMMIT_1_SHA
+        commit_2 = "2" * 40
+        merge = "3" * 40
+        descendant = "4" * 40
+        commits = {
+            base: self.tool.PolicyHistoryCommit(
+                sha=base,
+                tree=self.tool.PR_A_MERGE_TREE,
+                parents=self.tool.PR_A_MERGE_PARENTS,
+                subject=self.tool.PR_A_MERGE_SUBJECT,
+            ),
+            commit_1: self.tool.PolicyHistoryCommit(
+                sha=commit_1,
+                tree="1" * 40,
+                parents=(base,),
+                subject=self.tool.POLICY_OWNERSHIP_COMMIT_SUBJECTS[0],
+            ),
+        }
+        head = commit_1
+        if state in {"unmerged", "merged", "descendant"}:
+            commits[commit_2] = self.tool.PolicyHistoryCommit(
+                sha=commit_2,
+                tree="2" * 40,
+                parents=(commit_1,),
+                subject=self.tool.POLICY_OWNERSHIP_COMMIT_SUBJECTS[1],
+            )
+            head = commit_2
+        if state in {"merged", "descendant"}:
+            commits[merge] = self.tool.PolicyHistoryCommit(
+                sha=merge,
+                tree="2" * 40,
+                parents=(base, commit_2),
+                subject=self.tool.POLICY_OWNERSHIP_MERGE_SUBJECT,
+            )
+            head = merge
+        if state == "descendant":
+            commits[descendant] = self.tool.PolicyHistoryCommit(
+                sha=descendant,
+                tree="4" * 40,
+                parents=(merge,),
+                subject="Later reviewed AISuite work",
+            )
+            head = descendant
+
+        reachable = self.history_reachable(commits, head)
+        candidates = tuple(
+            sha
+            for sha in sorted(reachable)
+            if sha in commits
+            and commits[sha].subject
+            == self.tool.POLICY_OWNERSHIP_MERGE_SUBJECT
+        )
+        registry = b"unchanged protocol registry\n"
+        return self.tool.PolicyHistoryModel(
+            head=head,
+            commits=commits,
+            reachable_from_head=reachable,
+            policy_merge_candidates=candidates,
+            src_changes_by_commit={
+                commit_1: (),
+                commit_2: (),
+            },
+            registry_blobs={
+                base: registry,
+                commit_1: registry,
+                commit_2: registry,
+                merge: registry,
+                descendant: registry,
+            },
+            worktree_src_changes=(),
+        )
+
+    def history_model_with_commits(
+        self,
+        model: Any,
+        commits: dict[str, Any],
+        *,
+        head: str | None = None,
+        candidates: tuple[str, ...] | None = None,
+        reachable: frozenset[str] | None = None,
+    ) -> Any:
+        selected_head = model.head if head is None else head
+        selected_reachable = (
+            self.history_reachable(commits, selected_head)
+            if reachable is None
+            else reachable
+        )
+        selected_candidates = (
+            tuple(
+                sha
+                for sha in sorted(selected_reachable)
+                if sha in commits
+                and commits[sha].subject
+                == self.tool.POLICY_OWNERSHIP_MERGE_SUBJECT
+            )
+            if candidates is None
+            else candidates
+        )
+        return replace(
+            model,
+            head=selected_head,
+            commits=commits,
+            reachable_from_head=selected_reachable,
+            policy_merge_candidates=selected_candidates,
+        )
+
+    def assert_history_failure(
+        self,
+        model: Any,
+        expected_code: str,
+    ) -> None:
+        with self.assertRaises(self.tool.ClosureError) as caught:
+            self.tool._validate_policy_history_model(model)
+        self.assertEqual((expected_code,), caught.exception.codes)
+        self.assertEqual(
+            1,
+            len(caught.exception.diagnostics),
+            "history mutation failed through multiple guards",
+        )
+        self.tool._validate_policy_history_model(
+            self.history_model("merged")
+        )
+
+    def test_policy_history_valid_states_and_later_descendants(self) -> None:
+        cases = (
+            ("construction", "commit-1-construction"),
+            ("unmerged", "unmerged-two-commit-branch"),
+            ("merged", "merged-pr-3-or-later-descendant"),
+            ("descendant", "merged-pr-3-or-later-descendant"),
+        )
+        for state, expected in cases:
+            with self.subTest(state=state):
+                validated = self.tool._validate_policy_history_model(
+                    self.history_model(state)
+                )
+                self.assertEqual(expected, validated.state)
+
+        descendant = self.history_model("descendant")
+        later_sha = descendant.head
+        changed_src = dict(descendant.src_changes_by_commit)
+        changed_src[later_sha] = ("src/later_reviewed_change.cpp",)
+        validated = self.tool._validate_policy_history_model(
+            replace(
+                descendant,
+                src_changes_by_commit=changed_src,
+            )
+        )
+        self.assertEqual(
+            "merged-pr-3-or-later-descendant",
+            validated.state,
+            "later src/ work was incorrectly included in PR #3",
+        )
+
+        changed_registry = dict(descendant.registry_blobs)
+        changed_registry[later_sha] = b"later reviewed registry change\n"
+        validated = self.tool._validate_policy_history_model(
+            replace(
+                descendant,
+                registry_blobs=changed_registry,
+            )
+        )
+        self.assertEqual(
+            "merged-pr-3-or-later-descendant",
+            validated.state,
+            "later registry work was incorrectly included in PR #3",
+        )
+
+    def test_policy_history_invalid_topologies_have_exact_diagnostics(
+        self,
+    ) -> None:
+        stage = "UserIntegrationPromotionStageMismatch"
+        false_complete = "UserIntegrationFalseComplete"
+        base = self.tool.PR_A_MERGE_SHA
+        commit_1 = self.tool.POLICY_OWNERSHIP_COMMIT_1_SHA
+        commit_2 = "2" * 40
+        merge = "3" * 40
+
+        def changed_commit(
+            model: Any,
+            sha: str,
+            **changes: Any,
+        ) -> Any:
+            commits = dict(model.commits)
+            commits[sha] = replace(commits[sha], **changes)
+            return self.history_model_with_commits(model, commits)
+
+        cases: list[tuple[str, Any, str]] = []
+
+        merged = self.history_model("merged")
+        cases.append(
+            (
+                "wrong-merge-subject",
+                changed_commit(
+                    merged,
+                    merge,
+                    subject="Merge pull request #30 from wrong/branch",
+                ),
+                stage,
+            )
+        )
+        cases.append(
+            (
+                "wrong-first-parent",
+                changed_commit(
+                    merged,
+                    merge,
+                    parents=(commit_1, commit_2),
+                ),
+                stage,
+            )
+        )
+
+        wrong_second = "5" * 40
+        wrong_second_commits = dict(merged.commits)
+        wrong_second_commits[wrong_second] = (
+            self.tool.PolicyHistoryCommit(
+                sha=wrong_second,
+                tree="2" * 40,
+                parents=(commit_2,),
+                subject="Unrelated branch tip",
+            )
+        )
+        wrong_second_commits[merge] = replace(
+            wrong_second_commits[merge],
+            parents=(base, wrong_second),
+        )
+        cases.append(
+            (
+                "wrong-second-parent",
+                self.history_model_with_commits(
+                    merged,
+                    wrong_second_commits,
+                ),
+                stage,
+            )
+        )
+        cases.append(
+            (
+                "reversed-parent-order",
+                changed_commit(
+                    merged,
+                    merge,
+                    parents=(commit_2, base),
+                ),
+                stage,
+            )
+        )
+        cases.append(
+            (
+                "wrong-merge-tree",
+                changed_commit(merged, merge, tree="9" * 40),
+                stage,
+            )
+        )
+        cases.append(
+            (
+                "too-many-merge-parents",
+                changed_commit(
+                    merged,
+                    merge,
+                    parents=(base, commit_2, commit_1),
+                ),
+                stage,
+            )
+        )
+        one_parent = changed_commit(
+            merged,
+            merge,
+            parents=(base,),
+        )
+        cases.append(
+            (
+                "too-few-merge-parents",
+                replace(
+                    one_parent,
+                    reachable_from_head=(
+                        one_parent.reachable_from_head | {commit_1}
+                    ),
+                ),
+                stage,
+            )
+        )
+
+        duplicate = "6" * 40
+        duplicate_head = "7" * 40
+        duplicate_commits = dict(merged.commits)
+        duplicate_commits[duplicate] = replace(
+            duplicate_commits[merge],
+            sha=duplicate,
+        )
+        duplicate_commits[duplicate_head] = (
+            self.tool.PolicyHistoryCommit(
+                sha=duplicate_head,
+                tree="2" * 40,
+                parents=(merge, duplicate),
+                subject="Descendant of duplicate policy merges",
+            )
+        )
+        cases.append(
+            (
+                "duplicate-policy-merge-candidates",
+                self.history_model_with_commits(
+                    merged,
+                    duplicate_commits,
+                    head=duplicate_head,
+                ),
+                stage,
+            )
+        )
+
+        nonancestor = self.history_model("unmerged")
+        nonancestor_commits = dict(nonancestor.commits)
+        nonancestor_commits[merge] = self.tool.PolicyHistoryCommit(
+            sha=merge,
+            tree="2" * 40,
+            parents=(base, commit_2),
+            subject=self.tool.POLICY_OWNERSHIP_MERGE_SUBJECT,
+        )
+        cases.append(
+            (
+                "policy-merge-not-ancestral-to-head",
+                self.history_model_with_commits(
+                    nonancestor,
+                    nonancestor_commits,
+                    candidates=(merge,),
+                    reachable=nonancestor.reachable_from_head,
+                ),
+                stage,
+            )
+        )
+
+        inserted = "8" * 40
+        inserted_commits = dict(merged.commits)
+        inserted_commits[inserted] = self.tool.PolicyHistoryCommit(
+            sha=inserted,
+            tree="8" * 40,
+            parents=(commit_1,),
+            subject="Inserted policy-range commit",
+        )
+        inserted_commits[commit_2] = replace(
+            inserted_commits[commit_2],
+            parents=(inserted,),
+        )
+        cases.append(
+            (
+                "commit-inserted-between-commit-1-and-commit-2",
+                self.history_model_with_commits(
+                    merged,
+                    inserted_commits,
+                ),
+                stage,
+            )
+        )
+
+        commit_1_src = dict(merged.src_changes_by_commit)
+        commit_1_src[commit_1] = ("src/commit_1_change.cpp",)
+        cases.append(
+            (
+                "production-change-in-commit-1",
+                replace(merged, src_changes_by_commit=commit_1_src),
+                false_complete,
+            )
+        )
+        commit_2_src = dict(merged.src_changes_by_commit)
+        commit_2_src[commit_2] = ("src/commit_2_change.cpp",)
+        cases.append(
+            (
+                "production-change-in-commit-2",
+                replace(merged, src_changes_by_commit=commit_2_src),
+                false_complete,
+            )
+        )
+        commit_1_registry = dict(merged.registry_blobs)
+        commit_1_registry[commit_1] = b"changed in Commit 1\n"
+        cases.append(
+            (
+                "registry-change-in-commit-1",
+                replace(merged, registry_blobs=commit_1_registry),
+                false_complete,
+            )
+        )
+        commit_2_registry = dict(merged.registry_blobs)
+        commit_2_registry[commit_2] = b"changed in Commit 2\n"
+        cases.append(
+            (
+                "registry-change-in-commit-2",
+                replace(merged, registry_blobs=commit_2_registry),
+                false_complete,
+            )
+        )
+
+        construction = self.history_model("construction")
+        changed_sha = "a" * 40
+        changed_sha_commits = dict(construction.commits)
+        changed_sha_commit = changed_sha_commits.pop(commit_1)
+        changed_sha_commits[changed_sha] = replace(
+            changed_sha_commit,
+            sha=changed_sha,
+        )
+        cases.append(
+            (
+                "commit-1-wrong-sha",
+                self.history_model_with_commits(
+                    construction,
+                    changed_sha_commits,
+                    head=changed_sha,
+                ),
+                stage,
+            )
+        )
+        cases.append(
+            (
+                "commit-1-wrong-parent",
+                changed_commit(
+                    construction,
+                    commit_1,
+                    parents=("b" * 40,),
+                ),
+                stage,
+            )
+        )
+        cases.append(
+            (
+                "commit-1-wrong-subject",
+                changed_commit(
+                    construction,
+                    commit_1,
+                    subject="Wrong functional policy subject",
+                ),
+                stage,
+            )
+        )
+
+        for name, model, code in cases:
+            with self.subTest(mutation=name, diagnostic=code):
+                authority_state = (
+                    "construction"
+                    if name.startswith("commit-1-wrong-")
+                    else (
+                        "unmerged"
+                        if name == "policy-merge-not-ancestral-to-head"
+                        else "merged"
+                    )
+                )
+                self.assertNotEqual(
+                    self.history_model(authority_state),
+                    model,
+                    "planted history mutation changed no model input",
+                )
+                self.assert_history_failure(model, code)
+
+    def test_normal_policy_merge_in_real_temporary_git_repository(
+        self,
+    ) -> None:
+        live = self.tool._validate_policy_history_model(
+            self.tool._live_policy_history_model(OPTIONS.repo_root)
+        )
+        self.assertIsNotNone(
+            live.policy_commit_2,
+            "temporary merge integration requires the final policy Commit 2",
+        )
+        commit_2 = str(live.policy_commit_2)
+        commit_2_tree = subprocess.run(
+            ["git", "show", "-s", "--format=%T", commit_2],
+            cwd=OPTIONS.repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        source_git_dir = Path(
+            subprocess.run(
+                ["git", "rev-parse", "--absolute-git-dir"],
+                cwd=OPTIONS.repo_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        )
+
+        with tempfile.TemporaryDirectory(
+            prefix="aisuite-a14-policy-merge-git-"
+        ) as temporary:
+            repository = Path(temporary)
+            subprocess.run(
+                ["git", "init", "--quiet"],
+                cwd=repository,
+                check=True,
+            )
+            alternates = repository / ".git/objects/info/alternates"
+            alternates.parent.mkdir(parents=True, exist_ok=True)
+            alternates.write_text(
+                f"{(source_git_dir / 'objects').resolve()}\n",
+                encoding="utf-8",
+            )
+
+            def commit_tree(
+                tree: str,
+                parents: tuple[str, ...],
+                subject: str,
+            ) -> str:
+                environment = os.environ.copy()
+                environment.update(
+                    {
+                        "GIT_AUTHOR_DATE": "2026-01-01T00:00:00+00:00",
+                        "GIT_COMMITTER_DATE": "2026-01-01T00:00:00+00:00",
+                    }
+                )
+                command = [
+                    "git",
+                    "-c",
+                    "user.name=AISuite history test",
+                    "-c",
+                    "user.email=history-test@example.invalid",
+                    "commit-tree",
+                    tree,
+                ]
+                for parent in parents:
+                    command.extend(("-p", parent))
+                command.extend(("-m", subject))
+                return subprocess.run(
+                    command,
+                    cwd=repository,
+                    check=True,
+                    capture_output=True,
+                    env=environment,
+                    text=True,
+                ).stdout.strip()
+
+            merge = commit_tree(
+                commit_2_tree,
+                (self.tool.PR_A_MERGE_SHA, commit_2),
+                self.tool.POLICY_OWNERSHIP_MERGE_SUBJECT,
+            )
+            subprocess.run(
+                ["git", "update-ref", "refs/heads/main", merge],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+                cwd=repository,
+                check=True,
+            )
+            self.assertEqual(
+                self.tool._expected_history_policy(),
+                self.tool._history_policy(repository),
+            )
+
+            descendant = commit_tree(
+                commit_2_tree,
+                (merge,),
+                "Later reviewed descendant",
+            )
+            subprocess.run(
+                ["git", "update-ref", "refs/heads/main", descendant],
+                cwd=repository,
+                check=True,
+            )
+            self.assertEqual(
+                self.tool._expected_history_policy(),
+                self.tool._history_policy(repository),
+            )
+
     def test_checked_report_is_current_and_deterministic(self) -> None:
         completed = subprocess.run(
             [
@@ -204,6 +788,15 @@ class CodexA14UserIntegrationsClosureTest(unittest.TestCase):
         alternate.abi_library = Path(
             "/synthetic/build/libaisuite-openai-codex.so"
         )
+        alternate.policy_baseline_ctest = Path(
+            "/synthetic/build/baseline-ctest.json"
+        )
+        alternate.policy_final_ctest = Path(
+            "/synthetic/build/final-ctest.json"
+        )
+        alternate.policy_snodec_root = Path(
+            "/synthetic/snodec-pinned-clean"
+        )
         rendered = [
             self.tool._render_step(step, alternate.repo_root)
             for step in self.tool._generation_steps(alternate)
@@ -220,6 +813,26 @@ class CodexA14UserIntegrationsClosureTest(unittest.TestCase):
         )
         self.assertIn("{abi-compiler}", abi_step["command"])
         self.assertIn("{abi-library}", abi_step["command"])
+        self.assertEqual(
+            ["codex-policy-ownership", "extraction-manifest-last"],
+            [step["name"] for step in rendered[-2:]],
+            "policy ownership does not immediately precede extraction",
+        )
+        ownership_step = rendered[-2]
+        for placeholder in (
+            "{policy-baseline-ctest}",
+            "{policy-final-ctest}",
+            "{policy-snodec-root}",
+        ):
+            self.assertIn(placeholder, ownership_step["command"])
+        self.assertEqual(
+            [
+                "docs/extraction/codex-policy-ownership.json",
+                "docs/extraction/codex-policy-baseline-ctest.json",
+                "docs/extraction/codex-policy-final-ctest.json",
+            ],
+            ownership_step["outputs"],
+        )
 
     def test_exact_scope_status_and_schema_closure(self) -> None:
         counts = self.expected["counts"]
@@ -500,6 +1113,18 @@ class CodexA14UserIntegrationsClosureTest(unittest.TestCase):
                 lambda report: report["history_policy"].__setitem__(
                     "commit_6_subject", "Wrong closure subject"
                 ),
+                "UserIntegrationPromotionStageMismatch",
+            ),
+            (
+                lambda report: report["history_policy"]["merged_pr_a"].__setitem__(
+                    "tree", "0" * 40
+                ),
+                "UserIntegrationPromotionStageMismatch",
+            ),
+            (
+                lambda report: report["history_policy"][
+                    "required_policy_ownership_subjects"
+                ].__setitem__(1, "Wrong policy ownership subject"),
                 "UserIntegrationPromotionStageMismatch",
             ),
         )

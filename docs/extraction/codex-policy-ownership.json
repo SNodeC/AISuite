@@ -1,0 +1,878 @@
+{
+  "adapted_support_files": [
+    {
+      "aisuite_destination": "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+      "license": "LGPL-3.0-or-later OR MIT",
+      "manifest_bucket": "standalone_files",
+      "source_blob": "47ec895a1bb6d6344d3c9d6bbdbc345c72a09380",
+      "source_path": "tests/policy/SourcePolicyTestRoot.h",
+      "source_sha256": "3553f889e3afdb6bd67f089b9cdea6343fe81b38e130c02a62c5e05f85c4f952",
+      "transfer_kind": "adapted-generic-root-helper"
+    },
+    {
+      "aisuite_destination": "tests/policy/support/CxxSourceScanner.h",
+      "license": "LGPL-3.0-or-later OR MIT",
+      "manifest_bucket": "standalone_files",
+      "source_blobs": [
+        "e9beada86e032261d5b128cf58d0efdf1f927234",
+        "e4fddcaf69b23549eab318cb86afee6210b2aaad"
+      ],
+      "source_paths": [
+        "tests/policy/log/LoggingApiSurfacePolicyTest.cpp",
+        "tests/policy/log/ParameterlessSemanticLoggerPolicyTest.cpp"
+      ],
+      "source_sha256": [
+        "85182c2a8b15e7a79b250e932ae509e6b540981b599d3f14a967dfca5a2883ac",
+        "3940c05cac92cf45531d019fcc23d0821c3526f8a75cf1afd19faf6da489c49f"
+      ],
+      "transfer_kind": "adapted-tokenizer-and-literal-masker"
+    }
+  ],
+  "aisuite_base": {
+    "commit": "19de4f50be64e187761274f043091090609d27a3",
+    "tree": "c71a91e545d70d649446ca9d698d729c307a480a"
+  },
+  "binary_package": {
+    "forbidden_patterns": [
+      "tests/policy/",
+      "tools/extraction/",
+      "verify_codex_policy_ownership.py",
+      "tests/AISuiteSourcePackageTest.cmake",
+      "tests/AISuiteBinaryPackageTest.cmake",
+      "AISuiteSourcePolicyTestRoot.h",
+      "CxxSourceScanner.h",
+      "CodexSemanticLoggerAuthority.tsv",
+      "CodexSemanticLoggerClassifications.tsv",
+      "CodexPolicyMutationTest.py",
+      "codex-policy-ownership.md",
+      "CodexPublicHeaderPolicyTest",
+      "CodexPublicHeaderSelfContainmentTest",
+      "CodexLoggingApiSurfacePolicyTest",
+      "CodexSemanticLoggerPolicyTest",
+      "CodexPolicyOwnershipTest",
+      "CodexPolicyMutationTest",
+      "codex-policy-baseline-ctest.json",
+      "codex-policy-final-ctest.json",
+      "codex-policy-ownership.json",
+      "docs/extraction/"
+    ],
+    "policy_internals_excluded": true
+  },
+  "ctest_evidence": {
+    "baseline_model": "docs/extraction/codex-policy-baseline-ctest.json",
+    "baseline_model_sha256": "15b9e64c9e446b1dfc17894c488ab363891f1b8ceceb0a7adc97c58bbaedd7f8",
+    "final_model": "docs/extraction/codex-policy-final-ctest.json",
+    "final_model_sha256": "8b964bec33044cd823f8ad0985035a1d19486647dcb9d2595d581195a189dc41",
+    "normalization": "Source/build roots and configured Python/CMake executable paths are replaced with declared placeholders; tests and labels are sorted."
+  },
+  "cutover_readiness": {
+    "ready": true,
+    "snodec_cutover_performed": false,
+    "statement": "AISuite Codex policy ownership is complete. SNode.C Codex removal remains a separate reviewed cutover."
+  },
+  "focused_ci": {
+    "functional_tests_selected": [
+      "CodexPublicHeaderPolicyTest",
+      "CodexPublicHeaderSelfContainmentTest",
+      "CodexLoggingApiSurfacePolicyTest",
+      "CodexSemanticLoggerPolicyTest",
+      "CodexSyntheticSecretLeakGuardTest"
+    ],
+    "jobs": [
+      "gcc-debug",
+      "gcc-15-debug"
+    ],
+    "label_filter": "ai|openai|codex|extraction",
+    "workflow": ".github/workflows/ci.yml"
+  },
+  "format_version": 1,
+  "functional_policy_tests": [
+    {
+      "enabled": true,
+      "expected_ci_filter": "ai|openai|codex|extraction",
+      "expected_command": [
+        "${BUILD_DIR}/tests/policy/codex/CodexPublicHeaderPolicyTest",
+        "--repo-root",
+        "${SOURCE_DIR}"
+      ],
+      "expected_labels": [
+        "policy",
+        "ai",
+        "openai",
+        "codex",
+        "extraction",
+        "headers",
+        "public-api"
+      ],
+      "implementation_kind": "new-transferred-policy",
+      "test_name": "CodexPublicHeaderPolicyTest"
+    },
+    {
+      "enabled": true,
+      "expected_ci_filter": "ai|openai|codex|extraction",
+      "expected_command": [
+        "${CMAKE}",
+        "-DAISUITE_PUBLIC_HEADER_POLICY_EXECUTABLE=${BUILD_DIR}/tests/policy/codex/CodexPublicHeaderPolicyTest",
+        "-DAISUITE_SOURCE_DIR=${SOURCE_DIR}",
+        "-DAISUITE_BUILD_DIR=${BUILD_DIR}",
+        "-DAISUITE_CMAKE_COMMAND=${CMAKE}",
+        "-DAISUITE_CMAKE_GENERATOR=${CMAKE_GENERATOR}",
+        "-DAISUITE_CXX_COMPILER=${CXX_COMPILER}",
+        "-DAISUITE_SNODEC_DIR=${SNODEC_PACKAGE_DIR}",
+        "-DAISUITE_NLOHMANN_JSON_DIR=${NLOHMANN_JSON_PACKAGE_DIR}",
+        "-P",
+        "${SOURCE_DIR}/tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake"
+      ],
+      "expected_labels": [
+        "policy",
+        "ai",
+        "openai",
+        "codex",
+        "extraction",
+        "headers",
+        "install",
+        "consumer"
+      ],
+      "implementation_kind": "new-transferred-policy",
+      "test_name": "CodexPublicHeaderSelfContainmentTest"
+    },
+    {
+      "enabled": true,
+      "expected_ci_filter": "ai|openai|codex|extraction",
+      "expected_command": [
+        "${BUILD_DIR}/tests/policy/codex/CodexLoggingApiSurfacePolicyTest",
+        "--repo-root",
+        "${SOURCE_DIR}"
+      ],
+      "expected_labels": [
+        "policy",
+        "ai",
+        "openai",
+        "codex",
+        "extraction",
+        "logging",
+        "api",
+        "architecture"
+      ],
+      "implementation_kind": "new-transferred-policy",
+      "test_name": "CodexLoggingApiSurfacePolicyTest"
+    },
+    {
+      "enabled": true,
+      "expected_ci_filter": "ai|openai|codex|extraction",
+      "expected_command": [
+        "${BUILD_DIR}/tests/policy/codex/CodexSemanticLoggerPolicyTest",
+        "--repo-root",
+        "${SOURCE_DIR}"
+      ],
+      "expected_labels": [
+        "policy",
+        "ai",
+        "openai",
+        "codex",
+        "extraction",
+        "logging",
+        "architecture"
+      ],
+      "implementation_kind": "new-transferred-policy",
+      "test_name": "CodexSemanticLoggerPolicyTest"
+    },
+    {
+      "enabled": true,
+      "expected_ci_filter": "ai|openai|codex|extraction",
+      "expected_command": [
+        "${PYTHON3}",
+        "${SOURCE_DIR}/tests/policy/security/CodexSyntheticSecretLeakGuardTest.py",
+        "--repo-root",
+        "${SOURCE_DIR}",
+        "--build-root",
+        "${BUILD_DIR}"
+      ],
+      "expected_labels": [
+        "policy",
+        "security",
+        "codex",
+        "extraction",
+        "package"
+      ],
+      "implementation_kind": "preexisting-extracted-aisuite-policy",
+      "test_name": "CodexSyntheticSecretLeakGuardTest"
+    }
+  ],
+  "generated_notice": "Deterministic AISuite Codex policy-ownership and cutover-readiness evidence; this is test and extraction authority, not protocol runtime data.",
+  "logging_api_surface_policy": {
+    "forbidden_identifiers": [
+      "lifecycleStart",
+      "creationLogged",
+      "lifecycleStarted",
+      "lifecycleTerminalLogged"
+    ],
+    "scan_paths": [
+      "src/ai/openai/codex/backend/BackendEvent.h",
+      "src/ai/openai/codex/backend/BackendState.h"
+    ],
+    "token_aware": true
+  },
+  "manifest_classifications": {
+    "filtered_history": {
+      "new_selected_paths_added": [],
+      "selected_paths": [
+        "src/ai/openai/codex",
+        "src/apps/codex-backend",
+        "src/apps/codex-backend-client",
+        "docs/ai/openai/codex",
+        "tools/codex",
+        "tests/component/codex",
+        "tests/installed/codex",
+        "tests/CodexBinaryPackageTest.cmake",
+        "tests/CodexSourcePackageTest.cmake",
+        "tests/policy/security/CodexSyntheticSecretLeakGuardTest.py"
+      ]
+    },
+    "retained_imported_files": [
+      {
+        "disposition": "standalone-adaptation",
+        "final_sha256": "d4581f2c5f5204c73f1a4b88fc27ef8085d88e62558d1c524aed00590b700d74",
+        "path": "tests/policy/security/CodexSyntheticSecretLeakGuardTest.py",
+        "source_blob": "b5f5f6d3ef24b9c4f91ccec226ed6a437de31b79",
+        "source_sha256": "e0225b78884c080085ecab7bff7b720fbdcc3da1a81751890967d7c2b5610e26"
+      }
+    ],
+    "standalone_files": [
+      "README.md",
+      "docs/extraction/README.md",
+      "docs/extraction/codex-policy-baseline-ctest.json",
+      "docs/extraction/codex-policy-final-ctest.json",
+      "docs/extraction/codex-policy-ownership.json",
+      "docs/extraction/codex-policy-ownership.md",
+      "docs/extraction/test-integrity.md",
+      "docs/extraction/validation.md",
+      "tests/AISuiteBinaryPackageTest.cmake",
+      "tests/AISuiteSourcePackageTest.cmake",
+      "tests/CMakeLists.txt",
+      "tests/component/codex/CodexA14UserIntegrationsClosureTest.py",
+      "tests/policy/CMakeLists.txt",
+      "tests/policy/codex/CMakeLists.txt",
+      "tests/policy/codex/CodexLoggingApiSurfacePolicyTest.cpp",
+      "tests/policy/codex/CodexPolicyMutationTest.py",
+      "tests/policy/codex/CodexPublicHeaderPolicyTest.cpp",
+      "tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake",
+      "tests/policy/codex/CodexSemanticLoggerAuthority.tsv",
+      "tests/policy/codex/CodexSemanticLoggerClassifications.tsv",
+      "tests/policy/codex/CodexSemanticLoggerPolicyTest.cpp",
+      "tests/policy/security/CMakeLists.txt",
+      "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+      "tests/policy/support/CxxSourceScanner.h",
+      "tools/codex/app_server_a1_4_user_integrations_closure.py",
+      "tools/extraction/verify_codex_policy_ownership.py"
+    ]
+  },
+  "mutation_coverage": [
+    {
+      "diagnostic": "CodexPolicyPublicHeaderInventoryMismatch",
+      "mutation_id": "public-header-inventory-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyHeaderGuardMismatch",
+      "mutation_id": "public-header-pragma-once"
+    },
+    {
+      "diagnostic": "CodexPolicyHeaderGuardMismatch",
+      "mutation_id": "public-header-guard-pair"
+    },
+    {
+      "diagnostic": "CodexPolicyLoggingApiSurfaceMismatch",
+      "mutation_id": "logging-lifecycle-member"
+    },
+    {
+      "diagnostic": "CodexPolicySemanticLoggerUnclassified",
+      "mutation_id": "semantic-logger-unclassified"
+    },
+    {
+      "diagnostic": "CodexPolicySemanticLoggerClassificationMismatch",
+      "mutation_id": "semantic-logger-classification-removal"
+    },
+    {
+      "diagnostic": "CodexPolicySemanticLoggerAuthorityMismatch",
+      "mutation_id": "semantic-logger-authority-count"
+    },
+    {
+      "diagnostic": "CodexPolicySemanticLoggerAuthorityMismatch",
+      "mutation_id": "semantic-logger-authority-expression"
+    },
+    {
+      "diagnostic": "CodexPolicyOwnershipMappingMismatch",
+      "mutation_id": "ownership-owner-missing"
+    },
+    {
+      "diagnostic": "CodexPolicyTestNotRegistered",
+      "mutation_id": "ctest-functional-registration-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyTestDisabled",
+      "mutation_id": "ctest-functional-disabled"
+    },
+    {
+      "diagnostic": "CodexPolicyTestExcludedFromFocusedCI",
+      "mutation_id": "ctest-functional-label-exclusion"
+    },
+    {
+      "diagnostic": "CodexPolicyCIFilterMismatch",
+      "mutation_id": "ci-job-filter"
+    },
+    {
+      "diagnostic": "CodexPolicyDuplicateTestRegistration",
+      "mutation_id": "security-registration-duplicate"
+    },
+    {
+      "diagnostic": "CodexPolicyExistingSecurityGuardNotRegistered",
+      "mutation_id": "security-registration-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyHierarchyRegistrationMismatch",
+      "mutation_id": "security-hierarchy-owner"
+    },
+    {
+      "diagnostic": "CodexPolicyExistingSecurityGuardDrift",
+      "mutation_id": "security-registration-property"
+    },
+    {
+      "diagnostic": "CodexPolicyExistingSecurityGuardDrift",
+      "mutation_id": "security-cmake-working-directory-decoy"
+    },
+    {
+      "diagnostic": "CodexPolicyOwnershipMappingMismatch",
+      "mutation_id": "security-evidence-expected-working-directory-missing"
+    },
+    {
+      "diagnostic": "CodexPolicyOwnershipMappingMismatch",
+      "mutation_id": "security-evidence-expected-working-directory-drift"
+    },
+    {
+      "diagnostic": "CodexPolicyOwnershipMappingMismatch",
+      "mutation_id": "security-evidence-normalized-working-directory-missing"
+    },
+    {
+      "diagnostic": "CodexPolicyOwnershipMappingMismatch",
+      "mutation_id": "security-evidence-normalized-working-directory-drift"
+    },
+    {
+      "diagnostic": "CodexPolicyOwnershipMappingMismatch",
+      "mutation_id": "security-evidence-working-directory-rationale-missing"
+    },
+    {
+      "diagnostic": "CodexPolicyOwnershipMappingMismatch",
+      "mutation_id": "security-evidence-working-directory-rationale-drift"
+    },
+    {
+      "diagnostic": "CodexPolicyTestExcludedFromFocusedCI",
+      "mutation_id": "security-label-exclusion"
+    },
+    {
+      "diagnostic": "CodexPolicyPreexistingComponentTestMissing",
+      "mutation_id": "component-subdirectory-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyPreexistingComponentTestMissing",
+      "mutation_id": "component-ctest-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyPreexistingComponentTestDrift",
+      "mutation_id": "component-ctest-drift"
+    },
+    {
+      "diagnostic": "CodexPolicyPreexistingCTestRemoval",
+      "mutation_id": "preexisting-ctest-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyPreexistingComponentTestMissing",
+      "mutation_id": "generated-artifacts-test-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyManifestClassificationMismatch",
+      "mutation_id": "standalone-policy-file-reclassification"
+    },
+    {
+      "diagnostic": "CodexPolicyManifestClassificationMismatch",
+      "mutation_id": "security-guard-reclassification"
+    },
+    {
+      "diagnostic": "CodexPolicySourceAuthorityMismatch",
+      "mutation_id": "snodec-blob-alteration"
+    },
+    {
+      "diagnostic": "CodexPolicySourcePackageMismatch",
+      "mutation_id": "source-package-owner-removal"
+    },
+    {
+      "diagnostic": "CodexPolicyBinaryPackageLeak",
+      "mutation_id": "binary-package-policy-leak"
+    }
+  ],
+  "preexisting_aisuite_policy_tests": [
+    {
+      "counted_as_transferred_responsibility": false,
+      "expected_labels": [
+        "policy",
+        "security",
+        "codex",
+        "extraction",
+        "package"
+      ],
+      "expected_working_directory": "${CMAKE_BINARY_DIR}/tests",
+      "file_behavior_changed": false,
+      "focused_ci_included": true,
+      "imported_provenance": {
+        "disposition": "standalone-adaptation",
+        "final_sha256": "d4581f2c5f5204c73f1a4b88fc27ef8085d88e62558d1c524aed00590b700d74",
+        "path": "tests/policy/security/CodexSyntheticSecretLeakGuardTest.py",
+        "source_blob": "b5f5f6d3ef24b9c4f91ccec226ed6a437de31b79",
+        "source_sha256": "e0225b78884c080085ecab7bff7b720fbdcc3da1a81751890967d7c2b5610e26"
+      },
+      "normalized_ctest_working_directory": "${BUILD_DIR}/tests",
+      "ownership_kind": "preexisting-extracted-aisuite-policy",
+      "previous_registration_owner": "tests/CMakeLists.txt",
+      "registration_count": 1,
+      "registration_owner": "tests/policy/security/CMakeLists.txt",
+      "source_path": "tests/policy/security/CodexSyntheticSecretLeakGuardTest.py",
+      "test_name": "CodexSyntheticSecretLeakGuardTest",
+      "working_directory_rationale": "Explicit property added to preserve the implicit cwd the test had when registered from tests/CMakeLists.txt; the directory move to tests/policy/security would otherwise silently change it."
+    }
+  ],
+  "preserved_preexisting_test_suites": {
+    "all_ctest": {
+      "baseline_test_count": 140,
+      "final_test_count": 146
+    },
+    "codex_component": {
+      "baseline_model_sha256": "7c17643151546ecc8f92397f26d610e23e580ad140de4f03047fe02375b25f5c",
+      "baseline_test_count": 131,
+      "final_model_sha256": "7c17643151546ecc8f92397f26d610e23e580ad140de4f03047fe02375b25f5c",
+      "final_test_count": 131,
+      "generated_artifacts_guard": "CodexAppServerGeneratedArtifactsGuardTest",
+      "registration_hierarchy": "tests/component/codex",
+      "root_subdirectory_registration": "add_subdirectory(component/codex)"
+    }
+  },
+  "public_header_policy": {
+    "components": [
+      {
+        "cmake_path": "src/ai/openai/codex/CMakeLists.txt",
+        "cmake_variable": "AI_OPENAI_CODEX_PUBLIC_H",
+        "count": 27,
+        "headers": [
+          "ai/openai/codex/AppServerClient.h",
+          "ai/openai/codex/Protocol.h",
+          "ai/openai/codex/stdio/Client.h",
+          "ai/openai/codex/typed/Accounts.h",
+          "ai/openai/codex/typed/Apps.h",
+          "ai/openai/codex/typed/Client.h",
+          "ai/openai/codex/typed/CodexErrorInfo.h",
+          "ai/openai/codex/typed/Commands.h",
+          "ai/openai/codex/typed/Configuration.h",
+          "ai/openai/codex/typed/Conversation.h",
+          "ai/openai/codex/typed/Events.h",
+          "ai/openai/codex/typed/ExternalAgents.h",
+          "ai/openai/codex/typed/Feedback.h",
+          "ai/openai/codex/typed/Filesystem.h",
+          "ai/openai/codex/typed/Hooks.h",
+          "ai/openai/codex/typed/Items.h",
+          "ai/openai/codex/typed/Marketplace.h",
+          "ai/openai/codex/typed/Models.h",
+          "ai/openai/codex/typed/PermissionProfiles.h",
+          "ai/openai/codex/typed/Plugins.h",
+          "ai/openai/codex/typed/Results.h",
+          "ai/openai/codex/typed/Reviews.h",
+          "ai/openai/codex/typed/ServerRequests.h",
+          "ai/openai/codex/typed/Skills.h",
+          "ai/openai/codex/typed/Threads.h",
+          "ai/openai/codex/typed/Turns.h",
+          "ai/openai/codex/typed/Types.h"
+        ],
+        "name": "main"
+      },
+      {
+        "cmake_path": "src/ai/openai/codex/backend/CMakeLists.txt",
+        "cmake_variable": "AI_OPENAI_CODEX_BACKEND_PUBLIC_H",
+        "count": 7,
+        "headers": [
+          "ai/openai/codex/backend/BackendCommand.h",
+          "ai/openai/codex/backend/BackendCore.h",
+          "ai/openai/codex/backend/BackendEvent.h",
+          "ai/openai/codex/backend/BackendState.h",
+          "ai/openai/codex/backend/FrontendSession.h",
+          "ai/openai/codex/backend/Reducer.h",
+          "ai/openai/codex/backend/Snapshot.h"
+        ],
+        "name": "backend"
+      },
+      {
+        "cmake_path": "src/ai/openai/codex/frontend/CMakeLists.txt",
+        "cmake_variable": "AI_OPENAI_CODEX_FRONTEND_PUBLIC_H",
+        "count": 7,
+        "headers": [
+          "ai/openai/codex/frontend/BackendAdapter.h",
+          "ai/openai/codex/frontend/Codec.h",
+          "ai/openai/codex/frontend/EventCoalescer.h",
+          "ai/openai/codex/frontend/EventJournal.h",
+          "ai/openai/codex/frontend/Messages.h",
+          "ai/openai/codex/frontend/Protocol.h",
+          "ai/openai/codex/frontend/UpdateBatch.h"
+        ],
+        "name": "frontend"
+      }
+    ],
+    "counts": {
+      "backend": 7,
+      "frontend": 7,
+      "main": 27,
+      "total": 41
+    },
+    "headers": [
+      "ai/openai/codex/AppServerClient.h",
+      "ai/openai/codex/Protocol.h",
+      "ai/openai/codex/backend/BackendCommand.h",
+      "ai/openai/codex/backend/BackendCore.h",
+      "ai/openai/codex/backend/BackendEvent.h",
+      "ai/openai/codex/backend/BackendState.h",
+      "ai/openai/codex/backend/FrontendSession.h",
+      "ai/openai/codex/backend/Reducer.h",
+      "ai/openai/codex/backend/Snapshot.h",
+      "ai/openai/codex/frontend/BackendAdapter.h",
+      "ai/openai/codex/frontend/Codec.h",
+      "ai/openai/codex/frontend/EventCoalescer.h",
+      "ai/openai/codex/frontend/EventJournal.h",
+      "ai/openai/codex/frontend/Messages.h",
+      "ai/openai/codex/frontend/Protocol.h",
+      "ai/openai/codex/frontend/UpdateBatch.h",
+      "ai/openai/codex/stdio/Client.h",
+      "ai/openai/codex/typed/Accounts.h",
+      "ai/openai/codex/typed/Apps.h",
+      "ai/openai/codex/typed/Client.h",
+      "ai/openai/codex/typed/CodexErrorInfo.h",
+      "ai/openai/codex/typed/Commands.h",
+      "ai/openai/codex/typed/Configuration.h",
+      "ai/openai/codex/typed/Conversation.h",
+      "ai/openai/codex/typed/Events.h",
+      "ai/openai/codex/typed/ExternalAgents.h",
+      "ai/openai/codex/typed/Feedback.h",
+      "ai/openai/codex/typed/Filesystem.h",
+      "ai/openai/codex/typed/Hooks.h",
+      "ai/openai/codex/typed/Items.h",
+      "ai/openai/codex/typed/Marketplace.h",
+      "ai/openai/codex/typed/Models.h",
+      "ai/openai/codex/typed/PermissionProfiles.h",
+      "ai/openai/codex/typed/Plugins.h",
+      "ai/openai/codex/typed/Results.h",
+      "ai/openai/codex/typed/Reviews.h",
+      "ai/openai/codex/typed/ServerRequests.h",
+      "ai/openai/codex/typed/Skills.h",
+      "ai/openai/codex/typed/Threads.h",
+      "ai/openai/codex/typed/Turns.h",
+      "ai/openai/codex/typed/Types.h"
+    ],
+    "inventory_authority": "The three CMake public-header variables, their install(FILES) declarations, the staged installed prefix, and binary-package inventory are joined by the functional header tests.",
+    "original_a1_2_guards": {
+      "typed/Accounts.h": "AI_OPENAI_CODEX_TYPED_ACCOUNTS_H",
+      "typed/Configuration.h": "AI_OPENAI_CODEX_TYPED_CONFIGURATION_H",
+      "typed/Models.h": "AI_OPENAI_CODEX_TYPED_MODELS_H"
+    }
+  },
+  "semantic_logger_policy": {
+    "accepted_entries": [
+      {
+        "classification": "DOMAIN_OR_PROTOCOL_SCOPE",
+        "identifying_expression": "turn {}: thread={} turn={}",
+        "logger_function": "lifecycleLog",
+        "path": "src/ai/openai/codex/backend/Reducer.cpp",
+        "rationale": "Typed turn completion is owned by Codex thread and turn identifiers."
+      },
+      {
+        "classification": "DOMAIN_OR_PROTOCOL_SCOPE",
+        "identifying_expression": "turn failed: thread={} turn={}",
+        "logger_function": "lifecycleLog",
+        "path": "src/ai/openai/codex/backend/Reducer.cpp",
+        "rationale": "Typed turn failure is owned by Codex thread and turn identifiers."
+      },
+      {
+        "classification": "DOMAIN_OR_PROTOCOL_SCOPE",
+        "identifying_expression": "thread created: thread={}",
+        "logger_function": "lifecycleLog",
+        "path": "src/ai/openai/codex/backend/Reducer.cpp",
+        "rationale": "Typed thread creation is owned by the Codex thread identifier."
+      },
+      {
+        "classification": "DOMAIN_OR_PROTOCOL_SCOPE",
+        "identifying_expression": "turn started: thread={} turn={}",
+        "logger_function": "lifecycleLog",
+        "path": "src/ai/openai/codex/backend/Reducer.cpp",
+        "rationale": "Typed turn start is owned by Codex thread and turn identifiers."
+      }
+    ],
+    "accepted_entry_count": 4,
+    "scan_root": "src/ai/openai/codex/",
+    "source_extensions": [
+      ".cpp",
+      ".h",
+      ".hpp",
+      ".ipp"
+    ]
+  },
+  "snodec_source_authority": {
+    "commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+    "policy_files": [
+      {
+        "blob": "73537e7d68b74afb335db8c4bd8b42d533c86814",
+        "path": "tests/policy/codex/CodexA12PublicHeaderPolicyTest.cpp",
+        "responsibility_id": "codex-public-header-policy",
+        "sha256": "a909d93dbd1b39c86c60e5f5ff8e0e496795861a81f3569712390ed75c4fee0b"
+      },
+      {
+        "blob": "e9beada86e032261d5b128cf58d0efdf1f927234",
+        "path": "tests/policy/log/LoggingApiSurfacePolicyTest.cpp",
+        "responsibility_id": "codex-logging-api-surface-policy",
+        "sha256": "85182c2a8b15e7a79b250e932ae509e6b540981b599d3f14a967dfca5a2883ac"
+      },
+      {
+        "blob": "e4fddcaf69b23549eab318cb86afee6210b2aaad",
+        "path": "tests/policy/log/ParameterlessSemanticLoggerPolicyTest.cpp",
+        "responsibility_id": "codex-semantic-logger-policy",
+        "sha256": "3940c05cac92cf45531d019fcc23d0821c3526f8a75cf1afd19faf6da489c49f"
+      }
+    ],
+    "reference_support_file": {
+      "blob": "47ec895a1bb6d6344d3c9d6bbdbc345c72a09380",
+      "path": "tests/policy/SourcePolicyTestRoot.h",
+      "sha256": "3553f889e3afdb6bd67f089b9cdea6343fe81b38e130c02a62c5e05f85c4f952"
+    },
+    "repository": "https://github.com/SNodeC/snode.c",
+    "tree": "88a63edc985a851b2b76b0c56df19fae74ea8069"
+  },
+  "source_package": {
+    "package_safe_command": "python3 -B tools/extraction/verify_codex_policy_ownership.py check-package --repo-root <package-root>",
+    "required_paths": [
+      ".github/workflows/ci.yml",
+      "README.md",
+      "docs/extraction/README.md",
+      "docs/extraction/codex-policy-baseline-ctest.json",
+      "docs/extraction/codex-policy-final-ctest.json",
+      "docs/extraction/codex-policy-ownership.json",
+      "docs/extraction/codex-policy-ownership.md",
+      "docs/extraction/filter-map.json",
+      "docs/extraction/source-manifest.json",
+      "docs/extraction/test-integrity.md",
+      "docs/extraction/validation.md",
+      "src/ai/openai/codex/CMakeLists.txt",
+      "src/ai/openai/codex/backend/CMakeLists.txt",
+      "src/ai/openai/codex/frontend/CMakeLists.txt",
+      "tests/AISuiteBinaryPackageTest.cmake",
+      "tests/AISuiteSourcePackageTest.cmake",
+      "tests/CMakeLists.txt",
+      "tests/component/codex/CodexA14UserIntegrationsClosureTest.py",
+      "tests/policy/CMakeLists.txt",
+      "tests/policy/codex/CMakeLists.txt",
+      "tests/policy/codex/CodexLoggingApiSurfacePolicyTest.cpp",
+      "tests/policy/codex/CodexPolicyMutationTest.py",
+      "tests/policy/codex/CodexPublicHeaderPolicyTest.cpp",
+      "tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake",
+      "tests/policy/codex/CodexSemanticLoggerAuthority.tsv",
+      "tests/policy/codex/CodexSemanticLoggerClassifications.tsv",
+      "tests/policy/codex/CodexSemanticLoggerPolicyTest.cpp",
+      "tests/policy/security/CMakeLists.txt",
+      "tests/policy/security/CodexSyntheticSecretLeakGuardTest.py",
+      "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+      "tests/policy/support/CxxSourceScanner.h",
+      "tools/codex/app_server_a1_4_user_integrations_closure.py",
+      "tools/extraction/verify_codex_policy_ownership.py"
+    ],
+    "requires_external_snodec_checkout": false,
+    "requires_git": false,
+    "requires_network": false
+  },
+  "transferred_responsibilities": [
+    {
+      "active": true,
+      "aisuite_owner": {
+        "implementation_files": [
+          "tests/policy/codex/CodexPublicHeaderPolicyTest.cpp",
+          "tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake"
+        ],
+        "owner_id": "aisuite-codex-public-header-policy",
+        "registration_owner": "tests/policy/codex/CMakeLists.txt",
+        "support_files": [
+          "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+          "tests/policy/support/CxxSourceScanner.h"
+        ]
+      },
+      "binary_package_excluded": true,
+      "focused_ci_included": true,
+      "manifest_bucket": "standalone_files",
+      "planted_failure_ids": [
+        "public-header-inventory-removal",
+        "public-header-pragma-once",
+        "public-header-guard-pair"
+      ],
+      "registered_ctests": [
+        "CodexPublicHeaderPolicyTest",
+        "CodexPublicHeaderSelfContainmentTest"
+      ],
+      "responsibility_id": "codex-public-header-policy",
+      "source_authority": {
+        "blob": "73537e7d68b74afb335db8c4bd8b42d533c86814",
+        "path": "tests/policy/codex/CodexA12PublicHeaderPolicyTest.cpp"
+      },
+      "source_package_required": true
+    },
+    {
+      "active": true,
+      "aisuite_owner": {
+        "implementation_files": [
+          "tests/policy/codex/CodexLoggingApiSurfacePolicyTest.cpp"
+        ],
+        "owner_id": "aisuite-codex-logging-api-surface-policy",
+        "registration_owner": "tests/policy/codex/CMakeLists.txt",
+        "support_files": [
+          "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+          "tests/policy/support/CxxSourceScanner.h"
+        ]
+      },
+      "binary_package_excluded": true,
+      "focused_ci_included": true,
+      "manifest_bucket": "standalone_files",
+      "planted_failure_ids": [
+        "logging-lifecycle-member"
+      ],
+      "registered_ctests": [
+        "CodexLoggingApiSurfacePolicyTest"
+      ],
+      "responsibility_id": "codex-logging-api-surface-policy",
+      "source_authority": {
+        "blob": "e9beada86e032261d5b128cf58d0efdf1f927234",
+        "path": "tests/policy/log/LoggingApiSurfacePolicyTest.cpp"
+      },
+      "source_package_required": true
+    },
+    {
+      "active": true,
+      "aisuite_owner": {
+        "implementation_files": [
+          "tests/policy/codex/CodexSemanticLoggerPolicyTest.cpp",
+          "tests/policy/codex/CodexSemanticLoggerAuthority.tsv",
+          "tests/policy/codex/CodexSemanticLoggerClassifications.tsv"
+        ],
+        "owner_id": "aisuite-codex-semantic-logger-policy",
+        "registration_owner": "tests/policy/codex/CMakeLists.txt",
+        "support_files": [
+          "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+          "tests/policy/support/CxxSourceScanner.h"
+        ]
+      },
+      "binary_package_excluded": true,
+      "focused_ci_included": true,
+      "manifest_bucket": "standalone_files",
+      "planted_failure_ids": [
+        "semantic-logger-unclassified",
+        "semantic-logger-classification-removal",
+        "semantic-logger-authority-count",
+        "semantic-logger-authority-expression"
+      ],
+      "registered_ctests": [
+        "CodexSemanticLoggerPolicyTest"
+      ],
+      "responsibility_id": "codex-semantic-logger-policy",
+      "source_authority": {
+        "blob": "e4fddcaf69b23549eab318cb86afee6210b2aaad",
+        "path": "tests/policy/log/ParameterlessSemanticLoggerPolicyTest.cpp"
+      },
+      "source_package_required": true
+    }
+  ],
+  "verification_tests": [
+    {
+      "enabled": true,
+      "expected_ci_filter": "ai|openai|codex|extraction",
+      "expected_command": [
+        "${PYTHON3}",
+        "-B",
+        "${SOURCE_DIR}/tools/extraction/verify_codex_policy_ownership.py",
+        "check",
+        "--repo-root",
+        "${SOURCE_DIR}",
+        "--build-dir",
+        "${BUILD_DIR}",
+        "--snodec-root",
+        "${SNODEC_SOURCE_DIR}"
+      ],
+      "expected_dependencies": [
+        "CodexPublicHeaderPolicyTest",
+        "CodexPublicHeaderSelfContainmentTest",
+        "CodexLoggingApiSurfacePolicyTest",
+        "CodexSemanticLoggerPolicyTest",
+        "CodexSyntheticSecretLeakGuardTest"
+      ],
+      "expected_labels": [
+        "policy",
+        "verification",
+        "ownership",
+        "cutover-readiness",
+        "ai",
+        "openai",
+        "codex",
+        "extraction"
+      ],
+      "expected_timeout": 120.0,
+      "registration_owner": "tests/policy/codex/CMakeLists.txt",
+      "test_name": "CodexPolicyOwnershipTest"
+    },
+    {
+      "enabled": true,
+      "expected_ci_filter": "ai|openai|codex|extraction",
+      "expected_command": [
+        "${PYTHON3}",
+        "-B",
+        "${SOURCE_DIR}/tests/policy/codex/CodexPolicyMutationTest.py",
+        "--repo-root",
+        "${SOURCE_DIR}",
+        "--build-dir",
+        "${BUILD_DIR}",
+        "--public-header-policy",
+        "${BUILD_DIR}/tests/policy/codex/CodexPublicHeaderPolicyTest",
+        "--logging-policy",
+        "${BUILD_DIR}/tests/policy/codex/CodexLoggingApiSurfacePolicyTest",
+        "--semantic-logger-policy",
+        "${BUILD_DIR}/tests/policy/codex/CodexSemanticLoggerPolicyTest",
+        "--ownership-tool",
+        "${SOURCE_DIR}/tools/extraction/verify_codex_policy_ownership.py",
+        "--baseline-model",
+        "${SOURCE_DIR}/docs/extraction/codex-policy-baseline-ctest.json",
+        "--final-model",
+        "${SOURCE_DIR}/docs/extraction/codex-policy-final-ctest.json",
+        "--ownership",
+        "${SOURCE_DIR}/docs/extraction/codex-policy-ownership.json",
+        "--manifest",
+        "${SOURCE_DIR}/docs/extraction/source-manifest.json",
+        "--workflow",
+        "${SOURCE_DIR}/.github/workflows/ci.yml",
+        "--source-package-test",
+        "${SOURCE_DIR}/tests/AISuiteSourcePackageTest.cmake",
+        "--binary-package-test",
+        "${SOURCE_DIR}/tests/AISuiteBinaryPackageTest.cmake"
+      ],
+      "expected_dependencies": [
+        "CodexPolicyOwnershipTest"
+      ],
+      "expected_labels": [
+        "policy",
+        "verification",
+        "mutation",
+        "ai",
+        "openai",
+        "codex",
+        "extraction"
+      ],
+      "expected_timeout": 300.0,
+      "registration_owner": "tests/policy/codex/CMakeLists.txt",
+      "test_name": "CodexPolicyMutationTest"
+    }
+  ]
+}
