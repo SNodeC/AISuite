@@ -1,0 +1,28 @@
+{
+  "method": "externalAgentConfig/import/progress",
+  "params": {
+    "importId": "synthetic-f18b186515",
+    "itemTypeResults": [
+      {
+        "failures": [
+          {
+            "cwd": "synthetic-a74ce006be",
+            "errorType": "synthetic-8749d1c5ff",
+            "failureStage": "synthetic-7d05733aeb",
+            "itemType": "AGENTS_MD",
+            "message": "synthetic-0e9fe2b0be",
+            "source": "synthetic-3e8d255a8d"
+          }
+        ],
+        "successes": [
+          {
+            "cwd": "synthetic-25a309bfef",
+            "itemType": "AGENTS_MD",
+            "source": "synthetic-07176564b1",
+            "target": "synthetic-2f0134da5f"
+          }
+        ]
+      }
+    ]
+  }
+}

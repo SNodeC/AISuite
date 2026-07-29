@@ -8,17 +8,24 @@
 #include <ai/openai/codex/AppServerClient.h>
 #include <ai/openai/codex/stdio/Client.h>
 #include <ai/openai/codex/typed/Accounts.h>
+#include <ai/openai/codex/typed/Apps.h>
 #include <ai/openai/codex/typed/Client.h>
 #include <ai/openai/codex/typed/Commands.h>
 #include <ai/openai/codex/typed/Configuration.h>
 #include <ai/openai/codex/typed/Conversation.h>
 #include <ai/openai/codex/typed/Events.h>
+#include <ai/openai/codex/typed/ExternalAgents.h>
+#include <ai/openai/codex/typed/Feedback.h>
+#include <ai/openai/codex/typed/Hooks.h>
 #include <ai/openai/codex/typed/Items.h>
+#include <ai/openai/codex/typed/Marketplace.h>
 #include <ai/openai/codex/typed/Models.h>
 #include <ai/openai/codex/typed/PermissionProfiles.h>
+#include <ai/openai/codex/typed/Plugins.h>
 #include <ai/openai/codex/typed/Results.h>
 #include <ai/openai/codex/typed/Reviews.h>
 #include <ai/openai/codex/typed/ServerRequests.h>
+#include <ai/openai/codex/typed/Skills.h>
 #include <ai/openai/codex/typed/Threads.h>
 #include <ai/openai/codex/typed/Turns.h>
 #include <iostream>
@@ -41,8 +48,28 @@ int main() {
     static_assert(std::variant_size_v<typed::WebSearchAction> == 5);
     static_assert(std::variant_size_v<typed::ThreadItem> == 19);
     static_assert(std::variant_size_v<typed::ResponseItem> == 17);
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 51);
-    static_assert(std::variant_size_v<typed::Event> == 53);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 57);
+    static_assert(std::variant_size_v<typed::Event> == 59);
+    static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
+                                 typed::ExternalAgentConfigImportCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<53, typed::CanonicalServerNotification>,
+                                 typed::ExternalAgentConfigImportProgressNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<54, typed::CanonicalServerNotification>, typed::HookCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<55, typed::CanonicalServerNotification>, typed::HookStartedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<56, typed::CanonicalServerNotification>, typed::SkillsChangedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<53, typed::Event>, typed::AppListUpdatedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<56, typed::Event>, typed::HookCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<57, typed::Event>, typed::HookStartedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<58, typed::Event>, typed::SkillsChangedNotification>);
+    static_assert(std::variant_size_v<typed::PluginSource> == 5);
+    static_assert(std::is_same_v<std::variant_alternative_t<0, typed::PluginSource>, typed::GitPluginSource>);
+    static_assert(std::is_same_v<std::variant_alternative_t<1, typed::PluginSource>, typed::LocalPluginSource>);
+    static_assert(std::is_same_v<std::variant_alternative_t<2, typed::PluginSource>, typed::NpmPluginSource>);
+    static_assert(std::is_same_v<std::variant_alternative_t<3, typed::PluginSource>, typed::RemotePluginSource>);
+    static_assert(std::is_same_v<std::variant_alternative_t<4, typed::PluginSource>, typed::UnknownPluginSource>);
     static_assert(std::variant_size_v<typed::Account> == 4);
     static_assert(std::variant_size_v<typed::LoginAccountParams> == 5);
     static_assert(std::variant_size_v<typed::LoginAccountResponse> == 5);
@@ -72,12 +99,11 @@ int main() {
     static_assert(sizeof(ai::openai::codex::AppServerClient) == 2 * sizeof(void*));
     static_assert(sizeof(typed::Client) == sizeof(void*));
 
-    [[maybe_unused]] typed::DecodeDiagnostic diagnostic{
-        typed::DecodeIssueKind::UnknownDiscriminator,
-        typed::DecodeIssueSeverity::ForwardCompatibility,
-        "CodexErrorInfo",
-        "$",
-        "unrecognized protocol discriminator was retained as raw JSON"};
+    [[maybe_unused]] typed::DecodeDiagnostic diagnostic{typed::DecodeIssueKind::UnknownDiscriminator,
+                                                        typed::DecodeIssueSeverity::ForwardCompatibility,
+                                                        "CodexErrorInfo",
+                                                        "$",
+                                                        "unrecognized protocol discriminator was retained as raw JSON"};
     [[maybe_unused]] typed::OperationResult<typed::Thread> operationResult;
     [[maybe_unused]] typed::OptionalNullable<std::string> omitted = typed::OptionalNullable<std::string>::omitted();
     [[maybe_unused]] typed::OptionalNullable<std::string> explicitNull = typed::OptionalNullable<std::string>::explicitNull();
@@ -145,6 +171,12 @@ int main() {
         .processId = {"installed-process"},
         .stream = typed::CommandExecOutputStream::stdoutStream(),
     };
+    [[maybe_unused]] typed::Event installedAppListUpdatedEvent = typed::AppListUpdatedNotification{};
+    [[maybe_unused]] typed::Event installedExternalImportCompletedEvent = typed::ExternalAgentConfigImportCompletedNotification{};
+    [[maybe_unused]] typed::Event installedExternalImportProgressEvent = typed::ExternalAgentConfigImportProgressNotification{};
+    [[maybe_unused]] typed::Event installedHookCompletedEvent = typed::HookCompletedNotification{};
+    [[maybe_unused]] typed::Event installedHookStartedEvent = typed::HookStartedNotification{};
+    [[maybe_unused]] typed::Event installedSkillsChangedEvent = typed::SkillsChangedNotification{};
     [[maybe_unused]] typed::UserInput userInput =
         typed::TextUserInput{.text = "Describe this directory.", .textElements = std::vector<typed::TextElement>{}};
     [[maybe_unused]] typed::WebSearchAction web =
@@ -194,16 +226,13 @@ int main() {
         .raw = {{"method", "thread/future"}},
         .diagnostic = diagnostic,
     };
-    [[maybe_unused]] typed::LoginAccountParams apiKeyLogin =
-        typed::ApiKeyLoginAccountParams{.apiKey = "installed-test-api-key"};
-    [[maybe_unused]] typed::LoginAccountParams futureLoginParams =
-        typed::UnknownLoginAccountParams{.type = "futureLogin"};
-    [[maybe_unused]] typed::LoginAccountResponse futureLoginResponse =
-        typed::UnknownLoginAccountResponse{
-            .type = "futureLogin",
-            .raw = {{"type", "futureLogin"}},
-            .diagnostic = diagnostic,
-        };
+    [[maybe_unused]] typed::LoginAccountParams apiKeyLogin = typed::ApiKeyLoginAccountParams{.apiKey = "installed-test-api-key"};
+    [[maybe_unused]] typed::LoginAccountParams futureLoginParams = typed::UnknownLoginAccountParams{.type = "futureLogin"};
+    [[maybe_unused]] typed::LoginAccountResponse futureLoginResponse = typed::UnknownLoginAccountResponse{
+        .type = "futureLogin",
+        .raw = {{"type", "futureLogin"}},
+        .diagnostic = diagnostic,
+    };
     [[maybe_unused]] typed::Account futureAccount = typed::UnknownAccount{
         .type = "futureAccount",
         .raw = {{"type", "futureAccount"}},
@@ -217,8 +246,7 @@ int main() {
     [[maybe_unused]] typed::GetAccountRateLimitsResponse installedRateLimits{
         .rateLimitResetCredits = typed::OptionalNullable<typed::RateLimitResetCreditsSummary>::omitted(),
         .rateLimits = {},
-        .rateLimitsByLimitId =
-            typed::OptionalNullable<std::map<typed::RateLimitId, typed::RateLimitSnapshot>>::explicitNull(),
+        .rateLimitsByLimitId = typed::OptionalNullable<std::map<typed::RateLimitId, typed::RateLimitSnapshot>>::explicitNull(),
         .raw = {{"rateLimitsByLimitId", nullptr}},
     };
     [[maybe_unused]] typed::ChatgptAuthTokensRefreshParams installedRefreshParams{
@@ -246,11 +274,10 @@ int main() {
     [[maybe_unused]] typed::ModelVerification futureVerification{"future-verification"};
     [[maybe_unused]] typed::Model installedModel{
         .additionalSpeedTiers = {typed::ModelServiceTierId{"fast"}},
-        .availabilityNux = typed::OptionalNullable<typed::ModelAvailabilityNux>::withValue(
-            typed::ModelAvailabilityNux{.message = "Available"}),
+        .availabilityNux =
+            typed::OptionalNullable<typed::ModelAvailabilityNux>::withValue(typed::ModelAvailabilityNux{.message = "Available"}),
         .defaultReasoningEffort = typed::ReasoningEffort{"medium"},
-        .defaultServiceTier =
-            typed::OptionalNullable<typed::ModelServiceTierId>::withValue(typed::ModelServiceTierId{"standard"}),
+        .defaultServiceTier = typed::OptionalNullable<typed::ModelServiceTierId>::withValue(typed::ModelServiceTierId{"standard"}),
         .description = "Installed model",
         .displayName = "Installed Model",
         .hidden = false,
@@ -258,17 +285,15 @@ int main() {
         .inputModalities = {typed::InputModality::text(), futureInputModality},
         .isDefault = true,
         .model = typed::ModelId{"installed-model-wire"},
-        .serviceTiers =
-            {typed::ModelServiceTier{
-                .description = "Standard service",
-                .id = typed::ModelServiceTierId{"standard"},
-                .name = "Standard",
-            }},
-        .supportedReasoningEfforts =
-            {typed::ReasoningEffortOption{
-                .description = "Balanced",
-                .reasoningEffort = typed::ReasoningEffort{"medium"},
-            }},
+        .serviceTiers = {typed::ModelServiceTier{
+            .description = "Standard service",
+            .id = typed::ModelServiceTierId{"standard"},
+            .name = "Standard",
+        }},
+        .supportedReasoningEfforts = {typed::ReasoningEffortOption{
+            .description = "Balanced",
+            .reasoningEffort = typed::ReasoningEffort{"medium"},
+        }},
         .supportsPersonality = true,
         .upgrade = typed::OptionalNullable<std::string>::explicitNull(),
         .upgradeInfo = typed::OptionalNullable<typed::ModelUpgradeInfo>::omitted(),
@@ -284,17 +309,15 @@ int main() {
         .webSearch = true,
         .raw = {{"imageGeneration", true}, {"namespaceTools", false}, {"webSearch", true}},
     };
-    [[maybe_unused]] typed::ConfigLayerSource installedConfigLayerSource =
-        typed::UserConfigLayerSource{
-            .file = typed::AbsolutePathBuf{"/synthetic/config.toml"},
-            .profile = typed::OptionalNullable<std::string>::explicitNull(),
-        };
-    [[maybe_unused]] typed::ConfigLayerSource futureConfigLayerSource =
-        typed::UnknownConfigLayerSource{
-            .discriminator = "futureLayer",
-            .raw = {{"type", "futureLayer"}},
-            .diagnostic = diagnostic,
-        };
+    [[maybe_unused]] typed::ConfigLayerSource installedConfigLayerSource = typed::UserConfigLayerSource{
+        .file = typed::AbsolutePathBuf{"/synthetic/config.toml"},
+        .profile = typed::OptionalNullable<std::string>::explicitNull(),
+    };
+    [[maybe_unused]] typed::ConfigLayerSource futureConfigLayerSource = typed::UnknownConfigLayerSource{
+        .discriminator = "futureLayer",
+        .raw = {{"type", "futureLayer"}},
+        .diagnostic = diagnostic,
+    };
     [[maybe_unused]] typed::ConfigReadParams installedConfigReadParams{
         .cwd = typed::OptionalNullable<std::string>::withValue("/synthetic/project"),
         .includeLayers = true,
@@ -302,114 +325,74 @@ int main() {
     [[maybe_unused]] typed::ConfigReadResponse installedConfigReadResponse{
         .config =
             typed::Config{
-                .model = typed::OptionalNullable<typed::ModelId>::withValue(
-                    typed::ModelId{"installed-model"}),
-                .modelVerbosity =
-                    typed::OptionalNullable<typed::Verbosity>::withValue(
-                        typed::Verbosity::medium()),
-                .webSearch =
-                    typed::OptionalNullable<typed::WebSearchMode>::withValue(
-                        typed::WebSearchMode::cached()),
+                .model = typed::OptionalNullable<typed::ModelId>::withValue(typed::ModelId{"installed-model"}),
+                .modelVerbosity = typed::OptionalNullable<typed::Verbosity>::withValue(typed::Verbosity::medium()),
+                .webSearch = typed::OptionalNullable<typed::WebSearchMode>::withValue(typed::WebSearchMode::cached()),
             },
-        .layers = typed::OptionalNullable<std::vector<typed::ConfigLayer>>::
-            explicitNull(),
+        .layers = typed::OptionalNullable<std::vector<typed::ConfigLayer>>::explicitNull(),
         .origins = {},
-        .raw = {{"config", ai::openai::codex::Json::object()},
-                {"layers", nullptr},
-                {"origins", ai::openai::codex::Json::object()}},
+        .raw = {{"config", ai::openai::codex::Json::object()}, {"layers", nullptr}, {"origins", ai::openai::codex::Json::object()}},
     };
-    [[maybe_unused]] typed::ConfigRequirementsReadResponse
-        installedConfigRequirements{
-            .requirements =
-                typed::OptionalNullable<typed::ConfigRequirements>::withValue(
-                    typed::ConfigRequirements{
-                        .allowRemoteControl =
-                            typed::OptionalNullable<bool>::withValue(false),
-                        .allowedWebSearchModes = typed::OptionalNullable<
-                            std::vector<typed::WebSearchMode>>::withValue(
-                            {typed::WebSearchMode::disabled()}),
-                    }),
-            .raw = {{"requirements", ai::openai::codex::Json::object()}},
-        };
+    [[maybe_unused]] typed::ConfigRequirementsReadResponse installedConfigRequirements{
+        .requirements = typed::OptionalNullable<typed::ConfigRequirements>::withValue(typed::ConfigRequirements{
+            .allowRemoteControl = typed::OptionalNullable<bool>::withValue(false),
+            .allowedWebSearchModes =
+                typed::OptionalNullable<std::vector<typed::WebSearchMode>>::withValue({typed::WebSearchMode::disabled()}),
+        }),
+        .raw = {{"requirements", ai::openai::codex::Json::object()}},
+    };
     [[maybe_unused]] typed::MergeStrategy futureMergeStrategy{"futureMerge"};
     [[maybe_unused]] typed::WriteStatus futureWriteStatus{"futureWrite"};
-    [[maybe_unused]] typed::ExperimentalFeatureStage futureFeatureStage{
-        "futureStage"};
+    [[maybe_unused]] typed::ExperimentalFeatureStage futureFeatureStage{"futureStage"};
     typed::ConfigBatchWriteParams installedBatchWriteParams{
-        .edits =
-            {typed::ConfigEdit{
-                .keyPath = typed::ConfigKeyPath{"features.installed"},
-                .mergeStrategy = typed::MergeStrategy::upsert(),
-                .value = std::optional<ai::openai::codex::Json>{
-                    ai::openai::codex::Json{
-                        {"array",
-                         ai::openai::codex::Json::array(
-                             {true, nullptr, "exact"})},
-                        {"nested", {{"installed", true}}},
-                    }},
+        .edits = {typed::ConfigEdit{
+            .keyPath = typed::ConfigKeyPath{"features.installed"},
+            .mergeStrategy = typed::MergeStrategy::upsert(),
+            .value = std::optional<ai::openai::codex::Json>{ai::openai::codex::Json{
+                {"array", ai::openai::codex::Json::array({true, nullptr, "exact"})},
+                {"nested", {{"installed", true}}},
             }},
-        .expectedVersion =
-            typed::OptionalNullable<std::string>::explicitNull(),
-        .filePath =
-            typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(
-                typed::AbsolutePathBuf{"/synthetic/config.toml"}),
+        }},
+        .expectedVersion = typed::OptionalNullable<std::string>::explicitNull(),
+        .filePath = typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/config.toml"}),
         .reloadUserConfig = false,
     };
     typed::ConfigValueWriteParams installedValueWriteParams{
-        .expectedVersion =
-            typed::OptionalNullable<std::string>::withValue("installed-v1"),
-        .filePath =
-            typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull(),
+        .expectedVersion = typed::OptionalNullable<std::string>::withValue("installed-v1"),
+        .filePath = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull(),
         .keyPath = typed::ConfigKeyPath{"features.installed.value"},
         .mergeStrategy = typed::MergeStrategy::replace(),
-        .value = std::optional<ai::openai::codex::Json>{
-            ai::openai::codex::Json::array(
-                {1, nullptr, ai::openai::codex::Json{{"exact", true}}})},
+        .value =
+            std::optional<ai::openai::codex::Json>{ai::openai::codex::Json::array({1, nullptr, ai::openai::codex::Json{{"exact", true}}})},
     };
     [[maybe_unused]] typed::ConfigWriteResponse installedWriteResponse{
         .filePath = typed::AbsolutePathBuf{"/synthetic/config.toml"},
-        .overriddenMetadata =
-            typed::OptionalNullable<typed::OverriddenMetadata>::explicitNull(),
+        .overriddenMetadata = typed::OptionalNullable<typed::OverriddenMetadata>::explicitNull(),
         .status = typed::WriteStatus::ok(),
         .version = "installed-v2",
-        .raw = {{"filePath", "/synthetic/config.toml"},
-                {"overriddenMetadata", nullptr},
-                {"status", "ok"},
-                {"version", "installed-v2"}},
+        .raw = {{"filePath", "/synthetic/config.toml"}, {"overriddenMetadata", nullptr}, {"status", "ok"}, {"version", "installed-v2"}},
     };
-    typed::ExperimentalFeatureEnablementSetParams
-        installedFeatureEnablementParams{
-            .enablement =
-                {{typed::ExperimentalFeatureId{"installed-feature"}, true}},
-        };
+    typed::ExperimentalFeatureEnablementSetParams installedFeatureEnablementParams{
+        .enablement = {{typed::ExperimentalFeatureId{"installed-feature"}, true}},
+    };
     typed::ExperimentalFeatureListParams installedFeatureListParams{
         .cursor = typed::OptionalNullable<std::string>::explicitNull(),
         .limit = typed::OptionalNullable<std::uint32_t>::withValue(25),
-        .threadId = typed::OptionalNullable<typed::ThreadId>::withValue(
-            typed::ThreadId{"thread-installed"}),
+        .threadId = typed::OptionalNullable<typed::ThreadId>::withValue(typed::ThreadId{"thread-installed"}),
     };
-    [[maybe_unused]] typed::ExperimentalFeatureListResponse
-        installedFeatureListResponse{
-            .data =
-                {typed::ExperimentalFeature{
-                    .announcement =
-                        typed::OptionalNullable<std::string>::explicitNull(),
-                    .defaultEnabled = false,
-                    .description =
-                        typed::OptionalNullable<std::string>::withValue(
-                            "Installed feature"),
-                    .displayName =
-                        typed::OptionalNullable<std::string>::omitted(),
-                    .enabled = true,
-                    .name =
-                        typed::ExperimentalFeatureId{"installed-feature"},
-                    .stage = futureFeatureStage,
-                }},
-            .nextCursor =
-                typed::OptionalNullable<std::string>::explicitNull(),
-            .raw = {{"data", ai::openai::codex::Json::array()},
-                    {"nextCursor", nullptr}},
-        };
+    [[maybe_unused]] typed::ExperimentalFeatureListResponse installedFeatureListResponse{
+        .data = {typed::ExperimentalFeature{
+            .announcement = typed::OptionalNullable<std::string>::explicitNull(),
+            .defaultEnabled = false,
+            .description = typed::OptionalNullable<std::string>::withValue("Installed feature"),
+            .displayName = typed::OptionalNullable<std::string>::omitted(),
+            .enabled = true,
+            .name = typed::ExperimentalFeatureId{"installed-feature"},
+            .stage = futureFeatureStage,
+        }},
+        .nextCursor = typed::OptionalNullable<std::string>::explicitNull(),
+        .raw = {{"data", ai::openai::codex::Json::array()}, {"nextCursor", nullptr}},
+    };
     typed::TurnStartParams installedStartParams;
     installedStartParams.threadId = installedThread.id;
     installedStartParams.clientUserMessageId = typed::ClientUserMessageId{"client-message"};
@@ -428,33 +411,27 @@ int main() {
     client.typed().requests().setOnRequest([&client](const typed::TypedServerRequest& request) {
         if (const auto* approval = std::get_if<typed::CommandApprovalRequest>(&request)) {
             (void) client.typed().requests().respond(*approval, typed::ApprovalDecision::decline());
-        } else if (const auto* authentication =
-                       std::get_if<typed::AuthenticationRequest>(&request)) {
+        } else if (const auto* authentication = std::get_if<typed::AuthenticationRequest>(&request)) {
             if (authentication->canonicalParams.previousAccountId.isOmitted()) {
                 // Preserve the pre-A1 source form: braced AuthenticationResponse
                 // must select the legacy respond overload unambiguously.
-                (void) client.typed().requests().respond(
-                    *authentication,
-                    {"installed-legacy-access-token",
-                     "installed-account",
-                     std::nullopt});
+                (void) client.typed().requests().respond(*authentication,
+                                                         {"installed-legacy-access-token", "installed-account", std::nullopt});
             } else {
                 (void) client.typed().requests().respondRefresh(
                     *authentication,
                     typed::ChatgptAuthTokensRefreshResponse{
                         .accessToken = "installed-test-access-token",
-                        .chatgptAccountId =
-                            typed::AccountId{"installed-account"},
-                        .chatgptPlanType =
-                            typed::OptionalNullable<typed::PlanType>::
-                                withValue(typed::PlanType::plus()),
+                        .chatgptAccountId = typed::AccountId{"installed-account"},
+                        .chatgptPlanType = typed::OptionalNullable<typed::PlanType>::withValue(typed::PlanType::plus()),
                     });
             }
         }
     });
 
-    const auto archiveSubmission = client.typed().threads().archive(
-        {.threadId = installedThread.id}, [](const typed::OperationResult<typed::Unit>&) {});
+    const auto archiveSubmission =
+        client.typed().threads().archive({.threadId = installedThread.id}, [](const typed::OperationResult<typed::Unit>&) {
+        });
     const auto guardianApprovalSubmission = client.typed().threads().approveGuardianDeniedAction(
         {
             .threadId = installedThread.id,
@@ -462,16 +439,17 @@ int main() {
         },
         [](const typed::OperationResult<typed::Unit>&) {
         });
-    const auto goalSubmission = client.typed().threads().getGoal(
-        {.threadId = installedThread.id}, [](const typed::OperationResult<typed::ThreadGoalGetResponse>&) {});
+    const auto goalSubmission =
+        client.typed().threads().getGoal({.threadId = installedThread.id}, [](const typed::OperationResult<typed::ThreadGoalGetResponse>&) {
+        });
     const auto reviewSubmission =
         client.typed().reviews().start(std::move(installedReviewParams), [](const typed::OperationResult<typed::ReviewStartResponse>&) {
         });
-    const auto steerSubmission = client.typed().turns().steer(
-        {.threadId = installedThread.id,
-         .expectedTurnId = installedTurn.id,
-         .input = {typed::TextUserInput{.text = "Steer the current turn."}}},
-        [](const typed::OperationResult<typed::TurnSteerResponse>&) {});
+    const auto steerSubmission = client.typed().turns().steer({.threadId = installedThread.id,
+                                                               .expectedTurnId = installedTurn.id,
+                                                               .input = {typed::TextUserInput{.text = "Steer the current turn."}}},
+                                                              [](const typed::OperationResult<typed::TurnSteerResponse>&) {
+                                                              });
     (void) archiveSubmission;
     (void) guardianApprovalSubmission;
     (void) goalSubmission;
@@ -479,28 +457,35 @@ int main() {
     (void) steerSubmission;
 
     const auto cancelLoginSubmission = client.typed().accounts().cancelLogin(
-        {.loginId = typed::LoginId{"installed-login"}},
-        [](const typed::OperationResult<typed::CancelLoginAccountResponse>&) {});
-    const auto startLoginSubmission = client.typed().accounts().startLogin(
-        typed::ApiKeyLoginAccountParams{.apiKey = "installed-test-api-key"},
-        [](const typed::OperationResult<typed::LoginAccountResponse>&) {});
-    const auto logoutSubmission =
-        client.typed().accounts().logout({}, [](const typed::OperationResult<typed::Unit>&) {});
+        {.loginId = typed::LoginId{"installed-login"}}, [](const typed::OperationResult<typed::CancelLoginAccountResponse>&) {
+        });
+    const auto startLoginSubmission =
+        client.typed().accounts().startLogin(typed::ApiKeyLoginAccountParams{.apiKey = "installed-test-api-key"},
+                                             [](const typed::OperationResult<typed::LoginAccountResponse>&) {
+                                             });
+    const auto logoutSubmission = client.typed().accounts().logout({}, [](const typed::OperationResult<typed::Unit>&) {
+    });
     const auto consumeCreditSubmission = client.typed().accounts().consumeRateLimitResetCredit(
         {.creditId = typed::OptionalNullable<typed::RateLimitResetCreditId>::explicitNull(),
          .idempotencyKey = typed::IdempotencyKey{"installed-idempotency"}},
-        [](const typed::OperationResult<typed::ConsumeAccountRateLimitResetCreditResponse>&) {});
-    const auto readRateLimitsSubmission = client.typed().accounts().readRateLimits(
-        {}, [](const typed::OperationResult<typed::GetAccountRateLimitsResponse>&) {});
-    const auto readAccountSubmission = client.typed().accounts().read(
-        {.refreshToken = true}, [](const typed::OperationResult<typed::GetAccountResponse>&) {});
-    const auto nudgeSubmission = client.typed().accounts().sendAddCreditsNudgeEmail(
-        {.creditType = typed::AddCreditsNudgeCreditType::credits()},
-        [](const typed::OperationResult<typed::SendAddCreditsNudgeEmailResponse>&) {});
-    const auto readUsageSubmission = client.typed().accounts().readUsage(
-        {}, [](const typed::OperationResult<typed::GetAccountTokenUsageResponse>&) {});
-    const auto readMessagesSubmission = client.typed().accounts().readWorkspaceMessages(
-        {}, [](const typed::OperationResult<typed::GetWorkspaceMessagesResponse>&) {});
+        [](const typed::OperationResult<typed::ConsumeAccountRateLimitResetCreditResponse>&) {
+        });
+    const auto readRateLimitsSubmission =
+        client.typed().accounts().readRateLimits({}, [](const typed::OperationResult<typed::GetAccountRateLimitsResponse>&) {
+        });
+    const auto readAccountSubmission =
+        client.typed().accounts().read({.refreshToken = true}, [](const typed::OperationResult<typed::GetAccountResponse>&) {
+        });
+    const auto nudgeSubmission =
+        client.typed().accounts().sendAddCreditsNudgeEmail({.creditType = typed::AddCreditsNudgeCreditType::credits()},
+                                                           [](const typed::OperationResult<typed::SendAddCreditsNudgeEmailResponse>&) {
+                                                           });
+    const auto readUsageSubmission =
+        client.typed().accounts().readUsage({}, [](const typed::OperationResult<typed::GetAccountTokenUsageResponse>&) {
+        });
+    const auto readMessagesSubmission =
+        client.typed().accounts().readWorkspaceMessages({}, [](const typed::OperationResult<typed::GetWorkspaceMessagesResponse>&) {
+        });
     (void) cancelLoginSubmission;
     (void) startLoginSubmission;
     (void) logoutSubmission;
@@ -511,43 +496,35 @@ int main() {
     (void) readUsageSubmission;
     (void) readMessagesSubmission;
 
-    const auto modelListSubmission = client.typed().models().list(
-        std::move(installedModelListParams),
-        [](const typed::OperationResult<typed::ModelListResponse>&) {});
+    const auto modelListSubmission =
+        client.typed().models().list(std::move(installedModelListParams), [](const typed::OperationResult<typed::ModelListResponse>&) {
+        });
     const auto providerCapabilitiesSubmission = client.typed().models().readProviderCapabilities(
-        {}, [](const typed::OperationResult<typed::ModelProviderCapabilitiesReadResponse>&) {});
+        {}, [](const typed::OperationResult<typed::ModelProviderCapabilitiesReadResponse>&) {
+        });
     (void) modelListSubmission;
     (void) providerCapabilitiesSubmission;
 
-    const auto configReadSubmission = client.typed().configuration().read(
-        std::move(installedConfigReadParams),
-        [](const typed::OperationResult<typed::ConfigReadResponse>&) {});
+    const auto configReadSubmission = client.typed().configuration().read(std::move(installedConfigReadParams),
+                                                                          [](const typed::OperationResult<typed::ConfigReadResponse>&) {
+                                                                          });
     const auto configRequirementsSubmission =
-        client.typed().configuration().readRequirements(
-            {},
-            [](const typed::OperationResult<
-                typed::ConfigRequirementsReadResponse>&) {});
-    const auto configBatchWriteSubmission =
-        client.typed().configuration().batchWrite(
-            std::move(installedBatchWriteParams),
-            [](const typed::OperationResult<typed::ConfigWriteResponse>&) {});
-    const auto configReloadSubmission =
-        client.typed().configuration().reloadMcpServers(
-            {}, [](const typed::OperationResult<typed::Unit>&) {});
-    const auto configValueWriteSubmission =
-        client.typed().configuration().writeValue(
-            std::move(installedValueWriteParams),
-            [](const typed::OperationResult<typed::ConfigWriteResponse>&) {});
-    const auto featureEnablementSubmission =
-        client.typed().configuration().setExperimentalFeatureEnablement(
-            std::move(installedFeatureEnablementParams),
-            [](const typed::OperationResult<
-                typed::ExperimentalFeatureEnablementSetResponse>&) {});
-    const auto featureListSubmission =
-        client.typed().configuration().listExperimentalFeatures(
-            std::move(installedFeatureListParams),
-            [](const typed::OperationResult<
-                typed::ExperimentalFeatureListResponse>&) {});
+        client.typed().configuration().readRequirements({}, [](const typed::OperationResult<typed::ConfigRequirementsReadResponse>&) {
+        });
+    const auto configBatchWriteSubmission = client.typed().configuration().batchWrite(
+        std::move(installedBatchWriteParams), [](const typed::OperationResult<typed::ConfigWriteResponse>&) {
+        });
+    const auto configReloadSubmission = client.typed().configuration().reloadMcpServers({}, [](const typed::OperationResult<typed::Unit>&) {
+    });
+    const auto configValueWriteSubmission = client.typed().configuration().writeValue(
+        std::move(installedValueWriteParams), [](const typed::OperationResult<typed::ConfigWriteResponse>&) {
+        });
+    const auto featureEnablementSubmission = client.typed().configuration().setExperimentalFeatureEnablement(
+        std::move(installedFeatureEnablementParams), [](const typed::OperationResult<typed::ExperimentalFeatureEnablementSetResponse>&) {
+        });
+    const auto featureListSubmission = client.typed().configuration().listExperimentalFeatures(
+        std::move(installedFeatureListParams), [](const typed::OperationResult<typed::ExperimentalFeatureListResponse>&) {
+        });
     (void) configReadSubmission;
     (void) configRequirementsSubmission;
     (void) configBatchWriteSubmission;
@@ -576,6 +553,35 @@ int main() {
     (void) commandTerminateSubmission;
     (void) commandWriteSubmission;
 
+    const auto appsSubmission = client.typed().apps().list({}, [](const typed::OperationResult<typed::AppsListResponse>&) {
+    });
+    const auto externalAgentsSubmission =
+        client.typed().externalAgents().detect({}, [](const typed::OperationResult<typed::ExternalAgentConfigDetectResponse>&) {
+        });
+    typed::FeedbackUploadParams installedFeedbackParams{};
+    installedFeedbackParams.classification = "synthetic-feedback";
+    const auto feedbackSubmission = client.typed().feedback().upload(std::move(installedFeedbackParams),
+                                                                     [](const typed::OperationResult<typed::FeedbackUploadResponse>&) {
+                                                                     });
+    const auto hooksSubmission = client.typed().hooks().list({}, [](const typed::OperationResult<typed::HooksListResponse>&) {
+    });
+    typed::MarketplaceAddParams installedMarketplaceParams{};
+    installedMarketplaceParams.source = "https://example.invalid/synthetic-marketplace.git";
+    const auto marketplaceSubmission = client.typed().marketplace().add(std::move(installedMarketplaceParams),
+                                                                        [](const typed::OperationResult<typed::MarketplaceAddResponse>&) {
+                                                                        });
+    const auto pluginsSubmission = client.typed().plugins().list({}, [](const typed::OperationResult<typed::PluginListResponse>&) {
+    });
+    const auto skillsSubmission = client.typed().skills().list({}, [](const typed::OperationResult<typed::SkillsListResponse>&) {
+    });
+    (void) appsSubmission;
+    (void) externalAgentsSubmission;
+    (void) feedbackSubmission;
+    (void) hooksSubmission;
+    (void) marketplaceSubmission;
+    (void) pluginsSubmission;
+    (void) skillsSubmission;
+
     typed::ThreadStartParams launchParams;
     launchParams.cwd = typed::OptionalNullable<std::string>::withValue("/tmp");
     (void) client.typed().threads().start(
@@ -584,8 +590,8 @@ int main() {
                 typed::TurnStartParams turnParams;
                 turnParams.threadId = result.value->thread.id;
                 turnParams.input.emplace_back(typed::TextUserInput{.text = "Describe this directory."});
-                (void) client.typed().turns().start(
-                    std::move(turnParams), [](const typed::OperationResult<typed::TurnStartResponse>&) {});
+                (void) client.typed().turns().start(std::move(turnParams), [](const typed::OperationResult<typed::TurnStartResponse>&) {
+                });
             }
         });
 

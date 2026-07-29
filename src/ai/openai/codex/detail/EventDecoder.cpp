@@ -9,16 +9,20 @@
 
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/AccountCodec.h"
+#include "ai/openai/codex/detail/AppCodec.h"
 #include "ai/openai/codex/detail/CodexErrorInfoCodec.h"
 #include "ai/openai/codex/detail/CommandCodec.h"
 #include "ai/openai/codex/detail/ConfigurationCodec.h"
 #include "ai/openai/codex/detail/ConversationCodec.h"
 #include "ai/openai/codex/detail/DecodeDiagnostic.h"
+#include "ai/openai/codex/detail/ExternalAgentCodec.h"
 #include "ai/openai/codex/detail/FilesystemCodec.h"
+#include "ai/openai/codex/detail/HookCodec.h"
 #include "ai/openai/codex/detail/ItemDecoder.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
+#include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
 #include "ai/openai/codex/typed/CodexErrorInfo.h"
@@ -560,10 +564,13 @@ namespace ai::openai::codex::detail {
                 notification.method == "account/login/completed" || notification.method == "account/rateLimits/updated" ||
                 notification.method == "account/updated" || notification.method == "command/exec/outputDelta" ||
                 notification.method == "configWarning" || notification.method == "fs/changed" ||
-                notification.method == "fuzzyFileSearch/sessionCompleted" || notification.method == "fuzzyFileSearch/sessionUpdated" ||
-                notification.method == "guardianWarning" || notification.method == "item/autoApprovalReview/completed" ||
-                notification.method == "item/autoApprovalReview/started" || notification.method == "model/rerouted" ||
-                notification.method == "model/safetyBuffering/updated" || notification.method == "model/verification";
+                notification.method == "app/list/updated" || notification.method == "externalAgentConfig/import/completed" ||
+                notification.method == "externalAgentConfig/import/progress" || notification.method == "hook/completed" ||
+                notification.method == "hook/started" || notification.method == "fuzzyFileSearch/sessionCompleted" ||
+                notification.method == "fuzzyFileSearch/sessionUpdated" || notification.method == "guardianWarning" ||
+                notification.method == "item/autoApprovalReview/completed" || notification.method == "item/autoApprovalReview/started" ||
+                notification.method == "model/rerouted" || notification.method == "model/safetyBuffering/updated" ||
+                notification.method == "model/verification";
             std::string fieldPath = "$.params";
             if (exactPathNotification) {
                 const std::size_t begin = error.find("'$");
@@ -638,6 +645,60 @@ namespace ai::openai::codex::detail {
         typed::Event decodeItemGuardianApprovalReviewStarted(const Notification& notification) {
             std::string error;
             auto decoded = decodeItemGuardianApprovalReviewStartedNotification(notification, error);
+            if (!decoded) {
+                return malformedEvent(notification, std::move(error));
+            }
+            return typed::Event{std::move(*decoded)};
+        }
+
+        typed::Event decodeAppListUpdated(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeAppListUpdatedNotification(notification, error);
+            if (!decoded) {
+                return malformedEvent(notification, std::move(error));
+            }
+            return typed::Event{std::move(*decoded)};
+        }
+
+        typed::Event decodeExternalAgentConfigImportCompleted(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeExternalAgentConfigImportCompletedNotification(notification, error);
+            if (!decoded) {
+                return malformedEvent(notification, std::move(error));
+            }
+            return typed::Event{std::move(*decoded)};
+        }
+
+        typed::Event decodeExternalAgentConfigImportProgress(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeExternalAgentConfigImportProgressNotification(notification, error);
+            if (!decoded) {
+                return malformedEvent(notification, std::move(error));
+            }
+            return typed::Event{std::move(*decoded)};
+        }
+
+        typed::Event decodeHookCompleted(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeHookCompletedNotification(notification, error);
+            if (!decoded) {
+                return malformedEvent(notification, std::move(error));
+            }
+            return typed::Event{std::move(*decoded)};
+        }
+
+        typed::Event decodeHookStarted(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeHookStartedNotification(notification, error);
+            if (!decoded) {
+                return malformedEvent(notification, std::move(error));
+            }
+            return typed::Event{std::move(*decoded)};
+        }
+
+        typed::Event decodeSkillsChanged(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeSkillsChangedNotification(notification, error);
             if (!decoded) {
                 return malformedEvent(notification, std::move(error));
             }
@@ -1523,6 +1584,18 @@ namespace ai::openai::codex::detail {
                     return decodeItemGuardianApprovalReviewCompleted(notification);
                 case ServerNotificationTarget::ItemGuardianApprovalReviewStarted:
                     return decodeItemGuardianApprovalReviewStarted(notification);
+                case ServerNotificationTarget::AppListUpdated:
+                    return decodeAppListUpdated(notification);
+                case ServerNotificationTarget::ExternalAgentConfigImportCompleted:
+                    return decodeExternalAgentConfigImportCompleted(notification);
+                case ServerNotificationTarget::ExternalAgentConfigImportProgress:
+                    return decodeExternalAgentConfigImportProgress(notification);
+                case ServerNotificationTarget::HookCompleted:
+                    return decodeHookCompleted(notification);
+                case ServerNotificationTarget::HookStarted:
+                    return decodeHookStarted(notification);
+                case ServerNotificationTarget::SkillsChanged:
+                    return decodeSkillsChanged(notification);
                 case ServerNotificationTarget::Count:
                     break;
             }

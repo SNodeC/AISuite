@@ -1,0 +1,11 @@
+{
+  "migrationItems": [
+    {
+      "cwd": "synthetic-f8fd38b679",
+      "description": "synthetic-16ace1437a",
+      "details": null,
+      "itemType": "AGENTS_MD"
+    }
+  ],
+  "source": "synthetic-730aaf2a7e"
+}

@@ -10,30 +10,44 @@
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/AccountCodec.h"
+#include "ai/openai/codex/detail/AppCodec.h"
 #include "ai/openai/codex/detail/ApprovalCodec.h"
 #include "ai/openai/codex/detail/ClientOperationCodec.h"
 #include "ai/openai/codex/detail/CodexErrorInfoCodec.h"
 #include "ai/openai/codex/detail/CommandCodec.h"
 #include "ai/openai/codex/detail/ConfigurationCodec.h"
 #include "ai/openai/codex/detail/EventDecoder.h"
+#include "ai/openai/codex/detail/ExternalAgentCodec.h"
+#include "ai/openai/codex/detail/FeedbackCodec.h"
 #include "ai/openai/codex/detail/FilesystemCodec.h"
+#include "ai/openai/codex/detail/HookCodec.h"
+#include "ai/openai/codex/detail/MarketplaceCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
+#include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
 #include "ai/openai/codex/detail/ServerRequestDecoder.h"
+#include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
 #include "ai/openai/codex/typed/Accounts.h"
+#include "ai/openai/codex/typed/Apps.h"
 #include "ai/openai/codex/typed/Commands.h"
 #include "ai/openai/codex/typed/Configuration.h"
 #include "ai/openai/codex/typed/Conversation.h"
 #include "ai/openai/codex/typed/Events.h"
+#include "ai/openai/codex/typed/ExternalAgents.h"
+#include "ai/openai/codex/typed/Feedback.h"
 #include "ai/openai/codex/typed/Filesystem.h"
+#include "ai/openai/codex/typed/Hooks.h"
+#include "ai/openai/codex/typed/Marketplace.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
+#include "ai/openai/codex/typed/Plugins.h"
 #include "ai/openai/codex/typed/Results.h"
 #include "ai/openai/codex/typed/Reviews.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
+#include "ai/openai/codex/typed/Skills.h"
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
@@ -57,23 +71,37 @@ namespace ai::openai::codex::typed {
     class Client::Impl {
     public:
         Impl(std::unique_ptr<Accounts> accounts,
+             std::unique_ptr<Apps> apps,
              std::unique_ptr<Commands> commands,
              std::unique_ptr<Filesystem> filesystem,
              std::unique_ptr<Configuration> configuration,
+             std::unique_ptr<ExternalAgents> externalAgents,
+             std::unique_ptr<Feedback> feedback,
+             std::unique_ptr<Hooks> hooks,
+             std::unique_ptr<Marketplace> marketplace,
              std::unique_ptr<Models> models,
              std::unique_ptr<PermissionProfiles> permissionProfiles,
+             std::unique_ptr<Plugins> plugins,
              std::unique_ptr<Reviews> reviews,
+             std::unique_ptr<Skills> skills,
              std::unique_ptr<Threads> threads,
              std::unique_ptr<Turns> turns,
              std::unique_ptr<Events> events,
              std::unique_ptr<Requests> requests)
             : accounts(std::move(accounts))
+            , apps(std::move(apps))
             , commands(std::move(commands))
             , filesystem(std::move(filesystem))
             , configuration(std::move(configuration))
+            , externalAgents(std::move(externalAgents))
+            , feedback(std::move(feedback))
+            , hooks(std::move(hooks))
+            , marketplace(std::move(marketplace))
             , models(std::move(models))
             , permissionProfiles(std::move(permissionProfiles))
+            , plugins(std::move(plugins))
             , reviews(std::move(reviews))
+            , skills(std::move(skills))
             , threads(std::move(threads))
             , turns(std::move(turns))
             , events(std::move(events))
@@ -81,12 +109,19 @@ namespace ai::openai::codex::typed {
         }
 
         std::unique_ptr<Accounts> accounts;
+        std::unique_ptr<Apps> apps;
         std::unique_ptr<Commands> commands;
         std::unique_ptr<Filesystem> filesystem;
         std::unique_ptr<Configuration> configuration;
+        std::unique_ptr<ExternalAgents> externalAgents;
+        std::unique_ptr<Feedback> feedback;
+        std::unique_ptr<Hooks> hooks;
+        std::unique_ptr<Marketplace> marketplace;
         std::unique_ptr<Models> models;
         std::unique_ptr<PermissionProfiles> permissionProfiles;
+        std::unique_ptr<Plugins> plugins;
         std::unique_ptr<Reviews> reviews;
+        std::unique_ptr<Skills> skills;
         std::unique_ptr<Threads> threads;
         std::unique_ptr<Turns> turns;
         std::unique_ptr<Events> events;
@@ -94,23 +129,37 @@ namespace ai::openai::codex::typed {
     };
 
     Client::Client(std::unique_ptr<Accounts> accounts,
+                   std::unique_ptr<Apps> apps,
                    std::unique_ptr<Commands> commands,
                    std::unique_ptr<Filesystem> filesystem,
                    std::unique_ptr<Configuration> configuration,
+                   std::unique_ptr<ExternalAgents> externalAgents,
+                   std::unique_ptr<Feedback> feedback,
+                   std::unique_ptr<Hooks> hooks,
+                   std::unique_ptr<Marketplace> marketplace,
                    std::unique_ptr<Models> models,
                    std::unique_ptr<PermissionProfiles> permissionProfiles,
+                   std::unique_ptr<Plugins> plugins,
                    std::unique_ptr<Reviews> reviews,
+                   std::unique_ptr<Skills> skills,
                    std::unique_ptr<Threads> threads,
                    std::unique_ptr<Turns> turns,
                    std::unique_ptr<Events> events,
                    std::unique_ptr<Requests> requests)
         : impl(std::make_unique<Impl>(std::move(accounts),
+                                      std::move(apps),
                                       std::move(commands),
                                       std::move(filesystem),
                                       std::move(configuration),
+                                      std::move(externalAgents),
+                                      std::move(feedback),
+                                      std::move(hooks),
+                                      std::move(marketplace),
                                       std::move(models),
                                       std::move(permissionProfiles),
+                                      std::move(plugins),
                                       std::move(reviews),
+                                      std::move(skills),
                                       std::move(threads),
                                       std::move(turns),
                                       std::move(events),
@@ -125,6 +174,14 @@ namespace ai::openai::codex::typed {
 
     const Accounts& Client::accounts() const noexcept {
         return *impl->accounts;
+    }
+
+    Apps& Client::apps() noexcept {
+        return *impl->apps;
+    }
+
+    const Apps& Client::apps() const noexcept {
+        return *impl->apps;
     }
 
     Commands& Client::commands() noexcept {
@@ -151,6 +208,38 @@ namespace ai::openai::codex::typed {
         return *impl->configuration;
     }
 
+    ExternalAgents& Client::externalAgents() noexcept {
+        return *impl->externalAgents;
+    }
+
+    const ExternalAgents& Client::externalAgents() const noexcept {
+        return *impl->externalAgents;
+    }
+
+    Feedback& Client::feedback() noexcept {
+        return *impl->feedback;
+    }
+
+    const Feedback& Client::feedback() const noexcept {
+        return *impl->feedback;
+    }
+
+    Hooks& Client::hooks() noexcept {
+        return *impl->hooks;
+    }
+
+    const Hooks& Client::hooks() const noexcept {
+        return *impl->hooks;
+    }
+
+    Marketplace& Client::marketplace() noexcept {
+        return *impl->marketplace;
+    }
+
+    const Marketplace& Client::marketplace() const noexcept {
+        return *impl->marketplace;
+    }
+
     Models& Client::models() noexcept {
         return *impl->models;
     }
@@ -167,12 +256,28 @@ namespace ai::openai::codex::typed {
         return *impl->permissionProfiles;
     }
 
+    Plugins& Client::plugins() noexcept {
+        return *impl->plugins;
+    }
+
+    const Plugins& Client::plugins() const noexcept {
+        return *impl->plugins;
+    }
+
     Reviews& Client::reviews() noexcept {
         return *impl->reviews;
     }
 
     const Reviews& Client::reviews() const noexcept {
         return *impl->reviews;
+    }
+
+    Skills& Client::skills() noexcept {
+        return *impl->skills;
+    }
+
+    const Skills& Client::skills() const noexcept {
+        return *impl->skills;
     }
 
     Threads& Client::threads() noexcept {
@@ -337,6 +442,165 @@ namespace ai::openai::codex::typed {
             return result;
         }
     } // namespace
+
+    Apps::Apps(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Apps::Submission Apps::list(AppsListParams params, ListResultHandler handler) {
+        return submitTypedRequest<AppsListResponse>(
+            protocol, detail::ClientRequestTarget::AppsList, params, std::move(handler), detail::encodeAppsListParams);
+    }
+
+    ExternalAgents::ExternalAgents(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    ExternalAgents::Submission ExternalAgents::detect(ExternalAgentConfigDetectParams params, DetectResultHandler handler) {
+        return submitTypedRequest<ExternalAgentConfigDetectResponse>(protocol,
+                                                                     detail::ClientRequestTarget::ExternalAgentConfigDetect,
+                                                                     params,
+                                                                     std::move(handler),
+                                                                     detail::encodeExternalAgentConfigDetectParams);
+    }
+
+    ExternalAgents::Submission ExternalAgents::importConfiguration(ExternalAgentConfigImportParams params,
+                                                                   ImportConfigurationResultHandler handler) {
+        return submitTypedRequest<ExternalAgentConfigImportResponse>(protocol,
+                                                                     detail::ClientRequestTarget::ExternalAgentConfigImport,
+                                                                     params,
+                                                                     std::move(handler),
+                                                                     detail::encodeExternalAgentConfigImportParams);
+    }
+
+    ExternalAgents::Submission ExternalAgents::readImportHistories(Unit params, ReadImportHistoriesResultHandler handler) {
+        return submitTypedRequest<ExternalAgentConfigImportHistoriesReadResponse>(
+            protocol, detail::ClientRequestTarget::ExternalAgentConfigImportHistoriesRead, params, std::move(handler), encodeUnitParams);
+    }
+
+    Feedback::Feedback(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Feedback::Submission Feedback::upload(FeedbackUploadParams params, UploadResultHandler handler) {
+        return submitTypedRequest<FeedbackUploadResponse>(
+            protocol, detail::ClientRequestTarget::FeedbackUpload, params, std::move(handler), detail::encodeFeedbackUploadParams);
+    }
+
+    Hooks::Hooks(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Hooks::Submission Hooks::list(HooksListParams params, ListResultHandler handler) {
+        return submitTypedRequest<HooksListResponse>(
+            protocol, detail::ClientRequestTarget::HooksList, params, std::move(handler), detail::encodeHooksListParams);
+    }
+
+    Marketplace::Marketplace(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Marketplace::Submission Marketplace::add(MarketplaceAddParams params, AddResultHandler handler) {
+        return submitTypedRequest<MarketplaceAddResponse>(
+            protocol, detail::ClientRequestTarget::MarketplaceAdd, params, std::move(handler), detail::encodeMarketplaceAddParams);
+    }
+
+    Marketplace::Submission Marketplace::remove(MarketplaceRemoveParams params, RemoveResultHandler handler) {
+        return submitTypedRequest<MarketplaceRemoveResponse>(
+            protocol, detail::ClientRequestTarget::MarketplaceRemove, params, std::move(handler), detail::encodeMarketplaceRemoveParams);
+    }
+
+    Marketplace::Submission Marketplace::upgrade(MarketplaceUpgradeParams params, UpgradeResultHandler handler) {
+        return submitTypedRequest<MarketplaceUpgradeResponse>(
+            protocol, detail::ClientRequestTarget::MarketplaceUpgrade, params, std::move(handler), detail::encodeMarketplaceUpgradeParams);
+    }
+
+    Skills::Skills(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Skills::Submission Skills::writeConfig(SkillsConfigWriteParams params, WriteConfigResultHandler handler) {
+        return submitTypedRequest<SkillsConfigWriteResponse>(
+            protocol, detail::ClientRequestTarget::SkillsConfigWrite, params, std::move(handler), detail::encodeSkillsConfigWriteParams);
+    }
+
+    Skills::Submission Skills::setExtraRoots(SkillsExtraRootsSetParams params, SetExtraRootsResultHandler handler) {
+        return submitTypedRequest<Unit>(protocol,
+                                        detail::ClientRequestTarget::SkillsExtraRootsSet,
+                                        params,
+                                        std::move(handler),
+                                        detail::encodeSkillsExtraRootsSetParams);
+    }
+
+    Skills::Submission Skills::list(SkillsListParams params, ListResultHandler handler) {
+        return submitTypedRequest<SkillsListResponse>(
+            protocol, detail::ClientRequestTarget::SkillsList, params, std::move(handler), detail::encodeSkillsListParams);
+    }
+
+    Plugins::Plugins(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Plugins::Submission Plugins::install(PluginInstallParams params, InstallResultHandler handler) {
+        return submitTypedRequest<PluginInstallResponse>(
+            protocol, detail::ClientRequestTarget::PluginInstall, params, std::move(handler), detail::encodePluginInstallParams);
+    }
+
+    Plugins::Submission Plugins::installed(PluginInstalledParams params, InstalledResultHandler handler) {
+        return submitTypedRequest<PluginInstalledResponse>(
+            protocol, detail::ClientRequestTarget::PluginInstalled, params, std::move(handler), detail::encodePluginInstalledParams);
+    }
+
+    Plugins::Submission Plugins::list(PluginListParams params, ListResultHandler handler) {
+        return submitTypedRequest<PluginListResponse>(
+            protocol, detail::ClientRequestTarget::PluginList, params, std::move(handler), detail::encodePluginListParams);
+    }
+
+    Plugins::Submission Plugins::read(PluginReadParams params, ReadResultHandler handler) {
+        return submitTypedRequest<PluginReadResponse>(
+            protocol, detail::ClientRequestTarget::PluginRead, params, std::move(handler), detail::encodePluginReadParams);
+    }
+
+    Plugins::Submission Plugins::shareCheckout(PluginShareCheckoutParams params, ShareCheckoutResultHandler handler) {
+        return submitTypedRequest<PluginShareCheckoutResponse>(protocol,
+                                                               detail::ClientRequestTarget::PluginShareCheckout,
+                                                               params,
+                                                               std::move(handler),
+                                                               detail::encodePluginShareCheckoutParams);
+    }
+
+    Plugins::Submission Plugins::shareDelete(PluginShareDeleteParams params, ShareDeleteResultHandler handler) {
+        return submitTypedRequest<Unit>(
+            protocol, detail::ClientRequestTarget::PluginShareDelete, params, std::move(handler), detail::encodePluginShareDeleteParams);
+    }
+
+    Plugins::Submission Plugins::shareList(PluginShareListParams params, ShareListResultHandler handler) {
+        return submitTypedRequest<PluginShareListResponse>(
+            protocol, detail::ClientRequestTarget::PluginShareList, params, std::move(handler), detail::encodePluginShareListParams);
+    }
+
+    Plugins::Submission Plugins::shareSave(PluginShareSaveParams params, ShareSaveResultHandler handler) {
+        return submitTypedRequest<PluginShareSaveResponse>(
+            protocol, detail::ClientRequestTarget::PluginShareSave, params, std::move(handler), detail::encodePluginShareSaveParams);
+    }
+
+    Plugins::Submission Plugins::shareUpdateTargets(PluginShareUpdateTargetsParams params, ShareUpdateTargetsResultHandler handler) {
+        return submitTypedRequest<PluginShareUpdateTargetsResponse>(protocol,
+                                                                    detail::ClientRequestTarget::PluginShareUpdateTargets,
+                                                                    params,
+                                                                    std::move(handler),
+                                                                    detail::encodePluginShareUpdateTargetsParams);
+    }
+
+    Plugins::Submission Plugins::readSkill(PluginSkillReadParams params, ReadSkillResultHandler handler) {
+        return submitTypedRequest<PluginSkillReadResponse>(
+            protocol, detail::ClientRequestTarget::PluginSkillRead, params, std::move(handler), detail::encodePluginSkillReadParams);
+    }
+
+    Plugins::Submission Plugins::uninstall(PluginUninstallParams params, UninstallResultHandler handler) {
+        return submitTypedRequest<Unit>(
+            protocol, detail::ClientRequestTarget::PluginUninstall, params, std::move(handler), detail::encodePluginUninstallParams);
+    }
 
     Accounts::Accounts(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {

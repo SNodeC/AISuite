@@ -1,0 +1,6 @@
+{
+  "method": "app/list/updated",
+  "params": {
+    "data": null
+  }
+}

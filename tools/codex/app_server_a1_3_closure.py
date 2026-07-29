@@ -22,6 +22,7 @@ sys.dont_write_bytecode = True
 
 import app_server_a1_3 as a1_3
 import app_server_a1_shared as shared
+import app_server_a1_4_user_integrations as user_integrations
 import app_server_surface as surface
 
 
@@ -40,6 +41,18 @@ EXPECTED_GLOBAL_STATUS = {
     "NotApplicable": 48,
     "NotImplemented": 55,
     "Partial": 4,
+}
+EXPECTED_SUCCESSOR_BASE_SHA = user_integrations.EXPECTED_BASE_SHA
+EXPECTED_SUCCESSOR_BASE_TREE = user_integrations.EXPECTED_BASE_TREE
+EXPECTED_FROZEN_REPORT_SHA256 = (
+    "d36f9f7b5be03efc396ea0bb3f84af7358f5e79e47189cf5994d0db02fccc7e6"
+)
+SUCCESSOR_PROMOTION_FIELDS = {
+    "runtime_disposition",
+    "runtime_target",
+    "schema_completeness",
+    "typed_schema_status",
+    "typed_status",
 }
 # These two records describe the historical A1.3 closure boundary. Successor
 # audit phases may extend the closure checker and source-package guard without
@@ -75,6 +88,11 @@ EXPECTED_FIXTURE_TOTALS = {
     "positive": 2268,
     "total": 5883,
 }
+EXPECTED_SUCCESSOR_FIXTURE_TOTALS = {
+    "negative": 4651,
+    "positive": 3182,
+    "total": 7833,
+}
 EXPECTED_FIXTURE_MUTATIONS = {
     "alternative_branch_acceptances": 1,
     "globally_optional_locations": 21164,
@@ -87,6 +105,18 @@ EXPECTED_FIXTURE_MUTATIONS = {
     "wrong_type_mutations_rejected": 21083,
     "wrong_type_unconstrained_exclusions": 184,
 }
+EXPECTED_SUCCESSOR_FIXTURE_MUTATIONS = {
+    "alternative_branch_acceptances": 1,
+    "globally_optional_locations": 42335,
+    "optional_cross_fragment_exclusions": 0,
+    "optional_omissions_accepted": 42335,
+    "optional_present_locations": 42335,
+    "required_field_removals_rejected": 35246,
+    "required_locations": 35246,
+    "selected_branch_required_locations": 35246,
+    "wrong_type_mutations_rejected": 35062,
+    "wrong_type_unconstrained_exclusions": 184,
+}
 EXPECTED_FIXTURE_COVERAGE_COUNTS = {
     "identities_with_positive_fixtures": 316,
     "operation_role_actual": 194,
@@ -97,6 +127,18 @@ EXPECTED_FIXTURE_COVERAGE_COUNTS = {
     "required_field_removals_rejected": 21267,
     "surface_identities": 387,
     "wrong_type_mutations_rejected": 21083,
+    "wrong_type_unconstrained_exclusions": 184,
+}
+EXPECTED_SUCCESSOR_FIXTURE_COVERAGE_COUNTS = {
+    "identities_with_positive_fixtures": 326,
+    "operation_role_actual": 194,
+    "operation_role_expected": 194,
+    "optional_omissions_accepted": 42335,
+    "optional_present_locations": 42335,
+    "positive_fixtures": 3182,
+    "required_field_removals_rejected": 35246,
+    "surface_identities": 387,
+    "wrong_type_mutations_rejected": 35062,
     "wrong_type_unconstrained_exclusions": 184,
 }
 EXPECTED_SCHEMA_COMPLETENESS_COUNTS = {
@@ -113,6 +155,22 @@ EXPECTED_SCHEMA_COMPLETENESS_COUNTS = {
         "schema_properties_exercised": 280,
     },
     "identities_with_positive_fixtures": 316,
+    "surface_identities": 387,
+}
+EXPECTED_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS = {
+    "facts_true_by_field": {
+        "authoritative_root_association": 326,
+        "fixture_current": 326,
+        "independently_schema_validated": 326,
+        "nullable_semantics_exercised": 313,
+        "optional_omitted_exercised": 326,
+        "optional_present_exercised": 326,
+        "positive_fixture_coverage": 326,
+        "reachable_union_alternatives_exercised": 313,
+        "required_fields_exercised": 326,
+        "schema_properties_exercised": 313,
+    },
+    "identities_with_positive_fixtures": 326,
     "surface_identities": 387,
 }
 EXPECTED_A1_3_FIXTURE_COUNTS = {
@@ -456,14 +514,105 @@ def validate_registry(
     current_unrelated = {
         key: row for key, row in registry.items() if key not in expected
     }
-    require(
-        current_unrelated == frozen_unrelated,
-        "a non-A1.3 registry identity changed or was promoted",
-        "ClosureUnrelatedPromotion",
-    )
+    successor_stages: list[tuple[str, Mapping[str, Any], set[Key]]] = []
+    cumulative: set[Key] = set()
+    for stage in user_integrations.STAGES:
+        cumulative |= {
+            *(
+                Key(
+                    "client_request",
+                    "ClientRequest",
+                    "method",
+                    name,
+                )
+                for name in stage["requests"]
+            ),
+            *(
+                Key(
+                    "server_notification",
+                    "ServerNotification",
+                    "method",
+                    name,
+                )
+                for name in stage["notifications"]
+            ),
+            *(
+                Key(
+                    "tagged_union_discriminator",
+                    "PluginSource",
+                    "type",
+                    name,
+                )
+                for name in stage["unions"]
+            ),
+        }
+        successor_stages.append(
+            (f"Commit {stage['commit']}", stage, set(cumulative))
+        )
+    matching_successors = [
+        (name, stage, promoted)
+        for name, stage, promoted in successor_stages
+        if global_status == dict(stage["global"])
+    ]
+    if matching_successors:
+        _stage_name, stage, promoted = matching_successors[0]
+        for key, frozen in frozen_unrelated.items():
+            current = current_unrelated.get(key)
+            require(
+                current is not None,
+                f"a non-A1.3 registry identity disappeared: {key.compact()}",
+                "ClosureUnrelatedPromotion",
+            )
+            if key not in promoted:
+                require(
+                    current == frozen,
+                    (
+                        "a non-PR-A registry identity changed or was "
+                        f"promoted: {key.compact()}"
+                    ),
+                    "ClosureUnrelatedPromotion",
+                )
+                continue
+            changed_fields = {
+                field
+                for field in set(frozen) | set(current)
+                if frozen.get(field) != current.get(field)
+            }
+            completeness = current.get("schema_completeness")
+            require(
+                changed_fields == SUCCESSOR_PROMOTION_FIELDS
+                and current.get("runtime_disposition") == "Typed"
+                and current.get("typed_status") == "Implemented"
+                and current.get("typed_schema_status") == "Complete"
+                and current.get("runtime_target")
+                not in {"", "std::monostate{}"}
+                and isinstance(completeness, Mapping)
+                and bool(completeness)
+                and all(value is True for value in completeness.values()),
+                (
+                    "a PR-A registry row changed outside its exact "
+                    f"reviewed promotion: {key.compact()}"
+                ),
+                "ClosureUnrelatedPromotion",
+            )
+        require(
+            set(current_unrelated) == set(frozen_unrelated)
+            and len(promoted) == int(stage["native"]["Complete"]),
+            "the exact staged PR-A successor identity set changed",
+            "ClosureUnrelatedPromotion",
+        )
+    else:
+        require(
+            current_unrelated == frozen_unrelated,
+            "a non-A1.3 registry identity changed or was promoted",
+            "ClosureUnrelatedPromotion",
+        )
     require(
         slice_status == EXPECTED_A1_3_STATUS
-        and global_status == EXPECTED_GLOBAL_STATUS
+        and (
+            global_status == EXPECTED_GLOBAL_STATUS
+            or bool(matching_successors)
+        )
         and residual == expected_residual
         and {key.name for key in residual}
         == a1_3.EXPECTED_RESIDUAL_PARTIAL_NAMES,
@@ -506,14 +655,26 @@ def validate_fixture_evidence(
         if isinstance(counts, Mapping)
         else {}
     )
-    require(
+    historical_counts = (
         fixture_totals == EXPECTED_FIXTURE_TOTALS
         and fixture_index.get("mutation_counts")
         == EXPECTED_FIXTURE_MUTATIONS
         and fixture_coverage.get("counts")
         == EXPECTED_FIXTURE_COVERAGE_COUNTS
         and schema_completeness.get("counts")
-        == EXPECTED_SCHEMA_COMPLETENESS_COUNTS,
+        == EXPECTED_SCHEMA_COMPLETENESS_COUNTS
+    )
+    exact_successor_counts = (
+        fixture_totals == EXPECTED_SUCCESSOR_FIXTURE_TOTALS
+        and fixture_index.get("mutation_counts")
+        == EXPECTED_SUCCESSOR_FIXTURE_MUTATIONS
+        and fixture_coverage.get("counts")
+        == EXPECTED_SUCCESSOR_FIXTURE_COVERAGE_COUNTS
+        and schema_completeness.get("counts")
+        == EXPECTED_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS
+    )
+    require(
+        historical_counts or exact_successor_counts,
         "final fixture, mutation, or schema-completeness totals changed",
         "ClosureFixtureCountMismatch",
     )
@@ -1233,7 +1394,7 @@ def validate_package_and_integrity(
     }
 
 
-def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
+def _build_report(arguments: argparse.Namespace) -> dict[str, Any]:
     plan = shared.load_json(arguments.plan)
     closure = shared.load_json(arguments.type_closure)
     start_state = shared.load_json(arguments.start_state)
@@ -1534,6 +1695,45 @@ def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
         "union_families": union_families,
         "upstream_tag": UPSTREAM_TAG,
     }
+
+
+def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
+    """Build the frozen A1.3 report or validate an exact PR-A successor.
+
+    A1.3 closure semantics are historical evidence.  Once a reviewed PR-A
+    stage is present, validate its exact registry delta and retain the
+    predecessor report byte-for-byte instead of projecting successor status
+    into A1.3 history.
+    """
+
+    rows = surface.parse_registry_data(arguments.registry)
+    global_status = status_counts(rows)
+    if global_status == EXPECTED_GLOBAL_STATUS:
+        return _build_report(arguments)
+
+    start_state = shared.load_json(arguments.start_state)
+    validate_registry(rows, start_state)
+    require(
+        arguments.output.is_file(),
+        "the frozen A1.3 closure report is absent",
+        "ClosureSourceMismatch",
+    )
+    report = shared.load_json(arguments.output)
+    require(
+        shared.sha256_file(arguments.output) == EXPECTED_FROZEN_REPORT_SHA256,
+        "the frozen A1.3 closure report changed across the PR-A boundary",
+        "ClosureSourceMismatch",
+    )
+    require(
+        report.get("counts", {}).get("global_schema_status")
+        == EXPECTED_GLOBAL_STATUS
+        and report.get("counts", {}).get("a1_3_schema_status")
+        == EXPECTED_A1_3_STATUS
+        and len(report.get("exact_complete_a1_3_identities", ())) == 68,
+        "the frozen A1.3 closure semantics changed",
+        "ClosureStatusMismatch",
+    )
+    return report
 
 
 def report_diagnostics(

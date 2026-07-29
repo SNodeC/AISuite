@@ -378,9 +378,9 @@ def test_operation_descriptor_guards(
         for line in generated.splitlines()
         if line.startswith("CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR(")
     ]
-    if len(rows) != 57:
+    if len(rows) != 80:
         raise AssertionError(
-            "client-operation descriptor must contain exactly 57 rows"
+            "client-operation descriptor must contain exactly 80 rows"
         )
     method_rows = {
         match.group(1): line
@@ -448,8 +448,39 @@ def test_operation_descriptor_guards(
         "review/start",
         "thread/approveGuardianDeniedAction",
     }
+    a1_4_user_integration_commit_2_methods = {
+        "app/list",
+        "externalAgentConfig/detect",
+        "externalAgentConfig/import",
+        "externalAgentConfig/import/readHistories",
+        "feedback/upload",
+    }
+    a1_4_user_integration_commit_3_methods = {
+        "hooks/list",
+        "marketplace/add",
+        "marketplace/remove",
+        "marketplace/upgrade",
+        "skills/config/write",
+        "skills/extraRoots/set",
+        "skills/list",
+    }
+    a1_4_user_integration_commit_4_methods = {
+        "plugin/install",
+        "plugin/share/checkout",
+        "plugin/share/delete",
+        "plugin/share/save",
+        "plugin/share/updateTargets",
+        "plugin/skill/read",
+        "plugin/uninstall",
+    }
+    a1_4_user_integration_commit_5_methods = {
+        "plugin/installed",
+        "plugin/list",
+        "plugin/read",
+        "plugin/share/list",
+    }
     if (
-        len(method_rows) != 57
+        len(method_rows) != 80
         or len(a1_1_methods) != 22
         or set(method_rows)
         != a1_1_methods
@@ -461,6 +492,10 @@ def test_operation_descriptor_guards(
         | a1_3_filesystem_methods
         | a1_3_permission_methods
         | a1_3_review_guardian_methods
+        | a1_4_user_integration_commit_2_methods
+        | a1_4_user_integration_commit_3_methods
+        | a1_4_user_integration_commit_4_methods
+        | a1_4_user_integration_commit_5_methods
         or a1_1_methods & a1_2_b2_methods
         or (a1_1_methods | a1_2_b2_methods) & a1_2_b3_methods
         or (
@@ -512,12 +547,68 @@ def test_operation_descriptor_guards(
             | a1_3_permission_methods
         )
         & a1_3_review_guardian_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_2_b5_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_permission_methods
+            | a1_3_review_guardian_methods
+        )
+        & a1_4_user_integration_commit_2_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_2_b5_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_permission_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+        )
+        & a1_4_user_integration_commit_3_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_2_b5_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_permission_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
+        )
+        & a1_4_user_integration_commit_4_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_2_b5_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_permission_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
+            | a1_4_user_integration_commit_4_methods
+        )
+        & a1_4_user_integration_commit_5_methods
     ):
         raise AssertionError(
             "client-operation descriptors lost the exact 22 A1.1 / "
             "nine A1.2 B2 / two A1.2 B3 / two A1.2 B4 / five A1.2 B5 "
             "/ four A1.3 command / ten A1.3 filesystem/fuzzy / one A1.3 "
-            "permission-profile / two A1.3 review/guardian projection"
+            "permission-profile / two A1.3 review/guardian / five A1.4 "
+            "user-integration Commit-2 / seven Commit-3 / seven Commit-4 / "
+            "four Commit-5 projection"
         )
     targets = {
         match.group(1)
@@ -528,7 +619,7 @@ def test_operation_descriptor_guards(
             )
         )
     }
-    if len(targets) != 57:
+    if len(targets) != 80:
         raise AssertionError(
             "client-operation descriptor targets are not an exact bijection"
         )
@@ -549,13 +640,13 @@ def test_operation_descriptor_guards(
             "ClientOperationResultDecoder::Unit)" in line
             for line in rows
         )
-        != 18
+        != 21
         or sum(
             "ResultContractKind::Concrete, "
             "ClientOperationResultDecoder::" in line
             for line in rows
         )
-        != 39
+        != 59
     ):
         raise AssertionError(
             "client-operation descriptor result-kind split changed"
@@ -633,6 +724,31 @@ def test_operation_descriptor_guards(
             for method in a1_3_review_guardian_methods
         )
         != 1
+        or sum(
+            "ResultContractKind::Concrete" in method_rows[method]
+            for method in a1_4_user_integration_commit_2_methods
+        )
+        != 5
+        or sum(
+            "ResultContractKind::Unit" in method_rows[method]
+            for method in a1_4_user_integration_commit_3_methods
+        )
+        != 1
+        or sum(
+            "ResultContractKind::Concrete" in method_rows[method]
+            for method in a1_4_user_integration_commit_3_methods
+        )
+        != 6
+        or sum(
+            "ResultContractKind::Unit" in method_rows[method]
+            for method in a1_4_user_integration_commit_4_methods
+        )
+        != 2
+        or sum(
+            "ResultContractKind::Concrete" in method_rows[method]
+            for method in a1_4_user_integration_commit_4_methods
+        )
+        != 5
         or any(
             expected not in method_rows[method]
             for method, expected in {
@@ -1158,11 +1274,21 @@ def test_notification_descriptor_guards(
         "item/autoApprovalReview/completed",
         "item/autoApprovalReview/started",
     }
+    a1_4_user_integration_commit_2_methods = {
+        "app/list/updated",
+        "externalAgentConfig/import/completed",
+        "externalAgentConfig/import/progress",
+    }
+    a1_4_user_integration_commit_3_methods = {
+        "hook/completed",
+        "hook/started",
+        "skills/changed",
+    }
     residual_methods = {"error"}
     if (
-        len(rows) != 52
-        or len(targets) != 52
-        or len(method_rows) != 52
+        len(rows) != 58
+        or len(targets) != 58
+        or len(method_rows) != 58
         or len(a1_1_methods) != 37
         or set(method_rows)
         != (
@@ -1173,6 +1299,8 @@ def test_notification_descriptor_guards(
             | a1_3_command_methods
             | a1_3_filesystem_methods
             | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
             | residual_methods
         )
         or (
@@ -1183,6 +1311,8 @@ def test_notification_descriptor_guards(
             | a1_3_command_methods
             | a1_3_filesystem_methods
             | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
         )
         & residual_methods
         or a1_1_methods & a1_2_b2_methods
@@ -1215,14 +1345,35 @@ def test_notification_descriptor_guards(
             | a1_3_filesystem_methods
         )
         & a1_3_review_guardian_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_review_guardian_methods
+        )
+        & a1_4_user_integration_commit_2_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+        )
+        & a1_4_user_integration_commit_3_methods
     ):
         raise AssertionError(
-            "server-notification descriptors are not an exact 52-row "
+            "server-notification descriptors are not an exact 58-row "
             "target bijection with the reviewed slice projection"
         )
     if (
         sum(line.endswith(", true)") for line in rows) != 37
-        or sum(line.endswith(", false)") for line in rows) != 15
+        or sum(line.endswith(", false)") for line in rows) != 21
         or any(
             not method_rows[method].endswith(", true)")
             for method in a1_1_methods
@@ -1236,6 +1387,8 @@ def test_notification_descriptor_guards(
                 | a1_3_command_methods
                 | a1_3_filesystem_methods
                 | a1_3_review_guardian_methods
+                | a1_4_user_integration_commit_2_methods
+                | a1_4_user_integration_commit_3_methods
                 | residual_methods
             )
         )
@@ -2129,6 +2282,174 @@ def test_commands_filesystem_reviews_approvals_union_descriptor_guards(
         )
 
 
+def test_integrations_and_long_tail_union_descriptor_guards(
+    tool: ModuleType,
+    manifest: dict[str, object],
+    schema_root: Path,
+    evidence: dict[str, object],
+    descriptor_path: Path,
+) -> None:
+    generated = tool.generate_integrations_and_long_tail_union_descriptor_data(
+        manifest, schema_root, evidence
+    )
+    if generated != tool.generate_integrations_and_long_tail_union_descriptor_data(
+        manifest, schema_root, evidence
+    ):
+        raise AssertionError(
+            "A1.4 integrations-union descriptor generation is not deterministic"
+        )
+    if generated != descriptor_path.read_text(encoding="utf-8"):
+        raise AssertionError(
+            "private A1.4 integrations-union descriptor data is stale"
+        )
+    rows = [
+        line
+        for line in generated.splitlines()
+        if line.startswith(
+            "CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR("
+        )
+    ]
+    names = [
+        match.group(1)
+        for line in rows
+        if (
+            match := re.search(
+                r'^CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR\('
+                r'[^,]+, "PluginSource", "type", "([^"]+)", ',
+                line,
+            )
+        )
+    ]
+    targets = {
+        match.group(1)
+        for line in rows
+        if (
+            match := re.search(
+                r", (IntegrationsAndLongTailUnionTarget::[A-Za-z0-9_]+), ",
+                line,
+            )
+        )
+    }
+    if (
+        names != ["git", "local", "npm", "remote"]
+        or len(targets) != 4
+        or any(
+            "ConversationUnionCodecShape::InternallyTaggedObject" not in line
+            or not line.endswith(
+                "ConversationUnionCodecDirection::DecodeOnly)"
+            )
+            for line in rows
+        )
+    ):
+        raise AssertionError(
+            "PluginSource descriptors lost registry order, unique targets, "
+            "or decode-only internally tagged metadata"
+        )
+
+    wrong_order = copy.deepcopy(manifest)
+    plugin_indices = [
+        index
+        for index, entry in enumerate(wrong_order["entries"])
+        if tool.surface_key(entry)
+        in tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS
+    ]
+    wrong_order["entries"][plugin_indices[0]], wrong_order["entries"][
+        plugin_indices[1]
+    ] = (
+        wrong_order["entries"][plugin_indices[1]],
+        wrong_order["entries"][plugin_indices[0]],
+    )
+    expect_surface_error_code(
+        tool,
+        lambda: tool.generate_integrations_and_long_tail_union_descriptor_data(
+            wrong_order, schema_root, evidence
+        ),
+        "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch",
+        "reorder PluginSource alternatives in the production surface",
+    )
+
+    wrong_assignment = copy.deepcopy(evidence)
+    assignment = next(
+        row
+        for row in wrong_assignment["assignments"]["assignments"]
+        if tool.surface_key(row)
+        == (
+            "tagged_union_discriminator",
+            "PluginSource",
+            "type",
+            "npm",
+        )
+    )
+    assignment["module"] = "WrongIntegrationModule"
+    expect_surface_error_code(
+        tool,
+        lambda: tool.generate_integrations_and_long_tail_union_descriptor_data(
+            manifest, schema_root, wrong_assignment
+        ),
+        "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch",
+        "move npm out of its exact A1.4 module",
+    )
+
+    original_codecs = dict(
+        tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS
+    )
+    keys = list(original_codecs)
+    try:
+        first = original_codecs[keys[0]]
+        second = original_codecs[keys[1]]
+        tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS[keys[1]] = (
+            first[0],
+            second[1],
+            second[2],
+        )
+        expect_surface_error_code(
+            tool,
+            lambda: tool.generate_integrations_and_long_tail_union_descriptor_data(
+                manifest, schema_root, evidence
+            ),
+            "DuplicateIntegrationsAndLongTailUnionDescriptorTarget",
+            "duplicate one PluginSource runtime target",
+        )
+        tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS[keys[1]] = (
+            second[0],
+            second[1],
+            "ConversationUnionCodecDirection::Bidirectional",
+        )
+        expect_surface_error_code(
+            tool,
+            lambda: tool.generate_integrations_and_long_tail_union_descriptor_data(
+                manifest, schema_root, evidence
+            ),
+            "IntegrationsAndLongTailUnionDescriptorDirectionMismatch",
+            "make one PluginSource alternative bidirectional",
+        )
+    finally:
+        tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.clear()
+        tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.update(
+            original_codecs
+        )
+
+    with tempfile.TemporaryDirectory(
+        prefix="snodec-codex-a14-integrations-union-descriptors-"
+    ) as raw:
+        stale = (
+            Path(raw)
+            / "IntegrationsAndLongTailUnionCodecDescriptors.inc"
+        )
+        stale.write_text(generated + " ", encoding="utf-8")
+        expect_surface_error_code(
+            tool,
+            lambda: tool.write_or_check_generated_descriptors(
+                stale,
+                generated,
+                True,
+                "IntegrationsAndLongTailUnion",
+            ),
+            "StaleGeneratedIntegrationsAndLongTailUnionDescriptors",
+            "change the checked-in A1.4 integrations descriptor artifact",
+        )
+
+
 def test_item_descriptor_guards(
     tool: ModuleType,
     manifest: dict[str, object],
@@ -2567,6 +2888,15 @@ def test_generated_artifacts(
         evidence,
         registry_path.with_name(
             "CommandsFilesystemReviewsApprovalsUnionCodecDescriptors.inc"
+        ),
+    )
+    test_integrations_and_long_tail_union_descriptor_guards(
+        tool,
+        manifest,
+        schema_root,
+        evidence,
+        registry_path.with_name(
+            "IntegrationsAndLongTailUnionCodecDescriptors.inc"
         ),
     )
     test_server_request_descriptor_guards(

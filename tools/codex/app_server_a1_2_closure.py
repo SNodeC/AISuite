@@ -87,6 +87,10 @@ EXPECTED_A1_3_SUCCESSOR_GLOBAL_STATUS = {
     "NotImplemented": 55,
     "Partial": 4,
 }
+EXPECTED_USER_INTEGRATION_SUCCESSOR_GLOBAL_STATUS = tuple(
+    dict(stage["global"])
+    for stage in a1_2.a11.user_integrations.STAGES
+)
 EXPECTED_A1_3_SUCCESSOR_RESIDUAL_PARTIAL_KEYS = frozenset(
     {
         shared.Key(
@@ -160,6 +164,51 @@ EXPECTED_A1_3_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS = {
     "identities_with_positive_fixtures": 316,
     "surface_identities": 387,
 }
+EXPECTED_USER_INTEGRATION_SUCCESSOR_FIXTURE_TOTALS = {
+    "negative": 4651,
+    "positive": 3182,
+    "total": 7833,
+}
+EXPECTED_USER_INTEGRATION_SUCCESSOR_FIXTURE_MUTATIONS = {
+    "alternative_branch_acceptances": 1,
+    "globally_optional_locations": 42335,
+    "optional_cross_fragment_exclusions": 0,
+    "optional_omissions_accepted": 42335,
+    "optional_present_locations": 42335,
+    "required_field_removals_rejected": 35246,
+    "required_locations": 35246,
+    "selected_branch_required_locations": 35246,
+    "wrong_type_mutations_rejected": 35062,
+    "wrong_type_unconstrained_exclusions": 184,
+}
+EXPECTED_USER_INTEGRATION_SUCCESSOR_FIXTURE_COVERAGE_COUNTS = {
+    "identities_with_positive_fixtures": 326,
+    "operation_role_actual": 194,
+    "operation_role_expected": 194,
+    "optional_omissions_accepted": 42335,
+    "optional_present_locations": 42335,
+    "positive_fixtures": 3182,
+    "required_field_removals_rejected": 35246,
+    "surface_identities": 387,
+    "wrong_type_mutations_rejected": 35062,
+    "wrong_type_unconstrained_exclusions": 184,
+}
+EXPECTED_USER_INTEGRATION_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS = {
+    "facts_true_by_field": {
+        "authoritative_root_association": 326,
+        "fixture_current": 326,
+        "independently_schema_validated": 326,
+        "nullable_semantics_exercised": 313,
+        "optional_omitted_exercised": 326,
+        "optional_present_exercised": 326,
+        "positive_fixture_coverage": 326,
+        "reachable_union_alternatives_exercised": 313,
+        "required_fields_exercised": 326,
+        "schema_properties_exercised": 313,
+    },
+    "identities_with_positive_fixtures": 326,
+    "surface_identities": 387,
+}
 EXPECTED_TREE_FINGERPRINTS = {
     "src/ai/openai/codex/backend": {
         "file_count": 14,
@@ -188,6 +237,14 @@ EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS = {
         "file_count": 14,
         "sha256":
             "bae965d7b525831c4aa4a2f950fb58d78fad6ecec884572471354292f465aa61",
+    },
+}
+EXPECTED_USER_INTEGRATION_SUCCESSOR_TREE_FINGERPRINTS = {
+    **EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS,
+    "src/ai/openai/codex/backend": {
+        "file_count": 14,
+        "sha256":
+            "9cfec9225ae4897f1a7310c250b992695d91cbe84415620413bd6ae538d2ada1",
     },
 }
 EXPECTED_FRONTEND_PROTOCOL_FINGERPRINTS = {
@@ -338,7 +395,9 @@ def validate_successor_registry(
     )
     live_global = status_counts(registry.values())
     require(
-        live_global == EXPECTED_A1_3_SUCCESSOR_GLOBAL_STATUS,
+        live_global == EXPECTED_A1_3_SUCCESSOR_GLOBAL_STATUS
+        or live_global
+        in EXPECTED_USER_INTEGRATION_SUCCESSOR_GLOBAL_STATUS,
         f"A1.3 successor global schema metrics changed: {live_global}",
         "ClosureSuccessorProgressMismatch",
     )
@@ -365,13 +424,26 @@ def validate_successor_fixture_evidence(
     fixture_mutations = fixture_index.get("mutation_counts")
     coverage_counts = fixture_coverage.get("counts")
     schema_counts = schema_completeness.get("counts")
-    require(
+    a1_3_counts = (
         fixture_totals == EXPECTED_A1_3_SUCCESSOR_FIXTURE_TOTALS
         and fixture_mutations == EXPECTED_A1_3_SUCCESSOR_FIXTURE_MUTATIONS
         and coverage_counts
         == EXPECTED_A1_3_SUCCESSOR_FIXTURE_COVERAGE_COUNTS
         and schema_counts
-        == EXPECTED_A1_3_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS,
+        == EXPECTED_A1_3_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS
+    )
+    user_integration_counts = (
+        fixture_totals
+        == EXPECTED_USER_INTEGRATION_SUCCESSOR_FIXTURE_TOTALS
+        and fixture_mutations
+        == EXPECTED_USER_INTEGRATION_SUCCESSOR_FIXTURE_MUTATIONS
+        and coverage_counts
+        == EXPECTED_USER_INTEGRATION_SUCCESSOR_FIXTURE_COVERAGE_COUNTS
+        and schema_counts
+        == EXPECTED_USER_INTEGRATION_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS
+    )
+    require(
+        a1_3_counts or user_integration_counts,
         "fixture/mutation/completeness evidence is not the reviewed "
         "A1.3 successor corpus",
         "ClosureSuccessorFixtureMismatch",
@@ -385,7 +457,11 @@ def validate_successor_boundaries(
     """Allow only the reviewed A1.3 compatibility-only backend delta."""
 
     require(
-        source_trees == EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS
+        source_trees
+        in (
+            EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS,
+            EXPECTED_USER_INTEGRATION_SUCCESSOR_TREE_FINGERPRINTS,
+        )
         and frontend_protocol == EXPECTED_FRONTEND_PROTOCOL_FINGERPRINTS,
         "A1.3 successor BackendCore/frontend/application boundary "
         "fingerprints changed",

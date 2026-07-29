@@ -1,0 +1,2405 @@
+{
+  "api_abi": {
+    "authority": {
+      "base_sha": "10d3829958a6a17e7437326b6c42c51f3a8de4ec",
+      "base_tree": "7b5e6500780f1c633fe18af5fba6164bd222a3ba",
+      "codex_version": "codex-cli 0.144.6",
+      "implementation_sha": "352d9004a8c3beb3af8876b2a22c7ca4c42d47ec",
+      "implementation_subject": "Complete Codex plugin source and catalog operations",
+      "implementation_tree": "267fdffee9ea7fc6d50b8b5b354497decf516d71",
+      "upstream_tag": "rust-v0.144.6"
+    },
+    "conclusion": {
+      "binary_compatible": false,
+      "installed_consumers_must_rebuild": true,
+      "reason": "Public aggregates and std::variant layouts changed; unchanged SOVERSION and symbol retention are not binary-compatibility proof.",
+      "soversion": 1
+    },
+    "generated_files": [
+      {
+        "bytes": 8614,
+        "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
+        "sha256": "cd94d823f45b35f49fc19236940e0188040bb95b18914788148a1ba60ba4bf37"
+      },
+      {
+        "bytes": 89961,
+        "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-symbols.txt",
+        "sha256": "35fd7fdb8690049adc15df8c6d1eadc50eff0f4538bdecbba048f0a329e0bccc"
+      }
+    ],
+    "inputs": [
+      {
+        "bytes": 12354,
+        "path": "tools/codex/app_server_a1_4_user_integrations_abi.py",
+        "sha256": "a2b7d9c9cf21bc2e296e513852d888632ded6a12f255525f2662b36722bb54e7"
+      },
+      {
+        "bytes": 6568,
+        "path": "tests/installed/codex/CodexA14UserIntegrationsAbiLayoutProbe.cpp",
+        "sha256": "8904584a9629ae1065ef0ac720210383772ee108494ac262e1bc5d81dc0e137a"
+      }
+    ],
+    "layout_probe": {
+      "public_header_count": 10,
+      "stdout_lines": [
+        "AppServerClient|size=16|align=8",
+        "Client|size=8|align=8",
+        "CanonicalServerNotification|size=1400|align=8",
+        "Event|size=2776|align=8",
+        "PluginSource|size=224|align=8",
+        "Apps|size=8|align=8",
+        "ExternalAgents|size=8|align=8",
+        "Feedback|size=8|align=8",
+        "Hooks|size=8|align=8",
+        "Marketplace|size=8|align=8",
+        "Plugins|size=8|align=8",
+        "Skills|size=8|align=8",
+        "AppBranding|size=288|align=8",
+        "AppReview|size=72|align=8",
+        "AppScreenshot|size=168|align=8",
+        "AppMetadata|size=552|align=8",
+        "AppInfo|size=1448|align=8",
+        "AppSummary|size=248|align=8",
+        "AppTemplateSummary|size=416|align=8",
+        "AppsListParams|size=152|align=8",
+        "AppsListResponse|size=112|align=8",
+        "AppListUpdatedNotification|size=64|align=8",
+        "CommandMigration|size=72|align=8",
+        "HookMigration|size=72|align=8",
+        "McpServerMigration|size=72|align=8",
+        "PluginsMigration|size=96|align=8",
+        "SessionMigration|size=152|align=8",
+        "SkillMigration|size=72|align=8",
+        "SubagentMigration|size=72|align=8",
+        "MigrationDetails|size=264|align=8",
+        "ExternalAgentConfigMigrationItem|size=432|align=8",
+        "ExternalAgentConfigImportItemTypeFailure|size=280|align=8",
+        "ExternalAgentConfigImportItemTypeSuccess|size=216|align=8",
+        "ExternalAgentConfigImportTypeResult|size=120|align=8",
+        "ExternalAgentConfigImportHistory|size=128|align=8",
+        "ExternalAgentConfigDetectParams|size=88|align=8",
+        "ExternalAgentConfigDetectResponse|size=64|align=8",
+        "ExternalAgentConfigImportParams|size=112|align=8",
+        "ExternalAgentConfigImportResponse|size=72|align=8",
+        "ExternalAgentConfigImportHistoriesReadResponse|size=64|align=8",
+        "ExternalAgentConfigImportCompletedNotification|size=96|align=8",
+        "ExternalAgentConfigImportProgressNotification|size=96|align=8",
+        "FeedbackUploadParams|size=280|align=8",
+        "FeedbackUploadResponse|size=72|align=8",
+        "HookErrorInfo|size=104|align=8",
+        "HookMetadata|size=488|align=8",
+        "HooksListEntry|size=144|align=8",
+        "HookOutputEntry|size=104|align=8",
+        "HookRunSummary|size=440|align=8",
+        "HooksListParams|size=72|align=8",
+        "HooksListResponse|size=64|align=8",
+        "HookStartedNotification|size=560|align=8",
+        "HookCompletedNotification|size=560|align=8",
+        "MarketplaceAddParams|size=160|align=8",
+        "MarketplaceAddResponse|size=112|align=8",
+        "MarketplaceRemoveParams|size=72|align=8",
+        "MarketplaceRemoveResponse|size=120|align=8",
+        "MarketplaceUpgradeErrorInfo|size=104|align=8",
+        "MarketplaceUpgradeParams|size=88|align=8",
+        "MarketplaceUpgradeResponse|size=112|align=8",
+        "GitPluginSource|size=216|align=8",
+        "LocalPluginSource|size=72|align=8",
+        "NpmPluginSource|size=168|align=8",
+        "RemotePluginSource|size=40|align=8",
+        "UnknownPluginSource|size=168|align=8",
+        "PluginInstallParams|size=168|align=8",
+        "PluginInstallResponse|size=96|align=8",
+        "PluginShareCheckoutParams|size=72|align=8",
+        "PluginShareCheckoutResponse|size=280|align=8",
+        "PluginShareDeleteParams|size=72|align=8",
+        "PluginShareTarget|size=136|align=8",
+        "PluginShareSaveParams|size=208|align=8",
+        "PluginShareSaveResponse|size=104|align=8",
+        "PluginShareUpdateTargetsParams|size=128|align=8",
+        "PluginSharePrincipal|size=168|align=8",
+        "PluginShareUpdateTargetsResponse|size=96|align=8",
+        "PluginSkillReadParams|size=136|align=8",
+        "PluginSkillReadResponse|size=88|align=8",
+        "PluginUninstallParams|size=72|align=8",
+        "MarketplaceInterface|size=88|align=8",
+        "MarketplaceLoadErrorInfo|size=104|align=8",
+        "PluginInterface|size=872|align=8",
+        "PluginShareContext|size=352|align=8",
+        "PluginSummary|size=1928|align=8",
+        "PluginMarketplaceEntry|size=248|align=8",
+        "PluginHookSummary|size=104|align=8",
+        "SkillSummary|size=552|align=8",
+        "PluginDetail|size=2264|align=8",
+        "PluginShareListItem|size=2016|align=8",
+        "PluginInstalledParams|size=120|align=8",
+        "PluginInstalledResponse|size=96|align=8",
+        "PluginListParams|size=120|align=8",
+        "PluginListResponse|size=128|align=8",
+        "PluginReadParams|size=168|align=8",
+        "PluginReadResponse|size=2304|align=8",
+        "PluginShareListParams|size=40|align=8",
+        "PluginShareListResponse|size=64|align=8",
+        "SkillToolDependency|size=296|align=8",
+        "SkillDependencies|size=64|align=8",
+        "SkillErrorInfo|size=104|align=8",
+        "SkillInterface|size=328|align=8",
+        "SkillMetadata|size=648|align=8",
+        "SkillsListEntry|size=120|align=8",
+        "SkillsConfigWriteParams|size=144|align=8",
+        "SkillsConfigWriteResponse|size=48|align=8",
+        "SkillsExtraRootsSetParams|size=64|align=8",
+        "SkillsListParams|size=80|align=8",
+        "SkillsListResponse|size=64|align=8",
+        "SkillsChangedNotification|size=40|align=8",
+        "CanonicalServerNotification|alternatives=57",
+        "Event|alternatives=59",
+        "PluginSource|alternatives=5"
+      ],
+      "stdout_sha256": "f7d6de5affd96ece8abc6b6d708b361ae64a4168130d892654dfaeb979697377",
+      "variant_alternatives": {
+        "CanonicalServerNotification": 57,
+        "Event": 59,
+        "PluginSource": 5
+      }
+    },
+    "strong_symbols": {
+      "library_basename": "libaisuite-openai-codex.so.0.1.0",
+      "library_sha256": "37e437b0a66911297a167062e3c94ff233a8f8f365f2d641166c19b947182bb3",
+      "symbol_count": 715,
+      "symbol_list_sha256": "35fd7fdb8690049adc15df8c6d1eadc50eff0f4538bdecbba048f0a329e0bccc"
+    }
+  },
+  "architecture": {
+    "backend_command_expansion": false,
+    "backend_state_expansion": false,
+    "frontend_protocol_expansion": false,
+    "notification_dispatchers": 1,
+    "observer_mechanisms": 1,
+    "pending_operation_maps": 1,
+    "raw_protocol_instances": 1,
+    "typed_client_one_pointer_pimpl": true
+  },
+  "authority": {
+    "base": {
+      "sha": "10d3829958a6a17e7437326b6c42c51f3a8de4ec",
+      "tree": "7b5e6500780f1c633fe18af5fba6164bd222a3ba"
+    },
+    "codex_version": "codex-cli 0.144.6",
+    "implementation_head": {
+      "sha": "352d9004a8c3beb3af8876b2a22c7ca4c42d47ec",
+      "subject": "Complete Codex plugin source and catalog operations",
+      "tree": "267fdffee9ea7fc6d50b8b5b354497decf516d71"
+    },
+    "production_status_authority": "ai::openai::codex::detail::ProtocolSurfaceRegistry",
+    "report_role": "non-authoritative deterministic closure evidence",
+    "upstream_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
+    "upstream_tag": "rust-v0.144.6"
+  },
+  "counts": {
+    "global_status": {
+      "Complete": 313,
+      "NotApplicable": 48,
+      "NotImplemented": 22,
+      "Partial": 4,
+      "Total": 387
+    },
+    "native_a1_4_status": {
+      "Complete": 33,
+      "NotImplemented": 22,
+      "Partial": 1,
+      "Total": 56
+    },
+    "result_contracts": {
+      "Concrete": 20,
+      "Unit": 3
+    },
+    "schema_closure": {
+      "closed_objects": 0,
+      "default_bearing_paths": 19,
+      "definition_namespaces": {
+        "v2": 118
+      },
+      "nullable_paths": 141,
+      "object_nodes": 103,
+      "opaque_json_paths": 0,
+      "open_objects": 99,
+      "optional_paths": 163,
+      "reachable_named_definitions": 118,
+      "required_paths": 176,
+      "schema_path_kinds": {
+        "array_element": 68,
+        "map_value": 4,
+        "property": 339
+      },
+      "schema_paths": 411,
+      "schema_valued_additional_properties": 4,
+      "seed_definitions": 52,
+      "sensitive_paths": 66
+    },
+    "taxonomy": {
+      "client_requests": 23,
+      "server_notifications": 6,
+      "server_requests": 0,
+      "tagged_union_alternatives": 4
+    }
+  },
+  "descriptors": {
+    "notifications": [
+      {
+        "method": "app/list/updated",
+        "payload_type": "typed::AppListUpdatedNotification",
+        "runtime_target": "ServerNotificationTarget::AppListUpdated"
+      },
+      {
+        "method": "externalAgentConfig/import/completed",
+        "payload_type": "typed::ExternalAgentConfigImportCompletedNotification",
+        "runtime_target": "ServerNotificationTarget::ExternalAgentConfigImportCompleted"
+      },
+      {
+        "method": "externalAgentConfig/import/progress",
+        "payload_type": "typed::ExternalAgentConfigImportProgressNotification",
+        "runtime_target": "ServerNotificationTarget::ExternalAgentConfigImportProgress"
+      },
+      {
+        "method": "hook/completed",
+        "payload_type": "typed::HookCompletedNotification",
+        "runtime_target": "ServerNotificationTarget::HookCompleted"
+      },
+      {
+        "method": "hook/started",
+        "payload_type": "typed::HookStartedNotification",
+        "runtime_target": "ServerNotificationTarget::HookStarted"
+      },
+      {
+        "method": "skills/changed",
+        "payload_type": "typed::SkillsChangedNotification",
+        "runtime_target": "ServerNotificationTarget::SkillsChanged"
+      }
+    ],
+    "operations": [
+      {
+        "method": "app/list",
+        "parameter_type": "AppsListParams",
+        "result_decoder": "ClientOperationResultDecoder::AppsListResponse",
+        "result_kind": "Concrete",
+        "result_type": "AppsListResponse",
+        "runtime_target": "ClientRequestTarget::AppsList"
+      },
+      {
+        "method": "externalAgentConfig/detect",
+        "parameter_type": "ExternalAgentConfigDetectParams",
+        "result_decoder": "ClientOperationResultDecoder::ExternalAgentConfigDetectResponse",
+        "result_kind": "Concrete",
+        "result_type": "ExternalAgentConfigDetectResponse",
+        "runtime_target": "ClientRequestTarget::ExternalAgentConfigDetect"
+      },
+      {
+        "method": "externalAgentConfig/import",
+        "parameter_type": "ExternalAgentConfigImportParams",
+        "result_decoder": "ClientOperationResultDecoder::ExternalAgentConfigImportResponse",
+        "result_kind": "Concrete",
+        "result_type": "ExternalAgentConfigImportResponse",
+        "runtime_target": "ClientRequestTarget::ExternalAgentConfigImport"
+      },
+      {
+        "method": "externalAgentConfig/import/readHistories",
+        "parameter_type": "Unit",
+        "result_decoder": "ClientOperationResultDecoder::ExternalAgentConfigImportHistoriesReadResponse",
+        "result_kind": "Concrete",
+        "result_type": "ExternalAgentConfigImportHistoriesReadResponse",
+        "runtime_target": "ClientRequestTarget::ExternalAgentConfigImportHistoriesRead"
+      },
+      {
+        "method": "feedback/upload",
+        "parameter_type": "FeedbackUploadParams",
+        "result_decoder": "ClientOperationResultDecoder::FeedbackUploadResponse",
+        "result_kind": "Concrete",
+        "result_type": "FeedbackUploadResponse",
+        "runtime_target": "ClientRequestTarget::FeedbackUpload"
+      },
+      {
+        "method": "hooks/list",
+        "parameter_type": "HooksListParams",
+        "result_decoder": "ClientOperationResultDecoder::HooksListResponse",
+        "result_kind": "Concrete",
+        "result_type": "HooksListResponse",
+        "runtime_target": "ClientRequestTarget::HooksList"
+      },
+      {
+        "method": "marketplace/add",
+        "parameter_type": "MarketplaceAddParams",
+        "result_decoder": "ClientOperationResultDecoder::MarketplaceAddResponse",
+        "result_kind": "Concrete",
+        "result_type": "MarketplaceAddResponse",
+        "runtime_target": "ClientRequestTarget::MarketplaceAdd"
+      },
+      {
+        "method": "marketplace/remove",
+        "parameter_type": "MarketplaceRemoveParams",
+        "result_decoder": "ClientOperationResultDecoder::MarketplaceRemoveResponse",
+        "result_kind": "Concrete",
+        "result_type": "MarketplaceRemoveResponse",
+        "runtime_target": "ClientRequestTarget::MarketplaceRemove"
+      },
+      {
+        "method": "marketplace/upgrade",
+        "parameter_type": "MarketplaceUpgradeParams",
+        "result_decoder": "ClientOperationResultDecoder::MarketplaceUpgradeResponse",
+        "result_kind": "Concrete",
+        "result_type": "MarketplaceUpgradeResponse",
+        "runtime_target": "ClientRequestTarget::MarketplaceUpgrade"
+      },
+      {
+        "method": "plugin/install",
+        "parameter_type": "PluginInstallParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginInstallResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginInstallResponse",
+        "runtime_target": "ClientRequestTarget::PluginInstall"
+      },
+      {
+        "method": "plugin/installed",
+        "parameter_type": "PluginInstalledParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginInstalledResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginInstalledResponse",
+        "runtime_target": "ClientRequestTarget::PluginInstalled"
+      },
+      {
+        "method": "plugin/list",
+        "parameter_type": "PluginListParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginListResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginListResponse",
+        "runtime_target": "ClientRequestTarget::PluginList"
+      },
+      {
+        "method": "plugin/read",
+        "parameter_type": "PluginReadParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginReadResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginReadResponse",
+        "runtime_target": "ClientRequestTarget::PluginRead"
+      },
+      {
+        "method": "plugin/share/checkout",
+        "parameter_type": "PluginShareCheckoutParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginShareCheckoutResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginShareCheckoutResponse",
+        "runtime_target": "ClientRequestTarget::PluginShareCheckout"
+      },
+      {
+        "method": "plugin/share/delete",
+        "parameter_type": "PluginShareDeleteParams",
+        "result_decoder": "ClientOperationResultDecoder::Unit",
+        "result_kind": "Unit",
+        "result_type": "Unit",
+        "runtime_target": "ClientRequestTarget::PluginShareDelete"
+      },
+      {
+        "method": "plugin/share/list",
+        "parameter_type": "PluginShareListParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginShareListResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginShareListResponse",
+        "runtime_target": "ClientRequestTarget::PluginShareList"
+      },
+      {
+        "method": "plugin/share/save",
+        "parameter_type": "PluginShareSaveParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginShareSaveResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginShareSaveResponse",
+        "runtime_target": "ClientRequestTarget::PluginShareSave"
+      },
+      {
+        "method": "plugin/share/updateTargets",
+        "parameter_type": "PluginShareUpdateTargetsParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginShareUpdateTargetsResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginShareUpdateTargetsResponse",
+        "runtime_target": "ClientRequestTarget::PluginShareUpdateTargets"
+      },
+      {
+        "method": "plugin/skill/read",
+        "parameter_type": "PluginSkillReadParams",
+        "result_decoder": "ClientOperationResultDecoder::PluginSkillReadResponse",
+        "result_kind": "Concrete",
+        "result_type": "PluginSkillReadResponse",
+        "runtime_target": "ClientRequestTarget::PluginSkillRead"
+      },
+      {
+        "method": "plugin/uninstall",
+        "parameter_type": "PluginUninstallParams",
+        "result_decoder": "ClientOperationResultDecoder::Unit",
+        "result_kind": "Unit",
+        "result_type": "Unit",
+        "runtime_target": "ClientRequestTarget::PluginUninstall"
+      },
+      {
+        "method": "skills/config/write",
+        "parameter_type": "SkillsConfigWriteParams",
+        "result_decoder": "ClientOperationResultDecoder::SkillsConfigWriteResponse",
+        "result_kind": "Concrete",
+        "result_type": "SkillsConfigWriteResponse",
+        "runtime_target": "ClientRequestTarget::SkillsConfigWrite"
+      },
+      {
+        "method": "skills/extraRoots/set",
+        "parameter_type": "SkillsExtraRootsSetParams",
+        "result_decoder": "ClientOperationResultDecoder::Unit",
+        "result_kind": "Unit",
+        "result_type": "Unit",
+        "runtime_target": "ClientRequestTarget::SkillsExtraRootsSet"
+      },
+      {
+        "method": "skills/list",
+        "parameter_type": "SkillsListParams",
+        "result_decoder": "ClientOperationResultDecoder::SkillsListResponse",
+        "result_kind": "Concrete",
+        "result_type": "SkillsListResponse",
+        "runtime_target": "ClientRequestTarget::SkillsList"
+      }
+    ],
+    "plugin_source": [
+      {
+        "direction": "ConversationUnionCodecDirection::DecodeOnly",
+        "name": "git",
+        "runtime_target": "IntegrationsAndLongTailUnionTarget::PluginSourceGit",
+        "shape": "ConversationUnionCodecShape::InternallyTaggedObject"
+      },
+      {
+        "direction": "ConversationUnionCodecDirection::DecodeOnly",
+        "name": "local",
+        "runtime_target": "IntegrationsAndLongTailUnionTarget::PluginSourceLocal",
+        "shape": "ConversationUnionCodecShape::InternallyTaggedObject"
+      },
+      {
+        "direction": "ConversationUnionCodecDirection::DecodeOnly",
+        "name": "npm",
+        "runtime_target": "IntegrationsAndLongTailUnionTarget::PluginSourceNpm",
+        "shape": "ConversationUnionCodecShape::InternallyTaggedObject"
+      },
+      {
+        "direction": "ConversationUnionCodecDirection::DecodeOnly",
+        "name": "remote",
+        "runtime_target": "IntegrationsAndLongTailUnionTarget::PluginSourceRemote",
+        "shape": "ConversationUnionCodecShape::InternallyTaggedObject"
+      }
+    ],
+    "sources": [
+      {
+        "bytes": 26382,
+        "path": "src/ai/openai/codex/detail/ClientOperationCodecDescriptors.inc",
+        "sha256": "b278e88941379c9d3f12b6f6463826035fdfc93964d7797f1f1a9aec223e1eb9"
+      },
+      {
+        "bytes": 13777,
+        "path": "src/ai/openai/codex/detail/ServerNotificationCodecDescriptors.inc",
+        "sha256": "4866d549adf205a9527132a062de9fb470f9306d1514a72189b3ffc2900d5ac5"
+      },
+      {
+        "bytes": 1409,
+        "path": "src/ai/openai/codex/detail/IntegrationsAndLongTailUnionCodecDescriptors.inc",
+        "sha256": "a529e5ca5235bec6c462f7cac32426f4d2eb2485980fdbf67b5d8f047b321651"
+      }
+    ]
+  },
+  "deterministic_generation": {
+    "acyclicity_contract": "The three proof manifests hash the target corpus and are therefore outside that hash domain. The extraction manifest records only their exact paths. This report embeds no pass aggregate, artifact hash, or byte count. The specialized check hashes all three proof files and requires the live target corpus to equal both recorded passes.",
+    "currentness_established_only_by": "app_server_a1_4_user_integrations_closure.py check",
+    "extraction_exclusion_diagnostic": "UserIntegrationExtractionProofExclusionMismatch",
+    "extraction_is_unique_final_generator_step": true,
+    "extraction_path_only_self_reference_exclusions": [
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pre.json",
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-1.json",
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-2.json"
+    ],
+    "live_target_corpus_equality_required": true,
+    "predecessor_drift_diagnostic": "UserIntegrationPredecessorEvidenceDrift",
+    "proof_manifests": [
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pre.json",
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-1.json",
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-2.json"
+    ],
+    "scope": "complete inherited and PR-A generated corpus, including every fixture, evidence artifact, generated registry/descriptor/document, this closure report, and the extraction manifest",
+    "second_pass_diagnostic": "UserIntegrationSecondPassNondeterminism",
+    "target_corpus_metadata_exclusions": [
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pre.json",
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-1.json",
+      "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-2.json"
+    ]
+  },
+  "exact_complete_identities": [
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "app/list"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "externalAgentConfig/detect"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "externalAgentConfig/import"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "externalAgentConfig/import/readHistories"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "feedback/upload"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "hooks/list"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "marketplace/add"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "marketplace/remove"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "marketplace/upgrade"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/install"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/installed"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/list"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/read"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/share/checkout"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/share/delete"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/share/list"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/share/save"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/share/updateTargets"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/skill/read"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "plugin/uninstall"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "skills/config/write"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "skills/extraRoots/set"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "skills/list"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "app/list/updated"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "externalAgentConfig/import/completed"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "externalAgentConfig/import/progress"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "hook/completed"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "hook/started"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "skills/changed"
+    },
+    {
+      "category": "tagged_union_discriminator",
+      "discriminator_field": "type",
+      "domain": "PluginSource",
+      "name": "git"
+    },
+    {
+      "category": "tagged_union_discriminator",
+      "discriminator_field": "type",
+      "domain": "PluginSource",
+      "name": "local"
+    },
+    {
+      "category": "tagged_union_discriminator",
+      "discriminator_field": "type",
+      "domain": "PluginSource",
+      "name": "npm"
+    },
+    {
+      "category": "tagged_union_discriminator",
+      "discriminator_field": "type",
+      "domain": "PluginSource",
+      "name": "remote"
+    }
+  ],
+  "fixtures": {
+    "corpus_counts": {
+      "by_role": {
+        "client_request_params": 87,
+        "client_request_result": 87,
+        "existing_typed_identity": 34,
+        "malformed_known": 1,
+        "malformed_known_conflicting_discriminators": 2,
+        "malformed_known_empty_string": 1,
+        "malformed_known_missing_discriminator": 134,
+        "malformed_known_missing_required": 217,
+        "malformed_known_wrong_discriminator_type": 134,
+        "malformed_known_wrong_outer_shape": 4,
+        "malformed_known_wrong_type": 399,
+        "nested_union_failure": 4,
+        "notification_default_value": 5,
+        "notification_explicit_empty_array": 17,
+        "notification_explicit_empty_map": 3,
+        "notification_future_open_object": 10,
+        "notification_missing_required": 443,
+        "notification_nullable_null": 138,
+        "notification_numeric_boundary": 23,
+        "notification_numeric_boundary_invalid": 13,
+        "notification_optional_omitted": 149,
+        "notification_pinned_format_unrepresentable": 23,
+        "notification_stream_alternative": 1,
+        "notification_wrong_type": 628,
+        "open_enum_known_value": 208,
+        "operation_default_value": 40,
+        "operation_empty_aggregate": 3,
+        "operation_explicit_empty_array": 98,
+        "operation_explicit_empty_map": 7,
+        "operation_explicit_ordering": 1,
+        "operation_future_open_object": 83,
+        "operation_helper_union_branch": 13,
+        "operation_known_enum_values": 5,
+        "operation_minimum_request": 22,
+        "operation_missing_required": 748,
+        "operation_nullable_null": 667,
+        "operation_numeric_boundary": 50,
+        "operation_numeric_boundary_invalid": 41,
+        "operation_opaque_json_value": 4,
+        "operation_opaque_value": 26,
+        "operation_optional_nullable_delivery": 4,
+        "operation_optional_omitted": 743,
+        "operation_pinned_format_unrepresentable": 35,
+        "operation_review_thread_identity": 2,
+        "operation_wrong_type": 1677,
+        "server_notification_identity": 44,
+        "server_request_params": 10,
+        "server_request_response": 10,
+        "union_branch": 170,
+        "union_branch_supplement": 33,
+        "union_explicit_empty_array": 2,
+        "union_future_open_object": 4,
+        "union_nullable_null": 153,
+        "union_numeric_boundary": 2,
+        "union_numeric_boundary_invalid": 2,
+        "union_optional_omitted": 165,
+        "union_pinned_format_unrepresentable": 1,
+        "unknown_discriminator": 36,
+        "unknown_enum_value": 163,
+        "unknown_method": 4
+      },
+      "negative": 4651,
+      "positive": 3182,
+      "total": 7833
+    },
+    "coverage": {
+      "bytes": 12766249,
+      "path": "tools/codex/app-server-evidence/0.144.6/fixture-coverage.json",
+      "sha256": "4def9299c96958b9c9e9c43b8f3bc076be7988b9326292c44e7c5337236aed07"
+    },
+    "identity_count": 33,
+    "index": {
+      "bytes": 16833551,
+      "path": "tools/codex/app-server-fixtures/0.144.6/index.json",
+      "sha256": "e4c897a20431d0e8c77ae550c44bc69ceea4829cee7814f49493efcd4430c539"
+    },
+    "required_schema_roots": 52,
+    "schema_completeness": {
+      "bytes": 578909,
+      "path": "tools/codex/app-server-evidence/0.144.6/schema-completeness-evidence.json",
+      "sha256": "5fab1e83d5d7fb9c68dd6f3c9877f87fc7a96e805207d82c0ef01845ea8e5486"
+    },
+    "stages": [
+      {
+        "commit": 2,
+        "identity_count": 8,
+        "identity_keys": [
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "app/list"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "externalAgentConfig/detect"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "externalAgentConfig/import"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "externalAgentConfig/import/readHistories"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "feedback/upload"
+          },
+          {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "app/list/updated"
+          },
+          {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "externalAgentConfig/import/completed"
+          },
+          {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "externalAgentConfig/import/progress"
+          }
+        ],
+        "primary_tests": [
+          "CodexA14UserIntegrationsCommit2Test",
+          "CodexA14UserIntegrationsCommit2WireTest"
+        ],
+        "stage_model_sha256": "185b3ab9e933eecb7d867d7625688df372e72abcda6703bfe245ac84b18685fa"
+      },
+      {
+        "commit": 3,
+        "identity_count": 10,
+        "identity_keys": [
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "hooks/list"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "marketplace/add"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "marketplace/remove"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "marketplace/upgrade"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "skills/config/write"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "skills/extraRoots/set"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "skills/list"
+          },
+          {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "hook/completed"
+          },
+          {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "hook/started"
+          },
+          {
+            "category": "server_notification",
+            "discriminator_field": "method",
+            "domain": "ServerNotification",
+            "name": "skills/changed"
+          }
+        ],
+        "primary_tests": [
+          "CodexA14UserIntegrationsCommit3Test",
+          "CodexA14UserIntegrationsCommit3WireTest"
+        ],
+        "stage_model_sha256": "17adbd59a60147ebe48f608b30f5c566bc03f786b2779f1cbc5561669d274494"
+      },
+      {
+        "commit": 4,
+        "identity_count": 7,
+        "identity_keys": [
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/install"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/share/checkout"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/share/delete"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/share/save"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/share/updateTargets"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/skill/read"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/uninstall"
+          }
+        ],
+        "primary_tests": [
+          "CodexA14UserIntegrationsCommit4Test",
+          "CodexA14UserIntegrationsCommit4WireTest"
+        ],
+        "stage_model_sha256": "46db260584c8447239ea94780b2c80ce2f51c67e4505899923a5e62d73120458"
+      },
+      {
+        "commit": 5,
+        "identity_count": 8,
+        "identity_keys": [
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/installed"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/list"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/read"
+          },
+          {
+            "category": "client_request",
+            "discriminator_field": "method",
+            "domain": "ClientRequest",
+            "name": "plugin/share/list"
+          },
+          {
+            "category": "tagged_union_discriminator",
+            "discriminator_field": "type",
+            "domain": "PluginSource",
+            "name": "git"
+          },
+          {
+            "category": "tagged_union_discriminator",
+            "discriminator_field": "type",
+            "domain": "PluginSource",
+            "name": "local"
+          },
+          {
+            "category": "tagged_union_discriminator",
+            "discriminator_field": "type",
+            "domain": "PluginSource",
+            "name": "npm"
+          },
+          {
+            "category": "tagged_union_discriminator",
+            "discriminator_field": "type",
+            "domain": "PluginSource",
+            "name": "remote"
+          }
+        ],
+        "primary_tests": [
+          "CodexA14UserIntegrationsCommit5Test",
+          "CodexA14UserIntegrationsCommit5WireTest"
+        ],
+        "stage_model_sha256": "fc834c325a0c899feb01df1d7faf13d86981e1294d2c95d6a9211ff2469acf77"
+      }
+    ]
+  },
+  "format_version": 1,
+  "generated_notice": "Generated by tools/codex/app_server_a1_4_user_integrations_closure.py; do not edit.",
+  "history_policy": {
+    "base_sha": "10d3829958a6a17e7437326b6c42c51f3a8de4ec",
+    "commit_6_production_implementation_forbidden": true,
+    "commit_6_registry_promotion_forbidden": true,
+    "commit_6_subject": "Close and verify Codex A1.4 user integrations",
+    "final_sha_or_tree_embedded": false,
+    "required_commit_count": 6,
+    "required_subjects": [
+      "Freeze Codex A1.4 user-integration implementation batches",
+      "Complete Codex apps, external agents, and feedback",
+      "Complete Codex hooks, marketplace, and skills",
+      "Complete Codex plugin operations without source unions",
+      "Complete Codex plugin source and catalog operations",
+      "Close and verify Codex A1.4 user integrations"
+    ]
+  },
+  "notification_variants": {
+    "append_mapping": [
+      {
+        "canonical_index": 51,
+        "event_index": 53,
+        "method": "app/list/updated",
+        "type": "AppListUpdatedNotification"
+      },
+      {
+        "canonical_index": 52,
+        "event_index": 54,
+        "method": "externalAgentConfig/import/completed",
+        "type": "ExternalAgentConfigImportCompletedNotification"
+      },
+      {
+        "canonical_index": 53,
+        "event_index": 55,
+        "method": "externalAgentConfig/import/progress",
+        "type": "ExternalAgentConfigImportProgressNotification"
+      },
+      {
+        "canonical_index": 54,
+        "event_index": 56,
+        "method": "hook/completed",
+        "type": "HookCompletedNotification"
+      },
+      {
+        "canonical_index": 55,
+        "event_index": 57,
+        "method": "hook/started",
+        "type": "HookStartedNotification"
+      },
+      {
+        "canonical_index": 56,
+        "event_index": 58,
+        "method": "skills/changed",
+        "type": "SkillsChangedNotification"
+      }
+    ],
+    "final_sizes": {
+      "CanonicalServerNotification": 57,
+      "Event": 59
+    },
+    "predecessor_mapping": {
+      "CanonicalServerNotification": [
+        {
+          "index": 0,
+          "type": "AccountLoginCompletedNotification"
+        },
+        {
+          "index": 1,
+          "type": "AccountRateLimitsUpdatedNotification"
+        },
+        {
+          "index": 2,
+          "type": "AccountUpdatedNotification"
+        },
+        {
+          "index": 3,
+          "type": "ConfigWarningNotification"
+        },
+        {
+          "index": 4,
+          "type": "ModelReroutedNotification"
+        },
+        {
+          "index": 5,
+          "type": "ModelSafetyBufferingUpdatedNotification"
+        },
+        {
+          "index": 6,
+          "type": "ModelVerificationNotification"
+        },
+        {
+          "index": 7,
+          "type": "AgentMessageDeltaNotification"
+        },
+        {
+          "index": 8,
+          "type": "CommandExecutionOutputDeltaNotification"
+        },
+        {
+          "index": 9,
+          "type": "TerminalInteractionNotification"
+        },
+        {
+          "index": 10,
+          "type": "ItemCompletedNotification"
+        },
+        {
+          "index": 11,
+          "type": "FileChangeOutputDeltaNotification"
+        },
+        {
+          "index": 12,
+          "type": "FileChangePatchUpdatedNotification"
+        },
+        {
+          "index": 13,
+          "type": "McpToolCallProgressNotification"
+        },
+        {
+          "index": 14,
+          "type": "PlanDeltaNotification"
+        },
+        {
+          "index": 15,
+          "type": "ReasoningSummaryPartAddedNotification"
+        },
+        {
+          "index": 16,
+          "type": "ReasoningSummaryTextDeltaNotification"
+        },
+        {
+          "index": 17,
+          "type": "ReasoningTextDeltaNotification"
+        },
+        {
+          "index": 18,
+          "type": "ItemStartedNotification"
+        },
+        {
+          "index": 19,
+          "type": "ThreadArchivedNotification"
+        },
+        {
+          "index": 20,
+          "type": "ThreadClosedNotification"
+        },
+        {
+          "index": 21,
+          "type": "ContextCompactedNotification"
+        },
+        {
+          "index": 22,
+          "type": "ThreadDeletedNotification"
+        },
+        {
+          "index": 23,
+          "type": "ThreadGoalClearedNotification"
+        },
+        {
+          "index": 24,
+          "type": "ThreadGoalUpdatedNotification"
+        },
+        {
+          "index": 25,
+          "type": "ThreadNameUpdatedNotification"
+        },
+        {
+          "index": 26,
+          "type": "ThreadRealtimeClosedNotification"
+        },
+        {
+          "index": 27,
+          "type": "ThreadRealtimeErrorNotification"
+        },
+        {
+          "index": 28,
+          "type": "ThreadRealtimeItemAddedNotification"
+        },
+        {
+          "index": 29,
+          "type": "ThreadRealtimeOutputAudioDeltaNotification"
+        },
+        {
+          "index": 30,
+          "type": "ThreadRealtimeSdpNotification"
+        },
+        {
+          "index": 31,
+          "type": "ThreadRealtimeStartedNotification"
+        },
+        {
+          "index": 32,
+          "type": "ThreadRealtimeTranscriptDeltaNotification"
+        },
+        {
+          "index": 33,
+          "type": "ThreadRealtimeTranscriptDoneNotification"
+        },
+        {
+          "index": 34,
+          "type": "ThreadSettingsUpdatedNotification"
+        },
+        {
+          "index": 35,
+          "type": "ThreadStartedNotification"
+        },
+        {
+          "index": 36,
+          "type": "ThreadStatusChangedNotification"
+        },
+        {
+          "index": 37,
+          "type": "ThreadTokenUsageUpdatedNotification"
+        },
+        {
+          "index": 38,
+          "type": "ThreadUnarchivedNotification"
+        },
+        {
+          "index": 39,
+          "type": "TurnCompletedNotification"
+        },
+        {
+          "index": 40,
+          "type": "TurnDiffUpdatedNotification"
+        },
+        {
+          "index": 41,
+          "type": "TurnModerationMetadataNotification"
+        },
+        {
+          "index": 42,
+          "type": "TurnPlanUpdatedNotification"
+        },
+        {
+          "index": 43,
+          "type": "TurnStartedNotification"
+        },
+        {
+          "index": 44,
+          "type": "CommandExecOutputDeltaNotification"
+        },
+        {
+          "index": 45,
+          "type": "FsChangedNotification"
+        },
+        {
+          "index": 46,
+          "type": "FuzzyFileSearchSessionCompletedNotification"
+        },
+        {
+          "index": 47,
+          "type": "FuzzyFileSearchSessionUpdatedNotification"
+        },
+        {
+          "index": 48,
+          "type": "GuardianWarningNotification"
+        },
+        {
+          "index": 49,
+          "type": "ItemGuardianApprovalReviewCompletedNotification"
+        },
+        {
+          "index": 50,
+          "type": "ItemGuardianApprovalReviewStartedNotification"
+        }
+      ],
+      "Event": [
+        {
+          "index": 0,
+          "type": "ThreadStarted"
+        },
+        {
+          "index": 1,
+          "type": "ThreadStatusChanged"
+        },
+        {
+          "index": 2,
+          "type": "TurnStarted"
+        },
+        {
+          "index": 3,
+          "type": "TurnCompleted"
+        },
+        {
+          "index": 4,
+          "type": "TurnFailed"
+        },
+        {
+          "index": 5,
+          "type": "ItemStarted"
+        },
+        {
+          "index": 6,
+          "type": "ItemCompleted"
+        },
+        {
+          "index": 7,
+          "type": "AgentMessageDelta"
+        },
+        {
+          "index": 8,
+          "type": "ReasoningDelta"
+        },
+        {
+          "index": 9,
+          "type": "CommandOutputDelta"
+        },
+        {
+          "index": 10,
+          "type": "FileChangeUpdated"
+        },
+        {
+          "index": 11,
+          "type": "TokenUsageUpdated"
+        },
+        {
+          "index": 12,
+          "type": "TerminalInteractionNotification"
+        },
+        {
+          "index": 13,
+          "type": "FileChangeOutputDeltaNotification"
+        },
+        {
+          "index": 14,
+          "type": "McpToolCallProgressNotification"
+        },
+        {
+          "index": 15,
+          "type": "PlanDeltaNotification"
+        },
+        {
+          "index": 16,
+          "type": "ReasoningSummaryPartAddedNotification"
+        },
+        {
+          "index": 17,
+          "type": "ThreadArchivedNotification"
+        },
+        {
+          "index": 18,
+          "type": "ThreadClosedNotification"
+        },
+        {
+          "index": 19,
+          "type": "ContextCompactedNotification"
+        },
+        {
+          "index": 20,
+          "type": "ThreadDeletedNotification"
+        },
+        {
+          "index": 21,
+          "type": "ThreadGoalClearedNotification"
+        },
+        {
+          "index": 22,
+          "type": "ThreadGoalUpdatedNotification"
+        },
+        {
+          "index": 23,
+          "type": "ThreadNameUpdatedNotification"
+        },
+        {
+          "index": 24,
+          "type": "ThreadRealtimeClosedNotification"
+        },
+        {
+          "index": 25,
+          "type": "ThreadRealtimeErrorNotification"
+        },
+        {
+          "index": 26,
+          "type": "ThreadRealtimeItemAddedNotification"
+        },
+        {
+          "index": 27,
+          "type": "ThreadRealtimeOutputAudioDeltaNotification"
+        },
+        {
+          "index": 28,
+          "type": "ThreadRealtimeSdpNotification"
+        },
+        {
+          "index": 29,
+          "type": "ThreadRealtimeStartedNotification"
+        },
+        {
+          "index": 30,
+          "type": "ThreadRealtimeTranscriptDeltaNotification"
+        },
+        {
+          "index": 31,
+          "type": "ThreadRealtimeTranscriptDoneNotification"
+        },
+        {
+          "index": 32,
+          "type": "ThreadSettingsUpdatedNotification"
+        },
+        {
+          "index": 33,
+          "type": "ThreadUnarchivedNotification"
+        },
+        {
+          "index": 34,
+          "type": "TurnDiffUpdatedNotification"
+        },
+        {
+          "index": 35,
+          "type": "TurnModerationMetadataNotification"
+        },
+        {
+          "index": 36,
+          "type": "TurnPlanUpdatedNotification"
+        },
+        {
+          "index": 37,
+          "type": "AccountLoginCompletedNotification"
+        },
+        {
+          "index": 38,
+          "type": "AccountRateLimitsUpdatedNotification"
+        },
+        {
+          "index": 39,
+          "type": "AccountUpdatedNotification"
+        },
+        {
+          "index": 40,
+          "type": "ConfigWarningNotification"
+        },
+        {
+          "index": 41,
+          "type": "ModelRerouted"
+        },
+        {
+          "index": 42,
+          "type": "ModelSafetyBufferingUpdatedNotification"
+        },
+        {
+          "index": 43,
+          "type": "ModelVerificationNotification"
+        },
+        {
+          "index": 44,
+          "type": "TurnErrorEvent"
+        },
+        {
+          "index": 45,
+          "type": "UnknownEvent"
+        },
+        {
+          "index": 46,
+          "type": "CommandExecOutputDeltaNotification"
+        },
+        {
+          "index": 47,
+          "type": "FsChangedNotification"
+        },
+        {
+          "index": 48,
+          "type": "FuzzyFileSearchSessionCompletedNotification"
+        },
+        {
+          "index": 49,
+          "type": "FuzzyFileSearchSessionUpdatedNotification"
+        },
+        {
+          "index": 50,
+          "type": "GuardianWarningNotification"
+        },
+        {
+          "index": 51,
+          "type": "ItemGuardianApprovalReviewCompletedNotification"
+        },
+        {
+          "index": 52,
+          "type": "ItemGuardianApprovalReviewStartedNotification"
+        }
+      ]
+    },
+    "predecessor_sizes": {
+      "CanonicalServerNotification": 51,
+      "Event": 53
+    }
+  },
+  "package_boundary": {
+    "all_seven_facades_consumed": true,
+    "cache_package_directories_verified": true,
+    "compile_and_link_origins_verified": true,
+    "cross_repo_dependency": {
+      "build_tree_resolution_rejected": true,
+      "installed_config_mode_only": true,
+      "snodec_add_subdirectory_absent": true,
+      "source_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+      "source_relative_include_absent": true,
+      "source_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069"
+    },
+    "direct_snodec_public_header_consumer": true,
+    "dynamic_metadata_verified": true,
+    "final_variants_consumed": true,
+    "installed_consumer": {
+      "bytes": 36298,
+      "path": "tests/installed/codex/CodexTypedConsumer.cpp",
+      "sha256": "45fb0a4b5bf714d75588cc14b5c80077b3ac1948854c9d9e983c90046f422626"
+    },
+    "installed_consumer_cmake": {
+      "bytes": 2126,
+      "path": "tests/installed/codex/CMakeLists.txt",
+      "sha256": "3e51779b1ee40fdac8d076aa3afc8e74baeb834e93d8ad437f427de259da6c73"
+    },
+    "installed_consumer_guard": {
+      "bytes": 21885,
+      "path": "tests/AISuiteInstalledConsumerTest.cmake",
+      "sha256": "3e6a40c8521e48aba3229ec1e62d1540c9b91fd9472a9ff015f5e526391b7fd6"
+    },
+    "installed_snodec_only": true,
+    "package_checks_require_no_git_history": true,
+    "package_registries_disabled": true,
+    "public_headers": [
+      "ai/openai/codex/typed/Apps.h",
+      "ai/openai/codex/typed/ExternalAgents.h",
+      "ai/openai/codex/typed/Feedback.h",
+      "ai/openai/codex/typed/Hooks.h",
+      "ai/openai/codex/typed/Marketplace.h",
+      "ai/openai/codex/typed/Plugins.h",
+      "ai/openai/codex/typed/Skills.h"
+    ],
+    "source_and_build_rpaths_rejected": true,
+    "source_package_guard": {
+      "bytes": 6688,
+      "path": "tests/AISuiteSourcePackageTest.cmake",
+      "sha256": "927b00a91de4d388f52b9dab562903a40695651b255252acced1bf63a3ba20a8"
+    }
+  },
+  "plugin_source": {
+    "future_unknown_raw_preserving": true,
+    "malformed_known_distinct": true,
+    "npm_build_or_runtime_dependency": false,
+    "public_variant_order": [
+      "GitPluginSource",
+      "LocalPluginSource",
+      "NpmPluginSource",
+      "RemotePluginSource",
+      "UnknownPluginSource"
+    ],
+    "reaching_request_roots": [
+      "plugin/installed",
+      "plugin/list",
+      "plugin/read",
+      "plugin/share/list"
+    ],
+    "registry_order": [
+      "git",
+      "local",
+      "npm",
+      "remote"
+    ],
+    "unknown_alternative": "UnknownPluginSource"
+  },
+  "predecessor_evidence": {
+    "audit_batch_plan": {
+      "bytes": 330970,
+      "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-batch-plan.json",
+      "sha256": "5dfe4de27739184b0596d7f4318d14aef978cd97932f37047c0cdad4a37fe403"
+    },
+    "audit_start": {
+      "bytes": 10930,
+      "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-start-state.json",
+      "sha256": "5b8d96f25a8bd2bce4c4fac5fcd939f5c6f7b267f82e914804605e692b018233"
+    },
+    "base_registry_sha256": "7de3790505aaa6e63e95b8e5fb811616e9b2d85c1ef7f47e0c2f20906e5cf4de",
+    "changed_registry_identities": [
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "app/list"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "externalAgentConfig/detect"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "externalAgentConfig/import"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "externalAgentConfig/import/readHistories"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "feedback/upload"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "hooks/list"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "marketplace/add"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "marketplace/remove"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "marketplace/upgrade"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/install"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/installed"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/list"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/read"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/checkout"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/delete"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/list"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/save"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/updateTargets"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/skill/read"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/uninstall"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "skills/config/write"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "skills/extraRoots/set"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "skills/list"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "app/list/updated"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "externalAgentConfig/import/completed"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "externalAgentConfig/import/progress"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "hook/completed"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "hook/started"
+      },
+      {
+        "category": "server_notification",
+        "discriminator_field": "method",
+        "domain": "ServerNotification",
+        "name": "skills/changed"
+      },
+      {
+        "category": "tagged_union_discriminator",
+        "discriminator_field": "type",
+        "domain": "PluginSource",
+        "name": "git"
+      },
+      {
+        "category": "tagged_union_discriminator",
+        "discriminator_field": "type",
+        "domain": "PluginSource",
+        "name": "local"
+      },
+      {
+        "category": "tagged_union_discriminator",
+        "discriminator_field": "type",
+        "domain": "PluginSource",
+        "name": "npm"
+      },
+      {
+        "category": "tagged_union_discriminator",
+        "discriminator_field": "type",
+        "domain": "PluginSource",
+        "name": "remote"
+      }
+    ],
+    "changed_registry_identity_count": 33,
+    "predecessor_closure_reports": [
+      {
+        "bytes": 291539,
+        "path": "tools/codex/app-server-evidence/0.144.6/a1-1-closure-report.json",
+        "semantic_counts_sha256": "d295f16d174302153a3ab72b29a493de2d7dc48fa95b3991829f40c7e553bdcc",
+        "sha256": "1c26d53cc1e678c4ea8f901cae443e70f83cfd8dbca11cb292260af89cad1f23"
+      },
+      {
+        "bytes": 119009,
+        "path": "tools/codex/app-server-evidence/0.144.6/a1-2-closure-report.json",
+        "semantic_counts_sha256": "dc7119dccc3a67cc9ea2cf6b276d6fbe43a3e3a79bb65fc4cba77f86f738b0b8",
+        "sha256": "e5f23423904d4c4960f2f83755963622c131cb28b7a4ba319698271c231e51a9"
+      },
+      {
+        "bytes": 168149,
+        "path": "tools/codex/app-server-evidence/0.144.6/a1-3-closure-report.json",
+        "semantic_counts_sha256": "c630ade679900a0cca4291d5f35fc0e73b31c7146a2caccff5e5cd47c442a116",
+        "sha256": "d36f9f7b5be03efc396ea0bb3f84af7358f5e79e47189cf5994d0db02fccc7e6"
+      }
+    ],
+    "snodec_source_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+    "snodec_source_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069",
+    "unchanged_non_pr_a_identity_count": 354
+  },
+  "project": {
+    "codex_soversion": 1,
+    "soversion_bump_deferred_to_final_a1_closure": true,
+    "version": "0.1.0"
+  },
+  "public_api": {
+    "client_one_pointer_pimpl": true,
+    "facade_count": 7,
+    "facades": [
+      {
+        "accessor": "apps",
+        "facade": "Apps",
+        "header": "ai/openai/codex/typed/Apps.h",
+        "installed": true,
+        "methods": [
+          "list"
+        ],
+        "source_sha256": "1b7660c14307e580695dc8e8793e5f145bd75b491fbfe1814f87b6dbe806a395"
+      },
+      {
+        "accessor": "externalAgents",
+        "facade": "ExternalAgents",
+        "header": "ai/openai/codex/typed/ExternalAgents.h",
+        "installed": true,
+        "methods": [
+          "detect",
+          "importConfiguration",
+          "readImportHistories"
+        ],
+        "source_sha256": "44fa9b9fbc98d846f7316d87978d79897db9de966b5e86ef5cafaa70e2aa31c6"
+      },
+      {
+        "accessor": "feedback",
+        "facade": "Feedback",
+        "header": "ai/openai/codex/typed/Feedback.h",
+        "installed": true,
+        "methods": [
+          "upload"
+        ],
+        "source_sha256": "6986835f4b5d9233adb6e9e18f70837b79ac32c88f7ea0e618a939327b9a4e7e"
+      },
+      {
+        "accessor": "hooks",
+        "facade": "Hooks",
+        "header": "ai/openai/codex/typed/Hooks.h",
+        "installed": true,
+        "methods": [
+          "list"
+        ],
+        "source_sha256": "9da6e7caa46b13e3bbcac3f3ab123dd580a7418843ecf70b388e45d85beeb80f"
+      },
+      {
+        "accessor": "marketplace",
+        "facade": "Marketplace",
+        "header": "ai/openai/codex/typed/Marketplace.h",
+        "installed": true,
+        "methods": [
+          "add",
+          "remove",
+          "upgrade"
+        ],
+        "source_sha256": "94ee8765f6acd43c355c87e18229a880c1792483be70b93017745ec153193d3f"
+      },
+      {
+        "accessor": "plugins",
+        "facade": "Plugins",
+        "header": "ai/openai/codex/typed/Plugins.h",
+        "installed": true,
+        "methods": [
+          "install",
+          "installed",
+          "list",
+          "read",
+          "shareCheckout",
+          "shareDelete",
+          "shareList",
+          "shareSave",
+          "shareUpdateTargets",
+          "readSkill",
+          "uninstall"
+        ],
+        "source_sha256": "b5c73e82478b47a20e35ed9714f256c6f2f79751e0a84f5b0da7cf5ca61cf5b5"
+      },
+      {
+        "accessor": "skills",
+        "facade": "Skills",
+        "header": "ai/openai/codex/typed/Skills.h",
+        "installed": true,
+        "methods": [
+          "writeConfig",
+          "setExtraRoots",
+          "list"
+        ],
+        "source_sha256": "8f8adf5237babd069d3b234e5801730eb6f29d742a364369647d758b0c9f32f2"
+      }
+    ],
+    "method_count": 23
+  },
+  "residual_not_implemented_identities": [
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "mcpServer/oauth/login"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "mcpServer/resource/read"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "mcpServer/tool/call"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "mcpServerStatus/list"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "windowsSandbox/readiness"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "windowsSandbox/setupStart"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "deprecationNotice"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "mcpServer/oauthLogin/completed"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "mcpServer/startupStatus/updated"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "process/exited"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "process/outputDelta"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "remoteControl/status/changed"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "serverRequest/resolved"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "warning"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "windows/worldWritableWarning"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "windowsSandbox/setupCompleted"
+    },
+    {
+      "category": "server_request",
+      "discriminator_field": "method",
+      "domain": "ServerRequest",
+      "name": "attestation/generate"
+    },
+    {
+      "category": "server_request",
+      "discriminator_field": "method",
+      "domain": "ServerRequest",
+      "name": "item/tool/call"
+    },
+    {
+      "category": "server_request",
+      "discriminator_field": "method",
+      "domain": "ServerRequest",
+      "name": "mcpServer/elicitation/request"
+    },
+    {
+      "category": "tagged_union_discriminator",
+      "discriminator_field": "mode",
+      "domain": "McpServerElicitationRequestParams",
+      "name": "form"
+    },
+    {
+      "category": "tagged_union_discriminator",
+      "discriminator_field": "mode",
+      "domain": "McpServerElicitationRequestParams",
+      "name": "openai/form"
+    },
+    {
+      "category": "tagged_union_discriminator",
+      "discriminator_field": "mode",
+      "domain": "McpServerElicitationRequestParams",
+      "name": "url"
+    }
+  ],
+  "residual_partial_identities": [
+    {
+      "category": "client_notification",
+      "discriminator_field": "method",
+      "domain": "ClientNotification",
+      "name": "initialized"
+    },
+    {
+      "category": "client_request",
+      "discriminator_field": "method",
+      "domain": "ClientRequest",
+      "name": "initialize"
+    },
+    {
+      "category": "server_notification",
+      "discriminator_field": "method",
+      "domain": "ServerNotification",
+      "name": "error"
+    },
+    {
+      "category": "server_request",
+      "discriminator_field": "method",
+      "domain": "ServerRequest",
+      "name": "item/tool/requestUserInput"
+    }
+  ],
+  "staged_arithmetic": [
+    {
+      "commit": 2,
+      "cumulative_complete_identity_count": 8,
+      "global_status": {
+        "Complete": 288,
+        "NotApplicable": 48,
+        "NotImplemented": 47,
+        "Partial": 4
+      },
+      "native_status": {
+        "Complete": 8,
+        "NotImplemented": 47,
+        "Partial": 1
+      },
+      "owned_identities": [
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "app/list"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "externalAgentConfig/detect"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "externalAgentConfig/import"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "externalAgentConfig/import/readHistories"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "feedback/upload"
+        },
+        {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "app/list/updated"
+        },
+        {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "externalAgentConfig/import/completed"
+        },
+        {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "externalAgentConfig/import/progress"
+        }
+      ],
+      "owned_identity_count": 8,
+      "sha": "476a7813a84deed8bc51916ee3353e8ab54f4fec",
+      "subject": "Complete Codex apps, external agents, and feedback",
+      "tree": "f54dd730187f450b9eaaf4d2b477049faffe4546"
+    },
+    {
+      "commit": 3,
+      "cumulative_complete_identity_count": 18,
+      "global_status": {
+        "Complete": 298,
+        "NotApplicable": 48,
+        "NotImplemented": 37,
+        "Partial": 4
+      },
+      "native_status": {
+        "Complete": 18,
+        "NotImplemented": 37,
+        "Partial": 1
+      },
+      "owned_identities": [
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "hooks/list"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "marketplace/add"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "marketplace/remove"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "marketplace/upgrade"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "skills/config/write"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "skills/extraRoots/set"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "skills/list"
+        },
+        {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "hook/completed"
+        },
+        {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "hook/started"
+        },
+        {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "skills/changed"
+        }
+      ],
+      "owned_identity_count": 10,
+      "sha": "3c3d6390b2f02a415e8ad0b1f5ba8ec5ecab75d5",
+      "subject": "Complete Codex hooks, marketplace, and skills",
+      "tree": "73e36570235f458606fd2c9d1f3cfe3ae87d6981"
+    },
+    {
+      "commit": 4,
+      "cumulative_complete_identity_count": 25,
+      "global_status": {
+        "Complete": 305,
+        "NotApplicable": 48,
+        "NotImplemented": 30,
+        "Partial": 4
+      },
+      "native_status": {
+        "Complete": 25,
+        "NotImplemented": 30,
+        "Partial": 1
+      },
+      "owned_identities": [
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/install"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/checkout"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/delete"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/save"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/updateTargets"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/skill/read"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/uninstall"
+        }
+      ],
+      "owned_identity_count": 7,
+      "sha": "90ef0a3c4df431f9863695d96c8651c674c6474c",
+      "subject": "Complete Codex plugin operations without source unions",
+      "tree": "07afd66f5241319b07e4916e427fcea499730e34"
+    },
+    {
+      "commit": 5,
+      "cumulative_complete_identity_count": 33,
+      "global_status": {
+        "Complete": 313,
+        "NotApplicable": 48,
+        "NotImplemented": 22,
+        "Partial": 4
+      },
+      "native_status": {
+        "Complete": 33,
+        "NotImplemented": 22,
+        "Partial": 1
+      },
+      "owned_identities": [
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/installed"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/list"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/read"
+        },
+        {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/list"
+        },
+        {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "git"
+        },
+        {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "local"
+        },
+        {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "npm"
+        },
+        {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "remote"
+        }
+      ],
+      "owned_identity_count": 8,
+      "sha": "352d9004a8c3beb3af8876b2a22c7ca4c42d47ec",
+      "subject": "Complete Codex plugin source and catalog operations",
+      "tree": "267fdffee9ea7fc6d50b8b5b354497decf516d71"
+    }
+  ]
+}

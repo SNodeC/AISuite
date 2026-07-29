@@ -192,8 +192,8 @@ int main() {
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
-    result.expectTrue(schemaComplete == 280 && schemaPartial == 4 && schemaNotImplemented == 55 && schemaNotApplicable == 48,
-                      "the complete A1.3 slice reaches the exact 280/4/55/48 global completeness metrics");
+    result.expectTrue(schemaComplete == 313 && schemaPartial == 4 && schemaNotImplemented == 22 && schemaNotApplicable == 48,
+                      "the completed A1.4 user-integration PR-A reaches the exact 313/4/22/48 global completeness metrics");
     result.expectTrue(slices == std::array<std::size_t, 6>{19, 151, 45, 68, 56, 48} && codexErrorInfoA1_0 == 16 &&
                           stableUnreachableInventory == 12,
                       "registry preserves the frozen A1 slice assignment, CodexErrorInfo exception, and 12 stable unreachable rows");
@@ -206,7 +206,7 @@ int main() {
                       "every identity has one fixed module/slice assignment and a mechanically derived schema status");
 
     expectTargets<detail::ClientRequestTarget>(result,
-                                               std::array<std::string_view, 58>{"initialize",
+                                               std::array<std::string_view, 81>{"initialize",
                                                                                 "account/login/cancel",
                                                                                 "account/login/start",
                                                                                 "account/logout",
@@ -263,14 +263,37 @@ int main() {
                                                                                 "fuzzyFileSearch",
                                                                                 "permissionProfile/list",
                                                                                 "review/start",
-                                                                                "thread/approveGuardianDeniedAction"},
+                                                                                "thread/approveGuardianDeniedAction",
+                                                                                "app/list",
+                                                                                "externalAgentConfig/detect",
+                                                                                "externalAgentConfig/import",
+                                                                                "externalAgentConfig/import/readHistories",
+                                                                                "feedback/upload",
+                                                                                "hooks/list",
+                                                                                "marketplace/add",
+                                                                                "marketplace/remove",
+                                                                                "marketplace/upgrade",
+                                                                                "plugin/install",
+                                                                                "plugin/share/checkout",
+                                                                                "plugin/share/delete",
+                                                                                "plugin/share/save",
+                                                                                "plugin/share/updateTargets",
+                                                                                "plugin/skill/read",
+                                                                                "plugin/uninstall",
+                                                                                "skills/config/write",
+                                                                                "skills/extraRoots/set",
+                                                                                "skills/list",
+                                                                                "plugin/installed",
+                                                                                "plugin/list",
+                                                                                "plugin/read",
+                                                                                "plugin/share/list"},
                                                "every typed outgoing request target resolves to its exact registered wire method");
     expectTargets<detail::ClientNotificationTarget>(result,
                                                     std::array<std::string_view, 1>{"initialized"},
                                                     "the typed outgoing notification target resolves to its exact registered wire method");
     expectTargets<detail::ServerNotificationTarget>(
         result,
-        std::array<std::string_view, 52>{"error",
+        std::array<std::string_view, 58>{"error",
                                          "account/login/completed",
                                          "account/rateLimits/updated",
                                          "account/updated",
@@ -321,8 +344,14 @@ int main() {
                                          "fuzzyFileSearch/sessionUpdated",
                                          "guardianWarning",
                                          "item/autoApprovalReview/completed",
-                                         "item/autoApprovalReview/started"},
-        "all 52 typed notification dispatch targets resolve to their exact registered wire methods");
+                                         "item/autoApprovalReview/started",
+                                         "app/list/updated",
+                                         "externalAgentConfig/import/completed",
+                                         "externalAgentConfig/import/progress",
+                                         "hook/completed",
+                                         "hook/started",
+                                         "skills/changed"},
+        "all 58 typed notification dispatch targets resolve to their exact registered wire methods");
     expectTargets<detail::ServerRequestTarget>(
         result,
         std::array<std::string_view, 7>{"item/commandExecution/requestApproval",

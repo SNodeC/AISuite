@@ -203,6 +203,42 @@ namespace ai::openai::codex::backend {
         }
 
         Json sanitizeExtensionJsonForMethod(std::string_view method, const Json& value, JsonSanitizerState& state) {
+            if (method == "app/list/updated" && value.is_object()) {
+                Json methodSanitized = value;
+                const auto data = methodSanitized.find("data");
+                if (data != methodSanitized.end()) {
+                    *data = "[redacted]";
+                    state.redacted = true;
+                }
+                return sanitizeExtensionJson(methodSanitized, state);
+            }
+            if ((method == "externalAgentConfig/import/completed" || method == "externalAgentConfig/import/progress") &&
+                value.is_object()) {
+                Json methodSanitized = value;
+                for (const char* field : {"importId", "itemTypeResults"}) {
+                    const auto sensitive = methodSanitized.find(field);
+                    if (sensitive != methodSanitized.end()) {
+                        *sensitive = "[redacted]";
+                        state.redacted = true;
+                    }
+                }
+                return sanitizeExtensionJson(methodSanitized, state);
+            }
+            if ((method == "hook/completed" || method == "hook/started") && value.is_object()) {
+                Json methodSanitized = value;
+                for (const char* field : {"run", "threadId", "turnId"}) {
+                    const auto sensitive = methodSanitized.find(field);
+                    if (sensitive != methodSanitized.end()) {
+                        *sensitive = "[redacted]";
+                        state.redacted = true;
+                    }
+                }
+                return sanitizeExtensionJson(methodSanitized, state);
+            }
+            if (method == "skills/changed") {
+                state.redacted = true;
+                return "[redacted]";
+            }
             if (method == "command/exec/outputDelta" && value.is_object()) {
                 Json methodSanitized = value;
                 for (const char* field : {"deltaBase64", "processId"}) {

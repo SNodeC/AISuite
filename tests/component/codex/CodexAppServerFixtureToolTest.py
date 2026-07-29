@@ -4574,6 +4574,686 @@ class AppServerFixtureToolTest(unittest.TestCase):
             self.assertIn(record["future_value_fixture_id"], records_by_id)
             self.assertIn(record["empty_value_fixture_id"], records_by_id)
 
+    def test_a1_4_user_integrations_commit_2_fixture_plan_is_complete(
+        self,
+    ) -> None:
+        configured = arguments()
+        index = json.loads(
+            (configured.fixture_root / "index.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        records_by_id = {
+            record["id"]: record for record in index["fixtures"]
+        }
+        batch = index["a1_4_user_integrations_commit_2"]
+
+        operation_keys = batch["assignment_derived_operation_keys"]
+        notification_keys = batch[
+            "assignment_derived_notification_keys"
+        ]
+        self.assertEqual(5, len(operation_keys))
+        self.assertEqual(
+            set(tool.A14_USER_INTEGRATIONS_C2_CLIENT_REQUEST_METHODS),
+            {record["name"] for record in operation_keys},
+        )
+        self.assertEqual(3, len(notification_keys))
+        self.assertEqual(
+            set(tool.A14_USER_INTEGRATIONS_C2_NOTIFICATION_METHODS),
+            {record["name"] for record in notification_keys},
+        )
+        self.assertTrue(
+            all(
+                record["category"] == "client_request"
+                and record["domain"] == "ClientRequest"
+                and record["discriminator_field"] == "method"
+                for record in operation_keys
+            )
+        )
+        self.assertTrue(
+            all(
+                record["category"] == "server_notification"
+                and record["domain"] == "ServerNotification"
+                and record["discriminator_field"] == "method"
+                for record in notification_keys
+            )
+        )
+
+        indexed = batch["indexed_schema_coverage"]
+        self.assertEqual(8, len(indexed))
+        for compact, record in indexed.items():
+            self.assertTrue(record["schema_direction_coverage"])
+            self.assertTrue(all(record["schema_fixture_facts"].values()))
+            self.assertEqual(
+                (
+                    {"Decode", "Encode"}
+                    if compact.startswith("client_request:")
+                    else {"Decode"}
+                ),
+                set(record["directions_exercised"]),
+            )
+
+        operation_plan = batch["operation_root_fixture_plan"]
+        self.assertEqual(5, len(operation_plan))
+        self.assertEqual(
+            10,
+            sum(
+                len(operation["roots"])
+                for operation in operation_plan.values()
+            ),
+        )
+        self.assertTrue(
+            all(
+                {
+                    root: evidence["direction"]
+                    for root, evidence in operation["roots"].items()
+                }
+                == {"params": "Encode", "result": "Decode"}
+                for operation in operation_plan.values()
+            )
+        )
+        mutation_counts = {
+            field: sum(
+                len(root[field])
+                for operation in operation_plan.values()
+                for root in operation["roots"].values()
+            )
+            for field in (
+                "missing_required_fixture_ids",
+                "nullable_null_fixture_ids",
+                "required_nullable_null_fixture_ids",
+                "optional_omitted_fixture_ids",
+                "wrong_type_fixture_ids",
+            )
+        }
+        self.assertEqual(
+            {
+                "missing_required_fixture_ids": 42,
+                "nullable_null_fixture_ids": 51,
+                "required_nullable_null_fixture_ids": 0,
+                "optional_omitted_fixture_ids": 71,
+                "wrong_type_fixture_ids": 145,
+            },
+            mutation_counts,
+        )
+        self.assertEqual(
+            {
+                "base_generated": 3,
+                "missing_required": 30,
+                "nullable_null": 41,
+                "optional_omitted": 44,
+                "required_nullable_null": 0,
+                "wrong_type": 88,
+                "wrong_type_opaque_exclusions": 0,
+            },
+            batch["negative_coverage"][
+                "notification_payload_mutations"
+            ]["counts"],
+        )
+        self.assertEqual(
+            [],
+            batch["negative_coverage"][
+                "operation_opaque_exclusions"
+            ],
+        )
+        self.assertEqual(
+            [],
+            batch["negative_coverage"][
+                "notification_payload_mutations"
+            ]["opaque_exclusions"],
+        )
+
+        positive = batch["positive_coverage"]
+        defaults = positive["default_bearing_fields"]
+        self.assertEqual(20, defaults["count"])
+        for evidence in defaults["path_evidence"]:
+            present = records_by_id[evidence["fixture_id"]]
+            omitted = records_by_id[evidence["omitted_fixture_id"]]
+            self.assertNotIn("expected_valid", present)
+            self.assertNotIn("expected_valid", omitted)
+            self.assertIn(
+                evidence["direction"],
+                present["schema_fixture_coverage"][
+                    "directions_exercised"
+                ],
+            )
+
+        containers = positive["containers"]
+        self.assertEqual({"array": 39, "map": 7}, containers["counts"])
+        self.assertTrue(
+            containers["nonempty_values_covered_by_base_fixtures"]
+        )
+        self.assertTrue(
+            containers["wrong_element_and_map_value_types_rejected"]
+        )
+        self.assertEqual(
+            46,
+            len(containers["path_evidence"]),
+        )
+        for evidence in containers["path_evidence"]:
+            empty = records_by_id[evidence["fixture_id"]]
+            nonempty = records_by_id[evidence["nonempty_fixture_id"]]
+            self.assertNotIn("expected_valid", empty)
+            self.assertNotIn("expected_valid", nonempty)
+            self.assertEqual(
+                evidence["container_kind"],
+                "array"
+                if empty["role"].endswith("_array")
+                else "map",
+            )
+
+        boundaries = positive["integer_boundaries"]
+        self.assertEqual(
+            {
+                "schema_valid_typed_representable": 2,
+                "schema_valid_typed_unrepresentable": 1,
+                "schema_invalid": 2,
+            },
+            {
+                name: len(boundaries["uint32"][name])
+                for name in (
+                    "schema_valid_typed_representable",
+                    "schema_valid_typed_unrepresentable",
+                    "schema_invalid",
+                )
+            },
+        )
+        self.assertEqual(
+            {
+                "schema_valid_representable": 2,
+                "schema_valid_typed_unrepresentable": 2,
+                "schema_invalid": 1,
+            },
+            {
+                name: len(boundaries["int64"][name])
+                for name in (
+                    "schema_valid_representable",
+                    "schema_valid_typed_unrepresentable",
+                    "schema_invalid",
+                )
+            },
+        )
+        for fixture_id in (
+            boundaries["uint32"]["schema_invalid"]
+            + boundaries["int64"]["schema_invalid"]
+        ):
+            self.assertFalse(records_by_id[fixture_id]["expected_valid"])
+
+    def test_a1_4_user_integrations_commit_3_fixture_plan_is_complete(
+        self,
+    ) -> None:
+        configured = arguments()
+        index = json.loads(
+            (configured.fixture_root / "index.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        records_by_id = {
+            record["id"]: record for record in index["fixtures"]
+        }
+        batch = index["a1_4_user_integrations_commit_3"]
+
+        operation_keys = batch["assignment_derived_operation_keys"]
+        notification_keys = batch[
+            "assignment_derived_notification_keys"
+        ]
+        self.assertEqual(7, len(operation_keys))
+        self.assertEqual(
+            set(tool.A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS),
+            {record["name"] for record in operation_keys},
+        )
+        self.assertEqual(3, len(notification_keys))
+        self.assertEqual(
+            set(tool.A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS),
+            {record["name"] for record in notification_keys},
+        )
+        self.assertTrue(
+            all(
+                record["category"] == "client_request"
+                and record["domain"] == "ClientRequest"
+                and record["discriminator_field"] == "method"
+                for record in operation_keys
+            )
+        )
+        self.assertTrue(
+            all(
+                record["category"] == "server_notification"
+                and record["domain"] == "ServerNotification"
+                and record["discriminator_field"] == "method"
+                for record in notification_keys
+            )
+        )
+
+        indexed = batch["indexed_schema_coverage"]
+        self.assertEqual(10, len(indexed))
+        for compact, record in indexed.items():
+            self.assertTrue(record["schema_direction_coverage"])
+            self.assertTrue(all(record["schema_fixture_facts"].values()))
+            self.assertEqual(
+                (
+                    {"Decode", "Encode"}
+                    if compact.startswith("client_request:")
+                    else {"Decode"}
+                ),
+                set(record["directions_exercised"]),
+            )
+
+        operation_plan = batch["operation_root_fixture_plan"]
+        self.assertEqual(7, len(operation_plan))
+        self.assertEqual(
+            14,
+            sum(
+                len(operation["roots"])
+                for operation in operation_plan.values()
+            ),
+        )
+        mutation_counts = {
+            field: sum(
+                len(root[field])
+                for operation in operation_plan.values()
+                for root in operation["roots"].values()
+            )
+            for field in (
+                "missing_required_fixture_ids",
+                "nullable_null_fixture_ids",
+                "required_nullable_null_fixture_ids",
+                "optional_omitted_fixture_ids",
+                "wrong_type_fixture_ids",
+            )
+        }
+        self.assertEqual(
+            {
+                "missing_required_fixture_ids": 46,
+                "nullable_null_fixture_ids": 23,
+                "required_nullable_null_fixture_ids": 0,
+                "optional_omitted_fixture_ids": 26,
+                "wrong_type_fixture_ids": 87,
+            },
+            mutation_counts,
+        )
+        negative = batch["negative_coverage"]
+        self.assertEqual([], negative["operation_opaque_exclusions"])
+        self.assertEqual(
+            {
+                "method": "skills/extraRoots/set",
+                "result_contract_kind": "Unit",
+                "accepted_fixture_id": (
+                    "operation:client_request:skills/extraRoots/set:result"
+                ),
+                "malformed_fixture_id": (
+                    "operation:client_request:skills/extraRoots/set:result:"
+                    "malformed-unit-array"
+                ),
+                "accepted_form": {},
+                "malformed_form": [],
+            },
+            negative["unit_result_invariants"],
+        )
+        self.assertFalse(
+            records_by_id[
+                negative["unit_result_invariants"][
+                    "malformed_fixture_id"
+                ]
+            ]["expected_valid"]
+        )
+        self.assertEqual(
+            {
+                "base_generated": 3,
+                "missing_required": 34,
+                "nullable_null": 8,
+                "optional_omitted": 10,
+                "required_nullable_null": 0,
+                "wrong_type": 46,
+                "wrong_type_opaque_exclusions": 0,
+            },
+            negative["notification_payload_mutations"]["counts"],
+        )
+        self.assertEqual(
+            [],
+            negative["notification_payload_mutations"][
+                "opaque_exclusions"
+            ],
+        )
+
+        positive = batch["positive_coverage"]
+        self.assertEqual(2, positive["default_bearing_fields"]["count"])
+        self.assertEqual(
+            {"array": 17, "map": 0},
+            positive["containers"]["counts"],
+        )
+        self.assertEqual(
+            34,
+            positive["future_fields_on_open_objects"]["count"],
+        )
+        for evidence in positive[
+            "future_fields_on_open_objects"
+        ]["path_evidence"]:
+            fixture = records_by_id[evidence["fixture_id"]]
+            self.assertNotIn("expected_valid", fixture)
+            self.assertEqual(
+                "futureSyntheticField", evidence["field"]
+            )
+        boundaries = positive["integer_boundaries"]
+        self.assertEqual(10, boundaries["count"])
+        self.assertEqual(["int64", "uint64"], boundaries["formats"])
+        self.assertEqual(
+            50,
+            sum(
+                len(evidence[field])
+                for evidence in boundaries["path_evidence"]
+                for field in (
+                    "schema_valid_typed_representable",
+                    "schema_valid_typed_unrepresentable",
+                    "schema_invalid",
+                )
+            ),
+        )
+        for evidence in boundaries["path_evidence"]:
+            for fixture_id in evidence["schema_invalid"]:
+                self.assertFalse(
+                    records_by_id[fixture_id]["expected_valid"]
+                )
+
+    def test_a1_4_user_integrations_commit_4_fixture_plan_is_complete(
+        self,
+    ) -> None:
+        configured = arguments()
+        index = json.loads(
+            (configured.fixture_root / "index.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        records_by_id = {
+            record["id"]: record for record in index["fixtures"]
+        }
+        batch = index["a1_4_user_integrations_commit_4"]
+
+        operation_keys = batch["assignment_derived_operation_keys"]
+        self.assertEqual(7, len(operation_keys))
+        self.assertEqual(
+            set(tool.A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS),
+            {record["name"] for record in operation_keys},
+        )
+        self.assertTrue(
+            all(
+                record["category"] == "client_request"
+                and record["domain"] == "ClientRequest"
+                and record["discriminator_field"] == "method"
+                for record in operation_keys
+            )
+        )
+        self.assertTrue(
+            set(tool.A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS)
+            .isdisjoint(
+                {
+                    "plugin/installed",
+                    "plugin/list",
+                    "plugin/read",
+                    "plugin/share/list",
+                }
+            )
+        )
+
+        indexed = batch["indexed_schema_coverage"]
+        self.assertEqual(7, len(indexed))
+        for record in indexed.values():
+            self.assertTrue(record["schema_direction_coverage"])
+            self.assertTrue(all(record["schema_fixture_facts"].values()))
+            self.assertEqual(
+                {"Decode", "Encode"},
+                set(record["directions_exercised"]),
+            )
+
+        operation_plan = batch["operation_root_fixture_plan"]
+        self.assertEqual(7, len(operation_plan))
+        self.assertEqual(
+            14,
+            sum(
+                len(operation["roots"])
+                for operation in operation_plan.values()
+            ),
+        )
+        mutation_counts = {
+            field: sum(
+                len(root[field])
+                for operation in operation_plan.values()
+                for root in operation["roots"].values()
+            )
+            for field in (
+                "missing_required_fixture_ids",
+                "nullable_null_fixture_ids",
+                "required_nullable_null_fixture_ids",
+                "optional_omitted_fixture_ids",
+                "wrong_type_fixture_ids",
+            )
+        }
+        self.assertEqual(
+            {
+                "missing_required_fixture_ids": 35,
+                "nullable_null_fixture_ids": 10,
+                "required_nullable_null_fixture_ids": 0,
+                "optional_omitted_fixture_ids": 10,
+                "wrong_type_fixture_ids": 49,
+            },
+            mutation_counts,
+        )
+
+        negative = batch["negative_coverage"]
+        self.assertEqual([], negative["operation_opaque_exclusions"])
+        self.assertEqual(
+            [
+                {
+                    "method": method,
+                    "result_contract_kind": "Unit",
+                    "accepted_fixture_id": (
+                        f"operation:client_request:{method}:result"
+                    ),
+                    "malformed_fixture_id": (
+                        f"operation:client_request:{method}:result:"
+                        "malformed-unit-array"
+                    ),
+                    "accepted_form": {},
+                    "malformed_form": [],
+                }
+                for method in (
+                    "plugin/share/delete",
+                    "plugin/uninstall",
+                )
+            ],
+            negative["unit_result_invariants"],
+        )
+        for invariant in negative["unit_result_invariants"]:
+            self.assertFalse(
+                records_by_id[invariant["malformed_fixture_id"]][
+                    "expected_valid"
+                ]
+            )
+
+        positive = batch["positive_coverage"]
+        self.assertEqual(0, positive["default_bearing_fields"]["count"])
+        self.assertEqual(
+            {"array": 4, "map": 0},
+            positive["containers"]["counts"],
+        )
+        self.assertEqual(
+            4,
+            len(positive["containers"]["path_evidence"]),
+        )
+        self.assertEqual(
+            18,
+            positive["future_fields_on_open_objects"]["count"],
+        )
+        for evidence in positive[
+            "future_fields_on_open_objects"
+        ]["path_evidence"]:
+            fixture = records_by_id[evidence["fixture_id"]]
+            self.assertNotIn("expected_valid", fixture)
+            self.assertEqual(
+                "futureSyntheticField", evidence["field"]
+            )
+        self.assertEqual(
+            {
+                "count": 0,
+                "path_evidence": [],
+                "formats": [],
+                "no_integer_or_number_constraints_in_batch_closure": True,
+            },
+            positive["integer_boundaries"],
+        )
+
+    def test_a1_4_user_integrations_commit_5_fixture_plan_is_complete(
+        self,
+    ) -> None:
+        configured = arguments()
+        index = json.loads(
+            (configured.fixture_root / "index.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        records_by_id = {
+            record["id"]: record for record in index["fixtures"]
+        }
+        batch = index["a1_4_user_integrations_commit_5"]
+
+        operation_keys = batch["assignment_derived_operation_keys"]
+        self.assertEqual(4, len(operation_keys))
+        self.assertEqual(
+            set(tool.A14_USER_INTEGRATIONS_C5_CLIENT_REQUEST_METHODS),
+            {record["name"] for record in operation_keys},
+        )
+        union_keys = batch["assignment_derived_union_keys"]
+        self.assertEqual(
+            list(tool.A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER),
+            [record["name"] for record in union_keys],
+        )
+        self.assertTrue(
+            all(
+                record["category"] == "tagged_union_discriminator"
+                and record["domain"] == "PluginSource"
+                and record["discriminator_field"] == "type"
+                for record in union_keys
+            )
+        )
+
+        indexed = batch["indexed_schema_coverage"]
+        self.assertEqual(8, len(indexed))
+        for identity, record in indexed.items():
+            self.assertTrue(record["schema_direction_coverage"])
+            self.assertTrue(all(record["schema_fixture_facts"].values()))
+            expected_directions = (
+                {"Decode"}
+                if identity.startswith(
+                    "tagged_union_discriminator:PluginSource:"
+                )
+                else {"Decode", "Encode"}
+            )
+            self.assertEqual(
+                expected_directions,
+                set(record["directions_exercised"]),
+            )
+
+        operation_plan = batch["operation_root_fixture_plan"]
+        self.assertEqual(4, len(operation_plan))
+        self.assertEqual(
+            8,
+            sum(
+                len(operation["roots"])
+                for operation in operation_plan.values()
+            ),
+        )
+        mutation_counts = {
+            field: sum(
+                len(root[field])
+                for operation in operation_plan.values()
+                for root in operation["roots"].values()
+            )
+            for field in (
+                "missing_required_fixture_ids",
+                "nullable_null_fixture_ids",
+                "required_nullable_null_fixture_ids",
+                "optional_omitted_fixture_ids",
+                "wrong_type_fixture_ids",
+            )
+        }
+        self.assertEqual(
+            {
+                "missing_required_fixture_ids": 99,
+                "nullable_null_fixture_ids": 146,
+                "required_nullable_null_fixture_ids": 0,
+                "optional_omitted_fixture_ids": 157,
+                "wrong_type_fixture_ids": 298,
+            },
+            mutation_counts,
+        )
+
+        negative = batch["negative_coverage"]
+        self.assertEqual([], negative["operation_opaque_exclusions"])
+        plugin_source = negative["plugin_source_union"]
+        self.assertEqual(
+            ["git", "local", "npm", "remote"],
+            plugin_source["reviewed_registry_order"],
+        )
+        self.assertEqual(
+            {"git": 1, "local": 0, "npm": 2, "remote": 3},
+            plugin_source["pinned_schema_branch_indices"],
+        )
+        self.assertEqual(
+            "union:PluginSource:future-unknown",
+            plugin_source["families"]["PluginSource"][
+                "future_discriminator_fixture_id"
+            ],
+        )
+        future = records_by_id["union:PluginSource:future-unknown"]
+        self.assertFalse(future["expected_valid"])
+        self.assertEqual("unknown_discriminator", future["role"])
+        future_value = json.loads(
+            (
+                configured.fixture_root / future["file"]
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual("futurePluginSource", future_value["type"])
+        self.assertIn("url", future_value)
+
+        alternatives = plugin_source["alternatives"]
+        self.assertEqual(4, len(alternatives))
+        for name in ("git", "local", "npm"):
+            evidence = alternatives[
+                f"tagged_union_discriminator:PluginSource:type:{name}"
+            ]
+            self.assertTrue(evidence["missing_required_fixture_ids"])
+            self.assertTrue(evidence["wrong_nested_type_fixture_ids"])
+        remote = alternatives[
+            "tagged_union_discriminator:PluginSource:type:remote"
+        ]
+        self.assertEqual([], remote["missing_required_fixture_ids"])
+        self.assertIsNotNone(remote["missing_required_exclusion"])
+        self.assertTrue(
+            all(
+                len(record["future_open_object_fixture_ids"]) == 1
+                for record in alternatives.values()
+            )
+        )
+
+        positive = batch["positive_coverage"]
+        self.assertEqual(23, positive["default_bearing_fields"]["count"])
+        self.assertEqual(
+            {"array": 42, "map": 0},
+            positive["containers"]["counts"],
+        )
+        self.assertEqual(
+            41,
+            positive["future_fields_on_open_objects"]["count"],
+        )
+        self.assertEqual(
+            {
+                "count": 0,
+                "path_evidence": [],
+                "formats": [],
+                "no_integer_or_number_constraints_in_batch_closure": True,
+            },
+            positive["integer_boundaries"],
+        )
+
     def test_fixture_generator_has_no_production_decoder_inputs(self) -> None:
         source = (
             REPOSITORY_ROOT / "tools/codex/app_server_fixtures.py"
@@ -4595,9 +5275,9 @@ class AppServerFixtureToolTest(unittest.TestCase):
         self.assertEqual(
             first_index["counts"],
             {
-                "total": 5883,
-                "positive": 2268,
-                "negative": 3615,
+                "total": 7833,
+                "positive": 3182,
+                "negative": 4651,
                 "by_role": {
                     "client_request_params": 87,
                     "client_request_result": 87,
@@ -4605,52 +5285,58 @@ class AppServerFixtureToolTest(unittest.TestCase):
                     "malformed_known": 1,
                     "malformed_known_conflicting_discriminators": 2,
                     "malformed_known_empty_string": 1,
-                    "malformed_known_missing_discriminator": 130,
-                    "malformed_known_missing_required": 214,
-                    "malformed_known_wrong_discriminator_type": 130,
+                    "malformed_known_missing_discriminator": 134,
+                    "malformed_known_missing_required": 217,
+                    "malformed_known_wrong_discriminator_type": 134,
                     "malformed_known_wrong_outer_shape": 4,
-                    "malformed_known_wrong_type": 391,
+                    "malformed_known_wrong_type": 399,
                     "nested_union_failure": 4,
-                    "notification_explicit_empty_array": 4,
-                    "notification_missing_required": 379,
-                    "notification_nullable_null": 89,
-                    "notification_numeric_boundary": 7,
-                    "notification_numeric_boundary_invalid": 5,
-                    "notification_optional_omitted": 95,
-                    "notification_pinned_format_unrepresentable": 7,
+                    "notification_default_value": 5,
+                    "notification_explicit_empty_array": 17,
+                    "notification_explicit_empty_map": 3,
+                    "notification_future_open_object": 10,
+                    "notification_missing_required": 443,
+                    "notification_nullable_null": 138,
+                    "notification_numeric_boundary": 23,
+                    "notification_numeric_boundary_invalid": 13,
+                    "notification_optional_omitted": 149,
+                    "notification_pinned_format_unrepresentable": 23,
                     "notification_stream_alternative": 1,
-                    "notification_wrong_type": 494,
+                    "notification_wrong_type": 628,
                     "open_enum_known_value": 208,
+                    "operation_default_value": 40,
                     "operation_empty_aggregate": 3,
-                    "operation_explicit_empty_array": 9,
-                    "operation_explicit_empty_map": 3,
+                    "operation_explicit_empty_array": 98,
+                    "operation_explicit_empty_map": 7,
                     "operation_explicit_ordering": 1,
+                    "operation_future_open_object": 83,
                     "operation_helper_union_branch": 13,
                     "operation_known_enum_values": 5,
                     "operation_minimum_request": 22,
-                    "operation_missing_required": 526,
-                    "operation_nullable_null": 437,
-                    "operation_numeric_boundary": 42,
-                    "operation_numeric_boundary_invalid": 35,
+                    "operation_missing_required": 748,
+                    "operation_nullable_null": 667,
+                    "operation_numeric_boundary": 50,
+                    "operation_numeric_boundary_invalid": 41,
                     "operation_opaque_json_value": 4,
                     "operation_opaque_value": 26,
                     "operation_optional_nullable_delivery": 4,
-                    "operation_optional_omitted": 479,
-                    "operation_pinned_format_unrepresentable": 29,
+                    "operation_optional_omitted": 743,
+                    "operation_pinned_format_unrepresentable": 35,
                     "operation_review_thread_identity": 2,
-                    "operation_wrong_type": 1095,
-                    "server_notification_identity": 38,
+                    "operation_wrong_type": 1677,
+                    "server_notification_identity": 44,
                     "server_request_params": 10,
                     "server_request_response": 10,
-                    "union_branch": 166,
+                    "union_branch": 170,
                     "union_branch_supplement": 33,
                     "union_explicit_empty_array": 2,
-                    "union_nullable_null": 148,
+                    "union_future_open_object": 4,
+                    "union_nullable_null": 153,
                     "union_numeric_boundary": 2,
                     "union_numeric_boundary_invalid": 2,
-                    "union_optional_omitted": 160,
+                    "union_optional_omitted": 165,
                     "union_pinned_format_unrepresentable": 1,
-                    "unknown_discriminator": 35,
+                    "unknown_discriminator": 36,
                     "unknown_enum_value": 163,
                     "unknown_method": 4,
                 },
@@ -4659,15 +5345,15 @@ class AppServerFixtureToolTest(unittest.TestCase):
         self.assertEqual(
             first_index["mutation_counts"],
             {
-                "selected_branch_required_locations": 21267,
-                "required_locations": 21267,
-                "required_field_removals_rejected": 21267,
-                "wrong_type_mutations_rejected": 21083,
+                "selected_branch_required_locations": 35246,
+                "required_locations": 35246,
+                "required_field_removals_rejected": 35246,
+                "wrong_type_mutations_rejected": 35062,
                 "wrong_type_unconstrained_exclusions": 184,
                 "alternative_branch_acceptances": 1,
-                "optional_present_locations": 21164,
-                "globally_optional_locations": 21164,
-                "optional_omissions_accepted": 21164,
+                "optional_present_locations": 42335,
+                "globally_optional_locations": 42335,
+                "optional_omissions_accepted": 42335,
                 "optional_cross_fragment_exclusions": 0,
             },
         )
@@ -4713,21 +5399,22 @@ class AppServerFixtureToolTest(unittest.TestCase):
         completeness = json.loads(first[completeness_path].decode("utf-8"))
         self.assertEqual(completeness["counts"]["surface_identities"], 387)
         self.assertEqual(
-            completeness["counts"]["identities_with_positive_fixtures"], 316
+            completeness["counts"]["identities_with_positive_fixtures"],
+            326,
         )
         self.assertEqual(
             completeness["counts"]["facts_true_by_field"],
             {
-                "authoritative_root_association": 316,
-                "fixture_current": 316,
-                "independently_schema_validated": 316,
-                "nullable_semantics_exercised": 280,
-                "optional_omitted_exercised": 316,
-                "optional_present_exercised": 316,
-                "positive_fixture_coverage": 316,
-                "reachable_union_alternatives_exercised": 280,
-                "required_fields_exercised": 316,
-                "schema_properties_exercised": 280,
+                "authoritative_root_association": 326,
+                "fixture_current": 326,
+                "independently_schema_validated": 326,
+                "nullable_semantics_exercised": 313,
+                "optional_omitted_exercised": 326,
+                "optional_present_exercised": 326,
+                "positive_fixture_coverage": 326,
+                "reachable_union_alternatives_exercised": 313,
+                "required_fields_exercised": 326,
+                "schema_properties_exercised": 313,
             },
         )
         self.assertEqual(len(completeness["records"]), 387)

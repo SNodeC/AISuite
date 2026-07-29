@@ -26,7 +26,24 @@ set_tests_properties(
     PROPERTIES LABELS "extraction;codex;history;package" TIMEOUT 60
 )
 
-get_filename_component(AISUITE_TEST_SNODEC_PREFIX "${snodec_DIR}/../../.." ABSOLUTE)
+set(AISUITE_TEST_SNODEC_SOURCE_REPOSITORY
+    ""
+    CACHE
+        PATH
+        "Local SNode.C clone containing the pinned extraction dependency for the genuine installed-consumer test"
+)
+if("${AISUITE_TEST_SNODEC_SOURCE_REPOSITORY}" STREQUAL "" AND
+   DEFINED ENV{AISUITE_TEST_SNODEC_SOURCE_REPOSITORY})
+    set(AISUITE_TEST_SNODEC_SOURCE_REPOSITORY
+        "$ENV{AISUITE_TEST_SNODEC_SOURCE_REPOSITORY}"
+    )
+endif()
+set(AISUITE_TEST_INSTALLED_CONSUMER_TEMP_ROOT
+    ""
+    CACHE
+        PATH
+        "Optional spacious root for the disjoint genuine installed-consumer staging tree"
+)
 
 add_test(
     NAME AISuiteInstalledConsumerTest
@@ -34,12 +51,16 @@ add_test(
         ${CMAKE_COMMAND}
         -DAISUITE_BUILD_DIR=${CMAKE_BINARY_DIR}
         -DAISUITE_SOURCE_DIR=${PROJECT_SOURCE_DIR}
-        -DSNODEC_PREFIX=${AISUITE_TEST_SNODEC_PREFIX}
+        -DSNODEC_SOURCE_REPOSITORY=${AISUITE_TEST_SNODEC_SOURCE_REPOSITORY}
+        -DAISUITE_INSTALLED_CONSUMER_TEMP_ROOT=${AISUITE_TEST_INSTALLED_CONSUMER_TEMP_ROOT}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/AISuiteInstalledConsumerTest.cmake
 )
 set_tests_properties(
     AISuiteInstalledConsumerTest
-    PROPERTIES LABELS "install;consumer;codex;extraction" TIMEOUT 300
+    PROPERTIES
+        LABELS "install;consumer;codex;extraction;user-integrations"
+        RUN_SERIAL TRUE
+        TIMEOUT 300
 )
 
 add_test(
@@ -95,6 +116,69 @@ set_tests_properties(
     CodexA14AuditToolTest
     PROPERTIES
         LABELS "component;ai;openai;codex;phase-a1-4;schema;audit;generated;extraction"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 90
+)
+
+add_test(
+    NAME CodexA14UserIntegrationsAuditTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14UserIntegrationsAuditTest.py
+        --tool ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_user_integrations.py
+        --repo-root ${PROJECT_SOURCE_DIR}
+        --start-state ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-start-state.json
+        --batch-plan ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-batch-plan.json
+)
+set_tests_properties(
+    CodexA14UserIntegrationsAuditTest
+    PROPERTIES
+        DEPENDS CodexA14AuditToolTest
+        LABELS "component;ai;openai;codex;phase-a1-4;user-integrations;schema;audit;generated;extraction"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 90
+)
+
+add_test(
+    NAME CodexA14UserIntegrationsAbiEvidenceTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_user_integrations_abi.py
+        check
+        --repo-root
+        ${PROJECT_SOURCE_DIR}
+        --library
+        $<TARGET_FILE:ai-openai-codex>
+)
+set_tests_properties(
+    CodexA14UserIntegrationsAbiEvidenceTest
+    PROPERTIES
+        DEPENDS CodexA14UserIntegrationsAuditTest
+        LABELS "component;ai;openai;codex;phase-a1-4;user-integrations;abi;generated;package"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 60
+)
+
+add_test(
+    NAME CodexA14UserIntegrationsClosureTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14UserIntegrationsClosureTest.py
+        --tool
+        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_user_integrations_closure.py
+        --repo-root
+        ${PROJECT_SOURCE_DIR}
+        --report
+        ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-closure-report.json
+)
+set_tests_properties(
+    CodexA14UserIntegrationsClosureTest
+    PROPERTIES
+        DEPENDS CodexA14UserIntegrationsAbiEvidenceTest
+        LABELS "component;ai;openai;codex;phase-a1-4;user-integrations;closure;generated;documentation;extraction"
         ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
         RUN_SERIAL TRUE
         TIMEOUT 90

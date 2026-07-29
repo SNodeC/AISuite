@@ -1409,11 +1409,22 @@ def validate_live_progress(
                 "non-A1.2 registry exact-key set changed",
             )
         )
+    diagnostics.extend(
+        a11.user_integration_successor_diagnostics(
+            unrelated_baseline, inputs.registry
+        )
+    )
     for key in sorted(live_unrelated & set(unrelated_baseline)):
         frozen_projection = unrelated_baseline[key].get(
             "registry_projection"
         )
         live_projection = a11.registry_projection(inputs.registry[key])
+        if (
+            isinstance(frozen_projection, Mapping)
+            and frozen_projection.get("a1_slice")
+            == a11.USER_INTEGRATION_SUCCESSOR_SLICE
+        ):
+            continue
         if (
             isinstance(frozen_projection, Mapping)
             and frozen_projection.get("a1_slice")

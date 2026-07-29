@@ -246,6 +246,129 @@ A1_4_PUBLIC_ROOTS = {
         }
     ),
 }
+
+# PR-A Commit 2 exact-key production ownership.  These identities advance
+# together with their types, codecs, descriptors, facades, fixtures, and
+# focused tests; no other A1.4 identity is included.
+A14_USER_INTEGRATIONS_COMMIT_2 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "app/list"),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "externalAgentConfig/detect",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "externalAgentConfig/import",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "externalAgentConfig/import/readHistories",
+        ),
+        ("client_request", "ClientRequest", "method", "feedback/upload"),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "app/list/updated",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "externalAgentConfig/import/completed",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "externalAgentConfig/import/progress",
+        ),
+    }
+)
+# PR-A Commit 3 exact-key production ownership. These identities advance
+# together with their types, codecs, descriptors, facades, fixtures, and
+# focused tests.
+A14_USER_INTEGRATIONS_COMMIT_3 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "hooks/list"),
+        ("client_request", "ClientRequest", "method", "marketplace/add"),
+        ("client_request", "ClientRequest", "method", "marketplace/remove"),
+        ("client_request", "ClientRequest", "method", "marketplace/upgrade"),
+        ("client_request", "ClientRequest", "method", "skills/config/write"),
+        ("client_request", "ClientRequest", "method", "skills/extraRoots/set"),
+        ("client_request", "ClientRequest", "method", "skills/list"),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "hook/completed",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "hook/started",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "skills/changed",
+        ),
+    }
+)
+# PR-A Commit 4 exact-key production ownership. These plugin roots do not
+# transitively reach PluginSource; the four catalog/source-bearing operations
+# and four PluginSource alternatives remain reserved for Commit 5.
+A14_USER_INTEGRATIONS_COMMIT_4 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "plugin/install"),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "plugin/share/checkout",
+        ),
+        ("client_request", "ClientRequest", "method", "plugin/share/delete"),
+        ("client_request", "ClientRequest", "method", "plugin/share/save"),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "plugin/share/updateTargets",
+        ),
+        ("client_request", "ClientRequest", "method", "plugin/skill/read"),
+        ("client_request", "ClientRequest", "method", "plugin/uninstall"),
+    }
+)
+# PR-A Commit 5 closes the four PluginSource-bearing catalog requests and the
+# four known PluginSource alternatives. The alternative order is the exact
+# production-registry order, independent from the stable schema's oneOf order.
+A14_USER_INTEGRATIONS_COMMIT_5 = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "plugin/installed"),
+        ("client_request", "ClientRequest", "method", "plugin/list"),
+        ("client_request", "ClientRequest", "method", "plugin/read"),
+        ("client_request", "ClientRequest", "method", "plugin/share/list"),
+        ("tagged_union_discriminator", "PluginSource", "type", "git"),
+        ("tagged_union_discriminator", "PluginSource", "type", "local"),
+        ("tagged_union_discriminator", "PluginSource", "type", "npm"),
+        ("tagged_union_discriminator", "PluginSource", "type", "remote"),
+    }
+)
+A14_USER_INTEGRATIONS_IMPLEMENTED = (
+    A14_USER_INTEGRATIONS_COMMIT_2
+    | A14_USER_INTEGRATIONS_COMMIT_3
+    | A14_USER_INTEGRATIONS_COMMIT_4
+    | A14_USER_INTEGRATIONS_COMMIT_5
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -1619,6 +1742,26 @@ COMMANDS_FILESYSTEM_REVIEWS_APPROVALS_UNION_CODECS = {
     for name in names
 }
 
+INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS = {
+    (
+        "tagged_union_discriminator",
+        "PluginSource",
+        "type",
+        name,
+    ): (
+        "IntegrationsAndLongTailUnionTarget::"
+        + {
+            "git": "PluginSourceGit",
+            "local": "PluginSourceLocal",
+            "npm": "PluginSourceNpm",
+            "remote": "PluginSourceRemote",
+        }[name],
+        "ConversationUnionCodecShape::InternallyTaggedObject",
+        "ConversationUnionCodecDirection::DecodeOnly",
+    )
+    for name in ("git", "local", "npm", "remote")
+}
+
 RUNTIME_TARGETS = {
     ("client_request", "ClientRequest", "method", "initialize"): "ClientRequestTarget::Initialize",
     (
@@ -1675,6 +1818,144 @@ RUNTIME_TARGETS = {
         "method",
         "account/workspaceMessages/read",
     ): "ClientRequestTarget::AccountWorkspaceMessagesRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "app/list",
+    ): "ClientRequestTarget::AppsList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "externalAgentConfig/detect",
+    ): "ClientRequestTarget::ExternalAgentConfigDetect",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "externalAgentConfig/import",
+    ): "ClientRequestTarget::ExternalAgentConfigImport",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "externalAgentConfig/import/readHistories",
+    ): "ClientRequestTarget::ExternalAgentConfigImportHistoriesRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "feedback/upload",
+    ): "ClientRequestTarget::FeedbackUpload",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "hooks/list",
+    ): "ClientRequestTarget::HooksList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "marketplace/add",
+    ): "ClientRequestTarget::MarketplaceAdd",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "marketplace/remove",
+    ): "ClientRequestTarget::MarketplaceRemove",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "marketplace/upgrade",
+    ): "ClientRequestTarget::MarketplaceUpgrade",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/install",
+    ): "ClientRequestTarget::PluginInstall",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/installed",
+    ): "ClientRequestTarget::PluginInstalled",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/list",
+    ): "ClientRequestTarget::PluginList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/read",
+    ): "ClientRequestTarget::PluginRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/checkout",
+    ): "ClientRequestTarget::PluginShareCheckout",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/delete",
+    ): "ClientRequestTarget::PluginShareDelete",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/list",
+    ): "ClientRequestTarget::PluginShareList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/save",
+    ): "ClientRequestTarget::PluginShareSave",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/share/updateTargets",
+    ): "ClientRequestTarget::PluginShareUpdateTargets",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/skill/read",
+    ): "ClientRequestTarget::PluginSkillRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "plugin/uninstall",
+    ): "ClientRequestTarget::PluginUninstall",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "skills/config/write",
+    ): "ClientRequestTarget::SkillsConfigWrite",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "skills/extraRoots/set",
+    ): "ClientRequestTarget::SkillsExtraRootsSet",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "skills/list",
+    ): "ClientRequestTarget::SkillsList",
     (
         "client_request",
         "ClientRequest",
@@ -1957,6 +2238,42 @@ RUNTIME_TARGETS = {
         "method",
         "item/autoApprovalReview/started",
     ): "ServerNotificationTarget::ItemGuardianApprovalReviewStarted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "app/list/updated",
+    ): "ServerNotificationTarget::AppListUpdated",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "externalAgentConfig/import/completed",
+    ): "ServerNotificationTarget::ExternalAgentConfigImportCompleted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "externalAgentConfig/import/progress",
+    ): "ServerNotificationTarget::ExternalAgentConfigImportProgress",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "hook/completed",
+    ): "ServerNotificationTarget::HookCompleted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "hook/started",
+    ): "ServerNotificationTarget::HookStarted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "skills/changed",
+    ): "ServerNotificationTarget::SkillsChanged",
     (
         "server_notification",
         "ServerNotification",
@@ -2508,14 +2825,33 @@ RUNTIME_TARGETS.update(
         )
     }
 )
+if set(RUNTIME_TARGETS) & set(INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS):
+    raise AssertionError(
+        "integrations/long-tail union targets duplicate an existing runtime mapping"
+    )
+RUNTIME_TARGETS.update(
+    {
+        key: descriptor[0]
+        for key, descriptor in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.items()
+    }
+)
 
 SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "account/login/completed": "typed::AccountLoginCompletedNotification",
     "account/rateLimits/updated": "typed::AccountRateLimitsUpdatedNotification",
     "account/updated": "typed::AccountUpdatedNotification",
+    "app/list/updated": "typed::AppListUpdatedNotification",
     "command/exec/outputDelta": "typed::CommandExecOutputDeltaNotification",
     "configWarning": "typed::ConfigWarningNotification",
     "error": "typed::TurnErrorEvent",
+    "externalAgentConfig/import/completed": (
+        "typed::ExternalAgentConfigImportCompletedNotification"
+    ),
+    "externalAgentConfig/import/progress": (
+        "typed::ExternalAgentConfigImportProgressNotification"
+    ),
+    "hook/completed": "typed::HookCompletedNotification",
+    "hook/started": "typed::HookStartedNotification",
     "fs/changed": "typed::FsChangedNotification",
     "fuzzyFileSearch/sessionCompleted": (
         "typed::FuzzyFileSearchSessionCompletedNotification"
@@ -2542,6 +2878,7 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "item/reasoning/summaryTextDelta": "typed::ReasoningSummaryTextDeltaNotification",
     "item/reasoning/textDelta": "typed::ReasoningTextDeltaNotification",
     "item/started": "typed::ItemStartedNotification",
+    "skills/changed": "typed::SkillsChangedNotification",
     "model/rerouted": "typed::ModelRerouted",
     "model/safetyBuffering/updated": "typed::ModelSafetyBufferingUpdatedNotification",
     "model/verification": "typed::ModelVerificationNotification",
@@ -2616,7 +2953,7 @@ SERVER_NOTIFICATION_CODECS = {
     if key[0] == "server_notification"
 }
 if (
-    len(SERVER_NOTIFICATION_CODECS) != 52
+    len(SERVER_NOTIFICATION_CODECS) != 58
     or set(SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD)
     != {key[3] for key in SERVER_NOTIFICATION_CODECS}
 ):
@@ -5832,6 +6169,14 @@ def registry_statuses(
         evidence["runtime_decoder_matches_registry"] = True
         evidence["opaque_fields_declared"] = True
         evidence["no_known_schema_fields_dropped"] = True
+    if identity in A14_USER_INTEGRATIONS_IMPLEMENTED and target is not None:
+        # PR-A Commits 2 through 5 bind each exact implemented integration root to a
+        # reviewed schema-complete codec, generated descriptor, grouped facade,
+        # schema-derived fixture, and focused wire/notification test.  All
+        # objects in this closure are open; raw retention supplements the
+        # explicit known-field mapping and no opaque schema field is claimed.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
     if (
         identity[0] == "client_request"
         and assignment.get("slice") == "A1.1"
@@ -6436,6 +6781,115 @@ def generate_commands_filesystem_reviews_approvals_union_descriptor_data(
     return "\n".join(lines) + "\n"
 
 
+def generate_integrations_and_long_tail_union_descriptor_data(
+    manifest: dict[str, Any],
+    schema_root: Path,
+    evidence: dict[str, Any] | None = None,
+) -> str:
+    """Generate the exact registry-ordered PR-A PluginSource metadata."""
+
+    evidence = (
+        evidence if evidence is not None else load_a1_registry_evidence()
+    )
+    assignments = assignment_by_key(manifest, evidence["assignments"])
+    expected_keys = {
+        key
+        for key, assignment in assignments.items()
+        if assignment.get("slice") == "A1.4"
+        and assignment.get("module") == "IntegrationsAndLongTail"
+        and key[0] == "tagged_union_discriminator"
+        and key[1] == "PluginSource"
+        and assignment.get("stability") == "stable"
+    }
+    descriptor_keys = set(INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS)
+    descriptor_order = [
+        surface_key(entry)
+        for entry in manifest.get("entries", [])
+        if surface_key(entry) in descriptor_keys
+    ]
+    registry_order = tuple(key[3] for key in descriptor_order)
+    if (
+        expected_keys != descriptor_keys
+        or len(descriptor_keys) != 4
+        or registry_order != ("git", "local", "npm", "remote")
+    ):
+        raise SurfaceError(
+            "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch: "
+            "PluginSource must retain exactly git/local/npm/remote in "
+            "production-registry order"
+        )
+    targets = [
+        metadata[0]
+        for metadata in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.values()
+    ]
+    if len(set(targets)) != 4:
+        raise SurfaceError(
+            "DuplicateIntegrationsAndLongTailUnionDescriptorTarget: "
+            "each PluginSource identity must own one unique runtime target"
+        )
+    if any(
+        metadata[1]
+        != "ConversationUnionCodecShape::InternallyTaggedObject"
+        or metadata[2]
+        != "ConversationUnionCodecDirection::DecodeOnly"
+        for metadata in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.values()
+    ):
+        raise SurfaceError(
+            "IntegrationsAndLongTailUnionDescriptorDirectionMismatch: "
+            "all four PluginSource alternatives must remain internally "
+            "tagged decode-only result metadata"
+        )
+
+    entries = {
+        surface_key(entry): entry
+        for entry in manifest.get("entries", [])
+    }
+    lines = [
+        (
+            "// Generated by tools/codex/app_server_surface.py "
+            "integrations-and-long-tail-union-descriptors; do not edit."
+        ),
+        "// Exact keys remain subordinate to ProtocolSurfaceRegistryData.inc.",
+        (
+            "// Registry order, shape, and direction are private codec "
+            "metadata, not production dispositions."
+        ),
+    ]
+    for key in descriptor_order:
+        entry = entries.get(key)
+        if (
+            entry is None
+            or entry.get("stability") != "stable"
+            or entry.get("category")
+            != "tagged_union_discriminator"
+        ):
+            raise SurfaceError(
+                "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch: "
+                f"missing stable tagged-union manifest entry for {key}"
+            )
+        target, shape, direction = (
+            INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS[key]
+        )
+        branch = _conversation_union_schema_branch(entry, schema_root)
+        _validate_conversation_union_descriptor_shape(entry, branch, shape)
+        lines.append(
+            "CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR("
+            + ", ".join(
+                (
+                    CPP_CATEGORIES[key[0]],
+                    cpp_string(key[1]),
+                    cpp_string(key[2]),
+                    cpp_string(key[3]),
+                    target,
+                    shape,
+                    direction,
+                )
+            )
+            + ")"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def generate_server_request_descriptor_data(
     manifest: dict[str, Any],
     evidence: dict[str, Any] | None = None,
@@ -6624,6 +7078,11 @@ def generate_client_operation_descriptor_data(
                     "thread/approveGuardianDeniedAction",
                 }
             )
+            or (
+                assignment.get("slice") == "A1.4"
+                and assignment.get("module") == "IntegrationsAndLongTail"
+                and key in A14_USER_INTEGRATIONS_IMPLEMENTED
+            )
         )
         and assignment.get("classification") == "StablePublicRoot"
         and assignment.get("stability") == "stable"
@@ -6634,9 +7093,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 57
+        len(expected_keys) != 80
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 57
+        or len(set(targets.values())) != 80
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -6646,8 +7105,11 @@ def generate_client_operation_descriptor_data(
             "ClientOperationDescriptorAssignmentMismatch: "
             "the exact 22 stable A1.1, 9 A1.2 B2, 2 A1.2 B3, 2 A1.2 B4, "
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
-            "1 A1.3 permission-profile, and 2 A1.3 review/guardian "
-            "client requests must each own one unique ClientRequestTarget"
+            "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
+            "23 A1.4 user-integration "
+            "client requests must each own one unique ClientRequestTarget; "
+            f"expected_keys={len(expected_keys)}, targets={len(targets)}, "
+            f"unique_targets={len(set(targets.values()))}"
         )
     if set(contracts) & expected_keys != expected_keys:
         raise SurfaceError(
@@ -6679,10 +7141,13 @@ def generate_client_operation_descriptor_data(
         "fs/unwatch",
         "fs/writeFile",
         "thread/approveGuardianDeniedAction",
+        "skills/extraRoots/set",
+        "plugin/share/delete",
+        "plugin/uninstall",
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 39
+        or len(expected_keys - unit_keys) != 59
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -6690,8 +7155,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 requests must remain exactly 18 Unit and "
-            "39 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus all PR-A requests must remain "
+            "exactly 21 Unit and 59 Concrete requests"
         )
 
     result_decoders = {
@@ -6719,6 +7184,26 @@ def generate_client_operation_descriptor_data(
         "PermissionProfileListResponse",
         "ReviewStartResponse",
         "SendAddCreditsNudgeEmailResponse",
+        "AppsListResponse",
+        "ExternalAgentConfigDetectResponse",
+        "ExternalAgentConfigImportResponse",
+        "ExternalAgentConfigImportHistoriesReadResponse",
+        "FeedbackUploadResponse",
+        "HooksListResponse",
+        "MarketplaceAddResponse",
+        "MarketplaceRemoveResponse",
+        "MarketplaceUpgradeResponse",
+        "PluginInstallResponse",
+        "PluginInstalledResponse",
+        "PluginListResponse",
+        "PluginReadResponse",
+        "PluginShareListResponse",
+        "PluginShareCheckoutResponse",
+        "PluginShareSaveResponse",
+        "PluginShareUpdateTargetsResponse",
+        "PluginSkillReadResponse",
+        "SkillsConfigWriteResponse",
+        "SkillsListResponse",
         "ThreadForkResponse",
         "ThreadGoalClearResponse",
         "ThreadGoalGetResponse",
@@ -6794,14 +7279,14 @@ def generate_server_notification_descriptor_data(
     }
     descriptor_keys = set(SERVER_NOTIFICATION_CODECS)
     if (
-        len(expected_keys) != 52
+        len(expected_keys) != 58
         or descriptor_keys != expected_keys
         or len({metadata[0] for metadata in SERVER_NOTIFICATION_CODECS.values()})
-        != 52
+        != 58
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorAssignmentMismatch: "
-            "every one of the 52 typed server-notification targets must own "
+            "every one of the 58 typed server-notification targets must own "
             "one exact generated descriptor"
         )
 
@@ -6879,6 +7364,14 @@ def generate_server_notification_descriptor_data(
         }
     }
     residual_keys -= a13_review_guardian_keys
+    a14_user_integration_keys = {
+        key
+        for key in residual_keys
+        if key in A14_USER_INTEGRATIONS_IMPLEMENTED
+        and assignments[key].get("slice") == "A1.4"
+        and assignments[key].get("module") == "IntegrationsAndLongTail"
+    }
+    residual_keys -= a14_user_integration_keys
     if (
         len(a11_keys) != 37
         or len(a12_b2_keys) != 3
@@ -6887,13 +7380,15 @@ def generate_server_notification_descriptor_data(
         or len(a13_command_keys) != 1
         or len(a13_filesystem_keys) != 3
         or len(a13_review_guardian_keys) != 3
+        or len(a14_user_integration_keys) != 6
         or {key[3] for key in residual_keys} != {"error"}
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorSliceMismatch: "
             "descriptors must distinguish the exact 37 A1.1, 3 A1.2 B2, "
             "3 A1.2 B3, 1 A1.2 B4, 1 A1.3 command, and 3 A1.3 "
-            "filesystem/fuzzy, and 3 A1.3 review/guardian rows from the "
+            "filesystem/fuzzy, 3 A1.3 review/guardian, and 3 A1.4 "
+            "user-integration rows from the "
             "residual partial error row"
         )
 
@@ -9659,6 +10154,22 @@ def command_commands_filesystem_reviews_approvals_union_descriptors(
     )
 
 
+def command_integrations_and_long_tail_union_descriptors(
+    arguments: argparse.Namespace,
+) -> None:
+    manifest = load_json(arguments.manifest)
+    evidence = load_a1_registry_evidence(arguments.evidence_root)
+    generated = generate_integrations_and_long_tail_union_descriptor_data(
+        manifest, arguments.schema_root, evidence
+    )
+    write_or_check_generated_descriptors(
+        arguments.output,
+        generated,
+        arguments.check,
+        "IntegrationsAndLongTailUnion",
+    )
+
+
 def command_server_request_descriptors(
     arguments: argparse.Namespace,
 ) -> None:
@@ -10026,6 +10537,31 @@ def parser() -> argparse.ArgumentParser:
         function=(
             command_commands_filesystem_reviews_approvals_union_descriptors
         )
+    )
+
+    integrations_union_descriptors = subparsers.add_parser(
+        "integrations-and-long-tail-union-descriptors",
+        help=(
+            "generate private A1.4 integrations/long-tail union codec descriptors"
+        ),
+    )
+    integrations_union_descriptors.add_argument(
+        "--manifest", type=Path, required=True
+    )
+    integrations_union_descriptors.add_argument(
+        "--schema-root", type=Path, required=True
+    )
+    integrations_union_descriptors.add_argument(
+        "--evidence-root", type=Path, default=DEFAULT_A1_EVIDENCE_ROOT
+    )
+    integrations_union_descriptors.add_argument(
+        "--output", type=Path, required=True
+    )
+    integrations_union_descriptors.add_argument(
+        "--check", action="store_true"
+    )
+    integrations_union_descriptors.set_defaults(
+        function=command_integrations_and_long_tail_union_descriptors
     )
 
     server_request_descriptors = subparsers.add_parser(

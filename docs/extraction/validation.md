@@ -13,9 +13,9 @@ baseline and the complete source-to-filtered commit map are recorded in
 `filter-map.json`. `source-manifest.json` verifies every imported file and every
 reviewed standalone adaptation.
 
-## Preserved protocol state
+## Preserved extraction and current protocol states
 
-The extraction does not implement A1.4. The registry remains:
+The repository move itself preserved this registry baseline:
 
 ```text
 Complete:       280
@@ -24,16 +24,38 @@ NotImplemented:  55
 NotApplicable:   48
 ```
 
-The Partial identities remain `initialize`, `initialized`, `error`, and
-`item/tool/requestUserInput`. The Codex pin remains `codex-cli 0.144.6` /
-`rust-v0.144.6`, and the extracted Codex libraries retain SOVERSION 1.
+The later A14-UserIntegrations milestone promotes exactly 33 identities, giving
+the live registry `313 / 4 / 22 / 48` and native A1.4 `33 / 1 / 22`. The
+Partial identities remain `initialize`, `initialized`, `error`, and
+`item/tool/requestUserInput`; native A1.4 remains in progress. The Codex pin
+remains `codex-cli 0.144.6` / `rust-v0.144.6`, and the extracted Codex
+libraries retain SOVERSION 1.
 
 ## Standalone build boundary
 
 AISuite discovers SNode.C through its installed CMake package. It contains no
 source-relative SNode.C include, sibling `add_subdirectory`, private-header
-dependency, or fixed SNode.C build-tree path. The installed consumer resolves
-both `snodec` and `AISuite` from staging prefixes.
+dependency, or fixed SNode.C build-tree path. The installed-consumer gate uses
+fresh, disjoint source/build/install directories, disables CMake package
+registries, scrubs inherited compiler/linker/loader/package search variables,
+verifies `AISuite_DIR` and `snodec_DIR`, and rejects both the original
+checkouts and every outer build or staging prefix in compile, link, ELF, and
+`ldd` evidence. A direct public-header consumer linked to `snodec::core`
+requires `${fresh-prefix}/include/snode.c` and the fresh SNode.C library
+prefix; all installed consumers run with a library path naming only the two
+fresh install prefixes.
+
+Local test-enabled configuration must name a clean SNode.C clone containing
+the pinned commit:
+
+```sh
+cmake -S . -B build \
+  -DAISUITE_BUILD_TESTS=ON \
+  -DAISUITE_TEST_SNODEC_SOURCE_REPOSITORY=/absolute/path/to/snode.c
+```
+
+`AISUITE_TEST_INSTALLED_CONSUMER_TEMP_ROOT` may point at a spacious temporary
+filesystem for the disjoint source/build/install trees.
 
 The standalone distribution exports:
 
@@ -54,11 +76,24 @@ The final tree is required to pass:
 - extraction manifest generation and verification;
 - A1.1, A1.2, and A1.3 audits and closure checks;
 - the A1.4 partition and implementation-plan audit with all mutation guards;
+- the A14-UserIntegrations audit and closure guards, including exact
+  `23 / 6 / 0 / 4`, `20 / 3`, and `52 / 118 / 411` counts;
+- exact predecessor `51 / 53` and final `57 / 59` notification variant
+  sizes and index mappings;
 - schema, generated-artifact, fixture, and operation-contract guards;
+- dependency-ordered, two-pass byte identity across the complete inherited and
+  PR-A target corpus, with the extraction manifest as the unique final
+  generator in each pass;
+- exact path-only extraction exceptions for the three proof metadata files,
+  canonical proof-file validation, and live closure-report/extraction-manifest
+  equality with both recorded passes;
 - exact frontend-protocol byte checks;
 - synthetic-secret source and package scans;
-- installed-consumer validation;
-- source- and binary-package validation;
+- genuine installed-consumer validation against independently installed
+  SNode.C and AISuite prefixes;
+- source-package package-safe extraction/ABI/closure checks, with no `.git`
+  metadata or enclosing-checkout discovery, and binary-package
+  installed-header validation;
 - the complete extracted Codex component test suite in GitHub Actions.
 
 Local validation uses focused, deterministic checks. The normal exact-head

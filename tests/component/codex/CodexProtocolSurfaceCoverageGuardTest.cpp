@@ -462,9 +462,9 @@ int main() {
                       "the B4 registry retains every locked A1.0 and exact A1.1 batch identity");
     result.expectTrue(typedIdentityCount(baseline) == tests::component::codex::TypedSurfaceBaseline.size() +
                                                           tests::component::codex::CodexErrorInfoTypedSurfaceBaseline.size() +
-                                                          tests::component::codex::CodexA11B2TypedSurfaceBaseline.size() + 208,
-                      "A1.1 B3-B5, A1.2, and complete A1.3 add exactly 208 typed identities while completing "
-                      "inherited partial rows");
+                                                          tests::component::codex::CodexA11B2TypedSurfaceBaseline.size() + 241,
+                      "A1.1 B3-B5, A1.2, complete A1.3, and A1.4 user-integration PR A add exactly 241 typed "
+                      "identities while completing inherited partial rows");
     result.expectTrue(schemaStatusCounts(baseline, true) == SchemaStatusCounts{151, 0, 0, 0},
                       "the final A1.1 slice is exactly Complete 151, Partial 0, NotImplemented 0, NotApplicable 0");
     result.expectTrue(schemaStatusCountsForSlice(baseline, detail::A1Slice::A1_2) ==
@@ -472,8 +472,9 @@ int main() {
                       "the final A1.2 B5 slice is exactly Complete 45, Partial 0, NotImplemented 0, NotApplicable 0");
     result.expectTrue(schemaStatusCountsForSlice(baseline, detail::A1Slice::A1_3) == SchemaStatusCounts{68, 0, 0, 0},
                       "the final A1.3 slice is exactly Complete 68, Partial 0, NotImplemented 0, NotApplicable 0");
-    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{280, 4, 55, 48},
-                      "the complete A1.3 registry is exactly Complete 280, Partial 4, NotImplemented 55, NotApplicable 48");
+    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{313, 4, 22, 48},
+                      "the completed A1.4 user-integration PR-A registry is exactly Complete 313, Partial 4, NotImplemented 22, "
+                      "NotApplicable 48");
     result.expectTrue(exactA13Descriptors && exactA13FixtureBijection && a13Rows == 68 && a13DescriptorKeys.size() == 68 &&
                           a13ClientDescriptors == 17 && a13NotificationDescriptors == 7 && a13ServerRequestDescriptors == 5 &&
                           a13UnionDescriptors == 39,
@@ -481,14 +482,14 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> missing = baseline;
     const auto missingEntry =
-        findEntry(missing, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "app/list");
+        findEntry(missing, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
     missing.erase(missingEntry);
     result.expectTrue(hasExactCoverageCodes(missing, manifest, {ErrorCode::MissingRegistryEntry}),
                       "coverage guard reports only MissingRegistryEntry for removal of one untyped stable schema-derived row");
 
     std::vector<detail::ProtocolSurfaceEntry> duplicate = baseline;
     duplicate.push_back(
-        *findEntry(duplicate, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "app/list"));
+        *findEntry(duplicate, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness"));
     std::sort(duplicate.begin(), duplicate.end(), [](const auto& left, const auto& right) {
         return left.key < right.key;
     });
@@ -497,7 +498,7 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> wrongCategory = baseline;
     const auto recategorized =
-        findEntry(wrongCategory, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "app/list");
+        findEntry(wrongCategory, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
     recategorized->key.category = detail::SurfaceCategory::TaggedUnionDiscriminator;
     recategorized->operationContract = {};
     std::sort(wrongCategory.begin(), wrongCategory.end(), [](const auto& left, const auto& right) {
@@ -508,7 +509,7 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> wrongStability = baseline;
     const auto restabilized =
-        findEntry(wrongStability, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "app/list");
+        findEntry(wrongStability, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
     restabilized->stability = detail::Stability::ExperimentalOnly;
     restabilized->operationContract = {};
     result.expectTrue(hasExactCoverageCodes(wrongStability, manifest, {ErrorCode::WrongStability}),
@@ -516,7 +517,7 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> falseTyped = baseline;
     const auto unimplemented =
-        findEntry(falseTyped, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "app/list");
+        findEntry(falseTyped, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
     unimplemented->runtimeDisposition = detail::RuntimeDisposition::Typed;
     unimplemented->typedImplementation = detail::TypedImplementationStatus::Implemented;
     unimplemented->typedSchemaStatus = detail::TypedSchemaStatus::Partial;
@@ -525,7 +526,7 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> duplicateRuntimeTarget = baseline;
     const auto duplicateTarget =
-        findEntry(duplicateRuntimeTarget, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "app/list");
+        findEntry(duplicateRuntimeTarget, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
     duplicateTarget->runtimeDisposition = detail::RuntimeDisposition::Typed;
     duplicateTarget->typedImplementation = detail::TypedImplementationStatus::Implemented;
     duplicateTarget->typedSchemaStatus = detail::TypedSchemaStatus::Partial;
@@ -547,7 +548,7 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> sentinelRuntimeTarget = baseline;
     const auto sentinelTarget =
-        findEntry(sentinelRuntimeTarget, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "app/list");
+        findEntry(sentinelRuntimeTarget, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
     sentinelTarget->runtimeDisposition = detail::RuntimeDisposition::Typed;
     sentinelTarget->typedImplementation = detail::TypedImplementationStatus::Implemented;
     sentinelTarget->typedSchemaStatus = detail::TypedSchemaStatus::Partial;

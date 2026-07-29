@@ -11,13 +11,20 @@
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/typed/Accounts.h"
+#include "ai/openai/codex/typed/Apps.h"
 #include "ai/openai/codex/typed/Commands.h"
 #include "ai/openai/codex/typed/Configuration.h"
+#include "ai/openai/codex/typed/ExternalAgents.h"
+#include "ai/openai/codex/typed/Feedback.h"
 #include "ai/openai/codex/typed/Filesystem.h"
+#include "ai/openai/codex/typed/Hooks.h"
+#include "ai/openai/codex/typed/Marketplace.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
+#include "ai/openai/codex/typed/Plugins.h"
 #include "ai/openai/codex/typed/Results.h"
 #include "ai/openai/codex/typed/Reviews.h"
+#include "ai/openai/codex/typed/Skills.h"
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
@@ -80,7 +87,27 @@ namespace ai::openai::codex::detail {
                                                      typed::FsWatchResponse,
                                                      typed::FuzzyFileSearchResponse,
                                                      typed::PermissionProfileListResponse,
-                                                     typed::ReviewStartResponse>;
+                                                     typed::ReviewStartResponse,
+                                                     typed::AppsListResponse,
+                                                     typed::ExternalAgentConfigDetectResponse,
+                                                     typed::ExternalAgentConfigImportResponse,
+                                                     typed::ExternalAgentConfigImportHistoriesReadResponse,
+                                                     typed::FeedbackUploadResponse,
+                                                     typed::HooksListResponse,
+                                                     typed::MarketplaceAddResponse,
+                                                     typed::MarketplaceRemoveResponse,
+                                                     typed::MarketplaceUpgradeResponse,
+                                                     typed::PluginInstallResponse,
+                                                     typed::PluginShareCheckoutResponse,
+                                                     typed::PluginShareSaveResponse,
+                                                     typed::PluginShareUpdateTargetsResponse,
+                                                     typed::PluginSkillReadResponse,
+                                                     typed::SkillsConfigWriteResponse,
+                                                     typed::SkillsListResponse,
+                                                     typed::PluginInstalledResponse,
+                                                     typed::PluginListResponse,
+                                                     typed::PluginReadResponse,
+                                                     typed::PluginShareListResponse>;
 
     struct ClientOperationDecodeDiagnostic {
         ClientOperationDecodeCode code = ClientOperationDecodeCode::MalformedKnownPayload;

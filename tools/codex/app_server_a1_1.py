@@ -20,6 +20,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from urllib.parse import quote
 
 import app_server_a1_shared as shared
+import app_server_a1_4_user_integrations as user_integrations
 import app_server_fixtures as fixture_tool
 import app_server_schema_paths as schema_walk
 import app_server_surface as surface
@@ -180,6 +181,73 @@ PRIOR_SLICE_REUSED_DEFINITIONS = {
 }
 FORWARD_SLICE_NAMES = {"A1.2", "A1.3", "A1.4"}
 MONOTONIC_SUCCESSOR_SLICES = frozenset({"A1.2", "A1.3"})
+USER_INTEGRATION_SUCCESSOR_SLICE = "A1.4"
+USER_INTEGRATION_RUNTIME_TARGETS = {
+    ("client_request", "app/list"): "ClientRequestTarget::AppsList",
+    ("client_request", "externalAgentConfig/detect"):
+        "ClientRequestTarget::ExternalAgentConfigDetect",
+    ("client_request", "externalAgentConfig/import"):
+        "ClientRequestTarget::ExternalAgentConfigImport",
+    ("client_request", "externalAgentConfig/import/readHistories"):
+        "ClientRequestTarget::ExternalAgentConfigImportHistoriesRead",
+    ("client_request", "feedback/upload"):
+        "ClientRequestTarget::FeedbackUpload",
+    ("client_request", "hooks/list"): "ClientRequestTarget::HooksList",
+    ("client_request", "marketplace/add"):
+        "ClientRequestTarget::MarketplaceAdd",
+    ("client_request", "marketplace/remove"):
+        "ClientRequestTarget::MarketplaceRemove",
+    ("client_request", "marketplace/upgrade"):
+        "ClientRequestTarget::MarketplaceUpgrade",
+    ("client_request", "plugin/install"):
+        "ClientRequestTarget::PluginInstall",
+    ("client_request", "plugin/installed"):
+        "ClientRequestTarget::PluginInstalled",
+    ("client_request", "plugin/list"):
+        "ClientRequestTarget::PluginList",
+    ("client_request", "plugin/read"):
+        "ClientRequestTarget::PluginRead",
+    ("client_request", "plugin/share/checkout"):
+        "ClientRequestTarget::PluginShareCheckout",
+    ("client_request", "plugin/share/delete"):
+        "ClientRequestTarget::PluginShareDelete",
+    ("client_request", "plugin/share/list"):
+        "ClientRequestTarget::PluginShareList",
+    ("client_request", "plugin/share/save"):
+        "ClientRequestTarget::PluginShareSave",
+    ("client_request", "plugin/share/updateTargets"):
+        "ClientRequestTarget::PluginShareUpdateTargets",
+    ("client_request", "plugin/skill/read"):
+        "ClientRequestTarget::PluginSkillRead",
+    ("client_request", "plugin/uninstall"):
+        "ClientRequestTarget::PluginUninstall",
+    ("client_request", "skills/config/write"):
+        "ClientRequestTarget::SkillsConfigWrite",
+    ("client_request", "skills/extraRoots/set"):
+        "ClientRequestTarget::SkillsExtraRootsSet",
+    ("client_request", "skills/list"):
+        "ClientRequestTarget::SkillsList",
+    ("server_notification", "app/list/updated"):
+        "ServerNotificationTarget::AppListUpdated",
+    ("server_notification", "externalAgentConfig/import/completed"):
+        "ServerNotificationTarget::ExternalAgentConfigImportCompleted",
+    ("server_notification", "externalAgentConfig/import/progress"):
+        "ServerNotificationTarget::ExternalAgentConfigImportProgress",
+    ("server_notification", "hook/completed"):
+        "ServerNotificationTarget::HookCompleted",
+    ("server_notification", "hook/started"):
+        "ServerNotificationTarget::HookStarted",
+    ("server_notification", "skills/changed"):
+        "ServerNotificationTarget::SkillsChanged",
+    ("tagged_union_discriminator", "git"):
+        "IntegrationsAndLongTailUnionTarget::PluginSourceGit",
+    ("tagged_union_discriminator", "local"):
+        "IntegrationsAndLongTailUnionTarget::PluginSourceLocal",
+    ("tagged_union_discriminator", "npm"):
+        "IntegrationsAndLongTailUnionTarget::PluginSourceNpm",
+    ("tagged_union_discriminator", "remote"):
+        "IntegrationsAndLongTailUnionTarget::PluginSourceRemote",
+}
 EXPECTED_STRONG_IDENTIFIER_COUNTS = {
     "ClientUserMessageId": {
         "scalar_property_paths": 3,
@@ -3275,6 +3343,157 @@ def unrelated_start_state_by_key(
     return result
 
 
+def _user_integration_stage_keys(
+    stage: Mapping[str, Any],
+) -> set[Key]:
+    return {
+        *(
+            Key(
+                "client_request",
+                "ClientRequest",
+                "method",
+                str(name),
+            )
+            for name in stage["requests"]
+        ),
+        *(
+            Key(
+                "server_notification",
+                "ServerNotification",
+                "method",
+                str(name),
+            )
+            for name in stage["notifications"]
+        ),
+        *(
+            Key(
+                "tagged_union_discriminator",
+                "PluginSource",
+                "type",
+                str(name),
+            )
+            for name in stage["unions"]
+        ),
+    }
+
+
+def user_integration_successor_diagnostics(
+    baseline: Mapping[Key, Mapping[str, Any]],
+    live_registry: Mapping[Key, Mapping[str, Any]],
+) -> list[AuditDiagnostic]:
+    """Validate the exact reviewed PR-A promotion, including runtime targets."""
+
+    global_status = dict(
+        sorted(
+            Counter(
+                str(row["typed_schema_status"])
+                for row in live_registry.values()
+            ).items()
+        )
+    )
+    successor_start = {
+        "Complete": 280,
+        "NotApplicable": 48,
+        "NotImplemented": 55,
+        "Partial": 4,
+    }
+    matching = [
+        stage
+        for stage in user_integrations.STAGES
+        if global_status == dict(stage["global"])
+    ]
+    if global_status == successor_start:
+        selected: Mapping[str, Any] | None = None
+    elif len(matching) == 1:
+        selected = matching[0]
+    else:
+        return [
+            AuditDiagnostic(
+                "UnrelatedSliceDrift",
+                "registry",
+                (
+                    "A1.4 live status is not an exact reviewed PR-A "
+                    f"stage: {global_status}"
+                ),
+            )
+        ]
+    promoted: set[Key] = set()
+    if selected is not None:
+        for stage in user_integrations.STAGES:
+            promoted |= _user_integration_stage_keys(stage)
+            if stage is selected:
+                break
+
+    diagnostics: list[AuditDiagnostic] = []
+    changed: set[Key] = set()
+    for key, row in sorted(baseline.items()):
+        frozen = row.get("registry_projection")
+        if (
+            not isinstance(frozen, Mapping)
+            or frozen.get("a1_slice") != USER_INTEGRATION_SUCCESSOR_SLICE
+        ):
+            continue
+        live_row = live_registry.get(key)
+        if live_row is None:
+            diagnostics.append(
+                AuditDiagnostic(
+                    "UnrelatedSliceIdentityDrift",
+                    key.compact(),
+                    "A1.4 registry identity disappeared",
+                )
+            )
+            continue
+        live = registry_projection(live_row)
+        if live == frozen:
+            continue
+        changed.add(key)
+        expected = copy.deepcopy(dict(frozen))
+        expected["runtime_disposition"] = "Typed"
+        expected["runtime_target"] = USER_INTEGRATION_RUNTIME_TARGETS.get(
+            (key.category, key.name)
+        )
+        expected["typed_schema_status"] = "Complete"
+        expected["typed_status"] = "Implemented"
+        completeness = expected.get("schema_completeness")
+        if isinstance(completeness, Mapping):
+            expected["schema_completeness"] = {
+                name: True for name in completeness
+            }
+        if key not in promoted or live != expected:
+            changed_fields = {
+                field
+                for field in set(frozen) | set(live)
+                if frozen.get(field) != live.get(field)
+            }
+            allowed = {
+                "runtime_disposition",
+                "runtime_target",
+                "schema_completeness",
+                "typed_schema_status",
+                "typed_status",
+            }
+            diagnostics.append(
+                AuditDiagnostic(
+                    (
+                        "StaticIdentityDrift"
+                        if changed_fields - allowed
+                        else "UnrelatedSliceDrift"
+                    ),
+                    key.compact(),
+                    "A1.4 row differs from its exact reviewed PR-A promotion",
+                )
+            )
+    if changed != promoted and not diagnostics:
+        diagnostics.append(
+            AuditDiagnostic(
+                "UnrelatedSliceDrift",
+                "registry",
+                "A1.4 promoted identity set is incomplete or excessive",
+            )
+        )
+    return sorted(diagnostics)
+
+
 def unrelated_live_diagnostics(
     a1_keys: Sequence[Key],
     baseline: Mapping[Key, Mapping[str, Any]],
@@ -3292,6 +3511,12 @@ def unrelated_live_diagnostics(
                 "non-A1.1 registry exact-key set changed",
             )
         )
+    if live_keys == set(baseline):
+        diagnostics.extend(
+            user_integration_successor_diagnostics(
+                baseline, live_registry
+            )
+        )
     for key in sorted(live_keys & set(baseline)):
         frozen_projection = baseline[key].get("registry_projection")
         if not isinstance(frozen_projection, Mapping):
@@ -3305,6 +3530,8 @@ def unrelated_live_diagnostics(
             continue
         live_projection = registry_projection(live_registry[key])
         slice_name = frozen_projection.get("a1_slice")
+        if slice_name == USER_INTEGRATION_SUCCESSOR_SLICE:
+            continue
         if slice_name in MONOTONIC_SUCCESSOR_SLICES:
             diagnostics.extend(
                 monotonic_registry_projection_diagnostics(

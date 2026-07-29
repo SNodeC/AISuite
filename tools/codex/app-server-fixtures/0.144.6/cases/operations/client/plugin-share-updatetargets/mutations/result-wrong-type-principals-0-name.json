@@ -1,0 +1,11 @@
+{
+  "discoverability": "LISTED",
+  "principals": [
+    {
+      "name": null,
+      "principalId": "synthetic-548e5c4462",
+      "principalType": "user",
+      "role": "reader"
+    }
+  ]
+}

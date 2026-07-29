@@ -101,7 +101,7 @@ namespace ai::openai::codex::detail {
         constexpr ClientOperationCodecDescriptor ClientOperationDescriptors[] = {
 #include "ai/openai/codex/detail/ClientOperationCodecDescriptors.inc"
         };
-        static_assert(sizeof(ClientOperationDescriptors) / sizeof(*ClientOperationDescriptors) == 57);
+        static_assert(sizeof(ClientOperationDescriptors) / sizeof(*ClientOperationDescriptors) == 80);
 
 #undef CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR
 
@@ -158,6 +158,17 @@ namespace ai::openai::codex::detail {
                       static_cast<std::size_t>(CommandsFilesystemReviewsApprovalsUnionTarget::Count));
 
 #undef CODEX_COMMANDS_FILESYSTEM_REVIEWS_APPROVALS_UNION_CODEC_DESCRIPTOR
+
+#define CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR(category, domain, field, name, target, shape, direction)                   \
+    {{category, domain, field, name}, target, shape, direction},
+
+        constexpr IntegrationsAndLongTailUnionCodecDescriptor IntegrationsAndLongTailUnionDescriptors[] = {
+#include "ai/openai/codex/detail/IntegrationsAndLongTailUnionCodecDescriptors.inc"
+        };
+        static_assert(sizeof(IntegrationsAndLongTailUnionDescriptors) / sizeof(*IntegrationsAndLongTailUnionDescriptors) ==
+                      static_cast<std::size_t>(IntegrationsAndLongTailUnionTarget::Count));
+
+#undef CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR
 
 #define CODEX_THREAD_ITEM_CODEC_DESCRIPTOR(category, domain, field, name, target, shape, direction)                                       \
     {{category, domain, field, name}, target, shape, direction},
@@ -250,6 +261,8 @@ namespace ai::openai::codex::detail {
                     } else if constexpr (std::is_same_v<Target, AccountsModelsConfigurationUnionTarget>) {
                         return SurfaceCategory::TaggedUnionDiscriminator;
                     } else if constexpr (std::is_same_v<Target, CommandsFilesystemReviewsApprovalsUnionTarget>) {
+                        return SurfaceCategory::TaggedUnionDiscriminator;
+                    } else if constexpr (std::is_same_v<Target, IntegrationsAndLongTailUnionTarget>) {
                         return SurfaceCategory::TaggedUnionDiscriminator;
                     } else {
                         static_assert(std::is_same_v<Target, void>, "new runtime target type needs an explicit surface category");
@@ -382,6 +395,8 @@ namespace ai::openai::codex::detail {
             const CommandsFilesystemReviewsApprovalsUnionCodecDescriptor* canonicalCommandsFilesystemReviewsApprovalsUnion =
                 canonicalDescriptorForTarget<CommandsFilesystemReviewsApprovalsUnionTarget>(
                     entry, commandsFilesystemReviewsApprovalsUnionCodecDescriptors());
+            const IntegrationsAndLongTailUnionCodecDescriptor* canonicalIntegrationsAndLongTailUnion =
+                canonicalDescriptorForTarget<IntegrationsAndLongTailUnionTarget>(entry, integrationsAndLongTailUnionCodecDescriptors());
             const ThreadItemCodecDescriptor* canonicalThreadItem =
                 canonicalDescriptorForTarget<ItemDiscriminatorTarget>(entry, threadItemCodecDescriptors());
             const ResponseItemCodecDescriptor* canonicalResponseItem =
@@ -411,6 +426,11 @@ namespace ai::openai::codex::detail {
                  canonicalCommandsFilesystemReviewsApprovalsUnion->key == entry.key &&
                  matchingCodecDescriptor<CommandsFilesystemReviewsApprovalsUnionTarget>(
                      entry, commandsFilesystemReviewsApprovalsUnionCodecDescriptors()) != nullptr);
+            const bool integrationsAndLongTailUnionDecoderMatches =
+                !std::holds_alternative<IntegrationsAndLongTailUnionTarget>(entry.runtimeTarget) ||
+                (canonicalIntegrationsAndLongTailUnion != nullptr && canonicalIntegrationsAndLongTailUnion->key == entry.key &&
+                 matchingCodecDescriptor<IntegrationsAndLongTailUnionTarget>(entry, integrationsAndLongTailUnionCodecDescriptors()) !=
+                     nullptr);
             const bool threadItemDecoderMatches =
                 !std::holds_alternative<ItemDiscriminatorTarget>(entry.runtimeTarget) ||
                 (canonicalThreadItem != nullptr && canonicalThreadItem->key == entry.key &&
@@ -433,8 +453,9 @@ namespace ai::openai::codex::detail {
                  matchingCodecDescriptor<ServerRequestTarget>(entry, serverRequestDescriptors) != nullptr);
             const bool decoderMatches =
                 codexErrorInfoDecoderMatches && conversationUnionDecoderMatches && accountsModelsConfigurationUnionDecoderMatches &&
-                commandsFilesystemReviewsApprovalsUnionDecoderMatches && threadItemDecoderMatches && responseItemDecoderMatches &&
-                clientOperationDecoderMatches && serverNotificationDecoderMatches && serverRequestDecoderMatches;
+                commandsFilesystemReviewsApprovalsUnionDecoderMatches && integrationsAndLongTailUnionDecoderMatches &&
+                threadItemDecoderMatches && responseItemDecoderMatches && clientOperationDecoderMatches &&
+                serverNotificationDecoderMatches && serverRequestDecoderMatches;
             return completeSchemaEvidence(entry.schemaCompleteness) && decoderMatches ? TypedSchemaStatus::Complete
                                                                                       : TypedSchemaStatus::Partial;
         }
@@ -699,6 +720,10 @@ namespace ai::openai::codex::detail {
         return findTarget(target);
     }
 
+    const ProtocolSurfaceEntry& entryFor(IntegrationsAndLongTailUnionTarget target) {
+        return findTarget(target);
+    }
+
     std::span<const ConversationUnionCodecDescriptor> conversationUnionCodecDescriptors() noexcept {
         return ConversationUnionDescriptors;
     }
@@ -710,6 +735,10 @@ namespace ai::openai::codex::detail {
     std::span<const CommandsFilesystemReviewsApprovalsUnionCodecDescriptor>
     commandsFilesystemReviewsApprovalsUnionCodecDescriptors() noexcept {
         return CommandsFilesystemReviewsApprovalsUnionDescriptors;
+    }
+
+    std::span<const IntegrationsAndLongTailUnionCodecDescriptor> integrationsAndLongTailUnionCodecDescriptors() noexcept {
+        return IntegrationsAndLongTailUnionDescriptors;
     }
 
     std::span<const ClientOperationCodecDescriptor> clientOperationCodecDescriptors() noexcept {
@@ -857,7 +886,7 @@ namespace ai::openai::codex::detail {
         std::span<const ClientOperationCodecDescriptor> clientOperationDescriptors,
         std::span<const ServerNotificationCodecDescriptor> serverNotificationDescriptors,
         std::span<const ServerRequestCodecDescriptor> serverRequestDescriptors) {
-        static_assert(std::variant_size_v<RuntimeTarget> == 11, "new runtime target type needs an explicit validateTargets invocation");
+        static_assert(std::variant_size_v<RuntimeTarget> == 12, "new runtime target type needs an explicit validateTargets invocation");
 
         ProtocolSurfaceValidation result;
 
@@ -1172,6 +1201,16 @@ namespace ai::openai::codex::detail {
                 commandsFilesystemReviewsApprovalsUnionCodecDescriptors(),
                 "commands/filesystem/reviews/approvals union",
                 result);
+        }
+        if (containsRuntimeTarget<IntegrationsAndLongTailUnionTarget>(entries)) {
+            validateTargets(entries, IntegrationsAndLongTailUnionTarget::Count, "integrations/long-tail union discriminator", result);
+            validateTaggedUnionDescriptorMetadata(
+                integrationsAndLongTailUnionCodecDescriptors(), integrationsAndLongTailUnionCodecDescriptors(), result);
+            validateCodecDescriptors<IntegrationsAndLongTailUnionTarget>(entries,
+                                                                         integrationsAndLongTailUnionCodecDescriptors(),
+                                                                         integrationsAndLongTailUnionCodecDescriptors(),
+                                                                         "integrations/long-tail union",
+                                                                         result);
         }
         if (!threadItemDescriptors.empty() || containsRuntimeTarget<ItemDiscriminatorTarget>(entries)) {
             validateTaggedUnionDescriptorMetadata(threadItemDescriptors, threadItemCodecDescriptors(), result);

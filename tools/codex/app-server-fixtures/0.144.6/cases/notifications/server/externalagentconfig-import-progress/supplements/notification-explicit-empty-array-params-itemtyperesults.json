@@ -1,0 +1,7 @@
+{
+  "method": "externalAgentConfig/import/progress",
+  "params": {
+    "importId": "synthetic-f18b186515",
+    "itemTypeResults": []
+  }
+}

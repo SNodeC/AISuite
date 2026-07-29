@@ -1,0 +1,8 @@
+{
+  "method": "hook/completed",
+  "params": {
+    "run": null,
+    "threadId": "synthetic-5c092d6446",
+    "turnId": "synthetic-ee9a2ddaed"
+  }
+}

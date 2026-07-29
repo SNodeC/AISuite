@@ -1,6 +1,7 @@
 set(AI_OPENAI_CODEX_CPP
     AppServerClient.cpp
     detail/AccountCodec.cpp
+    detail/AppCodec.cpp
     detail/ApprovalCodec.cpp
     detail/CodexErrorInfoCodec.cpp
     detail/ClientOperationCodec.cpp
@@ -8,13 +9,19 @@ set(AI_OPENAI_CODEX_CPP
     detail/ConfigurationCodec.cpp
     detail/ConversationCodec.cpp
     detail/EventDecoder.cpp
+    detail/ExternalAgentCodec.cpp
+    detail/FeedbackCodec.cpp
     detail/FilesystemCodec.cpp
+    detail/HookCodec.cpp
     detail/ItemDecoder.cpp
+    detail/MarketplaceCodec.cpp
     detail/ModelCodec.cpp
+    detail/PluginCodec.cpp
     detail/ProtocolCodec.cpp
     detail/ProtocolSurfaceRegistry.cpp
     detail/ReviewCodec.cpp
     detail/ServerRequestDecoder.cpp
+    detail/SkillCodec.cpp
     detail/ThreadCodec.cpp
     detail/Transport.cpp
     detail/TurnCodec.cpp
@@ -32,19 +39,26 @@ set(AI_OPENAI_CODEX_PUBLIC_H
     Protocol.h
     stdio/Client.h
     typed/Accounts.h
+    typed/Apps.h
     typed/Client.h
     typed/CodexErrorInfo.h
     typed/Commands.h
     typed/Configuration.h
     typed/Conversation.h
     typed/Events.h
+    typed/ExternalAgents.h
+    typed/Feedback.h
     typed/Filesystem.h
+    typed/Hooks.h
     typed/Items.h
+    typed/Marketplace.h
     typed/Models.h
     typed/PermissionProfiles.h
+    typed/Plugins.h
     typed/Reviews.h
     typed/Results.h
     typed/ServerRequests.h
+    typed/Skills.h
     typed/Threads.h
     typed/Turns.h
     typed/Types.h
@@ -91,19 +105,26 @@ install(
 install(
     FILES
         typed/Accounts.h
+        typed/Apps.h
         typed/Client.h
         typed/CodexErrorInfo.h
         typed/Commands.h
         typed/Configuration.h
         typed/Conversation.h
         typed/Events.h
+        typed/ExternalAgents.h
+        typed/Feedback.h
         typed/Filesystem.h
+        typed/Hooks.h
         typed/Items.h
+        typed/Marketplace.h
         typed/Models.h
         typed/PermissionProfiles.h
+        typed/Plugins.h
         typed/Reviews.h
         typed/Results.h
         typed/ServerRequests.h
+        typed/Skills.h
         typed/Threads.h
         typed/Turns.h
         typed/Types.h

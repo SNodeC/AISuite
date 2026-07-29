@@ -97,6 +97,13 @@ python3 tools/codex/app_server_surface.py conversation-descriptors \
   --output src/ai/openai/codex/detail/ConversationUnionCodecDescriptors.inc \
   --check
 
+python3 tools/codex/app_server_surface.py integrations-and-long-tail-union-descriptors \
+  --manifest "$SURFACE" \
+  --schema-root "$SCHEMA_ROOT" \
+  --evidence-root "$EVIDENCE_ROOT" \
+  --output src/ai/openai/codex/detail/IntegrationsAndLongTailUnionCodecDescriptors.inc \
+  --check
+
 python3 tools/codex/app_server_surface.py item-descriptors \
   --manifest "$SURFACE" \
   --schema-root "$SCHEMA_ROOT" \

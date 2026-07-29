@@ -10,7 +10,7 @@ Include `ai/openai/codex/typed/Client.h` and use the facades returned by an
 existing `AppServerClient`:
 
 ```cpp
-client.typed().threads().start({.cwd = "/tmp/project"}, handler);
+client.typed().threads().start({.cwd = "/synthetic/project"}, handler);
 client.typed().threads().resume(threadId, {}, handler);
 client.typed().threads().list({}, handler);
 client.typed().threads().read(threadId, handler);
@@ -23,16 +23,25 @@ client.typed().commands().exec(commandParams, commandHandler);
 client.typed().filesystem().readFile(readParams, readHandler);
 client.typed().permissionProfiles().list({}, profilesHandler);
 client.typed().reviews().start(reviewParams, reviewHandler);
+client.typed().apps().list(appsParams, appsHandler);
+client.typed().externalAgents().detect(detectParams, detectHandler);
+client.typed().feedback().upload(feedbackParams, feedbackHandler);
+client.typed().hooks().list(hooksParams, hooksHandler);
+client.typed().marketplace().add(marketplaceParams, marketplaceHandler);
+client.typed().plugins().list(pluginParams, pluginHandler);
+client.typed().skills().list(skillParams, skillHandler);
 ```
 
 `typed::Client` is the installed, PIMPL-backed grouped facade. Its current
-accessors return the eleven `Accounts`, `Models`, `Configuration`, `Commands`,
-`Filesystem`, `PermissionProfiles`, `Reviews`, `Threads`, `Turns`, `Events`,
-and `Requests` objects owned by the `AppServerClient`; they do not allocate a
-second protocol engine. The old direct conversation accessors remain
-source-compatible deprecated forwarders, for example `client.threads()`
-forwards to `client.typed().threads()`. There are deliberately no direct
-`AppServerClient` forwarders for the newer grouped domain facades.
+accessors return 18 objects owned by the `AppServerClient`: `Accounts`,
+`Apps`, `Commands`, `Configuration`, `Events`, `ExternalAgents`, `Feedback`,
+`Filesystem`, `Hooks`, `Marketplace`, `Models`, `PermissionProfiles`,
+`Plugins`, `Requests`, `Reviews`, `Skills`, `Threads`, and `Turns`. They do not
+allocate a second protocol engine. The old direct conversation accessors
+remain source-compatible deprecated forwarders, for example
+`client.threads()` forwards to `client.typed().threads()`. There are
+deliberately no direct `AppServerClient` forwarders for the newer grouped
+domain facades.
 
 Unsupported or newly introduced operations remain available through
 `client.raw()`.
@@ -60,13 +69,16 @@ mechanically derived completeness evidence. Registration alone still does not
 claim a typed implementation or schema completeness.
 
 The grouped API includes the conversation operations completed in A1.0 and
-A1.1, accounts/models/configuration from A1.2, and the stable
-commands/filesystem/reviews/approvals slice completed in A1.3. Remaining
-stable operations stay raw- or opaque-preserved according to their fixed A1.4
-ownership. The
+A1.1, accounts/models/configuration from A1.2, the stable
+commands/filesystem/reviews/approvals slice completed in A1.3, and the 33
+A14-UserIntegrations identities. Remaining stable operations stay raw- or
+opaque-preserved according to their fixed A1.4 ownership. The
 [A1.3 commands, filesystem, reviews, and approvals report](a1-3-commands-filesystem-reviews-approvals.md)
 records the exact 68-identity denominator, transitive type closure,
-compatibility boundary, and offline evidence.
+compatibility boundary, and offline evidence. The
+[A1.4 user-facing integrations report](a1-4-user-facing-integrations.md)
+records the exact PR-A denominator, stable schema closure, public variants, and
+package boundary.
 
 The 18 A1.2 client operations are local typed-library APIs:
 
@@ -123,6 +135,47 @@ These methods add no command runner, filesystem implementation, fuzzy matcher,
 approval policy, guardian service, review reducer, backend command, canonical
 backend state, or frontend operation. The one-off `command/exec` lifecycle is
 distinct from A1.1 thread-item command execution.
+
+The 23 A14-UserIntegrations requests are typed-library operations:
+
+| Facade | Stable wire method | Public method | Result |
+| --- | --- | --- | --- |
+| `apps()` | `app/list` | `list` | `AppsListResponse` |
+| `externalAgents()` | `externalAgentConfig/detect` | `detect` | `ExternalAgentConfigDetectResponse` |
+| `externalAgents()` | `externalAgentConfig/import` | `importConfiguration` | `ExternalAgentConfigImportResponse` |
+| `externalAgents()` | `externalAgentConfig/import/readHistories` | `readImportHistories` | `ExternalAgentConfigImportHistoriesReadResponse` |
+| `feedback()` | `feedback/upload` | `upload` | `FeedbackUploadResponse` |
+| `hooks()` | `hooks/list` | `list` | `HooksListResponse` |
+| `marketplace()` | `marketplace/add` | `add` | `MarketplaceAddResponse` |
+| `marketplace()` | `marketplace/remove` | `remove` | `MarketplaceRemoveResponse` |
+| `marketplace()` | `marketplace/upgrade` | `upgrade` | `MarketplaceUpgradeResponse` |
+| `plugins()` | `plugin/install` | `install` | `PluginInstallResponse` |
+| `plugins()` | `plugin/installed` | `installed` | `PluginInstalledResponse` |
+| `plugins()` | `plugin/list` | `list` | `PluginListResponse` |
+| `plugins()` | `plugin/read` | `read` | `PluginReadResponse` |
+| `plugins()` | `plugin/share/checkout` | `shareCheckout` | `PluginShareCheckoutResponse` |
+| `plugins()` | `plugin/share/delete` | `shareDelete` | `Unit` |
+| `plugins()` | `plugin/share/list` | `shareList` | `PluginShareListResponse` |
+| `plugins()` | `plugin/share/save` | `shareSave` | `PluginShareSaveResponse` |
+| `plugins()` | `plugin/share/updateTargets` | `shareUpdateTargets` | `PluginShareUpdateTargetsResponse` |
+| `plugins()` | `plugin/skill/read` | `readSkill` | `PluginSkillReadResponse` |
+| `plugins()` | `plugin/uninstall` | `uninstall` | `Unit` |
+| `skills()` | `skills/config/write` | `writeConfig` | `SkillsConfigWriteResponse` |
+| `skills()` | `skills/extraRoots/set` | `setExtraRoots` | `Unit` |
+| `skills()` | `skills/list` | `list` | `SkillsListResponse` |
+
+All seven facades inherit submission, cancellation, disconnect, generation,
+and exactly-once completion behavior from the same `RawProtocol`. AISuite does
+not perform app discovery, external-agent import, feedback upload, hook
+execution, marketplace changes, plugin installation or sharing, or skill
+scanning locally.
+
+`PluginSource` has the ABI-relevant known-alternative order `git`, `local`,
+`npm`, `remote`, followed by raw-preserving `UnknownPluginSource`. Unknown
+future discriminators remain nonfatal with a forward-compatibility diagnostic;
+malformed payloads for a known discriminator remain separately classified and
+raw-preserved. `npm` is protocol data only: AISuite neither depends on nor
+executes Node.js or npm.
 
 Current outgoing turn input variants are text, remote image, local image,
 skill, and mention. The current stable schema has no generic file-input
@@ -186,7 +239,10 @@ methods currently include:
 - turn error notifications;
 - one-off command output;
 - filesystem changes and fuzzy-search session updates; and
-- guardian warnings and automatic approval-review lifecycle notifications.
+- guardian warnings and automatic approval-review lifecycle notifications;
+- app-list updates and external-agent import completion/progress;
+- hook completion/start lifecycle; and
+- skill-catalog changes.
 
 A failed `turn/completed` payload becomes `TurnFailed`; there is no separate
 `turn/failed` wire method in the current schema.
