@@ -69,15 +69,55 @@ The applications remain `codex-backend` and `codex-backend-client`. No separate
 native `codex-ui` source existed in the extraction baseline, so none was
 fabricated or renamed during extraction.
 
+## Codex policy closure
+
+The CMake-owned `tests/policy/` hierarchy implements the three transferred
+Codex source-policy responsibilities with four new functional tests:
+`CodexPublicHeaderPolicyTest`,
+`CodexPublicHeaderSelfContainmentTest`,
+`CodexLoggingApiSurfacePolicyTest`, and
+`CodexSemanticLoggerPolicyTest`. The unchanged, pre-existing
+`CodexSyntheticSecretLeakGuardTest` is the fifth functional policy test; only
+its CTest registration owner moves from the root test file to
+`tests/policy/security/CMakeLists.txt`.
+
+The configured CTest evidence, rather than CMake-source grep alone, proves that
+all five tests are enabled, registered exactly once, have finite timeouts, and
+match the `ai|openai|codex|extraction` focused filter used by both CI jobs. It
+also proves that the existing `add_subdirectory(component/codex)` is preserved
+alongside exactly one new `add_subdirectory(policy)`, all 131 pre-existing
+Codex component tests remain unchanged, and all 140 pre-existing tests remain
+present.
+
+The public-header checks derive the exact `27 / 7 / 7` installed inventory
+mechanically and compile all 41 headers independently from an installed prefix.
+The logging API check tokenizes the two canonical backend state/event headers.
+The semantic-logger check pins and classifies exactly four accepted
+`lifecycleLog` calls in `Reducer.cpp`. The machine-readable ownership evidence
+binds those checks to the pinned SNode.C source blobs, manifest classifications,
+mutation diagnostics, focused CI, and both package boundaries. See
+[`codex-policy-ownership.md`](codex-policy-ownership.md).
+
 ## Deterministic checks
 
 The final tree is required to pass:
 
 - extraction manifest generation and verification;
+- Codex policy ownership generation and verification against canonical
+  baseline and final CTest models;
+- all four new functional Codex policy tests and the reorganized pre-existing
+  security policy test;
+- isolated planted failures for header, logging, semantic, registration,
+  component-preservation, CI-filter, authority, manifest, and package
+  invariants, each asserting its exact diagnostic code;
 - A1.1, A1.2, and A1.3 audits and closure checks;
 - the A1.4 partition and implementation-plan audit with all mutation guards;
 - the A14-UserIntegrations audit and closure guards, including exact
   `23 / 6 / 0 / 4`, `20 / 3`, and `52 / 118 / 411` counts;
+- bounded A14-UserIntegrations policy-history validation for the exact Commit-1
+  construction state, unmerged two-commit branch, normal PR #3 merge, and
+  later descendants, plus malformed-topology and in-range production-change
+  mutations with exact diagnostics;
 - exact predecessor `51 / 53` and final `57 / 59` notification variant
   sizes and index mappings;
 - schema, generated-artifact, fixture, and operation-contract guards;
@@ -91,11 +131,21 @@ The final tree is required to pass:
 - synthetic-secret source and package scans;
 - genuine installed-consumer validation against independently installed
   SNode.C and AISuite prefixes;
-- source-package package-safe extraction/ABI/closure checks, with no `.git`
-  metadata or enclosing-checkout discovery, and binary-package
-  installed-header validation;
+- source-package package-safe extraction/ABI/closure and Codex-policy ownership
+  checks, with no `.git` metadata, network, SNode.C checkout, or
+  enclosing-checkout discovery, and binary-package installed-header plus
+  policy-internal exclusion validation;
+- exact preservation of the synthetic-secret guard's reviewed
+  `WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/tests"` expression, normalized
+  `${BUILD_DIR}/tests` configured evidence, and ownership rationale in normal
+  and package-safe checks;
 - the complete extracted Codex component test suite in GitHub Actions.
 
 Local validation uses focused, deterministic checks. The normal exact-head
 GitHub Actions run performs the complete build and registered test suite against
 an independently built and installed copy of the pinned SNode.C source.
+
+The ownership record is generated before the extraction manifest, and the
+complete applicable sequence is run twice. The second pass must be
+byte-identical. Policy ownership completion changes no protocol authority,
+production ABI, registry row, fixture, variant index, Codex pin, or SOVERSION.

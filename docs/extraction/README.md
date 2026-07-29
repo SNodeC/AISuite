@@ -30,8 +30,35 @@ The filtered history contains only:
 - the two Codex package tests
 - `tests/policy/security/CodexSyntheticSecretLeakGuardTest.py`
 
-Standalone project, package, CI, and extraction-validation files are introduced
-as new AISuite commits after the preserved history.
+Standalone project, package, CI, extraction-validation, and transferred Codex
+policy-owner files are introduced as new AISuite commits after the preserved
+history. The policy owners are not added to the immutable selected paths.
+
+## Codex policy ownership
+
+Three Codex-specific responsibilities that lived outside the original selected
+history are now owned and enforced by AISuite:
+
+- all installed public Codex header inventory, guard, and self-containment
+  policy;
+- backend logging API surface policy;
+- parameterless Codex semantic-logger classification policy.
+
+The new CMake-owned `tests/policy/` hierarchy contains four new functional
+tests for those three responsibilities. It also owns the unchanged registration
+of the pre-existing
+`tests/policy/security/CodexSyntheticSecretLeakGuardTest.py`, which is not a
+fourth transferred responsibility. The security test remains an imported file;
+the new policy owners, registration files, ownership verifier, mutations, and
+documentation are standalone files.
+
+The existing `tests/component/codex/` hierarchy remains registered exactly
+once. Its 131-test baseline is preserved at 131 enabled tests with no command,
+label, timeout, or dependency drift, and no other pre-existing CTest is
+removed. See the
+[Codex policy ownership report](codex-policy-ownership.md) for exact source
+blobs, owners, functional tests, labels, accepted logger entries, package
+boundaries, and cutover-readiness evidence.
 
 ## Temporary duplication
 
@@ -84,4 +111,5 @@ NotApplicable:   48
 
 Native A1.4 is `33 / 1 / 22`; it remains in progress. PR B, PR C, inherited
 A1.0 Partials, and InventoryOnly identities remain unchanged, and Codex
-SOVERSION remains 1.
+SOVERSION remains 1. AISuite Codex policy ownership is complete. SNode.C Codex
+removal remains a separate reviewed cutover.

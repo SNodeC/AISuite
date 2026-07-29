@@ -517,6 +517,31 @@
       "command": [
         "{python}",
         "-B",
+        "tools/extraction/verify_codex_policy_ownership.py",
+        "generate",
+        "--repo-root",
+        ".",
+        "--baseline-ctest",
+        "{policy-baseline-ctest}",
+        "--final-ctest",
+        "{policy-final-ctest}",
+        "--snodec-root",
+        "{policy-snodec-root}",
+        "--output",
+        "docs/extraction/codex-policy-ownership.json"
+      ],
+      "generator": "tools/extraction/verify_codex_policy_ownership.py",
+      "name": "codex-policy-ownership",
+      "outputs": [
+        "docs/extraction/codex-policy-ownership.json",
+        "docs/extraction/codex-policy-baseline-ctest.json",
+        "docs/extraction/codex-policy-final-ctest.json"
+      ]
+    },
+    {
+      "command": [
+        "{python}",
+        "-B",
         "tools/extraction/verify_extraction.py",
         "generate",
         "--repo-root",
@@ -532,7 +557,7 @@
     }
   ],
   "hash_domain": {
-    "description": "Complete inherited and PR-A generated corpus, including all fixtures, evidence, descriptor/registry tables, generated coverage/security documents, the PR-A closure report, and the extraction manifest.",
+    "description": "Complete inherited and PR-A generated corpus, including all fixtures, evidence, descriptor/registry tables, generated coverage/security documents, Codex policy ownership and configured CTest evidence, the PR-A closure report, and the extraction manifest.",
     "exclusion_reason": "The three proof metadata documents are outside the target corpus they describe. The extraction manifest records only their exact paths. The specialized closure guard validates their canonical bytes and requires the complete live target corpus, including the closure report and extraction manifest, to equal both recorded passes.",
     "self_reference_exclusions": [
       "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pre.json",
@@ -549,6 +574,7 @@
       "docs/ai/openai/codex/a1-4-user-facing-integrations.md",
       "docs/ai/openai/codex/typed-api.md",
       "docs/extraction/README.md",
+      "docs/extraction/codex-policy-ownership.md",
       "docs/extraction/test-integrity.md",
       "docs/extraction/validation.md",
       "tests/AISuiteBinaryPackageTest.cmake",
@@ -556,7 +582,13 @@
       "tests/AISuiteSourcePackageTest.cmake",
       "tests/CMakeLists.txt",
       "tests/component/codex/CMakeLists.txt",
-      "tests/installed/codex/CMakeLists.txt"
+      "tests/installed/codex/CMakeLists.txt",
+      "tests/policy/CMakeLists.txt",
+      "tests/policy/codex/CMakeLists.txt",
+      "tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake",
+      "tests/policy/codex/CodexSemanticLoggerAuthority.tsv",
+      "tests/policy/codex/CodexSemanticLoggerClassifications.tsv",
+      "tests/policy/security/CMakeLists.txt"
     ],
     "generator_and_evidence_sources": [
       "tools/codex/app_server_a1_1.py",
@@ -570,6 +602,7 @@
       "tools/codex/app_server_a1_4_user_integrations_closure.py",
       "tools/codex/app_server_fixtures.py",
       "tools/codex/app_server_surface.py",
+      "tools/extraction/verify_codex_policy_ownership.py",
       "tools/extraction/verify_extraction.py"
     ],
     "production_sources": [
@@ -637,7 +670,19 @@
       "tests/installed/codex/CMakeLists.txt",
       "tests/installed/codex/CodexA14UserIntegrationsAbiLayoutProbe.cpp",
       "tests/installed/codex/CodexTypedConsumer.cpp",
-      "tests/installed/codex/SNodeInstalledCoreConsumer.cpp"
+      "tests/installed/codex/SNodeInstalledCoreConsumer.cpp",
+      "tests/policy/CMakeLists.txt",
+      "tests/policy/codex/CMakeLists.txt",
+      "tests/policy/codex/CodexLoggingApiSurfacePolicyTest.cpp",
+      "tests/policy/codex/CodexPolicyMutationTest.py",
+      "tests/policy/codex/CodexPublicHeaderPolicyTest.cpp",
+      "tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake",
+      "tests/policy/codex/CodexSemanticLoggerAuthority.tsv",
+      "tests/policy/codex/CodexSemanticLoggerClassifications.tsv",
+      "tests/policy/codex/CodexSemanticLoggerPolicyTest.cpp",
+      "tests/policy/security/CMakeLists.txt",
+      "tests/policy/support/AISuiteSourcePolicyTestRoot.h",
+      "tests/policy/support/CxxSourceScanner.h"
     ]
   },
   "semantic_authorities": {
@@ -757,8 +802,8 @@
     "surface_manifest_sha256": "3b71999f0c44e337e0363f5ea8940bd5c4b01bc9cc09e133eeb03203dd8bea4e"
   },
   "snapshot": {
-    "byte_count": 56216086,
-    "file_count": 7883,
+    "byte_count": 56637218,
+    "file_count": 7886,
     "files": [
       {
         "bytes": 6067,
@@ -771,9 +816,24 @@
         "sha256": "a63dded390219beae8ac4c00db019be176da01010ca0f30865cffd4ebad0abc5"
       },
       {
-        "bytes": 3487256,
+        "bytes": 187015,
+        "path": "docs/extraction/codex-policy-baseline-ctest.json",
+        "sha256": "15b9e64c9e446b1dfc17894c488ab363891f1b8ceceb0a7adc97c58bbaedd7f8"
+      },
+      {
+        "bytes": 196784,
+        "path": "docs/extraction/codex-policy-final-ctest.json",
+        "sha256": "8b964bec33044cd823f8ad0985035a1d19486647dcb9d2595d581195a189dc41"
+      },
+      {
+        "bytes": 32395,
+        "path": "docs/extraction/codex-policy-ownership.json",
+        "sha256": "13d104f575f7abfd5842930756c5d93eeb0ed6031547447debafc808a3637651"
+      },
+      {
+        "bytes": 3489976,
         "path": "docs/extraction/source-manifest.json",
-        "sha256": "aada13cbcecfc901c33edee1a943e3f53ad789a6c77029966c450c0b4032b4e7"
+        "sha256": "bf8efa5e5fac9a67935b30b439731123a1b96808e003f5463c4b13c2f0056bcd"
       },
       {
         "bytes": 6241,
@@ -928,7 +988,7 @@
       {
         "bytes": 8614,
         "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
-        "sha256": "cd94d823f45b35f49fc19236940e0188040bb95b18914788148a1ba60ba4bf37"
+        "sha256": "2e2f4166065076798512cc1dbd4aab6a4032c391d8f080b806993691e15c43a1"
       },
       {
         "bytes": 330970,
@@ -936,9 +996,9 @@
         "sha256": "5dfe4de27739184b0596d7f4318d14aef978cd97932f37047c0cdad4a37fe403"
       },
       {
-        "bytes": 76592,
+        "bytes": 78810,
         "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-closure-report.json",
-        "sha256": "d7ee14dba1a1d53efe79d8599dbfa51d22aa8360d2edf16626dbd7d64fb895f2"
+        "sha256": "12e8204b2bfe68d12075f538418cdf5c3ca65ccfeee82bea59f61f4193169860"
       },
       {
         "bytes": 10930,
@@ -40177,7 +40237,7 @@
       }
     ],
     "fixture_json_file_count": 7834,
-    "manifest_sha256": "b32899b672381b4cd720cfc950f50e73f072c55cf717bd58ff63342eef5a3b11"
+    "manifest_sha256": "7fe60e08fdb9f4822668a572b85208184e3a58394edf246dbacc509a9a060f24"
   },
   "snapshot_provenance": {
     "capture_boundary": "immediately before the first generator in the finalized successful two-pass sequence",

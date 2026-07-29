@@ -1,8 +1,9 @@
 # AISuite extraction test-integrity report
 
-The extraction retains the complete selected Codex test history and adds only
-the standalone project harness, package tests, installed-consumer wrapper,
-extraction manifest guard, and CI workflow.
+The extraction retains the complete selected Codex test history. The
+post-extraction repository adds the standalone project harness, package tests,
+installed-consumer wrapper, extraction manifest guard, CI workflow, and the
+focused Codex policy owners needed to close the later SNode.C cutover boundary.
 
 No Codex production `.cpp` or public/private `.h` file is changed by the
 repository move. Build files are adapted to the AISuite target and installation
@@ -21,6 +22,33 @@ The following predecessor checks remain registered:
   descriptor checks;
 - all compiled wire, codec, lifecycle, backend, and frontend component tests.
 
+The root retains exactly one `add_subdirectory(component/codex)` and adds
+exactly one separate `add_subdirectory(policy)`. Canonical configured CTest
+models establish a 131-test Codex component baseline and final inventory; every
+component test remains enabled and preserves its command, labels, timeout, and
+dependencies. `CodexAppServerGeneratedArtifactsGuardTest` remains registered
+for the synthetic-secret dependency chain. Every one of the 140 pre-existing
+CTest names remains present.
+
+The policy hierarchy owns exactly five functional Codex tests: four new tests
+for three transferred SNode.C responsibilities, plus the pre-existing
+`CodexSyntheticSecretLeakGuardTest`. The Python security file is byte-identical
+and remains in the extraction manifest's imported bucket. Its command,
+arguments, labels, environment, ordered dependency list, serial property, and
+timeout remain exact; only its registration moves from `tests/CMakeLists.txt`
+to `tests/policy/security/CMakeLists.txt`. The new registration explicitly
+retains `WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/tests"`, normalized in the
+configured models as `${BUILD_DIR}/tests`, so the hierarchy move preserves the
+test's former implicit execution directory. The machine-readable ownership
+authority records both expressions and the reviewed preservation rationale.
+
+The four new tests enforce all 41 installed public headers (`27 / 7 / 7`),
+standalone installed-prefix compilation, the four forbidden logging-lifecycle
+identifiers, and exactly four reviewed Codex semantic-logger classifications.
+All five functional policy tests match the focused CI expression in both
+compiler jobs. Their exact ownership and source provenance are recorded in
+[`codex-policy-ownership.md`](codex-policy-ownership.md).
+
 The A14-UserIntegrations successor adds an audit and closure guard for exactly
 33 identities: 23 requests, six notifications, and four `PluginSource`
 alternatives. Its planted-failure harness checks exact diagnostic codes rather
@@ -29,6 +57,16 @@ result associations, schema closure, staged promotion arithmetic, descriptors,
 fixtures, public/install ownership, package boundaries, predecessor and final
 variant indices, SOVERSION, predecessor evidence, and second-pass
 nondeterminism.
+
+The A1.4 closure history check now bounds the policy proof at the structurally
+validated Commit 2. Deterministic topology tests cover the exact Commit-1
+construction state, the exact unmerged two-commit branch, a normal PR #3 merge,
+and later descendants, including descendants that change unrelated production
+files or the protocol registry. Those later changes are not attributed to PR
+#3. Separate invalid-topology cases reject wrong subjects, parents, parent
+order or count, merge trees, duplicate candidates, inserted policy commits,
+and production or registry changes inside the bounded policy range with their
+exact diagnostics.
 
 Every inherited generator is rerun in dependency order after the production
 and test changes. Changed predecessor evidence is classified as derived
@@ -69,11 +107,29 @@ containing the pinned SNode.C commit.
 The source package must contain no `.git` metadata and must fail
 `git rev-parse`, with `GIT_CEILING_DIRECTORIES` preventing discovery of the
 enclosing checkout. It retains all three full-corpus generation-proof JSON
-files and runs only package-safe extraction, API/ABI, and PR-A closure checks.
-The binary package must contain all seven facade headers and no private
-evidence or implementation inputs.
+files and runs package-safe extraction, API/ABI, PR-A closure, and Codex-policy
+ownership checks. The policy check uses recorded pinned SNode.C authority and
+requires no network, external checkout, package registry, build directory, or
+parent source tree. The binary package must contain all seven facade headers
+and no private evidence, implementation inputs, policy tests or support,
+mutation fixtures, ownership checker, canonical test models, or ownership
+JSON.
+
+The policy mutation harness copies valid authorities into isolated temporary
+trees/models, changes exactly one invariant, asserts the exact named diagnostic,
+discards the mutation, and proves the unmodified authority still passes.
+Coverage includes public-header guards and inventory, logging API tokens,
+semantic classifications, test registration and labels, both CI filters,
+security registration ownership and properties (including the configured
+working directory and a misleading CMake property-value decoy), all three
+reviewed working-directory evidence fields, component and global CTest
+preservation, source blobs, manifest buckets, and source/binary package
+boundaries.
 
 Credential-bearing live App Server tests remain opt-in and are not mandatory
 for offline extraction correctness. No test is deleted, unconditionally
 skipped, relabeled to evade CI, or weakened from exact comparisons to substring
 checks.
+
+AISuite Codex policy ownership is complete. SNode.C Codex removal remains a
+separate reviewed cutover; no production or protocol behavior changes here.

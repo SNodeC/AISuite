@@ -8,6 +8,17 @@ This repository was extracted additively from `SNodeC/snode.c` at commit
 `d18b231a1d2ec2235fd6f204786b0a761cc24ff5`. The original SNode.C Codex
 implementation remains untouched until a later, independently reviewed cutover.
 
+AISuite now owns the three remaining Codex-specific source-policy
+responsibilities: installed public-header policy, backend logging API surface
+policy, and parameterless semantic-logger classification policy. Four new
+functional tests implement those responsibilities, while the unchanged
+pre-existing synthetic-secret guard remains a separate fifth functional policy
+test. See the
+[Codex policy ownership report](docs/extraction/codex-policy-ownership.md) for
+the pinned SNode.C provenance, 41-header inventory, exact logger rules,
+component-suite preservation, focused-CI proof, mutations, and package
+boundaries.
+
 ## Build
 
 AISuite consumes an installed SNode.C package; it never includes a sibling
@@ -57,3 +68,7 @@ NotImplemented. PR B, PR C, the inherited A1.0 Partials, and InventoryOnly
 identities remain untouched. See the
 [user-facing integrations report](docs/ai/openai/codex/a1-4-user-facing-integrations.md)
 for the exact scope and verification boundary.
+
+AISuite Codex policy ownership is complete. The actual SNode.C Codex removal
+remains a separate reviewed cutover; this policy transfer does not change
+production or protocol behavior.
