@@ -375,10 +375,10 @@ namespace {
             }
         }
 
-        result.expectTrue(complete == 313 && partial == 4 && notImplemented == 22 && notApplicable == 48,
-                          "final PR-A global registry arithmetic is exactly 313/4/22/48");
-        result.expectTrue(nativeComplete == 33 && nativePartial == 1 && nativeNotImplemented == 22,
-                          "final PR-A native A1.4 registry arithmetic is exactly 33/1/22");
+        result.expectTrue(complete == 319 && partial == 4 && notImplemented == 16 && notApplicable == 48,
+                          "A1.4b Commit 3 global registry arithmetic is exactly 319/4/16/48");
+        result.expectTrue(nativeComplete == 39 && nativePartial == 1 && nativeNotImplemented == 16,
+                          "A1.4b Commit 3 native A1.4 registry arithmetic is exactly 39/1/16");
 
         const std::array<std::string_view, 8> expectedCompleted{{
             "app/list",
@@ -511,8 +511,8 @@ int main() {
     using FeedbackAccessor = typed::Feedback& (typed::Client::*) () noexcept;
     using ConstFeedbackAccessor = const typed::Feedback& (typed::Client::*) () const noexcept;
 
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 57);
-    static_assert(std::variant_size_v<typed::Event> == 59);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 59);
+    static_assert(std::variant_size_v<typed::Event> == 61);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
                                  typed::ExternalAgentConfigImportCompletedNotification>);

@@ -15,6 +15,7 @@ set(AI_OPENAI_CODEX_CPP
     detail/HookCodec.cpp
     detail/ItemDecoder.cpp
     detail/MarketplaceCodec.cpp
+    detail/McpCodec.cpp
     detail/ModelCodec.cpp
     detail/PluginCodec.cpp
     detail/ProtocolCodec.cpp
@@ -52,6 +53,7 @@ set(AI_OPENAI_CODEX_PUBLIC_H
     typed/Hooks.h
     typed/Items.h
     typed/Marketplace.h
+    typed/Mcp.h
     typed/Models.h
     typed/PermissionProfiles.h
     typed/Plugins.h
@@ -118,6 +120,7 @@ install(
         typed/Hooks.h
         typed/Items.h
         typed/Marketplace.h
+        typed/Mcp.h
         typed/Models.h
         typed/PermissionProfiles.h
         typed/Plugins.h

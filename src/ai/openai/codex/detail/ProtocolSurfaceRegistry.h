@@ -146,6 +146,10 @@ namespace ai::openai::codex::detail {
         PluginList,
         PluginRead,
         PluginShareList,
+        McpServerOauthLogin,
+        McpResourceRead,
+        McpServerToolCall,
+        McpServerStatusList,
         Count
     };
 
@@ -210,6 +214,8 @@ namespace ai::openai::codex::detail {
         HookCompleted,
         HookStarted,
         SkillsChanged,
+        McpServerOauthLoginCompleted,
+        McpServerStartupStatusUpdated,
         Count
     };
 
@@ -486,6 +492,10 @@ namespace ai::openai::codex::detail {
         PluginListResponse,
         PluginReadResponse,
         PluginShareListResponse,
+        McpServerOauthLoginResponse,
+        McpResourceReadResponse,
+        McpServerToolCallResponse,
+        ListMcpServerStatusResponse,
         Count
     };
 

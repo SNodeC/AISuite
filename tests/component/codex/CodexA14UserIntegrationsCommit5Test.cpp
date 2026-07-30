@@ -497,10 +497,10 @@ namespace {
                 nativeNotImplemented += entry.typedSchemaStatus == detail::TypedSchemaStatus::NotImplemented ? 1U : 0U;
             }
         }
-        result.expectTrue(complete == 313 && partial == 4 && notImplemented == 22 && notApplicable == 48,
-                          "Commit-5 global registry arithmetic is exactly 313/4/22/48");
-        result.expectTrue(nativeComplete == 33 && nativePartial == 1 && nativeNotImplemented == 22,
-                          "Commit-5 native A1.4 registry arithmetic is exactly 33/1/22");
+        result.expectTrue(complete == 319 && partial == 4 && notImplemented == 16 && notApplicable == 48,
+                          "A1.4b Commit 3 global registry arithmetic is exactly 319/4/16/48");
+        result.expectTrue(nativeComplete == 39 && nativePartial == 1 && nativeNotImplemented == 16,
+                          "A1.4b Commit 3 native A1.4 registry arithmetic is exactly 39/1/16");
 
         for (const ExpectedOperation& expected : Commit5Operations) {
             const detail::ProtocolSurfaceEntry* row =

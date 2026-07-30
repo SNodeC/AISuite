@@ -94,8 +94,8 @@ alongside exactly one new `add_subdirectory(policy)`, all 131 pre-existing
 Codex component tests remain unchanged, and all 140 pre-existing tests remain
 present.
 
-The public-header checks derive the exact `27 / 7 / 7` installed inventory
-mechanically and compile all 41 headers independently from an installed prefix.
+The public-header checks derive the exact `28 / 7 / 7` installed inventory
+mechanically and compile all 42 headers independently from an installed prefix.
 The logging API check tokenizes the two canonical backend state/event headers.
 The semantic-logger check pins and classifies exactly four accepted
 `lifecycleLog` calls in `Reducer.cpp`. The machine-readable ownership evidence

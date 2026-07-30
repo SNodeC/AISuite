@@ -847,6 +847,12 @@ namespace ai::openai::codex::backend {
                 },
                 [](const typed::SkillsChangedNotification& value) -> std::vector<BackendEvent> {
                     return preserveTypedNotification(value, ServerNotificationTarget::SkillsChanged);
+                },
+                [](const typed::McpServerOauthLoginCompletedNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::McpServerStatusUpdatedNotification&) -> std::vector<BackendEvent> {
+                    return {};
                 }},
             event);
     }

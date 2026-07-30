@@ -18,6 +18,7 @@
 #include "ai/openai/codex/typed/Filesystem.h"     // IWYU pragma: export
 #include "ai/openai/codex/typed/Hooks.h"          // IWYU pragma: export
 #include "ai/openai/codex/typed/Marketplace.h"    // IWYU pragma: export
+#include "ai/openai/codex/typed/Mcp.h"            // IWYU pragma: export
 #include "ai/openai/codex/typed/Models.h"         // IWYU pragma: export
 #include "ai/openai/codex/typed/PermissionProfiles.h" // IWYU pragma: export
 #include "ai/openai/codex/typed/Plugins.h"            // IWYU pragma: export
@@ -72,6 +73,9 @@ namespace ai::openai::codex::typed {
         Marketplace& marketplace() noexcept;
         const Marketplace& marketplace() const noexcept;
 
+        Mcp& mcp() noexcept;
+        const Mcp& mcp() const noexcept;
+
         Models& models() noexcept;
         const Models& models() const noexcept;
 
@@ -111,6 +115,7 @@ namespace ai::openai::codex::typed {
                std::unique_ptr<Feedback> feedback,
                std::unique_ptr<Hooks> hooks,
                std::unique_ptr<Marketplace> marketplace,
+               std::unique_ptr<Mcp> mcp,
                std::unique_ptr<Models> models,
                std::unique_ptr<PermissionProfiles> permissionProfiles,
                std::unique_ptr<Plugins> plugins,

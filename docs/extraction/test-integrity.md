@@ -42,7 +42,7 @@ configured models as `${BUILD_DIR}/tests`, so the hierarchy move preserves the
 test's former implicit execution directory. The machine-readable ownership
 authority records both expressions and the reviewed preservation rationale.
 
-The four new tests enforce all 41 installed public headers (`27 / 7 / 7`),
+The four new tests enforce all 42 installed public headers (`28 / 7 / 7`),
 standalone installed-prefix compilation, the four forbidden logging-lifecycle
 identifiers, and exactly four reviewed Codex semantic-logger classifications.
 All five functional policy tests match the focused CI expression in both

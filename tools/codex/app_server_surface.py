@@ -369,6 +369,50 @@ A14_USER_INTEGRATIONS_IMPLEMENTED = (
     | A14_USER_INTEGRATIONS_COMMIT_4
     | A14_USER_INTEGRATIONS_COMMIT_5
 )
+# A1.4b Commit 3 exact-key production ownership. These four asynchronous
+# client operations and two server notifications advance together with their
+# complete public types, codecs, descriptors, facade/event exposure, fixtures,
+# and focused wire tests.
+A14_MCP_REVERSE_COMMIT_3 = frozenset(
+    {
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServer/oauth/login",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServer/resource/read",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServer/tool/call",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServerStatus/list",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "mcpServer/oauthLogin/completed",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "mcpServer/startupStatus/updated",
+        ),
+    }
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -1960,6 +2004,30 @@ RUNTIME_TARGETS = {
         "client_request",
         "ClientRequest",
         "method",
+        "mcpServer/oauth/login",
+    ): "ClientRequestTarget::McpServerOauthLogin",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/resource/read",
+    ): "ClientRequestTarget::McpResourceRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/tool/call",
+    ): "ClientRequestTarget::McpServerToolCall",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServerStatus/list",
+    ): "ClientRequestTarget::McpServerStatusList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
         "model/list",
     ): "ClientRequestTarget::ModelList",
     (
@@ -2274,6 +2342,18 @@ RUNTIME_TARGETS = {
         "method",
         "skills/changed",
     ): "ServerNotificationTarget::SkillsChanged",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "mcpServer/oauthLogin/completed",
+    ): "ServerNotificationTarget::McpServerOauthLoginCompleted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "mcpServer/startupStatus/updated",
+    ): "ServerNotificationTarget::McpServerStartupStatusUpdated",
     (
         "server_notification",
         "ServerNotification",
@@ -2878,6 +2958,12 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "item/reasoning/summaryTextDelta": "typed::ReasoningSummaryTextDeltaNotification",
     "item/reasoning/textDelta": "typed::ReasoningTextDeltaNotification",
     "item/started": "typed::ItemStartedNotification",
+    "mcpServer/oauthLogin/completed": (
+        "typed::McpServerOauthLoginCompletedNotification"
+    ),
+    "mcpServer/startupStatus/updated": (
+        "typed::McpServerStatusUpdatedNotification"
+    ),
     "skills/changed": "typed::SkillsChangedNotification",
     "model/rerouted": "typed::ModelRerouted",
     "model/safetyBuffering/updated": "typed::ModelSafetyBufferingUpdatedNotification",
@@ -2953,7 +3039,7 @@ SERVER_NOTIFICATION_CODECS = {
     if key[0] == "server_notification"
 }
 if (
-    len(SERVER_NOTIFICATION_CODECS) != 58
+    len(SERVER_NOTIFICATION_CODECS) != 60
     or set(SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD)
     != {key[3] for key in SERVER_NOTIFICATION_CODECS}
 ):
@@ -6177,6 +6263,14 @@ def registry_statuses(
         # explicit known-field mapping and no opaque schema field is claimed.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
+    if identity in A14_MCP_REVERSE_COMMIT_3 and target is not None:
+        # A1.4b Commit 3 advances only the four MCP client operations and two
+        # MCP notifications. Their focused schema/wire coverage includes the
+        # closure's open, closed, nullable, default-bearing, and opaque fields;
+        # the generated target/descriptor bindings remain the runtime
+        # association authority.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
     if (
         identity[0] == "client_request"
         and assignment.get("slice") == "A1.1"
@@ -7081,7 +7175,11 @@ def generate_client_operation_descriptor_data(
             or (
                 assignment.get("slice") == "A1.4"
                 and assignment.get("module") == "IntegrationsAndLongTail"
-                and key in A14_USER_INTEGRATIONS_IMPLEMENTED
+                and key
+                in (
+                    A14_USER_INTEGRATIONS_IMPLEMENTED
+                    | A14_MCP_REVERSE_COMMIT_3
+                )
             )
         )
         and assignment.get("classification") == "StablePublicRoot"
@@ -7093,9 +7191,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 80
+        len(expected_keys) != 84
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 80
+        or len(set(targets.values())) != 84
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -7106,7 +7204,7 @@ def generate_client_operation_descriptor_data(
             "the exact 22 stable A1.1, 9 A1.2 B2, 2 A1.2 B3, 2 A1.2 B4, "
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
             "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
-            "23 A1.4 user-integration "
+            "23 A1.4 user-integration and 4 A1.4b MCP "
             "client requests must each own one unique ClientRequestTarget; "
             f"expected_keys={len(expected_keys)}, targets={len(targets)}, "
             f"unique_targets={len(set(targets.values()))}"
@@ -7147,7 +7245,7 @@ def generate_client_operation_descriptor_data(
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 59
+        or len(expected_keys - unit_keys) != 63
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -7155,8 +7253,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 plus all PR-A requests must remain "
-            "exactly 21 Unit and 59 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus PR-A and A1.4b Commit 3 requests "
+            "must remain exactly 21 Unit and 63 Concrete requests"
         )
 
     result_decoders = {
@@ -7181,6 +7279,9 @@ def generate_client_operation_descriptor_data(
         "LoginAccountResponse",
         "ModelListResponse",
         "ModelProviderCapabilitiesReadResponse",
+        "McpResourceReadResponse",
+        "McpServerOauthLoginResponse",
+        "McpServerToolCallResponse",
         "PermissionProfileListResponse",
         "ReviewStartResponse",
         "SendAddCreditsNudgeEmailResponse",
@@ -7204,6 +7305,7 @@ def generate_client_operation_descriptor_data(
         "PluginSkillReadResponse",
         "SkillsConfigWriteResponse",
         "SkillsListResponse",
+        "ListMcpServerStatusResponse",
         "ThreadForkResponse",
         "ThreadGoalClearResponse",
         "ThreadGoalGetResponse",
@@ -7279,14 +7381,14 @@ def generate_server_notification_descriptor_data(
     }
     descriptor_keys = set(SERVER_NOTIFICATION_CODECS)
     if (
-        len(expected_keys) != 58
+        len(expected_keys) != 60
         or descriptor_keys != expected_keys
         or len({metadata[0] for metadata in SERVER_NOTIFICATION_CODECS.values()})
-        != 58
+        != 60
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorAssignmentMismatch: "
-            "every one of the 58 typed server-notification targets must own "
+            "every one of the 60 typed server-notification targets must own "
             "one exact generated descriptor"
         )
 
@@ -7372,6 +7474,14 @@ def generate_server_notification_descriptor_data(
         and assignments[key].get("module") == "IntegrationsAndLongTail"
     }
     residual_keys -= a14_user_integration_keys
+    a14_mcp_reverse_keys = {
+        key
+        for key in residual_keys
+        if key in A14_MCP_REVERSE_COMMIT_3
+        and assignments[key].get("slice") == "A1.4"
+        and assignments[key].get("module") == "IntegrationsAndLongTail"
+    }
+    residual_keys -= a14_mcp_reverse_keys
     if (
         len(a11_keys) != 37
         or len(a12_b2_keys) != 3
@@ -7381,14 +7491,15 @@ def generate_server_notification_descriptor_data(
         or len(a13_filesystem_keys) != 3
         or len(a13_review_guardian_keys) != 3
         or len(a14_user_integration_keys) != 6
+        or len(a14_mcp_reverse_keys) != 2
         or {key[3] for key in residual_keys} != {"error"}
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorSliceMismatch: "
             "descriptors must distinguish the exact 37 A1.1, 3 A1.2 B2, "
             "3 A1.2 B3, 1 A1.2 B4, 1 A1.3 command, and 3 A1.3 "
-            "filesystem/fuzzy, 3 A1.3 review/guardian, and 3 A1.4 "
-            "user-integration rows from the "
+            "filesystem/fuzzy, 3 A1.3 review/guardian, 6 A1.4 "
+            "user-integration, and 2 A1.4b MCP rows from the "
             "residual partial error row"
         )
 

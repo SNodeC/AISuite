@@ -147,7 +147,7 @@ The public-header owner mechanically derives its inventory from
 `AI_OPENAI_CODEX_PUBLIC_H`, `AI_OPENAI_CODEX_BACKEND_PUBLIC_H`, and
 `AI_OPENAI_CODEX_FRONTEND_PUBLIC_H`, cross-checks every `install(FILES ...)`
 authority, and compares the staged installation and binary-package inventory.
-The current exact inventory is 27 main, 7 backend, and 7 frontend headers: 41
+The current exact inventory is 28 main, 7 backend, and 7 frontend headers: 42
 total.
 
 Every installed public header must use one conventional, correctly ordered,
@@ -160,7 +160,7 @@ competing guard. The original A1.2 identities remain exact:
 | `typed/Models.h` | `AI_OPENAI_CODEX_TYPED_MODELS_H` |
 | `typed/Configuration.h` | `AI_OPENAI_CODEX_TYPED_CONFIGURATION_H` |
 
-This deliberately strengthens the former three-header check to all 41
+This deliberately strengthens the former three-header check to all 42
 installed headers. The self-containment test installs AISuite into an isolated
 prefix and compiles one translation unit per header against installed AISuite
 and SNode.C packages, with CMake package registries disabled. Compile-command

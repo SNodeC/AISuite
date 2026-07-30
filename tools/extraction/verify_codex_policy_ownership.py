@@ -230,7 +230,7 @@ HEADER_COMPONENTS: tuple[dict[str, Any], ...] = (
         "cmake_path": "src/ai/openai/codex/CMakeLists.txt",
         "variable": "AI_OPENAI_CODEX_PUBLIC_H",
         "installed_prefix": "ai/openai/codex",
-        "expected_count": 27,
+        "expected_count": 28,
     },
     {
         "name": "backend",
@@ -284,6 +284,16 @@ MCP_REVERSE_COMPONENT_TEST_STAGES = (
         }
     ),
 )
+MCP_REVERSE_COMPONENT_TIMEOUT_ADJUSTMENTS = {
+    "CodexAppServerFixtureInfrastructureTest": {
+        "baseline": 300.0,
+        "final": 420.0,
+        "reason": (
+            "the exact 8,207-fixture A1.4b corpus exceeded the inherited "
+            "CI timeout in one supported compiler image"
+        ),
+    },
+}
 
 FORBIDDEN_LOGGING_IDENTIFIERS: tuple[str, ...] = (
     "lifecycleStart",
@@ -765,6 +775,32 @@ def _component_stable_view(test: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _reviewed_component_timeout_adjustment(
+    name: str,
+    baseline: Mapping[str, Any],
+    final: Mapping[str, Any],
+) -> bool:
+    adjustment = MCP_REVERSE_COMPONENT_TIMEOUT_ADJUSTMENTS.get(name)
+    if adjustment is None:
+        return False
+    baseline_view = _component_stable_view(baseline)
+    final_view = _component_stable_view(final)
+    if (
+        baseline_view.get("timeout") != adjustment["baseline"]
+        or final_view.get("timeout") != adjustment["final"]
+        or baseline_view.get("properties", {}).get("TIMEOUT")
+        != adjustment["baseline"]
+        or final_view.get("properties", {}).get("TIMEOUT")
+        != adjustment["final"]
+    ):
+        return False
+    baseline_view["timeout"] = None
+    final_view["timeout"] = None
+    baseline_view["properties"]["TIMEOUT"] = None
+    final_view["properties"]["TIMEOUT"] = None
+    return baseline_view == final_view
+
+
 def _cmake_set_values(text: str, variable: str) -> list[str]:
     match = re.search(rf"\bset\s*\(\s*{re.escape(variable)}\b(.*?)\)", text, re.DOTALL)
     if match is None:
@@ -808,14 +844,14 @@ def derive_public_header_inventory(root: Path) -> dict[str, Any]:
             }
         )
         all_headers.extend(headers)
-    if len(all_headers) != 41 or len(set(all_headers)) != 41:
+    if len(all_headers) != 42 or len(set(all_headers)) != 42:
         fail(
             "CodexPolicyPublicHeaderInventoryMismatch",
-            f"expected 41 unique Codex public headers, got {len(all_headers)}/{len(set(all_headers))}",
+            f"expected 42 unique Codex public headers, got {len(all_headers)}/{len(set(all_headers))}",
         )
     return {
         "components": components,
-        "counts": {"main": 27, "backend": 7, "frontend": 7, "total": 41},
+        "counts": {"main": 28, "backend": 7, "frontend": 7, "total": 42},
         "headers": sorted(all_headers),
         "original_a1_2_guards": ORIGINAL_HEADER_GUARDS,
         "inventory_authority": (
@@ -1078,6 +1114,15 @@ def build_ownership_document(
                 "baseline_model_sha256": baseline_component_hash,
                 "final_model_sha256": final_component_hash,
                 "generated_artifacts_guard": GENERATED_ARTIFACTS_TEST,
+                "reviewed_a1_4b_timeout_adjustments": [
+                    {
+                        "test_name": name,
+                        **adjustment,
+                    }
+                    for name, adjustment in sorted(
+                        MCP_REVERSE_COMPONENT_TIMEOUT_ADJUSTMENTS.items()
+                    )
+                ],
             },
             "all_ctest": {
                 "baseline_test_count": int(baseline_model.get("test_count", 0)),
@@ -2071,7 +2116,15 @@ def _validate_preexisting_ctest(fixture: VerificationFixture) -> None:
             )
         if bool(final.get("disabled", False)):
             fail("CodexPolicyPreexistingComponentTestDrift", f"component test {name} is disabled")
-        if _component_stable_view(baseline) != _component_stable_view(final):
+        if (
+            _component_stable_view(baseline)
+            != _component_stable_view(final)
+            and not _reviewed_component_timeout_adjustment(
+                name,
+                baseline,
+                final,
+            )
+        ):
             fail("CodexPolicyPreexistingComponentTestDrift", f"component test {name} properties drifted")
     additions = frozenset(final_components) - frozenset(baseline_components)
     if additions not in MCP_REVERSE_COMPONENT_TEST_STAGES:
