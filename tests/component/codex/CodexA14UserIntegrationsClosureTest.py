@@ -1041,7 +1041,13 @@ class CodexA14UserIntegrationsClosureTest(unittest.TestCase):
             (
                 lambda report: report["package_boundary"][
                     "cross_repo_dependency"
-                ].__setitem__("source_commit", "0" * 40),
+                ].__setitem__("normal_dependency_commit", "0" * 40),
+                "UserIntegrationCrossRepoDependencyMismatch",
+            ),
+            (
+                lambda report: report["package_boundary"][
+                    "cross_repo_dependency"
+                ].__setitem__("historical_checkout_read_only", False),
                 "UserIntegrationCrossRepoDependencyMismatch",
             ),
             (

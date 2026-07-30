@@ -77,6 +77,8 @@ POLICY_OWNERSHIP_MERGE_SUBJECT = (
     "Merge pull request #3 from "
     "SNodeC/extraction/complete-codex-policy-ownership"
 )
+CLEANED_SNODEC_COMMIT = "77415c71a87fb7955e9a050bedaca02b65754324"
+CLEANED_SNODEC_TREE = "2d39c334f12c308828936656c820447bfcc38d47"
 PROTOCOL_REGISTRY_RELATIVE_PATH = (
     "src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc"
 )
@@ -764,16 +766,17 @@ def _package_boundary(arguments: argparse.Namespace) -> dict[str, Any]:
         f"installed consumer lacks PR-A API evidence: {missing_consumer}",
     )
     strict_tokens = (
+        CLEANED_SNODEC_COMMIT,
+        CLEANED_SNODEC_TREE,
         audit.EXPECTED_SNODEC_SOURCE,
-        "set(snodec_source ",
-        "set(snodec_build ",
-        "set(snodec_install ",
-        "set(aisuite_build ",
+        audit.EXPECTED_SNODEC_TREE,
+        "set(expected_snodec_dependency_commit",
+        "set(expected_snodec_provenance_commit",
         "set(aisuite_install ",
         "set(consumer_source ",
         "set(consumer_build ",
         "git_executable",
-        "archive",
+        '"${CMAKE_COMMAND}" --install "${AISUITE_BUILD_DIR}"',
         "CMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE",
         "CMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=TRUE",
         "CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=FALSE",
@@ -804,6 +807,27 @@ def _package_boundary(arguments: argparse.Namespace) -> dict[str, Any]:
         "UserIntegrationInstalledConsumerNotInstalled",
         "$.package_boundary.genuine_installed_consumer",
         f"installed consumer does not prove isolated installed packages: {missing_script}",
+    )
+    forbidden_provenance_build_tokens = (
+        "set(snodec_archive ",
+        "set(snodec_source ",
+        "set(snodec_build ",
+        '"${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" archive',
+        '-S "${SNODEC_SOURCE_REPOSITORY}"',
+        '--build "${SNODEC_SOURCE_REPOSITORY}"',
+    )
+    leaked_provenance_build = [
+        token for token in forbidden_provenance_build_tokens
+        if token in script
+    ]
+    _require(
+        not leaked_provenance_build,
+        "UserIntegrationCrossRepoDependencyMismatch",
+        "$.package_boundary.extraction_provenance",
+        (
+            "installed consumer builds or exports historical SNode.C provenance: "
+            f"{leaked_provenance_build}"
+        ),
     )
     consumer_cmake_tokens = (
         "SNodeInstalledCoreConsumer.cpp",
@@ -893,8 +917,12 @@ def _package_boundary(arguments: argparse.Namespace) -> dict[str, Any]:
             "source_relative_include_absent": True,
             "snodec_add_subdirectory_absent": True,
             "build_tree_resolution_rejected": True,
-            "source_commit": audit.EXPECTED_SNODEC_SOURCE,
-            "source_tree": audit.EXPECTED_SNODEC_TREE,
+            "normal_dependency_commit": CLEANED_SNODEC_COMMIT,
+            "normal_dependency_tree": CLEANED_SNODEC_TREE,
+            "extraction_provenance_commit": audit.EXPECTED_SNODEC_SOURCE,
+            "extraction_provenance_tree": audit.EXPECTED_SNODEC_TREE,
+            "historical_checkout_read_only": True,
+            "configured_dependency_install_reused": True,
         },
     }
 

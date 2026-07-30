@@ -76,6 +76,10 @@ MUTATION_TEST_METHODS = {
     "standalone-policy-file-reclassification": "test_standalone_policy_reclassification_is_rejected",
     "security-guard-reclassification": "test_security_guard_reclassification_is_rejected",
     "snodec-blob-alteration": "test_snodec_blob_alteration_is_rejected",
+    "snodec-clean-dependency-alteration": (
+        "test_snodec_clean_dependency_alteration_is_rejected"
+    ),
+    "snodec-cutover-false": "test_snodec_cutover_false_is_rejected",
     "source-package-owner-removal": "test_source_package_owner_removal_is_rejected",
     "binary-package-policy-leak": "test_binary_package_policy_leak_is_rejected",
 }
@@ -1060,6 +1064,26 @@ class CodexPolicyMutationTest(unittest.TestCase):
         self.assert_fixture_mutation(
             mutate=mutate,
             expected_code="CodexPolicySourceAuthorityMismatch",
+        )
+
+    def test_snodec_clean_dependency_alteration_is_rejected(self) -> None:
+        def mutate(fixture: Any) -> None:
+            fixture.ownership["snodec_normal_dependency"]["commit"] = "0" * 40
+
+        self.assert_fixture_mutation(
+            mutate=mutate,
+            expected_code="CodexPolicySourceAuthorityMismatch",
+        )
+
+    def test_snodec_cutover_false_is_rejected(self) -> None:
+        def mutate(fixture: Any) -> None:
+            fixture.ownership["cutover_readiness"][
+                "snodec_cutover_performed"
+            ] = False
+
+        self.assert_fixture_mutation(
+            mutate=mutate,
+            expected_code="CodexPolicyCutoverReadinessMismatch",
         )
 
     def test_source_package_owner_removal_is_rejected(self) -> None:

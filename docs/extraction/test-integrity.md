@@ -92,17 +92,18 @@ The synthetic-secret guard is extracted with its history and recognizes the
 AISuite source-package staging layout while preserving the exact fixture
 allowlist. Package tests run serially, and the security scan depends on the
 installed-consumer and package tests so generated package trees are included.
-The installed consumer builds pinned SNode.C and AISuite into separate fresh
-prefixes with CMake package registries disabled and inherited compiler,
-linker, loader, header, CMake, and pkg-config search variables removed. It
-rejects the original checkouts plus outer and fresh source/build trees in
-compile, link, ELF, and `ldd` evidence. A dedicated installed public-header
-consumer links `snodec::core`, which proves the fresh
+The installed consumer reuses the one configured cleaned SNode.C install and
+the one AISuite build, then installs AISuite into a separate fresh prefix.
+CMake package registries are disabled and inherited compiler, linker, loader,
+header, CMake, and pkg-config search variables are removed. Compile, link,
+ELF, and `ldd` evidence rejects the AISuite source/build trees and the
+historical SNode.C provenance worktree. A dedicated installed public-header
+consumer links `snodec::core`, which proves the cleaned
 `include/snode.c` and SNode.C library origins independently of the AISuite
 targets. The consumer also exercises all seven new facades and final public
-variants. Local runs must configure
-`AISUITE_TEST_SNODEC_SOURCE_REPOSITORY` with an absolute path to a clean clone
-containing the pinned SNode.C commit.
+variants. Local runs configure `CMAKE_PREFIX_PATH` with the cleaned installed
+dependency and `AISUITE_TEST_SNODEC_SOURCE_REPOSITORY` with the detached
+historical worktree at the immutable extraction commit.
 
 The source package must contain no `.git` metadata and must fail
 `git rev-parse`, with `GIT_CEILING_DIRECTORIES` preventing discovery of the
@@ -131,5 +132,8 @@ for offline extraction correctness. No test is deleted, unconditionally
 skipped, relabeled to evade CI, or weakened from exact comparisons to substring
 checks.
 
-AISuite Codex policy ownership is complete. SNode.C Codex removal remains a
-separate reviewed cutover; no production or protocol behavior changes here.
+AISuite Codex policy ownership is complete. The reviewed SNode.C cutover is
+performed: normal builds use cleaned commit
+`77415c71a87fb7955e9a050bedaca02b65754324`, while historical commit
+`d18b231a1d2ec2235fd6f204786b0a761cc24ff5` remains provenance-only. No Codex
+production or protocol behavior changes in this dependency-adoption step.

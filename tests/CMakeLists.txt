@@ -30,7 +30,7 @@ set(AISUITE_TEST_SNODEC_SOURCE_REPOSITORY
     ""
     CACHE
         PATH
-        "Local SNode.C clone containing the pinned extraction dependency for the genuine installed-consumer test"
+        "Read-only SNode.C worktree at the immutable extraction-provenance commit"
 )
 if("${AISUITE_TEST_SNODEC_SOURCE_REPOSITORY}" STREQUAL "" AND
    DEFINED ENV{AISUITE_TEST_SNODEC_SOURCE_REPOSITORY})

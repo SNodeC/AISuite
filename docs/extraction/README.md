@@ -2,9 +2,10 @@
 
 ## Safety invariant
 
-The extraction is additive. No source, build rule, test, package declaration,
-or application is removed from SNode.C during this stage. SNode.C remains the
-working fallback until a separate cutover is reviewed and approved.
+The extraction provenance is immutable. No historical source, tree mapping, or
+hash is repurposed by the later dependency cutover. SNode.C removed its Codex
+implementation in separately reviewed PR #225; AISuite now compiles and links
+against that cleaned dependency.
 
 ## Source
 
@@ -12,6 +13,11 @@ working fallback until a separate cutover is reviewed and approved.
 - commit: `d18b231a1d2ec2235fd6f204786b0a761cc24ff5`
 - tree: `88a63edc985a851b2b76b0c56df19fae74ea8069`
 - Codex pin: `codex-cli 0.144.6` / `rust-v0.144.6`
+
+Normal AISuite dependency:
+
+- commit: `77415c71a87fb7955e9a050bedaca02b65754324`
+- tree: `2d39c334f12c308828936656c820447bfcc38d47`
 
 `filter-map.json` records every retained source commit, rewritten commit, tree,
 parent mapping, and selected path.
@@ -60,26 +66,25 @@ removed. See the
 blobs, owners, functional tests, labels, accepted logger entries, package
 boundaries, and cutover-readiness evidence.
 
-## Temporary duplication
+## Completed cutover
 
-Until the later SNode.C cutover, both repositories contain a Codex
-implementation. Install them into separate prefixes. AISuite libraries use
-`aisuite-` output names and install headers below `include/aisuite`, preventing
-file collisions with the unchanged SNode.C installation.
+Normal builds use one installation of cleaned SNode.C, which contains no Codex
+implementation or AI-provider layer. The historical SNode.C worktree exists
+only for read-only extraction and transferred-policy provenance checks.
 
 ## Standalone dependency boundary
 
 AISuite consumes SNode.C only through the installed `snodec` CMake package.
 The extraction must not use a sibling checkout, private SNode.C headers, or
 source-relative include paths. The installed-consumer test independently
-builds and installs the pinned SNode.C tree and AISuite into disjoint prefixes,
-disables CMake package registries, scrubs inherited build and package-search
-environment variables, and rejects source/build/outer-stage header, library,
-cache, RPATH, RUNPATH, and `ldd` resolution. Its direct `snodec::core`
-public-header probe proves that the fresh SNode.C include and library prefixes
-are used. Configure local test builds with
+installs from the configured AISuite build and reuses the configured cleaned
+SNode.C prefix. It disables CMake package registries, scrubs inherited build
+and package-search environment variables, and rejects provenance/source/build
+header, library, cache, RPATH, RUNPATH, and `ldd` resolution. Its direct
+`snodec::core` public-header probe proves that the cleaned SNode.C include and
+library prefix is used. Configure local test builds with
 `AISUITE_TEST_SNODEC_SOURCE_REPOSITORY=/absolute/path/to/snode.c`, pointing at
-a clean clone containing the pinned extraction commit.
+a clean detached worktree at the historical extraction commit.
 
 ## Protocol state at extraction
 
@@ -111,5 +116,6 @@ NotApplicable:   48
 
 Native A1.4 is `33 / 1 / 22`; it remains in progress. PR B, PR C, inherited
 A1.0 Partials, and InventoryOnly identities remain unchanged, and Codex
-SOVERSION remains 1. AISuite Codex policy ownership is complete. SNode.C Codex
-removal remains a separate reviewed cutover.
+SOVERSION remains 1. AISuite Codex policy ownership is complete. The SNode.C
+cutover is performed: normal dependency `77415c71…`, extraction provenance
+`d18b231a…`.

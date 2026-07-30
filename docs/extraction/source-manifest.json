@@ -47719,7 +47719,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "069713c9a77fd21274301bac0005f176884ad05cb0d8cdb994ddd9c6268cf92b"
+      "sha256": "5fc734f0c13442ee1cbd6544135f01fd74da97e1482c9669fb36113baab9ae63"
     },
     {
       "path": ".gitignore",
@@ -47743,7 +47743,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "2055ba946363a9f5b6b008f828fff2001d6e7510f5f64861b47c3a616f24c094"
+      "sha256": "d004bea43cd905a2a2ce472e13f09b0ec4a1a21f3e9a392c4d9df8a8a3828f51"
     },
     {
       "path": "cmake/AISuiteConfig.cmake.in",
@@ -47751,11 +47751,11 @@
     },
     {
       "path": "docs/ai/openai/codex/a1-4-user-facing-integrations.md",
-      "sha256": "88d00a84c14bca8f380c928e0b691d3f372c81bb70978c66dc631d019e23ee19"
+      "sha256": "ce979f586a319dcec1bd6f420502a7126d181f8f17ea36fc2cdf934f433a1d14"
     },
     {
       "path": "docs/extraction/README.md",
-      "sha256": "bbd6948fb1ff10fa8946618e3cc4a6500411f7bfae1cbe122d1ed6440009e512"
+      "sha256": "1ae36daf03fc1ed28b3751d34b5651666c968321b68f826f86313e26f2a673e8"
     },
     {
       "path": "docs/extraction/codex-policy-baseline-ctest.json",
@@ -47767,11 +47767,11 @@
     },
     {
       "path": "docs/extraction/codex-policy-ownership.json",
-      "sha256": "13d104f575f7abfd5842930756c5d93eeb0ed6031547447debafc808a3637651"
+      "sha256": "4cfa2d99e771fae684441f44976bee299c30c143fd3d0c44e258dc8c83a894ad"
     },
     {
       "path": "docs/extraction/codex-policy-ownership.md",
-      "sha256": "9d065e15573ec9a31899bc54b058f5931aeaaa29431859af4066c773a715c728"
+      "sha256": "c7777777aa6652960396da2940ccf2a431872edb5acd348f92ff5537f73ffe8d"
     },
     {
       "path": "docs/extraction/filter-map.json",
@@ -47779,11 +47779,11 @@
     },
     {
       "path": "docs/extraction/test-integrity.md",
-      "sha256": "1af020f31d6898880491d01f44683ca328e22f04a0268e952c1742a490771de0"
+      "sha256": "161260f85d81f87f7d2662f4d0a8b26c3e2a9d20283a40aabc0d81bc46adfefa"
     },
     {
       "path": "docs/extraction/validation.md",
-      "sha256": "5535696da083eeefb3bad8431e2ab8199376096f6890888cec10d660201f550f"
+      "sha256": "d4222ef2eb4efa22f3b8b69a28279a143c8145594feef42501816951577f88d6"
     },
     {
       "path": "src/ai/openai/codex/detail/AppCodec.cpp",
@@ -47879,7 +47879,7 @@
     },
     {
       "path": "tests/AISuiteInstalledConsumerTest.cmake",
-      "sha256": "3e6a40c8521e48aba3229ec1e62d1540c9b91fd9472a9ff015f5e526391b7fd6"
+      "sha256": "66be27254157dffec9f37186c140a7cecc2d364375f9028dd71a3b160099fa22"
     },
     {
       "path": "tests/AISuiteSourcePackageTest.cmake",
@@ -47887,7 +47887,7 @@
     },
     {
       "path": "tests/CMakeLists.txt",
-      "sha256": "44f037ae44186511de38e579c82665c1a439a98cb89b3fad366d4a8abf739726"
+      "sha256": "fbda3bdc55951c94940c8cf94240e9c3841bb81c227328b3922ca0ffdb5a4c9a"
     },
     {
       "path": "tests/cmake/AddAISuiteTest.cmake",
@@ -47899,7 +47899,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsClosureTest.py",
-      "sha256": "6f7c4fe8b449eb4b9f49a45a47a6aa7335fc78169bdf08f79d3171ec1198bf80"
+      "sha256": "34ee968131a55025abaf56052fa0e0a4a2ab13ad44be53aec5a86f33a31f6ef5"
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit2Test.cpp",
@@ -47955,7 +47955,7 @@
     },
     {
       "path": "tests/policy/codex/CodexPolicyMutationTest.py",
-      "sha256": "47fc4971ce59bb7e11e5bc9654b22fc370eec51172d15778525e85e673e6316c"
+      "sha256": "0e4291ced60ae20cbfbea5aedac47fad0212523bbc1703ed68c817c129cd30df"
     },
     {
       "path": "tests/policy/codex/CodexPublicHeaderPolicyTest.cpp",
@@ -48007,7 +48007,7 @@
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
-      "sha256": "2e2f4166065076798512cc1dbd4aab6a4032c391d8f080b806993691e15c43a1"
+      "sha256": "6ac532284eb7486b4f605a38594ee4bbfb5737b4439fb28c143b63ba392c5755"
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-batch-plan.json",
@@ -48015,7 +48015,7 @@
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-closure-report.json",
-      "sha256": "12e8204b2bfe68d12075f538418cdf5c3ca65ccfeee82bea59f61f4193169860"
+      "sha256": "07a7e1c1137ae24c205904c364a4b322b7ec69a609f57503ae321639172c0b1f"
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-start-state.json",
@@ -55835,7 +55835,7 @@
     },
     {
       "path": "tools/codex/app_server_a1_4_user_integrations_closure.py",
-      "sha256": "585f22e965a983143b0b190f130e90e15e769fa262638e3b481a83a24fae5a28"
+      "sha256": "412586343f63e06a2216f2de65cf6e60b8bfdfad493a278995d1c9ed42bd524a"
     },
     {
       "path": "tools/extraction/filter_history.py",
@@ -55843,7 +55843,7 @@
     },
     {
       "path": "tools/extraction/verify_codex_policy_ownership.py",
-      "sha256": "cb123129cb33bc699f137a626a5db11c3f436aa5bab308e38d6152f3556e41a9"
+      "sha256": "827abe1c09c3f8b0f5efbf66c522f569d246189f9498dfb573cfccd556d3563c"
     },
     {
       "path": "tools/extraction/verify_extraction.py",

@@ -66,9 +66,13 @@
     "normalization": "Source/build roots and configured Python/CMake executable paths are replaced with declared placeholders; tests and labels are sorted."
   },
   "cutover_readiness": {
+    "extraction_provenance_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+    "extraction_provenance_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069",
+    "normal_dependency_commit": "77415c71a87fb7955e9a050bedaca02b65754324",
+    "normal_dependency_tree": "2d39c334f12c308828936656c820447bfcc38d47",
     "ready": true,
-    "snodec_cutover_performed": false,
-    "statement": "AISuite Codex policy ownership is complete. SNode.C Codex removal remains a separate reviewed cutover."
+    "snodec_cutover_performed": true,
+    "statement": "AISuite Codex policy ownership is complete and normal builds use the cleaned SNode.C dependency; the historical SNode.C tree is immutable extraction provenance only."
   },
   "focused_ci": {
     "functional_tests_selected": [
@@ -401,6 +405,14 @@
       "mutation_id": "snodec-blob-alteration"
     },
     {
+      "diagnostic": "CodexPolicySourceAuthorityMismatch",
+      "mutation_id": "snodec-clean-dependency-alteration"
+    },
+    {
+      "diagnostic": "CodexPolicyCutoverReadinessMismatch",
+      "mutation_id": "snodec-cutover-false"
+    },
+    {
       "diagnostic": "CodexPolicySourcePackageMismatch",
       "mutation_id": "source-package-owner-removal"
     },
@@ -617,6 +629,12 @@
       ".hpp",
       ".ipp"
     ]
+  },
+  "snodec_normal_dependency": {
+    "commit": "77415c71a87fb7955e9a050bedaca02b65754324",
+    "repository": "https://github.com/SNodeC/snode.c",
+    "role": "normal AISuite compilation and linking through one installed SNode.C prefix",
+    "tree": "2d39c334f12c308828936656c820447bfcc38d47"
   },
   "snodec_source_authority": {
     "commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",

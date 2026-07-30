@@ -27,6 +27,8 @@ from typing import Any, Iterable, Mapping, Sequence
 AISUITE_BASE_SHA = "19de4f50be64e187761274f043091090609d27a3"
 AISUITE_BASE_TREE = "c71a91e545d70d649446ca9d698d729c307a480a"
 SNODEC_REPOSITORY = "https://github.com/SNodeC/snode.c"
+SNODEC_DEPENDENCY_COMMIT = "77415c71a87fb7955e9a050bedaca02b65754324"
+SNODEC_DEPENDENCY_TREE = "2d39c334f12c308828936656c820447bfcc38d47"
 SNODEC_COMMIT = "d18b231a1d2ec2235fd6f204786b0a761cc24ff5"
 SNODEC_TREE = "88a63edc985a851b2b76b0c56df19fae74ea8069"
 EXPECTED_CI_FILTER = "ai|openai|codex|extraction"
@@ -441,6 +443,8 @@ MUTATION_COVERAGE: tuple[tuple[str, str], ...] = (
     ("standalone-policy-file-reclassification", "CodexPolicyManifestClassificationMismatch"),
     ("security-guard-reclassification", "CodexPolicyManifestClassificationMismatch"),
     ("snodec-blob-alteration", "CodexPolicySourceAuthorityMismatch"),
+    ("snodec-clean-dependency-alteration", "CodexPolicySourceAuthorityMismatch"),
+    ("snodec-cutover-false", "CodexPolicyCutoverReadinessMismatch"),
     ("source-package-owner-removal", "CodexPolicySourcePackageMismatch"),
     ("binary-package-policy-leak", "CodexPolicyBinaryPackageLeak"),
 )
@@ -997,6 +1001,12 @@ def build_ownership_document(
             ],
             "reference_support_file": dict(SUPPORT_AUTHORITY),
         },
+        "snodec_normal_dependency": {
+            "repository": SNODEC_REPOSITORY,
+            "commit": SNODEC_DEPENDENCY_COMMIT,
+            "tree": SNODEC_DEPENDENCY_TREE,
+            "role": "normal AISuite compilation and linking through one installed SNode.C prefix",
+        },
         "transferred_responsibilities": _responsibilities(),
         "preexisting_aisuite_policy_tests": [
             {
@@ -1121,10 +1131,15 @@ def build_ownership_document(
         "cutover_readiness": {
             "ready": True,
             "statement": (
-                "AISuite Codex policy ownership is complete. "
-                "SNode.C Codex removal remains a separate reviewed cutover."
+                "AISuite Codex policy ownership is complete and normal builds use "
+                "the cleaned SNode.C dependency; the historical SNode.C tree is "
+                "immutable extraction provenance only."
             ),
-            "snodec_cutover_performed": False,
+            "snodec_cutover_performed": True,
+            "normal_dependency_commit": SNODEC_DEPENDENCY_COMMIT,
+            "normal_dependency_tree": SNODEC_DEPENDENCY_TREE,
+            "extraction_provenance_commit": SNODEC_COMMIT,
+            "extraction_provenance_tree": SNODEC_TREE,
         },
     }
 
@@ -1281,6 +1296,17 @@ def _git_text(root: Path, *arguments: str) -> str:
 
 
 def _validate_source_authority(fixture: VerificationFixture) -> None:
+    dependency = fixture.ownership.get("snodec_normal_dependency")
+    if dependency != {
+        "repository": SNODEC_REPOSITORY,
+        "commit": SNODEC_DEPENDENCY_COMMIT,
+        "tree": SNODEC_DEPENDENCY_TREE,
+        "role": "normal AISuite compilation and linking through one installed SNode.C prefix",
+    }:
+        fail(
+            "CodexPolicySourceAuthorityMismatch",
+            "cleaned SNode.C normal dependency authority changed",
+        )
     authority = fixture.ownership.get("snodec_source_authority")
     if not isinstance(authority, dict):
         fail("CodexPolicySourceAuthorityMismatch", "SNode.C source authority is absent")
@@ -2142,6 +2168,42 @@ def _validate_ci(fixture: VerificationFixture) -> None:
     if set(jobs) != {"gcc-debug", "gcc-15-debug"}:
         fail("CodexPolicyCIFilterMismatch", f"CI jobs changed: {sorted(jobs)}")
     for name in ("gcc-debug", "gcc-15-debug"):
+        job = jobs[name]
+        required_cutover_fragments = (
+            "git clone https://github.com/SNodeC/snode.c.git ../snodec",
+            f"git -C ../snodec checkout {SNODEC_DEPENDENCY_COMMIT}",
+            "git -C ../snodec worktree add --detach ../snodec-provenance",
+            SNODEC_COMMIT,
+            SNODEC_DEPENDENCY_TREE,
+            SNODEC_TREE,
+            "test ! -d ../snodec/src/ai",
+            "cmake -S ../snodec -B ../snodec-build",
+            '-DCMAKE_PREFIX_PATH="$PWD/../snodec-stage"',
+            (
+                '-DAISUITE_TEST_SNODEC_SOURCE_REPOSITORY='
+                '"$PWD/../snodec-provenance"'
+            ),
+        )
+        missing = [
+            fragment
+            for fragment in required_cutover_fragments
+            if fragment not in job
+        ]
+        if missing:
+            fail(
+                "CodexPolicyCutoverReadinessMismatch",
+                f"{name} omits cleaned/provenance separation: {missing[0]}",
+            )
+        for forbidden in (
+            "cmake -S ../snodec-provenance",
+            "cmake --build ../snodec-provenance",
+            "-DCMAKE_PREFIX_PATH=\"$PWD/../snodec-provenance",
+        ):
+            if forbidden in job:
+                fail(
+                    "CodexPolicyCutoverReadinessMismatch",
+                    f"{name} uses extraction provenance as a build dependency",
+                )
         filters = _focused_filters(jobs[name])
         if EXPECTED_CI_FILTER not in filters:
             fail(
