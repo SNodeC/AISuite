@@ -319,7 +319,7 @@ int main(const int argc, char* argv[]) {
     }
 
     std::vector<Component> components = {
-        {"main", "src/ai/openai/codex/CMakeLists.txt", "AI_OPENAI_CODEX_PUBLIC_H", "", 27, {}},
+        {"main", "src/ai/openai/codex/CMakeLists.txt", "AI_OPENAI_CODEX_PUBLIC_H", "", 28, {}},
         {"backend", "src/ai/openai/codex/backend/CMakeLists.txt", "AI_OPENAI_CODEX_BACKEND_PUBLIC_H", "backend", 7, {}},
         {"frontend", "src/ai/openai/codex/frontend/CMakeLists.txt", "AI_OPENAI_CODEX_FRONTEND_PUBLIC_H", "frontend", 7, {}},
     };
@@ -335,8 +335,8 @@ int main(const int argc, char* argv[]) {
     for (const Component& component : components) {
         authority.insert(authority.end(), component.headers.begin(), component.headers.end());
     }
-    if (authority.size() != 41) {
-        valid = aisuite::source_policy::diagnostic(kInventoryDiagnostic, "total public-header count is not 41");
+    if (authority.size() != 42) {
+        valid = aisuite::source_policy::diagnostic(kInventoryDiagnostic, "total public-header count is not 42");
     }
     std::string duplicate;
     if (hasDuplicates(authority, duplicate)) {
@@ -370,7 +370,7 @@ int main(const int argc, char* argv[]) {
         valid = checkGuard(root, header) && valid;
     }
     if (valid) {
-        std::cout << "Codex public-header policy verified: main=27 backend=7 frontend=7 total=41\n";
+        std::cout << "Codex public-header policy verified: main=28 backend=7 frontend=7 total=42\n";
     }
     return valid ? 0 : 1;
 }

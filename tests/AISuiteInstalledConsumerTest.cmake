@@ -8,14 +8,19 @@ if(NOT DEFINED SNODEC_SOURCE_REPOSITORY OR
    "${SNODEC_SOURCE_REPOSITORY}" STREQUAL "")
     message(
         FATAL_ERROR
-            "UserIntegrationInstalledConsumerNotInstalled: set AISUITE_TEST_SNODEC_SOURCE_REPOSITORY to a local clone containing the pinned SNode.C commit"
+            "UserIntegrationInstalledConsumerNotInstalled: set AISUITE_TEST_SNODEC_SOURCE_REPOSITORY to the read-only extraction-provenance worktree"
     )
 endif()
-
-set(expected_snodec_commit
+set(expected_snodec_dependency_commit
+    "77415c71a87fb7955e9a050bedaca02b65754324"
+)
+set(expected_snodec_dependency_tree
+    "2d39c334f12c308828936656c820447bfcc38d47"
+)
+set(expected_snodec_provenance_commit
     "d18b231a1d2ec2235fd6f204786b0a761cc24ff5"
 )
-set(expected_snodec_tree
+set(expected_snodec_provenance_tree
     "88a63edc985a851b2b76b0c56df19fae74ea8069"
 )
 if(DEFINED AISUITE_INSTALLED_CONSUMER_TEMP_ROOT AND
@@ -33,11 +38,6 @@ string(SUBSTRING "${stage_identity}" 0 16 stage_identity)
 set(stage
     "${temporary_root}/aisuite-genuine-installed-consumer-${stage_identity}"
 )
-set(snodec_archive "${stage}/snodec-source.tar")
-set(snodec_source "${stage}/snodec-source")
-set(snodec_build "${stage}/snodec-build")
-set(snodec_install "${stage}/snodec-install")
-set(aisuite_build "${stage}/aisuite-build")
 set(aisuite_install "${stage}/aisuite-install")
 set(consumer_source "${stage}/consumer-source")
 set(consumer_build "${stage}/consumer-build")
@@ -45,7 +45,7 @@ set(runtime_directory "${stage}/runtime")
 
 file(REMOVE_RECURSE "${stage}")
 file(MAKE_DIRECTORY
-     "${stage}" "${snodec_source}" "${consumer_source}" "${runtime_directory}"
+     "${stage}" "${consumer_source}" "${runtime_directory}"
 )
 
 function(fail_installed message_text)
@@ -127,62 +127,39 @@ set(isolated_environment
 file(REAL_PATH "${AISUITE_SOURCE_DIR}" aisuite_source_real)
 file(REAL_PATH "${AISUITE_BUILD_DIR}" aisuite_outer_build_real)
 file(REAL_PATH "${SNODEC_SOURCE_REPOSITORY}" snodec_outer_source_real)
+file(
+    STRINGS "${AISUITE_BUILD_DIR}/CMakeCache.txt" snodec_package_dir_line
+    REGEX "^snodec_DIR:"
+)
+if(NOT snodec_package_dir_line)
+    fail_cross_repo(
+        "the configured AISuite build does not record its cleaned SNode.C package"
+    )
+endif()
+string(
+    REGEX REPLACE "^[^=]*=" "" SNODEC_PACKAGE_DIR
+    "${snodec_package_dir_line}"
+)
+file(REAL_PATH "${SNODEC_PACKAGE_DIR}" snodec_package_dir_real)
+get_filename_component(snodec_install "${snodec_package_dir_real}" DIRECTORY)
+get_filename_component(snodec_install "${snodec_install}" DIRECTORY)
+get_filename_component(snodec_install "${snodec_install}" DIRECTORY)
+if(NOT EXISTS "${snodec_package_dir_real}/snodecConfig.cmake" OR
+   NOT EXISTS "${snodec_install}/include/snode.c" OR
+   NOT EXISTS "${snodec_install}/lib")
+    fail_cross_repo(
+        "configured cleaned SNode.C package is not a complete installed prefix: ${snodec_package_dir_real}"
+    )
+endif()
 set(forbidden_evidence_paths
     "${aisuite_source_real}"
     "${aisuite_outer_build_real}"
     "${snodec_outer_source_real}"
-    "${snodec_source}"
-    "${snodec_build}"
-    "${aisuite_build}"
 )
 
-# Capture any outer SNode.C package/staging prefix selected by the parent
-# AISuite configure so that the fresh consumer cannot silently reuse it.
-if(EXISTS "${AISUITE_BUILD_DIR}/CMakeCache.txt")
-    file(
-        STRINGS "${AISUITE_BUILD_DIR}/CMakeCache.txt"
-        outer_snodec_dir_line
-        REGEX "^snodec_DIR:"
-    )
-    if(outer_snodec_dir_line)
-        string(
-            REGEX REPLACE "^[^=]*=" "" outer_snodec_dir
-            "${outer_snodec_dir_line}"
-        )
-        if(IS_ABSOLUTE "${outer_snodec_dir}")
-            list(APPEND forbidden_evidence_paths "${outer_snodec_dir}")
-            get_filename_component(
-                outer_snodec_prefix "${outer_snodec_dir}" DIRECTORY
-            )
-            get_filename_component(
-                outer_snodec_prefix "${outer_snodec_prefix}" DIRECTORY
-            )
-            get_filename_component(
-                outer_snodec_prefix "${outer_snodec_prefix}" DIRECTORY
-            )
-            list(APPEND forbidden_evidence_paths "${outer_snodec_prefix}")
-        endif()
-    endif()
-    file(
-        STRINGS "${AISUITE_BUILD_DIR}/CMakeCache.txt"
-        outer_prefix_path_line
-        REGEX "^CMAKE_PREFIX_PATH:"
-    )
-    if(outer_prefix_path_line)
-        string(
-            REGEX REPLACE "^[^=]*=" "" outer_prefix_paths
-            "${outer_prefix_path_line}"
-        )
-        foreach(outer_prefix IN LISTS outer_prefix_paths)
-            if(IS_ABSOLUTE "${outer_prefix}")
-                list(APPEND forbidden_evidence_paths "${outer_prefix}")
-            endif()
-        endforeach()
-    endif()
-endif()
-
 # Remember non-system absolute paths inherited through variables that are
-# scrubbed above. Evidence must not contain any of these former search roots.
+# scrubbed above. The configured cleaned SNode.C prefix is the one intentional
+# exception because it remains the sole dependency installation under test.
 foreach(
     environment_name
     IN ITEMS
@@ -204,7 +181,14 @@ foreach(
             "$ENV{${environment_name}}"
         )
         foreach(inherited_path IN LISTS inherited_absolute_paths)
-            if(NOT inherited_path MATCHES "^/(usr|lib|lib64)(/|$)")
+            file(TO_CMAKE_PATH "${inherited_path}" inherited_normalized)
+            file(TO_CMAKE_PATH "${snodec_install}" snodec_install_normalized)
+            string(
+                FIND "${inherited_normalized}/"
+                "${snodec_install_normalized}/" intended_snodec_index
+            )
+            if(NOT inherited_path MATCHES "^/(usr|lib|lib64)(/|$)" AND
+               NOT intended_snodec_index EQUAL 0)
                 list(APPEND forbidden_evidence_paths "${inherited_path}")
             endif()
         endforeach()
@@ -233,138 +217,42 @@ execute_process(
     COMMAND
         ${isolated_environment}
         "${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" rev-parse
-        "--verify" "${expected_snodec_commit}^{commit}"
+        "HEAD"
     RESULT_VARIABLE result
-    OUTPUT_VARIABLE verified_snodec_commit
+    OUTPUT_VARIABLE verified_snodec_provenance_commit
     ERROR_VARIABLE error
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 require_success(
-    "${result}" "${verified_snodec_commit}" "${error}"
-    "pinned SNode.C commit verification"
+    "${result}" "${verified_snodec_provenance_commit}" "${error}"
+    "SNode.C extraction-provenance commit verification"
 )
-if(NOT verified_snodec_commit STREQUAL expected_snodec_commit)
+if(NOT verified_snodec_provenance_commit STREQUAL
+   expected_snodec_provenance_commit)
     fail_cross_repo(
-        "the supplied SNode.C repository does not resolve the pinned commit exactly"
+        "AISUITE_TEST_SNODEC_SOURCE_REPOSITORY is not the immutable extraction-provenance worktree"
     )
 endif()
 execute_process(
     COMMAND
         ${isolated_environment}
         "${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" rev-parse
-        "${expected_snodec_commit}^{tree}"
+        "HEAD^{tree}"
     RESULT_VARIABLE result
-    OUTPUT_VARIABLE verified_snodec_tree
+    OUTPUT_VARIABLE verified_snodec_provenance_tree
     ERROR_VARIABLE error
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 require_success(
-    "${result}" "${verified_snodec_tree}" "${error}"
-    "pinned SNode.C tree verification"
+    "${result}" "${verified_snodec_provenance_tree}" "${error}"
+    "SNode.C extraction-provenance tree verification"
 )
-if(NOT verified_snodec_tree STREQUAL expected_snodec_tree)
+if(NOT verified_snodec_provenance_tree STREQUAL
+   expected_snodec_provenance_tree)
     fail_cross_repo(
-        "the supplied SNode.C commit has an unexpected source tree"
+        "the extraction-provenance SNode.C worktree has an unexpected tree"
     )
 endif()
-
-# Exporting the pinned tree leaves the supplied SNode.C clone byte-for-byte
-# untouched and gives the consumer gate a source directory disjoint from every
-# pre-existing checkout/build/install directory.
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" archive
-        "--format=tar" "--output=${snodec_archive}" "${expected_snodec_commit}"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE output
-    ERROR_VARIABLE error
-)
-require_success(
-    "${result}" "${output}" "${error}" "pinned SNode.C source export"
-)
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${CMAKE_COMMAND}" -E tar xf "${snodec_archive}"
-    WORKING_DIRECTORY "${snodec_source}"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE output
-    ERROR_VARIABLE error
-)
-require_success(
-    "${result}" "${output}" "${error}" "pinned SNode.C source extraction"
-)
-
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${CMAKE_COMMAND}"
-        -G Ninja
-        -S "${snodec_source}"
-        -B "${snodec_build}"
-        -DCMAKE_BUILD_TYPE=Debug
-        "-DCMAKE_INSTALL_PREFIX=${snodec_install}"
-        -DSNODEC_BUILD_TESTS=OFF
-        -DSNODEC_BUILD_APPS=OFF
-        -DCHECK_INCLUDES=OFF
-        -DCMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE
-        -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=TRUE
-        -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=FALSE
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE output
-    ERROR_VARIABLE error
-)
-require_success(
-    "${result}" "${output}" "${error}" "fresh pinned SNode.C configure"
-)
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${snodec_build}" --target
-        net-un-stream-legacy --parallel 4
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE output
-    ERROR_VARIABLE error
-)
-require_success(
-    "${result}" "${output}" "${error}"
-    "fresh pinned SNode.C dependency-target build"
-)
-set(snodec_install_components
-    logger
-    utils
-    mux-epoll
-    core
-    core-socket
-    core-socket-stream
-    core-socket-stream-legacy
-    net
-    net-un
-    net-un-phy
-    net-un-phy-stream
-    # The pinned SNode.C tree assigns only this target export to the
-    # historical misspelled component; installing it repairs the staged
-    # package without modifying the pinned dependency.
-    net-un-sphy-tream
-    net-un-stream
-    net-un-stream-legacy
-)
-foreach(component IN LISTS snodec_install_components)
-    execute_process(
-        COMMAND
-            ${isolated_environment}
-            "${CMAKE_COMMAND}" --install "${snodec_build}" --component
-            "${component}"
-        RESULT_VARIABLE result
-        OUTPUT_VARIABLE output
-        ERROR_VARIABLE error
-    )
-    require_success(
-        "${result}" "${output}" "${error}"
-        "fresh pinned SNode.C ${component} component install"
-    )
-endforeach()
 
 file(
     GLOB_RECURSE snodec_installed_codex_artifacts
@@ -374,52 +262,23 @@ file(
 )
 if(snodec_installed_codex_artifacts)
     fail_cross_repo(
-        "pinned SNode.C installed duplicate Codex headers or libraries: ${snodec_installed_codex_artifacts}"
+        "cleaned SNode.C installed duplicate Codex headers or libraries: ${snodec_installed_codex_artifacts}"
     )
 endif()
 
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}"
-        -G Ninja
-        -S "${AISUITE_SOURCE_DIR}"
-        -B "${aisuite_build}"
-        -DCMAKE_BUILD_TYPE=Debug
-        "-DCMAKE_PREFIX_PATH=${snodec_install}"
-        "-DCMAKE_INSTALL_PREFIX=${aisuite_install}"
-        -DAISUITE_BUILD_TESTS=OFF
-        -DAISUITE_BUILD_APPS=OFF
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-        -DCMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE
-        -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=TRUE
-        -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=FALSE
+        "${CMAKE_COMMAND}" --install "${AISUITE_BUILD_DIR}" --prefix
+        "${aisuite_install}"
     RESULT_VARIABLE result
     OUTPUT_VARIABLE output
     ERROR_VARIABLE error
 )
 require_success(
     "${result}" "${output}" "${error}"
-    "fresh AISuite configure against only installed SNode.C"
+    "install from the one configured AISuite build"
 )
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${aisuite_build}" --target all --parallel 4
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE output
-    ERROR_VARIABLE error
-)
-require_success("${result}" "${output}" "${error}" "fresh AISuite build")
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${CMAKE_COMMAND}" --install "${aisuite_build}"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE output
-    ERROR_VARIABLE error
-)
-require_success("${result}" "${output}" "${error}" "fresh AISuite install")
 
 file(
     COPY "${AISUITE_SOURCE_DIR}/tests/installed/codex/"
@@ -664,5 +523,5 @@ endif()
 
 message(
     STATUS
-        "UserIntegration installed boundary passed: pinned_snodec=${expected_snodec_commit}; pinned_tree=${expected_snodec_tree}; snodec_install=${snodec_install}; aisuite_install=${aisuite_install}; AISuite_DIR=${aisuite_dir}; snodec_DIR=${snodec_dir}; consumer_build=${consumer_build}"
+        "UserIntegration installed boundary passed: cleaned_snodec=${expected_snodec_dependency_commit}; cleaned_tree=${expected_snodec_dependency_tree}; provenance_snodec=${expected_snodec_provenance_commit}; provenance_tree=${expected_snodec_provenance_tree}; snodec_install=${snodec_install}; aisuite_install=${aisuite_install}; AISuite_DIR=${aisuite_dir}; snodec_DIR=${snodec_dir}; consumer_build=${consumer_build}"
 )

@@ -19,6 +19,7 @@
 #include "ai/openai/codex/typed/Filesystem.h"
 #include "ai/openai/codex/typed/Hooks.h"
 #include "ai/openai/codex/typed/Marketplace.h"
+#include "ai/openai/codex/typed/Mcp.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
 #include "ai/openai/codex/typed/Plugins.h"
@@ -107,7 +108,11 @@ namespace ai::openai::codex::detail {
                                                      typed::PluginInstalledResponse,
                                                      typed::PluginListResponse,
                                                      typed::PluginReadResponse,
-                                                     typed::PluginShareListResponse>;
+                                                     typed::PluginShareListResponse,
+                                                     typed::McpServerOauthLoginResponse,
+                                                     typed::McpResourceReadResponse,
+                                                     typed::McpServerToolCallResponse,
+                                                     typed::ListMcpServerStatusResponse>;
 
     struct ClientOperationDecodeDiagnostic {
         ClientOperationDecodeCode code = ClientOperationDecodeCode::MalformedKnownPayload;

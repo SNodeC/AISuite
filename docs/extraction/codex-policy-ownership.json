@@ -62,13 +62,17 @@
     "baseline_model": "docs/extraction/codex-policy-baseline-ctest.json",
     "baseline_model_sha256": "15b9e64c9e446b1dfc17894c488ab363891f1b8ceceb0a7adc97c58bbaedd7f8",
     "final_model": "docs/extraction/codex-policy-final-ctest.json",
-    "final_model_sha256": "8b964bec33044cd823f8ad0985035a1d19486647dcb9d2595d581195a189dc41",
+    "final_model_sha256": "3bfbd9ea3ecef8714c2b1f7b88e9402e859eb16bc86af05ed57e4504bb1de473",
     "normalization": "Source/build roots and configured Python/CMake executable paths are replaced with declared placeholders; tests and labels are sorted."
   },
   "cutover_readiness": {
+    "extraction_provenance_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+    "extraction_provenance_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069",
+    "normal_dependency_commit": "77415c71a87fb7955e9a050bedaca02b65754324",
+    "normal_dependency_tree": "2d39c334f12c308828936656c820447bfcc38d47",
     "ready": true,
-    "snodec_cutover_performed": false,
-    "statement": "AISuite Codex policy ownership is complete. SNode.C Codex removal remains a separate reviewed cutover."
+    "snodec_cutover_performed": true,
+    "statement": "AISuite Codex policy ownership is complete and normal builds use the cleaned SNode.C dependency; the historical SNode.C tree is immutable extraction provenance only."
   },
   "focused_ci": {
     "functional_tests_selected": [
@@ -401,6 +405,14 @@
       "mutation_id": "snodec-blob-alteration"
     },
     {
+      "diagnostic": "CodexPolicySourceAuthorityMismatch",
+      "mutation_id": "snodec-clean-dependency-alteration"
+    },
+    {
+      "diagnostic": "CodexPolicyCutoverReadinessMismatch",
+      "mutation_id": "snodec-cutover-false"
+    },
+    {
       "diagnostic": "CodexPolicySourcePackageMismatch",
       "mutation_id": "source-package-owner-removal"
     },
@@ -442,15 +454,23 @@
   "preserved_preexisting_test_suites": {
     "all_ctest": {
       "baseline_test_count": 140,
-      "final_test_count": 146
+      "final_test_count": 155
     },
     "codex_component": {
       "baseline_model_sha256": "7c17643151546ecc8f92397f26d610e23e580ad140de4f03047fe02375b25f5c",
       "baseline_test_count": 131,
-      "final_model_sha256": "7c17643151546ecc8f92397f26d610e23e580ad140de4f03047fe02375b25f5c",
-      "final_test_count": 131,
+      "final_model_sha256": "63a0d6f3ab4c319bfc96bdd9052910136a10b8c3dbb33a0b2219a15c9e4121a7",
+      "final_test_count": 138,
       "generated_artifacts_guard": "CodexAppServerGeneratedArtifactsGuardTest",
       "registration_hierarchy": "tests/component/codex",
+      "reviewed_a1_4b_timeout_adjustments": [
+        {
+          "baseline": 300.0,
+          "final": 420.0,
+          "reason": "the exact 8,207-fixture A1.4b corpus exceeded the inherited CI timeout in one supported compiler image",
+          "test_name": "CodexAppServerFixtureInfrastructureTest"
+        }
+      ],
       "root_subdirectory_registration": "add_subdirectory(component/codex)"
     }
   },
@@ -459,7 +479,7 @@
       {
         "cmake_path": "src/ai/openai/codex/CMakeLists.txt",
         "cmake_variable": "AI_OPENAI_CODEX_PUBLIC_H",
-        "count": 27,
+        "count": 28,
         "headers": [
           "ai/openai/codex/AppServerClient.h",
           "ai/openai/codex/Protocol.h",
@@ -478,6 +498,7 @@
           "ai/openai/codex/typed/Hooks.h",
           "ai/openai/codex/typed/Items.h",
           "ai/openai/codex/typed/Marketplace.h",
+          "ai/openai/codex/typed/Mcp.h",
           "ai/openai/codex/typed/Models.h",
           "ai/openai/codex/typed/PermissionProfiles.h",
           "ai/openai/codex/typed/Plugins.h",
@@ -525,8 +546,8 @@
     "counts": {
       "backend": 7,
       "frontend": 7,
-      "main": 27,
-      "total": 41
+      "main": 28,
+      "total": 42
     },
     "headers": [
       "ai/openai/codex/AppServerClient.h",
@@ -560,6 +581,7 @@
       "ai/openai/codex/typed/Hooks.h",
       "ai/openai/codex/typed/Items.h",
       "ai/openai/codex/typed/Marketplace.h",
+      "ai/openai/codex/typed/Mcp.h",
       "ai/openai/codex/typed/Models.h",
       "ai/openai/codex/typed/PermissionProfiles.h",
       "ai/openai/codex/typed/Plugins.h",
@@ -617,6 +639,12 @@
       ".hpp",
       ".ipp"
     ]
+  },
+  "snodec_normal_dependency": {
+    "commit": "77415c71a87fb7955e9a050bedaca02b65754324",
+    "repository": "https://github.com/SNodeC/snode.c",
+    "role": "normal AISuite compilation and linking through one installed SNode.C prefix",
+    "tree": "2d39c334f12c308828936656c820447bfcc38d47"
   },
   "snodec_source_authority": {
     "commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",

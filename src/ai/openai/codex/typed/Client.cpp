@@ -22,6 +22,8 @@
 #include "ai/openai/codex/detail/FilesystemCodec.h"
 #include "ai/openai/codex/detail/HookCodec.h"
 #include "ai/openai/codex/detail/MarketplaceCodec.h"
+#include "ai/openai/codex/detail/McpCodec.h"
+#include "ai/openai/codex/detail/McpReverseRequestCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
@@ -41,6 +43,7 @@
 #include "ai/openai/codex/typed/Filesystem.h"
 #include "ai/openai/codex/typed/Hooks.h"
 #include "ai/openai/codex/typed/Marketplace.h"
+#include "ai/openai/codex/typed/Mcp.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
 #include "ai/openai/codex/typed/Plugins.h"
@@ -79,6 +82,7 @@ namespace ai::openai::codex::typed {
              std::unique_ptr<Feedback> feedback,
              std::unique_ptr<Hooks> hooks,
              std::unique_ptr<Marketplace> marketplace,
+             std::unique_ptr<Mcp> mcp,
              std::unique_ptr<Models> models,
              std::unique_ptr<PermissionProfiles> permissionProfiles,
              std::unique_ptr<Plugins> plugins,
@@ -97,6 +101,7 @@ namespace ai::openai::codex::typed {
             , feedback(std::move(feedback))
             , hooks(std::move(hooks))
             , marketplace(std::move(marketplace))
+            , mcp(std::move(mcp))
             , models(std::move(models))
             , permissionProfiles(std::move(permissionProfiles))
             , plugins(std::move(plugins))
@@ -117,6 +122,7 @@ namespace ai::openai::codex::typed {
         std::unique_ptr<Feedback> feedback;
         std::unique_ptr<Hooks> hooks;
         std::unique_ptr<Marketplace> marketplace;
+        std::unique_ptr<Mcp> mcp;
         std::unique_ptr<Models> models;
         std::unique_ptr<PermissionProfiles> permissionProfiles;
         std::unique_ptr<Plugins> plugins;
@@ -137,6 +143,7 @@ namespace ai::openai::codex::typed {
                    std::unique_ptr<Feedback> feedback,
                    std::unique_ptr<Hooks> hooks,
                    std::unique_ptr<Marketplace> marketplace,
+                   std::unique_ptr<Mcp> mcp,
                    std::unique_ptr<Models> models,
                    std::unique_ptr<PermissionProfiles> permissionProfiles,
                    std::unique_ptr<Plugins> plugins,
@@ -155,6 +162,7 @@ namespace ai::openai::codex::typed {
                                       std::move(feedback),
                                       std::move(hooks),
                                       std::move(marketplace),
+                                      std::move(mcp),
                                       std::move(models),
                                       std::move(permissionProfiles),
                                       std::move(plugins),
@@ -238,6 +246,14 @@ namespace ai::openai::codex::typed {
 
     const Marketplace& Client::marketplace() const noexcept {
         return *impl->marketplace;
+    }
+
+    Mcp& Client::mcp() noexcept {
+        return *impl->mcp;
+    }
+
+    const Mcp& Client::mcp() const noexcept {
+        return *impl->mcp;
     }
 
     Models& Client::models() noexcept {
@@ -513,6 +529,36 @@ namespace ai::openai::codex::typed {
     Marketplace::Submission Marketplace::upgrade(MarketplaceUpgradeParams params, UpgradeResultHandler handler) {
         return submitTypedRequest<MarketplaceUpgradeResponse>(
             protocol, detail::ClientRequestTarget::MarketplaceUpgrade, params, std::move(handler), detail::encodeMarketplaceUpgradeParams);
+    }
+
+    Mcp::Mcp(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    Mcp::Submission Mcp::startOauthLogin(McpServerOauthLoginParams params, StartOauthLoginResultHandler handler) {
+        return submitTypedRequest<McpServerOauthLoginResponse>(protocol,
+                                                               detail::ClientRequestTarget::McpServerOauthLogin,
+                                                               params,
+                                                               std::move(handler),
+                                                               detail::encodeMcpServerOauthLoginParams);
+    }
+
+    Mcp::Submission Mcp::readResource(McpResourceReadParams params, ReadResourceResultHandler handler) {
+        return submitTypedRequest<McpResourceReadResponse>(
+            protocol, detail::ClientRequestTarget::McpResourceRead, params, std::move(handler), detail::encodeMcpResourceReadParams);
+    }
+
+    Mcp::Submission Mcp::callTool(McpServerToolCallParams params, CallToolResultHandler handler) {
+        return submitTypedRequest<McpServerToolCallResponse>(
+            protocol, detail::ClientRequestTarget::McpServerToolCall, params, std::move(handler), detail::encodeMcpServerToolCallParams);
+    }
+
+    Mcp::Submission Mcp::listServers(ListMcpServerStatusParams params, ListServersResultHandler handler) {
+        return submitTypedRequest<ListMcpServerStatusResponse>(protocol,
+                                                               detail::ClientRequestTarget::McpServerStatusList,
+                                                               params,
+                                                               std::move(handler),
+                                                               detail::encodeListMcpServerStatusParams);
     }
 
     Skills::Skills(AppServerClient::RawProtocol& protocol) noexcept
@@ -1310,6 +1356,40 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
+    Requests::SendResult Requests::respond(const AttestationGenerateRequest& request, AttestationGenerateResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeAttestationGenerateResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
+        return protocol->respondOwned(request.requestId,
+                                      request.requestToken,
+                                      registeredMethod(detail::ServerRequestTarget::AttestationGenerate),
+                                      std::move(*encoded));
+    }
+
+    Requests::SendResult Requests::respond(const DynamicToolCallRequest& request, DynamicToolCallResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeDynamicToolCallResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
+        return protocol->respondOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(*encoded));
+    }
+
+    Requests::SendResult Requests::respond(const UserInputRequest& request, ToolRequestUserInputResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeToolRequestUserInputResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
+        return protocol->respondOwned(request.requestId,
+                                      request.requestToken,
+                                      registeredMethod(detail::ServerRequestTarget::ToolRequestUserInput),
+                                      std::move(*encoded));
+    }
+
     Requests::SendResult Requests::respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers) {
         std::set<std::string> questionIds;
         for (const UserInputQuestion& question : request.questions) {
@@ -1317,21 +1397,29 @@ namespace ai::openai::codex::typed {
         }
 
         std::set<std::string> answeredIds;
-        Json encodedAnswers = Json::object();
+        ToolRequestUserInputResponse response;
         for (UserInputAnswer& answer : answers) {
             if (!questionIds.contains(answer.questionId)) {
-                return validationFailure("user-input answer refers to an unknown question ID: " + answer.questionId);
+                return validationFailure("user-input answer refers to an unknown question ID");
             }
             if (!answeredIds.insert(answer.questionId).second) {
-                return validationFailure("duplicate user-input answer for question ID: " + answer.questionId);
+                return validationFailure("duplicate user-input answer for a question ID");
             }
-            encodedAnswers[answer.questionId] = Json{{"answers", std::move(answer.answers)}};
+            response.answers.emplace(std::move(answer.questionId), ToolRequestUserInputAnswer{std::move(answer.answers), Json::object()});
         }
+        return respond(request, std::move(response));
+    }
 
+    Requests::SendResult Requests::respond(const McpServerElicitationRequest& request, McpServerElicitationRequestResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeMcpServerElicitationRequestResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
         return protocol->respondOwned(request.requestId,
                                       request.requestToken,
-                                      registeredMethod(detail::ServerRequestTarget::ToolRequestUserInput),
-                                      Json{{"answers", std::move(encodedAnswers)}});
+                                      registeredMethod(detail::ServerRequestTarget::McpServerElicitation),
+                                      std::move(*encoded));
     }
 
     Requests::SendResult Requests::respondRefresh(const ChatgptAuthTokensRefreshRequest& request,
@@ -1354,6 +1442,26 @@ namespace ai::openai::codex::typed {
             response.chatgptPlanType ? OptionalNullable<PlanType>::withValue(PlanType{std::move(*response.chatgptPlanType)})
                                      : OptionalNullable<PlanType>::explicitNull()};
         return respondRefresh(request, std::move(canonical));
+    }
+
+    Requests::SendResult Requests::reject(const AttestationGenerateRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::AttestationGenerate), std::move(error));
+    }
+
+    Requests::SendResult Requests::reject(const DynamicToolCallRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(error));
+    }
+
+    Requests::SendResult Requests::reject(const UserInputRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::ToolRequestUserInput), std::move(error));
+    }
+
+    Requests::SendResult Requests::reject(const McpServerElicitationRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::McpServerElicitation), std::move(error));
     }
 
     Requests::SendResult Requests::respondRaw(const UnknownServerRequest& request, Json result) {

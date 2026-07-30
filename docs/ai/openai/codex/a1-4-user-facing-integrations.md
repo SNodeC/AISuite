@@ -190,23 +190,23 @@ result-contract drift, schema-closure drift, false completion, package
 boundary violations, predecessor or appended variant movement, SOVERSION
 drift, predecessor-evidence drift, and second-pass nondeterminism.
 
-The installed-consumer gate uses disjoint SNode.C source/build/install,
-AISuite source/build/install, and consumer source/build directories. It builds
-the pinned SNode.C commit into a fresh prefix, builds AISuite only against that
-installed package, and configures the external consumer with package
-registries disabled and inherited compiler, linker, loader, include, CMake,
-and pkg-config search variables removed. Cache, compile-command, verbose-link,
-`readelf`, and `ldd` evidence must resolve AISuite and SNode.C headers and
-libraries only from the two install prefixes while rejecting the original
-checkouts and every outer or fresh source/build prefix. A small installed
-public-header consumer links `snodec::core` directly and must compile with the
-fresh `include/snode.c` root. The sanitized consumers exercise all seven new
+The installed-consumer gate reuses the one installed cleaned SNode.C prefix
+and the one configured AISuite build, installs AISuite into an isolated
+prefix, and configures the external consumer with package registries disabled
+and inherited compiler, linker, loader, include, CMake, and pkg-config search
+variables removed. Cache, compile-command, verbose-link, `readelf`, and `ldd`
+evidence must resolve AISuite and SNode.C headers and libraries only from the
+two install prefixes while rejecting the AISuite checkout/build and the
+historical SNode.C provenance worktree. A small installed public-header
+consumer links `snodec::core` directly and must compile with the cleaned
+`include/snode.c` root. The sanitized consumers exercise all seven new
 facades, all six appended notification types, and the five-alternative
 `PluginSource` variant through installed public headers.
 
-Local validation supplies a clean clone containing the pinned SNode.C commit
-through `AISUITE_TEST_SNODEC_SOURCE_REPOSITORY`. Source packages contain no
-`.git`, cannot discover an enclosing checkout under their
+Local validation supplies the detached historical SNode.C worktree only
+through `AISUITE_TEST_SNODEC_SOURCE_REPOSITORY`; normal dependency discovery
+uses the cleaned installed prefix through `CMAKE_PREFIX_PATH`. Source packages
+contain no `.git`, cannot discover an enclosing checkout under their
 `GIT_CEILING_DIRECTORIES`, retain the three full-corpus generation-proof JSON
 files, and run package-safe extraction, API/ABI, and closure checks. Binary
 packages require all seven facade headers and exclude private tools, tests,

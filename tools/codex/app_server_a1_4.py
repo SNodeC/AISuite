@@ -22,6 +22,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 sys.dont_write_bytecode = True
 
+import app_server_a1_1 as a1_1
 import app_server_a1_shared as shared
 import app_server_fixtures as fixtures
 import app_server_a1_4_user_integrations as user_integrations
@@ -1124,6 +1125,18 @@ def _user_integration_stage_keys(
     }
 
 
+def _reviewed_a1_4_stage_keys(
+    stage: Mapping[str, Any],
+) -> set[Key]:
+    identities = stage.get("identities")
+    if identities is None:
+        return _user_integration_stage_keys(stage)
+    return {
+        Key(*(str(part) for part in identity))
+        for identity in identities
+    }
+
+
 def _frozen_native_registry(
     start_state: Mapping[str, Any],
 ) -> dict[Key, dict[str, Any]]:
@@ -1161,31 +1174,39 @@ def validate_user_integration_successor(
     registry: Mapping[Key, Mapping[str, Any]],
     start_state: Mapping[str, Any],
 ) -> str:
-    """Return Start or the exact reviewed PR-A stage for a live registry."""
+    """Validate reviewed successors and return the frozen PR-A projection."""
 
     global_status = _status_counter(registry.values())
     if global_status == EXPECTED_GLOBAL_START_STATUS:
         stage_name = "Start"
         promoted: set[Key] = set()
     else:
+        reviewed_stages = (
+            *user_integrations.STAGES,
+            *a1_1.MCP_REVERSE_STAGES,
+        )
         matching = [
             stage
-            for stage in user_integrations.STAGES
+            for stage in reviewed_stages
             if global_status == dict(stage["global"])
         ]
         require(
             len(matching) == 1,
             (
                 "live registry is neither the frozen A1.4 start nor an "
-                f"exact PR-A stage: {global_status}"
+                f"exact reviewed successor stage: {global_status}"
             ),
             "PredecessorEvidenceMismatch",
         )
         selected = matching[0]
-        stage_name = f"Commit {selected['commit']}"
+        stage_name = (
+            f"Commit {user_integrations.STAGES[-1]['commit']}"
+            if "identities" in selected
+            else f"Commit {selected['commit']}"
+        )
         promoted = set()
-        for stage in user_integrations.STAGES:
-            promoted |= _user_integration_stage_keys(stage)
+        for stage in reviewed_stages:
+            promoted |= _reviewed_a1_4_stage_keys(stage)
             if stage is selected:
                 break
 
@@ -1206,10 +1227,15 @@ def validate_user_integration_successor(
             for field in set(before) | set(current)
             if before.get(field) != current.get(field)
         }
+        expected_changed_fields = (
+            {"schema_completeness", "typed_schema_status"}
+            if key == NATIVE_PARTIAL
+            else SUCCESSOR_PROMOTION_FIELDS
+        )
         completeness = current.get("schema_completeness")
         require(
             key in promoted
-            and changed_fields == SUCCESSOR_PROMOTION_FIELDS
+            and changed_fields == expected_changed_fields
             and current.get("runtime_disposition") == "Typed"
             and current.get("typed_status") == "Implemented"
             and current.get("typed_schema_status") == "Complete"
@@ -1219,14 +1245,14 @@ def validate_user_integration_successor(
             and bool(completeness)
             and all(value is True for value in completeness.values()),
             (
-                "live registry changed outside the exact reviewed PR-A "
+                "live registry changed outside the exact reviewed A1.4 "
                 f"promotion: {key.compact()}"
             ),
             "PredecessorEvidenceMismatch",
         )
     require(
         changed == promoted,
-        "the live PR-A promotion identity set is incomplete or excessive",
+        "the live reviewed A1.4 promotion set is incomplete or excessive",
         "PredecessorEvidenceMismatch",
     )
 
@@ -1235,9 +1261,12 @@ def validate_user_integration_successor(
         for key, row in registry.items()
         if row.get("typed_schema_status") == "Partial"
     }
+    expected_partial = INHERITED_PARTIALS | (
+        set() if NATIVE_PARTIAL in promoted else {NATIVE_PARTIAL}
+    )
     require(
-        partial == INHERITED_PARTIALS | {NATIVE_PARTIAL},
-        "the four frozen global Partial identities changed",
+        partial == expected_partial,
+        "the reviewed global Partial identity set changed",
         "GlobalPartialMismatch",
     )
     return stage_name

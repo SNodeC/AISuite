@@ -1,7 +1,9 @@
 # AISuite Codex policy ownership
 
-AISuite Codex policy ownership is complete. SNode.C Codex removal remains a
-separate reviewed cutover.
+AISuite Codex policy ownership is complete and the reviewed SNode.C cutover is
+performed. Normal AISuite compilation and linking use cleaned SNode.C commit
+`77415c71a87fb7955e9a050bedaca02b65754324`, tree
+`2d39c334f12c308828936656c820447bfcc38d47`.
 
 This change transfers source-policy ownership only. It does not change Codex
 protocol identities, production code, backend or frontend behavior, the
@@ -13,8 +15,11 @@ unchanged.
 
 The AISuite base for this transfer is commit
 `19de4f50be64e187761274f043091090609d27a3`, tree
-`c71a91e545d70d649446ca9d698d729c307a480a`. The read-only policy authority is
-`https://github.com/SNodeC/snode.c` at commit
+`c71a91e545d70d649446ca9d698d729c307a480a`. The normal installed dependency is
+`https://github.com/SNodeC/snode.c` at cleaned commit
+`77415c71a87fb7955e9a050bedaca02b65754324`, tree
+`2d39c334f12c308828936656c820447bfcc38d47`. The separate read-only extraction
+and policy authority is the historical commit
 `d18b231a1d2ec2235fd6f204786b0a761cc24ff5`, tree
 `88a63edc985a851b2b76b0c56df19fae74ea8069`.
 
@@ -142,7 +147,7 @@ The public-header owner mechanically derives its inventory from
 `AI_OPENAI_CODEX_PUBLIC_H`, `AI_OPENAI_CODEX_BACKEND_PUBLIC_H`, and
 `AI_OPENAI_CODEX_FRONTEND_PUBLIC_H`, cross-checks every `install(FILES ...)`
 authority, and compares the staged installation and binary-package inventory.
-The current exact inventory is 27 main, 7 backend, and 7 frontend headers: 41
+The current exact inventory is 28 main, 7 backend, and 7 frontend headers: 42
 total.
 
 Every installed public header must use one conventional, correctly ordered,
@@ -155,7 +160,7 @@ competing guard. The original A1.2 identities remain exact:
 | `typed/Models.h` | `AI_OPENAI_CODEX_TYPED_MODELS_H` |
 | `typed/Configuration.h` | `AI_OPENAI_CODEX_TYPED_CONFIGURATION_H` |
 
-This deliberately strengthens the former three-header check to all 41
+This deliberately strengthens the former three-header check to all 42
 installed headers. The self-containment test installs AISuite into an isolated
 prefix and compiles one translation unit per header against installed AISuite
 and SNode.C packages, with CMake package registries disabled. Compile-command
@@ -285,5 +290,7 @@ drift reports `CodexPolicySecondPassNondeterminism`.
 
 The protocol registry remains `313 / 4 / 22 / 48`, with Partial identities
 `initialize`, `initialized`, `error`, and
-`item/tool/requestUserInput`. PR B and PR C remain untouched. The actual
-SNode.C Codex removal is deliberately not part of this work.
+`item/tool/requestUserInput`. PR B and PR C remain untouched. SNode.C Codex
+removal was completed in SNode.C commit
+`77415c71a87fb7955e9a050bedaca02b65754324`; AISuite now adopts that cleaned
+dependency while preserving the historical source authority separately.

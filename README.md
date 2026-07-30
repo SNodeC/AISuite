@@ -5,8 +5,10 @@ initial provider is a typed, asynchronous client, backend, and frontend protocol
 for the OpenAI Codex App Server.
 
 This repository was extracted additively from `SNodeC/snode.c` at commit
-`d18b231a1d2ec2235fd6f204786b0a761cc24ff5`. The original SNode.C Codex
-implementation remains untouched until a later, independently reviewed cutover.
+`d18b231a1d2ec2235fd6f204786b0a761cc24ff5`. That tree remains immutable
+extraction provenance. Normal compilation and linking use the cleaned SNode.C
+dependency at `77415c71a87fb7955e9a050bedaca02b65754324`, after the separately
+reviewed SNode.C Codex removal.
 
 AISuite now owns the three remaining Codex-specific source-policy
 responsibilities: installed public-header policy, backend logging API surface
@@ -34,8 +36,9 @@ ctest --test-dir build --output-on-failure
 
 Test-enabled builds must also set
 `AISUITE_TEST_SNODEC_SOURCE_REPOSITORY=/absolute/path/to/snode.c` to a clean
-clone containing the pinned extraction dependency; the installed-consumer gate
-exports that pinned tree and rebuilds both packages in disjoint directories.
+worktree at the historical extraction-provenance commit. That worktree is read
+only: the installed-consumer gate reuses the configured cleaned SNode.C package
+and never builds the provenance tree.
 
 ## CMake consumption
 
@@ -69,6 +72,6 @@ identities remain untouched. See the
 [user-facing integrations report](docs/ai/openai/codex/a1-4-user-facing-integrations.md)
 for the exact scope and verification boundary.
 
-AISuite Codex policy ownership is complete. The actual SNode.C Codex removal
-remains a separate reviewed cutover; this policy transfer does not change
-production or protocol behavior.
+AISuite Codex policy ownership is complete, and the separately reviewed SNode.C
+cutover is performed. Normal builds use cleaned SNode.C; the historical tree is
+provenance-only. This dependency adoption does not change protocol behavior.

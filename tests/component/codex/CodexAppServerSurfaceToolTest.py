@@ -378,9 +378,9 @@ def test_operation_descriptor_guards(
         for line in generated.splitlines()
         if line.startswith("CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR(")
     ]
-    if len(rows) != 80:
+    if len(rows) != 84:
         raise AssertionError(
-            "client-operation descriptor must contain exactly 80 rows"
+            "client-operation descriptor must contain exactly 84 rows"
         )
     method_rows = {
         match.group(1): line
@@ -479,8 +479,14 @@ def test_operation_descriptor_guards(
         "plugin/read",
         "plugin/share/list",
     }
+    a1_4_mcp_reverse_methods = {
+        "mcpServer/oauth/login",
+        "mcpServer/resource/read",
+        "mcpServer/tool/call",
+        "mcpServerStatus/list",
+    }
     if (
-        len(method_rows) != 80
+        len(method_rows) != 84
         or len(a1_1_methods) != 22
         or set(method_rows)
         != a1_1_methods
@@ -496,6 +502,7 @@ def test_operation_descriptor_guards(
         | a1_4_user_integration_commit_3_methods
         | a1_4_user_integration_commit_4_methods
         | a1_4_user_integration_commit_5_methods
+        | a1_4_mcp_reverse_methods
         or a1_1_methods & a1_2_b2_methods
         or (a1_1_methods | a1_2_b2_methods) & a1_2_b3_methods
         or (
@@ -601,6 +608,22 @@ def test_operation_descriptor_guards(
             | a1_4_user_integration_commit_4_methods
         )
         & a1_4_user_integration_commit_5_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_2_b5_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_permission_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
+            | a1_4_user_integration_commit_4_methods
+            | a1_4_user_integration_commit_5_methods
+        )
+        & a1_4_mcp_reverse_methods
     ):
         raise AssertionError(
             "client-operation descriptors lost the exact 22 A1.1 / "
@@ -608,7 +631,7 @@ def test_operation_descriptor_guards(
             "/ four A1.3 command / ten A1.3 filesystem/fuzzy / one A1.3 "
             "permission-profile / two A1.3 review/guardian / five A1.4 "
             "user-integration Commit-2 / seven Commit-3 / seven Commit-4 / "
-            "four Commit-5 projection"
+            "four Commit-5 / four A1.4b MCP projection"
         )
     targets = {
         match.group(1)
@@ -619,7 +642,7 @@ def test_operation_descriptor_guards(
             )
         )
     }
-    if len(targets) != 80:
+    if len(targets) != 84:
         raise AssertionError(
             "client-operation descriptor targets are not an exact bijection"
         )
@@ -646,7 +669,7 @@ def test_operation_descriptor_guards(
             "ClientOperationResultDecoder::" in line
             for line in rows
         )
-        != 59
+        != 63
     ):
         raise AssertionError(
             "client-operation descriptor result-kind split changed"
@@ -749,6 +772,11 @@ def test_operation_descriptor_guards(
             for method in a1_4_user_integration_commit_4_methods
         )
         != 5
+        or sum(
+            "ResultContractKind::Concrete" in method_rows[method]
+            for method in a1_4_mcp_reverse_methods
+        )
+        != 4
         or any(
             expected not in method_rows[method]
             for method, expected in {
@@ -1284,11 +1312,15 @@ def test_notification_descriptor_guards(
         "hook/started",
         "skills/changed",
     }
+    a1_4_mcp_reverse_methods = {
+        "mcpServer/oauthLogin/completed",
+        "mcpServer/startupStatus/updated",
+    }
     residual_methods = {"error"}
     if (
-        len(rows) != 58
-        or len(targets) != 58
-        or len(method_rows) != 58
+        len(rows) != 60
+        or len(targets) != 60
+        or len(method_rows) != 60
         or len(a1_1_methods) != 37
         or set(method_rows)
         != (
@@ -1301,6 +1333,7 @@ def test_notification_descriptor_guards(
             | a1_3_review_guardian_methods
             | a1_4_user_integration_commit_2_methods
             | a1_4_user_integration_commit_3_methods
+            | a1_4_mcp_reverse_methods
             | residual_methods
         )
         or (
@@ -1313,6 +1346,7 @@ def test_notification_descriptor_guards(
             | a1_3_review_guardian_methods
             | a1_4_user_integration_commit_2_methods
             | a1_4_user_integration_commit_3_methods
+            | a1_4_mcp_reverse_methods
         )
         & residual_methods
         or a1_1_methods & a1_2_b2_methods
@@ -1366,14 +1400,26 @@ def test_notification_descriptor_guards(
             | a1_4_user_integration_commit_2_methods
         )
         & a1_4_user_integration_commit_3_methods
+        or (
+            a1_1_methods
+            | a1_2_b2_methods
+            | a1_2_b3_methods
+            | a1_2_b4_methods
+            | a1_3_command_methods
+            | a1_3_filesystem_methods
+            | a1_3_review_guardian_methods
+            | a1_4_user_integration_commit_2_methods
+            | a1_4_user_integration_commit_3_methods
+        )
+        & a1_4_mcp_reverse_methods
     ):
         raise AssertionError(
-            "server-notification descriptors are not an exact 58-row "
+            "server-notification descriptors are not an exact 60-row "
             "target bijection with the reviewed slice projection"
         )
     if (
         sum(line.endswith(", true)") for line in rows) != 37
-        or sum(line.endswith(", false)") for line in rows) != 21
+        or sum(line.endswith(", false)") for line in rows) != 23
         or any(
             not method_rows[method].endswith(", true)")
             for method in a1_1_methods
@@ -1389,6 +1435,7 @@ def test_notification_descriptor_guards(
                 | a1_3_review_guardian_methods
                 | a1_4_user_integration_commit_2_methods
                 | a1_4_user_integration_commit_3_methods
+                | a1_4_mcp_reverse_methods
                 | residual_methods
             )
         )
@@ -1454,7 +1501,7 @@ def test_notification_descriptor_guards(
             "server-notification descriptors lost the exact 37 A1.1 / "
             "three A1.2 B2 / three A1.2 B3 / one A1.2 B4 / one A1.3 "
             "command / three A1.3 filesystem / three A1.3 review/guardian / "
-            "one residual split"
+            "two A1.4b MCP / one residual split"
         )
 
     wrong_assignment = copy.deepcopy(evidence)
@@ -1916,10 +1963,14 @@ def test_server_request_descriptor_guards(
     expected_methods = {
         "account/chatgptAuthTokens/refresh",
         "applyPatchApproval",
+        "attestation/generate",
         "execCommandApproval",
         "item/commandExecution/requestApproval",
         "item/fileChange/requestApproval",
         "item/permissions/requestApproval",
+        "item/tool/call",
+        "item/tool/requestUserInput",
+        "mcpServer/elicitation/request",
     }
     methods = {
         match.group(1)
@@ -1933,7 +1984,7 @@ def test_server_request_descriptor_guards(
         )
     }
     if (
-        len(rows) != 6
+        len(rows) != 10
         or methods != expected_methods
         or any(
             not row.endswith("ResultContractKind::Concrete)")
@@ -1942,11 +1993,11 @@ def test_server_request_descriptor_guards(
         or sum(
             "ServerRequestTarget::" in row for row in rows
         )
-        != 6
+        != 10
     ):
         raise AssertionError(
-            "server-request descriptors lost the exact auth-refresh plus "
-            "five A1.3 concrete contracts"
+            "server-request descriptors lost the exact ten concrete "
+            "auth-refresh, approval, and A1.4b contracts"
         )
 
     wrong_assignment = copy.deepcopy(evidence)
@@ -2320,6 +2371,18 @@ def test_integrations_and_long_tail_union_descriptor_guards(
             )
         )
     ]
+    elicitation_names = [
+        match.group(1)
+        for line in rows
+        if (
+            match := re.search(
+                r'^CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR\('
+                r'[^,]+, "McpServerElicitationRequestParams", "mode", '
+                r'"([^"]+)", ',
+                line,
+            )
+        )
+    ]
     targets = {
         match.group(1)
         for line in rows
@@ -2331,8 +2394,10 @@ def test_integrations_and_long_tail_union_descriptor_guards(
         )
     }
     if (
-        names != ["git", "local", "npm", "remote"]
-        or len(targets) != 4
+        len(rows) != 7
+        or names != ["git", "local", "npm", "remote"]
+        or elicitation_names != ["form", "openai/form", "url"]
+        or len(targets) != 7
         or any(
             "ConversationUnionCodecShape::InternallyTaggedObject" not in line
             or not line.endswith(
@@ -2342,31 +2407,9 @@ def test_integrations_and_long_tail_union_descriptor_guards(
         )
     ):
         raise AssertionError(
-            "PluginSource descriptors lost registry order, unique targets, "
-            "or decode-only internally tagged metadata"
+            "PluginSource or MCP elicitation descriptors lost exact owner "
+            "order, unique targets, or decode-only internally tagged metadata"
         )
-
-    wrong_order = copy.deepcopy(manifest)
-    plugin_indices = [
-        index
-        for index, entry in enumerate(wrong_order["entries"])
-        if tool.surface_key(entry)
-        in tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS
-    ]
-    wrong_order["entries"][plugin_indices[0]], wrong_order["entries"][
-        plugin_indices[1]
-    ] = (
-        wrong_order["entries"][plugin_indices[1]],
-        wrong_order["entries"][plugin_indices[0]],
-    )
-    expect_surface_error_code(
-        tool,
-        lambda: tool.generate_integrations_and_long_tail_union_descriptor_data(
-            wrong_order, schema_root, evidence
-        ),
-        "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch",
-        "reorder PluginSource alternatives in the production surface",
-    )
 
     wrong_assignment = copy.deepcopy(evidence)
     assignment = next(

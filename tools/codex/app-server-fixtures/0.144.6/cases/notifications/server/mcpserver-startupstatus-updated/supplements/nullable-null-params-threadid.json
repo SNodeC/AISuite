@@ -1,0 +1,10 @@
+{
+  "method": "mcpServer/startupStatus/updated",
+  "params": {
+    "error": "synthetic-86eb32ce93",
+    "failureReason": "reauthenticationRequired",
+    "name": "synthetic-bb10498062",
+    "status": "starting",
+    "threadId": null
+  }
+}

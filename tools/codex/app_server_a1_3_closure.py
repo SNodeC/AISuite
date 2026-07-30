@@ -54,6 +54,152 @@ SUCCESSOR_PROMOTION_FIELDS = {
     "typed_schema_status",
     "typed_status",
 }
+A14_MCP_REVERSE_PARTIAL_KEY = (
+    "server_request",
+    "ServerRequest",
+    "method",
+    "item/tool/requestUserInput",
+)
+A14_MCP_REVERSE_STAGES = (
+    {
+        "commit": 3,
+        "identities": (
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/oauth/login",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/resource/read",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/tool/call",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServerStatus/list",
+            ),
+            (
+                "server_notification",
+                "ServerNotification",
+                "method",
+                "mcpServer/oauthLogin/completed",
+            ),
+            (
+                "server_notification",
+                "ServerNotification",
+                "method",
+                "mcpServer/startupStatus/updated",
+            ),
+        ),
+        "global": {
+            "Complete": 319,
+            "NotApplicable": 48,
+            "NotImplemented": 16,
+            "Partial": 4,
+        },
+        "native": {
+            "Complete": 39,
+            "NotImplemented": 16,
+            "Partial": 1,
+        },
+        "residual_partial": {
+            "error",
+            "initialize",
+            "initialized",
+            "item/tool/requestUserInput",
+        },
+    },
+    {
+        "commit": 4,
+        "identities": (
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "attestation/generate",
+            ),
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "item/tool/call",
+            ),
+        ),
+        "global": {
+            "Complete": 321,
+            "NotApplicable": 48,
+            "NotImplemented": 14,
+            "Partial": 4,
+        },
+        "native": {
+            "Complete": 41,
+            "NotImplemented": 14,
+            "Partial": 1,
+        },
+        "residual_partial": {
+            "error",
+            "initialize",
+            "initialized",
+            "item/tool/requestUserInput",
+        },
+    },
+    {
+        "commit": 5,
+        "identities": (
+            A14_MCP_REVERSE_PARTIAL_KEY,
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "mcpServer/elicitation/request",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "form",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "openai/form",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "url",
+            ),
+        ),
+        "global": {
+            "Complete": 326,
+            "NotApplicable": 48,
+            "NotImplemented": 10,
+            "Partial": 3,
+        },
+        "native": {
+            "Complete": 46,
+            "NotImplemented": 10,
+            "Partial": 0,
+        },
+        "residual_partial": {
+            "error",
+            "initialize",
+            "initialized",
+        },
+    },
+)
 # These two records describe the historical A1.3 closure boundary. Successor
 # audit phases may extend the closure checker and source-package guard without
 # rewriting the already captured A1.3 report; their live semantics are checked
@@ -171,6 +317,51 @@ EXPECTED_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS = {
         "schema_properties_exercised": 313,
     },
     "identities_with_positive_fixtures": 326,
+    "surface_identities": 387,
+}
+EXPECTED_MCP_REVERSE_FIXTURE_TOTALS = {
+    "negative": 4880,
+    "positive": 3327,
+    "total": 8207,
+}
+EXPECTED_MCP_REVERSE_FIXTURE_MUTATIONS = {
+    "alternative_branch_acceptances": 31,
+    "globally_optional_locations": 43728,
+    "optional_cross_fragment_exclusions": 0,
+    "optional_omissions_accepted": 43728,
+    "optional_present_locations": 43728,
+    "required_field_removals_rejected": 36398,
+    "required_locations": 36398,
+    "selected_branch_required_locations": 36398,
+    "wrong_type_mutations_rejected": 36157,
+    "wrong_type_unconstrained_exclusions": 241,
+}
+EXPECTED_MCP_REVERSE_FIXTURE_COVERAGE_COUNTS = {
+    "identities_with_positive_fixtures": 331,
+    "operation_role_actual": 194,
+    "operation_role_expected": 194,
+    "optional_omissions_accepted": 43728,
+    "optional_present_locations": 43728,
+    "positive_fixtures": 3327,
+    "required_field_removals_rejected": 36398,
+    "surface_identities": 387,
+    "wrong_type_mutations_rejected": 36157,
+    "wrong_type_unconstrained_exclusions": 241,
+}
+EXPECTED_MCP_REVERSE_SCHEMA_COMPLETENESS_COUNTS = {
+    "facts_true_by_field": {
+        "authoritative_root_association": 331,
+        "fixture_current": 331,
+        "independently_schema_validated": 331,
+        "nullable_semantics_exercised": 326,
+        "optional_omitted_exercised": 331,
+        "optional_present_exercised": 331,
+        "positive_fixture_coverage": 331,
+        "reachable_union_alternatives_exercised": 326,
+        "required_fields_exercised": 331,
+        "schema_properties_exercised": 326,
+    },
+    "identities_with_positive_fixtures": 331,
     "surface_identities": 387,
 }
 EXPECTED_A1_3_FIXTURE_COUNTS = {
@@ -489,12 +680,6 @@ def validate_registry(
         for key, row in registry.items()
         if row.get("typed_schema_status") == "Partial"
     }
-    expected_residual = {
-        key
-        for key in registry
-        if key.name in a1_3.EXPECTED_RESIDUAL_PARTIAL_NAMES
-    }
-
     unrelated_value = start_state.get("unrelated_registry_identities")
     require(
         isinstance(unrelated_value, list),
@@ -549,13 +734,32 @@ def validate_registry(
         successor_stages.append(
             (f"Commit {stage['commit']}", stage, set(cumulative))
         )
+    for stage in A14_MCP_REVERSE_STAGES:
+        cumulative |= {
+            Key(category, domain, field, name)
+            for category, domain, field, name in stage["identities"]
+        }
+        successor_stages.append(
+            (
+                f"A1.4b Commit {stage['commit']}",
+                stage,
+                set(cumulative),
+            )
+        )
     matching_successors = [
         (name, stage, promoted)
         for name, stage, promoted in successor_stages
         if global_status == dict(stage["global"])
     ]
+    expected_residual_names = a1_3.EXPECTED_RESIDUAL_PARTIAL_NAMES
     if matching_successors:
         _stage_name, stage, promoted = matching_successors[0]
+        expected_residual_names = set(
+            stage.get(
+                "residual_partial",
+                a1_3.EXPECTED_RESIDUAL_PARTIAL_NAMES,
+            )
+        )
         for key, frozen in frozen_unrelated.items():
             current = current_unrelated.get(key)
             require(
@@ -578,9 +782,20 @@ def validate_registry(
                 for field in set(frozen) | set(current)
                 if frozen.get(field) != current.get(field)
             }
+            expected_changed_fields = (
+                {"schema_completeness", "typed_schema_status"}
+                if (
+                    key.category,
+                    key.domain,
+                    key.field,
+                    key.name,
+                )
+                == A14_MCP_REVERSE_PARTIAL_KEY
+                else SUCCESSOR_PROMOTION_FIELDS
+            )
             completeness = current.get("schema_completeness")
             require(
-                changed_fields == SUCCESSOR_PROMOTION_FIELDS
+                changed_fields == expected_changed_fields
                 and current.get("runtime_disposition") == "Typed"
                 and current.get("typed_status") == "Implemented"
                 and current.get("typed_schema_status") == "Complete"
@@ -613,9 +828,14 @@ def validate_registry(
             global_status == EXPECTED_GLOBAL_STATUS
             or bool(matching_successors)
         )
-        and residual == expected_residual
+        and residual
+        == {
+            key
+            for key in registry
+            if key.name in expected_residual_names
+        }
         and {key.name for key in residual}
-        == a1_3.EXPECTED_RESIDUAL_PARTIAL_NAMES,
+        == expected_residual_names,
         "final A1.3/global status or residual Partial set changed",
         "ClosureStatusMismatch",
     )
@@ -673,8 +893,17 @@ def validate_fixture_evidence(
         and schema_completeness.get("counts")
         == EXPECTED_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS
     )
+    mcp_reverse_counts = (
+        fixture_totals == EXPECTED_MCP_REVERSE_FIXTURE_TOTALS
+        and fixture_index.get("mutation_counts")
+        == EXPECTED_MCP_REVERSE_FIXTURE_MUTATIONS
+        and fixture_coverage.get("counts")
+        == EXPECTED_MCP_REVERSE_FIXTURE_COVERAGE_COUNTS
+        and schema_completeness.get("counts")
+        == EXPECTED_MCP_REVERSE_SCHEMA_COMPLETENESS_COUNTS
+    )
     require(
-        historical_counts or exact_successor_counts,
+        historical_counts or exact_successor_counts or mcp_reverse_counts,
         "final fixture, mutation, or schema-completeness totals changed",
         "ClosureFixtureCountMismatch",
     )
@@ -1698,10 +1927,10 @@ def _build_report(arguments: argparse.Namespace) -> dict[str, Any]:
 
 
 def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
-    """Build the frozen A1.3 report or validate an exact PR-A successor.
+    """Build the frozen A1.3 report or validate an exact reviewed successor.
 
-    A1.3 closure semantics are historical evidence.  Once a reviewed PR-A
-    stage is present, validate its exact registry delta and retain the
+    A1.3 closure semantics are historical evidence. Once a reviewed PR-A or
+    A1.4b stage is present, validate its exact registry delta and retain the
     predecessor report byte-for-byte instead of projecting successor status
     into A1.3 history.
     """

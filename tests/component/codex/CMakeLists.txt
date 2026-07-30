@@ -401,7 +401,7 @@ set_tests_properties(
     PROPERTIES LABELS
                "component;ai;openai;codex;phase-a1-0;schema;fixtures"
                ENVIRONMENT "PYTHONHASHSEED=1"
-               TIMEOUT 300
+               TIMEOUT 420
 )
 
 add_test(
@@ -776,6 +776,162 @@ set_tests_properties(
             "component;ai;openai;codex;typed;plugins;catalog;union;operation;wire;lifecycle;a1-4;user-integrations;commit-5"
         SKIP_RETURN_CODE 77
         TIMEOUT 20
+)
+
+snodec_add_test(
+    CodexA14McpClientTest
+    CodexA14McpClientTest.cpp
+)
+target_link_libraries(
+    CodexA14McpClientTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+)
+target_compile_features(CodexA14McpClientTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexA14McpClientTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;mcp;codec;facade;a1-4;mcp-reverse;commit-3"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14McpNotificationEventTest
+    CodexA14McpNotificationEventTest.cpp
+)
+target_link_libraries(
+    CodexA14McpNotificationEventTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+)
+target_compile_features(
+    CodexA14McpNotificationEventTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14McpNotificationEventTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;mcp;notifications;codec;a1-4;mcp-reverse;commit-3"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14AttestationDynamicToolCodecTest
+    CodexA14AttestationDynamicToolCodecTest.cpp
+)
+target_link_libraries(
+    CodexA14AttestationDynamicToolCodecTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+)
+target_compile_features(
+    CodexA14AttestationDynamicToolCodecTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14AttestationDynamicToolCodecTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;server-request;codec;a1-4;mcp-reverse;commit-4"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14AttestationDynamicToolWireTest
+    CodexA14AttestationDynamicToolWireTest.cpp
+)
+target_link_libraries(
+    CodexA14AttestationDynamicToolWireTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+        snodec::core
+)
+target_compile_features(
+    CodexA14AttestationDynamicToolWireTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14AttestationDynamicToolWireTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;server-request;wire;lifecycle;a1-4;mcp-reverse;commit-4"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 15
+)
+
+snodec_add_test(
+    CodexA14McpClientWireTest
+    CodexA14McpClientWireTest.cpp
+)
+target_link_libraries(
+    CodexA14McpClientWireTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+        snodec::core
+)
+target_compile_features(CodexA14McpClientWireTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexA14McpClientWireTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;mcp;operation;wire;lifecycle;a1-4;mcp-reverse;commit-3"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 15
+)
+
+snodec_add_test(
+    CodexA14NineRequestStdioTest
+    CodexA14NineRequestStdioTest.cpp
+)
+target_link_libraries(
+    CodexA14NineRequestStdioTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+        snodec::core
+)
+target_compile_features(CodexA14NineRequestStdioTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexA14NineRequestStdioTest
+    PRIVATE CODEX_FAKE_APP_SERVER="$<TARGET_FILE:CodexFakeAppServer>"
+)
+add_dependencies(CodexA14NineRequestStdioTest CodexFakeAppServer)
+set_tests_properties(
+    CodexA14NineRequestStdioTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;server-request;lifecycle;wire;stdio;a1-4;mcp-reverse;commit-5"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 20
+)
+
+snodec_add_test(
+    CodexA14UserInputElicitationCodecTest
+    CodexA14UserInputElicitationCodecTest.cpp
+)
+target_link_libraries(
+    CodexA14UserInputElicitationCodecTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+)
+target_compile_features(
+    CodexA14UserInputElicitationCodecTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14UserInputElicitationCodecTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;server-request;codec;a1-4;mcp-reverse;commit-5"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
 )
 
 snodec_add_test(CodexA12ModelWireTest CodexA12ModelWireTest.cpp)

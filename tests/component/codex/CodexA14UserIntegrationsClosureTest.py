@@ -16,6 +16,7 @@ from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
+from unittest import mock
 
 sys.dont_write_bytecode = True
 
@@ -1041,7 +1042,13 @@ class CodexA14UserIntegrationsClosureTest(unittest.TestCase):
             (
                 lambda report: report["package_boundary"][
                     "cross_repo_dependency"
-                ].__setitem__("source_commit", "0" * 40),
+                ].__setitem__("normal_dependency_commit", "0" * 40),
+                "UserIntegrationCrossRepoDependencyMismatch",
+            ),
+            (
+                lambda report: report["package_boundary"][
+                    "cross_repo_dependency"
+                ].__setitem__("historical_checkout_read_only", False),
                 "UserIntegrationCrossRepoDependencyMismatch",
             ),
             (
@@ -1058,6 +1065,46 @@ class CodexA14UserIntegrationsClosureTest(unittest.TestCase):
         for mutate, code in cases:
             with self.subTest(code=code):
                 self.assert_mutation(mutate, code)
+
+    def test_successor_package_validation_preserves_frozen_report(self) -> None:
+        self.tool._validate_package_report(self.arguments)
+
+        with mock.patch.object(
+            self.tool,
+            "_has_mcp_reverse_successor_marker",
+            return_value=False,
+        ):
+            with self.assertRaises(self.tool.ClosureError) as caught:
+                self.tool._validate_package_report(self.arguments)
+        self.assertEqual(
+            ("UserIntegrationPackageBoundaryMismatch",),
+            caught.exception.codes,
+        )
+
+        changed = copy.deepcopy(self.expected)
+        changed["project"]["version"] = "0.1.0-mutated"
+        with tempfile.TemporaryDirectory(
+            prefix="aisuite-a14-frozen-package-"
+        ) as temporary:
+            output = Path(temporary) / "closure-report.json"
+            output.write_text(
+                json.dumps(
+                    changed,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            arguments = copy.copy(self.arguments)
+            arguments.output = output
+            with self.assertRaises(self.tool.ClosureError) as caught:
+                self.tool._validate_package_report(arguments)
+        self.assertEqual(
+            ("UserIntegrationPredecessorEvidenceDrift",),
+            caught.exception.codes,
+        )
 
     def test_variant_provenance_soversion_and_generation_mutations(self) -> None:
         def mutate_predecessor_mapping(report: dict[str, Any]) -> None:

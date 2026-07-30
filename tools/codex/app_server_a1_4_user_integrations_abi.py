@@ -41,6 +41,40 @@ HEADER_PATHS = (
     "src/ai/openai/codex/typed/Plugins.h",
     "src/ai/openai/codex/typed/Skills.h",
 )
+FROZEN_HEADER_SHA256 = {
+    "src/ai/openai/codex/AppServerClient.h":
+        "23f9c108ae70012da4278132fb4e33b879d9a5c5901008502d4efaf6d5571245",
+    "src/ai/openai/codex/typed/Apps.h":
+        "1b7660c14307e580695dc8e8793e5f145bd75b491fbfe1814f87b6dbe806a395",
+    "src/ai/openai/codex/typed/Client.h":
+        "0210ef15325471ed708cab6ca171977e171db4a30431eb9b2f5cc49ad5f79b89",
+    "src/ai/openai/codex/typed/Events.h":
+        "a356db4fe82def7d8ce673b0c6ee7c0cdf8a9957c14154d340255c1bfe68f349",
+    "src/ai/openai/codex/typed/ExternalAgents.h":
+        "44fa9b9fbc98d846f7316d87978d79897db9de966b5e86ef5cafaa70e2aa31c6",
+    "src/ai/openai/codex/typed/Feedback.h":
+        "6986835f4b5d9233adb6e9e18f70837b79ac32c88f7ea0e618a939327b9a4e7e",
+    "src/ai/openai/codex/typed/Hooks.h":
+        "9da6e7caa46b13e3bbcac3f3ab123dd580a7418843ecf70b388e45d85beeb80f",
+    "src/ai/openai/codex/typed/Marketplace.h":
+        "94ee8765f6acd43c355c87e18229a880c1792483be70b93017745ec153193d3f",
+    "src/ai/openai/codex/typed/Plugins.h":
+        "b5c73e82478b47a20e35ed9714f256c6f2f79751e0a84f5b0da7cf5ca61cf5b5",
+    "src/ai/openai/codex/typed/Skills.h":
+        "8f8adf5237babd069d3b234e5801730eb6f29d742a364369647d758b0c9f32f2",
+}
+FROZEN_LAYOUT_STDOUT_SHA256 = (
+    "f7d6de5affd96ece8abc6b6d708b361ae64a4168130d892654dfaeb979697377"
+)
+FROZEN_SYMBOL_COUNT = 715
+FROZEN_SYMBOL_LIST_SHA256 = (
+    "35fd7fdb8690049adc15df8c6d1eadc50eff0f4538bdecbba048f0a329e0bccc"
+)
+MCP_REVERSE_PLAN = (
+    "tools/codex/app-server-evidence/0.144.6/"
+    "a1-4-mcp-reverse-plan.json"
+)
+MCP_PUBLIC_HEADER = "src/ai/openai/codex/typed/Mcp.h"
 PROBE_PATH = (
     "tests/installed/codex/"
     "CodexA14UserIntegrationsAbiLayoutProbe.cpp"
@@ -166,6 +200,30 @@ def header_hashes(repo_root: Path) -> dict[str, str]:
     }
 
 
+def is_reviewed_mcp_reverse_successor(repo_root: Path) -> bool:
+    marker = repo_root / MCP_REVERSE_PLAN
+    if not marker.is_file() or not (repo_root / MCP_PUBLIC_HEADER).is_file():
+        return False
+    try:
+        plan = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"A1.4b successor marker is unreadable: {error}")
+    scope = plan.get("scope") if isinstance(plan, dict) else None
+    if (
+        not isinstance(scope, dict)
+        or scope.get("identity_count") != 13
+        or scope.get("taxonomy")
+        != {
+            "client_requests": 4,
+            "server_notifications": 2,
+            "server_requests": 4,
+            "tagged_union_alternatives": 3,
+        }
+    ):
+        fail("A1.4b successor marker is malformed")
+    return True
+
+
 def build_report(
     repo_root: Path,
     compiler: Path,
@@ -274,16 +332,34 @@ def validate_report(
         fail("layout probe source changed")
     if probe.get("source_sha256") != sha256_file(repo_root / PROBE_PATH):
         fail("layout probe source hash is stale")
-    if probe.get("header_sha256") != header_hashes(repo_root):
+    successor = is_reviewed_mcp_reverse_successor(repo_root)
+    if probe.get("header_sha256") != (
+        FROZEN_HEADER_SHA256 if successor else header_hashes(repo_root)
+    ):
         fail("public header hashes are stale")
-    live_lines, _ = capture_layout(repo_root, compiler)
-    if probe.get("stdout_lines") != live_lines:
-        fail("captured public layouts are stale")
-    live_stdout_hash = sha256_bytes(
-        ("".join(f"{line}\n" for line in live_lines)).encode()
-    )
-    if probe.get("stdout_sha256") != live_stdout_hash:
-        fail("layout stdout hash is stale")
+    if successor:
+        stored_lines = probe.get("stdout_lines")
+        if not isinstance(stored_lines, list) or not all(
+            isinstance(line, str) for line in stored_lines
+        ):
+            fail("captured public layouts are stale")
+        live_stdout_hash = sha256_bytes(
+            ("".join(f"{line}\n" for line in stored_lines)).encode()
+        )
+        if (
+            live_stdout_hash != FROZEN_LAYOUT_STDOUT_SHA256
+            or probe.get("stdout_sha256") != FROZEN_LAYOUT_STDOUT_SHA256
+        ):
+            fail("layout stdout hash is stale")
+    else:
+        live_lines, _ = capture_layout(repo_root, compiler)
+        if probe.get("stdout_lines") != live_lines:
+            fail("captured public layouts are stale")
+        live_stdout_hash = sha256_bytes(
+            ("".join(f"{line}\n" for line in live_lines)).encode()
+        )
+        if probe.get("stdout_sha256") != live_stdout_hash:
+            fail("layout stdout hash is stale")
     if probe.get("variant_alternatives") != EXPECTED_VARIANTS:
         fail("captured public variant sizes changed")
 
@@ -298,7 +374,13 @@ def validate_report(
         != len(stored_symbols.splitlines())
     ):
         fail("stored symbol manifest is stale")
-    if library is not None:
+    if successor and (
+        symbols_record.get("symbol_count") != FROZEN_SYMBOL_COUNT
+        or symbols_record.get("symbol_list_sha256")
+        != FROZEN_SYMBOL_LIST_SHA256
+    ):
+        fail("stored symbol manifest is stale")
+    if library is not None and not successor:
         live_symbols = symbols_text(strong_dynamic_symbols(library))
         if stored_symbols != live_symbols:
             fail("current shared-library symbols differ from evidence")
@@ -335,6 +417,11 @@ def main() -> int:
 
     try:
         if arguments.command == "generate":
+            if is_reviewed_mcp_reverse_successor(repo_root):
+                fail(
+                    "A1.4 user-integration evidence is frozen; "
+                    "the reviewed A1.4b successor owns live API verification"
+                )
             if library is None or not library.is_file():
                 fail("generate requires an existing --library")
             report, symbol_content = build_report(

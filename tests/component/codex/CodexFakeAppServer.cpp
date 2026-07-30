@@ -192,6 +192,220 @@ namespace {
                 {"cwd", "/tmp/project"}};
     }
 
+    Json nineApplyPatchParams() {
+        return {
+            {"callId", "call-patch"},
+            {"conversationId", "thread-patch"},
+            {"fileChanges", {{"/synthetic/add", {{"type", "add"}, {"content", "synthetic-add"}}}}},
+            {"grantRoot", nullptr},
+            {"reason", "synthetic patch reason"},
+        };
+    }
+
+    Json nineExecCommandParams() {
+        return {
+            {"approvalId", nullptr},
+            {"callId", "call-exec"},
+            {"command", Json::array({"synthetic-command", "argument"})},
+            {"conversationId", "thread-exec"},
+            {"cwd", "/synthetic/exec-cwd"},
+            {"parsedCmd", Json::array({{{"type", "unknown"}, {"cmd", "synthetic-command"}}})},
+            {"reason", nullptr},
+        };
+    }
+
+    Json nineCommandParams() {
+        return {
+            {"approvalId", "approval-command"},
+            {"command", "synthetic command description"},
+            {"commandActions", Json::array({{{"type", "unknown"}, {"command", "synthetic-action"}}})},
+            {"cwd", "/synthetic/command-cwd"},
+            {"environmentId", nullptr},
+            {"itemId", "item-command"},
+            {"networkApprovalContext", {{"host", "synthetic.invalid"}, {"protocol", "https"}}},
+            {"proposedExecpolicyAmendment", Json::array({"synthetic-policy"})},
+            {"proposedNetworkPolicyAmendments", Json::array({{{"action", "allow"}, {"host", "synthetic.invalid"}}})},
+            {"reason", "synthetic command reason"},
+            {"startedAtMs", 101},
+            {"threadId", "thread-command"},
+            {"turnId", "turn-command"},
+        };
+    }
+
+    Json nineFileParams() {
+        return {
+            {"grantRoot", nullptr},
+            {"itemId", "item-file"},
+            {"reason", "synthetic file reason"},
+            {"startedAtMs", 102},
+            {"threadId", "thread-file"},
+            {"turnId", "turn-file"},
+        };
+    }
+
+    Json ninePermissionsParams() {
+        return {
+            {"cwd", "/synthetic/permission-cwd"},
+            {"environmentId", nullptr},
+            {"itemId", "item-permission"},
+            {"permissions",
+             {{"fileSystem",
+               {{"entries", Json::array({{{"access", "write"}, {"path", {{"type", "special"}, {"value", {{"kind", "slash_tmp"}}}}}}})},
+                {"globScanMaxDepth", 1},
+                {"read", nullptr},
+                {"write", Json::array({"/synthetic/write"})}}},
+              {"network", {{"enabled", true}}}}},
+            {"reason", "synthetic permission reason"},
+            {"startedAtMs", 103},
+            {"threadId", "thread-permission"},
+            {"turnId", "turn-permission"},
+        };
+    }
+
+    Json nineDynamicToolParams() {
+        return {
+            {"arguments", {{"count", 2}, {"message", "synthetic"}}},
+            {"callId", "call-dynamic"},
+            {"namespace", nullptr},
+            {"threadId", "thread-dynamic"},
+            {"tool", "synthetic_tool"},
+            {"turnId", "turn-dynamic"},
+            {"futureDynamicField", true},
+        };
+    }
+
+    Json nineUserInputParams() {
+        return {
+            {"autoResolutionMs", nullptr},
+            {"itemId", "item-user"},
+            {"questions",
+             Json::array(
+                 {{{"header", "Choice"},
+                   {"id", "choice"},
+                   {"isOther", true},
+                   {"isSecret", false},
+                   {"options", Json::array({{{"description", "Select alpha"}, {"label", "alpha"}}})},
+                   {"question", "Choose a value"}},
+                  {{"header", "Secret"}, {"id", "secret"}, {"isSecret", true}, {"options", nullptr}, {"question", "Optional secret"}}})},
+            {"threadId", "thread-user"},
+            {"turnId", "turn-user"},
+        };
+    }
+
+    Json nineElicitationParams() {
+        return {
+            {"_meta", {{"synthetic", true}}},
+            {"message", "Synthetic form request"},
+            {"mode", "form"},
+            {"requestedSchema",
+             {{"$schema", nullptr},
+              {"properties", {{"email", {{"format", "email"}, {"title", nullptr}, {"type", "string"}}}}},
+              {"required", Json::array({"email"})},
+              {"type", "object"}}},
+            {"serverName", "synthetic-mcp"},
+            {"threadId", "thread-elicitation"},
+            {"turnId", nullptr},
+            {"futureOuterField", true},
+        };
+    }
+
+    std::vector<Json> nineServerRequests() {
+        return {
+            {{"id", 101}, {"method", "applyPatchApproval"}, {"params", nineApplyPatchParams()}},
+            {{"id", "request-exec"}, {"method", "execCommandApproval"}, {"params", nineExecCommandParams()}},
+            {{"id", 103}, {"method", "item/commandExecution/requestApproval"}, {"params", nineCommandParams()}},
+            {{"id", "request-file"}, {"method", "item/fileChange/requestApproval"}, {"params", nineFileParams()}},
+            {{"id", 105}, {"method", "item/permissions/requestApproval"}, {"params", ninePermissionsParams()}},
+            {{"id", "request-attestation"}, {"method", "attestation/generate"}, {"params", {{"futureAttestationField", {{"kept", true}}}}}},
+            {{"id", 107}, {"method", "item/tool/call"}, {"params", nineDynamicToolParams()}},
+            {{"id", "request-user-input"}, {"method", "item/tool/requestUserInput"}, {"params", nineUserInputParams()}},
+            {{"id", 109}, {"method", "mcpServer/elicitation/request"}, {"params", nineElicitationParams()}},
+        };
+    }
+
+    Json ninePermissionResult() {
+        return {
+            {"permissions",
+             {{"fileSystem",
+               {{"entries", Json::array({{{"access", "write"}, {"path", {{"type", "special"}, {"value", {{"kind", "slash_tmp"}}}}}}})},
+                {"globScanMaxDepth", 1},
+                {"read", nullptr},
+                {"write", Json::array({"/synthetic/write"})}}},
+              {"network", {{"enabled", true}}}}},
+            {"scope", "session"},
+            {"strictAutoReview", false},
+        };
+    }
+
+    std::vector<Json> nineSuccessResponses() {
+        return {
+            {{"id", 109}, {"result", {{"action", "decline"}}}},
+            {{"id", "request-user-input"},
+             {"result", {{"answers", {{"choice", {{"answers", Json::array({"alpha"})}}}, {"secret", {{"answers", Json::array()}}}}}}}},
+            {{"id", 107},
+             {"result",
+              {{"contentItems",
+                Json::array({{{"text", "synthetic tool output"}, {"type", "inputText"}},
+                             {{"imageUrl", "data:image/png;base64,AA=="}, {"type", "inputImage"}}})},
+               {"success", true}}}},
+            {{"id", "request-attestation"}, {"result", {{"token", "synthetic-attestation-token"}}}},
+            {{"id", 105}, {"result", ninePermissionResult()}},
+            {{"id", "request-file"}, {"result", {{"decision", "cancel"}}}},
+            {{"id", 103}, {"result", {{"decision", "decline"}}}},
+            {{"id", "request-exec"}, {"result", {{"decision", "timed_out"}}}},
+            {{"id", 101}, {"result", {{"decision", "denied"}}}},
+        };
+    }
+
+    std::vector<Json> nineReconnectResponses() {
+        const Json error = {{"code", -32'140}, {"message", "synthetic reverse request rejection"}};
+        return {
+            {{"id", 109}, {"error", error}},
+            {{"id", "request-user-input"}, {"error", error}},
+            {{"id", 107}, {"error", error}},
+            {{"id", "request-attestation"}, {"error", error}},
+            {{"id", 105}, {"result", ninePermissionResult()}},
+            {{"id", "request-file"}, {"result", {{"decision", "cancel"}}}},
+            {{"id", 103}, {"result", {{"decision", "decline"}}}},
+            {{"id", "request-exec"}, {"result", {{"decision", "timed_out"}}}},
+            {{"id", 101}, {"result", {{"decision", "denied"}}}},
+        };
+    }
+
+    bool writeNineServerRequests() {
+        for (const Json& request : nineServerRequests()) {
+            if (!writeJson(request)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool receiveNineResponses(LineReader& input, const std::vector<Json>& expected, bool receiveReentrantList) {
+        std::size_t responseIndex = 0;
+        bool listReceived = !receiveReentrantList;
+        while (responseIndex < expected.size() || !listReceived) {
+            Json message;
+            if (!readJson(input, message)) {
+                return false;
+            }
+            if (message.value("method", "") == "mcpServerStatus/list") {
+                const std::optional<long long> id = integerRequestId(message);
+                if (listReceived || !id || message.value("params", Json()) != Json::object() ||
+                    !writeJson({{"id", *id}, {"result", {{"data", Json::array()}, {"nextCursor", nullptr}}}})) {
+                    return false;
+                }
+                listReceived = true;
+                continue;
+            }
+            if (responseIndex >= expected.size() || message != expected[responseIndex]) {
+                return false;
+            }
+            ++responseIndex;
+        }
+        return true;
+    }
+
     Json threadOperationResult(const Json& thread) {
         return {{"approvalPolicy", "on-request"},
                 {"approvalsReviewer", "user"},
@@ -521,11 +735,36 @@ namespace {
         }
         return input.waitForEof() ? 0 : 64;
     }
+
+    int runA14NineRequests(LineReader& input, bool firstLaunch) {
+        if (!writeNineServerRequests()) {
+            return 90;
+        }
+
+        if (firstLaunch) {
+            if (!receiveNineResponses(input, nineSuccessResponses(), true) || !writeNineServerRequests()) {
+                return 91;
+            }
+
+            Json acknowledgement;
+            if (!readJson(input, acknowledgement) ||
+                acknowledgement != Json{{"method", "test/a14-nine-ready-to-disconnect"}, {"params", Json::object()}}) {
+                return 92;
+            }
+            return 42;
+        }
+
+        if (!receiveNineResponses(input, nineReconnectResponses(), false) || !writeNineServerRequests()) {
+            return 93;
+        }
+        return input.waitForEof(true) ? 0 : 94;
+    }
 } // namespace
 
 int main(int argc, char* argv[]) {
     std::string mode = argc > 1 ? argv[1] : "normal";
     int protocolExitMarker = -1;
+    int nineRequestMarker = -1;
 
     if (mode.starts_with("pidfile-")) {
         if (argc < 3) {
@@ -549,6 +788,19 @@ int main(int argc, char* argv[]) {
         protocolExitMarker = ::open(argv[2], O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
         if (protocolExitMarker < 0 && errno != EEXIST) {
             return 33;
+        }
+    }
+
+    if (mode == "a14-nine-requests") {
+        if (argc < 3) {
+            return 35;
+        }
+        nineRequestMarker = ::open(argv[2], O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (nineRequestMarker < 0 && errno != EEXIST) {
+            return 36;
+        }
+        if (nineRequestMarker >= 0 && ::close(nineRequestMarker) != 0) {
+            return 37;
         }
     }
 
@@ -611,7 +863,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    if (mode == "protocol-flow" || mode == "protocol-exit-once" || mode == "typed-flow") {
+    if (mode == "protocol-flow" || mode == "protocol-exit-once" || mode == "typed-flow" || mode == "a14-nine-requests") {
         if (!writeAll(STDERR_FILENO, "protocol-initialized\n") || !writeAll(STDOUT_FILENO, initializeResponse(requestId(initialize))) ||
             !receiveInitialized(input)) {
             if (protocolExitMarker >= 0) {
@@ -624,6 +876,9 @@ int main(int argc, char* argv[]) {
         }
         if (mode == "typed-flow") {
             return runTypedFlow(input);
+        }
+        if (mode == "a14-nine-requests") {
+            return runA14NineRequests(input, nineRequestMarker >= 0);
         }
         return runProtocolExitOnce(input, argv[2], protocolExitMarker);
     }

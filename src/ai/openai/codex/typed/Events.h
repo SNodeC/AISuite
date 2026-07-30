@@ -17,6 +17,7 @@
 #include "ai/openai/codex/typed/ExternalAgents.h"
 #include "ai/openai/codex/typed/Filesystem.h"
 #include "ai/openai/codex/typed/Hooks.h"
+#include "ai/openai/codex/typed/Mcp.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "ai/openai/codex/typed/Reviews.h"
 #include "ai/openai/codex/typed/Skills.h"
@@ -515,7 +516,9 @@ namespace ai::openai::codex::typed {
                                                      ExternalAgentConfigImportProgressNotification,
                                                      HookCompletedNotification,
                                                      HookStartedNotification,
-                                                     SkillsChangedNotification>;
+                                                     SkillsChangedNotification,
+                                                     McpServerOauthLoginCompletedNotification,
+                                                     McpServerStatusUpdatedNotification>;
 
     struct ThreadStarted {
         Thread thread;
@@ -697,7 +700,9 @@ namespace ai::openai::codex::typed {
                                ExternalAgentConfigImportProgressNotification,
                                HookCompletedNotification,
                                HookStartedNotification,
-                               SkillsChangedNotification>;
+                               SkillsChangedNotification,
+                               McpServerOauthLoginCompletedNotification,
+                               McpServerStatusUpdatedNotification>;
 
     class Events {
     public:

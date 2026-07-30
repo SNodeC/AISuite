@@ -333,6 +333,11 @@ namespace ai::openai::codex {
             return answerServerRequest(id, token, std::nullopt, nullptr, std::move(error));
         }
 
+        RawProtocol::SendResult
+        rejectOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, ProtocolError error) {
+            return answerServerRequest(id, token, expectedMethod, nullptr, std::move(error));
+        }
+
         void setOnNotification(RawProtocol::NotificationHandler handler) {
             onNotification = std::move(handler);
         }
@@ -1120,6 +1125,13 @@ namespace ai::openai::codex {
         return impl->rejectOwned(id, token, std::move(error));
     }
 
+    AppServerClient::RawProtocol::SendResult AppServerClient::RawProtocol::rejectOwned(const ServerRequestId& id,
+                                                                                       ServerRequestToken token,
+                                                                                       std::string_view expectedMethod,
+                                                                                       ProtocolError error) {
+        return impl->rejectOwned(id, token, expectedMethod, std::move(error));
+    }
+
     AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport, ClientInfo clientInfo)
         : impl(std::make_unique<Impl>(std::move(transport), std::move(clientInfo))) {
         impl->installTypedClient(std::unique_ptr<typed::Client>(
@@ -1132,6 +1144,7 @@ namespace ai::openai::codex {
                               std::unique_ptr<typed::Feedback>(new typed::Feedback(impl->raw())),
                               std::unique_ptr<typed::Hooks>(new typed::Hooks(impl->raw())),
                               std::unique_ptr<typed::Marketplace>(new typed::Marketplace(impl->raw())),
+                              std::unique_ptr<typed::Mcp>(new typed::Mcp(impl->raw())),
                               std::unique_ptr<typed::Models>(new typed::Models(impl->raw())),
                               std::unique_ptr<typed::PermissionProfiles>(new typed::PermissionProfiles(impl->raw())),
                               std::unique_ptr<typed::Plugins>(new typed::Plugins(impl->raw())),

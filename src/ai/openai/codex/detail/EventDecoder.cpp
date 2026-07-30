@@ -19,6 +19,7 @@
 #include "ai/openai/codex/detail/FilesystemCodec.h"
 #include "ai/openai/codex/detail/HookCodec.h"
 #include "ai/openai/codex/detail/ItemDecoder.h"
+#include "ai/openai/codex/detail/McpCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
@@ -570,7 +571,8 @@ namespace ai::openai::codex::detail {
                 notification.method == "fuzzyFileSearch/sessionUpdated" || notification.method == "guardianWarning" ||
                 notification.method == "item/autoApprovalReview/completed" || notification.method == "item/autoApprovalReview/started" ||
                 notification.method == "model/rerouted" || notification.method == "model/safetyBuffering/updated" ||
-                notification.method == "model/verification";
+                notification.method == "model/verification" || notification.method == "mcpServer/oauthLogin/completed" ||
+                notification.method == "mcpServer/startupStatus/updated";
             std::string fieldPath = "$.params";
             if (exactPathNotification) {
                 const std::size_t begin = error.find("'$");
@@ -703,6 +705,18 @@ namespace ai::openai::codex::detail {
                 return malformedEvent(notification, std::move(error));
             }
             return typed::Event{std::move(*decoded)};
+        }
+
+        typed::Event decodeMcpServerOauthLoginCompleted(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeMcpServerOauthLoginCompletedNotification(notification, error);
+            return decoded ? typed::Event{std::move(*decoded)} : malformedEvent(notification, std::move(error));
+        }
+
+        typed::Event decodeMcpServerStartupStatusUpdated(const Notification& notification) {
+            std::string error;
+            auto decoded = decodeMcpServerStatusUpdatedNotification(notification, error);
+            return decoded ? typed::Event{std::move(*decoded)} : malformedEvent(notification, std::move(error));
         }
 
         typed::Event decodeThreadStarted(const Notification& notification) {
@@ -1596,6 +1610,10 @@ namespace ai::openai::codex::detail {
                     return decodeHookStarted(notification);
                 case ServerNotificationTarget::SkillsChanged:
                     return decodeSkillsChanged(notification);
+                case ServerNotificationTarget::McpServerOauthLoginCompleted:
+                    return decodeMcpServerOauthLoginCompleted(notification);
+                case ServerNotificationTarget::McpServerStartupStatusUpdated:
+                    return decodeMcpServerStartupStatusUpdated(notification);
                 case ServerNotificationTarget::Count:
                     break;
             }

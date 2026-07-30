@@ -16,7 +16,7 @@
     "${SNODEC_SOURCE_DIR}": "pinned SNode.C test-time source authority",
     "${SOURCE_DIR}": "AISuite source root"
   },
-  "test_count": 146,
+  "test_count": 155,
   "tests": [
     {
       "command": [
@@ -230,7 +230,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1781
+          "line": 1937
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -459,7 +459,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -514,7 +514,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1262
+          "line": 1418
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -569,7 +569,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1158
+          "line": 1314
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -687,7 +687,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1133
+          "line": 1289
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -803,7 +803,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1108
+          "line": 1264
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -915,7 +915,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1281
+          "line": 1437
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1161,7 +1161,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1091
+          "line": 1247
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1274,7 +1274,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 833
+          "line": 989
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1333,7 +1333,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 852
+          "line": 1008
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1392,7 +1392,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1319
+          "line": 1475
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1447,7 +1447,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 795
+          "line": 951
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1504,7 +1504,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 814
+          "line": 970
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1618,7 +1618,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1300
+          "line": 1456
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1730,7 +1730,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 781
+          "line": 937
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1791,7 +1791,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1011
+          "line": 1167
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1848,7 +1848,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 977
+          "line": 1133
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -1907,7 +1907,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 994
+          "line": 1150
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2084,7 +2084,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 905
+          "line": 1061
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2139,7 +2139,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 871
+          "line": 1027
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2196,7 +2196,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 888
+          "line": 1044
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2255,7 +2255,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 958
+          "line": 1114
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2312,7 +2312,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 924
+          "line": 1080
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2371,7 +2371,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 941
+          "line": 1097
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2432,7 +2432,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1068
+          "line": 1224
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2489,7 +2489,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1034
+          "line": 1190
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2550,7 +2550,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1051
+          "line": 1207
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -2561,6 +2561,122 @@
         "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
       ],
       "timeout": 20.0
+    },
+    {
+      "command": [
+        "${BUILD_DIR}/tests/component/codex/CodexA14AttestationDynamicToolCodecTest"
+      ],
+      "dependencies": [],
+      "disabled": false,
+      "labels": [
+        "a1-4",
+        "ai",
+        "codec",
+        "codex",
+        "commit-4",
+        "component",
+        "mcp-reverse",
+        "openai",
+        "server-request",
+        "typed"
+      ],
+      "name": "CodexA14AttestationDynamicToolCodecTest",
+      "properties": {
+        "LABELS": [
+          "a1-4",
+          "ai",
+          "codec",
+          "codex",
+          "commit-4",
+          "component",
+          "mcp-reverse",
+          "openai",
+          "server-request",
+          "typed"
+        ],
+        "SKIP_RETURN_CODE": 77,
+        "TIMEOUT": 10.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+          "line": 3
+        },
+        {
+          "command": "snodec_add_test",
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
+          "line": 823
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+        "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+      ],
+      "timeout": 10.0
+    },
+    {
+      "command": [
+        "${BUILD_DIR}/tests/component/codex/CodexA14AttestationDynamicToolWireTest"
+      ],
+      "dependencies": [],
+      "disabled": false,
+      "labels": [
+        "a1-4",
+        "ai",
+        "codex",
+        "commit-4",
+        "component",
+        "lifecycle",
+        "mcp-reverse",
+        "openai",
+        "server-request",
+        "typed",
+        "wire"
+      ],
+      "name": "CodexA14AttestationDynamicToolWireTest",
+      "properties": {
+        "LABELS": [
+          "a1-4",
+          "ai",
+          "codex",
+          "commit-4",
+          "component",
+          "lifecycle",
+          "mcp-reverse",
+          "openai",
+          "server-request",
+          "typed",
+          "wire"
+        ],
+        "SKIP_RETURN_CODE": 77,
+        "TIMEOUT": 15.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+          "line": 3
+        },
+        {
+          "command": "snodec_add_test",
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
+          "line": 845
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+        "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+      ],
+      "timeout": 15.0
     },
     {
       "command": [
@@ -2628,6 +2744,439 @@
         "${SOURCE_DIR}/tests/CMakeLists.txt"
       ],
       "timeout": 90.0
+    },
+    {
+      "command": [
+        "${BUILD_DIR}/tests/component/codex/CodexA14McpClientTest"
+      ],
+      "dependencies": [],
+      "disabled": false,
+      "labels": [
+        "a1-4",
+        "ai",
+        "codec",
+        "codex",
+        "commit-3",
+        "component",
+        "facade",
+        "mcp",
+        "mcp-reverse",
+        "openai",
+        "typed"
+      ],
+      "name": "CodexA14McpClientTest",
+      "properties": {
+        "LABELS": [
+          "a1-4",
+          "ai",
+          "codec",
+          "codex",
+          "commit-3",
+          "component",
+          "facade",
+          "mcp",
+          "mcp-reverse",
+          "openai",
+          "typed"
+        ],
+        "SKIP_RETURN_CODE": 77,
+        "TIMEOUT": 10.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+          "line": 3
+        },
+        {
+          "command": "snodec_add_test",
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
+          "line": 781
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+        "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+      ],
+      "timeout": 10.0
+    },
+    {
+      "command": [
+        "${BUILD_DIR}/tests/component/codex/CodexA14McpClientWireTest"
+      ],
+      "dependencies": [],
+      "disabled": false,
+      "labels": [
+        "a1-4",
+        "ai",
+        "codex",
+        "commit-3",
+        "component",
+        "lifecycle",
+        "mcp",
+        "mcp-reverse",
+        "openai",
+        "operation",
+        "typed",
+        "wire"
+      ],
+      "name": "CodexA14McpClientWireTest",
+      "properties": {
+        "LABELS": [
+          "a1-4",
+          "ai",
+          "codex",
+          "commit-3",
+          "component",
+          "lifecycle",
+          "mcp",
+          "mcp-reverse",
+          "openai",
+          "operation",
+          "typed",
+          "wire"
+        ],
+        "SKIP_RETURN_CODE": 77,
+        "TIMEOUT": 15.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+          "line": 3
+        },
+        {
+          "command": "snodec_add_test",
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
+          "line": 868
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+        "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+      ],
+      "timeout": 15.0
+    },
+    {
+      "command": [
+        "${BUILD_DIR}/tests/component/codex/CodexA14McpNotificationEventTest"
+      ],
+      "dependencies": [],
+      "disabled": false,
+      "labels": [
+        "a1-4",
+        "ai",
+        "codec",
+        "codex",
+        "commit-3",
+        "component",
+        "mcp",
+        "mcp-reverse",
+        "notifications",
+        "openai",
+        "typed"
+      ],
+      "name": "CodexA14McpNotificationEventTest",
+      "properties": {
+        "LABELS": [
+          "a1-4",
+          "ai",
+          "codec",
+          "codex",
+          "commit-3",
+          "component",
+          "mcp",
+          "mcp-reverse",
+          "notifications",
+          "openai",
+          "typed"
+        ],
+        "SKIP_RETURN_CODE": 77,
+        "TIMEOUT": 10.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+          "line": 3
+        },
+        {
+          "command": "snodec_add_test",
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
+          "line": 801
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+        "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+      ],
+      "timeout": 10.0
+    },
+    {
+      "command": [
+        "${PYTHON3}",
+        "${SOURCE_DIR}/tests/component/codex/CodexA14McpReverseAuditTest.py",
+        "--tool",
+        "${SOURCE_DIR}/tools/codex/app_server_a1_4_mcp_reverse.py",
+        "--repo-root",
+        "${SOURCE_DIR}",
+        "--start-state",
+        "${SOURCE_DIR}/tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-start-state.json",
+        "--batch-plan",
+        "${SOURCE_DIR}/tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-plan.json"
+      ],
+      "dependencies": [
+        "CodexA14UserIntegrationsClosureTest"
+      ],
+      "disabled": false,
+      "labels": [
+        "ai",
+        "audit",
+        "codex",
+        "component",
+        "extraction",
+        "generated",
+        "mcp-reverse",
+        "openai",
+        "phase-a1-4",
+        "schema"
+      ],
+      "name": "CodexA14McpReverseAuditTest",
+      "properties": {
+        "DEPENDS": [
+          "CodexA14UserIntegrationsClosureTest"
+        ],
+        "ENVIRONMENT": [
+          "PYTHONDONTWRITEBYTECODE=1"
+        ],
+        "LABELS": [
+          "ai",
+          "audit",
+          "codex",
+          "component",
+          "extraction",
+          "generated",
+          "mcp-reverse",
+          "openai",
+          "phase-a1-4",
+          "schema"
+        ],
+        "RUN_SERIAL": true,
+        "TIMEOUT": 90.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/CMakeLists.txt",
+          "line": 187
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/CMakeLists.txt"
+      ],
+      "timeout": 90.0
+    },
+    {
+      "command": [
+        "${PYTHON3}",
+        "${SOURCE_DIR}/tests/component/codex/CodexA14McpReverseClosureTest.py",
+        "--tool",
+        "${SOURCE_DIR}/tools/codex/app_server_a1_4_mcp_reverse_closure.py",
+        "--repo-root",
+        "${SOURCE_DIR}",
+        "--report",
+        "${SOURCE_DIR}/tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-closure-report.json"
+      ],
+      "dependencies": [
+        "CodexA14McpReverseAuditTest",
+        "CodexA14NineRequestStdioTest"
+      ],
+      "disabled": false,
+      "labels": [
+        "ai",
+        "closure",
+        "codex",
+        "component",
+        "documentation",
+        "extraction",
+        "generated",
+        "mcp-reverse",
+        "openai",
+        "phase-a1-4"
+      ],
+      "name": "CodexA14McpReverseClosureTest",
+      "properties": {
+        "DEPENDS": [
+          "CodexA14McpReverseAuditTest",
+          "CodexA14NineRequestStdioTest"
+        ],
+        "ENVIRONMENT": [
+          "PYTHONDONTWRITEBYTECODE=1"
+        ],
+        "LABELS": [
+          "ai",
+          "closure",
+          "codex",
+          "component",
+          "documentation",
+          "extraction",
+          "generated",
+          "mcp-reverse",
+          "openai",
+          "phase-a1-4"
+        ],
+        "RUN_SERIAL": true,
+        "TIMEOUT": 90.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/CMakeLists.txt",
+          "line": 207
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/CMakeLists.txt"
+      ],
+      "timeout": 90.0
+    },
+    {
+      "command": [
+        "${BUILD_DIR}/tests/component/codex/CodexA14NineRequestStdioTest"
+      ],
+      "dependencies": [],
+      "disabled": false,
+      "labels": [
+        "a1-4",
+        "ai",
+        "codex",
+        "commit-5",
+        "component",
+        "lifecycle",
+        "mcp-reverse",
+        "openai",
+        "server-request",
+        "stdio",
+        "typed",
+        "wire"
+      ],
+      "name": "CodexA14NineRequestStdioTest",
+      "properties": {
+        "LABELS": [
+          "a1-4",
+          "ai",
+          "codex",
+          "commit-5",
+          "component",
+          "lifecycle",
+          "mcp-reverse",
+          "openai",
+          "server-request",
+          "stdio",
+          "typed",
+          "wire"
+        ],
+        "SKIP_RETURN_CODE": 77,
+        "TIMEOUT": 20.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+          "line": 3
+        },
+        {
+          "command": "snodec_add_test",
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
+          "line": 889
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+        "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+      ],
+      "timeout": 20.0
+    },
+    {
+      "command": [
+        "${BUILD_DIR}/tests/component/codex/CodexA14UserInputElicitationCodecTest"
+      ],
+      "dependencies": [],
+      "disabled": false,
+      "labels": [
+        "a1-4",
+        "ai",
+        "codec",
+        "codex",
+        "commit-5",
+        "component",
+        "mcp-reverse",
+        "openai",
+        "server-request",
+        "typed"
+      ],
+      "name": "CodexA14UserInputElicitationCodecTest",
+      "properties": {
+        "LABELS": [
+          "a1-4",
+          "ai",
+          "codec",
+          "codex",
+          "commit-5",
+          "component",
+          "mcp-reverse",
+          "openai",
+          "server-request",
+          "typed"
+        ],
+        "SKIP_RETURN_CODE": 77,
+        "TIMEOUT": 10.0,
+        "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
+      },
+      "registration_backtrace": [
+        {
+          "command": "add_test",
+          "file": "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+          "line": 3
+        },
+        {
+          "command": "snodec_add_test",
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
+          "line": 915
+        },
+        {
+          "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+        }
+      ],
+      "registration_files": [
+        "${SOURCE_DIR}/tests/cmake/AddAISuiteTest.cmake",
+        "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
+      ],
+      "timeout": 10.0
     },
     {
       "command": [
@@ -3356,7 +3905,7 @@
           "phase-a1-0",
           "schema"
         ],
-        "TIMEOUT": 300.0,
+        "TIMEOUT": 420.0,
         "WORKING_DIRECTORY": "${BUILD_DIR}/tests/component/codex"
       },
       "registration_backtrace": [
@@ -3372,7 +3921,7 @@
       "registration_files": [
         "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
       ],
-      "timeout": 300.0
+      "timeout": 420.0
     },
     {
       "command": [
@@ -3469,7 +4018,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1734
+          "line": 1890
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -3639,7 +4188,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1397
+          "line": 1553
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -3692,7 +4241,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1382
+          "line": 1538
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -3745,7 +4294,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1430
+          "line": 1586
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -3796,7 +4345,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1415
+          "line": 1571
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -3856,7 +4405,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1485
+          "line": 1641
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -3909,7 +4458,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1448
+          "line": 1604
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -3964,7 +4513,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1510
+          "line": 1666
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4016,7 +4565,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1465
+          "line": 1621
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4065,7 +4614,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1541
+          "line": 1697
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4116,7 +4665,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1766
+          "line": 1922
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4165,7 +4714,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1229
+          "line": 1385
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4214,7 +4763,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1529
+          "line": 1685
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4267,7 +4816,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1553
+          "line": 1709
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4316,7 +4865,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4365,7 +4914,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4414,7 +4963,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4459,7 +5008,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1685
+          "line": 1841
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4503,7 +5052,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1685
+          "line": 1841
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4547,7 +5096,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1685
+          "line": 1841
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4591,7 +5140,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1685
+          "line": 1841
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4684,7 +5233,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4737,7 +5286,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1351
+          "line": 1507
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4788,7 +5337,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1364
+          "line": 1520
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4888,7 +5437,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1338
+          "line": 1494
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4933,7 +5482,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1645
+          "line": 1801
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -4977,7 +5526,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1645
+          "line": 1801
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -5021,7 +5570,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1645
+          "line": 1801
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -5065,7 +5614,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1645
+          "line": 1801
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -5781,7 +6330,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1655
+          "line": 1811
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6007,7 +6556,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6049,7 +6598,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6091,7 +6640,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6133,7 +6682,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6175,7 +6724,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6217,7 +6766,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6259,7 +6808,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6301,7 +6850,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6343,7 +6892,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6385,7 +6934,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6427,7 +6976,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6469,7 +7018,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6511,7 +7060,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6553,7 +7102,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6595,7 +7144,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6637,7 +7186,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6679,7 +7228,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6721,7 +7270,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6763,7 +7312,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6805,7 +7354,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6847,7 +7396,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6889,7 +7438,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6931,7 +7480,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -6973,7 +7522,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7015,7 +7564,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1724
+          "line": 1880
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7129,7 +7678,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1241
+          "line": 1397
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7178,7 +7727,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1740
+          "line": 1896
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7228,7 +7777,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1589
+          "line": 1745
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7277,7 +7826,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7325,7 +7874,7 @@
         {
           "command": "add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1604
+          "line": 1760
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7373,7 +7922,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7424,7 +7973,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1577
+          "line": 1733
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7473,7 +8022,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7522,7 +8071,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"
@@ -7571,7 +8120,7 @@
         {
           "command": "snodec_add_test",
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt",
-          "line": 1191
+          "line": 1347
         },
         {
           "file": "${SOURCE_DIR}/tests/component/codex/CMakeLists.txt"

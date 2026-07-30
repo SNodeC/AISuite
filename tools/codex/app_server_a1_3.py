@@ -698,7 +698,10 @@ def live_stage(keys: Sequence[Key], inputs: Inputs) -> str:
         }
         and any(
             global_status == dict(stage["global"])
-            for stage in user_integrations.STAGES
+            for stage in (
+                *user_integrations.STAGES,
+                *a1_1.MCP_REVERSE_STAGES,
+            )
         )
     ):
         matches = ["B5"]

@@ -497,10 +497,10 @@ namespace {
                 nativeNotImplemented += entry.typedSchemaStatus == detail::TypedSchemaStatus::NotImplemented ? 1U : 0U;
             }
         }
-        result.expectTrue(complete == 313 && partial == 4 && notImplemented == 22 && notApplicable == 48,
-                          "Commit-5 global registry arithmetic is exactly 313/4/22/48");
-        result.expectTrue(nativeComplete == 33 && nativePartial == 1 && nativeNotImplemented == 22,
-                          "Commit-5 native A1.4 registry arithmetic is exactly 33/1/22");
+        result.expectTrue(complete == 326 && partial == 3 && notImplemented == 10 && notApplicable == 48,
+                          "A1.4b final global registry arithmetic is exactly 326/3/10/48");
+        result.expectTrue(nativeComplete == 46 && nativePartial == 0 && nativeNotImplemented == 10,
+                          "A1.4b final native A1.4 registry arithmetic is exactly 46/0/10");
 
         for (const ExpectedOperation& expected : Commit5Operations) {
             const detail::ProtocolSurfaceEntry* row =
@@ -531,7 +531,7 @@ namespace {
             detail::IntegrationsAndLongTailUnionTarget::PluginSourceRemote,
         }};
         const auto pluginSourceDescriptors = detail::integrationsAndLongTailUnionCodecDescriptors();
-        bool exactPluginSourceOrder = pluginSourceDescriptors.size() == PluginSourceNames.size();
+        bool exactPluginSourceOrder = pluginSourceDescriptors.size() == 7;
         for (std::size_t index = 0; index < PluginSourceNames.size() && exactPluginSourceOrder; ++index) {
             const detail::IntegrationsAndLongTailUnionCodecDescriptor& descriptor = pluginSourceDescriptors[index];
             const detail::ProtocolSurfaceEntry* row =

@@ -19,7 +19,7 @@
       {
         "bytes": 8614,
         "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
-        "sha256": "2e2f4166065076798512cc1dbd4aab6a4032c391d8f080b806993691e15c43a1"
+        "sha256": "6ac532284eb7486b4f605a38594ee4bbfb5737b4439fb28c143b63ba392c5755"
       },
       {
         "bytes": 89961,
@@ -164,7 +164,7 @@
     },
     "strong_symbols": {
       "library_basename": "libaisuite-openai-codex.so.0.1.0",
-      "library_sha256": "aab30613b7f12dc2e7294d98618274751999b4704ae7229bb19457b382a7e9a8",
+      "library_sha256": "c314dbbd492e7764ddc0721b2254319222256822deaa831818b425718e57e642",
       "symbol_count": 715,
       "symbol_list_sha256": "35fd7fdb8690049adc15df8c6d1eadc50eff0f4538bdecbba048f0a329e0bccc"
     }
@@ -1603,11 +1603,15 @@
     "compile_and_link_origins_verified": true,
     "cross_repo_dependency": {
       "build_tree_resolution_rejected": true,
+      "configured_dependency_install_reused": true,
+      "extraction_provenance_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+      "extraction_provenance_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069",
+      "historical_checkout_read_only": true,
       "installed_config_mode_only": true,
+      "normal_dependency_commit": "77415c71a87fb7955e9a050bedaca02b65754324",
+      "normal_dependency_tree": "2d39c334f12c308828936656c820447bfcc38d47",
       "snodec_add_subdirectory_absent": true,
-      "source_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
-      "source_relative_include_absent": true,
-      "source_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069"
+      "source_relative_include_absent": true
     },
     "direct_snodec_public_header_consumer": true,
     "dynamic_metadata_verified": true,
@@ -1623,9 +1627,9 @@
       "sha256": "3e51779b1ee40fdac8d076aa3afc8e74baeb834e93d8ad437f427de259da6c73"
     },
     "installed_consumer_guard": {
-      "bytes": 21885,
+      "bytes": 17890,
       "path": "tests/AISuiteInstalledConsumerTest.cmake",
-      "sha256": "3e6a40c8521e48aba3229ec1e62d1540c9b91fd9472a9ff015f5e526391b7fd6"
+      "sha256": "66be27254157dffec9f37186c140a7cecc2d364375f9028dd71a3b160099fa22"
     },
     "installed_snodec_only": true,
     "package_checks_require_no_git_history": true,

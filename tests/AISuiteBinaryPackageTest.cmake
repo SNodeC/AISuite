@@ -85,13 +85,13 @@ foreach(archive_entry IN LISTS archive_entries)
     endif()
 endforeach()
 list(LENGTH codex_public_headers codex_public_header_count)
-if(NOT codex_main_header_count EQUAL 27 OR
+if(NOT codex_main_header_count EQUAL 28 OR
    NOT codex_backend_header_count EQUAL 7 OR
    NOT codex_frontend_header_count EQUAL 7 OR
-   NOT codex_public_header_count EQUAL 41)
+   NOT codex_public_header_count EQUAL 42)
     message(
         FATAL_ERROR
-            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, total=${codex_public_header_count}; expected 27/7/7/41"
+            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, total=${codex_public_header_count}; expected 28/7/7/42"
     )
 endif()
 
@@ -102,6 +102,7 @@ foreach(required
     "include/aisuite/ai/openai/codex/typed/Feedback.h"
     "include/aisuite/ai/openai/codex/typed/Hooks.h"
     "include/aisuite/ai/openai/codex/typed/Marketplace.h"
+    "include/aisuite/ai/openai/codex/typed/Mcp.h"
     "include/aisuite/ai/openai/codex/typed/Plugins.h"
     "include/aisuite/ai/openai/codex/typed/Skills.h"
     "lib/libaisuite-openai-codex.so.1"

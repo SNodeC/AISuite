@@ -17,6 +17,7 @@
 #include "ai/openai/codex/detail/FilesystemCodec.h"
 #include "ai/openai/codex/detail/HookCodec.h"
 #include "ai/openai/codex/detail/MarketplaceCodec.h"
+#include "ai/openai/codex/detail/McpCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
@@ -93,6 +94,10 @@ namespace ai::openai::codex::detail {
             "PluginListResponse",
             "PluginReadResponse",
             "PluginShareListResponse",
+            "McpServerOauthLoginResponse",
+            "McpResourceReadResponse",
+            "McpServerToolCallResponse",
+            "ListMcpServerStatusResponse",
         }};
 
         std::string_view resultDecoderIdentity(ClientOperationResultDecoder decoder) noexcept {
@@ -122,7 +127,8 @@ namespace ai::openai::codex::detail {
                    target == PluginShareCheckout || target == PluginShareDelete || target == PluginShareSave ||
                    target == PluginShareUpdateTargets || target == PluginSkillRead || target == PluginUninstall ||
                    target == PluginInstalled || target == PluginList || target == PluginRead || target == PluginShareList ||
-                   target == SkillsConfigWrite || target == SkillsExtraRootsSet || target == SkillsList;
+                   target == SkillsConfigWrite || target == SkillsExtraRootsSet || target == SkillsList || target == McpServerOauthLogin ||
+                   target == McpResourceRead || target == McpServerToolCall || target == McpServerStatusList;
         }
 
         std::string decoderFieldPath(ClientRequestTarget target,
@@ -354,6 +360,14 @@ namespace ai::openai::codex::detail {
                     return decode(target, key, decodePluginReadResponse(raw, error), error);
                 case PluginShareListResponse:
                     return decode(target, key, decodePluginShareListResponse(raw, error), error);
+                case McpServerOauthLoginResponse:
+                    return decode(target, key, decodeMcpServerOauthLoginResponse(raw, error), error);
+                case McpResourceReadResponse:
+                    return decode(target, key, decodeMcpResourceReadResponse(raw, error), error);
+                case McpServerToolCallResponse:
+                    return decode(target, key, decodeMcpServerToolCallResponse(raw, error), error);
+                case ListMcpServerStatusResponse:
+                    return decode(target, key, decodeListMcpServerStatusResponse(raw, error), error);
                 case Count:
                     break;
             }

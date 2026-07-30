@@ -363,8 +363,11 @@ namespace {
                     return object.at(field).get<std::int64_t>();
                 };
                 const auto threadMatches = [&]() {
-                    if constexpr (requires { value.threadId.value; }) {
-                        return value.threadId.value == stringAt(params, "threadId");
+                    if constexpr (requires { value.threadId; }) {
+                        using ThreadField = std::remove_cvref_t<decltype(value.threadId)>;
+                        if constexpr (std::is_same_v<ThreadField, typed::ThreadId>) {
+                            return value.threadId.value == stringAt(params, "threadId");
+                        }
                     }
                     return false;
                 };

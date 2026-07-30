@@ -802,7 +802,7 @@
     "surface_manifest_sha256": "3b71999f0c44e337e0363f5ea8940bd5c4b01bc9cc09e133eeb03203dd8bea4e"
   },
   "snapshot": {
-    "byte_count": 56637218,
+    "byte_count": 56638410,
     "file_count": 7886,
     "files": [
       {
@@ -826,14 +826,14 @@
         "sha256": "8b964bec33044cd823f8ad0985035a1d19486647dcb9d2595d581195a189dc41"
       },
       {
-        "bytes": 32395,
+        "bytes": 33306,
         "path": "docs/extraction/codex-policy-ownership.json",
-        "sha256": "13d104f575f7abfd5842930756c5d93eeb0ed6031547447debafc808a3637651"
+        "sha256": "4cfa2d99e771fae684441f44976bee299c30c143fd3d0c44e258dc8c83a894ad"
       },
       {
         "bytes": 3489976,
         "path": "docs/extraction/source-manifest.json",
-        "sha256": "bf8efa5e5fac9a67935b30b439731123a1b96808e003f5463c4b13c2f0056bcd"
+        "sha256": "1f2969a2138d9cc031de08d0ffd2d45447a6120dc954438bc25826c33ceee938"
       },
       {
         "bytes": 6241,
@@ -988,7 +988,7 @@
       {
         "bytes": 8614,
         "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
-        "sha256": "2e2f4166065076798512cc1dbd4aab6a4032c391d8f080b806993691e15c43a1"
+        "sha256": "6ac532284eb7486b4f605a38594ee4bbfb5737b4439fb28c143b63ba392c5755"
       },
       {
         "bytes": 330970,
@@ -996,9 +996,9 @@
         "sha256": "5dfe4de27739184b0596d7f4318d14aef978cd97932f37047c0cdad4a37fe403"
       },
       {
-        "bytes": 78810,
+        "bytes": 79091,
         "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-closure-report.json",
-        "sha256": "12e8204b2bfe68d12075f538418cdf5c3ca65ccfeee82bea59f61f4193169860"
+        "sha256": "07a7e1c1137ae24c205904c364a4b322b7ec69a609f57503ae321639172c0b1f"
       },
       {
         "bytes": 10930,
@@ -40237,7 +40237,7 @@
       }
     ],
     "fixture_json_file_count": 7834,
-    "manifest_sha256": "7fe60e08fdb9f4822668a572b85208184e3a58394edf246dbacc509a9a060f24"
+    "manifest_sha256": "29fd9c4a915608e0d2868955b955b35d6ea8237fd449a0c3f55a09d9c56ac56e"
   },
   "snapshot_provenance": {
     "capture_boundary": "immediately before the first generator in the finalized successful two-pass sequence",

@@ -1,0 +1,9 @@
+{
+  "method": "mcpServer/oauthLogin/completed",
+  "params": {
+    "error": false,
+    "name": "synthetic-9eab4e7204",
+    "success": false,
+    "threadId": "synthetic-8c0a22c3f2"
+  }
+}

@@ -369,6 +369,109 @@ A14_USER_INTEGRATIONS_IMPLEMENTED = (
     | A14_USER_INTEGRATIONS_COMMIT_4
     | A14_USER_INTEGRATIONS_COMMIT_5
 )
+# A1.4b Commit 3 exact-key production ownership. These four asynchronous
+# client operations and two server notifications advance together with their
+# complete public types, codecs, descriptors, facade/event exposure, fixtures,
+# and focused wire tests.
+A14_MCP_REVERSE_COMMIT_3 = frozenset(
+    {
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServer/oauth/login",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServer/resource/read",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServer/tool/call",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "mcpServerStatus/list",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "mcpServer/oauthLogin/completed",
+        ),
+        (
+            "server_notification",
+            "ServerNotification",
+            "method",
+            "mcpServer/startupStatus/updated",
+        ),
+    }
+)
+# A1.4b Commit 4 exact-key production ownership. These reverse requests use
+# the existing RawProtocol occurrence registry and direct-response engine.
+A14_MCP_REVERSE_COMMIT_4 = frozenset(
+    {
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "attestation/generate",
+        ),
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "item/tool/call",
+        ),
+    }
+)
+# A1.4b Commit 5 completes the existing user-input request, adds MCP
+# elicitation, and binds the elicitation mode union to its exact owner.
+A14_MCP_REVERSE_COMMIT_5 = frozenset(
+    {
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "item/tool/requestUserInput",
+        ),
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "mcpServer/elicitation/request",
+        ),
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            "form",
+        ),
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            "openai/form",
+        ),
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            "url",
+        ),
+    }
+)
+A14_MCP_REVERSE_IMPLEMENTED = (
+    A14_MCP_REVERSE_COMMIT_3
+    | A14_MCP_REVERSE_COMMIT_4
+    | A14_MCP_REVERSE_COMMIT_5
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -1743,23 +1846,43 @@ COMMANDS_FILESYSTEM_REVIEWS_APPROVALS_UNION_CODECS = {
 }
 
 INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS = {
-    (
-        "tagged_union_discriminator",
-        "PluginSource",
-        "type",
-        name,
-    ): (
-        "IntegrationsAndLongTailUnionTarget::"
-        + {
-            "git": "PluginSourceGit",
-            "local": "PluginSourceLocal",
-            "npm": "PluginSourceNpm",
-            "remote": "PluginSourceRemote",
-        }[name],
-        "ConversationUnionCodecShape::InternallyTaggedObject",
-        "ConversationUnionCodecDirection::DecodeOnly",
-    )
-    for name in ("git", "local", "npm", "remote")
+    **{
+        (
+            "tagged_union_discriminator",
+            "PluginSource",
+            "type",
+            name,
+        ): (
+            "IntegrationsAndLongTailUnionTarget::"
+            + {
+                "git": "PluginSourceGit",
+                "local": "PluginSourceLocal",
+                "npm": "PluginSourceNpm",
+                "remote": "PluginSourceRemote",
+            }[name],
+            "ConversationUnionCodecShape::InternallyTaggedObject",
+            "ConversationUnionCodecDirection::DecodeOnly",
+        )
+        for name in ("git", "local", "npm", "remote")
+    },
+    **{
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            name,
+        ): (
+            "IntegrationsAndLongTailUnionTarget::"
+            + {
+                "form": "McpServerElicitationForm",
+                "openai/form": "McpServerElicitationOpenAiForm",
+                "url": "McpServerElicitationUrl",
+            }[name],
+            "ConversationUnionCodecShape::InternallyTaggedObject",
+            "ConversationUnionCodecDirection::DecodeOnly",
+        )
+        for name in ("form", "openai/form", "url")
+    },
 }
 
 RUNTIME_TARGETS = {
@@ -1956,6 +2079,30 @@ RUNTIME_TARGETS = {
         "method",
         "skills/list",
     ): "ClientRequestTarget::SkillsList",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/oauth/login",
+    ): "ClientRequestTarget::McpServerOauthLogin",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/resource/read",
+    ): "ClientRequestTarget::McpResourceRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/tool/call",
+    ): "ClientRequestTarget::McpServerToolCall",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServerStatus/list",
+    ): "ClientRequestTarget::McpServerStatusList",
     (
         "client_request",
         "ClientRequest",
@@ -2278,6 +2425,18 @@ RUNTIME_TARGETS = {
         "server_notification",
         "ServerNotification",
         "method",
+        "mcpServer/oauthLogin/completed",
+    ): "ServerNotificationTarget::McpServerOauthLoginCompleted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "mcpServer/startupStatus/updated",
+    ): "ServerNotificationTarget::McpServerStartupStatusUpdated",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
         "account/login/completed",
     ): "ServerNotificationTarget::AccountLoginCompleted",
     (
@@ -2555,6 +2714,24 @@ RUNTIME_TARGETS = {
         "method",
         "account/chatgptAuthTokens/refresh",
     ): "ServerRequestTarget::ChatgptAuthTokensRefresh",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "attestation/generate",
+    ): "ServerRequestTarget::AttestationGenerate",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "item/tool/call",
+    ): "ServerRequestTarget::DynamicToolCall",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "mcpServer/elicitation/request",
+    ): "ServerRequestTarget::McpServerElicitation",
     ("item_discriminator", "ThreadItem", "type", "agentMessage"): "ItemDiscriminatorTarget::AgentMessage",
     (
         "item_discriminator",
@@ -2878,6 +3055,12 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "item/reasoning/summaryTextDelta": "typed::ReasoningSummaryTextDeltaNotification",
     "item/reasoning/textDelta": "typed::ReasoningTextDeltaNotification",
     "item/started": "typed::ItemStartedNotification",
+    "mcpServer/oauthLogin/completed": (
+        "typed::McpServerOauthLoginCompletedNotification"
+    ),
+    "mcpServer/startupStatus/updated": (
+        "typed::McpServerStatusUpdatedNotification"
+    ),
     "skills/changed": "typed::SkillsChangedNotification",
     "model/rerouted": "typed::ModelRerouted",
     "model/safetyBuffering/updated": "typed::ModelSafetyBufferingUpdatedNotification",
@@ -2953,7 +3136,7 @@ SERVER_NOTIFICATION_CODECS = {
     if key[0] == "server_notification"
 }
 if (
-    len(SERVER_NOTIFICATION_CODECS) != 58
+    len(SERVER_NOTIFICATION_CODECS) != 60
     or set(SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD)
     != {key[3] for key in SERVER_NOTIFICATION_CODECS}
 ):
@@ -6177,6 +6360,28 @@ def registry_statuses(
         # explicit known-field mapping and no opaque schema field is claimed.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
+    if identity in A14_MCP_REVERSE_COMMIT_3 and target is not None:
+        # A1.4b Commit 3 advances only the four MCP client operations and two
+        # MCP notifications. Their focused schema/wire coverage includes the
+        # closure's open, closed, nullable, default-bearing, and opaque fields;
+        # the generated target/descriptor bindings remain the runtime
+        # association authority.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
+    if identity in A14_MCP_REVERSE_COMMIT_4 and target is not None:
+        # A1.4b Commit 4 advances only attestation generation and dynamic-tool
+        # calls. Canonical open-object models, exact decode/encode coverage,
+        # generated descriptors, and occurrence-bound response tests establish
+        # every completeness dimension without adding another lifecycle.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
+    if identity in A14_MCP_REVERSE_COMMIT_5 and target is not None:
+        # A1.4b Commit 5 closes the canonical tool-user-input contract and the
+        # distinct MCP elicitation union. Focused schema, codec, response, and
+        # occurrence tests cover all stable fields, the 12 closed form-schema
+        # objects, opaque/sensitive positions, and future-mode preservation.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
     if (
         identity[0] == "client_request"
         and assignment.get("slice") == "A1.1"
@@ -6786,7 +6991,7 @@ def generate_integrations_and_long_tail_union_descriptor_data(
     schema_root: Path,
     evidence: dict[str, Any] | None = None,
 ) -> str:
-    """Generate the exact registry-ordered PR-A PluginSource metadata."""
+    """Generate exact append-only integration union codec metadata."""
 
     evidence = (
         evidence if evidence is not None else load_a1_registry_evidence()
@@ -6798,34 +7003,52 @@ def generate_integrations_and_long_tail_union_descriptor_data(
         if assignment.get("slice") == "A1.4"
         and assignment.get("module") == "IntegrationsAndLongTail"
         and key[0] == "tagged_union_discriminator"
-        and key[1] == "PluginSource"
+        and key[1]
+        in {
+            "PluginSource",
+            "McpServerElicitationRequestParams",
+        }
         and assignment.get("stability") == "stable"
     }
     descriptor_keys = set(INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS)
+    # Keep the four public PR-A target indices stable and append the A1.4b
+    # elicitation modes in their schema order. The production registry is
+    # identity authority, but its global identity order is not an ABI order.
     descriptor_order = [
-        surface_key(entry)
-        for entry in manifest.get("entries", [])
-        if surface_key(entry) in descriptor_keys
+        (
+            "tagged_union_discriminator",
+            "PluginSource",
+            "type",
+            name,
+        )
+        for name in ("git", "local", "npm", "remote")
+    ] + [
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            name,
+        )
+        for name in ("form", "openai/form", "url")
     ]
-    registry_order = tuple(key[3] for key in descriptor_order)
     if (
         expected_keys != descriptor_keys
-        or len(descriptor_keys) != 4
-        or registry_order != ("git", "local", "npm", "remote")
+        or len(descriptor_keys) != 7
+        or set(descriptor_order) != descriptor_keys
     ):
         raise SurfaceError(
             "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch: "
-            "PluginSource must retain exactly git/local/npm/remote in "
-            "production-registry order"
+            "PluginSource must retain exactly git/local/npm/remote and "
+            "MCP elicitation must append exactly form/openai/form/url"
         )
     targets = [
         metadata[0]
         for metadata in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.values()
     ]
-    if len(set(targets)) != 4:
+    if len(set(targets)) != 7:
         raise SurfaceError(
             "DuplicateIntegrationsAndLongTailUnionDescriptorTarget: "
-            "each PluginSource identity must own one unique runtime target"
+            "each integration union identity must own one unique runtime target"
         )
     if any(
         metadata[1]
@@ -6836,8 +7059,8 @@ def generate_integrations_and_long_tail_union_descriptor_data(
     ):
         raise SurfaceError(
             "IntegrationsAndLongTailUnionDescriptorDirectionMismatch: "
-            "all four PluginSource alternatives must remain internally "
-            "tagged decode-only result metadata"
+            "all seven integration alternatives must remain internally "
+            "tagged decode-only metadata"
         )
 
     entries = {
@@ -6870,7 +7093,11 @@ def generate_integrations_and_long_tail_union_descriptor_data(
         target, shape, direction = (
             INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS[key]
         )
-        branch = _conversation_union_schema_branch(entry, schema_root)
+        branch = _conversation_union_schema_branch(
+            entry,
+            schema_root,
+            require_v2=key[1] == "PluginSource",
+        )
         _validate_conversation_union_descriptor_shape(entry, branch, shape)
         lines.append(
             "CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR("
@@ -6906,10 +7133,14 @@ def generate_server_request_descriptor_data(
     expected_methods = {
         "account/chatgptAuthTokens/refresh",
         "applyPatchApproval",
+        "attestation/generate",
         "execCommandApproval",
         "item/commandExecution/requestApproval",
         "item/fileChange/requestApproval",
         "item/permissions/requestApproval",
+        "item/tool/call",
+        "item/tool/requestUserInput",
+        "mcpServer/elicitation/request",
     }
     expected_keys = {
         key
@@ -6927,27 +7158,44 @@ def generate_server_request_descriptor_data(
                 == "AccountsModelsConfiguration"
             )
             or (
-                key[3] != "account/chatgptAuthTokens/refresh"
+                key[3]
+                in {
+                    "applyPatchApproval",
+                    "execCommandApproval",
+                    "item/commandExecution/requestApproval",
+                    "item/fileChange/requestApproval",
+                    "item/permissions/requestApproval",
+                }
                 and assignment.get("slice") == "A1.3"
                 and assignment.get("module")
                 == "CommandsFilesystemReviewsApprovals"
             )
+            or (
+                key
+                in (
+                    A14_MCP_REVERSE_COMMIT_4
+                    | A14_MCP_REVERSE_COMMIT_5
+                )
+                and assignment.get("slice") == "A1.4"
+                and assignment.get("module") == "IntegrationsAndLongTail"
+            )
         )
     }
     if (
-        len(expected_keys) != 6
+        len(expected_keys) != 10
         or {key[3] for key in expected_keys} != expected_methods
     ):
         raise SurfaceError(
             "ServerRequestDescriptorAssignmentMismatch: the exact A1.2 "
-            "auth refresh and five A1.3 approval/permission requests are "
-            "required"
+            "auth refresh, five A1.3 approval/permission requests, and four "
+            "A1.4b reverse requests are required"
         )
     expected_targets = {
         "account/chatgptAuthTokens/refresh": (
             "ServerRequestTarget::ChatgptAuthTokensRefresh"
         ),
         "applyPatchApproval": "ServerRequestTarget::ApplyPatchApproval",
+        "attestation/generate": "ServerRequestTarget::AttestationGenerate",
         "execCommandApproval": "ServerRequestTarget::ExecCommandApproval",
         "item/commandExecution/requestApproval": (
             "ServerRequestTarget::CommandExecutionRequestApproval"
@@ -6958,6 +7206,13 @@ def generate_server_request_descriptor_data(
         "item/permissions/requestApproval": (
             "ServerRequestTarget::PermissionsRequestApproval"
         ),
+        "item/tool/call": "ServerRequestTarget::DynamicToolCall",
+        "item/tool/requestUserInput": (
+            "ServerRequestTarget::ToolRequestUserInput"
+        ),
+        "mcpServer/elicitation/request": (
+            "ServerRequestTarget::McpServerElicitation"
+        ),
     }
     targets = {
         key: RUNTIME_TARGETS.get(key) for key in expected_keys
@@ -6967,7 +7222,7 @@ def generate_server_request_descriptor_data(
             key[3]: target for key, target in targets.items()
         }
         != expected_targets
-        or len(set(targets.values())) != 6
+        or len(set(targets.values())) != 10
         or any(
             contracts.get(key, {}).get("result_contract_kind")
             != "Concrete"
@@ -7081,7 +7336,11 @@ def generate_client_operation_descriptor_data(
             or (
                 assignment.get("slice") == "A1.4"
                 and assignment.get("module") == "IntegrationsAndLongTail"
-                and key in A14_USER_INTEGRATIONS_IMPLEMENTED
+                and key
+                in (
+                    A14_USER_INTEGRATIONS_IMPLEMENTED
+                    | A14_MCP_REVERSE_COMMIT_3
+                )
             )
         )
         and assignment.get("classification") == "StablePublicRoot"
@@ -7093,9 +7352,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 80
+        len(expected_keys) != 84
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 80
+        or len(set(targets.values())) != 84
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -7106,7 +7365,7 @@ def generate_client_operation_descriptor_data(
             "the exact 22 stable A1.1, 9 A1.2 B2, 2 A1.2 B3, 2 A1.2 B4, "
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
             "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
-            "23 A1.4 user-integration "
+            "23 A1.4 user-integration and 4 A1.4b MCP "
             "client requests must each own one unique ClientRequestTarget; "
             f"expected_keys={len(expected_keys)}, targets={len(targets)}, "
             f"unique_targets={len(set(targets.values()))}"
@@ -7147,7 +7406,7 @@ def generate_client_operation_descriptor_data(
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 59
+        or len(expected_keys - unit_keys) != 63
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -7155,8 +7414,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 plus all PR-A requests must remain "
-            "exactly 21 Unit and 59 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus PR-A and A1.4b Commit 3 requests "
+            "must remain exactly 21 Unit and 63 Concrete requests"
         )
 
     result_decoders = {
@@ -7181,6 +7440,9 @@ def generate_client_operation_descriptor_data(
         "LoginAccountResponse",
         "ModelListResponse",
         "ModelProviderCapabilitiesReadResponse",
+        "McpResourceReadResponse",
+        "McpServerOauthLoginResponse",
+        "McpServerToolCallResponse",
         "PermissionProfileListResponse",
         "ReviewStartResponse",
         "SendAddCreditsNudgeEmailResponse",
@@ -7204,6 +7466,7 @@ def generate_client_operation_descriptor_data(
         "PluginSkillReadResponse",
         "SkillsConfigWriteResponse",
         "SkillsListResponse",
+        "ListMcpServerStatusResponse",
         "ThreadForkResponse",
         "ThreadGoalClearResponse",
         "ThreadGoalGetResponse",
@@ -7279,14 +7542,14 @@ def generate_server_notification_descriptor_data(
     }
     descriptor_keys = set(SERVER_NOTIFICATION_CODECS)
     if (
-        len(expected_keys) != 58
+        len(expected_keys) != 60
         or descriptor_keys != expected_keys
         or len({metadata[0] for metadata in SERVER_NOTIFICATION_CODECS.values()})
-        != 58
+        != 60
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorAssignmentMismatch: "
-            "every one of the 58 typed server-notification targets must own "
+            "every one of the 60 typed server-notification targets must own "
             "one exact generated descriptor"
         )
 
@@ -7372,6 +7635,14 @@ def generate_server_notification_descriptor_data(
         and assignments[key].get("module") == "IntegrationsAndLongTail"
     }
     residual_keys -= a14_user_integration_keys
+    a14_mcp_reverse_keys = {
+        key
+        for key in residual_keys
+        if key in A14_MCP_REVERSE_COMMIT_3
+        and assignments[key].get("slice") == "A1.4"
+        and assignments[key].get("module") == "IntegrationsAndLongTail"
+    }
+    residual_keys -= a14_mcp_reverse_keys
     if (
         len(a11_keys) != 37
         or len(a12_b2_keys) != 3
@@ -7381,14 +7652,15 @@ def generate_server_notification_descriptor_data(
         or len(a13_filesystem_keys) != 3
         or len(a13_review_guardian_keys) != 3
         or len(a14_user_integration_keys) != 6
+        or len(a14_mcp_reverse_keys) != 2
         or {key[3] for key in residual_keys} != {"error"}
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorSliceMismatch: "
             "descriptors must distinguish the exact 37 A1.1, 3 A1.2 B2, "
             "3 A1.2 B3, 1 A1.2 B4, 1 A1.3 command, and 3 A1.3 "
-            "filesystem/fuzzy, 3 A1.3 review/guardian, and 3 A1.4 "
-            "user-integration rows from the "
+            "filesystem/fuzzy, 3 A1.3 review/guardian, 6 A1.4 "
+            "user-integration, and 2 A1.4b MCP rows from the "
             "residual partial error row"
         )
 

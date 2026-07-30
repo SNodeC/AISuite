@@ -146,6 +146,10 @@ namespace ai::openai::codex::detail {
         PluginList,
         PluginRead,
         PluginShareList,
+        McpServerOauthLogin,
+        McpResourceRead,
+        McpServerToolCall,
+        McpServerStatusList,
         Count
     };
 
@@ -210,6 +214,8 @@ namespace ai::openai::codex::detail {
         HookCompleted,
         HookStarted,
         SkillsChanged,
+        McpServerOauthLoginCompleted,
+        McpServerStartupStatusUpdated,
         Count
     };
 
@@ -221,6 +227,9 @@ namespace ai::openai::codex::detail {
         ApplyPatchApproval,
         ExecCommandApproval,
         PermissionsRequestApproval,
+        AttestationGenerate,
+        DynamicToolCall,
+        McpServerElicitation,
         Count
     };
 
@@ -420,7 +429,16 @@ namespace ai::openai::codex::detail {
         Count
     };
 
-    enum class IntegrationsAndLongTailUnionTarget { PluginSourceGit, PluginSourceLocal, PluginSourceNpm, PluginSourceRemote, Count };
+    enum class IntegrationsAndLongTailUnionTarget {
+        PluginSourceGit,
+        PluginSourceLocal,
+        PluginSourceNpm,
+        PluginSourceRemote,
+        McpServerElicitationForm,
+        McpServerElicitationOpenAiForm,
+        McpServerElicitationUrl,
+        Count
+    };
 
     enum class ConversationUnionCodecShape { ScalarString, ExternallyTaggedObject, InternallyTaggedObject, Count };
 
@@ -486,6 +504,10 @@ namespace ai::openai::codex::detail {
         PluginListResponse,
         PluginReadResponse,
         PluginShareListResponse,
+        McpServerOauthLoginResponse,
+        McpResourceReadResponse,
+        McpServerToolCallResponse,
+        ListMcpServerStatusResponse,
         Count
     };
 

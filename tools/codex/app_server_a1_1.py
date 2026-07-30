@@ -248,6 +248,214 @@ USER_INTEGRATION_RUNTIME_TARGETS = {
     ("tagged_union_discriminator", "remote"):
         "IntegrationsAndLongTailUnionTarget::PluginSourceRemote",
 }
+MCP_REVERSE_RUNTIME_TARGETS = {
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/oauth/login",
+    ): "ClientRequestTarget::McpServerOauthLogin",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/resource/read",
+    ): "ClientRequestTarget::McpResourceRead",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServer/tool/call",
+    ): "ClientRequestTarget::McpServerToolCall",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "mcpServerStatus/list",
+    ): "ClientRequestTarget::McpServerStatusList",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "mcpServer/oauthLogin/completed",
+    ): "ServerNotificationTarget::McpServerOauthLoginCompleted",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "mcpServer/startupStatus/updated",
+    ): "ServerNotificationTarget::McpServerStartupStatusUpdated",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "attestation/generate",
+    ): "ServerRequestTarget::AttestationGenerate",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "item/tool/call",
+    ): "ServerRequestTarget::DynamicToolCall",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "item/tool/requestUserInput",
+    ): "ServerRequestTarget::ToolRequestUserInput",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "mcpServer/elicitation/request",
+    ): "ServerRequestTarget::McpServerElicitation",
+    (
+        "tagged_union_discriminator",
+        "McpServerElicitationRequestParams",
+        "mode",
+        "form",
+    ): "IntegrationsAndLongTailUnionTarget::McpServerElicitationForm",
+    (
+        "tagged_union_discriminator",
+        "McpServerElicitationRequestParams",
+        "mode",
+        "openai/form",
+    ): "IntegrationsAndLongTailUnionTarget::McpServerElicitationOpenAiForm",
+    (
+        "tagged_union_discriminator",
+        "McpServerElicitationRequestParams",
+        "mode",
+        "url",
+    ): "IntegrationsAndLongTailUnionTarget::McpServerElicitationUrl",
+}
+MCP_REVERSE_STAGES = (
+    {
+        "commit": 3,
+        "identities": (
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/oauth/login",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/resource/read",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/tool/call",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServerStatus/list",
+            ),
+            (
+                "server_notification",
+                "ServerNotification",
+                "method",
+                "mcpServer/oauthLogin/completed",
+            ),
+            (
+                "server_notification",
+                "ServerNotification",
+                "method",
+                "mcpServer/startupStatus/updated",
+            ),
+        ),
+        "native": {
+            "Complete": 39,
+            "Partial": 1,
+            "NotImplemented": 16,
+        },
+        "global": {
+            "Complete": 319,
+            "Partial": 4,
+            "NotImplemented": 16,
+            "NotApplicable": 48,
+        },
+    },
+    {
+        "commit": 4,
+        "identities": (
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "attestation/generate",
+            ),
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "item/tool/call",
+            ),
+        ),
+        "native": {
+            "Complete": 41,
+            "Partial": 1,
+            "NotImplemented": 14,
+        },
+        "global": {
+            "Complete": 321,
+            "Partial": 4,
+            "NotImplemented": 14,
+            "NotApplicable": 48,
+        },
+    },
+    {
+        "commit": 5,
+        "identities": (
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "item/tool/requestUserInput",
+            ),
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "mcpServer/elicitation/request",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "form",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "openai/form",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "url",
+            ),
+        ),
+        "native": {
+            "Complete": 46,
+            "Partial": 0,
+            "NotImplemented": 10,
+        },
+        "global": {
+            "Complete": 326,
+            "Partial": 3,
+            "NotImplemented": 10,
+            "NotApplicable": 48,
+        },
+    },
+)
 EXPECTED_STRONG_IDENTIFIER_COUNTS = {
     "ClientUserMessageId": {
         "scalar_property_paths": 3,
@@ -3377,11 +3585,23 @@ def _user_integration_stage_keys(
     }
 
 
+def _reviewed_a1_4_stage_keys(
+    stage: Mapping[str, Any],
+) -> set[Key]:
+    identities = stage.get("identities")
+    if identities is None:
+        return _user_integration_stage_keys(stage)
+    return {
+        Key(*(str(part) for part in identity))
+        for identity in identities
+    }
+
+
 def user_integration_successor_diagnostics(
     baseline: Mapping[Key, Mapping[str, Any]],
     live_registry: Mapping[Key, Mapping[str, Any]],
 ) -> list[AuditDiagnostic]:
-    """Validate the exact reviewed PR-A promotion, including runtime targets."""
+    """Validate exact reviewed A1.4 promotions, including runtime targets."""
 
     global_status = dict(
         sorted(
@@ -3397,9 +3617,13 @@ def user_integration_successor_diagnostics(
         "NotImplemented": 55,
         "Partial": 4,
     }
+    reviewed_stages = (
+        *user_integrations.STAGES,
+        *MCP_REVERSE_STAGES,
+    )
     matching = [
         stage
-        for stage in user_integrations.STAGES
+        for stage in reviewed_stages
         if global_status == dict(stage["global"])
     ]
     if global_status == successor_start:
@@ -3412,15 +3636,15 @@ def user_integration_successor_diagnostics(
                 "UnrelatedSliceDrift",
                 "registry",
                 (
-                    "A1.4 live status is not an exact reviewed PR-A "
+                    "A1.4 live status is not an exact reviewed successor "
                     f"stage: {global_status}"
                 ),
             )
         ]
     promoted: set[Key] = set()
     if selected is not None:
-        for stage in user_integrations.STAGES:
-            promoted |= _user_integration_stage_keys(stage)
+        for stage in reviewed_stages:
+            promoted |= _reviewed_a1_4_stage_keys(stage)
             if stage is selected:
                 break
 
@@ -3449,8 +3673,11 @@ def user_integration_successor_diagnostics(
         changed.add(key)
         expected = copy.deepcopy(dict(frozen))
         expected["runtime_disposition"] = "Typed"
-        expected["runtime_target"] = USER_INTEGRATION_RUNTIME_TARGETS.get(
-            (key.category, key.name)
+        expected["runtime_target"] = MCP_REVERSE_RUNTIME_TARGETS.get(
+            (key.category, key.domain, key.field, key.name),
+            USER_INTEGRATION_RUNTIME_TARGETS.get(
+                (key.category, key.name)
+            ),
         )
         expected["typed_schema_status"] = "Complete"
         expected["typed_status"] = "Implemented"
@@ -3480,7 +3707,10 @@ def user_integration_successor_diagnostics(
                         else "UnrelatedSliceDrift"
                     ),
                     key.compact(),
-                    "A1.4 row differs from its exact reviewed PR-A promotion",
+                    (
+                        "A1.4 row differs from its exact reviewed "
+                        "successor promotion"
+                    ),
                 )
             )
     if changed != promoted and not diagnostics:

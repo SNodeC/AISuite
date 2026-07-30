@@ -632,6 +632,15 @@ namespace ai::openai::codex::backend {
                                   },
                                   [&snapshot](const typed::PermissionsApprovalRequest& value) {
                                       snapshotGenericRequest(snapshot, "item/permissions/requestApproval", value.params.raw);
+                                  },
+                                  [&snapshot](const typed::AttestationGenerateRequest&) {
+                                      snapshot.type = "unknown";
+                                  },
+                                  [&snapshot](const typed::DynamicToolCallRequest&) {
+                                      snapshot.type = "unknown";
+                                  },
+                                  [&snapshot](const typed::McpServerElicitationRequest&) {
+                                      snapshot.type = "unknown";
                                   }},
                        state.request);
             snapshot.details = boundedJson(snapshot.details);

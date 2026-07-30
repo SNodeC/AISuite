@@ -5275,9 +5275,9 @@ class AppServerFixtureToolTest(unittest.TestCase):
         self.assertEqual(
             first_index["counts"],
             {
-                "total": 7833,
-                "positive": 3182,
-                "negative": 4651,
+                "total": 8207,
+                "positive": 3327,
+                "negative": 4880,
                 "by_role": {
                     "client_request_params": 87,
                     "client_request_result": 87,
@@ -5285,24 +5285,24 @@ class AppServerFixtureToolTest(unittest.TestCase):
                     "malformed_known": 1,
                     "malformed_known_conflicting_discriminators": 2,
                     "malformed_known_empty_string": 1,
-                    "malformed_known_missing_discriminator": 134,
-                    "malformed_known_missing_required": 217,
-                    "malformed_known_wrong_discriminator_type": 134,
+                    "malformed_known_missing_discriminator": 137,
+                    "malformed_known_missing_required": 233,
+                    "malformed_known_wrong_discriminator_type": 137,
                     "malformed_known_wrong_outer_shape": 4,
-                    "malformed_known_wrong_type": 399,
+                    "malformed_known_wrong_type": 423,
                     "nested_union_failure": 4,
                     "notification_default_value": 5,
                     "notification_explicit_empty_array": 17,
                     "notification_explicit_empty_map": 3,
                     "notification_future_open_object": 10,
-                    "notification_missing_required": 443,
-                    "notification_nullable_null": 138,
+                    "notification_missing_required": 451,
+                    "notification_nullable_null": 143,
                     "notification_numeric_boundary": 23,
                     "notification_numeric_boundary_invalid": 13,
-                    "notification_optional_omitted": 149,
+                    "notification_optional_omitted": 154,
                     "notification_pinned_format_unrepresentable": 23,
                     "notification_stream_alternative": 1,
-                    "notification_wrong_type": 628,
+                    "notification_wrong_type": 641,
                     "open_enum_known_value": 208,
                     "operation_default_value": 40,
                     "operation_empty_aggregate": 3,
@@ -5313,30 +5313,30 @@ class AppServerFixtureToolTest(unittest.TestCase):
                     "operation_helper_union_branch": 13,
                     "operation_known_enum_values": 5,
                     "operation_minimum_request": 22,
-                    "operation_missing_required": 748,
-                    "operation_nullable_null": 667,
+                    "operation_missing_required": 803,
+                    "operation_nullable_null": 719,
                     "operation_numeric_boundary": 50,
                     "operation_numeric_boundary_invalid": 41,
                     "operation_opaque_json_value": 4,
                     "operation_opaque_value": 26,
                     "operation_optional_nullable_delivery": 4,
-                    "operation_optional_omitted": 743,
+                    "operation_optional_omitted": 795,
                     "operation_pinned_format_unrepresentable": 35,
                     "operation_review_thread_identity": 2,
-                    "operation_wrong_type": 1677,
-                    "server_notification_identity": 44,
+                    "operation_wrong_type": 1783,
+                    "server_notification_identity": 46,
                     "server_request_params": 10,
                     "server_request_response": 10,
-                    "union_branch": 170,
+                    "union_branch": 173,
                     "union_branch_supplement": 33,
                     "union_explicit_empty_array": 2,
-                    "union_future_open_object": 4,
-                    "union_nullable_null": 153,
+                    "union_future_open_object": 7,
+                    "union_nullable_null": 165,
                     "union_numeric_boundary": 2,
                     "union_numeric_boundary_invalid": 2,
-                    "union_optional_omitted": 165,
+                    "union_optional_omitted": 176,
                     "union_pinned_format_unrepresentable": 1,
-                    "unknown_discriminator": 36,
+                    "unknown_discriminator": 37,
                     "unknown_enum_value": 163,
                     "unknown_method": 4,
                 },
@@ -5345,15 +5345,15 @@ class AppServerFixtureToolTest(unittest.TestCase):
         self.assertEqual(
             first_index["mutation_counts"],
             {
-                "selected_branch_required_locations": 35246,
-                "required_locations": 35246,
-                "required_field_removals_rejected": 35246,
-                "wrong_type_mutations_rejected": 35062,
-                "wrong_type_unconstrained_exclusions": 184,
-                "alternative_branch_acceptances": 1,
-                "optional_present_locations": 42335,
-                "globally_optional_locations": 42335,
-                "optional_omissions_accepted": 42335,
+                "selected_branch_required_locations": 36398,
+                "required_locations": 36398,
+                "required_field_removals_rejected": 36398,
+                "wrong_type_mutations_rejected": 36157,
+                "wrong_type_unconstrained_exclusions": 241,
+                "alternative_branch_acceptances": 31,
+                "optional_present_locations": 43728,
+                "globally_optional_locations": 43728,
+                "optional_omissions_accepted": 43728,
                 "optional_cross_fragment_exclusions": 0,
             },
         )
@@ -5400,21 +5400,21 @@ class AppServerFixtureToolTest(unittest.TestCase):
         self.assertEqual(completeness["counts"]["surface_identities"], 387)
         self.assertEqual(
             completeness["counts"]["identities_with_positive_fixtures"],
-            326,
+            331,
         )
         self.assertEqual(
             completeness["counts"]["facts_true_by_field"],
             {
-                "authoritative_root_association": 326,
-                "fixture_current": 326,
-                "independently_schema_validated": 326,
-                "nullable_semantics_exercised": 313,
-                "optional_omitted_exercised": 326,
-                "optional_present_exercised": 326,
-                "positive_fixture_coverage": 326,
-                "reachable_union_alternatives_exercised": 313,
-                "required_fields_exercised": 326,
-                "schema_properties_exercised": 313,
+                "authoritative_root_association": 331,
+                "fixture_current": 331,
+                "independently_schema_validated": 331,
+                "nullable_semantics_exercised": 326,
+                "optional_omitted_exercised": 331,
+                "optional_present_exercised": 331,
+                "positive_fixture_coverage": 331,
+                "reachable_union_alternatives_exercised": 326,
+                "required_fields_exercised": 331,
+                "schema_properties_exercised": 326,
             },
         )
         self.assertEqual(len(completeness["records"]), 387)
@@ -5436,11 +5436,9 @@ class AppServerFixtureToolTest(unittest.TestCase):
             for mutation in record["validation"]["wrong_types"]
             if mutation["exclusion"] is not None
         ]
-        # The two new B5 protocol-opaque base paths are retained in the
-        # detailed index. Supplemental notification records use the compact
-        # mutation-evidence form and remain covered by the global count of
-        # 178 after the A1.2 B5 configuration-mutation closure.
-        self.assertEqual(len(exclusions), 63)
+        # Protocol-opaque base paths remain detailed in the index. Compact
+        # supplemental records remain covered by the global exclusion count.
+        self.assertEqual(len(exclusions), 70)
         self.assertTrue(
             all(
                 mutation == {

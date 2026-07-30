@@ -91,6 +91,13 @@ EXPECTED_USER_INTEGRATION_SUCCESSOR_GLOBAL_STATUS = tuple(
     dict(stage["global"])
     for stage in a1_2.a11.user_integrations.STAGES
 )
+EXPECTED_REVIEWED_A1_4_SUCCESSOR_GLOBAL_STATUS = tuple(
+    dict(stage["global"])
+    for stage in (
+        *a1_2.a11.user_integrations.STAGES,
+        *a1_2.a11.MCP_REVERSE_STAGES,
+    )
+)
 EXPECTED_A1_3_SUCCESSOR_RESIDUAL_PARTIAL_KEYS = frozenset(
     {
         shared.Key(
@@ -209,6 +216,51 @@ EXPECTED_USER_INTEGRATION_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS = {
     "identities_with_positive_fixtures": 326,
     "surface_identities": 387,
 }
+EXPECTED_MCP_REVERSE_SUCCESSOR_FIXTURE_TOTALS = {
+    "negative": 4880,
+    "positive": 3327,
+    "total": 8207,
+}
+EXPECTED_MCP_REVERSE_SUCCESSOR_FIXTURE_MUTATIONS = {
+    "alternative_branch_acceptances": 31,
+    "globally_optional_locations": 43728,
+    "optional_cross_fragment_exclusions": 0,
+    "optional_omissions_accepted": 43728,
+    "optional_present_locations": 43728,
+    "required_field_removals_rejected": 36398,
+    "required_locations": 36398,
+    "selected_branch_required_locations": 36398,
+    "wrong_type_mutations_rejected": 36157,
+    "wrong_type_unconstrained_exclusions": 241,
+}
+EXPECTED_MCP_REVERSE_SUCCESSOR_FIXTURE_COVERAGE_COUNTS = {
+    "identities_with_positive_fixtures": 331,
+    "operation_role_actual": 194,
+    "operation_role_expected": 194,
+    "optional_omissions_accepted": 43728,
+    "optional_present_locations": 43728,
+    "positive_fixtures": 3327,
+    "required_field_removals_rejected": 36398,
+    "surface_identities": 387,
+    "wrong_type_mutations_rejected": 36157,
+    "wrong_type_unconstrained_exclusions": 241,
+}
+EXPECTED_MCP_REVERSE_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS = {
+    "facts_true_by_field": {
+        "authoritative_root_association": 331,
+        "fixture_current": 331,
+        "independently_schema_validated": 331,
+        "nullable_semantics_exercised": 326,
+        "optional_omitted_exercised": 331,
+        "optional_present_exercised": 331,
+        "positive_fixture_coverage": 331,
+        "reachable_union_alternatives_exercised": 326,
+        "required_fields_exercised": 331,
+        "schema_properties_exercised": 326,
+    },
+    "identities_with_positive_fixtures": 331,
+    "surface_identities": 387,
+}
 EXPECTED_TREE_FINGERPRINTS = {
     "src/ai/openai/codex/backend": {
         "file_count": 14,
@@ -244,9 +296,23 @@ EXPECTED_USER_INTEGRATION_SUCCESSOR_TREE_FINGERPRINTS = {
     "src/ai/openai/codex/backend": {
         "file_count": 14,
         "sha256":
-            "9cfec9225ae4897f1a7310c250b992695d91cbe84415620413bd6ae538d2ada1",
+        "9cfec9225ae4897f1a7310c250b992695d91cbe84415620413bd6ae538d2ada1",
     },
 }
+EXPECTED_MCP_REVERSE_SUCCESSOR_TREE_FINGERPRINTS = tuple(
+    {
+        **EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS,
+        "src/ai/openai/codex/backend": {
+            "file_count": 14,
+            "sha256": sha256,
+        },
+    }
+    for sha256 in (
+        "841af0eb4eaef59f7742f4ea0266f36203d45bd73b04e065c867530224fb6894",
+        "b94f221e1eb8fe318d7f1a1dbf625180916acb3e4fe30c729aab15c24a43cc77",
+        "f3cd8aafba6c1b75a5e56287aff8985c01fd277c09684ae625ec0153c63b98be",
+    )
+)
 EXPECTED_FRONTEND_PROTOCOL_FINGERPRINTS = {
     "docs/ai/openai/codex/frontend-protocol-v1.md":
         "5f53a6219f8dc45a09ec7ddca05f2f1f104ce0c7fee824de98492815fc502017",
@@ -397,7 +463,7 @@ def validate_successor_registry(
     require(
         live_global == EXPECTED_A1_3_SUCCESSOR_GLOBAL_STATUS
         or live_global
-        in EXPECTED_USER_INTEGRATION_SUCCESSOR_GLOBAL_STATUS,
+        in EXPECTED_REVIEWED_A1_4_SUCCESSOR_GLOBAL_STATUS,
         f"A1.3 successor global schema metrics changed: {live_global}",
         "ClosureSuccessorProgressMismatch",
     )
@@ -406,8 +472,20 @@ def validate_successor_registry(
         for key, row in registry.items()
         if row.get("typed_schema_status") == "Partial"
     }
+    expected_residual = EXPECTED_A1_3_SUCCESSOR_RESIDUAL_PARTIAL_KEYS
+    if live_global == dict(
+        a1_2.a11.MCP_REVERSE_STAGES[-1]["global"]
+    ):
+        expected_residual = expected_residual - {
+            shared.Key(
+                "server_request",
+                "ServerRequest",
+                "method",
+                "item/tool/requestUserInput",
+            )
+        }
     require(
-        live_residual == EXPECTED_A1_3_SUCCESSOR_RESIDUAL_PARTIAL_KEYS,
+        live_residual == expected_residual,
         "A1.3 successor residual Partial identity set changed",
         "ClosureSuccessorProgressMismatch",
     )
@@ -442,8 +520,18 @@ def validate_successor_fixture_evidence(
         and schema_counts
         == EXPECTED_USER_INTEGRATION_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS
     )
+    mcp_reverse_counts = (
+        fixture_totals
+        == EXPECTED_MCP_REVERSE_SUCCESSOR_FIXTURE_TOTALS
+        and fixture_mutations
+        == EXPECTED_MCP_REVERSE_SUCCESSOR_FIXTURE_MUTATIONS
+        and coverage_counts
+        == EXPECTED_MCP_REVERSE_SUCCESSOR_FIXTURE_COVERAGE_COUNTS
+        and schema_counts
+        == EXPECTED_MCP_REVERSE_SUCCESSOR_SCHEMA_COMPLETENESS_COUNTS
+    )
     require(
-        a1_3_counts or user_integration_counts,
+        a1_3_counts or user_integration_counts or mcp_reverse_counts,
         "fixture/mutation/completeness evidence is not the reviewed "
         "A1.3 successor corpus",
         "ClosureSuccessorFixtureMismatch",
@@ -461,6 +549,7 @@ def validate_successor_boundaries(
         in (
             EXPECTED_A1_3_SUCCESSOR_TREE_FINGERPRINTS,
             EXPECTED_USER_INTEGRATION_SUCCESSOR_TREE_FINGERPRINTS,
+            *EXPECTED_MCP_REVERSE_SUCCESSOR_TREE_FINGERPRINTS,
         )
         and frontend_protocol == EXPECTED_FRONTEND_PROTOCOL_FINGERPRINTS,
         "A1.3 successor BackendCore/frontend/application boundary "

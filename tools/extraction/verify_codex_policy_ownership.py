@@ -27,6 +27,8 @@ from typing import Any, Iterable, Mapping, Sequence
 AISUITE_BASE_SHA = "19de4f50be64e187761274f043091090609d27a3"
 AISUITE_BASE_TREE = "c71a91e545d70d649446ca9d698d729c307a480a"
 SNODEC_REPOSITORY = "https://github.com/SNodeC/snode.c"
+SNODEC_DEPENDENCY_COMMIT = "77415c71a87fb7955e9a050bedaca02b65754324"
+SNODEC_DEPENDENCY_TREE = "2d39c334f12c308828936656c820447bfcc38d47"
 SNODEC_COMMIT = "d18b231a1d2ec2235fd6f204786b0a761cc24ff5"
 SNODEC_TREE = "88a63edc985a851b2b76b0c56df19fae74ea8069"
 EXPECTED_CI_FILTER = "ai|openai|codex|extraction"
@@ -228,7 +230,7 @@ HEADER_COMPONENTS: tuple[dict[str, Any], ...] = (
         "cmake_path": "src/ai/openai/codex/CMakeLists.txt",
         "variable": "AI_OPENAI_CODEX_PUBLIC_H",
         "installed_prefix": "ai/openai/codex",
-        "expected_count": 27,
+        "expected_count": 28,
     },
     {
         "name": "backend",
@@ -250,6 +252,47 @@ ORIGINAL_HEADER_GUARDS = {
     "typed/Accounts.h": "AI_OPENAI_CODEX_TYPED_ACCOUNTS_H",
     "typed/Configuration.h": "AI_OPENAI_CODEX_TYPED_CONFIGURATION_H",
     "typed/Models.h": "AI_OPENAI_CODEX_TYPED_MODELS_H",
+}
+
+MCP_REVERSE_COMPONENT_TEST_STAGES = (
+    frozenset(),
+    frozenset(
+        {
+            "CodexA14McpClientTest",
+            "CodexA14McpClientWireTest",
+            "CodexA14McpNotificationEventTest",
+        }
+    ),
+    frozenset(
+        {
+            "CodexA14AttestationDynamicToolCodecTest",
+            "CodexA14AttestationDynamicToolWireTest",
+            "CodexA14McpClientTest",
+            "CodexA14McpClientWireTest",
+            "CodexA14McpNotificationEventTest",
+        }
+    ),
+    frozenset(
+        {
+            "CodexA14AttestationDynamicToolCodecTest",
+            "CodexA14AttestationDynamicToolWireTest",
+            "CodexA14McpClientTest",
+            "CodexA14McpClientWireTest",
+            "CodexA14McpNotificationEventTest",
+            "CodexA14NineRequestStdioTest",
+            "CodexA14UserInputElicitationCodecTest",
+        }
+    ),
+)
+MCP_REVERSE_COMPONENT_TIMEOUT_ADJUSTMENTS = {
+    "CodexAppServerFixtureInfrastructureTest": {
+        "baseline": 300.0,
+        "final": 420.0,
+        "reason": (
+            "the exact 8,207-fixture A1.4b corpus exceeded the inherited "
+            "CI timeout in one supported compiler image"
+        ),
+    },
 }
 
 FORBIDDEN_LOGGING_IDENTIFIERS: tuple[str, ...] = (
@@ -441,6 +484,8 @@ MUTATION_COVERAGE: tuple[tuple[str, str], ...] = (
     ("standalone-policy-file-reclassification", "CodexPolicyManifestClassificationMismatch"),
     ("security-guard-reclassification", "CodexPolicyManifestClassificationMismatch"),
     ("snodec-blob-alteration", "CodexPolicySourceAuthorityMismatch"),
+    ("snodec-clean-dependency-alteration", "CodexPolicySourceAuthorityMismatch"),
+    ("snodec-cutover-false", "CodexPolicyCutoverReadinessMismatch"),
     ("source-package-owner-removal", "CodexPolicySourcePackageMismatch"),
     ("binary-package-policy-leak", "CodexPolicyBinaryPackageLeak"),
 )
@@ -720,6 +765,42 @@ def _preservation_view(test: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _component_stable_view(test: Mapping[str, Any]) -> dict[str, Any]:
+    result = copy.deepcopy(dict(test))
+    backtrace = result.get("registration_backtrace")
+    if isinstance(backtrace, list):
+        for frame in backtrace:
+            if isinstance(frame, dict):
+                frame.pop("line", None)
+    return result
+
+
+def _reviewed_component_timeout_adjustment(
+    name: str,
+    baseline: Mapping[str, Any],
+    final: Mapping[str, Any],
+) -> bool:
+    adjustment = MCP_REVERSE_COMPONENT_TIMEOUT_ADJUSTMENTS.get(name)
+    if adjustment is None:
+        return False
+    baseline_view = _component_stable_view(baseline)
+    final_view = _component_stable_view(final)
+    if (
+        baseline_view.get("timeout") != adjustment["baseline"]
+        or final_view.get("timeout") != adjustment["final"]
+        or baseline_view.get("properties", {}).get("TIMEOUT")
+        != adjustment["baseline"]
+        or final_view.get("properties", {}).get("TIMEOUT")
+        != adjustment["final"]
+    ):
+        return False
+    baseline_view["timeout"] = None
+    final_view["timeout"] = None
+    baseline_view["properties"]["TIMEOUT"] = None
+    final_view["properties"]["TIMEOUT"] = None
+    return baseline_view == final_view
+
+
 def _cmake_set_values(text: str, variable: str) -> list[str]:
     match = re.search(rf"\bset\s*\(\s*{re.escape(variable)}\b(.*?)\)", text, re.DOTALL)
     if match is None:
@@ -763,14 +844,14 @@ def derive_public_header_inventory(root: Path) -> dict[str, Any]:
             }
         )
         all_headers.extend(headers)
-    if len(all_headers) != 41 or len(set(all_headers)) != 41:
+    if len(all_headers) != 42 or len(set(all_headers)) != 42:
         fail(
             "CodexPolicyPublicHeaderInventoryMismatch",
-            f"expected 41 unique Codex public headers, got {len(all_headers)}/{len(set(all_headers))}",
+            f"expected 42 unique Codex public headers, got {len(all_headers)}/{len(set(all_headers))}",
         )
     return {
         "components": components,
-        "counts": {"main": 27, "backend": 7, "frontend": 7, "total": 41},
+        "counts": {"main": 28, "backend": 7, "frontend": 7, "total": 42},
         "headers": sorted(all_headers),
         "original_a1_2_guards": ORIGINAL_HEADER_GUARDS,
         "inventory_authority": (
@@ -997,6 +1078,12 @@ def build_ownership_document(
             ],
             "reference_support_file": dict(SUPPORT_AUTHORITY),
         },
+        "snodec_normal_dependency": {
+            "repository": SNODEC_REPOSITORY,
+            "commit": SNODEC_DEPENDENCY_COMMIT,
+            "tree": SNODEC_DEPENDENCY_TREE,
+            "role": "normal AISuite compilation and linking through one installed SNode.C prefix",
+        },
         "transferred_responsibilities": _responsibilities(),
         "preexisting_aisuite_policy_tests": [
             {
@@ -1027,6 +1114,15 @@ def build_ownership_document(
                 "baseline_model_sha256": baseline_component_hash,
                 "final_model_sha256": final_component_hash,
                 "generated_artifacts_guard": GENERATED_ARTIFACTS_TEST,
+                "reviewed_a1_4b_timeout_adjustments": [
+                    {
+                        "test_name": name,
+                        **adjustment,
+                    }
+                    for name, adjustment in sorted(
+                        MCP_REVERSE_COMPONENT_TIMEOUT_ADJUSTMENTS.items()
+                    )
+                ],
             },
             "all_ctest": {
                 "baseline_test_count": int(baseline_model.get("test_count", 0)),
@@ -1121,10 +1217,15 @@ def build_ownership_document(
         "cutover_readiness": {
             "ready": True,
             "statement": (
-                "AISuite Codex policy ownership is complete. "
-                "SNode.C Codex removal remains a separate reviewed cutover."
+                "AISuite Codex policy ownership is complete and normal builds use "
+                "the cleaned SNode.C dependency; the historical SNode.C tree is "
+                "immutable extraction provenance only."
             ),
-            "snodec_cutover_performed": False,
+            "snodec_cutover_performed": True,
+            "normal_dependency_commit": SNODEC_DEPENDENCY_COMMIT,
+            "normal_dependency_tree": SNODEC_DEPENDENCY_TREE,
+            "extraction_provenance_commit": SNODEC_COMMIT,
+            "extraction_provenance_tree": SNODEC_TREE,
         },
     }
 
@@ -1281,6 +1382,17 @@ def _git_text(root: Path, *arguments: str) -> str:
 
 
 def _validate_source_authority(fixture: VerificationFixture) -> None:
+    dependency = fixture.ownership.get("snodec_normal_dependency")
+    if dependency != {
+        "repository": SNODEC_REPOSITORY,
+        "commit": SNODEC_DEPENDENCY_COMMIT,
+        "tree": SNODEC_DEPENDENCY_TREE,
+        "role": "normal AISuite compilation and linking through one installed SNode.C prefix",
+    }:
+        fail(
+            "CodexPolicySourceAuthorityMismatch",
+            "cleaned SNode.C normal dependency authority changed",
+        )
     authority = fixture.ownership.get("snodec_source_authority")
     if not isinstance(authority, dict):
         fail("CodexPolicySourceAuthorityMismatch", "SNode.C source authority is absent")
@@ -1987,6 +2099,11 @@ def _validate_preexisting_ctest(fixture: VerificationFixture) -> None:
         for test in fixture.baseline_model.get("tests", [])
         if _is_component_test(test)
     }
+    final_components = {
+        str(test["name"]): test
+        for test in fixture.final_model.get("tests", [])
+        if _is_component_test(test)
+    }
     for name, baseline in baseline_components.items():
         rows = final_index.get(name, [])
         if len(rows) != 1:
@@ -1999,18 +2116,21 @@ def _validate_preexisting_ctest(fixture: VerificationFixture) -> None:
             )
         if bool(final.get("disabled", False)):
             fail("CodexPolicyPreexistingComponentTestDrift", f"component test {name} is disabled")
-        if _preservation_view(baseline) != _preservation_view(final):
+        if (
+            _component_stable_view(baseline)
+            != _component_stable_view(final)
+            and not _reviewed_component_timeout_adjustment(
+                name,
+                baseline,
+                final,
+            )
+        ):
             fail("CodexPolicyPreexistingComponentTestDrift", f"component test {name} properties drifted")
-    final_components = _component_model(fixture.final_model)
-    baseline_component_rows = _component_model(fixture.baseline_model)
-    if (
-        len(final_components) != len(baseline_component_rows)
-        or canonical_sha256(final_components)
-        != canonical_sha256(baseline_component_rows)
-    ):
+    additions = frozenset(final_components) - frozenset(baseline_components)
+    if additions not in MCP_REVERSE_COMPONENT_TEST_STAGES:
         fail(
             "CodexPolicyPreexistingComponentTestDrift",
-            "configured component/codex model hash or count changed",
+            "configured component/codex additions are not an exact reviewed A1.4b stage",
         )
     if GENERATED_ARTIFACTS_TEST not in baseline_components or len(
         final_index.get(GENERATED_ARTIFACTS_TEST, [])
@@ -2142,6 +2262,42 @@ def _validate_ci(fixture: VerificationFixture) -> None:
     if set(jobs) != {"gcc-debug", "gcc-15-debug"}:
         fail("CodexPolicyCIFilterMismatch", f"CI jobs changed: {sorted(jobs)}")
     for name in ("gcc-debug", "gcc-15-debug"):
+        job = jobs[name]
+        required_cutover_fragments = (
+            "git clone https://github.com/SNodeC/snode.c.git ../snodec",
+            f"git -C ../snodec checkout {SNODEC_DEPENDENCY_COMMIT}",
+            "git -C ../snodec worktree add --detach ../snodec-provenance",
+            SNODEC_COMMIT,
+            SNODEC_DEPENDENCY_TREE,
+            SNODEC_TREE,
+            "test ! -d ../snodec/src/ai",
+            "cmake -S ../snodec -B ../snodec-build",
+            '-DCMAKE_PREFIX_PATH="$PWD/../snodec-stage"',
+            (
+                '-DAISUITE_TEST_SNODEC_SOURCE_REPOSITORY='
+                '"$PWD/../snodec-provenance"'
+            ),
+        )
+        missing = [
+            fragment
+            for fragment in required_cutover_fragments
+            if fragment not in job
+        ]
+        if missing:
+            fail(
+                "CodexPolicyCutoverReadinessMismatch",
+                f"{name} omits cleaned/provenance separation: {missing[0]}",
+            )
+        for forbidden in (
+            "cmake -S ../snodec-provenance",
+            "cmake --build ../snodec-provenance",
+            "-DCMAKE_PREFIX_PATH=\"$PWD/../snodec-provenance",
+        ):
+            if forbidden in job:
+                fail(
+                    "CodexPolicyCutoverReadinessMismatch",
+                    f"{name} uses extraction provenance as a build dependency",
+                )
         filters = _focused_filters(jobs[name])
         if EXPECTED_CI_FILTER not in filters:
             fail(

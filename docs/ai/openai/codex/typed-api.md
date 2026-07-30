@@ -30,16 +30,17 @@ client.typed().hooks().list(hooksParams, hooksHandler);
 client.typed().marketplace().add(marketplaceParams, marketplaceHandler);
 client.typed().plugins().list(pluginParams, pluginHandler);
 client.typed().skills().list(skillParams, skillHandler);
+client.typed().mcp().listServers(mcpParams, mcpHandler);
 ```
 
 `typed::Client` is the installed, PIMPL-backed grouped facade. Its current
-accessors return 18 objects owned by the `AppServerClient`: `Accounts`,
+accessors return 19 objects owned by the `AppServerClient`: `Accounts`,
 `Apps`, `Commands`, `Configuration`, `Events`, `ExternalAgents`, `Feedback`,
-`Filesystem`, `Hooks`, `Marketplace`, `Models`, `PermissionProfiles`,
-`Plugins`, `Requests`, `Reviews`, `Skills`, `Threads`, and `Turns`. They do not
-allocate a second protocol engine. The old direct conversation accessors
-remain source-compatible deprecated forwarders, for example
-`client.threads()` forwards to `client.typed().threads()`. There are
+`Filesystem`, `Hooks`, `Marketplace`, `Mcp`, `Models`,
+`PermissionProfiles`, `Plugins`, `Requests`, `Reviews`, `Skills`, `Threads`,
+and `Turns`. They do not allocate a second protocol engine. The old direct
+conversation accessors remain source-compatible deprecated forwarders, for
+example `client.threads()` forwards to `client.typed().threads()`. There are
 deliberately no direct `AppServerClient` forwarders for the newer grouped
 domain facades.
 
@@ -71,14 +72,18 @@ claim a typed implementation or schema completeness.
 The grouped API includes the conversation operations completed in A1.0 and
 A1.1, accounts/models/configuration from A1.2, the stable
 commands/filesystem/reviews/approvals slice completed in A1.3, and the 33
-A14-UserIntegrations identities. Remaining stable operations stay raw- or
-opaque-preserved according to their fixed A1.4 ownership. The
+A14-UserIntegrations identities plus the 13 A14-McpReverse identities.
+Remaining stable operations stay raw- or opaque-preserved according to their
+fixed A1.4 ownership. The
 [A1.3 commands, filesystem, reviews, and approvals report](a1-3-commands-filesystem-reviews-approvals.md)
 records the exact 68-identity denominator, transitive type closure,
 compatibility boundary, and offline evidence. The
 [A1.4 user-facing integrations report](a1-4-user-facing-integrations.md)
 records the exact PR-A denominator, stable schema closure, public variants, and
-package boundary.
+package boundary. The
+[A1.4 MCP and reverse-requests report](a1-4-mcp-and-reverse-requests.md)
+records the exact 13-identity MCP/reverse denominator, its 18/55/204 schema
+closure, reverse-request lifecycle, and deferrals.
 
 The 18 A1.2 client operations are local typed-library APIs:
 
@@ -177,6 +182,20 @@ malformed payloads for a known discriminator remain separately classified and
 raw-preserved. `npm` is protocol data only: AISuite neither depends on nor
 executes Node.js or npm.
 
+The four A14-McpReverse client operations are also local typed-library APIs:
+
+| Facade | Stable wire method | Public method | Result |
+| --- | --- | --- | --- |
+| `mcp()` | `mcpServer/oauth/login` | `startOauthLogin` | `McpServerOauthLoginResponse` |
+| `mcp()` | `mcpServer/resource/read` | `readResource` | `McpResourceReadResponse` |
+| `mcp()` | `mcpServer/tool/call` | `callTool` | `McpServerToolCallResponse` |
+| `mcp()` | `mcpServerStatus/list` | `listServers` | `ListMcpServerStatusResponse` |
+
+All four return `RawProtocol::Submission` immediately and complete through an
+asynchronous `OperationResult<T>` callback. AISuite neither contacts external
+MCP servers directly nor implements local OAuth, tool execution, resource
+access, or attestation policy.
+
 Current outgoing turn input variants are text, remote image, local image,
 skill, and mention. The current stable schema has no generic file-input
 variant. Thread start/resume accept the schema's simple sandbox mode. Turn
@@ -242,7 +261,8 @@ methods currently include:
 - guardian warnings and automatic approval-review lifecycle notifications;
 - app-list updates and external-agent import completion/progress;
 - hook completion/start lifecycle; and
-- skill-catalog changes.
+- skill-catalog changes; and
+- MCP OAuth completion and startup-status updates.
 
 A failed `turn/completed` payload becomes `TurnFailed`; there is no separate
 `turn/failed` wire method in the current schema.
@@ -319,8 +339,11 @@ payloads degrade to the raw-preserving compatibility path.
 - `item/commandExecution/requestApproval`;
 - `item/fileChange/requestApproval`;
 - `item/permissions/requestApproval`;
-- `item/tool/requestUserInput`; and
-- `account/chatgptAuthTokens/refresh`.
+- `item/tool/requestUserInput`;
+- `account/chatgptAuthTokens/refresh`;
+- `attestation/generate`;
+- `item/tool/call`; and
+- `mcpServer/elicitation/request`.
 
 Every other method, and a malformed payload for a known method, becomes an
 answerable `UnknownServerRequest`. The request ID and complete raw request are
@@ -336,6 +359,9 @@ they are not conflated with the v2 approval payloads.
 
 User-input answers are encoded as the schema-defined question-ID map of string
 arrays. The helper rejects unknown question IDs and duplicate answers. The
+canonical `ToolRequestUserInputParams` additionally preserves omitted versus
+null options and `autoResolutionMs`, default-bearing `isOther` and `isSecret`,
+empty option lists, free-text allowance, and secret-answer semantics. The
 schema has no required-question marker, so unanswered questions are not
 invented as a local error. Authentication token refresh uses the canonical
 `ChatgptAuthTokensRefreshParams` and
@@ -348,6 +374,17 @@ legacy `Requests::respond(AuthenticationRequest, AuthenticationResponse)`
 overload remains unambiguous for existing callers. Unknown requests can be
 answered with `respondRaw()` or rejected with `reject()`; both delegate to the
 raw pending-server-request registry.
+
+Tool user input and MCP elicitation are distinct models. Tool user input has
+no `mode`. The `form`, `openai/form`, and `url` alternatives belong only to
+`McpServerElicitationRequestParams::mode`, in that order, followed by the
+raw-preserving `UnknownMcpElicitation`. Unknown future modes are nonfatal
+forward-compatibility values. A structurally invalid known mode remains
+malformed-known and answerable through the raw-preserving path; it is not
+reclassified as future-unknown. Elicitation responses use
+`McpServerElicitationAction::accept()`, `decline()`, or `cancel()` and preserve
+optional content and `_meta` without fabricating content for decline or
+cancel.
 
 The first successfully enqueued typed or raw answer consumes the request. An
 enqueue failure retains it for retry, and a second answer is rejected. Typed
@@ -388,8 +425,9 @@ Public `std::variant` and aggregate layouts changed where the typed model
 required it, and this documentation does not claim binary compatibility for
 already-built consumers.
 
-SOVERSION remains unchanged through A1.3. The added facades and public
-aggregates are part of the documented A1 consumer-rebuild boundary.
+SOVERSION remains 1 through A1.4b. The added facades and public aggregates are
+part of the documented A1 consumer-rebuild boundary; the SOVERSION decision
+remains deferred to the distinct final-A1 closure.
 
 A1.3 preserves the existing alternative order and appends new `Event` and
 `TypedServerRequest` alternatives, but both public variants change
@@ -409,3 +447,10 @@ optional string decode errors remain while structured classification becomes
 authoritative. Raw JSON on results, threads, turns, items, events, server
 requests, and Codex error alternatives remains the escape hatch for protocol
 growth.
+
+A14-McpReverse is complete: the global registry is
+326 Complete / 3 Partial / 10 NotImplemented / 48 NotApplicable, while native
+A1.4 is 46 Complete / 0 Partial / 10 NotImplemented. The remaining Partials
+are exactly `initialize`, `initialized`, and `error`. Native A1.4 still has ten
+runtime/platform identities reserved for the separate PR-C milestone; this
+document does not claim all native A1.4 work is complete.
