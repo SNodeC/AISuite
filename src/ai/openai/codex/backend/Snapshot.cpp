@@ -638,6 +638,9 @@ namespace ai::openai::codex::backend {
                                   },
                                   [&snapshot](const typed::DynamicToolCallRequest&) {
                                       snapshot.type = "unknown";
+                                  },
+                                  [&snapshot](const typed::McpServerElicitationRequest&) {
+                                      snapshot.type = "unknown";
                                   }},
                        state.request);
             snapshot.details = boundedJson(snapshot.details);

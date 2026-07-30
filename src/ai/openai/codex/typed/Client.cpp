@@ -1378,6 +1378,18 @@ namespace ai::openai::codex::typed {
             request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(*encoded));
     }
 
+    Requests::SendResult Requests::respond(const UserInputRequest& request, ToolRequestUserInputResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeToolRequestUserInputResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
+        return protocol->respondOwned(request.requestId,
+                                      request.requestToken,
+                                      registeredMethod(detail::ServerRequestTarget::ToolRequestUserInput),
+                                      std::move(*encoded));
+    }
+
     Requests::SendResult Requests::respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers) {
         std::set<std::string> questionIds;
         for (const UserInputQuestion& question : request.questions) {
@@ -1385,21 +1397,29 @@ namespace ai::openai::codex::typed {
         }
 
         std::set<std::string> answeredIds;
-        Json encodedAnswers = Json::object();
+        ToolRequestUserInputResponse response;
         for (UserInputAnswer& answer : answers) {
             if (!questionIds.contains(answer.questionId)) {
-                return validationFailure("user-input answer refers to an unknown question ID: " + answer.questionId);
+                return validationFailure("user-input answer refers to an unknown question ID");
             }
             if (!answeredIds.insert(answer.questionId).second) {
-                return validationFailure("duplicate user-input answer for question ID: " + answer.questionId);
+                return validationFailure("duplicate user-input answer for a question ID");
             }
-            encodedAnswers[answer.questionId] = Json{{"answers", std::move(answer.answers)}};
+            response.answers.emplace(std::move(answer.questionId), ToolRequestUserInputAnswer{std::move(answer.answers), Json::object()});
         }
+        return respond(request, std::move(response));
+    }
 
+    Requests::SendResult Requests::respond(const McpServerElicitationRequest& request, McpServerElicitationRequestResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeMcpServerElicitationRequestResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
         return protocol->respondOwned(request.requestId,
                                       request.requestToken,
-                                      registeredMethod(detail::ServerRequestTarget::ToolRequestUserInput),
-                                      Json{{"answers", std::move(encodedAnswers)}});
+                                      registeredMethod(detail::ServerRequestTarget::McpServerElicitation),
+                                      std::move(*encoded));
     }
 
     Requests::SendResult Requests::respondRefresh(const ChatgptAuthTokensRefreshRequest& request,
@@ -1432,6 +1452,16 @@ namespace ai::openai::codex::typed {
     Requests::SendResult Requests::reject(const DynamicToolCallRequest& request, ProtocolError error) {
         return protocol->rejectOwned(
             request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(error));
+    }
+
+    Requests::SendResult Requests::reject(const UserInputRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::ToolRequestUserInput), std::move(error));
+    }
+
+    Requests::SendResult Requests::reject(const McpServerElicitationRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::McpServerElicitation), std::move(error));
     }
 
     Requests::SendResult Requests::respondRaw(const UnknownServerRequest& request, Json result) {

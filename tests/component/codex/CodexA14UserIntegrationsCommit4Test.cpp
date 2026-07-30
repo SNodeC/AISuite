@@ -458,12 +458,11 @@ namespace {
             }
         }
 
-        result.expectTrue(complete == 321 && partial == 4 && notImplemented == 14 && notApplicable == 48,
-                          "A1.4b Commit 4 global registry arithmetic is exactly 321/4/14/48");
-        result.expectTrue(nativeComplete == 41 && nativePartial == 1 && nativeNotImplemented == 14,
-                          "A1.4b Commit 4 native A1.4 registry arithmetic is exactly 41/1/14");
-        result.expectEqual(std::size_t{41}, completedA14.size(),
-                           "A1.4b Commit 4 leaves exactly forty-one native A1.4 identities Complete");
+        result.expectTrue(complete == 326 && partial == 3 && notImplemented == 10 && notApplicable == 48,
+                          "A1.4b final global registry arithmetic is exactly 326/3/10/48");
+        result.expectTrue(nativeComplete == 46 && nativePartial == 0 && nativeNotImplemented == 10,
+                          "A1.4b final native A1.4 registry arithmetic is exactly 46/0/10");
+        result.expectEqual(std::size_t{46}, completedA14.size(), "A1.4b leaves exactly forty-six native A1.4 identities Complete");
         for (std::string_view identity : ExpectedA14Complete) {
             bool found = false;
             for (const std::string& actual : completedA14) {

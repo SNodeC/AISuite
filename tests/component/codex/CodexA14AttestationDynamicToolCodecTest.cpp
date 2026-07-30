@@ -37,11 +37,12 @@ namespace {
     }
 
     void testRequestDecoding(tests::support::TestResult& result) {
-        static_assert(std::variant_size_v<typed::TypedServerRequest> == 10);
+        static_assert(std::variant_size_v<typed::TypedServerRequest> == 11);
         static_assert(std::is_same_v<std::variant_alternative_t<2, typed::TypedServerRequest>, typed::UserInputRequest>);
         static_assert(std::is_same_v<std::variant_alternative_t<4, typed::TypedServerRequest>, typed::UnknownServerRequest>);
         static_assert(std::is_same_v<std::variant_alternative_t<8, typed::TypedServerRequest>, typed::AttestationGenerateRequest>);
         static_assert(std::is_same_v<std::variant_alternative_t<9, typed::TypedServerRequest>, typed::DynamicToolCallRequest>);
+        static_assert(std::is_same_v<std::variant_alternative_t<10, typed::TypedServerRequest>, typed::McpServerElicitationRequest>);
 
         const codex::Json attestationParams = {{"futureAttestationField", {{"kept", true}}}};
         const typed::TypedServerRequest attestation = detail::decodeServerRequest(

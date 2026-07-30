@@ -477,6 +477,355 @@ namespace ai::openai::codex::typed {
         OptionalNullable<bool> strictAutoReview;
     };
 
+    struct ToolRequestUserInputOption {
+        std::string description;
+        std::string label;
+        Json raw = Json::object();
+    };
+
+    struct ToolRequestUserInputQuestion {
+        std::string header;
+        std::string id;
+        // These fields carry schema defaults. Keeping them optional preserves
+        // omission separately from an explicit false value.
+        std::optional<bool> isOther;
+        std::optional<bool> isSecret;
+        OptionalNullable<std::vector<ToolRequestUserInputOption>> options;
+        std::string question;
+        Json raw = Json::object();
+    };
+
+    struct ToolRequestUserInputParams {
+        OptionalNullable<std::uint64_t> autoResolutionMs;
+        ItemId itemId;
+        std::vector<ToolRequestUserInputQuestion> questions;
+        ThreadId threadId;
+        TurnId turnId;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct ToolRequestUserInputAnswer {
+        std::vector<std::string> answers;
+        Json raw = Json::object();
+    };
+
+    struct ToolRequestUserInputResponse {
+        std::map<std::string, ToolRequestUserInputAnswer> answers;
+        Json raw = Json::object();
+    };
+
+    struct McpElicitationArrayType {
+        std::string value;
+
+        static McpElicitationArrayType array() {
+            return {"array"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "array";
+        }
+
+        auto operator<=>(const McpElicitationArrayType&) const = default;
+    };
+
+    struct McpElicitationBooleanType {
+        std::string value;
+
+        static McpElicitationBooleanType boolean() {
+            return {"boolean"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "boolean";
+        }
+
+        auto operator<=>(const McpElicitationBooleanType&) const = default;
+    };
+
+    struct McpElicitationNumberType {
+        std::string value;
+
+        static McpElicitationNumberType number() {
+            return {"number"};
+        }
+
+        static McpElicitationNumberType integer() {
+            return {"integer"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "number" || value == "integer";
+        }
+
+        auto operator<=>(const McpElicitationNumberType&) const = default;
+    };
+
+    struct McpElicitationObjectType {
+        std::string value;
+
+        static McpElicitationObjectType object() {
+            return {"object"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "object";
+        }
+
+        auto operator<=>(const McpElicitationObjectType&) const = default;
+    };
+
+    struct McpElicitationStringType {
+        std::string value;
+
+        static McpElicitationStringType string() {
+            return {"string"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "string";
+        }
+
+        auto operator<=>(const McpElicitationStringType&) const = default;
+    };
+
+    struct McpElicitationStringFormat {
+        std::string value;
+
+        static McpElicitationStringFormat email() {
+            return {"email"};
+        }
+
+        static McpElicitationStringFormat uri() {
+            return {"uri"};
+        }
+
+        static McpElicitationStringFormat date() {
+            return {"date"};
+        }
+
+        static McpElicitationStringFormat dateTime() {
+            return {"date-time"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "email" || value == "uri" || value == "date" || value == "date-time";
+        }
+
+        auto operator<=>(const McpElicitationStringFormat&) const = default;
+    };
+
+    struct McpElicitationConstOption {
+        std::string constant;
+        std::string title;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationBooleanSchema {
+        OptionalNullable<bool> defaultValue;
+        OptionalNullable<std::string> description;
+        OptionalNullable<std::string> title;
+        McpElicitationBooleanType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationLegacyTitledEnumSchema {
+        OptionalNullable<std::string> defaultValue;
+        OptionalNullable<std::string> description;
+        std::vector<std::string> values;
+        OptionalNullable<std::vector<std::string>> enumNames;
+        OptionalNullable<std::string> title;
+        McpElicitationStringType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationNumberSchema {
+        OptionalNullable<double> defaultValue;
+        OptionalNullable<std::string> description;
+        OptionalNullable<double> maximum;
+        OptionalNullable<double> minimum;
+        OptionalNullable<std::string> title;
+        McpElicitationNumberType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationStringSchema {
+        OptionalNullable<std::string> defaultValue;
+        OptionalNullable<std::string> description;
+        OptionalNullable<McpElicitationStringFormat> format;
+        OptionalNullable<std::uint32_t> maxLength;
+        OptionalNullable<std::uint32_t> minLength;
+        OptionalNullable<std::string> title;
+        McpElicitationStringType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationTitledEnumItems {
+        std::vector<McpElicitationConstOption> anyOf;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationUntitledEnumItems {
+        std::vector<std::string> values;
+        McpElicitationStringType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationTitledMultiSelectEnumSchema {
+        OptionalNullable<std::vector<std::string>> defaultValue;
+        OptionalNullable<std::string> description;
+        McpElicitationTitledEnumItems items;
+        OptionalNullable<std::uint64_t> maxItems;
+        OptionalNullable<std::uint64_t> minItems;
+        OptionalNullable<std::string> title;
+        McpElicitationArrayType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationTitledSingleSelectEnumSchema {
+        OptionalNullable<std::string> defaultValue;
+        OptionalNullable<std::string> description;
+        std::vector<McpElicitationConstOption> oneOf;
+        OptionalNullable<std::string> title;
+        McpElicitationStringType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationUntitledMultiSelectEnumSchema {
+        OptionalNullable<std::vector<std::string>> defaultValue;
+        OptionalNullable<std::string> description;
+        McpElicitationUntitledEnumItems items;
+        OptionalNullable<std::uint64_t> maxItems;
+        OptionalNullable<std::uint64_t> minItems;
+        OptionalNullable<std::string> title;
+        McpElicitationArrayType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationUntitledSingleSelectEnumSchema {
+        OptionalNullable<std::string> defaultValue;
+        OptionalNullable<std::string> description;
+        std::vector<std::string> values;
+        OptionalNullable<std::string> title;
+        McpElicitationStringType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    using McpElicitationSingleSelectEnumSchema =
+        std::variant<McpElicitationUntitledSingleSelectEnumSchema, McpElicitationTitledSingleSelectEnumSchema>;
+    using McpElicitationMultiSelectEnumSchema =
+        std::variant<McpElicitationUntitledMultiSelectEnumSchema, McpElicitationTitledMultiSelectEnumSchema>;
+    using McpElicitationEnumSchema = std::variant<McpElicitationUntitledSingleSelectEnumSchema,
+                                                  McpElicitationTitledSingleSelectEnumSchema,
+                                                  McpElicitationUntitledMultiSelectEnumSchema,
+                                                  McpElicitationTitledMultiSelectEnumSchema,
+                                                  McpElicitationLegacyTitledEnumSchema>;
+
+    struct UnknownMcpElicitationPrimitiveSchema {
+        std::optional<std::string> type;
+        Json raw = Json::object();
+        DecodeDiagnostic diagnostic;
+    };
+
+    using McpElicitationPrimitiveSchema = std::variant<McpElicitationEnumSchema,
+                                                       McpElicitationStringSchema,
+                                                       McpElicitationNumberSchema,
+                                                       McpElicitationBooleanSchema,
+                                                       UnknownMcpElicitationPrimitiveSchema>;
+
+    struct McpElicitationSchema {
+        OptionalNullable<std::string> schema;
+        std::map<std::string, McpElicitationPrimitiveSchema> properties;
+        OptionalNullable<std::vector<std::string>> required;
+        McpElicitationObjectType type;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationForm {
+        std::string message;
+        McpElicitationSchema requestedSchema;
+        OptionalNullable<Json> meta;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationOpenAiForm {
+        std::string message;
+        // This schema position deliberately accepts every JSON value,
+        // including null.
+        Json requestedSchema = nullptr;
+        OptionalNullable<Json> meta;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpElicitationUrl {
+        std::string elicitationId;
+        std::string message;
+        std::string url;
+        OptionalNullable<Json> meta;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct UnknownMcpElicitation {
+        std::string mode;
+        Json raw = Json::object();
+        DecodeDiagnostic diagnostic;
+    };
+
+    using McpElicitation = std::variant<McpElicitationForm, McpElicitationOpenAiForm, McpElicitationUrl, UnknownMcpElicitation>;
+
+    struct McpServerElicitationRequestParams {
+        std::string serverName;
+        ThreadId threadId;
+        OptionalNullable<TurnId> turnId;
+        McpElicitation elicitation;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct McpServerElicitationAction {
+        std::string value;
+
+        static McpServerElicitationAction accept() {
+            return {"accept"};
+        }
+
+        static McpServerElicitationAction decline() {
+            return {"decline"};
+        }
+
+        static McpServerElicitationAction cancel() {
+            return {"cancel"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "accept" || value == "decline" || value == "cancel";
+        }
+
+        auto operator<=>(const McpServerElicitationAction&) const = default;
+    };
+
+    struct McpServerElicitationRequestResponse {
+        McpServerElicitationAction action;
+        OptionalNullable<Json> content;
+        OptionalNullable<Json> meta;
+        Json raw = Json::object();
+    };
+
     // Empty in the pinned schema but open to future properties.
     struct AttestationGenerateParams {
         Json raw = Json::object();
@@ -563,6 +912,8 @@ namespace ai::openai::codex::typed {
         std::vector<UserInputQuestion> questions;
         std::optional<std::uint64_t> autoResolutionMs;
         Json raw;
+        ToolRequestUserInputParams canonicalParams;
+        std::vector<DecodeDiagnostic> diagnostics;
     };
 
     struct AuthenticationRequest {
@@ -630,6 +981,14 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
+    struct McpServerElicitationRequest {
+        ServerRequestId requestId;
+        ServerRequestToken requestToken;
+        McpServerElicitationRequestParams params;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
     using PermissionsRequestApprovalRequest = PermissionsApprovalRequest;
 
     // Existing alternatives retain their indices. A1.4b request alternatives
@@ -643,7 +1002,8 @@ namespace ai::openai::codex::typed {
                                             ExecCommandApprovalRequest,
                                             PermissionsApprovalRequest,
                                             AttestationGenerateRequest,
-                                            DynamicToolCallRequest>;
+                                            DynamicToolCallRequest,
+                                            McpServerElicitationRequest>;
 
     struct ApprovalDecision {
         std::string value;
@@ -683,11 +1043,15 @@ namespace ai::openai::codex::typed {
         SendResult respond(const PermissionsApprovalRequest& request, PermissionsRequestApprovalResponse response);
         SendResult respond(const AttestationGenerateRequest& request, AttestationGenerateResponse response);
         SendResult respond(const DynamicToolCallRequest& request, DynamicToolCallResponse response);
+        SendResult respond(const UserInputRequest& request, ToolRequestUserInputResponse response);
         SendResult respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers);
+        SendResult respond(const McpServerElicitationRequest& request, McpServerElicitationRequestResponse response);
         SendResult respondRefresh(const ChatgptAuthTokensRefreshRequest& request, ChatgptAuthTokensRefreshResponse response);
         SendResult respond(const AuthenticationRequest& request, AuthenticationResponse response);
         SendResult reject(const AttestationGenerateRequest& request, ProtocolError error);
         SendResult reject(const DynamicToolCallRequest& request, ProtocolError error);
+        SendResult reject(const UserInputRequest& request, ProtocolError error);
+        SendResult reject(const McpServerElicitationRequest& request, ProtocolError error);
         SendResult respondRaw(const UnknownServerRequest& request, Json result);
         SendResult reject(const UnknownServerRequest& request, ProtocolError error);
 

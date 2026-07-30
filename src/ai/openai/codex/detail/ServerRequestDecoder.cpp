@@ -55,70 +55,6 @@ namespace ai::openai::codex::detail {
                               : std::optional<typed::DecodeDiagnostic>{unknownMethodDiagnostic(request.method)}};
         }
 
-        bool requireObject(const Json& value, std::string_view context, std::string& error) {
-            if (value.is_object()) {
-                return true;
-            }
-
-            error = std::string(context) + " params is not an object";
-            return false;
-        }
-
-        bool readRequiredString(const Json& object, const char* field, std::string_view context, std::string& value, std::string& error) {
-            const auto member = object.find(field);
-            if (member == object.end()) {
-                error = std::string(context) + " params is missing required string field '" + field + "'";
-                return false;
-            }
-            if (!member->is_string()) {
-                error = std::string(context) + " params field '" + field + "' is not a string";
-                return false;
-            }
-
-            value = member->get<std::string>();
-            return true;
-        }
-
-        bool readOptionalBoolean(
-            const Json& object, const char* field, std::string_view context, bool defaultValue, bool& value, std::string& error) {
-            const auto member = object.find(field);
-            if (member == object.end()) {
-                value = defaultValue;
-                return true;
-            }
-            if (!member->is_boolean()) {
-                error = std::string(context) + " field '" + field + "' is not a boolean";
-                return false;
-            }
-
-            value = member->get<bool>();
-            return true;
-        }
-
-        bool readOptionalUint64(
-            const Json& object, const char* field, std::string_view context, std::optional<std::uint64_t>& value, std::string& error) {
-            const auto member = object.find(field);
-            if (member == object.end() || member->is_null()) {
-                value.reset();
-                return true;
-            }
-
-            if (member->is_number_unsigned()) {
-                value = member->get<std::uint64_t>();
-                return true;
-            }
-            if (member->is_number_integer()) {
-                const std::int64_t signedValue = member->get<std::int64_t>();
-                if (signedValue >= 0) {
-                    value = static_cast<std::uint64_t>(signedValue);
-                    return true;
-                }
-            }
-
-            error = std::string(context) + " params field '" + field + "' is not an unsigned 64-bit integer or null";
-            return false;
-        }
-
         std::optional<typed::CommandApprovalRequest> decodeCommandApproval(const ServerRequest& request, std::string& error) {
             std::optional<typed::CommandExecutionRequestApprovalParams> canonical =
                 decodeCommandExecutionRequestApprovalParams(request.params, error);
@@ -229,114 +165,51 @@ namespace ai::openai::codex::detail {
             return typed::DynamicToolCallRequest{request.id, request.token, std::move(*params), request.raw, std::move(diagnostics)};
         }
 
-        bool decodeUserInputOption(const Json& raw,
-                                   typed::UserInputOption& option,
-                                   std::string_view method,
-                                   std::string& error,
-                                   std::size_t questionIndex,
-                                   std::size_t optionIndex) {
-            const std::string context =
-                std::string(method) + " question " + std::to_string(questionIndex) + " option " + std::to_string(optionIndex);
-            if (!raw.is_object()) {
-                error = context + " is not an object";
-                return false;
-            }
-
-            if (!readRequiredString(raw, "label", context, option.label, error) ||
-                !readRequiredString(raw, "description", context, option.description, error)) {
-                return false;
-            }
-
-            option.raw = raw;
-            return true;
-        }
-
-        bool decodeUserInputQuestion(
-            const Json& raw, typed::UserInputQuestion& question, std::string_view method, std::string& error, std::size_t questionIndex) {
-            const std::string context = std::string(method) + " question " + std::to_string(questionIndex);
-            if (!raw.is_object()) {
-                error = context + " is not an object";
-                return false;
-            }
-
-            if (!readRequiredString(raw, "id", context, question.id, error) ||
-                !readRequiredString(raw, "header", context, question.header, error) ||
-                !readRequiredString(raw, "question", context, question.prompt, error) ||
-                !readOptionalBoolean(raw, "isOther", context, false, question.allowsFreeText, error) ||
-                !readOptionalBoolean(raw, "isSecret", context, false, question.secret, error)) {
-                return false;
-            }
-
-            const auto options = raw.find("options");
-            if (options != raw.end() && !options->is_null()) {
-                if (!options->is_array()) {
-                    error = context + " field 'options' is neither an array nor null";
-                    return false;
-                }
-
-                question.options.reserve(options->size());
-                std::size_t optionIndex = 0;
-                for (const Json& rawOption : *options) {
-                    typed::UserInputOption option;
-                    if (!decodeUserInputOption(rawOption, option, method, error, questionIndex, optionIndex)) {
-                        return false;
-                    }
-                    question.options.push_back(std::move(option));
-                    ++optionIndex;
-                }
-            }
-
-            question.raw = raw;
-            return true;
-        }
-
         std::optional<typed::UserInputRequest> decodeUserInput(const ServerRequest& request, std::string& error) {
-            const Json& params = request.params;
-            const std::string_view method = entryFor(ServerRequestTarget::ToolRequestUserInput).key.name;
-            if (!requireObject(params, method, error)) {
-                return std::nullopt;
-            }
-
-            std::string threadId;
-            std::string turnId;
-            std::string itemId;
-            if (!readRequiredString(params, "threadId", method, threadId, error) ||
-                !readRequiredString(params, "turnId", method, turnId, error) ||
-                !readRequiredString(params, "itemId", method, itemId, error)) {
-                return std::nullopt;
-            }
-
-            const auto questions = params.find("questions");
-            if (questions == params.end() || !questions->is_array()) {
-                error = std::string(method) + " params is missing required array field 'questions'";
+            std::optional<typed::ToolRequestUserInputParams> canonical = decodeToolRequestUserInputParams(request.params, error);
+            if (!canonical) {
                 return std::nullopt;
             }
 
             std::vector<typed::UserInputQuestion> decodedQuestions;
-            decodedQuestions.reserve(questions->size());
-            std::size_t questionIndex = 0;
-            for (const Json& rawQuestion : *questions) {
-                typed::UserInputQuestion question;
-                if (!decodeUserInputQuestion(rawQuestion, question, method, error, questionIndex)) {
-                    return std::nullopt;
+            decodedQuestions.reserve(canonical->questions.size());
+            for (const typed::ToolRequestUserInputQuestion& canonicalQuestion : canonical->questions) {
+                std::vector<typed::UserInputOption> options;
+                if (canonicalQuestion.options.value) {
+                    options.reserve(canonicalQuestion.options.value->size());
+                    for (const typed::ToolRequestUserInputOption& canonicalOption : *canonicalQuestion.options.value) {
+                        options.push_back({canonicalOption.label, canonicalOption.description, canonicalOption.raw});
+                    }
                 }
-                decodedQuestions.push_back(std::move(question));
-                ++questionIndex;
+                decodedQuestions.push_back({canonicalQuestion.id,
+                                            canonicalQuestion.header,
+                                            canonicalQuestion.question,
+                                            std::move(options),
+                                            canonicalQuestion.isOther.value_or(false),
+                                            canonicalQuestion.isSecret.value_or(false),
+                                            canonicalQuestion.raw});
             }
 
-            std::optional<std::uint64_t> autoResolutionMs;
-            if (!readOptionalUint64(params, "autoResolutionMs", method, autoResolutionMs, error)) {
-                return std::nullopt;
-            }
-
+            std::vector<typed::DecodeDiagnostic> diagnostics = canonical->diagnostics;
             return typed::UserInputRequest{request.id,
                                            request.token,
-                                           typed::ThreadId{std::move(threadId)},
-                                           typed::TurnId{std::move(turnId)},
-                                           typed::ItemId{std::move(itemId)},
+                                           canonical->threadId,
+                                           canonical->turnId,
+                                           canonical->itemId,
                                            std::move(decodedQuestions),
-                                           autoResolutionMs,
-                                           request.raw};
+                                           canonical->autoResolutionMs.value,
+                                           request.raw,
+                                           std::move(*canonical),
+                                           std::move(diagnostics)};
+        }
+
+        std::optional<typed::McpServerElicitationRequest> decodeMcpServerElicitation(const ServerRequest& request, std::string& error) {
+            std::optional<typed::McpServerElicitationRequestParams> params = decodeMcpServerElicitationRequestParams(request.params, error);
+            if (!params) {
+                return std::nullopt;
+            }
+            std::vector<typed::DecodeDiagnostic> diagnostics = params->diagnostics;
+            return typed::McpServerElicitationRequest{request.id, request.token, std::move(*params), request.raw, std::move(diagnostics)};
         }
 
         std::optional<typed::AuthenticationRequest> decodeAuthentication(const ServerRequest& request, std::string& error) {
@@ -415,6 +288,11 @@ namespace ai::openai::codex::detail {
                 }
                 case ServerRequestTarget::DynamicToolCall: {
                     std::optional<typed::DynamicToolCallRequest> decoded = decodeDynamicToolCall(request, error);
+                    return decoded ? typed::TypedServerRequest{std::move(*decoded)}
+                                   : typed::TypedServerRequest{unknownRequest(request, std::move(error))};
+                }
+                case ServerRequestTarget::McpServerElicitation: {
+                    std::optional<typed::McpServerElicitationRequest> decoded = decodeMcpServerElicitation(request, error);
                     return decoded ? typed::TypedServerRequest{std::move(*decoded)}
                                    : typed::TypedServerRequest{unknownRequest(request, std::move(error))};
                 }

@@ -18,9 +18,15 @@ namespace ai::openai::codex::detail {
 
     std::optional<typed::AttestationGenerateParams> decodeAttestationGenerateParams(const Json& value, std::string& error) noexcept;
     std::optional<typed::DynamicToolCallParams> decodeDynamicToolCallParams(const Json& value, std::string& error) noexcept;
+    std::optional<typed::ToolRequestUserInputParams> decodeToolRequestUserInputParams(const Json& value, std::string& error) noexcept;
+    std::optional<typed::McpServerElicitationRequestParams> decodeMcpServerElicitationRequestParams(const Json& value,
+                                                                                                    std::string& error) noexcept;
 
     std::optional<Json> encodeAttestationGenerateResponse(const typed::AttestationGenerateResponse& value, std::string& error) noexcept;
     std::optional<Json> encodeDynamicToolCallResponse(const typed::DynamicToolCallResponse& value, std::string& error) noexcept;
+    std::optional<Json> encodeToolRequestUserInputResponse(const typed::ToolRequestUserInputResponse& value, std::string& error) noexcept;
+    std::optional<Json> encodeMcpServerElicitationRequestResponse(const typed::McpServerElicitationRequestResponse& value,
+                                                                  std::string& error) noexcept;
 
 } // namespace ai::openai::codex::detail
 

@@ -192,8 +192,8 @@ int main() {
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
-    result.expectTrue(schemaComplete == 321 && schemaPartial == 4 && schemaNotImplemented == 14 && schemaNotApplicable == 48,
-                      "A1.4b Commit 4 reaches the exact 321/4/14/48 global completeness metrics");
+    result.expectTrue(schemaComplete == 326 && schemaPartial == 3 && schemaNotImplemented == 10 && schemaNotApplicable == 48,
+                      "A1.4b Commit 5 reaches the exact 326/3/10/48 global completeness metrics");
     result.expectTrue(slices == std::array<std::size_t, 6>{19, 151, 45, 68, 56, 48} && codexErrorInfoA1_0 == 16 &&
                           stableUnreachableInventory == 12,
                       "registry preserves the frozen A1 slice assignment, CodexErrorInfo exception, and 12 stable unreachable rows");
@@ -360,16 +360,17 @@ int main() {
         "all 60 typed notification dispatch targets resolve to their exact registered wire methods");
     expectTargets<detail::ServerRequestTarget>(
         result,
-        std::array<std::string_view, 9>{"item/commandExecution/requestApproval",
-                                        "item/fileChange/requestApproval",
-                                        "item/tool/requestUserInput",
-                                        "account/chatgptAuthTokens/refresh",
-                                        "applyPatchApproval",
-                                        "execCommandApproval",
-                                        "item/permissions/requestApproval",
-                                        "attestation/generate",
-                                        "item/tool/call"},
-        "every existing typed server-request dispatch target resolves to its exact registered wire method");
+        std::array<std::string_view, 10>{"item/commandExecution/requestApproval",
+                                         "item/fileChange/requestApproval",
+                                         "item/tool/requestUserInput",
+                                         "account/chatgptAuthTokens/refresh",
+                                         "applyPatchApproval",
+                                         "execCommandApproval",
+                                         "item/permissions/requestApproval",
+                                         "attestation/generate",
+                                         "item/tool/call",
+                                         "mcpServer/elicitation/request"},
+        "all ten typed server-request dispatch targets resolve to their exact registered wire methods");
     expectTargets<detail::ItemDiscriminatorTarget>(
         result,
         std::array<std::string_view, 18>{"agentMessage",
@@ -1631,7 +1632,7 @@ int main() {
             return descriptor.target == detail::ServerRequestTarget::ChatgptAuthTokensRefresh;
         });
     const bool exactAuthRefreshDescriptor =
-        serverRequestDescriptors.size() == 8 && authRefreshDescriptor != serverRequestDescriptors.end() &&
+        serverRequestDescriptors.size() == 10 && authRefreshDescriptor != serverRequestDescriptors.end() &&
         authRefreshDescriptor->key ==
             detail::ProtocolSurfaceKey{
                 detail::SurfaceCategory::ServerRequest,

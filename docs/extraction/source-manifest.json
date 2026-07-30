@@ -1,9 +1,9 @@
 {
   "counts": {
-    "immutable_copies": 6720,
+    "immutable_copies": 6719,
     "imported_files": 6805,
-    "new_standalone_files": 2053,
-    "standalone_adaptations": 85
+    "new_standalone_files": 2055,
+    "standalone_adaptations": 86
   },
   "dependency_boundary": {
     "findings": [],
@@ -93,7 +93,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "454a038a380485c7389300d71196d9b38be9c842eb46af76062b18116c5ec32a",
+      "final_sha256": "b081dc3fa04005243e225956fe79395189cebcd837d9c61a400c5eae834f6778",
       "path": "docs/ai/openai/codex/app-server-api-coverage.md",
       "source_blob": "621260c3d91c80f9c378deae2a68177bfefd339a",
       "source_sha256": "7b11b34b981fd01b753156afaf6cd3b940cbcbfc7bde68f831cb411de6fa4470"
@@ -212,7 +212,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "ec8c11313f2f5026530dd9ebcd4a6f4227134beeee7bce7b9bc3cf680fa42de5",
+      "final_sha256": "ad2a2754cd1033de417e014471b1deac9ce54cc8996c1d197c421875909f7f45",
       "path": "src/ai/openai/codex/backend/BackendCore.cpp",
       "source_blob": "a69948cfcaa85f830a89a6513d69ab28a976df46",
       "source_sha256": "3c5cf343552d27575e7474379d9ae7ff2e6d007f6eafc4857571cb4c507bba04"
@@ -275,7 +275,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "0b342d0b5299974fc1a3ee047d78b82f8488fd037843aaddcb6af4892ba7233a",
+      "final_sha256": "e749243ebdc9934004bb8afba2bd54bbfab689f5eb493bec14f4cffdbe66889f",
       "path": "src/ai/openai/codex/backend/Snapshot.cpp",
       "source_blob": "55724cce3762ac624d0ea9c0463b0665b149d247",
       "source_sha256": "f1c5fbf0fbea2719891277b623c0845e83ba9a6875eb6803cea712c5bd2d5090"
@@ -499,21 +499,21 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "44b66cbcb02bf1227f31b0a5a709e4e45d7f4da9d29bdc742cf132d1f1817189",
+      "final_sha256": "e0d1c0cf7dd4039f7b4df251c957ebdc53676005c4ccee234dda8c019a15710a",
       "path": "src/ai/openai/codex/detail/ProtocolSurfaceRegistry.cpp",
       "source_blob": "ff496346d55205628773ad78823872d8230cc80d",
       "source_sha256": "d84948e1efd9a4dfc3d7c916099cd3d11abcebfd0f3831307e06ea554c40b88a"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "a089e5486a12f1f78ce7ea3b86ee08bc7a845d9bd0e31d9ab666f02d7ffecdb7",
+      "final_sha256": "34f99c22d21330fa61959c9655e95d4ff68627d31333cf67157c5ee58163ca6f",
       "path": "src/ai/openai/codex/detail/ProtocolSurfaceRegistry.h",
       "source_blob": "3e6eb9fdf9bb4db110f36cb108cb8ed724f0b75f",
       "source_sha256": "3f81aa8e47f4e8e940d2460fbb997632251b5906f497d7a7c09e207c7feeccfe"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "3c0fb30117b467a2728ffed52a79d619927d9271839b8d4b49cdb12aea616e37",
+      "final_sha256": "31fc6f986e6ce2f2e038d98691a075f36391cda93f69ebd0275e07f9163c62d8",
       "path": "src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc",
       "source_blob": "a174e7f67df94c2da91f73229e1c6280cb3be1c6",
       "source_sha256": "7de3790505aaa6e63e95b8e5fb811616e9b2d85c1ef7f47e0c2f20906e5cf4de"
@@ -548,14 +548,14 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "8c4c90027c8394caa9b61f43c92707b7d9677fa22a0d1a7be2d016385e92b9b3",
+      "final_sha256": "b83600974c4679349a5ba91326885889529b0d91aba661d1956028bfee9919c2",
       "path": "src/ai/openai/codex/detail/ServerRequestCodecDescriptors.inc",
       "source_blob": "2d667d3d4bdb2f456b700c3b61594115c2b774a5",
       "source_sha256": "40646d9ceb3220bc6f3e455aecdb6d5a4568042f521ac42ffcc10e12357377d2"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "107c4e79d58ae39ccdcf0273a8ce4247051ac3c277d24fd10f66bc2e09a94201",
+      "final_sha256": "901df160172b646fc1a75a3d5ca41b3a99783fe768d38d79bfdacf41f1159820",
       "path": "src/ai/openai/codex/detail/ServerRequestDecoder.cpp",
       "source_blob": "9791329776b36e319d770cc5e0647522671bba2b",
       "source_sha256": "70c79b2cb806db487e835fed500ac22e4a1339f861a1299344fe5bdf34b7313c"
@@ -758,7 +758,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "be2489befa4c0008c303f67fe642a3177c5e73e9a51e6cb9c2fbfc4ad7c9c24f",
+      "final_sha256": "c405d7e161dcfb6a936f3ab0ad42cf6e43b6babd63036b7148b9b060ade8c9aa",
       "path": "src/ai/openai/codex/typed/Client.cpp",
       "source_blob": "88393548faf57debd19ed903584df376c4fc7e93",
       "source_sha256": "c3d98a932a7594970f4dedc615f85ea636b2a00641e4a59d57411bdee821d4e7"
@@ -863,7 +863,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "49fdd3a6a7e00db992a7bffd59fe3252ed78cc362e7560c9baf606eecaeedc5a",
+      "final_sha256": "17a6a5c9cd442ac79da5590f6d7b07d55ee7b0a2b0c482ce3007b0a3f9f79bcb",
       "path": "src/ai/openai/codex/typed/ServerRequests.h",
       "source_blob": "51263844aabc0c2f45d58625e14ea56d0c2417ff",
       "source_sha256": "07b3a51559ed44d4c97ebc052e8e9837022ecb4afcae583ef610fa828690abdc"
@@ -1136,7 +1136,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "e941c9dcb4568925a9d0ce989f772b00d62adeaa7b019c6e9c330350b789eb53",
+      "final_sha256": "15526fd4ea849bad8e3a1cf572ef6e3fb87a646a552197db997e6c459826bad4",
       "path": "tests/component/codex/CMakeLists.txt",
       "source_blob": "9e26a5cd9766ec5133d221acb9ffcabebfcf0778",
       "source_sha256": "355e8e4efbadb0f7892601aee8467d0f752b81619f6af511d5da1538c623dcbb"
@@ -1437,7 +1437,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "10de5b108a8a2c8fddb9c8c3294df06b7294aa32391e3815201d66a93fb0cf1d",
+      "final_sha256": "9fd985561ce6a297aa34caf2407ab5f73dcd55e0449cc23fdb2eaf443de83e7c",
       "path": "tests/component/codex/CodexAppServerSurfaceToolTest.py",
       "source_blob": "07075314567179270582f6258a83ede9a9906476",
       "source_sha256": "48bdc037ce7e35515aeb55b746cbaddcf500b91170672feb94cf99c2e787a56b"
@@ -1583,8 +1583,8 @@
       "source_sha256": "729d632ed848afd1488f418e5e124a52d99c4b522c7f66f0277d0dea52365948"
     },
     {
-      "disposition": "immutable-copy",
-      "final_sha256": "71ab24b68ef92ae5dbd4147d88b5eba7902c799a7bad11b51580a265f18367f0",
+      "disposition": "standalone-adaptation",
+      "final_sha256": "969bb8263ebb2759c1de3a131f889726543582863e22dab380102df22ff3b069",
       "path": "tests/component/codex/CodexFakeAppServer.cpp",
       "source_blob": "5bf93d64b5f229f341d7f4632f9caa7631621475",
       "source_sha256": "71ab24b68ef92ae5dbd4147d88b5eba7902c799a7bad11b51580a265f18367f0"
@@ -1640,14 +1640,14 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "878eb038af23f7a774840d044712fa08980e525d874fd20e152eb6be7345bb5a",
+      "final_sha256": "b6f708f56a788ccce5045584b72da5b5dc5915e35461eb2e3521f5161d818d77",
       "path": "tests/component/codex/CodexProtocolSurfaceCoverageGuardTest.cpp",
       "source_blob": "9ee1823a503c9f36611faefe332ad7e0f62a4596",
       "source_sha256": "ee202036b6d1e61b5214818a108930c6323946de79e04d96cdb86ade29a2ddcb"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "340b4465c6354745e21d610b6dbf67ad2090cb4adcee406da03b4eccfe705afb",
+      "final_sha256": "0736daf1576e7d4855fe2e94cae8bb01845995b4886d50f6689a43f8ff8891d1",
       "path": "tests/component/codex/CodexProtocolSurfaceRegistryTest.cpp",
       "source_blob": "6335b00122ffe495f7b558ba8df46220b697ab38",
       "source_sha256": "f1d948387a9844a9b8905efacd2a171b557cae6bae2755ff45db259a2121996e"
@@ -47658,7 +47658,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "e9344d90dfdd0cece754340ae766b4d1e1bd43c81fc53ebcbb1710bdb5ef22d6",
+      "final_sha256": "cc05e26c9016ce945120490d978bdbb16cbdd18d67e70f20ba242f301566b3c2",
       "path": "tools/codex/app_server_surface.py",
       "source_blob": "9f41718f5902350a0df952cea9f19c7e419b8550",
       "source_sha256": "ca4b8d6d7e37150b15002e1030da9bc6e12630b6d5044d719577e0095c506512"
@@ -47674,16 +47674,15 @@
   "protocol_state": {
     "codex_version": "codex-cli 0.144.6",
     "counts": {
-      "Complete": 321,
+      "Complete": 326,
       "NotApplicable": 48,
-      "NotImplemented": 14,
-      "Partial": 4
+      "NotImplemented": 10,
+      "Partial": 3
     },
     "partial_identities": [
       "error",
       "initialize",
-      "initialized",
-      "item/tool/requestUserInput"
+      "initialized"
     ],
     "soversion": 1
   },
@@ -47819,7 +47818,7 @@
     },
     {
       "path": "src/ai/openai/codex/detail/IntegrationsAndLongTailUnionCodecDescriptors.inc",
-      "sha256": "a529e5ca5235bec6c462f7cac32426f4d2eb2485980fdbf67b5d8f047b321651"
+      "sha256": "065037c3bcf4122b4f17fea034dc5aceb8077157869dad5cabfdebdca9ca30ac"
     },
     {
       "path": "src/ai/openai/codex/detail/MarketplaceCodec.cpp",
@@ -47839,11 +47838,11 @@
     },
     {
       "path": "src/ai/openai/codex/detail/McpReverseRequestCodec.cpp",
-      "sha256": "d9ed75ae999491d38948984ed3cd3d19f9f8d92fcf9c44402ac8584f7c67f324"
+      "sha256": "4f2279fc9796be4c6408e7e518c83d2ae871b0030532431dffb3f5120723061c"
     },
     {
       "path": "src/ai/openai/codex/detail/McpReverseRequestCodec.h",
-      "sha256": "7b81f7278c9f8c9372d6cba6f393fc8a4acc6a31b58cdfe14ac29686b137c1ec"
+      "sha256": "370f4999f04d8fada1363b2d7203108cfe93b07c8c88c36fc087d24aa7a754b2"
     },
     {
       "path": "src/ai/openai/codex/detail/PluginCodec.cpp",
@@ -47915,7 +47914,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14AttestationDynamicToolCodecTest.cpp",
-      "sha256": "7769966c165270367007d13e47288d6e479d847ab2aa26d34bd02ebbfb02aa67"
+      "sha256": "360ea05cf9f35b092f060732fdab0249d5c77d98c64f0873eabd16e37742a108"
     },
     {
       "path": "tests/component/codex/CodexA14AttestationDynamicToolWireTest.cpp",
@@ -47938,6 +47937,14 @@
       "sha256": "b4dde744ef5939e6062395ca513db70e6c6782574a5294a7a031ff75c3ac55fe"
     },
     {
+      "path": "tests/component/codex/CodexA14NineRequestStdioTest.cpp",
+      "sha256": "3c72cae7b5a6595d9eb9e9baf401cab079e4ef9657d482e4f1a6d12fe2b38a9c"
+    },
+    {
+      "path": "tests/component/codex/CodexA14UserInputElicitationCodecTest.cpp",
+      "sha256": "91d2c8bc044c3152458a6c0cb8b0987c6ffe6091eb6c7117d5d1fa7d768a3272"
+    },
+    {
       "path": "tests/component/codex/CodexA14UserIntegrationsAuditTest.py",
       "sha256": "a988146f0505aac473d5869ae3b933366844f4753be02ebfba7d603fab96de02"
     },
@@ -47947,7 +47954,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit2Test.cpp",
-      "sha256": "abeff86fbe1d5d3226b88a57379779ace76410544f1b3bfd9f962ccfae6dc26a"
+      "sha256": "5cfcb2408907c0cca694b5070d974e268a9f54ebf286ad2e29a9e091fecbd3f1"
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit2WireTest.cpp",
@@ -47963,7 +47970,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit4Test.cpp",
-      "sha256": "4d239db265e1c537ddd668f68fbf70c71b2bdf2c29de79578c2e3062768483a8"
+      "sha256": "12d5025e13304962a836077ec1b123bb4e6b5aaa5007a65fc2e2fcc21fb67086"
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit4WireTest.cpp",
@@ -47971,7 +47978,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit5Test.cpp",
-      "sha256": "2664e502b92c3f7aec419cb549a9f26877b7e11eb2be4ce1a54cf6f3ae8b16d6"
+      "sha256": "4219cea0dd42d329126a3a2554ca5f1aaf21345153a73999b941bac2973d8fed"
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit5WireTest.cpp",

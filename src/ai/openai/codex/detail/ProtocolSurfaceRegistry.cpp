@@ -644,7 +644,7 @@ namespace ai::openai::codex::detail {
                         return candidate.target == descriptor.target;
                     });
                 const bool shapeMatchesField =
-                    ((descriptor.key.field == "type" || descriptor.key.field == "kind") &&
+                    ((descriptor.key.field == "type" || descriptor.key.field == "kind" || descriptor.key.field == "mode") &&
                      descriptor.shape == ConversationUnionCodecShape::InternallyTaggedObject) ||
                     (descriptor.key.field == "$variant" && (descriptor.shape == ConversationUnionCodecShape::ScalarString ||
                                                             descriptor.shape == ConversationUnionCodecShape::ExternallyTaggedObject));

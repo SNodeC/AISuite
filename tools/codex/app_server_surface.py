@@ -431,6 +431,47 @@ A14_MCP_REVERSE_COMMIT_4 = frozenset(
         ),
     }
 )
+# A1.4b Commit 5 completes the existing user-input request, adds MCP
+# elicitation, and binds the elicitation mode union to its exact owner.
+A14_MCP_REVERSE_COMMIT_5 = frozenset(
+    {
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "item/tool/requestUserInput",
+        ),
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "mcpServer/elicitation/request",
+        ),
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            "form",
+        ),
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            "openai/form",
+        ),
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            "url",
+        ),
+    }
+)
+A14_MCP_REVERSE_IMPLEMENTED = (
+    A14_MCP_REVERSE_COMMIT_3
+    | A14_MCP_REVERSE_COMMIT_4
+    | A14_MCP_REVERSE_COMMIT_5
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -1805,23 +1846,43 @@ COMMANDS_FILESYSTEM_REVIEWS_APPROVALS_UNION_CODECS = {
 }
 
 INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS = {
-    (
-        "tagged_union_discriminator",
-        "PluginSource",
-        "type",
-        name,
-    ): (
-        "IntegrationsAndLongTailUnionTarget::"
-        + {
-            "git": "PluginSourceGit",
-            "local": "PluginSourceLocal",
-            "npm": "PluginSourceNpm",
-            "remote": "PluginSourceRemote",
-        }[name],
-        "ConversationUnionCodecShape::InternallyTaggedObject",
-        "ConversationUnionCodecDirection::DecodeOnly",
-    )
-    for name in ("git", "local", "npm", "remote")
+    **{
+        (
+            "tagged_union_discriminator",
+            "PluginSource",
+            "type",
+            name,
+        ): (
+            "IntegrationsAndLongTailUnionTarget::"
+            + {
+                "git": "PluginSourceGit",
+                "local": "PluginSourceLocal",
+                "npm": "PluginSourceNpm",
+                "remote": "PluginSourceRemote",
+            }[name],
+            "ConversationUnionCodecShape::InternallyTaggedObject",
+            "ConversationUnionCodecDirection::DecodeOnly",
+        )
+        for name in ("git", "local", "npm", "remote")
+    },
+    **{
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            name,
+        ): (
+            "IntegrationsAndLongTailUnionTarget::"
+            + {
+                "form": "McpServerElicitationForm",
+                "openai/form": "McpServerElicitationOpenAiForm",
+                "url": "McpServerElicitationUrl",
+            }[name],
+            "ConversationUnionCodecShape::InternallyTaggedObject",
+            "ConversationUnionCodecDirection::DecodeOnly",
+        )
+        for name in ("form", "openai/form", "url")
+    },
 }
 
 RUNTIME_TARGETS = {
@@ -2665,6 +2726,12 @@ RUNTIME_TARGETS = {
         "method",
         "item/tool/call",
     ): "ServerRequestTarget::DynamicToolCall",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "mcpServer/elicitation/request",
+    ): "ServerRequestTarget::McpServerElicitation",
     ("item_discriminator", "ThreadItem", "type", "agentMessage"): "ItemDiscriminatorTarget::AgentMessage",
     (
         "item_discriminator",
@@ -6308,6 +6375,13 @@ def registry_statuses(
         # every completeness dimension without adding another lifecycle.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
+    if identity in A14_MCP_REVERSE_COMMIT_5 and target is not None:
+        # A1.4b Commit 5 closes the canonical tool-user-input contract and the
+        # distinct MCP elicitation union. Focused schema, codec, response, and
+        # occurrence tests cover all stable fields, the 12 closed form-schema
+        # objects, opaque/sensitive positions, and future-mode preservation.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
     if (
         identity[0] == "client_request"
         and assignment.get("slice") == "A1.1"
@@ -6917,7 +6991,7 @@ def generate_integrations_and_long_tail_union_descriptor_data(
     schema_root: Path,
     evidence: dict[str, Any] | None = None,
 ) -> str:
-    """Generate the exact registry-ordered PR-A PluginSource metadata."""
+    """Generate exact append-only integration union codec metadata."""
 
     evidence = (
         evidence if evidence is not None else load_a1_registry_evidence()
@@ -6929,34 +7003,52 @@ def generate_integrations_and_long_tail_union_descriptor_data(
         if assignment.get("slice") == "A1.4"
         and assignment.get("module") == "IntegrationsAndLongTail"
         and key[0] == "tagged_union_discriminator"
-        and key[1] == "PluginSource"
+        and key[1]
+        in {
+            "PluginSource",
+            "McpServerElicitationRequestParams",
+        }
         and assignment.get("stability") == "stable"
     }
     descriptor_keys = set(INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS)
+    # Keep the four public PR-A target indices stable and append the A1.4b
+    # elicitation modes in their schema order. The production registry is
+    # identity authority, but its global identity order is not an ABI order.
     descriptor_order = [
-        surface_key(entry)
-        for entry in manifest.get("entries", [])
-        if surface_key(entry) in descriptor_keys
+        (
+            "tagged_union_discriminator",
+            "PluginSource",
+            "type",
+            name,
+        )
+        for name in ("git", "local", "npm", "remote")
+    ] + [
+        (
+            "tagged_union_discriminator",
+            "McpServerElicitationRequestParams",
+            "mode",
+            name,
+        )
+        for name in ("form", "openai/form", "url")
     ]
-    registry_order = tuple(key[3] for key in descriptor_order)
     if (
         expected_keys != descriptor_keys
-        or len(descriptor_keys) != 4
-        or registry_order != ("git", "local", "npm", "remote")
+        or len(descriptor_keys) != 7
+        or set(descriptor_order) != descriptor_keys
     ):
         raise SurfaceError(
             "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch: "
-            "PluginSource must retain exactly git/local/npm/remote in "
-            "production-registry order"
+            "PluginSource must retain exactly git/local/npm/remote and "
+            "MCP elicitation must append exactly form/openai/form/url"
         )
     targets = [
         metadata[0]
         for metadata in INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS.values()
     ]
-    if len(set(targets)) != 4:
+    if len(set(targets)) != 7:
         raise SurfaceError(
             "DuplicateIntegrationsAndLongTailUnionDescriptorTarget: "
-            "each PluginSource identity must own one unique runtime target"
+            "each integration union identity must own one unique runtime target"
         )
     if any(
         metadata[1]
@@ -6967,8 +7059,8 @@ def generate_integrations_and_long_tail_union_descriptor_data(
     ):
         raise SurfaceError(
             "IntegrationsAndLongTailUnionDescriptorDirectionMismatch: "
-            "all four PluginSource alternatives must remain internally "
-            "tagged decode-only result metadata"
+            "all seven integration alternatives must remain internally "
+            "tagged decode-only metadata"
         )
 
     entries = {
@@ -7001,7 +7093,11 @@ def generate_integrations_and_long_tail_union_descriptor_data(
         target, shape, direction = (
             INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS[key]
         )
-        branch = _conversation_union_schema_branch(entry, schema_root)
+        branch = _conversation_union_schema_branch(
+            entry,
+            schema_root,
+            require_v2=key[1] == "PluginSource",
+        )
         _validate_conversation_union_descriptor_shape(entry, branch, shape)
         lines.append(
             "CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR("
@@ -7043,6 +7139,8 @@ def generate_server_request_descriptor_data(
         "item/fileChange/requestApproval",
         "item/permissions/requestApproval",
         "item/tool/call",
+        "item/tool/requestUserInput",
+        "mcpServer/elicitation/request",
     }
     expected_keys = {
         key
@@ -7073,20 +7171,24 @@ def generate_server_request_descriptor_data(
                 == "CommandsFilesystemReviewsApprovals"
             )
             or (
-                key in A14_MCP_REVERSE_COMMIT_4
+                key
+                in (
+                    A14_MCP_REVERSE_COMMIT_4
+                    | A14_MCP_REVERSE_COMMIT_5
+                )
                 and assignment.get("slice") == "A1.4"
                 and assignment.get("module") == "IntegrationsAndLongTail"
             )
         )
     }
     if (
-        len(expected_keys) != 8
+        len(expected_keys) != 10
         or {key[3] for key in expected_keys} != expected_methods
     ):
         raise SurfaceError(
             "ServerRequestDescriptorAssignmentMismatch: the exact A1.2 "
-            "auth refresh, five A1.3 approval/permission requests, and two "
-            "A1.4b Commit 4 reverse requests are required"
+            "auth refresh, five A1.3 approval/permission requests, and four "
+            "A1.4b reverse requests are required"
         )
     expected_targets = {
         "account/chatgptAuthTokens/refresh": (
@@ -7105,6 +7207,12 @@ def generate_server_request_descriptor_data(
             "ServerRequestTarget::PermissionsRequestApproval"
         ),
         "item/tool/call": "ServerRequestTarget::DynamicToolCall",
+        "item/tool/requestUserInput": (
+            "ServerRequestTarget::ToolRequestUserInput"
+        ),
+        "mcpServer/elicitation/request": (
+            "ServerRequestTarget::McpServerElicitation"
+        ),
     }
     targets = {
         key: RUNTIME_TARGETS.get(key) for key in expected_keys
@@ -7114,7 +7222,7 @@ def generate_server_request_descriptor_data(
             key[3]: target for key, target in targets.items()
         }
         != expected_targets
-        or len(set(targets.values())) != 8
+        or len(set(targets.values())) != 10
         or any(
             contracts.get(key, {}).get("result_contract_kind")
             != "Concrete"

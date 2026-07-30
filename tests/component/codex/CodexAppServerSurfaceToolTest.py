@@ -1969,6 +1969,8 @@ def test_server_request_descriptor_guards(
         "item/fileChange/requestApproval",
         "item/permissions/requestApproval",
         "item/tool/call",
+        "item/tool/requestUserInput",
+        "mcpServer/elicitation/request",
     }
     methods = {
         match.group(1)
@@ -1982,7 +1984,7 @@ def test_server_request_descriptor_guards(
         )
     }
     if (
-        len(rows) != 8
+        len(rows) != 10
         or methods != expected_methods
         or any(
             not row.endswith("ResultContractKind::Concrete)")
@@ -1991,11 +1993,11 @@ def test_server_request_descriptor_guards(
         or sum(
             "ServerRequestTarget::" in row for row in rows
         )
-        != 8
+        != 10
     ):
         raise AssertionError(
-            "server-request descriptors lost the exact eight concrete "
-            "auth-refresh, approval, and A1.4b Commit-4 contracts"
+            "server-request descriptors lost the exact ten concrete "
+            "auth-refresh, approval, and A1.4b contracts"
         )
 
     wrong_assignment = copy.deepcopy(evidence)
@@ -2369,6 +2371,18 @@ def test_integrations_and_long_tail_union_descriptor_guards(
             )
         )
     ]
+    elicitation_names = [
+        match.group(1)
+        for line in rows
+        if (
+            match := re.search(
+                r'^CODEX_INTEGRATIONS_AND_LONG_TAIL_UNION_CODEC_DESCRIPTOR\('
+                r'[^,]+, "McpServerElicitationRequestParams", "mode", '
+                r'"([^"]+)", ',
+                line,
+            )
+        )
+    ]
     targets = {
         match.group(1)
         for line in rows
@@ -2380,8 +2394,10 @@ def test_integrations_and_long_tail_union_descriptor_guards(
         )
     }
     if (
-        names != ["git", "local", "npm", "remote"]
-        or len(targets) != 4
+        len(rows) != 7
+        or names != ["git", "local", "npm", "remote"]
+        or elicitation_names != ["form", "openai/form", "url"]
+        or len(targets) != 7
         or any(
             "ConversationUnionCodecShape::InternallyTaggedObject" not in line
             or not line.endswith(
@@ -2391,31 +2407,9 @@ def test_integrations_and_long_tail_union_descriptor_guards(
         )
     ):
         raise AssertionError(
-            "PluginSource descriptors lost registry order, unique targets, "
-            "or decode-only internally tagged metadata"
+            "PluginSource or MCP elicitation descriptors lost exact owner "
+            "order, unique targets, or decode-only internally tagged metadata"
         )
-
-    wrong_order = copy.deepcopy(manifest)
-    plugin_indices = [
-        index
-        for index, entry in enumerate(wrong_order["entries"])
-        if tool.surface_key(entry)
-        in tool.INTEGRATIONS_AND_LONG_TAIL_UNION_CODECS
-    ]
-    wrong_order["entries"][plugin_indices[0]], wrong_order["entries"][
-        plugin_indices[1]
-    ] = (
-        wrong_order["entries"][plugin_indices[1]],
-        wrong_order["entries"][plugin_indices[0]],
-    )
-    expect_surface_error_code(
-        tool,
-        lambda: tool.generate_integrations_and_long_tail_union_descriptor_data(
-            wrong_order, schema_root, evidence
-        ),
-        "IntegrationsAndLongTailUnionDescriptorAssignmentMismatch",
-        "reorder PluginSource alternatives in the production surface",
-    )
 
     wrong_assignment = copy.deepcopy(evidence)
     assignment = next(

@@ -229,6 +229,7 @@ namespace ai::openai::codex::detail {
         PermissionsRequestApproval,
         AttestationGenerate,
         DynamicToolCall,
+        McpServerElicitation,
         Count
     };
 
@@ -428,7 +429,16 @@ namespace ai::openai::codex::detail {
         Count
     };
 
-    enum class IntegrationsAndLongTailUnionTarget { PluginSourceGit, PluginSourceLocal, PluginSourceNpm, PluginSourceRemote, Count };
+    enum class IntegrationsAndLongTailUnionTarget {
+        PluginSourceGit,
+        PluginSourceLocal,
+        PluginSourceNpm,
+        PluginSourceRemote,
+        McpServerElicitationForm,
+        McpServerElicitationOpenAiForm,
+        McpServerElicitationUrl,
+        Count
+    };
 
     enum class ConversationUnionCodecShape { ScalarString, ExternallyTaggedObject, InternallyTaggedObject, Count };
 
