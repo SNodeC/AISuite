@@ -1189,6 +1189,13 @@ namespace ai::openai::codex::backend {
         }
 
         void onServerRequest(const typed::TypedServerRequest& request) {
+            // A1.4b exposes these requests through the reusable typed Requests
+            // component only. The backend deliberately adds no product state
+            // or frontend behavior for attestation or dynamic tools.
+            if (std::holds_alternative<typed::AttestationGenerateRequest>(request) ||
+                std::holds_alternative<typed::DynamicToolCallRequest>(request)) {
+                return;
+            }
             if (nextPendingRequestId == 0) {
                 publish(DiagnosticReceived{"Pending-request id space exhausted; request remains owned by the typed protocol layer."});
                 return;

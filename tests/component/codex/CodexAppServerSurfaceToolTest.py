@@ -1963,10 +1963,12 @@ def test_server_request_descriptor_guards(
     expected_methods = {
         "account/chatgptAuthTokens/refresh",
         "applyPatchApproval",
+        "attestation/generate",
         "execCommandApproval",
         "item/commandExecution/requestApproval",
         "item/fileChange/requestApproval",
         "item/permissions/requestApproval",
+        "item/tool/call",
     }
     methods = {
         match.group(1)
@@ -1980,7 +1982,7 @@ def test_server_request_descriptor_guards(
         )
     }
     if (
-        len(rows) != 6
+        len(rows) != 8
         or methods != expected_methods
         or any(
             not row.endswith("ResultContractKind::Concrete)")
@@ -1989,11 +1991,11 @@ def test_server_request_descriptor_guards(
         or sum(
             "ServerRequestTarget::" in row for row in rows
         )
-        != 6
+        != 8
     ):
         raise AssertionError(
-            "server-request descriptors lost the exact auth-refresh plus "
-            "five A1.3 concrete contracts"
+            "server-request descriptors lost the exact eight concrete "
+            "auth-refresh, approval, and A1.4b Commit-4 contracts"
         )
 
     wrong_assignment = copy.deepcopy(evidence)

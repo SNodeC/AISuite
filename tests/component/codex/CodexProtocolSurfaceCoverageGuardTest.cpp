@@ -462,8 +462,8 @@ int main() {
                       "the B4 registry retains every locked A1.0 and exact A1.1 batch identity");
     result.expectTrue(typedIdentityCount(baseline) == tests::component::codex::TypedSurfaceBaseline.size() +
                                                           tests::component::codex::CodexErrorInfoTypedSurfaceBaseline.size() +
-                                                          tests::component::codex::CodexA11B2TypedSurfaceBaseline.size() + 247,
-                      "A1.1 B3-B5, A1.2, complete A1.3, A1.4 user integrations, and A1.4b Commit 3 add exactly 247 typed "
+                                                          tests::component::codex::CodexA11B2TypedSurfaceBaseline.size() + 249,
+                      "A1.1 B3-B5, A1.2, complete A1.3, A1.4 user integrations, and A1.4b Commits 3-4 add exactly 249 typed "
                       "identities while completing inherited partial rows");
     result.expectTrue(schemaStatusCounts(baseline, true) == SchemaStatusCounts{151, 0, 0, 0},
                       "the final A1.1 slice is exactly Complete 151, Partial 0, NotImplemented 0, NotApplicable 0");
@@ -472,8 +472,8 @@ int main() {
                       "the final A1.2 B5 slice is exactly Complete 45, Partial 0, NotImplemented 0, NotApplicable 0");
     result.expectTrue(schemaStatusCountsForSlice(baseline, detail::A1Slice::A1_3) == SchemaStatusCounts{68, 0, 0, 0},
                       "the final A1.3 slice is exactly Complete 68, Partial 0, NotImplemented 0, NotApplicable 0");
-    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{319, 4, 16, 48},
-                      "A1.4b Commit 3 is exactly Complete 319, Partial 4, NotImplemented 16, NotApplicable 48");
+    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{321, 4, 14, 48},
+                      "A1.4b Commit 4 is exactly Complete 321, Partial 4, NotImplemented 14, NotApplicable 48");
     result.expectTrue(exactA13Descriptors && exactA13FixtureBijection && a13Rows == 68 && a13DescriptorKeys.size() == 68 &&
                           a13ClientDescriptors == 17 && a13NotificationDescriptors == 7 && a13ServerRequestDescriptors == 5 &&
                           a13UnionDescriptors == 39,

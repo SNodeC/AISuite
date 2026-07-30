@@ -413,6 +413,24 @@ A14_MCP_REVERSE_COMMIT_3 = frozenset(
         ),
     }
 )
+# A1.4b Commit 4 exact-key production ownership. These reverse requests use
+# the existing RawProtocol occurrence registry and direct-response engine.
+A14_MCP_REVERSE_COMMIT_4 = frozenset(
+    {
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "attestation/generate",
+        ),
+        (
+            "server_request",
+            "ServerRequest",
+            "method",
+            "item/tool/call",
+        ),
+    }
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -2635,6 +2653,18 @@ RUNTIME_TARGETS = {
         "method",
         "account/chatgptAuthTokens/refresh",
     ): "ServerRequestTarget::ChatgptAuthTokensRefresh",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "attestation/generate",
+    ): "ServerRequestTarget::AttestationGenerate",
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "item/tool/call",
+    ): "ServerRequestTarget::DynamicToolCall",
     ("item_discriminator", "ThreadItem", "type", "agentMessage"): "ItemDiscriminatorTarget::AgentMessage",
     (
         "item_discriminator",
@@ -6271,6 +6301,13 @@ def registry_statuses(
         # association authority.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
+    if identity in A14_MCP_REVERSE_COMMIT_4 and target is not None:
+        # A1.4b Commit 4 advances only attestation generation and dynamic-tool
+        # calls. Canonical open-object models, exact decode/encode coverage,
+        # generated descriptors, and occurrence-bound response tests establish
+        # every completeness dimension without adding another lifecycle.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
     if (
         identity[0] == "client_request"
         and assignment.get("slice") == "A1.1"
@@ -7000,10 +7037,12 @@ def generate_server_request_descriptor_data(
     expected_methods = {
         "account/chatgptAuthTokens/refresh",
         "applyPatchApproval",
+        "attestation/generate",
         "execCommandApproval",
         "item/commandExecution/requestApproval",
         "item/fileChange/requestApproval",
         "item/permissions/requestApproval",
+        "item/tool/call",
     }
     expected_keys = {
         key
@@ -7021,27 +7060,40 @@ def generate_server_request_descriptor_data(
                 == "AccountsModelsConfiguration"
             )
             or (
-                key[3] != "account/chatgptAuthTokens/refresh"
+                key[3]
+                in {
+                    "applyPatchApproval",
+                    "execCommandApproval",
+                    "item/commandExecution/requestApproval",
+                    "item/fileChange/requestApproval",
+                    "item/permissions/requestApproval",
+                }
                 and assignment.get("slice") == "A1.3"
                 and assignment.get("module")
                 == "CommandsFilesystemReviewsApprovals"
             )
+            or (
+                key in A14_MCP_REVERSE_COMMIT_4
+                and assignment.get("slice") == "A1.4"
+                and assignment.get("module") == "IntegrationsAndLongTail"
+            )
         )
     }
     if (
-        len(expected_keys) != 6
+        len(expected_keys) != 8
         or {key[3] for key in expected_keys} != expected_methods
     ):
         raise SurfaceError(
             "ServerRequestDescriptorAssignmentMismatch: the exact A1.2 "
-            "auth refresh and five A1.3 approval/permission requests are "
-            "required"
+            "auth refresh, five A1.3 approval/permission requests, and two "
+            "A1.4b Commit 4 reverse requests are required"
         )
     expected_targets = {
         "account/chatgptAuthTokens/refresh": (
             "ServerRequestTarget::ChatgptAuthTokensRefresh"
         ),
         "applyPatchApproval": "ServerRequestTarget::ApplyPatchApproval",
+        "attestation/generate": "ServerRequestTarget::AttestationGenerate",
         "execCommandApproval": "ServerRequestTarget::ExecCommandApproval",
         "item/commandExecution/requestApproval": (
             "ServerRequestTarget::CommandExecutionRequestApproval"
@@ -7052,6 +7104,7 @@ def generate_server_request_descriptor_data(
         "item/permissions/requestApproval": (
             "ServerRequestTarget::PermissionsRequestApproval"
         ),
+        "item/tool/call": "ServerRequestTarget::DynamicToolCall",
     }
     targets = {
         key: RUNTIME_TARGETS.get(key) for key in expected_keys
@@ -7061,7 +7114,7 @@ def generate_server_request_descriptor_data(
             key[3]: target for key, target in targets.items()
         }
         != expected_targets
-        or len(set(targets.values())) != 6
+        or len(set(targets.values())) != 8
         or any(
             contracts.get(key, {}).get("result_contract_kind")
             != "Concrete"

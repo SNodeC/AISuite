@@ -821,6 +821,51 @@ set_tests_properties(
 )
 
 snodec_add_test(
+    CodexA14AttestationDynamicToolCodecTest
+    CodexA14AttestationDynamicToolCodecTest.cpp
+)
+target_link_libraries(
+    CodexA14AttestationDynamicToolCodecTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+)
+target_compile_features(
+    CodexA14AttestationDynamicToolCodecTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14AttestationDynamicToolCodecTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;server-request;codec;a1-4;mcp-reverse;commit-4"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14AttestationDynamicToolWireTest
+    CodexA14AttestationDynamicToolWireTest.cpp
+)
+target_link_libraries(
+    CodexA14AttestationDynamicToolWireTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+        snodec::core
+)
+target_compile_features(
+    CodexA14AttestationDynamicToolWireTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14AttestationDynamicToolWireTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;server-request;wire;lifecycle;a1-4;mcp-reverse;commit-4"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 15
+)
+
+snodec_add_test(
     CodexA14McpClientWireTest
     CodexA14McpClientWireTest.cpp
 )

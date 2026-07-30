@@ -375,10 +375,10 @@ namespace {
             }
         }
 
-        result.expectTrue(complete == 319 && partial == 4 && notImplemented == 16 && notApplicable == 48,
-                          "A1.4b Commit 3 global registry arithmetic is exactly 319/4/16/48");
-        result.expectTrue(nativeComplete == 39 && nativePartial == 1 && nativeNotImplemented == 16,
-                          "A1.4b Commit 3 native A1.4 registry arithmetic is exactly 39/1/16");
+        result.expectTrue(complete == 321 && partial == 4 && notImplemented == 14 && notApplicable == 48,
+                          "A1.4b Commit 4 global registry arithmetic is exactly 321/4/14/48");
+        result.expectTrue(nativeComplete == 41 && nativePartial == 1 && nativeNotImplemented == 14,
+                          "A1.4b Commit 4 native A1.4 registry arithmetic is exactly 41/1/14");
 
         const std::array<std::string_view, 8> expectedCompleted{{
             "app/list",

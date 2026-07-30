@@ -227,6 +227,8 @@ namespace ai::openai::codex::detail {
         ApplyPatchApproval,
         ExecCommandApproval,
         PermissionsRequestApproval,
+        AttestationGenerate,
+        DynamicToolCall,
         Count
     };
 

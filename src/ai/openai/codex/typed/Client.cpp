@@ -23,6 +23,7 @@
 #include "ai/openai/codex/detail/HookCodec.h"
 #include "ai/openai/codex/detail/MarketplaceCodec.h"
 #include "ai/openai/codex/detail/McpCodec.h"
+#include "ai/openai/codex/detail/McpReverseRequestCodec.h"
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
@@ -1355,6 +1356,28 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
+    Requests::SendResult Requests::respond(const AttestationGenerateRequest& request, AttestationGenerateResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeAttestationGenerateResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
+        return protocol->respondOwned(request.requestId,
+                                      request.requestToken,
+                                      registeredMethod(detail::ServerRequestTarget::AttestationGenerate),
+                                      std::move(*encoded));
+    }
+
+    Requests::SendResult Requests::respond(const DynamicToolCallRequest& request, DynamicToolCallResponse response) {
+        std::string error;
+        std::optional<Json> encoded = detail::encodeDynamicToolCallResponse(response, error);
+        if (!encoded) {
+            return validationFailure(std::move(error));
+        }
+        return protocol->respondOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(*encoded));
+    }
+
     Requests::SendResult Requests::respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers) {
         std::set<std::string> questionIds;
         for (const UserInputQuestion& question : request.questions) {
@@ -1399,6 +1422,16 @@ namespace ai::openai::codex::typed {
             response.chatgptPlanType ? OptionalNullable<PlanType>::withValue(PlanType{std::move(*response.chatgptPlanType)})
                                      : OptionalNullable<PlanType>::explicitNull()};
         return respondRefresh(request, std::move(canonical));
+    }
+
+    Requests::SendResult Requests::reject(const AttestationGenerateRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::AttestationGenerate), std::move(error));
+    }
+
+    Requests::SendResult Requests::reject(const DynamicToolCallRequest& request, ProtocolError error) {
+        return protocol->rejectOwned(
+            request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(error));
     }
 
     Requests::SendResult Requests::respondRaw(const UnknownServerRequest& request, Json result) {

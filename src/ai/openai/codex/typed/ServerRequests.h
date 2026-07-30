@@ -477,6 +477,35 @@ namespace ai::openai::codex::typed {
         OptionalNullable<bool> strictAutoReview;
     };
 
+    // Empty in the pinned schema but open to future properties.
+    struct AttestationGenerateParams {
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct AttestationGenerateResponse {
+        std::string token;
+        Json raw = Json::object();
+    };
+
+    struct DynamicToolCallParams {
+        // The protocol deliberately permits every JSON value, including null.
+        Json arguments = nullptr;
+        ResponseCallId callId;
+        OptionalNullable<std::string> nameSpace;
+        ThreadId threadId;
+        std::string tool;
+        TurnId turnId;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct DynamicToolCallResponse {
+        std::vector<DynamicToolCallOutputContentItem> contentItems;
+        bool success = false;
+        Json raw = Json::object();
+    };
+
     struct CommandApprovalRequest {
         ServerRequestId requestId;
         ServerRequestToken requestToken;
@@ -585,10 +614,26 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
+    struct AttestationGenerateRequest {
+        ServerRequestId requestId;
+        ServerRequestToken requestToken;
+        AttestationGenerateParams params;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct DynamicToolCallRequest {
+        ServerRequestId requestId;
+        ServerRequestToken requestToken;
+        DynamicToolCallParams params;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
     using PermissionsRequestApprovalRequest = PermissionsApprovalRequest;
 
-    // Existing alternatives retain their indices. New A1.3 alternatives are
-    // appended after the former final UnknownServerRequest alternative.
+    // Existing alternatives retain their indices. A1.4b request alternatives
+    // append after all earlier alternatives.
     using TypedServerRequest = std::variant<CommandApprovalRequest,
                                             FileChangeApprovalRequest,
                                             UserInputRequest,
@@ -596,7 +641,9 @@ namespace ai::openai::codex::typed {
                                             UnknownServerRequest,
                                             ApplyPatchApprovalRequest,
                                             ExecCommandApprovalRequest,
-                                            PermissionsApprovalRequest>;
+                                            PermissionsApprovalRequest,
+                                            AttestationGenerateRequest,
+                                            DynamicToolCallRequest>;
 
     struct ApprovalDecision {
         std::string value;
@@ -634,9 +681,13 @@ namespace ai::openai::codex::typed {
         SendResult respond(const ApplyPatchApprovalRequest& request, ApplyPatchApprovalResponse response);
         SendResult respond(const ExecCommandApprovalRequest& request, ExecCommandApprovalResponse response);
         SendResult respond(const PermissionsApprovalRequest& request, PermissionsRequestApprovalResponse response);
+        SendResult respond(const AttestationGenerateRequest& request, AttestationGenerateResponse response);
+        SendResult respond(const DynamicToolCallRequest& request, DynamicToolCallResponse response);
         SendResult respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers);
         SendResult respondRefresh(const ChatgptAuthTokensRefreshRequest& request, ChatgptAuthTokensRefreshResponse response);
         SendResult respond(const AuthenticationRequest& request, AuthenticationResponse response);
+        SendResult reject(const AttestationGenerateRequest& request, ProtocolError error);
+        SendResult reject(const DynamicToolCallRequest& request, ProtocolError error);
         SendResult respondRaw(const UnknownServerRequest& request, Json result);
         SendResult reject(const UnknownServerRequest& request, ProtocolError error);
 

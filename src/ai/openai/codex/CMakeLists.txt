@@ -16,6 +16,7 @@ set(AI_OPENAI_CODEX_CPP
     detail/ItemDecoder.cpp
     detail/MarketplaceCodec.cpp
     detail/McpCodec.cpp
+    detail/McpReverseRequestCodec.cpp
     detail/ModelCodec.cpp
     detail/PluginCodec.cpp
     detail/ProtocolCodec.cpp

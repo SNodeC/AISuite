@@ -11,6 +11,7 @@
 #include "ai/openai/codex/detail/AccountCodec.h"
 #include "ai/openai/codex/detail/ApprovalCodec.h"
 #include "ai/openai/codex/detail/DecodeDiagnostic.h"
+#include "ai/openai/codex/detail/McpReverseRequestCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/typed/Accounts.h"
 #include "ai/openai/codex/typed/Items.h"
@@ -210,6 +211,24 @@ namespace ai::openai::codex::detail {
             return typed::PermissionsApprovalRequest{request.id, request.token, std::move(*params), request.raw, std::move(diagnostics)};
         }
 
+        std::optional<typed::AttestationGenerateRequest> decodeAttestationGenerate(const ServerRequest& request, std::string& error) {
+            std::optional<typed::AttestationGenerateParams> params = decodeAttestationGenerateParams(request.params, error);
+            if (!params) {
+                return std::nullopt;
+            }
+            std::vector<typed::DecodeDiagnostic> diagnostics = params->diagnostics;
+            return typed::AttestationGenerateRequest{request.id, request.token, std::move(*params), request.raw, std::move(diagnostics)};
+        }
+
+        std::optional<typed::DynamicToolCallRequest> decodeDynamicToolCall(const ServerRequest& request, std::string& error) {
+            std::optional<typed::DynamicToolCallParams> params = decodeDynamicToolCallParams(request.params, error);
+            if (!params) {
+                return std::nullopt;
+            }
+            std::vector<typed::DecodeDiagnostic> diagnostics = params->diagnostics;
+            return typed::DynamicToolCallRequest{request.id, request.token, std::move(*params), request.raw, std::move(diagnostics)};
+        }
+
         bool decodeUserInputOption(const Json& raw,
                                    typed::UserInputOption& option,
                                    std::string_view method,
@@ -386,6 +405,16 @@ namespace ai::openai::codex::detail {
                 }
                 case ServerRequestTarget::PermissionsRequestApproval: {
                     std::optional<typed::PermissionsApprovalRequest> decoded = decodePermissionsApproval(request, error);
+                    return decoded ? typed::TypedServerRequest{std::move(*decoded)}
+                                   : typed::TypedServerRequest{unknownRequest(request, std::move(error))};
+                }
+                case ServerRequestTarget::AttestationGenerate: {
+                    std::optional<typed::AttestationGenerateRequest> decoded = decodeAttestationGenerate(request, error);
+                    return decoded ? typed::TypedServerRequest{std::move(*decoded)}
+                                   : typed::TypedServerRequest{unknownRequest(request, std::move(error))};
+                }
+                case ServerRequestTarget::DynamicToolCall: {
+                    std::optional<typed::DynamicToolCallRequest> decoded = decodeDynamicToolCall(request, error);
                     return decoded ? typed::TypedServerRequest{std::move(*decoded)}
                                    : typed::TypedServerRequest{unknownRequest(request, std::move(error))};
                 }

@@ -163,6 +163,7 @@ namespace ai::openai::codex {
         SendResult respondOwned(const ServerRequestId& id, ServerRequestToken token, Json result);
         SendResult respondOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, Json result);
         SendResult rejectOwned(const ServerRequestId& id, ServerRequestToken token, ProtocolError error);
+        SendResult rejectOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, ProtocolError error);
 
         Impl* impl;
     };

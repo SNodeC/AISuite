@@ -333,6 +333,11 @@ namespace ai::openai::codex {
             return answerServerRequest(id, token, std::nullopt, nullptr, std::move(error));
         }
 
+        RawProtocol::SendResult
+        rejectOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, ProtocolError error) {
+            return answerServerRequest(id, token, expectedMethod, nullptr, std::move(error));
+        }
+
         void setOnNotification(RawProtocol::NotificationHandler handler) {
             onNotification = std::move(handler);
         }
@@ -1118,6 +1123,13 @@ namespace ai::openai::codex {
     AppServerClient::RawProtocol::SendResult
     AppServerClient::RawProtocol::rejectOwned(const ServerRequestId& id, ServerRequestToken token, ProtocolError error) {
         return impl->rejectOwned(id, token, std::move(error));
+    }
+
+    AppServerClient::RawProtocol::SendResult AppServerClient::RawProtocol::rejectOwned(const ServerRequestId& id,
+                                                                                       ServerRequestToken token,
+                                                                                       std::string_view expectedMethod,
+                                                                                       ProtocolError error) {
+        return impl->rejectOwned(id, token, expectedMethod, std::move(error));
     }
 
     AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport, ClientInfo clientInfo)
