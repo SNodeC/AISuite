@@ -1,0 +1,4 @@
+{
+  "method": "mcpServer/oauthLogin/completed",
+  "params": null
+}

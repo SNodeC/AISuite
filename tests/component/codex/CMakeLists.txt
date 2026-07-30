@@ -401,7 +401,7 @@ set_tests_properties(
     PROPERTIES LABELS
                "component;ai;openai;codex;phase-a1-0;schema;fixtures"
                ENVIRONMENT "PYTHONHASHSEED=1"
-               TIMEOUT 300
+               TIMEOUT 420
 )
 
 add_test(

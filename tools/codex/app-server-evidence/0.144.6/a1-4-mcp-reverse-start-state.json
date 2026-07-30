@@ -1,0 +1,1160 @@
+{
+  "actual_base": {
+    "sha": "0c3a5838359eb283aca67840325ce6019345b462",
+    "tree": "f86196b41d695f7165dca6a80ec017a8b9166de1"
+  },
+  "architecture_start": {
+    "client_header_sha256": "0210ef15325471ed708cab6ca171977e171db4a30431eb9b2f5cc49ad5f79b89",
+    "client_pending_operation_maps": 1,
+    "json_rpc_request_id_allocators": 1,
+    "protocol_source_sha256": "f9a90a195963f7226eab90b5be03bf826a306d2fc76928bd3ca2462a052cec84",
+    "raw_protocol_instances": 1,
+    "server_request_occurrence_registries": 1,
+    "server_request_token_allocators": 1,
+    "transport_generations": 1,
+    "transport_instances": 1,
+    "typed_client_pimpl_pointers": 1,
+    "typed_notification_dispatchers": 1,
+    "typed_server_request_dispatchers": 1
+  },
+  "dependency_authority": {
+    "cutover_readiness": {
+      "extraction_provenance_commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+      "extraction_provenance_tree": "88a63edc985a851b2b76b0c56df19fae74ea8069",
+      "normal_dependency_commit": "77415c71a87fb7955e9a050bedaca02b65754324",
+      "normal_dependency_tree": "2d39c334f12c308828936656c820447bfcc38d47",
+      "ready": true,
+      "snodec_cutover_performed": true
+    },
+    "extraction_provenance": {
+      "commit": "d18b231a1d2ec2235fd6f204786b0a761cc24ff5",
+      "repository": "https://github.com/SNodeC/snode.c",
+      "role": "read-only extraction provenance; not built or linked",
+      "tree": "88a63edc985a851b2b76b0c56df19fae74ea8069"
+    },
+    "normal_dependency": {
+      "commit": "77415c71a87fb7955e9a050bedaca02b65754324",
+      "repository": "https://github.com/SNodeC/snode.c",
+      "role": "normal AISuite compilation and linking through one installed SNode.C prefix",
+      "tree": "2d39c334f12c308828936656c820447bfcc38d47"
+    }
+  },
+  "format_version": 1,
+  "generated_notice": "Generated Codex A1.4 MCP/reverse-request start evidence; do not edit.",
+  "immediate_predecessor": {
+    "sha": "ad15fd20c29e7478f28506ccf8190c069752f0aa",
+    "tree": "eea5e735e4ef4781d9377e5462be7dc752aa596a"
+  },
+  "predecessor_source_blobs": {
+    "CMakeLists.txt": "c42d83c37f8f7fd2afde82af7807444e3e8b453d",
+    "src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc": "93305acb0777d50786a59c4f82795281eeb434c3",
+    "src/ai/openai/codex/typed/Events.h": "c6a433d9f95cb4cf051d0e548948f5289ea31231",
+    "src/ai/openai/codex/typed/ServerRequests.h": "51263844aabc0c2f45d58625e14ea56d0c2417ff"
+  },
+  "predecessor_variants": {
+    "CanonicalServerNotification": {
+      "alternatives": [
+        {
+          "index": 0,
+          "type": "AccountLoginCompletedNotification"
+        },
+        {
+          "index": 1,
+          "type": "AccountRateLimitsUpdatedNotification"
+        },
+        {
+          "index": 2,
+          "type": "AccountUpdatedNotification"
+        },
+        {
+          "index": 3,
+          "type": "ConfigWarningNotification"
+        },
+        {
+          "index": 4,
+          "type": "ModelReroutedNotification"
+        },
+        {
+          "index": 5,
+          "type": "ModelSafetyBufferingUpdatedNotification"
+        },
+        {
+          "index": 6,
+          "type": "ModelVerificationNotification"
+        },
+        {
+          "index": 7,
+          "type": "AgentMessageDeltaNotification"
+        },
+        {
+          "index": 8,
+          "type": "CommandExecutionOutputDeltaNotification"
+        },
+        {
+          "index": 9,
+          "type": "TerminalInteractionNotification"
+        },
+        {
+          "index": 10,
+          "type": "ItemCompletedNotification"
+        },
+        {
+          "index": 11,
+          "type": "FileChangeOutputDeltaNotification"
+        },
+        {
+          "index": 12,
+          "type": "FileChangePatchUpdatedNotification"
+        },
+        {
+          "index": 13,
+          "type": "McpToolCallProgressNotification"
+        },
+        {
+          "index": 14,
+          "type": "PlanDeltaNotification"
+        },
+        {
+          "index": 15,
+          "type": "ReasoningSummaryPartAddedNotification"
+        },
+        {
+          "index": 16,
+          "type": "ReasoningSummaryTextDeltaNotification"
+        },
+        {
+          "index": 17,
+          "type": "ReasoningTextDeltaNotification"
+        },
+        {
+          "index": 18,
+          "type": "ItemStartedNotification"
+        },
+        {
+          "index": 19,
+          "type": "ThreadArchivedNotification"
+        },
+        {
+          "index": 20,
+          "type": "ThreadClosedNotification"
+        },
+        {
+          "index": 21,
+          "type": "ContextCompactedNotification"
+        },
+        {
+          "index": 22,
+          "type": "ThreadDeletedNotification"
+        },
+        {
+          "index": 23,
+          "type": "ThreadGoalClearedNotification"
+        },
+        {
+          "index": 24,
+          "type": "ThreadGoalUpdatedNotification"
+        },
+        {
+          "index": 25,
+          "type": "ThreadNameUpdatedNotification"
+        },
+        {
+          "index": 26,
+          "type": "ThreadRealtimeClosedNotification"
+        },
+        {
+          "index": 27,
+          "type": "ThreadRealtimeErrorNotification"
+        },
+        {
+          "index": 28,
+          "type": "ThreadRealtimeItemAddedNotification"
+        },
+        {
+          "index": 29,
+          "type": "ThreadRealtimeOutputAudioDeltaNotification"
+        },
+        {
+          "index": 30,
+          "type": "ThreadRealtimeSdpNotification"
+        },
+        {
+          "index": 31,
+          "type": "ThreadRealtimeStartedNotification"
+        },
+        {
+          "index": 32,
+          "type": "ThreadRealtimeTranscriptDeltaNotification"
+        },
+        {
+          "index": 33,
+          "type": "ThreadRealtimeTranscriptDoneNotification"
+        },
+        {
+          "index": 34,
+          "type": "ThreadSettingsUpdatedNotification"
+        },
+        {
+          "index": 35,
+          "type": "ThreadStartedNotification"
+        },
+        {
+          "index": 36,
+          "type": "ThreadStatusChangedNotification"
+        },
+        {
+          "index": 37,
+          "type": "ThreadTokenUsageUpdatedNotification"
+        },
+        {
+          "index": 38,
+          "type": "ThreadUnarchivedNotification"
+        },
+        {
+          "index": 39,
+          "type": "TurnCompletedNotification"
+        },
+        {
+          "index": 40,
+          "type": "TurnDiffUpdatedNotification"
+        },
+        {
+          "index": 41,
+          "type": "TurnModerationMetadataNotification"
+        },
+        {
+          "index": 42,
+          "type": "TurnPlanUpdatedNotification"
+        },
+        {
+          "index": 43,
+          "type": "TurnStartedNotification"
+        },
+        {
+          "index": 44,
+          "type": "CommandExecOutputDeltaNotification"
+        },
+        {
+          "index": 45,
+          "type": "FsChangedNotification"
+        },
+        {
+          "index": 46,
+          "type": "FuzzyFileSearchSessionCompletedNotification"
+        },
+        {
+          "index": 47,
+          "type": "FuzzyFileSearchSessionUpdatedNotification"
+        },
+        {
+          "index": 48,
+          "type": "GuardianWarningNotification"
+        },
+        {
+          "index": 49,
+          "type": "ItemGuardianApprovalReviewCompletedNotification"
+        },
+        {
+          "index": 50,
+          "type": "ItemGuardianApprovalReviewStartedNotification"
+        },
+        {
+          "index": 51,
+          "type": "AppListUpdatedNotification"
+        },
+        {
+          "index": 52,
+          "type": "ExternalAgentConfigImportCompletedNotification"
+        },
+        {
+          "index": 53,
+          "type": "ExternalAgentConfigImportProgressNotification"
+        },
+        {
+          "index": 54,
+          "type": "HookCompletedNotification"
+        },
+        {
+          "index": 55,
+          "type": "HookStartedNotification"
+        },
+        {
+          "index": 56,
+          "type": "SkillsChangedNotification"
+        }
+      ],
+      "sha256": "7fe40be1301e549a4fe9f4c16af7732518a0c1e9926e76c1d106a89d24f1bcf1",
+      "size": 57
+    },
+    "Event": {
+      "alternatives": [
+        {
+          "index": 0,
+          "type": "ThreadStarted"
+        },
+        {
+          "index": 1,
+          "type": "ThreadStatusChanged"
+        },
+        {
+          "index": 2,
+          "type": "TurnStarted"
+        },
+        {
+          "index": 3,
+          "type": "TurnCompleted"
+        },
+        {
+          "index": 4,
+          "type": "TurnFailed"
+        },
+        {
+          "index": 5,
+          "type": "ItemStarted"
+        },
+        {
+          "index": 6,
+          "type": "ItemCompleted"
+        },
+        {
+          "index": 7,
+          "type": "AgentMessageDelta"
+        },
+        {
+          "index": 8,
+          "type": "ReasoningDelta"
+        },
+        {
+          "index": 9,
+          "type": "CommandOutputDelta"
+        },
+        {
+          "index": 10,
+          "type": "FileChangeUpdated"
+        },
+        {
+          "index": 11,
+          "type": "TokenUsageUpdated"
+        },
+        {
+          "index": 12,
+          "type": "TerminalInteractionNotification"
+        },
+        {
+          "index": 13,
+          "type": "FileChangeOutputDeltaNotification"
+        },
+        {
+          "index": 14,
+          "type": "McpToolCallProgressNotification"
+        },
+        {
+          "index": 15,
+          "type": "PlanDeltaNotification"
+        },
+        {
+          "index": 16,
+          "type": "ReasoningSummaryPartAddedNotification"
+        },
+        {
+          "index": 17,
+          "type": "ThreadArchivedNotification"
+        },
+        {
+          "index": 18,
+          "type": "ThreadClosedNotification"
+        },
+        {
+          "index": 19,
+          "type": "ContextCompactedNotification"
+        },
+        {
+          "index": 20,
+          "type": "ThreadDeletedNotification"
+        },
+        {
+          "index": 21,
+          "type": "ThreadGoalClearedNotification"
+        },
+        {
+          "index": 22,
+          "type": "ThreadGoalUpdatedNotification"
+        },
+        {
+          "index": 23,
+          "type": "ThreadNameUpdatedNotification"
+        },
+        {
+          "index": 24,
+          "type": "ThreadRealtimeClosedNotification"
+        },
+        {
+          "index": 25,
+          "type": "ThreadRealtimeErrorNotification"
+        },
+        {
+          "index": 26,
+          "type": "ThreadRealtimeItemAddedNotification"
+        },
+        {
+          "index": 27,
+          "type": "ThreadRealtimeOutputAudioDeltaNotification"
+        },
+        {
+          "index": 28,
+          "type": "ThreadRealtimeSdpNotification"
+        },
+        {
+          "index": 29,
+          "type": "ThreadRealtimeStartedNotification"
+        },
+        {
+          "index": 30,
+          "type": "ThreadRealtimeTranscriptDeltaNotification"
+        },
+        {
+          "index": 31,
+          "type": "ThreadRealtimeTranscriptDoneNotification"
+        },
+        {
+          "index": 32,
+          "type": "ThreadSettingsUpdatedNotification"
+        },
+        {
+          "index": 33,
+          "type": "ThreadUnarchivedNotification"
+        },
+        {
+          "index": 34,
+          "type": "TurnDiffUpdatedNotification"
+        },
+        {
+          "index": 35,
+          "type": "TurnModerationMetadataNotification"
+        },
+        {
+          "index": 36,
+          "type": "TurnPlanUpdatedNotification"
+        },
+        {
+          "index": 37,
+          "type": "AccountLoginCompletedNotification"
+        },
+        {
+          "index": 38,
+          "type": "AccountRateLimitsUpdatedNotification"
+        },
+        {
+          "index": 39,
+          "type": "AccountUpdatedNotification"
+        },
+        {
+          "index": 40,
+          "type": "ConfigWarningNotification"
+        },
+        {
+          "index": 41,
+          "type": "ModelRerouted"
+        },
+        {
+          "index": 42,
+          "type": "ModelSafetyBufferingUpdatedNotification"
+        },
+        {
+          "index": 43,
+          "type": "ModelVerificationNotification"
+        },
+        {
+          "index": 44,
+          "type": "TurnErrorEvent"
+        },
+        {
+          "index": 45,
+          "type": "UnknownEvent"
+        },
+        {
+          "index": 46,
+          "type": "CommandExecOutputDeltaNotification"
+        },
+        {
+          "index": 47,
+          "type": "FsChangedNotification"
+        },
+        {
+          "index": 48,
+          "type": "FuzzyFileSearchSessionCompletedNotification"
+        },
+        {
+          "index": 49,
+          "type": "FuzzyFileSearchSessionUpdatedNotification"
+        },
+        {
+          "index": 50,
+          "type": "GuardianWarningNotification"
+        },
+        {
+          "index": 51,
+          "type": "ItemGuardianApprovalReviewCompletedNotification"
+        },
+        {
+          "index": 52,
+          "type": "ItemGuardianApprovalReviewStartedNotification"
+        },
+        {
+          "index": 53,
+          "type": "AppListUpdatedNotification"
+        },
+        {
+          "index": 54,
+          "type": "ExternalAgentConfigImportCompletedNotification"
+        },
+        {
+          "index": 55,
+          "type": "ExternalAgentConfigImportProgressNotification"
+        },
+        {
+          "index": 56,
+          "type": "HookCompletedNotification"
+        },
+        {
+          "index": 57,
+          "type": "HookStartedNotification"
+        },
+        {
+          "index": 58,
+          "type": "SkillsChangedNotification"
+        }
+      ],
+      "sha256": "90e092711c907b8f1597c23fb1d1d1873112046ffeb22fa478fa3654a77280aa",
+      "size": 59
+    },
+    "TypedServerRequest": {
+      "alternatives": [
+        {
+          "index": 0,
+          "type": "CommandApprovalRequest"
+        },
+        {
+          "index": 1,
+          "type": "FileChangeApprovalRequest"
+        },
+        {
+          "index": 2,
+          "type": "UserInputRequest"
+        },
+        {
+          "index": 3,
+          "type": "AuthenticationRequest"
+        },
+        {
+          "index": 4,
+          "type": "UnknownServerRequest"
+        },
+        {
+          "index": 5,
+          "type": "ApplyPatchApprovalRequest"
+        },
+        {
+          "index": 6,
+          "type": "ExecCommandApprovalRequest"
+        },
+        {
+          "index": 7,
+          "type": "PermissionsApprovalRequest"
+        }
+      ],
+      "sha256": "c57cb003b80cbf03dc221b965ec6cc9ab127e7682d1ba72683f7c38586c71129",
+      "size": 8
+    }
+  },
+  "project": {
+    "codex_soversion": 1
+  },
+  "protocol_authority": {
+    "codex_version": "codex-cli 0.144.6",
+    "stable_schema_aggregate_sha256": "cee1ac3bcaf95e5fcdcf07499c7e6b00fc423b90c670ea3380f1799434b72add",
+    "upstream_source_commit": "5d1fbf26c43abc65a203928b2e31561cb039e06d",
+    "upstream_tag": "rust-v0.144.6"
+  },
+  "registry_start": {
+    "global": {
+      "Complete": 313,
+      "NotApplicable": 48,
+      "NotImplemented": 22,
+      "Partial": 4,
+      "Total": 387
+    },
+    "inventory_only": {
+      "count": 48,
+      "status_counts": {
+        "Complete": 0,
+        "NotApplicable": 48,
+        "NotImplemented": 0,
+        "Partial": 0
+      }
+    },
+    "native_a1_4": {
+      "Complete": 33,
+      "NotImplemented": 22,
+      "Partial": 1,
+      "Total": 56
+    },
+    "partials": [
+      {
+        "module": "Common",
+        "protocol_surface_key": {
+          "category": "client_notification",
+          "discriminator_field": "method",
+          "domain": "ClientNotification",
+          "name": "initialized"
+        },
+        "slice": "A1.0",
+        "status": "Partial"
+      },
+      {
+        "module": "Common",
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "initialize"
+        },
+        "slice": "A1.0",
+        "status": "Partial"
+      },
+      {
+        "module": "Common",
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "error"
+        },
+        "slice": "A1.0",
+        "status": "Partial"
+      },
+      {
+        "module": "IntegrationsAndLongTail",
+        "protocol_surface_key": {
+          "category": "server_request",
+          "discriminator_field": "method",
+          "domain": "ServerRequest",
+          "name": "item/tool/requestUserInput"
+        },
+        "slice": "A1.4",
+        "status": "Partial"
+      }
+    ],
+    "pr_a_complete": [
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "app/list"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "externalAgentConfig/detect"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "externalAgentConfig/import"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "externalAgentConfig/import/readHistories"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "feedback/upload"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "hooks/list"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "marketplace/add"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "marketplace/remove"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "marketplace/upgrade"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/install"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/installed"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/list"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/read"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/checkout"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/delete"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/list"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/save"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/share/updateTargets"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/skill/read"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "plugin/uninstall"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "skills/config/write"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "skills/extraRoots/set"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "skills/list"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "app/list/updated"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "externalAgentConfig/import/completed"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "externalAgentConfig/import/progress"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "hook/completed"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "hook/started"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "skills/changed"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "git"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "local"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "npm"
+        },
+        "status": "Complete"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "type",
+          "domain": "PluginSource",
+          "name": "remote"
+        },
+        "status": "Complete"
+      }
+    ],
+    "pr_a_identity_sha256": "a6813700fc5b6e1afa12cc4fcf4dd30df5ffd86ac9588f1a5eaeb3cf589d4213",
+    "pr_c_unchanged": [
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "windowsSandbox/readiness"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "windowsSandbox/setupStart"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "deprecationNotice"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "process/exited"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "process/outputDelta"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "remoteControl/status/changed"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "serverRequest/resolved"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "warning"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "windows/worldWritableWarning"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "windowsSandbox/setupCompleted"
+        },
+        "status": "NotImplemented"
+      }
+    ],
+    "scope_statuses": [
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "mcpServer/oauth/login"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "mcpServer/resource/read"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "mcpServer/tool/call"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "client_request",
+          "discriminator_field": "method",
+          "domain": "ClientRequest",
+          "name": "mcpServerStatus/list"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "mcpServer/oauthLogin/completed"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_notification",
+          "discriminator_field": "method",
+          "domain": "ServerNotification",
+          "name": "mcpServer/startupStatus/updated"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_request",
+          "discriminator_field": "method",
+          "domain": "ServerRequest",
+          "name": "attestation/generate"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_request",
+          "discriminator_field": "method",
+          "domain": "ServerRequest",
+          "name": "item/tool/call"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_request",
+          "discriminator_field": "method",
+          "domain": "ServerRequest",
+          "name": "item/tool/requestUserInput"
+        },
+        "status": "Partial"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "server_request",
+          "discriminator_field": "method",
+          "domain": "ServerRequest",
+          "name": "mcpServer/elicitation/request"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "mode",
+          "domain": "McpServerElicitationRequestParams",
+          "name": "form"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "mode",
+          "domain": "McpServerElicitationRequestParams",
+          "name": "openai/form"
+        },
+        "status": "NotImplemented"
+      },
+      {
+        "protocol_surface_key": {
+          "category": "tagged_union_discriminator",
+          "discriminator_field": "mode",
+          "domain": "McpServerElicitationRequestParams",
+          "name": "url"
+        },
+        "status": "NotImplemented"
+      }
+    ]
+  }
+}

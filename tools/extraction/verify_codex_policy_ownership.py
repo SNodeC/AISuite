@@ -254,6 +254,37 @@ ORIGINAL_HEADER_GUARDS = {
     "typed/Models.h": "AI_OPENAI_CODEX_TYPED_MODELS_H",
 }
 
+MCP_REVERSE_COMPONENT_TEST_STAGES = (
+    frozenset(),
+    frozenset(
+        {
+            "CodexA14McpClientTest",
+            "CodexA14McpClientWireTest",
+            "CodexA14McpNotificationEventTest",
+        }
+    ),
+    frozenset(
+        {
+            "CodexA14AttestationDynamicToolCodecTest",
+            "CodexA14AttestationDynamicToolWireTest",
+            "CodexA14McpClientTest",
+            "CodexA14McpClientWireTest",
+            "CodexA14McpNotificationEventTest",
+        }
+    ),
+    frozenset(
+        {
+            "CodexA14AttestationDynamicToolCodecTest",
+            "CodexA14AttestationDynamicToolWireTest",
+            "CodexA14McpClientTest",
+            "CodexA14McpClientWireTest",
+            "CodexA14McpNotificationEventTest",
+            "CodexA14NineRequestStdioTest",
+            "CodexA14UserInputElicitationCodecTest",
+        }
+    ),
+)
+
 FORBIDDEN_LOGGING_IDENTIFIERS: tuple[str, ...] = (
     "lifecycleStart",
     "creationLogged",
@@ -722,6 +753,16 @@ def _preservation_view(test: Mapping[str, Any]) -> dict[str, Any]:
         "disabled": bool(test.get("disabled", False)),
         "dependencies": copy.deepcopy(test.get("dependencies", [])),
     }
+
+
+def _component_stable_view(test: Mapping[str, Any]) -> dict[str, Any]:
+    result = copy.deepcopy(dict(test))
+    backtrace = result.get("registration_backtrace")
+    if isinstance(backtrace, list):
+        for frame in backtrace:
+            if isinstance(frame, dict):
+                frame.pop("line", None)
+    return result
 
 
 def _cmake_set_values(text: str, variable: str) -> list[str]:
@@ -2013,6 +2054,11 @@ def _validate_preexisting_ctest(fixture: VerificationFixture) -> None:
         for test in fixture.baseline_model.get("tests", [])
         if _is_component_test(test)
     }
+    final_components = {
+        str(test["name"]): test
+        for test in fixture.final_model.get("tests", [])
+        if _is_component_test(test)
+    }
     for name, baseline in baseline_components.items():
         rows = final_index.get(name, [])
         if len(rows) != 1:
@@ -2025,18 +2071,13 @@ def _validate_preexisting_ctest(fixture: VerificationFixture) -> None:
             )
         if bool(final.get("disabled", False)):
             fail("CodexPolicyPreexistingComponentTestDrift", f"component test {name} is disabled")
-        if _preservation_view(baseline) != _preservation_view(final):
+        if _component_stable_view(baseline) != _component_stable_view(final):
             fail("CodexPolicyPreexistingComponentTestDrift", f"component test {name} properties drifted")
-    final_components = _component_model(fixture.final_model)
-    baseline_component_rows = _component_model(fixture.baseline_model)
-    if (
-        len(final_components) != len(baseline_component_rows)
-        or canonical_sha256(final_components)
-        != canonical_sha256(baseline_component_rows)
-    ):
+    additions = frozenset(final_components) - frozenset(baseline_components)
+    if additions not in MCP_REVERSE_COMPONENT_TEST_STAGES:
         fail(
             "CodexPolicyPreexistingComponentTestDrift",
-            "configured component/codex model hash or count changed",
+            "configured component/codex additions are not an exact reviewed A1.4b stage",
         )
     if GENERATED_ARTIFACTS_TEST not in baseline_components or len(
         final_index.get(GENERATED_ARTIFACTS_TEST, [])

@@ -969,6 +969,40 @@ A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER = (
 A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_DIRECTIONS = {
     "PluginSource": ("Decode",),
 }
+# A1.4b closes exactly the MCP and reverse-request batch audited by
+# app_server_a1_4_mcp_reverse.py.  Keep this fixture ownership independent of
+# live registry status so schema coverage is available before the production
+# rows are promoted.
+A14_MCP_REVERSE_CLIENT_REQUEST_METHODS = frozenset(
+    {
+        "mcpServer/oauth/login",
+        "mcpServer/resource/read",
+        "mcpServer/tool/call",
+        "mcpServerStatus/list",
+    }
+)
+A14_MCP_REVERSE_NOTIFICATION_METHODS = frozenset(
+    {
+        "mcpServer/oauthLogin/completed",
+        "mcpServer/startupStatus/updated",
+    }
+)
+A14_MCP_REVERSE_SERVER_REQUEST_METHODS = frozenset(
+    {
+        "attestation/generate",
+        "item/tool/call",
+        "item/tool/requestUserInput",
+        "mcpServer/elicitation/request",
+    }
+)
+A14_MCP_REVERSE_ELICITATION_ORDER = (
+    "form",
+    "openai/form",
+    "url",
+)
+A14_MCP_REVERSE_ELICITATION_DIRECTIONS = {
+    "McpServerElicitationRequestParams": ("Decode",),
+}
 SLICE_ORDER = {"A1.0": 0, "A1.1": 1, "A1.2": 2, "A1.3": 3, "A1.4": 4}
 SLICE_MODULES = {
     "A1.0": "Common",
@@ -2013,6 +2047,93 @@ def derive_a14_user_integrations_c5_keys(
             f"{tuple(key.name for key in union_keys)}"
         )
     return operations, union_keys
+
+
+def derive_a14_mcp_reverse_keys(
+    assignments: Mapping[SurfaceKey, Mapping[str, Any]],
+) -> tuple[
+    tuple[SurfaceKey, ...],
+    tuple[SurfaceKey, ...],
+    tuple[SurfaceKey, ...],
+]:
+    operation_names = (
+        A14_MCP_REVERSE_CLIENT_REQUEST_METHODS
+        | A14_MCP_REVERSE_SERVER_REQUEST_METHODS
+    )
+    operations = tuple(
+        sorted(
+            key
+            for key, assignment in assignments.items()
+            if assignment["a1_slice"] == "A1.4"
+            and assignment["module"] == "IntegrationsAndLongTail"
+            and key.name in operation_names
+            and key.category in {CLIENT_REQUEST, SERVER_REQUEST}
+        )
+    )
+    notifications = tuple(
+        sorted(
+            key
+            for key, assignment in assignments.items()
+            if assignment["a1_slice"] == "A1.4"
+            and assignment["module"] == "IntegrationsAndLongTail"
+            and key.name in A14_MCP_REVERSE_NOTIFICATION_METHODS
+            and key.category == SERVER_NOTIFICATION
+        )
+    )
+    elicitation_by_name = {
+        key.name: key
+        for key, assignment in assignments.items()
+        if assignment["a1_slice"] == "A1.4"
+        and assignment["module"] == "IntegrationsAndLongTail"
+        and key.category == TAGGED_UNION_DISCRIMINATOR
+        and key.domain == "McpServerElicitationRequestParams"
+        and key.discriminator_field == "mode"
+    }
+    union_keys = tuple(
+        elicitation_by_name[name]
+        for name in A14_MCP_REVERSE_ELICITATION_ORDER
+        if name in elicitation_by_name
+    )
+    if (
+        len(operations) != 8
+        or {
+            key.name
+            for key in operations
+            if key.category == CLIENT_REQUEST
+        }
+        != A14_MCP_REVERSE_CLIENT_REQUEST_METHODS
+        or {
+            key.name
+            for key in operations
+            if key.category == SERVER_REQUEST
+        }
+        != A14_MCP_REVERSE_SERVER_REQUEST_METHODS
+        or len(notifications) != 2
+        or {key.name for key in notifications}
+        != A14_MCP_REVERSE_NOTIFICATION_METHODS
+        or tuple(key.name for key in union_keys)
+        != A14_MCP_REVERSE_ELICITATION_ORDER
+        or set(elicitation_by_name)
+        != set(A14_MCP_REVERSE_ELICITATION_ORDER)
+        or any(
+            key.discriminator_field != "method"
+            or assignments[key]["classification"] != "StablePublicRoot"
+            or assignments[key]["stability"] != "stable"
+            for key in (*operations, *notifications)
+        )
+        or any(
+            assignments[key]["classification"] != "RootOwnedNestedUnion"
+            or assignments[key]["stability"] != "stable"
+            for key in union_keys
+        )
+    ):
+        raise FixtureError(
+            "A1.4 MCP/reverse assignment mismatch: "
+            f"operations={len(operations)} "
+            f"notifications={len(notifications)} "
+            f"elicitation_order={tuple(key.name for key in union_keys)}"
+        )
+    return operations, notifications, union_keys
 
 
 def normalize_a12_b2_sensitive_sample(value: Any) -> None:
@@ -4797,6 +4918,19 @@ class CorpusBuilder:
         self.a14_user_integrations_c5_positive_coverage: dict[
             str, Any
         ] = {}
+        self.a14_mcp_reverse_operation_keys: tuple[SurfaceKey, ...] = ()
+        self.a14_mcp_reverse_notification_keys: tuple[
+            SurfaceKey, ...
+        ] = ()
+        self.a14_mcp_reverse_union_keys: tuple[SurfaceKey, ...] = ()
+        self.a14_mcp_reverse_negative_coverage: dict[str, Any] = {}
+        self.a14_mcp_reverse_indexed_coverage: dict[str, Any] = {}
+        self.a14_mcp_reverse_operation_root_coverage: dict[
+            str, Any
+        ] = {}
+        self.a14_mcp_reverse_notification_root_coverage: dict[
+            str, Any
+        ] = {}
         self.reachability: dict[str, Any] = {}
         self.files: dict[str, bytes] = {}
         self.records: list[dict[str, Any]] = []
@@ -5007,6 +5141,11 @@ class CorpusBuilder:
             self.a14_user_integrations_c5_operation_keys,
             self.a14_user_integrations_c5_union_keys,
         ) = derive_a14_user_integrations_c5_keys(self.assignments)
+        (
+            self.a14_mcp_reverse_operation_keys,
+            self.a14_mcp_reverse_notification_keys,
+            self.a14_mcp_reverse_union_keys,
+        ) = derive_a14_mcp_reverse_keys(self.assignments)
 
         self._build_operation_fixtures()
         self._build_b4_operation_supplements()
@@ -5022,6 +5161,7 @@ class CorpusBuilder:
         self._build_a14_user_integrations_c3_operation_supplements()
         self._build_a14_user_integrations_c4_operation_supplements()
         self._build_a14_user_integrations_c5_operation_supplements()
+        self._build_a14_mcp_reverse_operation_supplements()
         self._build_b4_helper_union_fixtures()
         self._build_a12_b4_helper_union_fixtures()
         self._build_baseline_fixtures()
@@ -5035,6 +5175,7 @@ class CorpusBuilder:
         self._build_a13_review_notification_fixtures()
         self._build_a14_user_integrations_c2_notification_fixtures()
         self._build_a14_user_integrations_c3_notification_fixtures()
+        self._build_a14_mcp_reverse_notification_fixtures()
         self._build_a12_b4_positive_supplements()
         self._build_a12_b5_positive_supplements()
         self._build_a13_command_positive_supplements()
@@ -5170,6 +5311,9 @@ class CorpusBuilder:
             positive_records, positive_fixture_ids
         )
         self._apply_a14_user_integrations_c5_indexed_completeness(
+            positive_records, positive_fixture_ids
+        )
+        self._apply_a14_mcp_reverse_indexed_completeness(
             positive_records, positive_fixture_ids
         )
         mutation_counts = {
@@ -5569,6 +5713,32 @@ class CorpusBuilder:
                     self.a14_user_integrations_c5_negative_coverage
                 ),
             },
+            "a1_4_mcp_reverse": {
+                "assignment_derived_operation_keys": [
+                    key.to_json()
+                    for key in self.a14_mcp_reverse_operation_keys
+                ],
+                "assignment_derived_notification_keys": [
+                    key.to_json()
+                    for key in self.a14_mcp_reverse_notification_keys
+                ],
+                "assignment_derived_union_keys": [
+                    key.to_json()
+                    for key in self.a14_mcp_reverse_union_keys
+                ],
+                "indexed_schema_coverage": (
+                    self.a14_mcp_reverse_indexed_coverage
+                ),
+                "operation_root_fixture_plan": (
+                    self.a14_mcp_reverse_operation_root_coverage
+                ),
+                "notification_root_fixture_plan": (
+                    self.a14_mcp_reverse_notification_root_coverage
+                ),
+                "negative_coverage": (
+                    self.a14_mcp_reverse_negative_coverage
+                ),
+            },
             "fixtures": serialized_records,
         }
         self.files["index.json"] = encoded_json(index)
@@ -5781,6 +5951,18 @@ class CorpusBuilder:
                 if is_a14_user_integrations_c5
                 else {}
             )
+            is_a14_mcp_reverse = key in {
+                *self.a14_mcp_reverse_operation_keys,
+                *self.a14_mcp_reverse_notification_keys,
+                *self.a14_mcp_reverse_union_keys,
+            }
+            a14_mcp_reverse_schema_facts = (
+                self.a14_mcp_reverse_indexed_coverage.get(
+                    key.compact(), {}
+                ).get("schema_fixture_facts", {})
+                if is_a14_mcp_reverse
+                else {}
+            )
             indexed_coverage = (
                 self.b2_indexed_coverage.get(key.compact(), {})
                 if is_b2_shared_common
@@ -5838,6 +6020,10 @@ class CorpusBuilder:
                     key.compact(), {}
                 )
                 if is_a14_user_integrations_c5
+                else self.a14_mcp_reverse_indexed_coverage.get(
+                    key.compact(), {}
+                )
+                if is_a14_mcp_reverse
                 else {}
             )
             coverage_records.append(
@@ -5953,6 +6139,11 @@ class CorpusBuilder:
                                     "schema_properties_exercised", False
                                 )
                             )
+                            or bool(
+                                a14_mcp_reverse_schema_facts.get(
+                                    "schema_properties_exercised", False
+                                )
+                            )
                         ),
                         "optional_present_exercised": bool(records)
                         and all(
@@ -6047,6 +6238,11 @@ class CorpusBuilder:
                             )
                             or bool(
                                 a14_user_integrations_c5_schema_facts.get(
+                                    "nullable_semantics_exercised", False
+                                )
+                            )
+                            or bool(
+                                a14_mcp_reverse_schema_facts.get(
                                     "nullable_semantics_exercised", False
                                 )
                             )
@@ -6148,6 +6344,12 @@ class CorpusBuilder:
                             )
                             or bool(
                                 a14_user_integrations_c5_schema_facts.get(
+                                    "reachable_union_alternatives_exercised",
+                                    False,
+                                )
+                            )
+                            or bool(
+                                a14_mcp_reverse_schema_facts.get(
                                     "reachable_union_alternatives_exercised",
                                     False,
                                 )
@@ -6502,6 +6704,32 @@ class CorpusBuilder:
                     self.a14_user_integrations_c5_negative_coverage
                 ),
             },
+            "a1_4_mcp_reverse": {
+                "assignment_derived_operation_keys": [
+                    key.to_json()
+                    for key in self.a14_mcp_reverse_operation_keys
+                ],
+                "assignment_derived_notification_keys": [
+                    key.to_json()
+                    for key in self.a14_mcp_reverse_notification_keys
+                ],
+                "assignment_derived_union_keys": [
+                    key.to_json()
+                    for key in self.a14_mcp_reverse_union_keys
+                ],
+                "indexed_schema_coverage": (
+                    self.a14_mcp_reverse_indexed_coverage
+                ),
+                "operation_root_fixture_plan": (
+                    self.a14_mcp_reverse_operation_root_coverage
+                ),
+                "notification_root_fixture_plan": (
+                    self.a14_mcp_reverse_notification_root_coverage
+                ),
+                "negative_coverage": (
+                    self.a14_mcp_reverse_negative_coverage
+                ),
+            },
             "fixtures": [
                 compact_generated_record(record)
                 for record in positive_records
@@ -6723,6 +6951,11 @@ class CorpusBuilder:
                 sorted(
                     self.a14_user_integrations_c5_indexed_coverage.items()
                 )
+            )
+        elif batch == "A1.4 MCP and reverse requests":
+            self.a14_mcp_reverse_indexed_coverage.update(indexed_coverage)
+            self.a14_mcp_reverse_indexed_coverage = dict(
+                sorted(self.a14_mcp_reverse_indexed_coverage.items())
             )
         else:
             raise FixtureError(f"unsupported indexed union batch {batch}")
@@ -7931,6 +8164,46 @@ class CorpusBuilder:
                 f"{len(self.a14_user_integrations_c5_indexed_coverage)}"
             )
 
+    def _apply_a14_mcp_reverse_indexed_completeness(
+        self,
+        positive_records: Sequence[MutableMapping[str, Any]],
+        positive_fixture_ids: set[str],
+    ) -> None:
+        self._apply_b2_indexed_completeness(
+            positive_records,
+            positive_fixture_ids,
+            keys=self.a14_mcp_reverse_union_keys,
+            directions_by_domain=A14_MCP_REVERSE_ELICITATION_DIRECTIONS,
+            batch="A1.4 MCP and reverse requests",
+        )
+        self.a14_mcp_reverse_indexed_coverage.update(
+            self._apply_b4_operation_indexed_completeness(
+                positive_records,
+                positive_fixture_ids,
+                operation_keys=self.a14_mcp_reverse_operation_keys,
+                batch="A1.4 MCP and reverse requests",
+                known_enum_values={},
+                include_a11_operation_helpers=False,
+            )
+        )
+        self.a14_mcp_reverse_indexed_coverage.update(
+            self._apply_b5_notification_indexed_completeness(
+                positive_records,
+                positive_fixture_ids,
+                notification_keys=self.a14_mcp_reverse_notification_keys,
+                batch="A1.4 MCP and reverse requests",
+            )
+        )
+        self.a14_mcp_reverse_indexed_coverage = dict(
+            sorted(self.a14_mcp_reverse_indexed_coverage.items())
+        )
+        if len(self.a14_mcp_reverse_indexed_coverage) != 13:
+            raise FixtureError(
+                "A1.4 MCP/reverse indexed coverage must contain exactly "
+                f"13 identities, got "
+                f"{len(self.a14_mcp_reverse_indexed_coverage)}"
+            )
+
     def _build_operation_fixtures(self) -> None:
         for key, contract in sorted(self.contracts.items()):
             family = "client" if key.category == CLIENT_REQUEST else "server"
@@ -7987,11 +8260,16 @@ class CorpusBuilder:
                     or key in self.a14_user_integrations_c3_operation_keys
                     or key in self.a14_user_integrations_c4_operation_keys
                     or key in self.a14_user_integrations_c5_operation_keys
+                    or (
+                        key in self.a14_mcp_reverse_operation_keys
+                        and key.category == CLIENT_REQUEST
+                    )
                     else ("Decode",)
                     if (
                         (
                             key in self.a12_b2_operation_keys
                             or key in self.a13_approval_operation_keys
+                            or key in self.a14_mcp_reverse_operation_keys
                         )
                         and key.category == SERVER_REQUEST
                     )
@@ -8059,11 +8337,16 @@ class CorpusBuilder:
                     or key in self.a14_user_integrations_c3_operation_keys
                     or key in self.a14_user_integrations_c4_operation_keys
                     or key in self.a14_user_integrations_c5_operation_keys
+                    or (
+                        key in self.a14_mcp_reverse_operation_keys
+                        and key.category == CLIENT_REQUEST
+                    )
                     else ("Encode",)
                     if (
                         (
                             key in self.a12_b2_operation_keys
                             or key in self.a13_approval_operation_keys
+                            or key in self.a14_mcp_reverse_operation_keys
                         )
                         and key.category == SERVER_REQUEST
                     )
@@ -8240,6 +8523,23 @@ class CorpusBuilder:
                     )
                     codes = sorted({item.code for item in diagnostics})
                     if not codes:
+                        if batch == "A1.4 MCP and reverse requests":
+                            opaque_exclusions.append(
+                                {
+                                    "operation": key.name,
+                                    "root": root_name,
+                                    "instance_path": json_path(
+                                        location.instance_path
+                                    ),
+                                    "schema_path": location.schema_path,
+                                    "reason": (
+                                        "the pinned protocol intentionally "
+                                        "treats this nested JSON-schema "
+                                        "value as opaque"
+                                    ),
+                                }
+                            )
+                            continue
                         raise FixtureError(
                             f"{batch} required operation removal was accepted: "
                             f"{key.compact()}:{root_name}:"
@@ -9519,6 +9819,36 @@ class CorpusBuilder:
         self.a14_user_integrations_c5_negative_coverage[
             "operation_opaque_exclusions"
         ] = []
+
+    def _build_a14_mcp_reverse_operation_supplements(self) -> None:
+        coverage, opaque_exclusions = self._build_operation_supplements(
+            self.a14_mcp_reverse_operation_keys,
+            "A1.4 MCP and reverse requests",
+        )
+        if (
+            len(self.a14_mcp_reverse_operation_keys) != 8
+            or any(
+                self.contracts[key]["result_contract_kind"] != "Concrete"
+                for key in self.a14_mcp_reverse_operation_keys
+            )
+        ):
+            raise FixtureError(
+                "A1.4 MCP/reverse must retain exactly eight Concrete "
+                "operation contracts"
+            )
+        self.a14_mcp_reverse_operation_root_coverage = dict(
+            sorted(coverage.items())
+        )
+        self.a14_mcp_reverse_negative_coverage[
+            "operation_opaque_exclusions"
+        ] = sorted(
+            opaque_exclusions,
+            key=lambda record: (
+                record["operation"],
+                record["root"],
+                record["instance_path"],
+            ),
+        )
 
     def _add_a13_integer_boundaries(
         self,
@@ -11799,6 +12129,22 @@ class CorpusBuilder:
             expected_opaque_paths=set(),
         )
         self.a14_user_integrations_c3_negative_coverage[
+            "notification_payload_mutations"
+        ] = payload_mutations
+
+    def _build_a14_mcp_reverse_notification_fixtures(self) -> None:
+        (
+            self.a14_mcp_reverse_notification_root_coverage,
+            payload_mutations,
+        ) = self._build_notification_fixtures(
+            self.a14_mcp_reverse_notification_keys,
+            batch="A1.4 MCP and reverse requests",
+            expected_existing=0,
+            expected_generated=2,
+            expected_counts=None,
+            expected_opaque_paths=set(),
+        )
+        self.a14_mcp_reverse_negative_coverage[
             "notification_payload_mutations"
         ] = payload_mutations
 
@@ -14785,6 +15131,9 @@ class CorpusBuilder:
                 }
             )
         )
+        a14_mcp_reverse_domains = tuple(
+            sorted({key.domain for key in self.a14_mcp_reverse_union_keys})
+        )
         for domain in (
             "CodexErrorInfo",
             *b2_domains,
@@ -14844,8 +15193,24 @@ class CorpusBuilder:
                 and candidate not in a13_approval_domains
                 and candidate not in a13_review_domains
             ),
+            *(
+                candidate
+                for candidate in a14_mcp_reverse_domains
+                if candidate not in b2_domains
+                and candidate not in b3_domains
+                and candidate not in b4_domains
+                and candidate not in a12_b2_domains
+                and candidate not in a12_b4_domains
+                and candidate not in a13_approval_domains
+                and candidate not in a13_review_domains
+                and candidate not in a14_user_integrations_c5_domains
+            ),
         ):
-            target = self.catalog.union_target(domain)
+            target = (
+                self.catalog.standalone(domain)
+                if domain == "McpServerElicitationRequestParams"
+                else self.catalog.union_target(domain)
+            )
             if domain in b2_domains:
                 identities = sorted(
                     (
@@ -14913,6 +15278,8 @@ class CorpusBuilder:
                 identities = list(
                     self.a14_user_integrations_c5_union_keys
                 )
+            elif domain in a14_mcp_reverse_domains:
+                identities = list(self.a14_mcp_reverse_union_keys)
             else:
                 identities = sorted(
                     (
@@ -14953,6 +15320,24 @@ class CorpusBuilder:
                     forced_scalar,
                     forced_property,
                 )
+                if domain == "McpServerElicitationRequestParams":
+                    outer_sample = self.synthesizer.sample(target)
+                    if not isinstance(value, dict) or not isinstance(
+                        outer_sample, dict
+                    ):
+                        raise FixtureError(
+                            "MCP elicitation branch and outer samples must "
+                            "remain objects"
+                        )
+                    for outer_field in (
+                        "serverName",
+                        "threadId",
+                        "turnId",
+                    ):
+                        if outer_field in outer_sample:
+                            value[outer_field] = copy.deepcopy(
+                                outer_sample[outer_field]
+                            )
                 if key in self.a12_b2_union_keys:
                     normalize_a12_b2_sensitive_sample(value)
                 if key in self.a12_b4_union_keys:
@@ -14998,6 +15383,8 @@ class CorpusBuilder:
                             ]
                         )
                         if domain in a14_user_integrations_c5_domains
+                        else A14_MCP_REVERSE_ELICITATION_DIRECTIONS[domain]
+                        if domain in a14_mcp_reverse_domains
                         else ()
                     ),
                 )
@@ -15049,6 +15436,12 @@ class CorpusBuilder:
                 A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_DIRECTIONS
             ),
             batch="A1.4 user integrations Commit 5",
+        )
+        self._build_b2_union_supplements(
+            known_union_values,
+            keys=self.a14_mcp_reverse_union_keys,
+            directions_by_domain=A14_MCP_REVERSE_ELICITATION_DIRECTIONS,
+            batch="A1.4 MCP and reverse requests",
         )
 
         target = codex_error_target
@@ -15337,7 +15730,10 @@ class CorpusBuilder:
                 )
                 nullable_null_fixture_ids.append(null_id)
 
-            if batch == "A1.4 user integrations Commit 5":
+            if batch in {
+                "A1.4 user integrations Commit 5",
+                "A1.4 MCP and reverse requests",
+            }:
                 for location in collect_open_object_locations(
                     self.catalog, target, base_value
                 ):
@@ -15437,6 +15833,8 @@ class CorpusBuilder:
             wrong_type_fixture_ids: list[str] = []
             missing_discriminator_fixture_ids: list[str] = []
             wrong_discriminator_fixture_ids: list[str] = []
+            opaque_required_schema_paths: list[str] = []
+            opaque_wrong_type_schema_paths: list[str] = []
 
             for location in discriminator_locations:
                 missing_discriminator = copy.deepcopy(base_value)
@@ -15512,6 +15910,17 @@ class CorpusBuilder:
                     f"union:{key.domain}:{key.name}:"
                     f"missing-required:{path_slug}"
                 )
+                missing_diagnostics = validator.validate_subschema(
+                    missing, target.schema, target.schema_path
+                )
+                if (
+                    not missing_diagnostics
+                    and batch == "A1.4 MCP and reverse requests"
+                ):
+                    opaque_required_schema_paths.append(
+                        location.schema_path
+                    )
+                    continue
                 self.add_negative(
                     missing_id,
                     (
@@ -15521,7 +15930,16 @@ class CorpusBuilder:
                     "malformed_known_missing_required",
                     target,
                     missing,
-                    ["one_of_zero"],
+                    (
+                        sorted(
+                            {
+                                diagnostic.code
+                                for diagnostic in missing_diagnostics
+                            }
+                        )
+                        if batch == "A1.4 MCP and reverse requests"
+                        else ["one_of_zero"]
+                    ),
                     key,
                     "missing_required",
                 )
@@ -15575,6 +15993,7 @@ class CorpusBuilder:
                     base_value, location.instance_path
                 )
                 wrong_value: Any = NO_WRONG_TYPE_MUTATION
+                wrong_codes: list[str] = []
                 for candidate in WRONG_TYPE_CANDIDATES:
                     if canonical_json(candidate) == canonical_json(original):
                         continue
@@ -15583,12 +16002,24 @@ class CorpusBuilder:
                         mutated, location.instance_path
                     )
                     parent[field] = copy.deepcopy(candidate)
-                    if validator.validate_subschema(
+                    candidate_diagnostics = validator.validate_subschema(
                         mutated, target.schema, target.schema_path
-                    ):
+                    )
+                    if candidate_diagnostics:
                         wrong_value = mutated
+                        wrong_codes = sorted(
+                            {
+                                diagnostic.code
+                                for diagnostic in candidate_diagnostics
+                            }
+                        )
                         break
                 if wrong_value is NO_WRONG_TYPE_MUTATION:
+                    if batch == "A1.4 MCP and reverse requests":
+                        opaque_wrong_type_schema_paths.append(
+                            location.schema_path
+                        )
+                        continue
                     raise FixtureError(
                         f"{batch} property has no rejecting wrong-type "
                         f"mutation: {key.compact()}:{json_path(location.instance_path)}"
@@ -15606,7 +16037,11 @@ class CorpusBuilder:
                     "malformed_known_wrong_type",
                     target,
                     wrong_value,
-                    ["one_of_zero"],
+                    (
+                        wrong_codes
+                        if batch == "A1.4 MCP and reverse requests"
+                        else ["one_of_zero"]
+                    ),
                     key,
                     "wrong_nested_type",
                 )
@@ -15644,6 +16079,12 @@ class CorpusBuilder:
                 ),
                 "wrong_discriminator_type_fixture_ids": sorted(
                     wrong_discriminator_fixture_ids
+                ),
+                "opaque_required_schema_paths": sorted(
+                    opaque_required_schema_paths
+                ),
+                "opaque_wrong_type_schema_paths": sorted(
+                    opaque_wrong_type_schema_paths
                 ),
                 "missing_discriminator_exclusion": (
                     None
@@ -15758,6 +16199,40 @@ class CorpusBuilder:
                     "nonfatal": True,
                 },
             }
+        elif batch == "A1.4 MCP and reverse requests":
+            elicitation_target = self.catalog.standalone(
+                "McpServerElicitationRequestParams"
+            )
+            coverage["reviewed_registry_order"] = list(
+                A14_MCP_REVERSE_ELICITATION_ORDER
+            )
+            coverage["pinned_schema_branch_indices"] = {
+                key.name: branch_for_union_identity(
+                    self.catalog,
+                    elicitation_target,
+                    key.discriminator_field,
+                    key.name,
+                )[0]
+                for key in selected_keys
+            }
+            coverage["decoder_state_contract"] = {
+                "future_unknown": {
+                    "fixture_id": (
+                        "union:McpServerElicitationRequestParams:"
+                        "future-unknown"
+                    ),
+                    "preserve_discriminator": True,
+                    "preserve_raw_json": True,
+                    "diagnostic_class": "ForwardCompatibility",
+                    "nonfatal": True,
+                },
+                "malformed_known": {
+                    "preserve_raw_json": True,
+                    "diagnostic_class": "ProtocolWarning",
+                    "reclassified_as_future_unknown": False,
+                    "nonfatal": True,
+                },
+            }
         if batch == "B2":
             self.b2_negative_coverage = coverage
         elif batch == "B4":
@@ -15781,6 +16256,10 @@ class CorpusBuilder:
         elif batch == "A1.4 user integrations Commit 5":
             self.a14_user_integrations_c5_negative_coverage[
                 "plugin_source_union"
+            ] = coverage
+        elif batch == "A1.4 MCP and reverse requests":
+            self.a14_mcp_reverse_negative_coverage[
+                "mcp_elicitation_union"
             ] = coverage
         else:
             raise FixtureError(f"unsupported generic union batch {batch}")

@@ -2,7 +2,7 @@
   "counts": {
     "immutable_copies": 6726,
     "imported_files": 6805,
-    "new_standalone_files": 2039,
+    "new_standalone_files": 2043,
     "standalone_adaptations": 79
   },
   "dependency_boundary": {
@@ -47616,7 +47616,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "9c95194acee9feea9459594d503ebc2697ecdf2d96fdda1dc2c6ff6b664c7812",
+      "final_sha256": "65ee608a363490457c220300d39b096d6972dcd6f90ea0681934020e668233fe",
       "path": "tools/codex/app_server_a1_3_closure.py",
       "source_blob": "d7b0f751d822cd655c559ab50b9c2f447fed7bfe",
       "source_sha256": "7197eaf51c2fe4054a8d740339c071aa17e729a6d22e107c27b6aa6c6c7ae482"
@@ -47887,11 +47887,15 @@
     },
     {
       "path": "tests/CMakeLists.txt",
-      "sha256": "fbda3bdc55951c94940c8cf94240e9c3841bb81c227328b3922ca0ffdb5a4c9a"
+      "sha256": "c4bd70cfdbf3e8eed87dedbf16f5c2f8c086320a9305beb9bd1d89d532119279"
     },
     {
       "path": "tests/cmake/AddAISuiteTest.cmake",
       "sha256": "3c80d10eb0dab4594828401722a3472de29095a2d7b8be2e1af8e6402ee49da9"
+    },
+    {
+      "path": "tests/component/codex/CodexA14McpReverseAuditTest.py",
+      "sha256": "b4dde744ef5939e6062395ca513db70e6c6782574a5294a7a031ff75c3ac55fe"
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsAuditTest.py",
@@ -48004,6 +48008,14 @@
     {
       "path": "tests/support/TestResult.h",
       "sha256": "afd88b00da34c1ec0ea1cfbfbe639a891e8e01ca8d314fec911dcc6c08414990"
+    },
+    {
+      "path": "tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-plan.json",
+      "sha256": "0de3723a1d1568b2d14888c8bf3a3ba4162639e9f1740e6bed1803316fe82fb6"
+    },
+    {
+      "path": "tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-start-state.json",
+      "sha256": "88a58796a8f01f1c3e84740eb9e7deae14b6836127f31b7f4d9c40ab32b43044"
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
@@ -55826,6 +55838,10 @@
       "sha256": "dad7821fb7ff75e7edc8c57b77697ef5d102d53c042c11e199a999662cece1d0"
     },
     {
+      "path": "tools/codex/app_server_a1_4_mcp_reverse.py",
+      "sha256": "14e97ab4909d8cc76bbb94aede3e29aa69b2e67241d180fa68245d2439415f72"
+    },
+    {
       "path": "tools/codex/app_server_a1_4_user_integrations.py",
       "sha256": "e9d8f13e98e04202db4ad26dd1937133c4719cf3a669807672c34199d74864f9"
     },
@@ -55835,7 +55851,7 @@
     },
     {
       "path": "tools/codex/app_server_a1_4_user_integrations_closure.py",
-      "sha256": "412586343f63e06a2216f2de65cf6e60b8bfdfad493a278995d1c9ed42bd524a"
+      "sha256": "845c429aa6b1b120856f1c4bae09203641b455fc5a9e438f4af500a60d3f4d65"
     },
     {
       "path": "tools/extraction/filter_history.py",
@@ -55847,7 +55863,7 @@
     },
     {
       "path": "tools/extraction/verify_extraction.py",
-      "sha256": "22e776fb029463d9638fa53d0d5146c6a2b973b17026a3f18cfa5b79159fe1ca"
+      "sha256": "01316dd7671276a044c267eee2d79d01223503a02f99afd8d78bdb3a81c811a2"
     }
   ]
 }

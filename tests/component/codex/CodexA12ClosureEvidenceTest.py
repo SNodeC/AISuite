@@ -132,7 +132,7 @@ class CodexA12ClosureEvidenceTest(unittest.TestCase):
             272, counts["type_closure"]["property_declarations"]
         )
 
-    def test_live_pr_a_successor_is_projected_historically(self) -> None:
+    def test_live_reviewed_successor_is_projected_historically(self) -> None:
         arguments = tool_arguments(self.tool)
         rows = self.tool.surface.parse_registry_data(arguments.registry)
         registry = self.tool.indexed(
@@ -143,14 +143,23 @@ class CodexA12ClosureEvidenceTest(unittest.TestCase):
         self.tool.validate_successor_registry(registry)
         self.assertIn(
             self.tool.status_counts(registry.values()),
-            self.tool.EXPECTED_USER_INTEGRATION_SUCCESSOR_GLOBAL_STATUS,
+            self.tool.EXPECTED_REVIEWED_A1_4_SUCCESSOR_GLOBAL_STATUS,
         )
         self.assertEqual(
             self.tool.a1_2.EXPECTED_FINAL_GLOBAL_STATUS,
             self.expected["counts"]["global_schema_status"],
         )
+        live_status = self.tool.status_counts(registry.values())
+        expected_partial_count = (
+            3
+            if live_status
+            == dict(
+                self.tool.a1_2.a11.MCP_REVERSE_STAGES[-1]["global"]
+            )
+            else 4
+        )
         self.assertEqual(
-            4,
+            expected_partial_count,
             sum(
                 row["typed_schema_status"] == "Partial"
                 for row in registry.values()

@@ -3,18 +3,18 @@
   "codex_version": "codex-cli 0.144.6",
   "counts": {
     "facts_true_by_field": {
-      "authoritative_root_association": 326,
-      "fixture_current": 326,
-      "independently_schema_validated": 326,
-      "nullable_semantics_exercised": 313,
-      "optional_omitted_exercised": 326,
-      "optional_present_exercised": 326,
-      "positive_fixture_coverage": 326,
-      "reachable_union_alternatives_exercised": 313,
-      "required_fields_exercised": 326,
-      "schema_properties_exercised": 313
+      "authoritative_root_association": 331,
+      "fixture_current": 331,
+      "independently_schema_validated": 331,
+      "nullable_semantics_exercised": 326,
+      "optional_omitted_exercised": 331,
+      "optional_present_exercised": 331,
+      "positive_fixture_coverage": 331,
+      "reachable_union_alternatives_exercised": 326,
+      "required_fields_exercised": 331,
+      "schema_properties_exercised": 326
     },
-    "identities_with_positive_fixtures": 326,
+    "identities_with_positive_fixtures": 331,
     "surface_identities": 387
   },
   "format_version": 1,
@@ -1765,9 +1765,15 @@
     {
       "fixture_ids": [
         "operation:client_request:mcpServer/oauth/login:params",
+        "operation:client_request:mcpServer/oauth/login:params:nullable-null:scopes",
+        "operation:client_request:mcpServer/oauth/login:params:nullable-null:threadid",
+        "operation:client_request:mcpServer/oauth/login:params:nullable-null:timeoutsecs",
+        "operation:client_request:mcpServer/oauth/login:params:optional-omitted:scopes",
+        "operation:client_request:mcpServer/oauth/login:params:optional-omitted:threadid",
+        "operation:client_request:mcpServer/oauth/login:params:optional-omitted:timeoutsecs",
         "operation:client_request:mcpServer/oauth/login:result"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 8,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1778,21 +1784,27 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:mcpServer/resource/read:params",
-        "operation:client_request:mcpServer/resource/read:result"
+        "operation:client_request:mcpServer/resource/read:params:nullable-null:threadid",
+        "operation:client_request:mcpServer/resource/read:params:optional-omitted:threadid",
+        "operation:client_request:mcpServer/resource/read:result",
+        "operation:client_request:mcpServer/resource/read:result:nullable-null:contents-0-_meta",
+        "operation:client_request:mcpServer/resource/read:result:nullable-null:contents-0-mimetype",
+        "operation:client_request:mcpServer/resource/read:result:optional-omitted:contents-0-_meta",
+        "operation:client_request:mcpServer/resource/read:result:optional-omitted:contents-0-mimetype"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 8,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1803,21 +1815,31 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:mcpServer/tool/call:params",
-        "operation:client_request:mcpServer/tool/call:result"
+        "operation:client_request:mcpServer/tool/call:params:nullable-null:_meta",
+        "operation:client_request:mcpServer/tool/call:params:nullable-null:arguments",
+        "operation:client_request:mcpServer/tool/call:params:optional-omitted:_meta",
+        "operation:client_request:mcpServer/tool/call:params:optional-omitted:arguments",
+        "operation:client_request:mcpServer/tool/call:result",
+        "operation:client_request:mcpServer/tool/call:result:nullable-null:_meta",
+        "operation:client_request:mcpServer/tool/call:result:nullable-null:iserror",
+        "operation:client_request:mcpServer/tool/call:result:nullable-null:structuredcontent",
+        "operation:client_request:mcpServer/tool/call:result:optional-omitted:_meta",
+        "operation:client_request:mcpServer/tool/call:result:optional-omitted:iserror",
+        "operation:client_request:mcpServer/tool/call:result:optional-omitted:structuredcontent"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 12,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1828,21 +1850,76 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:client_request:mcpServerStatus/list:params",
-        "operation:client_request:mcpServerStatus/list:result"
+        "operation:client_request:mcpServerStatus/list:params:nullable-null:cursor",
+        "operation:client_request:mcpServerStatus/list:params:nullable-null:detail",
+        "operation:client_request:mcpServerStatus/list:params:nullable-null:limit",
+        "operation:client_request:mcpServerStatus/list:params:nullable-null:threadid",
+        "operation:client_request:mcpServerStatus/list:params:optional-omitted:cursor",
+        "operation:client_request:mcpServerStatus/list:params:optional-omitted:detail",
+        "operation:client_request:mcpServerStatus/list:params:optional-omitted:limit",
+        "operation:client_request:mcpServerStatus/list:params:optional-omitted:threadid",
+        "operation:client_request:mcpServerStatus/list:result",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resources-0-_meta",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resources-0-annotations",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resources-0-description",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resources-0-icons",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resources-0-mimetype",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resources-0-size",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resources-0-title",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resourcetemplates-0-annotations",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resourcetemplates-0-description",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resourcetemplates-0-mimetype",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-resourcetemplates-0-title",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-serverinfo",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-serverinfo-description",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-serverinfo-icons",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-serverinfo-title",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-serverinfo-websiteurl",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-tools-synthetickey-_meta",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-tools-synthetickey-annotations",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-tools-synthetickey-description",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-tools-synthetickey-icons",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-tools-synthetickey-outputschema",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:data-0-tools-synthetickey-title",
+        "operation:client_request:mcpServerStatus/list:result:nullable-null:nextcursor",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resources-0-_meta",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resources-0-annotations",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resources-0-description",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resources-0-icons",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resources-0-mimetype",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resources-0-size",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resources-0-title",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resourcetemplates-0-annotations",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resourcetemplates-0-description",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resourcetemplates-0-mimetype",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-resourcetemplates-0-title",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-serverinfo",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-serverinfo-description",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-serverinfo-icons",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-serverinfo-title",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-serverinfo-websiteurl",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-tools-synthetickey-_meta",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-tools-synthetickey-annotations",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-tools-synthetickey-description",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-tools-synthetickey-icons",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-tools-synthetickey-outputschema",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:data-0-tools-synthetickey-title",
+        "operation:client_request:mcpServerStatus/list:result:optional-omitted:nextcursor",
+        "operation:client_request:mcpServerStatus/list:result:required-nullable-null:data-0-tools-synthetickey-inputschema"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 57,
       "protocol_surface_key": {
         "category": "client_request",
         "discriminator_field": "method",
@@ -1853,13 +1930,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -6711,8 +6788,14 @@
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "baseline:server_notification:ServerNotification:method:mcpServer/oauthLogin/completed",
+        "baseline:server_notification:ServerNotification:method:mcpServer/oauthLogin/completed:nullable-null:params-error",
+        "baseline:server_notification:ServerNotification:method:mcpServer/oauthLogin/completed:nullable-null:params-threadid",
+        "baseline:server_notification:ServerNotification:method:mcpServer/oauthLogin/completed:optional-omitted:params-error",
+        "baseline:server_notification:ServerNotification:method:mcpServer/oauthLogin/completed:optional-omitted:params-threadid"
+      ],
+      "positive_fixture_count": 5,
       "protocol_surface_key": {
         "category": "server_notification",
         "discriminator_field": "method",
@@ -6720,21 +6803,29 @@
         "name": "mcpServer/oauthLogin/completed"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "baseline:server_notification:ServerNotification:method:mcpServer/startupStatus/updated",
+        "baseline:server_notification:ServerNotification:method:mcpServer/startupStatus/updated:nullable-null:params-error",
+        "baseline:server_notification:ServerNotification:method:mcpServer/startupStatus/updated:nullable-null:params-failurereason",
+        "baseline:server_notification:ServerNotification:method:mcpServer/startupStatus/updated:nullable-null:params-threadid",
+        "baseline:server_notification:ServerNotification:method:mcpServer/startupStatus/updated:optional-omitted:params-error",
+        "baseline:server_notification:ServerNotification:method:mcpServer/startupStatus/updated:optional-omitted:params-failurereason",
+        "baseline:server_notification:ServerNotification:method:mcpServer/startupStatus/updated:optional-omitted:params-threadid"
+      ],
+      "positive_fixture_count": 7,
       "protocol_surface_key": {
         "category": "server_notification",
         "discriminator_field": "method",
@@ -6742,16 +6833,16 @@
         "name": "mcpServer/startupStatus/updated"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {
@@ -7800,13 +7891,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -8019,9 +8110,12 @@
     {
       "fixture_ids": [
         "operation:server_request:item/tool/call:params",
+        "operation:server_request:item/tool/call:params:nullable-null:namespace",
+        "operation:server_request:item/tool/call:params:optional-omitted:namespace",
+        "operation:server_request:item/tool/call:params:required-nullable-null:arguments",
         "operation:server_request:item/tool/call:result"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 5,
       "protocol_surface_key": {
         "category": "server_request",
         "discriminator_field": "method",
@@ -8032,22 +8126,28 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "baseline:server_request:ServerRequest:method:item/tool/requestUserInput",
         "operation:server_request:item/tool/requestUserInput:params",
+        "operation:server_request:item/tool/requestUserInput:params:nullable-null:autoresolutionms",
+        "operation:server_request:item/tool/requestUserInput:params:nullable-null:questions-0-options",
+        "operation:server_request:item/tool/requestUserInput:params:optional-omitted:autoresolutionms",
+        "operation:server_request:item/tool/requestUserInput:params:optional-omitted:questions-0-isother",
+        "operation:server_request:item/tool/requestUserInput:params:optional-omitted:questions-0-issecret",
+        "operation:server_request:item/tool/requestUserInput:params:optional-omitted:questions-0-options",
         "operation:server_request:item/tool/requestUserInput:result"
       ],
-      "positive_fixture_count": 3,
+      "positive_fixture_count": 9,
       "protocol_surface_key": {
         "category": "server_request",
         "discriminator_field": "method",
@@ -8058,21 +8158,39 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
       "fixture_ids": [
         "operation:server_request:mcpServer/elicitation/request:params",
-        "operation:server_request:mcpServer/elicitation/request:result"
+        "operation:server_request:mcpServer/elicitation/request:params:nullable-null:_meta",
+        "operation:server_request:mcpServer/elicitation/request:params:nullable-null:requestedschema-properties-synthetickey-default",
+        "operation:server_request:mcpServer/elicitation/request:params:nullable-null:requestedschema-properties-synthetickey-description",
+        "operation:server_request:mcpServer/elicitation/request:params:nullable-null:requestedschema-properties-synthetickey-title",
+        "operation:server_request:mcpServer/elicitation/request:params:nullable-null:requestedschema-required",
+        "operation:server_request:mcpServer/elicitation/request:params:nullable-null:requestedschema-schema",
+        "operation:server_request:mcpServer/elicitation/request:params:nullable-null:turnid",
+        "operation:server_request:mcpServer/elicitation/request:params:optional-omitted:_meta",
+        "operation:server_request:mcpServer/elicitation/request:params:optional-omitted:requestedschema-properties-synthetickey-default",
+        "operation:server_request:mcpServer/elicitation/request:params:optional-omitted:requestedschema-properties-synthetickey-description",
+        "operation:server_request:mcpServer/elicitation/request:params:optional-omitted:requestedschema-properties-synthetickey-title",
+        "operation:server_request:mcpServer/elicitation/request:params:optional-omitted:requestedschema-required",
+        "operation:server_request:mcpServer/elicitation/request:params:optional-omitted:requestedschema-schema",
+        "operation:server_request:mcpServer/elicitation/request:params:optional-omitted:turnid",
+        "operation:server_request:mcpServer/elicitation/request:result",
+        "operation:server_request:mcpServer/elicitation/request:result:nullable-null:_meta",
+        "operation:server_request:mcpServer/elicitation/request:result:nullable-null:content",
+        "operation:server_request:mcpServer/elicitation/request:result:optional-omitted:_meta",
+        "operation:server_request:mcpServer/elicitation/request:result:optional-omitted:content"
       ],
-      "positive_fixture_count": 2,
+      "positive_fixture_count": 20,
       "protocol_surface_key": {
         "category": "server_request",
         "discriminator_field": "method",
@@ -8083,13 +8201,13 @@
         "authoritative_root_association": true,
         "fixture_current": true,
         "independently_schema_validated": true,
-        "nullable_semantics_exercised": false,
+        "nullable_semantics_exercised": true,
         "optional_omitted_exercised": true,
         "optional_present_exercised": true,
         "positive_fixture_coverage": true,
-        "reachable_union_alternatives_exercised": false,
+        "reachable_union_alternatives_exercised": true,
         "required_fields_exercised": true,
-        "schema_properties_exercised": false
+        "schema_properties_exercised": true
       }
     },
     {
@@ -10191,8 +10309,25 @@
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "union:McpServerElicitationRequestParams:form",
+        "union:McpServerElicitationRequestParams:form:future-open-object:root",
+        "union:McpServerElicitationRequestParams:form:nullable-null:_meta",
+        "union:McpServerElicitationRequestParams:form:nullable-null:requestedschema-properties-synthetickey-default",
+        "union:McpServerElicitationRequestParams:form:nullable-null:requestedschema-properties-synthetickey-description",
+        "union:McpServerElicitationRequestParams:form:nullable-null:requestedschema-properties-synthetickey-title",
+        "union:McpServerElicitationRequestParams:form:nullable-null:requestedschema-required",
+        "union:McpServerElicitationRequestParams:form:nullable-null:requestedschema-schema",
+        "union:McpServerElicitationRequestParams:form:nullable-null:turnid",
+        "union:McpServerElicitationRequestParams:form:optional-omitted:_meta",
+        "union:McpServerElicitationRequestParams:form:optional-omitted:requestedschema-properties-synthetickey-default",
+        "union:McpServerElicitationRequestParams:form:optional-omitted:requestedschema-properties-synthetickey-description",
+        "union:McpServerElicitationRequestParams:form:optional-omitted:requestedschema-properties-synthetickey-title",
+        "union:McpServerElicitationRequestParams:form:optional-omitted:requestedschema-required",
+        "union:McpServerElicitationRequestParams:form:optional-omitted:requestedschema-schema",
+        "union:McpServerElicitationRequestParams:form:optional-omitted:turnid"
+      ],
+      "positive_fixture_count": 16,
       "protocol_surface_key": {
         "category": "tagged_union_discriminator",
         "discriminator_field": "mode",
@@ -10200,21 +10335,29 @@
         "name": "form"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "union:McpServerElicitationRequestParams:openai/form",
+        "union:McpServerElicitationRequestParams:openai/form:future-open-object:root",
+        "union:McpServerElicitationRequestParams:openai/form:nullable-null:_meta",
+        "union:McpServerElicitationRequestParams:openai/form:nullable-null:turnid",
+        "union:McpServerElicitationRequestParams:openai/form:optional-omitted:_meta",
+        "union:McpServerElicitationRequestParams:openai/form:optional-omitted:turnid",
+        "union:McpServerElicitationRequestParams:openai/form:required-nullable-null:requestedschema"
+      ],
+      "positive_fixture_count": 7,
       "protocol_surface_key": {
         "category": "tagged_union_discriminator",
         "discriminator_field": "mode",
@@ -10222,21 +10365,28 @@
         "name": "openai/form"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {
-      "fixture_ids": [],
-      "positive_fixture_count": 0,
+      "fixture_ids": [
+        "union:McpServerElicitationRequestParams:url",
+        "union:McpServerElicitationRequestParams:url:future-open-object:root",
+        "union:McpServerElicitationRequestParams:url:nullable-null:_meta",
+        "union:McpServerElicitationRequestParams:url:nullable-null:turnid",
+        "union:McpServerElicitationRequestParams:url:optional-omitted:_meta",
+        "union:McpServerElicitationRequestParams:url:optional-omitted:turnid"
+      ],
+      "positive_fixture_count": 6,
       "protocol_surface_key": {
         "category": "tagged_union_discriminator",
         "discriminator_field": "mode",
@@ -10244,16 +10394,16 @@
         "name": "url"
       },
       "schema_fixture_facts": {
-        "authoritative_root_association": false,
-        "fixture_current": false,
-        "independently_schema_validated": false,
-        "nullable_semantics_exercised": false,
-        "optional_omitted_exercised": false,
-        "optional_present_exercised": false,
-        "positive_fixture_coverage": false,
-        "reachable_union_alternatives_exercised": false,
-        "required_fields_exercised": false,
-        "schema_properties_exercised": false
+        "authoritative_root_association": true,
+        "fixture_current": true,
+        "independently_schema_validated": true,
+        "nullable_semantics_exercised": true,
+        "optional_omitted_exercised": true,
+        "optional_present_exercised": true,
+        "positive_fixture_coverage": true,
+        "reachable_union_alternatives_exercised": true,
+        "required_fields_exercised": true,
+        "schema_properties_exercised": true
       }
     },
     {

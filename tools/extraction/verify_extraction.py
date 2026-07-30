@@ -14,18 +14,115 @@ from typing import Any
 SOURCE_REPOSITORY = "https://github.com/SNodeC/snode.c"
 SOURCE_COMMIT = "d18b231a1d2ec2235fd6f204786b0a761cc24ff5"
 SOURCE_TREE = "88a63edc985a851b2b76b0c56df19fae74ea8069"
-EXPECTED_PROTOCOL_STATUS = {
+BASELINE_PROTOCOL_STATUS = {
     "Complete": 313,
     "Partial": 4,
     "NotImplemented": 22,
     "NotApplicable": 48,
 }
-EXPECTED_PARTIAL_IDENTITIES = {
+BASELINE_PARTIAL_IDENTITIES = {
     "initialize",
     "initialized",
     "error",
     "item/tool/requestUserInput",
 }
+FINAL_A1_4B_PARTIAL_IDENTITIES = {"initialize", "initialized", "error"}
+A1_4B_BATCH_3_IDENTITIES = {
+    ("client_request", "ClientRequest", "method", "mcpServer/oauth/login"),
+    ("client_request", "ClientRequest", "method", "mcpServer/resource/read"),
+    ("client_request", "ClientRequest", "method", "mcpServer/tool/call"),
+    ("client_request", "ClientRequest", "method", "mcpServerStatus/list"),
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "mcpServer/oauthLogin/completed",
+    ),
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "mcpServer/startupStatus/updated",
+    ),
+}
+A1_4B_BATCH_4_IDENTITIES = {
+    ("server_request", "ServerRequest", "method", "attestation/generate"),
+    ("server_request", "ServerRequest", "method", "item/tool/call"),
+}
+A1_4B_BATCH_5_IDENTITIES = {
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "item/tool/requestUserInput",
+    ),
+    (
+        "server_request",
+        "ServerRequest",
+        "method",
+        "mcpServer/elicitation/request",
+    ),
+    (
+        "tagged_union_discriminator",
+        "McpServerElicitationRequestParams",
+        "mode",
+        "form",
+    ),
+    (
+        "tagged_union_discriminator",
+        "McpServerElicitationRequestParams",
+        "mode",
+        "openai/form",
+    ),
+    (
+        "tagged_union_discriminator",
+        "McpServerElicitationRequestParams",
+        "mode",
+        "url",
+    ),
+}
+A1_4B_IDENTITIES = (
+    A1_4B_BATCH_3_IDENTITIES
+    | A1_4B_BATCH_4_IDENTITIES
+    | A1_4B_BATCH_5_IDENTITIES
+)
+EXPECTED_PROTOCOL_STAGES = (
+    (
+        frozenset(),
+        BASELINE_PROTOCOL_STATUS,
+        BASELINE_PARTIAL_IDENTITIES,
+    ),
+    (
+        frozenset(A1_4B_BATCH_3_IDENTITIES),
+        {
+            "Complete": 319,
+            "Partial": 4,
+            "NotImplemented": 16,
+            "NotApplicable": 48,
+        },
+        BASELINE_PARTIAL_IDENTITIES,
+    ),
+    (
+        frozenset(A1_4B_BATCH_3_IDENTITIES | A1_4B_BATCH_4_IDENTITIES),
+        {
+            "Complete": 321,
+            "Partial": 4,
+            "NotImplemented": 14,
+            "NotApplicable": 48,
+        },
+        BASELINE_PARTIAL_IDENTITIES,
+    ),
+    (
+        frozenset(A1_4B_IDENTITIES),
+        {
+            "Complete": 326,
+            "Partial": 3,
+            "NotImplemented": 10,
+            "NotApplicable": 48,
+        },
+        FINAL_A1_4B_PARTIAL_IDENTITIES,
+    ),
+)
 MANIFEST_PATH = Path("docs/extraction/source-manifest.json")
 FILTER_MAP_PATH = Path("docs/extraction/filter-map.json")
 GENERATION_PROOF_SELF_REFERENCE_EXCLUSIONS = (
@@ -140,13 +237,13 @@ def baseline_entries(root: Path, baseline: str) -> list[tuple[str, str]]:
     return rows
 
 
-def registry_status(root: Path) -> tuple[dict[str, int], set[str]]:
+def registry_rows(root: Path) -> list[dict[str, Any]]:
     tools = root / "tools/codex"
     sys.path.insert(0, str(tools))
     try:
         import app_server_surface as surface
 
-        rows = surface.parse_registry_data(
+        return surface.parse_registry_data(
             root / "src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc"
         )
     finally:
@@ -154,7 +251,11 @@ def registry_status(root: Path) -> tuple[dict[str, int], set[str]]:
             sys.path.remove(str(tools))
         except ValueError:
             pass
-    counts = {name: 0 for name in EXPECTED_PROTOCOL_STATUS}
+
+
+def registry_status(root: Path) -> tuple[dict[str, int], set[str]]:
+    rows = registry_rows(root)
+    counts = {name: 0 for name in BASELINE_PROTOCOL_STATUS}
     partials: set[str] = set()
     for row in rows:
         status = str(row["typed_schema_status"])
@@ -164,6 +265,76 @@ def registry_status(root: Path) -> tuple[dict[str, int], set[str]]:
     if sum(counts.values()) != 387:
         raise ExtractionError(f"registry parse produced {sum(counts.values())} identities")
     return counts, partials
+
+
+def validate_protocol_state(
+    root: Path, counts: dict[str, int], partials: set[str]
+) -> None:
+    rows = registry_rows(root)
+    scope_status = {
+        (
+            str(row["category"]),
+            str(row["domain"]),
+            str(row["discriminator_field"]),
+            str(row["name"]),
+        ): str(row["typed_schema_status"])
+        for row in rows
+        if (
+            str(row["category"]),
+            str(row["domain"]),
+            str(row["discriminator_field"]),
+            str(row["name"]),
+        )
+        in A1_4B_IDENTITIES
+    }
+    if set(scope_status) != A1_4B_IDENTITIES:
+        raise ExtractionError(
+            "A1.4b protocol identity set changed: "
+            f"missing={sorted(A1_4B_IDENTITIES-set(scope_status))}"
+        )
+    completed = frozenset(
+        identity
+        for identity, status in scope_status.items()
+        if status == "Complete"
+    )
+    matching = [
+        (expected_counts, expected_partials)
+        for expected_completed, expected_counts, expected_partials
+        in EXPECTED_PROTOCOL_STAGES
+        if completed == expected_completed
+    ]
+    if not matching:
+        raise ExtractionError(
+            "A1.4b protocol promotions do not match an exact reviewed stage: "
+            f"completed={sorted(completed)}"
+        )
+    expected_counts, expected_partials = matching[0]
+    if counts != expected_counts or partials != expected_partials:
+        raise ExtractionError(
+            f"protocol state changed: counts={counts}, partials={sorted(partials)}"
+        )
+    expected_scope_status = {
+        identity: (
+            "Complete"
+            if identity in completed
+            else (
+                "Partial"
+                if identity
+                == (
+                    "server_request",
+                    "ServerRequest",
+                    "method",
+                    "item/tool/requestUserInput",
+                )
+                else "NotImplemented"
+            )
+        )
+        for identity in A1_4B_IDENTITIES
+    }
+    if scope_status != expected_scope_status:
+        raise ExtractionError(
+            "A1.4b protocol identity statuses changed outside the reviewed batches"
+        )
 
 
 def dependency_boundary(root: Path) -> dict[str, Any]:
@@ -253,10 +424,7 @@ def generate(root: Path, output: Path) -> dict[str, Any]:
 
     counts, partials = registry_status(root)
     boundary = dependency_boundary(root)
-    if counts != EXPECTED_PROTOCOL_STATUS or partials != EXPECTED_PARTIAL_IDENTITIES:
-        raise ExtractionError(
-            f"protocol state changed: counts={counts}, partials={sorted(partials)}"
-        )
+    validate_protocol_state(root, counts, partials)
     if boundary["findings"]:
         raise ExtractionError(
             "invalid cross-repository dependency: " + ", ".join(boundary["findings"])
@@ -388,10 +556,7 @@ def check(root: Path, manifest_path: Path) -> dict[str, Any]:
         raise ExtractionError(f"extraction file set changed: missing={missing}, extra={extra}")
 
     counts, partials = registry_status(root)
-    if counts != EXPECTED_PROTOCOL_STATUS:
-        raise ExtractionError(f"registry status changed: {counts}")
-    if partials != EXPECTED_PARTIAL_IDENTITIES:
-        raise ExtractionError(f"partial identity set changed: {sorted(partials)}")
+    validate_protocol_state(root, counts, partials)
     if manifest["protocol_state"]["counts"] != counts:
         raise ExtractionError("manifest protocol counts changed")
     if manifest["protocol_state"]["partial_identities"] != sorted(partials):
@@ -588,10 +753,9 @@ def check_package(root: Path, manifest_path: Path) -> dict[str, Any]:
     if counts != expected_counts:
         raise ExtractionError("packaged extraction counts changed")
     registry_counts, partials = registry_status(root)
+    validate_protocol_state(root, registry_counts, partials)
     if (
-        registry_counts != EXPECTED_PROTOCOL_STATUS
-        or partials != EXPECTED_PARTIAL_IDENTITIES
-        or manifest.get("protocol_state")
+        manifest.get("protocol_state")
         != {
             "counts": registry_counts,
             "partial_identities": sorted(partials),

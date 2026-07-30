@@ -184,4 +184,24 @@ set_tests_properties(
         TIMEOUT 90
 )
 
+add_test(
+    NAME CodexA14McpReverseAuditTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14McpReverseAuditTest.py
+        --tool ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_mcp_reverse.py
+        --repo-root ${PROJECT_SOURCE_DIR}
+        --start-state ${CODEX_A14_EVIDENCE_ROOT}/a1-4-mcp-reverse-start-state.json
+        --batch-plan ${CODEX_A14_EVIDENCE_ROOT}/a1-4-mcp-reverse-plan.json
+)
+set_tests_properties(
+    CodexA14McpReverseAuditTest
+    PROPERTIES
+        DEPENDS CodexA14UserIntegrationsClosureTest
+        LABELS "component;ai;openai;codex;phase-a1-4;mcp-reverse;schema;audit;generated;extraction"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 90
+)
+
 add_subdirectory(policy)

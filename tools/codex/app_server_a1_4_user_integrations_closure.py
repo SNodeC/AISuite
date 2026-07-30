@@ -41,6 +41,183 @@ FINAL_NATIVE_STATUS = {
     "NotImplemented": 22,
     "Total": 56,
 }
+FROZEN_REPORT_SHA256 = (
+    "07a7e1c1137ae24c205904c364a4b322b7ec69a609f57503ae321639172c0b1f"
+)
+SUCCESSOR_PROMOTION_FIELDS = {
+    "runtime_disposition",
+    "runtime_target",
+    "schema_completeness",
+    "typed_schema_status",
+    "typed_status",
+}
+MCP_REVERSE_PARTIAL_KEY = (
+    "server_request",
+    "ServerRequest",
+    "method",
+    "item/tool/requestUserInput",
+)
+MCP_REVERSE_STAGES = (
+    {
+        "commit": 2,
+        "identities": (),
+        "global": FINAL_GLOBAL_STATUS,
+        "native": FINAL_NATIVE_STATUS,
+        "residual_partial": {
+            "error",
+            "initialize",
+            "initialized",
+            "item/tool/requestUserInput",
+        },
+    },
+    {
+        "commit": 3,
+        "identities": (
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/oauth/login",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/resource/read",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServer/tool/call",
+            ),
+            (
+                "client_request",
+                "ClientRequest",
+                "method",
+                "mcpServerStatus/list",
+            ),
+            (
+                "server_notification",
+                "ServerNotification",
+                "method",
+                "mcpServer/oauthLogin/completed",
+            ),
+            (
+                "server_notification",
+                "ServerNotification",
+                "method",
+                "mcpServer/startupStatus/updated",
+            ),
+        ),
+        "global": {
+            "Complete": 319,
+            "Partial": 4,
+            "NotImplemented": 16,
+            "NotApplicable": 48,
+            "Total": 387,
+        },
+        "native": {
+            "Complete": 39,
+            "Partial": 1,
+            "NotImplemented": 16,
+            "Total": 56,
+        },
+        "residual_partial": {
+            "error",
+            "initialize",
+            "initialized",
+            "item/tool/requestUserInput",
+        },
+    },
+    {
+        "commit": 4,
+        "identities": (
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "attestation/generate",
+            ),
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "item/tool/call",
+            ),
+        ),
+        "global": {
+            "Complete": 321,
+            "Partial": 4,
+            "NotImplemented": 14,
+            "NotApplicable": 48,
+            "Total": 387,
+        },
+        "native": {
+            "Complete": 41,
+            "Partial": 1,
+            "NotImplemented": 14,
+            "Total": 56,
+        },
+        "residual_partial": {
+            "error",
+            "initialize",
+            "initialized",
+            "item/tool/requestUserInput",
+        },
+    },
+    {
+        "commit": 5,
+        "identities": (
+            MCP_REVERSE_PARTIAL_KEY,
+            (
+                "server_request",
+                "ServerRequest",
+                "method",
+                "mcpServer/elicitation/request",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "form",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "openai/form",
+            ),
+            (
+                "tagged_union_discriminator",
+                "McpServerElicitationRequestParams",
+                "mode",
+                "url",
+            ),
+        ),
+        "global": {
+            "Complete": 326,
+            "Partial": 3,
+            "NotImplemented": 10,
+            "NotApplicable": 48,
+            "Total": 387,
+        },
+        "native": {
+            "Complete": 46,
+            "Partial": 0,
+            "NotImplemented": 10,
+            "Total": 56,
+        },
+        "residual_partial": {
+            "error",
+            "initialize",
+            "initialized",
+        },
+    },
+)
+MCP_REVERSE_AUDIT_RELATIVE_PATH = (
+    "tools/codex/app_server_a1_4_mcp_reverse.py"
+)
 RESIDUAL_PARTIAL_NAMES = (
     "error",
     "initialize",
@@ -409,6 +586,133 @@ def _status(rows: Iterable[Mapping[str, Any]]) -> dict[str, int]:
         "NotApplicable": counts["NotApplicable"],
         "Total": sum(counts.values()),
     }
+
+
+def _validate_mcp_reverse_successor(
+    current_rows: Sequence[Mapping[str, Any]],
+    base_rows: Sequence[Mapping[str, Any]],
+) -> Mapping[str, Any]:
+    """Validate one exact A1.4b registry stage over the frozen PR-A result."""
+
+    current = _index(
+        current_rows,
+        code="UserIntegrationSuccessorMismatch",
+        location="$.successor_registry",
+    )
+    base = _index(
+        base_rows,
+        code="UserIntegrationSuccessorMismatch",
+        location="$.successor_registry.base",
+    )
+    _require(
+        set(current) == set(base) and len(current) == 387,
+        "UserIntegrationSuccessorMismatch",
+        "$.successor_registry",
+        "A1.4b changed the frozen registry denominator",
+    )
+
+    global_status = _status(current.values())
+    matching = [
+        stage
+        for stage in MCP_REVERSE_STAGES
+        if global_status == stage["global"]
+    ]
+    _require(
+        len(matching) == 1,
+        "UserIntegrationSuccessorMismatch",
+        "$.successor_registry.counts",
+        "registry status is not an exact A1.4b Commit 3, 4, or 5 stage",
+    )
+    stage = matching[0]
+    cumulative: set[Key] = set()
+    for candidate in MCP_REVERSE_STAGES:
+        cumulative.update(candidate["identities"])
+        if candidate is stage:
+            break
+
+    changed = {key for key in current if current[key] != base[key]}
+    _require(
+        changed == cumulative,
+        "UserIntegrationSuccessorMismatch",
+        "$.successor_registry.identities",
+        "A1.4b changed an identity outside its exact cumulative batch",
+    )
+    runtime_targets: list[str] = []
+    for key in sorted(cumulative):
+        before = base[key]
+        after = current[key]
+        changed_fields = {
+            field
+            for field in set(before) | set(after)
+            if before.get(field) != after.get(field)
+        }
+        expected_fields = (
+            {"schema_completeness", "typed_schema_status"}
+            if key == MCP_REVERSE_PARTIAL_KEY
+            else SUCCESSOR_PROMOTION_FIELDS
+        )
+        completeness = after.get("schema_completeness")
+        runtime_target = str(after.get("runtime_target", ""))
+        _require(
+            changed_fields == expected_fields
+            and after.get("runtime_disposition") == "Typed"
+            and after.get("typed_status") == "Implemented"
+            and after.get("typed_schema_status") == "Complete"
+            and runtime_target not in {"", "std::monostate{}"}
+            and isinstance(completeness, Mapping)
+            and bool(completeness)
+            and all(value is True for value in completeness.values()),
+            "UserIntegrationSuccessorMismatch",
+            f"$.successor_registry.identities.{key[3]}",
+            "A1.4b promotion differs from its exact typed Complete transition",
+        )
+        runtime_targets.append(runtime_target)
+    _require(
+        len(runtime_targets) == len(set(runtime_targets)),
+        "UserIntegrationSuccessorMismatch",
+        "$.successor_registry.runtime_targets",
+        "A1.4b runtime targets are missing or duplicated",
+    )
+
+    native_status_full = _status(
+        row for row in current.values() if row["a1_slice"] == "A1.4"
+    )
+    native_status = {
+        key: native_status_full[key]
+        for key in ("Complete", "Partial", "NotImplemented", "Total")
+    }
+    residual_partial = {
+        key[3]
+        for key, row in current.items()
+        if row["typed_schema_status"] == "Partial"
+    }
+    _require(
+        native_status == stage["native"]
+        and residual_partial == stage["residual_partial"],
+        "UserIntegrationSuccessorMismatch",
+        "$.successor_registry.counts",
+        "A1.4b native status or residual Partial identities changed",
+    )
+    return stage
+
+
+def _has_mcp_reverse_successor_marker(repo_root: Path) -> bool:
+    """Recognize the reviewed A1.4b audit boundary before registry promotion."""
+
+    path = repo_root / MCP_REVERSE_AUDIT_RELATIVE_PATH
+    if not path.is_file():
+        return False
+    text = path.read_text(encoding="utf-8")
+    return all(
+        token in text
+        for token in (
+            'EXPECTED_BASE_SHA = "0c3a5838359eb283aca67840325ce6019345b462"',
+            "CLIENT_REQUESTS = (",
+            "SERVER_NOTIFICATIONS = (",
+            "SERVER_REQUESTS = (",
+            'ELICITATION_MODES = ("form", "openai/form", "url")',
+        )
+    )
 
 
 def _variant(source: str, alias: str) -> list[str]:
@@ -3928,9 +4232,46 @@ def regenerate_all(arguments: argparse.Namespace) -> None:
 
 
 def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
-    """Build and intrinsically validate the live PR-A closure model."""
+    """Build PR-A evidence or validate an exact A1.4b successor stage."""
 
     repo_root = arguments.repo_root.resolve()
+    current_rows = surface.parse_registry_data(arguments.registry)
+    mcp_reverse_plan = (
+        repo_root
+        / "tools/codex/app-server-evidence/0.144.6/"
+        "a1-4-mcp-reverse-plan.json"
+    )
+    if mcp_reverse_plan.is_file():
+        base_rows = surface.parse_registry_data_text(
+            _git_blob_bytes(
+                repo_root,
+                PR_A_MERGE_SHA,
+                PROTOCOL_REGISTRY_RELATIVE_PATH,
+            ).decode("utf-8"),
+            f"{PR_A_MERGE_SHA}:ProtocolSurfaceRegistryData.inc",
+        )
+        _validate_mcp_reverse_successor(current_rows, base_rows)
+        _require(
+            arguments.output.is_file()
+            and _sha256_bytes(arguments.output.read_bytes())
+            == FROZEN_REPORT_SHA256,
+            "UserIntegrationPredecessorEvidenceDrift",
+            "$.successor_registry.frozen_report",
+            "the frozen PR-A closure report changed across A1.4b",
+        )
+        report = _load(arguments.output)
+        _require(
+            report.get("counts", {}).get("global_status")
+            == FINAL_GLOBAL_STATUS
+            and report.get("counts", {}).get("native_a1_4_status")
+            == FINAL_NATIVE_STATUS
+            and len(report.get("exact_complete_identities", ())) == 33,
+            "UserIntegrationPredecessorEvidenceDrift",
+            "$.successor_registry.frozen_report",
+            "the frozen PR-A closure semantics changed across A1.4b",
+        )
+        return report
+
     start = _load(arguments.start_state)
     plan = _load(arguments.batch_plan)
     audit.validate_reports(start, plan)
@@ -3949,7 +4290,6 @@ def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
         "checked PR-A audit evidence is not reproduced by live authorities",
     )
 
-    current_rows = surface.parse_registry_data(arguments.registry)
     base_bytes = _git_blob_bytes(
         repo_root,
         audit.EXPECTED_BASE_SHA,
@@ -4788,7 +5128,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         _validate_package_report(arguments)
         _validate_generation_proof(arguments, package_safe=True)
         return 0
-    if arguments.command == "check":
+    if (
+        arguments.command == "check"
+        and not _has_mcp_reverse_successor_marker(
+            arguments.repo_root.resolve()
+        )
+    ):
         _validate_generation_proof(arguments)
     report = build_report(arguments)
     if arguments.command == "check":
