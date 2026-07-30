@@ -19,6 +19,7 @@
 #include <ai/openai/codex/typed/Hooks.h>
 #include <ai/openai/codex/typed/Items.h>
 #include <ai/openai/codex/typed/Marketplace.h>
+#include <ai/openai/codex/typed/Mcp.h>
 #include <ai/openai/codex/typed/Models.h>
 #include <ai/openai/codex/typed/PermissionProfiles.h>
 #include <ai/openai/codex/typed/Plugins.h>
@@ -48,8 +49,8 @@ int main() {
     static_assert(std::variant_size_v<typed::WebSearchAction> == 5);
     static_assert(std::variant_size_v<typed::ThreadItem> == 19);
     static_assert(std::variant_size_v<typed::ResponseItem> == 17);
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 57);
-    static_assert(std::variant_size_v<typed::Event> == 59);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 59);
+    static_assert(std::variant_size_v<typed::Event> == 61);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
                                  typed::ExternalAgentConfigImportCompletedNotification>);
@@ -58,12 +59,18 @@ int main() {
     static_assert(std::is_same_v<std::variant_alternative_t<54, typed::CanonicalServerNotification>, typed::HookCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<55, typed::CanonicalServerNotification>, typed::HookStartedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<56, typed::CanonicalServerNotification>, typed::SkillsChangedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<57, typed::CanonicalServerNotification>,
+                                 typed::McpServerOauthLoginCompletedNotification>);
+    static_assert(
+        std::is_same_v<std::variant_alternative_t<58, typed::CanonicalServerNotification>, typed::McpServerStatusUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<53, typed::Event>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<56, typed::Event>, typed::HookCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<57, typed::Event>, typed::HookStartedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<58, typed::Event>, typed::SkillsChangedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<59, typed::Event>, typed::McpServerOauthLoginCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<60, typed::Event>, typed::McpServerStatusUpdatedNotification>);
     static_assert(std::variant_size_v<typed::PluginSource> == 5);
     static_assert(std::is_same_v<std::variant_alternative_t<0, typed::PluginSource>, typed::GitPluginSource>);
     static_assert(std::is_same_v<std::variant_alternative_t<1, typed::PluginSource>, typed::LocalPluginSource>);
@@ -82,7 +89,11 @@ int main() {
     static_assert(std::variant_size_v<typed::ReviewDecision> == 8);
     static_assert(std::variant_size_v<typed::ReviewTarget> == 5);
     static_assert(std::variant_size_v<typed::GuardianApprovalReviewAction> == 7);
-    static_assert(std::variant_size_v<typed::TypedServerRequest> == 8);
+    static_assert(std::variant_size_v<typed::TypedServerRequest> == 11);
+    static_assert(std::is_same_v<std::variant_alternative_t<2, typed::TypedServerRequest>, typed::UserInputRequest>);
+    static_assert(std::is_same_v<std::variant_alternative_t<8, typed::TypedServerRequest>, typed::AttestationGenerateRequest>);
+    static_assert(std::is_same_v<std::variant_alternative_t<9, typed::TypedServerRequest>, typed::DynamicToolCallRequest>);
+    static_assert(std::is_same_v<std::variant_alternative_t<10, typed::TypedServerRequest>, typed::McpServerElicitationRequest>);
     static_assert(std::is_constructible_v<typed::Event, typed::GuardianWarningNotification>);
     static_assert(std::is_constructible_v<typed::Event, typed::ItemGuardianApprovalReviewStartedNotification>);
     static_assert(std::is_constructible_v<typed::Event, typed::ItemGuardianApprovalReviewCompletedNotification>);
@@ -398,6 +409,11 @@ int main() {
     installedStartParams.clientUserMessageId = typed::ClientUserMessageId{"client-message"};
 
     ai::openai::codex::stdio::Client client;
+    typed::ListMcpServerStatusParams installedMcpStatusParams;
+    const auto mcpStatusSubmission = client.typed().mcp().listServers(
+        std::move(installedMcpStatusParams), [](const typed::OperationResult<typed::ListMcpServerStatusResponse>&) {
+        });
+    (void) mcpStatusSubmission;
     client.typed().events().setOnEvent([](const typed::Event& event) {
         std::visit(
             [](const auto& value) {

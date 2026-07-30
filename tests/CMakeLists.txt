@@ -204,4 +204,28 @@ set_tests_properties(
         TIMEOUT 90
 )
 
+add_test(
+    NAME CodexA14McpReverseClosureTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14McpReverseClosureTest.py
+        --tool
+        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_mcp_reverse_closure.py
+        --repo-root
+        ${PROJECT_SOURCE_DIR}
+        --report
+        ${CODEX_A14_EVIDENCE_ROOT}/a1-4-mcp-reverse-closure-report.json
+)
+set_tests_properties(
+    CodexA14McpReverseClosureTest
+    PROPERTIES
+        DEPENDS
+            "CodexA14McpReverseAuditTest;CodexA14NineRequestStdioTest"
+        LABELS
+            "component;ai;openai;codex;phase-a1-4;mcp-reverse;closure;generated;documentation;extraction"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 90
+)
+
 add_subdirectory(policy)

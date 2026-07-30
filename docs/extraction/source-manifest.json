@@ -2,7 +2,7 @@
   "counts": {
     "immutable_copies": 6719,
     "imported_files": 6805,
-    "new_standalone_files": 2055,
+    "new_standalone_files": 2433,
     "standalone_adaptations": 86
   },
   "dependency_boundary": {
@@ -163,7 +163,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "beeb607645cf24f1244007583239700a065510e417140c460ef5e2fec3d9f27f",
+      "final_sha256": "0d04712ed5590f77239837aa55c6e70091af2833907c5c11a42f7b2c046dfb62",
       "path": "docs/ai/openai/codex/typed-api.md",
       "source_blob": "5b4b00ca1edadb079d77ad8fb12b22c54d30b4eb",
       "source_sha256": "95bed18185579df7ee2652d7360bec39ea8daf8e6a1178e76138082de60d5e90"
@@ -1136,7 +1136,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "15526fd4ea849bad8e3a1cf572ef6e3fb87a646a552197db997e6c459826bad4",
+      "final_sha256": "6b57fe8ef29e375ee1d5f7a5ed8f0bd48b222bf0e80bfb2524e838f30c67eeca",
       "path": "tests/component/codex/CMakeLists.txt",
       "source_blob": "9e26a5cd9766ec5133d221acb9ffcabebfcf0778",
       "source_sha256": "355e8e4efbadb0f7892601aee8467d0f752b81619f6af511d5da1538c623dcbb"
@@ -1241,7 +1241,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "0ae6da4dfcf7224b66e9c5b31af9bc53d50251c180758215715b94fe8cb49fcc",
+      "final_sha256": "5fb3e0abbffedcb776448d896f79c10de38036f21c712385a8a173cba5368136",
       "path": "tests/component/codex/CodexA12ClosureEvidenceTest.py",
       "source_blob": "0dd0ee77a03d01260b9c63ce87ed410270ee1939",
       "source_sha256": "8eb11c4b5facf66396b91e870fdcc2ed68f0d162940781c734846e99f47fd817"
@@ -1423,7 +1423,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "116abfd26909531d611bff3d0f5b55f0e5801bfcd96cb2f06fe023f53de30cbb",
+      "final_sha256": "6b636fd14780aba0d0dd9705e1f01ec236ae2f52f0d6f5d117a6ce7ef96b969c",
       "path": "tests/component/codex/CodexAppServerFixtureToolTest.py",
       "source_blob": "14a59a10e94baf2dc24c0eb5143b62808b1db21f",
       "source_sha256": "12eadd7c48633042aa397d99f36344c636a77cdd1c9b81792a76ffa712c1f864"
@@ -1899,7 +1899,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "45fb0a4b5bf714d75588cc14b5c80077b3ac1948854c9d9e983c90046f422626",
+      "final_sha256": "33899dac1d117ae66acbc5a53a9847c26e80babbfce2e4bbca6225cefce790e3",
       "path": "tests/installed/codex/CodexTypedConsumer.cpp",
       "source_blob": "9a0106945fa7efbb355527d2f4b1ee0afc68e7cf",
       "source_sha256": "912081165ab6029d11221a1388ceadd533b44a9be0ad3bb991433b73f254d1b4"
@@ -2060,7 +2060,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "4def9299c96958b9c9e9c43b8f3bc076be7988b9326292c44e7c5337236aed07",
+      "final_sha256": "890cea3c34bb70cd12074707dad997d247d6e2ef6d874c79bbd079fde97135b8",
       "path": "tools/codex/app-server-evidence/0.144.6/fixture-coverage.json",
       "source_blob": "20be79bae9d0ae2027abf4be4a57f9d65edaf316",
       "source_sha256": "2fdd569f46b37674127cf230eb0559cfd6a00101d0c7b866936cec7a6ac32870"
@@ -2088,7 +2088,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "5fab1e83d5d7fb9c68dd6f3c9877f87fc7a96e805207d82c0ef01845ea8e5486",
+      "final_sha256": "d7a53f2dd4983787c96398dc5e40454657a3c19b52265e3db518c7913ff89d40",
       "path": "tools/codex/app-server-evidence/0.144.6/schema-completeness-evidence.json",
       "source_blob": "1d03b7ab73e6323dab7c29caba9d6212d0253ec5",
       "source_sha256": "2fb1711bb73012839e004be7d757b641a9777324d889d4730df5102310d7f6f8"
@@ -43290,7 +43290,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "e4c897a20431d0e8c77ae550c44bc69ceea4829cee7814f49493efcd4430c539",
+      "final_sha256": "11a21013d17a8655587378770f15a0f29e45f51b0fe950ff2dcbc9e04003d333",
       "path": "tools/codex/app-server-fixtures/0.144.6/index.json",
       "source_blob": "81ab781b3bd7542bf8466d1f9b47237e9112017c",
       "source_sha256": "283117f546b6a2e193ea12b0db7aa6849d435d5c270e2163ffe78a4d63856a60"
@@ -47581,7 +47581,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "2cc863ac273a8e7c70f0a5ee818e21edc687fd45312a91fe220947d7baa7c74a",
+      "final_sha256": "70b78a43846fa69d080f6db22cf8d6449f6c1803bd26541fd0b2024be8a3a5c8",
       "path": "tools/codex/app_server_a1_1.py",
       "source_blob": "de37d53ed6f3f683296fa132980ba5c1eaf66944",
       "source_sha256": "110deb543b6a02237e4a2e690a56701938f824591e813e63641bbe78c7b88a45"
@@ -47602,28 +47602,28 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "b92fe4d73fbf32b3a6fe59d562fbcbcdc379269d3c5c730bc55583ef6ff1cb91",
+      "final_sha256": "d4d14eddb140b35fc4f5abc97f027dbda8b6ae73ed9035c7c3d37a6cc4535f97",
       "path": "tools/codex/app_server_a1_2_closure.py",
       "source_blob": "7a748d72123ac4d34f9b58f36f1ee716ce98708d",
       "source_sha256": "7fdd88ee1f9d6db89da05c4beec8d8819c77cc6390776631399ea231fb19a690"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "98eb9d6c064563891ddfcc1d07d83a022aaab409231572c7f962f2e4a1a4ae60",
+      "final_sha256": "8ec2b5fd6747dbfb607aa5fc040e1820183315808eb0521af5932ff4d453f876",
       "path": "tools/codex/app_server_a1_3.py",
       "source_blob": "7cf176392895656fbb12bdd95ba4aacf9f4dfcef",
       "source_sha256": "90eb100e83bcdce59c226f7192ccc39bdb14f18ec571b16396f63a0e5be62e8c"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "65ee608a363490457c220300d39b096d6972dcd6f90ea0681934020e668233fe",
+      "final_sha256": "4ad0890fec44866c1a1293bfdacfb71a7ad063791997678c0f6d76f48ffcd8d7",
       "path": "tools/codex/app_server_a1_3_closure.py",
       "source_blob": "d7b0f751d822cd655c559ab50b9c2f447fed7bfe",
       "source_sha256": "7197eaf51c2fe4054a8d740339c071aa17e729a6d22e107c27b6aa6c6c7ae482"
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "90a45465f3a102e9ff3ca5e7a2a1414eacdaffdf8f051f5695a9c9d649c94daa",
+      "final_sha256": "b0651959732712cb0d7ab0ee3fffa425b79e8681d5e040fea1f631bb478caaa8",
       "path": "tools/codex/app_server_a1_4.py",
       "source_blob": "e23bd6dc6d188b5836d5c22955767673d5fbb37b",
       "source_sha256": "8293fa4d9fa2bf708d87d55fadb28e43946de10b5ca0703e26da27a61e0bc28d"
@@ -47644,7 +47644,7 @@
     },
     {
       "disposition": "standalone-adaptation",
-      "final_sha256": "67b2fdf89c185adbabadb371a616506b75a2b4f860c53dfe834c9879fe8bb11a",
+      "final_sha256": "a8e28cef5161e993460ffc77213455f05d4b4785ba97a0661b837d7fb129b4ea",
       "path": "tools/codex/app_server_fixtures.py",
       "source_blob": "a21fc7f5759aea21e44aeea1fa66f999effdb52e",
       "source_sha256": "929530fe6b2d0eab4c7e019375ce9edf2009a1c02fae8389cc6b715f3984f558"
@@ -47749,6 +47749,10 @@
       "sha256": "d109a305c4806e72a36a7d6a161d8a50d935bf5d498d7e497bddffe7cbb089d4"
     },
     {
+      "path": "docs/ai/openai/codex/a1-4-mcp-and-reverse-requests.md",
+      "sha256": "f04f0eed45bfec4accefe98c4aebf311c0538c41b43da60ece4fba4f29dcdc4b"
+    },
+    {
       "path": "docs/ai/openai/codex/a1-4-user-facing-integrations.md",
       "sha256": "ce979f586a319dcec1bd6f420502a7126d181f8f17ea36fc2cdf934f433a1d14"
     },
@@ -47762,15 +47766,15 @@
     },
     {
       "path": "docs/extraction/codex-policy-final-ctest.json",
-      "sha256": "8b964bec33044cd823f8ad0985035a1d19486647dcb9d2595d581195a189dc41"
+      "sha256": "3bfbd9ea3ecef8714c2b1f7b88e9402e859eb16bc86af05ed57e4504bb1de473"
     },
     {
       "path": "docs/extraction/codex-policy-ownership.json",
-      "sha256": "4cfa2d99e771fae684441f44976bee299c30c143fd3d0c44e258dc8c83a894ad"
+      "sha256": "5055cea5a401b5deae312243860a1cf1916f48253b7746a84aad698431f26c20"
     },
     {
       "path": "docs/extraction/codex-policy-ownership.md",
-      "sha256": "c7777777aa6652960396da2940ccf2a431872edb5acd348f92ff5537f73ffe8d"
+      "sha256": "ea7076ab0cb9c9be3186b99fc1105fe694d243199dbe12058259e032f4a887e1"
     },
     {
       "path": "docs/extraction/filter-map.json",
@@ -47778,11 +47782,11 @@
     },
     {
       "path": "docs/extraction/test-integrity.md",
-      "sha256": "161260f85d81f87f7d2662f4d0a8b26c3e2a9d20283a40aabc0d81bc46adfefa"
+      "sha256": "146b4d77baec814bd74f6e3d0245bd384b36f6dd639cc9281172374a53c3680e"
     },
     {
       "path": "docs/extraction/validation.md",
-      "sha256": "d4222ef2eb4efa22f3b8b69a28279a143c8145594feef42501816951577f88d6"
+      "sha256": "65b6b72eb4fa2cfc9f42ce485ced5e6f03c3920d223f484aed67f64d15071e55"
     },
     {
       "path": "src/ai/openai/codex/detail/AppCodec.cpp",
@@ -47894,7 +47898,7 @@
     },
     {
       "path": "tests/AISuiteBinaryPackageTest.cmake",
-      "sha256": "08e0ce31138b4c228dcb216d334bc8a3542de1b68d7f41ef1bbf10669d8cc0ab"
+      "sha256": "08d806acc330f1776e6c3cfa5c6650ae379e2ced08744a92203a4b7fbb4c2020"
     },
     {
       "path": "tests/AISuiteInstalledConsumerTest.cmake",
@@ -47906,7 +47910,7 @@
     },
     {
       "path": "tests/CMakeLists.txt",
-      "sha256": "c4bd70cfdbf3e8eed87dedbf16f5c2f8c086320a9305beb9bd1d89d532119279"
+      "sha256": "14f9fd3e2de0a41d6bae1d5b37e90d8b9f0481538ae2666d0b3ef65360817b1d"
     },
     {
       "path": "tests/cmake/AddAISuiteTest.cmake",
@@ -47937,6 +47941,10 @@
       "sha256": "b4dde744ef5939e6062395ca513db70e6c6782574a5294a7a031ff75c3ac55fe"
     },
     {
+      "path": "tests/component/codex/CodexA14McpReverseClosureTest.py",
+      "sha256": "472e4e71399296bf2a0141306932ede01254da23f7de8ac178d6c30a24b04a71"
+    },
+    {
       "path": "tests/component/codex/CodexA14NineRequestStdioTest.cpp",
       "sha256": "3c72cae7b5a6595d9eb9e9baf401cab079e4ef9657d482e4f1a6d12fe2b38a9c"
     },
@@ -47950,7 +47958,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsClosureTest.py",
-      "sha256": "34ee968131a55025abaf56052fa0e0a4a2ab13ad44be53aec5a86f33a31f6ef5"
+      "sha256": "8630cfe27fd0d2cf20707922a60c34e9c02037b10e8342f3961da8458589a794"
     },
     {
       "path": "tests/component/codex/CodexA14UserIntegrationsCommit2Test.cpp",
@@ -48010,11 +48018,11 @@
     },
     {
       "path": "tests/policy/codex/CodexPublicHeaderPolicyTest.cpp",
-      "sha256": "5d82494de631c6f4f493f237b1e088ba6aa329b0eb59226d367fd8132c980de2"
+      "sha256": "1275ee9bb623b04daf984c62d904504f09fd4228f83958d6e99cee6f46b3db8f"
     },
     {
       "path": "tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake",
-      "sha256": "61787690c735157e1ca773e1a474d9ab24401771d8e46a13c4c30e6ef6d763ae"
+      "sha256": "079a5b6b30d525523468b12c80871f43f6e825eb1fe4494d84bcce205e41fe87"
     },
     {
       "path": "tests/policy/codex/CodexSemanticLoggerAuthority.tsv",
@@ -48057,12 +48065,16 @@
       "sha256": "afd88b00da34c1ec0ea1cfbfbe639a891e8e01ca8d314fec911dcc6c08414990"
     },
     {
+      "path": "tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-closure-report.json",
+      "sha256": "a40b042db798629c161f1f9daf9cad8f1cf7e2a485c6ccfac1290a6a823d2c42"
+    },
+    {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-plan.json",
-      "sha256": "0de3723a1d1568b2d14888c8bf3a3ba4162639e9f1740e6bed1803316fe82fb6"
+      "sha256": "1e47137c5b995a5c9a9db90c9665789d538e01ea68e9c4670732efa8cdf5ae69"
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-mcp-reverse-start-state.json",
-      "sha256": "88a58796a8f01f1c3e84740eb9e7deae14b6836127f31b7f4d9c40ab32b43044"
+      "sha256": "88940be3b7366bc63aa5917ac54aee02d9b0aa18c282a262bc4236159e2d0003"
     },
     {
       "path": "tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json",
@@ -48103,6 +48115,14 @@
     {
       "path": "tools/codex/app-server-fixtures/0.144.6/cases/baseline/server_notification/hook-started.json",
       "sha256": "442012edf33238ad35171d408e8af9cbc50421fa421d32fc6ffb8a0e5e37f398"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/baseline/server_notification/mcpserver-oauthlogin-completed.json",
+      "sha256": "2f91c941398e0883234e674982b7c73d9b76ce586fa7e4c7c3f3e96230b8b502"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/baseline/server_notification/mcpserver-startupstatus-updated.json",
+      "sha256": "5bc0313726c2d84dd6f07672b94d47d844149d4de730c9d5019c550f340960d2"
     },
     {
       "path": "tools/codex/app-server-fixtures/0.144.6/cases/baseline/server_notification/skills-changed.json",
@@ -49571,6 +49591,130 @@
     {
       "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/hook-started/supplements/optional-omitted-params-turnid.json",
       "sha256": "f7adae3907133af234a0025655e044d5bc78dc03b519cd1bc3ab7ae7aab960bc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/missing-required-method.json",
+      "sha256": "1abb30c65f2ee7c6e2e966f54b185c0600d0d30efe9641d69a91654bbd6ee111"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/missing-required-params-name.json",
+      "sha256": "9025d5bcdd1799c5374070fa2a7884ec4086e6b77fb9c56d4ab84eaf92dad4b6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/missing-required-params-success.json",
+      "sha256": "a67ffb046a7168707a969ecffd824b86864c8219f0585a520fda7e823b0fd31f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/missing-required-params.json",
+      "sha256": "65f43bdc2733a55feec30c3ad1b21895d801ea941c35d4479bddf8b916770b8d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/wrong-type-method.json",
+      "sha256": "630991c8942b456884cb4c49728ed5679d2735f246034b319cce66b00d9a343f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/wrong-type-params-error.json",
+      "sha256": "4dc69800791fade79e5d59f5bc7b1761edb2402da436ace131401d8d9462e774"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/wrong-type-params-name.json",
+      "sha256": "d6c6e0e4c13f17fd4266584e5911007a9f0ab6df9285c3b740a742e43c747a57"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/wrong-type-params-success.json",
+      "sha256": "e79935bf0a8b62daf4a764eb69316dbc43c86b72204a7c06323fcbd24b2f4cd3"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/wrong-type-params-threadid.json",
+      "sha256": "7d155cf9456f682108da3a8beedce6921a89103202aa76a0e00ced6e3e6be74a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/mutations/wrong-type-params.json",
+      "sha256": "1ee2fdbf33cd72d13747bac9daf542fe4b991c18d1d432f4cded76edab038149"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/supplements/nullable-null-params-error.json",
+      "sha256": "351ef1e2ce1835aed74cfdec054ad7214b70f97cc12dd5da31e456cb826b639f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/supplements/nullable-null-params-threadid.json",
+      "sha256": "68f7c04ccb0d44fbc23b647e9836d4bd84cc1459e4ce8343c365ea0c867537b7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/supplements/optional-omitted-params-error.json",
+      "sha256": "142e3a7337cbc767872d4b4c5190a54490a91ac59798da0d2e221b2079538619"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-oauthlogin-completed/supplements/optional-omitted-params-threadid.json",
+      "sha256": "3475d8268a97d89e2d32d0427011cc9de197ba188494a19ae9c798fa42f6be40"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/missing-required-method.json",
+      "sha256": "5aefbf6e785185a0f946683784e132371bc764b8a40c40f5e62bb2b1727d59a9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/missing-required-params-name.json",
+      "sha256": "4e726b98c46031fee1b02fcf0030c6e557b4d896b313bfba1a75a0435a91de29"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/missing-required-params-status.json",
+      "sha256": "07b3feecc3db764cca85bba66e7b4176a17582ae10c82f101efb8d2a4225ab58"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/missing-required-params.json",
+      "sha256": "3dd32eedee69f52d0b0a656cbe25315c41aa6bef2f94781d7b65774fd24b7eb8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/wrong-type-method.json",
+      "sha256": "5753403561c8544c8dc536dc4720835babdf808a110f4c6a7764229d39a552f6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/wrong-type-params-error.json",
+      "sha256": "5092acc713e91d3fc11f8f9e161cdb927f2cc26756566cb2cf02f78130ec75bf"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/wrong-type-params-failurereason.json",
+      "sha256": "feec8e92c153a5ee2c0a6abe157d64d8f30b03e355cefe12583183ba7e59ff29"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/wrong-type-params-name.json",
+      "sha256": "e213486766b13bf47ebe0bf5593f41ebb37cc1df00a2f4b4d4c775581c5df8d2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/wrong-type-params-status.json",
+      "sha256": "09fedbbd0fce75140a71a8fb3d8b5442402c6e1ba5cf66084827b488cf4ba07d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/wrong-type-params-threadid.json",
+      "sha256": "9084d69f16a202402e0f33bbeb089860ffba3fe76fac471bfc5c71536e00a609"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/mutations/wrong-type-params.json",
+      "sha256": "8c1e5eae30137b0e4a7cb68a516cd9c700e349c27e749381724c514555942439"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/supplements/nullable-null-params-error.json",
+      "sha256": "3418a1b4ad50bfc21ff376802f43e8ac822c8409189bf9f58506d1ccf7aa0fa9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/supplements/nullable-null-params-failurereason.json",
+      "sha256": "e5a9bd98faf5948c20f5188d03204db0bb66936570e9a3664bcc4cbbdbae8942"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/supplements/nullable-null-params-threadid.json",
+      "sha256": "1a2a0a3fb94988816fa0c8e77b54fa7f3036f5653d17b2be1f7efca90bf67e27"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/supplements/optional-omitted-params-error.json",
+      "sha256": "9d836fe5a78f391b3bdc60dcae45e18d14ea6fa0db41917dbb0a44e31798010a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/supplements/optional-omitted-params-failurereason.json",
+      "sha256": "bcbcdd6eb741c9122821bd37b9d85c0d198610792c221a5d0b48661e52915bf3"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/mcpserver-startupstatus-updated/supplements/optional-omitted-params-threadid.json",
+      "sha256": "0f5965a8d279fe693e5bd0163b752448c9b02959df3ce2afd52022b84a22b8bc"
     },
     {
       "path": "tools/codex/app-server-fixtures/0.144.6/cases/notifications/server/skills-changed/mutations/missing-required-method.json",
@@ -51563,6 +51707,642 @@
     {
       "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/marketplace-upgrade/supplements/result-future-open-object-root.json",
       "sha256": "8ac43e0c8dfacfad54bb74e5993153541e3a036441eaeb7f966b4e455955f2a0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/params-missing-required-name.json",
+      "sha256": "8a0774b7cb58ddf3664996ab5555c116b1232da233a20ddf2648324361f1fb4f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/params-wrong-type-name.json",
+      "sha256": "817fdcf35ccb093de75bcb8999bdcc3b9bd3c1e998c23f35ba73fef81499c499"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/params-wrong-type-scopes-0.json",
+      "sha256": "b590c9cf4cd28cc383d8a4e76b470c21788b6d1b68b639720596204cd1e3426f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/params-wrong-type-scopes.json",
+      "sha256": "275c1cfd6b091f76b06d2b89ffc85d80e54efac7736f8ee4de9425dc221bd79a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/params-wrong-type-threadid.json",
+      "sha256": "7577f159ecbeef466dd186d08a2f5365d864d528c3e13101896e25b17db2ac58"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/params-wrong-type-timeoutsecs.json",
+      "sha256": "fbb2f89081fb51e04400b7cee19d953fc3adeb6e29a49fe57e88057f165f8f9d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/result-missing-required-authorizationurl.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/mutations/result-wrong-type-authorizationurl.json",
+      "sha256": "1ca1b493acb77818c91383a287b4da9b93f4541bd324f6c54549849eed982e90"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/supplements/params-nullable-null-scopes.json",
+      "sha256": "008616a90bd2fc9f88fe0a0ba0138c674ce8a958a51bc63747d3f77370ceecb4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/supplements/params-nullable-null-threadid.json",
+      "sha256": "f0137f08d702304f0bb5ba8ac1955aa047f6727a1a28ec098cd8abd08e55612b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/supplements/params-nullable-null-timeoutsecs.json",
+      "sha256": "e88dd359a8512acf3fea5e7f2a1a840bdc93832cb70666271f796d15115ccc65"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/supplements/params-optional-omitted-scopes.json",
+      "sha256": "45e2413118a1301149744ee1aa85af4456724131fe14cec8222b52063b8cabe9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/supplements/params-optional-omitted-threadid.json",
+      "sha256": "b6a2d1a2b68b1ad902c3a4b27dde84a3b9280c8fc0f55a37abb300fd86a4bfdf"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-oauth-login/supplements/params-optional-omitted-timeoutsecs.json",
+      "sha256": "131e45aceb2ffb41af2ab16015a8b96c820e13600dfdf4ef2907b50db2d71ed1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/params-missing-required-server.json",
+      "sha256": "aa18e474155cfa2a4500ba040a42725635e1b4cd6493cf6a8807caaa8c1379d9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/params-missing-required-uri.json",
+      "sha256": "5d42e5debfa3eb4b0afdfb9e949f851b5d99a1aaf6b654ccad8f11af09e56e57"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/params-wrong-type-server.json",
+      "sha256": "e87a8f5e37a1b33d784f39d7ca820a692a39cd90711e51b0ddd6194340b4e329"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/params-wrong-type-threadid.json",
+      "sha256": "852fd8704c507c3688296927bb5818b9b2f9714602d647a19ba3e7d661973d16"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/params-wrong-type-uri.json",
+      "sha256": "b40aecb3c626f4ccdc77cc9c26598657fa50625e3b6b952a74c9c93752ab048b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-missing-required-contents-0-text.json",
+      "sha256": "cda973ebe04ff333abee97c2c5c291d4161b063d8d15ee8964d7523149c9627e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-missing-required-contents-0-uri.json",
+      "sha256": "b0d78a5602cc4a54c6248b0f97c8c669a3c0481c1ad162f44f85d8f0ac2c1935"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-missing-required-contents.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-wrong-type-contents-0-mimetype.json",
+      "sha256": "bab97c685776c89d229215ec7100f17e86f3a463d4a92bcfe801a51145d74190"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-wrong-type-contents-0-text.json",
+      "sha256": "2469ef87801da473026853b1d8f6db67bb06b003e1edd8cbef11277193f1becb"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-wrong-type-contents-0-uri.json",
+      "sha256": "baea241d61676e1847a881717ad90ed40606a88db84abd3097b89770aed9be02"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-wrong-type-contents-0.json",
+      "sha256": "0264e4a5127f5407f366a84b5e120a746113e99885a3d15d56b835201c2429c4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/mutations/result-wrong-type-contents.json",
+      "sha256": "de45913c10cfca04e603f3e8c73780ec3dd563d18146ddbe360b4005066802da"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/supplements/params-nullable-null-threadid.json",
+      "sha256": "a00da1264d37e1238f2854620a18b26ed5d5684daebb714f8a44190e3f635072"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/supplements/params-optional-omitted-threadid.json",
+      "sha256": "783404d82f3d54f63a970dffd3f9e31bd9db60acdf8e5946aeff628006cb8d2d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/supplements/result-nullable-null-contents-0-_meta.json",
+      "sha256": "a4b15f95ba8243a7f946da32faeba111dbd9887fc7334af2da865d0170ecf4b8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/supplements/result-nullable-null-contents-0-mimetype.json",
+      "sha256": "0460e783291fc0521994a128ebf71b06bfd75747bb3dd34382dc3fe7cf985c52"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/supplements/result-optional-omitted-contents-0-_meta.json",
+      "sha256": "a30842edaec2874de57374625fce03783e4d78e00856c70494a1e30d3f01f6b2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-resource-read/supplements/result-optional-omitted-contents-0-mimetype.json",
+      "sha256": "0a45a97cc7e852f534b539aa0ed52f15a18d5e3720af0f28b1fb304bea475705"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/params-missing-required-server.json",
+      "sha256": "261c4296c2bea5ed191e397a75166cb43f1e701d6f2cf589bbeb59a37df37892"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/params-missing-required-threadid.json",
+      "sha256": "1ffee8647a9d6d24b56a457bf940b5d4050fc555be2cb05d5ad5da5fa6fdf749"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/params-missing-required-tool.json",
+      "sha256": "afc654cfd9415a9334aa8e7f3d341ccd6a0404c39c737945be7d81e11494e8b1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/params-wrong-type-server.json",
+      "sha256": "19256aaaaa4bf5db689c0dff9757e06980ce4b15d43f74ebd50b9bed7c12d10b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/params-wrong-type-threadid.json",
+      "sha256": "36602e461dbfe2fe099d63379c13a2af690c72e9c2a7a382ef4aa155b2156442"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/params-wrong-type-tool.json",
+      "sha256": "c9ce39deb0f9a76d95dcf1e80494f913568c745acfef1600d2de51945021fcd8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/result-missing-required-content.json",
+      "sha256": "12eb1b4c9a9de5424f78b9bd3a9910aa641691091f7690e1748c69c9aecf8ad8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/result-wrong-type-content.json",
+      "sha256": "ec7925d20998345b5428c220b88ebcd34f2b0caaf6f6caae82a88875cc623bcf"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/mutations/result-wrong-type-iserror.json",
+      "sha256": "352e92d87b4fb9e3eb40c049401c778752cf310f548f31cfde30f4fad446b103"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/params-nullable-null-_meta.json",
+      "sha256": "f5738d8888c0903ae1a006e46374bec44fd1cb825be54795457717762af42a78"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/params-nullable-null-arguments.json",
+      "sha256": "ce65fe1bd2e1398cdab1b087c29d37a469d355a6226a2335d02fa994960401fb"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/params-optional-omitted-_meta.json",
+      "sha256": "8febaa46d48d14ad4cf1b5e38e7c0d3ddb9f2b59c24aeca003d2330e70b12063"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/params-optional-omitted-arguments.json",
+      "sha256": "05cf9006d8a3e046ebcf3e5b74f3f77ae07cc34d2651c089eb937231595df23c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/result-nullable-null-_meta.json",
+      "sha256": "a8c196fc2f9667b242943882409780f2770967d07336f15cebbd369ddfab330b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/result-nullable-null-iserror.json",
+      "sha256": "c7aa751e663a76a0bab17d85b122e45327d7b6a1df6ef952c661aabdaed05ed1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/result-nullable-null-structuredcontent.json",
+      "sha256": "a243aec4920e0233e6f9d22bdce948ed5ac4ab35be1a82063b4f6393b4a5b16c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/result-optional-omitted-_meta.json",
+      "sha256": "e601517f9ccffe3aad1394c5995cadd6673d643bbdaf481e6867ec160a1e8d1d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/result-optional-omitted-iserror.json",
+      "sha256": "f3a7f7e28c8a068585a892b7fd8f2b871b73c9344f3fc9f0bca4dbc4f93111cf"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserver-tool-call/supplements/result-optional-omitted-structuredcontent.json",
+      "sha256": "9625ba2d76795adda0a2c7d27dbc82de0cfca38edcef40967279587b49640abd"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/params-wrong-type-cursor.json",
+      "sha256": "a0f7bdbe2ff790b4ed7bf02c348d9ebc828d9ab5d26dcc828ad9fd5d6b1e63db"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/params-wrong-type-detail.json",
+      "sha256": "234931db796bd8977cd1546f7b59bb017e801e8578f20a270dfa7234ef106fac"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/params-wrong-type-limit.json",
+      "sha256": "fe911e4db5cfddc105e3609133a930c5d078cf952c54fe5ac865da1711f76c85"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/params-wrong-type-threadid.json",
+      "sha256": "d35e9c4a730317ad62c6e229f147582e9fc4211b4486e46163d46c0e62030174"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-authstatus.json",
+      "sha256": "e9ee4e6f46419a50bfef368303d9063d828fc8a8a2040ad93c79e1c22c17b069"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-name.json",
+      "sha256": "f2e4cbc3f857729a5f59cea7bcf6a74082dc7addc0cfe217625a7bbf2937047f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-resources-0-name.json",
+      "sha256": "4f1cdfb444ceb6f5a44edc0e6a06b9254ba11b10ac8a4d6e98c8731bba738bc0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-resources-0-uri.json",
+      "sha256": "d1459c1d1ff0f896cc095b3c812212968a07b63d65f0eb0f2103cc53a8ac5da2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-resources.json",
+      "sha256": "8e6ca97e233483afdd46118b249dc0cc9892bc09de070e5a5e897dd16f628e28"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-resourcetemplates-0-name.json",
+      "sha256": "83daf7e5ef1556fb2036c6cf8ffe8927b50b267fbe908f26a24638339c34fc93"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-resourcetemplates-0-uritemplate.json",
+      "sha256": "89324704b5dd02d4c40999ff76dfbb3adb13d965c983608c85f58fdd55ff0de5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-resourcetemplates.json",
+      "sha256": "82fab237991e57d02fe55e5fbc5cee94b5bc68081a1a0ec4557feb0a42dd3c9d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-serverinfo-name.json",
+      "sha256": "a54a11eed1c1a8000013700e9b64c321b90545b0652f5ae68280f7c6999762ea"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-serverinfo-version.json",
+      "sha256": "6d295fdd63d783a0f0e803034f6264e4c34fa076eb4c2a0fd1e0c6bc04a83630"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-tools-synthetickey-inputschema.json",
+      "sha256": "6e7aaf61c6444c63c8a778ba8b3605a94828745118ecce6c215c305d5ca4e3ce"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-tools-synthetickey-name.json",
+      "sha256": "17485539c19cac19b21a855024aa74712179e420e78172dc652810ef6470673f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data-0-tools.json",
+      "sha256": "6d3c2679b485b75eb72aa930f2018d7c3b8cbc9c791a536808b9ec9116bd12b4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-missing-required-data.json",
+      "sha256": "a9a4cd5d99bac86b688e6ce82f194df413ac2766ef405e4d3e31b4280e3da26f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-authstatus.json",
+      "sha256": "8aeb11773a8e7486674e5d9884f25d0273cf7b7db3c11c85036567a3485c38fb"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-name.json",
+      "sha256": "bee4aeceec07f01b13d023b9dcb60076671b24d755789a35dabc51f362f71f9d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0-description.json",
+      "sha256": "e36dd9a9eb9b19f3e78458848f362b2d06cbdaf43a989ae62778c695d49f6a15"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0-icons.json",
+      "sha256": "a9acfb7430073a93c4c1b27d4e680f51b7255c231d34e001c46bde5c6f90fdc1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0-mimetype.json",
+      "sha256": "a187dd80752c365cc47f561d055751d850439d36c5666652759fc17e109b0336"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0-name.json",
+      "sha256": "c64252166bb1d77e3175596da6be5729bfb9a00b887ac4307f8dfe7bb365000a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0-size.json",
+      "sha256": "f57006720bdd4420333ce8c27fff498b2872fe24bcb2871d712555fa44415760"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0-title.json",
+      "sha256": "270784dbcaafc4eb5d52e2679d9e1004d916c2a147ea4cb3f06f27f5a60a69f7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0-uri.json",
+      "sha256": "41583c50127e79186b609e1a57cd8ec35c65dce59cea4f8943655a77ae571adc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources-0.json",
+      "sha256": "d0b97329c070dfc0242565b46c758396e18b4be4d9935c01b4b56fcca7e7f26f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resources.json",
+      "sha256": "b28409c63f454f4586fe26b7cb199849f055ee2241f4053570693f8c2c250b30"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resourcetemplates-0-description.json",
+      "sha256": "56b3697e2c9149481560ea473dea3aeee82a7c30d0413528eb4931008056c2f6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resourcetemplates-0-mimetype.json",
+      "sha256": "d85660bfd0a2fd1295a24bfa3e0b60a849999e6256277e7a3633e93dff8dbe6b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resourcetemplates-0-name.json",
+      "sha256": "121afebe45bb207ba1b1b6e9ee72fafd28cf6132b0b45380f76cbeebb5d4c8f9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resourcetemplates-0-title.json",
+      "sha256": "2d76a0d49cd9b5c667d918db7573c0f380fa0af24c0f509c443c6812954705b4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resourcetemplates-0-uritemplate.json",
+      "sha256": "c613ef11d69be57d876e1ffdff86e544d8068cdd1dc0ede2a10e318c362ef76a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resourcetemplates-0.json",
+      "sha256": "fa1505c0d043c1de1cc91b616eb3bed7eeac6252fbc66287141863f63e5bfe15"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-resourcetemplates.json",
+      "sha256": "ea414f1552fa92b6541b385864462ceb3228099dc3a1317eaa56d4c191d374f2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-serverinfo-description.json",
+      "sha256": "592f52f1bbd36e7aea2a62be47923f9a9a1e947bcc389ffa0b72db1ffc30d424"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-serverinfo-icons.json",
+      "sha256": "5576be999fd7e22e576d97628dc1cde8de70f38ba2d0de7de50af1c230b5a8db"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-serverinfo-name.json",
+      "sha256": "4d9383d82d0686b8b79a70701f585a89ffb26c249cbb43227963ffa7b356732b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-serverinfo-title.json",
+      "sha256": "d047d04eda75791078ed5cdcc288365911b977b939838fe8687c46e25e5026b5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-serverinfo-version.json",
+      "sha256": "ccd74f5ed34c803607820c8c770dd0d8dfd7bc81e5c312f592706333f840cfe9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-serverinfo-websiteurl.json",
+      "sha256": "ebe152021127eedb3dbdc108f5c539eaea410444385df09e3c59f0b7db5c8293"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-serverinfo.json",
+      "sha256": "10ef10162f9b618d3f8a0149476c281c2abc7a0df6f0443ec255f37946c2f8d5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-tools-synthetickey-description.json",
+      "sha256": "a8537d725928dace78b261bcd274d15e05496a17a7066b73cd153c5b205ace49"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-tools-synthetickey-icons.json",
+      "sha256": "ad03695f08b391dbd4eacc0bdbc08460ce69d7692734b89567fb3e25a39ece3d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-tools-synthetickey-name.json",
+      "sha256": "83b03cde4b84382d1044de11e829f2e9160bf8be900eafc32e92d281fe58380b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-tools-synthetickey-title.json",
+      "sha256": "d8f8c10f0a64adf979dad7764d627bd195da59598f0172613ed9ba37eb8e08f6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-tools-synthetickey.json",
+      "sha256": "174220a8ed9bbaad265a034fbe4940ebdfbf61debf1fc6513c15b553e6aaa535"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0-tools.json",
+      "sha256": "2d9b786beec71a32d1c3cf992b2c0d2bbb7df8dd95adf7dc3870682e67944fe6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data-0.json",
+      "sha256": "965fe4c2d44da51a2084bd6dd813c717ac59bbcf590ebfa6ab8dce5da687d59c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-data.json",
+      "sha256": "05cc84b9a9b860db5156f9bb5fa342da5d6861c1d0ea8c9c55d3864908a79c2f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/mutations/result-wrong-type-nextcursor.json",
+      "sha256": "48f3d2afcf76f5a8e1e0e07f6262570a20c685e7723cf592ddc3b373c66f5565"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-nullable-null-cursor.json",
+      "sha256": "da378b26d7de4c0cd4a6d43992122a36dbb4402b427f5a38b98c9171de4f7203"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-nullable-null-detail.json",
+      "sha256": "8b5af48b3a5ec0c8bb9c4282ce6cd6e4a5dd2c7b17977b01e7acbf696a824e3b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-nullable-null-limit.json",
+      "sha256": "26efba08b9c761f6cf1d570fdabd6c91ee59d445f09deaa4400f239ed18ffc51"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-nullable-null-threadid.json",
+      "sha256": "f1ee59969ff88f237491e77d4e5d61ac6342d60e5271f0540d107542442b7762"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-optional-omitted-cursor.json",
+      "sha256": "9723e3c0b0f837f29e6143b988a37bea43af43cf3c430fdd57e1d2d302141104"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-optional-omitted-detail.json",
+      "sha256": "49d4328cb66e2a935f33bc5b0a7be1c9aa0ab624ff15429e458c72d57ffd2d7e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-optional-omitted-limit.json",
+      "sha256": "b3cf3004303231d134e199f7fb7a36c0abe37150a226764ff801cc1c4a7a9ba2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/params-optional-omitted-threadid.json",
+      "sha256": "7d07eaa7935aa4653b8cff7004970524f54f2dbc707af8af360f02a2f89913dc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resources-0-_meta.json",
+      "sha256": "669148cf0b0e3107edc63fd46e51ebdf1ac3db66cfddd3ed1995b8d0eac1cafb"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resources-0-annotations.json",
+      "sha256": "db596296ad1e7945d8a0309f0048d35b9d2857189837a3a0fd7fe9cf414a7063"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resources-0-description.json",
+      "sha256": "94224fa840b49ef26dd8805ae144d755235d15814582ab3202d4b145655a9131"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resources-0-icons.json",
+      "sha256": "4f359779d439d5e415b36dab357a54a93c7379a527069d492216b8e933d224f1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resources-0-mimetype.json",
+      "sha256": "8db82368033cc2d5294beed6763095b6086df6e2a327f22f5a333000d42208a7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resources-0-size.json",
+      "sha256": "cce8f83a0ca062d1715da9246e3440d6dca368a58c6e18f0ecf7cbe41c3bb833"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resources-0-title.json",
+      "sha256": "9c963eb042285ebb57f76007d8fc69eb719f6944adf0991e58dce7ebc88135bb"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resourcetemplates-0-annotations.json",
+      "sha256": "5ead24e5950b6de163d59b6fa2f60e5d8c858a9be71b62bcfb998b8570ac2bc9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resourcetemplates-0-description.json",
+      "sha256": "1a863e1cb6a8fb5389a3b4199e7f1ad91fd3634e70bdc854b552d5d04918216a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resourcetemplates-0-mimetype.json",
+      "sha256": "62d55292b9ad41e1a26e09df58b5e2ff4954055708a23138b0e3754dccb15ae8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-resourcetemplates-0-title.json",
+      "sha256": "7023d7746226de6fcdfbe097d36c1034db2084801e02d0c2f921318bccfc2f65"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-serverinfo-description.json",
+      "sha256": "65b1ab450278ad176523e637305749caf4def0fc360f284c907999a606b7af88"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-serverinfo-icons.json",
+      "sha256": "58d35ede588b0841b0c5d463f16b7809bfe55cb7229e3e1dacd96121843411ad"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-serverinfo-title.json",
+      "sha256": "608b16ed956d6510983081905867886e94286b20042a8e9cc55c6a071bf7ff7f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-serverinfo-websiteurl.json",
+      "sha256": "33b3f159ee1214c3c3b4853a927e31e5c0e670f51a179a621365aa2dbdda5cc8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-serverinfo.json",
+      "sha256": "c39b9d966c4e92735cccee1ebe29dbc6be3d98d9dab6c337ca4fc92c64b8518b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-tools-synthetickey-_meta.json",
+      "sha256": "fd0e1a16e371db41cd8c3c82d632533f61cd1c8cc2ac774394571ea8108be46d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-tools-synthetickey-annotations.json",
+      "sha256": "908b327a60c0cf10f1dab0d85a68c14df9dd0472d441810d7dea74c4daff3d12"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-tools-synthetickey-description.json",
+      "sha256": "ec8d0c9eb095888fc165768f40e0e066c9192ef98409d3dc9ec3d0fd5ac294a7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-tools-synthetickey-icons.json",
+      "sha256": "6658078a3ea2e303c06e5d36ca1bfe02a1241945bed2e7f3f373934cbf0a1810"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-tools-synthetickey-outputschema.json",
+      "sha256": "a76ceeef16023dd130f1046840b5e1e7c60f58d0078eb764e7e56cf3a59a654e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-data-0-tools-synthetickey-title.json",
+      "sha256": "c19c61333e2aabb56d1eaa51f6019108e885ab272539922e7d56b602a94b6546"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-nullable-null-nextcursor.json",
+      "sha256": "48bd68218d69ef05724238057bb69cba4dbb43937f4c9a0a32a3d0c5f35db5a2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resources-0-_meta.json",
+      "sha256": "3d22501137a552ba03b39d7b2fdb28246bd063cc9d642591e6b15c33c55c19a7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resources-0-annotations.json",
+      "sha256": "226b0ff9b96392fa209321f97abeb2f0e3ab3e362dd7bd924d6841ce82b8c317"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resources-0-description.json",
+      "sha256": "a5647378b3bbb511a19982b6a972740e74f993750516bbe7dc2b71d0a4efa0e4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resources-0-icons.json",
+      "sha256": "16e20d8082a270da10f567853b4e6da4b2f58042fdb71a90cd67805b24803fa7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resources-0-mimetype.json",
+      "sha256": "ecdd65fdbc365629aebfafe24a9e07b2e1bf5b4c67e6dd518f8138bca56319cf"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resources-0-size.json",
+      "sha256": "d4034c8cee4eea09f9a746d81f1a8d6f823cdfb04014cb6a8e11a0c71c4b292a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resources-0-title.json",
+      "sha256": "b7cd6390b34e2d9d6eb983685bf980e87ab965efc12352df4e1151126dc6f05b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resourcetemplates-0-annotations.json",
+      "sha256": "85b9db5356c9e7c2463e35f9cb74b47cf18368f15a176475b71e5553bb2b951e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resourcetemplates-0-description.json",
+      "sha256": "e52ccacedad6ba20b2dd74e87dd52126e83ef542728397422deccce974c7a8dc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resourcetemplates-0-mimetype.json",
+      "sha256": "031b356ee35171030f582eeb816d503e61104edac0c7b93e88828ee134d4f139"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-resourcetemplates-0-title.json",
+      "sha256": "0c4377a6b71a21e618abbf1c68853b5373fc0af80284297d1a9835bba2c94a8d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-serverinfo-description.json",
+      "sha256": "6cef505b6261d6205ce5fae40ee6042b0f84c4182098d48e2f2f20bf52e547f3"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-serverinfo-icons.json",
+      "sha256": "2efb53f0615c10d6532934f798246a5bcaa7ae89b2a9e31828ef077e3dd4d1d5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-serverinfo-title.json",
+      "sha256": "bdbea3aaacc8baac4474ecc53e6e079b910dbc97b2fca8a6b386be5a4676c59a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-serverinfo-websiteurl.json",
+      "sha256": "400ad1b0c199e34e2445a76301816657efe0b93e4d96cbf2c9570a173ebfd596"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-serverinfo.json",
+      "sha256": "c199adc01142ab9e15287be4870581e1e181f8a86e14dc3a2bf083bf74b1ddee"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-tools-synthetickey-_meta.json",
+      "sha256": "16910da473276cd0466e8c2b056a3ba3f889183729345efcb023e322c5734995"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-tools-synthetickey-annotations.json",
+      "sha256": "1569844d7fcbf1d14940c29f52f073641282143d85c3882fc580478169c0503d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-tools-synthetickey-description.json",
+      "sha256": "10357b1a895c0828151d023ccb8753b4e61396deb48a2317ba2056188648e45f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-tools-synthetickey-icons.json",
+      "sha256": "78392c94e4cd881dedfd09a5e8bd7cf5083db70ddeab72f892bbbfbe78d705e1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-tools-synthetickey-outputschema.json",
+      "sha256": "0f7247efc936428d1bb77c4e4d62d9cdc35f0662d376de05586ae9f6d1494f87"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-data-0-tools-synthetickey-title.json",
+      "sha256": "1e76487554b9ed0d004661ec364032a1831bd5f1f03924463b621ff92f8e8541"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-optional-omitted-nextcursor.json",
+      "sha256": "7bb81f0df8256692f18d4074364266516d157896e0a457ed5b8fd0cb1ee4d105"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/mcpserverstatus-list/supplements/result-required-nullable-null-data-0-tools-synthetickey-inputschema.json",
+      "sha256": "72f1f5f260f6a4fb332a34431095d62e00eb03e12266254d232802eba8caf29b"
     },
     {
       "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/client/plugin-install/mutations/params-missing-required-pluginname.json",
@@ -55733,6 +56513,734 @@
       "sha256": "5f9575368c5cb94e82ac695f4e335f462b7e37538a949dc310d2950517887a37"
     },
     {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/attestation-generate/mutations/result-missing-required-token.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/attestation-generate/mutations/result-wrong-type-token.json",
+      "sha256": "59b81a5e710b3ae83236fdc430c6277fd712baf8885515bbd1c9ec65c918b637"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-missing-required-arguments.json",
+      "sha256": "2f6d0aceecc3b493c3f5e47d4ba26a6e43379ed0dc6a7e70c169fe5c43aed04e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-missing-required-callid.json",
+      "sha256": "9e8fda95019bd47f03f3bbc7e5eec42759a14949d16eaf3a0750aae947b7278f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-missing-required-threadid.json",
+      "sha256": "864d97f8a28f112139efc36ab1cc3dc5aee4965d30af8496322521f1be59a352"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-missing-required-tool.json",
+      "sha256": "808b7810979abbb1c5a537c09c1d702e838c37107c540e56032fefe66e405b73"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-missing-required-turnid.json",
+      "sha256": "58c9591e1f277750c09ae66c9f2c57804150778cbb253ec806a1d4e5befa3675"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-wrong-type-callid.json",
+      "sha256": "6473dc196978e44fa1f64857f54f25183d6f6ea7256198c06063cbab5fbf839a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-wrong-type-namespace.json",
+      "sha256": "6ba2e39d6a736005a079c5fd4e88fcf77b4895f2c3be2e62375538ef4623e859"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-wrong-type-threadid.json",
+      "sha256": "1137bc89a6fee47f6059b9f34b3d27791771cb10af6dd5e05ebd5c640ae2421d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-wrong-type-tool.json",
+      "sha256": "8a66bef77d3dbbe9ad39bc252b05e8ef0abbd26b726ab0ff3062ca605d4b03bc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/params-wrong-type-turnid.json",
+      "sha256": "31a830f3d4ea85188c9e7290050317b47ae4b923168cb25876ab1373bd422c6f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-missing-required-contentitems-0-text.json",
+      "sha256": "abb68f2d26e7c3e98d2adf2aa33a99c6605117a634f0fa3957d5652119154059"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-missing-required-contentitems-0-type.json",
+      "sha256": "d3aef0eb9f509db19524f424a53c6a245239007291f94377fcc1775067bdcff5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-missing-required-contentitems.json",
+      "sha256": "12efc482929679417605534f6362b8a866f4ffe9c979492aa3683160d17d161e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-missing-required-success.json",
+      "sha256": "1d87f7d70d9dcb27f1abf0341506c6310bc72c80f370338d652eb565c28210c6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-wrong-type-contentitems-0-text.json",
+      "sha256": "0ae9c9c50e76507a623a4b21536b0e5782cdcc3cc97fb9d692db1728c0e32293"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-wrong-type-contentitems-0-type.json",
+      "sha256": "4871c50202ee92cc7d3029c2b2f569cbdc6282b5d86c7137d6983f57b6d5925d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-wrong-type-contentitems-0.json",
+      "sha256": "17933a8c8d0fb22bd189db0cc707dade66e8662244fbb819b2a8f8161f9895bf"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-wrong-type-contentitems.json",
+      "sha256": "6c9f4407db0c700ea768b2e090685c912f5bea96461535dacd32e58f2100d8d4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/mutations/result-wrong-type-success.json",
+      "sha256": "d0667732ca5db35b5802b8fdcc0efaf6119c15b242e221e011b845af56504c7a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/supplements/params-nullable-null-namespace.json",
+      "sha256": "f4f411a51865538e89f689a717ab34a303632760b02be1c3c6cb8020cc46935e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/supplements/params-optional-omitted-namespace.json",
+      "sha256": "1eb9b87d40372a9dbd31150dd277edd4b1c39f218e75c55dabad56a9d85da61e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-call/supplements/params-required-nullable-null-arguments.json",
+      "sha256": "e47722c6d724a3b5d856582e4e8f1ba6f306008ce0ed0af6e1226ceaed6a0677"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-itemid.json",
+      "sha256": "7a0a992881fb2949e454edbf120f31331c6cd39690d4effa476b62ca6a0f1c0e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-questions-0-header.json",
+      "sha256": "c762705b896c6ae75cea410dbd6cf40225371c8301fc95433975d421689a4375"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-questions-0-id.json",
+      "sha256": "8a1904dbd5ac4ce971299c9763b80e5bb0f480c1c7d0e273f9e7d053759a63d1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-questions-0-options-0-description.json",
+      "sha256": "85e3bc9eee5b3527b05c4987859b6322036968729b85ec6bc88bddf20847eac1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-questions-0-options-0-label.json",
+      "sha256": "a3cb0ca4859962691627082a5576e0957428ca9a6185e188f0afed6755967359"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-questions-0-question.json",
+      "sha256": "f568490d6cb14e9a4228c43c2f6d54fc313d28a9d91775c89da7f48fe922e38e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-questions.json",
+      "sha256": "b069775ddeadcbdb728d203f403180f0c0e5da28a549534bdc86a2f3074038ee"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-threadid.json",
+      "sha256": "e1c7dc43e3497ba0f4d83d1bb53cb333d0a6ec96dea7ceccd95e02caa2445c17"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-missing-required-turnid.json",
+      "sha256": "6ea519d4ef2ce498a16b359924914ef0cf6a9c58263eba2c820740834a2eb35a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-autoresolutionms.json",
+      "sha256": "5ae9c37174613804bc10a3404e501f08a1a79e011d68f0789cbdea80c180c501"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-itemid.json",
+      "sha256": "745b4f3b23eeed7e8fa9b8796b5453d7fcd2a5326a4420504dd2fa853cd62866"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-header.json",
+      "sha256": "56e29eea7d985e5c1025068cec545b304600cda0bad7f170135cf6b69d2a11c9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-id.json",
+      "sha256": "d095c099191f917d739f22d77bdd8684b1dc248caea1b257d0f301550bc2bd37"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-isother.json",
+      "sha256": "498d81202d175fe1779718d122800d6db2e5f9fbf6f5b2a5f38449a61f765d26"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-issecret.json",
+      "sha256": "76ecaab456ff3be6f9c0e68825cff41a0e6f26b054eb06c30e47968150083a87"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-options-0-description.json",
+      "sha256": "cb59fbc97e7ca4f55c7599e13eeb64e65ac87b89fb95cb82e518d978f32f641f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-options-0-label.json",
+      "sha256": "2da998b84428013d9f3ead138321c2b5e7f496671fe3a847095e278cb660d5fc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-options-0.json",
+      "sha256": "36d02726b461acd05daa20c3f49e7e681b57d1823261c75a15fa2b15831ca7db"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-options.json",
+      "sha256": "5612eb92b3be3cb5fdaff18e2d654513272f765dcd9abaf3306be71bb20ef5a3"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0-question.json",
+      "sha256": "07db0ccccbcced5fcde30a000f22393a4d473d8508b97a3ec1473cffe89baea9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions-0.json",
+      "sha256": "f85214da203ae13a8ed3d1fb647dff6bbc6ac15c3d419c7ecb582dd70bf21972"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-questions.json",
+      "sha256": "23b456c44214241883dc15887592ae2cc2677f5073192277f62ccf898d15d3bc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-threadid.json",
+      "sha256": "fe335cbe3d31f950c34a876778a79520153e9c8953aee17bde51858d52f074e5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/params-wrong-type-turnid.json",
+      "sha256": "1e98c99baa845c19f11e096eff3f6e094a1694647861c565e791b075735bcfd0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/result-missing-required-answers-synthetickey-answers.json",
+      "sha256": "1ca0e34839ac525c3680ae31f431d1663050b7e5fbf3f64183ff13f4846ef24f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/result-missing-required-answers.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/result-wrong-type-answers-synthetickey-answers-0.json",
+      "sha256": "364055126b264f8290eea53c2ee25225dd359cef69ec819d42d1f5cefe3981ac"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/result-wrong-type-answers-synthetickey-answers.json",
+      "sha256": "127297f8a406826dbfa2405f3cd52978f896103d32ad19ce849b9140365b83bb"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/result-wrong-type-answers-synthetickey.json",
+      "sha256": "d332e736ed4ae7dd757d5299f4e5ea671f2f19ba4836ea61c1ed9f27607e06c7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/mutations/result-wrong-type-answers.json",
+      "sha256": "7f198a6ecdfc7772c2c4c92fb4adb502ec09268372be06f78af01aa28c734f62"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/supplements/params-nullable-null-autoresolutionms.json",
+      "sha256": "a93fb931d062613fccb5adea7560635ed60b5fa0fe301fac0aba9ee4283102e0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/supplements/params-nullable-null-questions-0-options.json",
+      "sha256": "6c65cfc3535ad59a6d4c27e6707874b2a0674536d4242083678eee838711674b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/supplements/params-optional-omitted-autoresolutionms.json",
+      "sha256": "5cc342398f0a0cfe8b0a980ee21744f7724484beb3862fa1ad50bc89fe1aa808"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/supplements/params-optional-omitted-questions-0-isother.json",
+      "sha256": "2e0754710317d610f884318a0cf1b393f83cb9eadb7e7e5aa7374d2d676d876c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/supplements/params-optional-omitted-questions-0-issecret.json",
+      "sha256": "00858da7ded3befb0eefd3cd71b28e99ea1f455ad1814aa6a1d69288da433bd3"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/item-tool-requestuserinput/supplements/params-optional-omitted-questions-0-options.json",
+      "sha256": "3414603663c36251eddeb865b71e57fe44db16f15fac3b70bc1879c5dbd9d7a7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-message.json",
+      "sha256": "4296d496870ae34dc0f9dd17b4a806ecc0b330ebe001d5da61fed2d9b00cf7b0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-mode.json",
+      "sha256": "853e4eb43a315204fe921f7839b78670020e20a00fdcd998ae0e0eeebfd927f7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-requestedschema-properties-synthetickey-type.json",
+      "sha256": "d886bca1e8d6061bb00b45363ef9e82027a27cbf21a556cf664cc677022288fc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-requestedschema-properties.json",
+      "sha256": "3f3ec2ac07f74599de2be18987f9c4833a193ce6fb77cd4d896bdf2d155de388"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-requestedschema-type.json",
+      "sha256": "52d51ae5568ec2d1ccaf1ca09b4ce2460aae04925c0ac03507b9277c54ef76a1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-requestedschema.json",
+      "sha256": "4c8e65dd6b3eea7c127edda981014f05333fbc61131f7266b79d099539ef7631"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-servername.json",
+      "sha256": "366dcea85bfc8c5905c2ced44f9c03fe9fa02063e59d494ee03ca507470bf68c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-missing-required-threadid.json",
+      "sha256": "0a7fb36b2c7292f669f1b8673ae6b66de5d7e01eaef8a6b3078688af4a3cf529"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-message.json",
+      "sha256": "ba4dcb00898b2df06c64f6eccc15e9f1863184a4ba9748b6712072dd5ab608e1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-mode.json",
+      "sha256": "9593851f4e7d6876fe1182ba683ee89ce03cba5f50f6f51cc96626d990d10904"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties-synthetickey-default.json",
+      "sha256": "cde5b198dd7b7f769083d875b5e535c62fd3bdd48e0ab61b01308bd68f79cd9b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties-synthetickey-description.json",
+      "sha256": "2d7d5456455ae848c3d37bc8aa74cc33241a90aafa40c4cb5d51cf47c9a1f742"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties-synthetickey-enum-0.json",
+      "sha256": "707efa5cee2e6f20e63156c285fbde2a322647067d5522e9d8a983841f58cfd4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties-synthetickey-enum.json",
+      "sha256": "6c76ebe9084e25b78b7ebe16d0eb85788eb9e994af87b230093d21c21d252326"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties-synthetickey-title.json",
+      "sha256": "ca08bd7ede8d3858ccad3cad1328a58c55574ad1960f5311248b43ddb9c555f0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties-synthetickey-type.json",
+      "sha256": "8fbc103f61105443d10599004b1dff16c9c7d24b4629a7e6d7fc8e3ff8c13993"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties-synthetickey.json",
+      "sha256": "c44d2f7c42fc5208351c0dac2408482804500f6256e219ff0b69a75ba8813d75"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-properties.json",
+      "sha256": "7fe8e7c8b17e31b96c3a4ac5f6e400d9ee257c21686848d5177d60fa86b8136d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-required-0.json",
+      "sha256": "6abf3769b2be42befa6a3a39091ecc607641bc2c58a2269a81d0dc8f180976ac"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-required.json",
+      "sha256": "4c6ac51f4b6564690b30c8bad40d87b6984c3dc7397cc0829c0b4ab937258492"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-schema.json",
+      "sha256": "eed7ba6215e995841f338d97586ff8d5bd12671515ed8f26724b9d48da1a177e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema-type.json",
+      "sha256": "50836fe65cee90f7d0d42ac521870fe88f9bb798018efb998c3d88d9e2708857"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-requestedschema.json",
+      "sha256": "2d167e4e612052cf0da535b112d6996dea8af21ccbbcd7f5945592079b9a8a2e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-servername.json",
+      "sha256": "3fe77adf9361b66ae9e9a4d57eba47d272405351d991f3a3363f8dbfac04b6f5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-threadid.json",
+      "sha256": "6079ccef6237c417816f70318575b8e36407a1242ec6f6d7771d20ecedc95eb6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/params-wrong-type-turnid.json",
+      "sha256": "31bcb2ba7a14235c021bf3e1da68ba7cf80f3d3cd63eef9729e316fb960804af"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/result-missing-required-action.json",
+      "sha256": "5d0aa3c0f0a03e7078ec3592cc4c9603ccef4c68a6b2b6f70819f2e4662c5c30"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/mutations/result-wrong-type-action.json",
+      "sha256": "e67f3ffdb20a7f078a406baea05d3ba59f900f8f502c8f8913e4d4252b68ea75"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-nullable-null-_meta.json",
+      "sha256": "a2851650fc59f12a86d9588ebb51344f238ffb52498bee75120d5a6d7f050ba2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-nullable-null-requestedschema-properties-synthetickey-default.json",
+      "sha256": "55eee14333c73c8a72c856f4aad50929979f09783cecb35af47b93299ca999e3"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-nullable-null-requestedschema-properties-synthetickey-description.json",
+      "sha256": "1767565fbbabd754061fc8619bf155c7a8adbd264ff962f447e69f19a30e28b6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-nullable-null-requestedschema-properties-synthetickey-title.json",
+      "sha256": "42b10c883368be7cf71e1ba7ffe28252a8b027bd5d04b519d5e72a12025c16d7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-nullable-null-requestedschema-required.json",
+      "sha256": "8f2371e9427842f6737f7bca0ef4e01b11ba2cacaec6382089e4cd1641175ed0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-nullable-null-requestedschema-schema.json",
+      "sha256": "79324ed97d9c979ab8a5735b09314f192cf2fba506d435fe148bd1c4813e5c33"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-nullable-null-turnid.json",
+      "sha256": "c9ab57c229f80123870ff9746368086cf0cc8ab5ef932dbf88e9067446ce59d6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-optional-omitted-_meta.json",
+      "sha256": "82974e1bdb1d039e018cf7819f3afe10b24179c25ed9b6e303713ef3b7d12335"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-optional-omitted-requestedschema-properties-synthetickey-default.json",
+      "sha256": "7ab4b474bcc65a9951fa82ebf5ce6fcc35cdda1236ed3d32e9a6d5ea59fa0f3c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-optional-omitted-requestedschema-properties-synthetickey-description.json",
+      "sha256": "f97b863e78ce95fb8d9b6811a33c54b8155171307c575307bc0baf943b3fc65d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-optional-omitted-requestedschema-properties-synthetickey-title.json",
+      "sha256": "bf0b766f4152096308aa4310676496e06993e3675ff77f267e44f78b7661208b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-optional-omitted-requestedschema-required.json",
+      "sha256": "e0188390435abdcbe7f201373b3d9ff910bd7bb6df4cd681cbefa8a4c123e16f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-optional-omitted-requestedschema-schema.json",
+      "sha256": "950ba2e30df924e9e44780bb9ad8323a8f00382f8de6a5bc16ed708068d799c7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/params-optional-omitted-turnid.json",
+      "sha256": "711346d07fbd719874eb4e6e418203850d69fb17318ffdef682a56611219b1f5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/result-nullable-null-_meta.json",
+      "sha256": "9efdb70f605042210ef35d10111ed2128935aa3ef7145e3b5d3a59eec65fc358"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/result-nullable-null-content.json",
+      "sha256": "20b5a80a56fb34eedf2ee4c4acb003bde087ac1e7dbe4118cd2dbd8321aae898"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/result-optional-omitted-_meta.json",
+      "sha256": "290b889a42edbeea42d5fbeca7e721b3f79c05fd8365eecfc14886dc1beb8b1c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/operations/server/mcpserver-elicitation-request/supplements/result-optional-omitted-content.json",
+      "sha256": "53f909ba3ed03d5a0c7e0cb842c99a00acca6f8890b190eecc7bb3114b367fe0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/form.json",
+      "sha256": "6848aa397ccc4ca06ece34e5e66852e2c24b4e21a5314699fc6f057af5318749"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/future-unknown.json",
+      "sha256": "0171965cf9390a7c6d24cb4374c9c2edcb1ab98d8977cdc263eeb73690c0e248"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-discriminator.json",
+      "sha256": "853e4eb43a315204fe921f7839b78670020e20a00fdcd998ae0e0eeebfd927f7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-required-message.json",
+      "sha256": "4296d496870ae34dc0f9dd17b4a806ecc0b330ebe001d5da61fed2d9b00cf7b0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-required-requestedschema-properties-synthetickey-type.json",
+      "sha256": "d886bca1e8d6061bb00b45363ef9e82027a27cbf21a556cf664cc677022288fc"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-required-requestedschema-properties.json",
+      "sha256": "3f3ec2ac07f74599de2be18987f9c4833a193ce6fb77cd4d896bdf2d155de388"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-required-requestedschema-type.json",
+      "sha256": "52d51ae5568ec2d1ccaf1ca09b4ce2460aae04925c0ac03507b9277c54ef76a1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-required-requestedschema.json",
+      "sha256": "4c8e65dd6b3eea7c127edda981014f05333fbc61131f7266b79d099539ef7631"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-required-servername.json",
+      "sha256": "366dcea85bfc8c5905c2ced44f9c03fe9fa02063e59d494ee03ca507470bf68c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-missing-required-threadid.json",
+      "sha256": "0a7fb36b2c7292f669f1b8673ae6b66de5d7e01eaef8a6b3078688af4a3cf529"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-discriminator-type.json",
+      "sha256": "9593851f4e7d6876fe1182ba683ee89ce03cba5f50f6f51cc96626d990d10904"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-message.json",
+      "sha256": "ba4dcb00898b2df06c64f6eccc15e9f1863184a4ba9748b6712072dd5ab608e1"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-properties-synthetickey-default.json",
+      "sha256": "cde5b198dd7b7f769083d875b5e535c62fd3bdd48e0ab61b01308bd68f79cd9b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-properties-synthetickey-description.json",
+      "sha256": "2d7d5456455ae848c3d37bc8aa74cc33241a90aafa40c4cb5d51cf47c9a1f742"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-properties-synthetickey-enum.json",
+      "sha256": "6c76ebe9084e25b78b7ebe16d0eb85788eb9e994af87b230093d21c21d252326"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-properties-synthetickey-title.json",
+      "sha256": "ca08bd7ede8d3858ccad3cad1328a58c55574ad1960f5311248b43ddb9c555f0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-properties-synthetickey-type.json",
+      "sha256": "8fbc103f61105443d10599004b1dff16c9c7d24b4629a7e6d7fc8e3ff8c13993"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-properties.json",
+      "sha256": "7fe8e7c8b17e31b96c3a4ac5f6e400d9ee257c21686848d5177d60fa86b8136d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-required.json",
+      "sha256": "4c6ac51f4b6564690b30c8bad40d87b6984c3dc7397cc0829c0b4ab937258492"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-schema.json",
+      "sha256": "eed7ba6215e995841f338d97586ff8d5bd12671515ed8f26724b9d48da1a177e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema-type.json",
+      "sha256": "50836fe65cee90f7d0d42ac521870fe88f9bb798018efb998c3d88d9e2708857"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-requestedschema.json",
+      "sha256": "2d167e4e612052cf0da535b112d6996dea8af21ccbbcd7f5945592079b9a8a2e"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-servername.json",
+      "sha256": "3fe77adf9361b66ae9e9a4d57eba47d272405351d991f3a3363f8dbfac04b6f5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-threadid.json",
+      "sha256": "6079ccef6237c417816f70318575b8e36407a1242ec6f6d7771d20ecedc95eb6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/form-wrong-nested-type-turnid.json",
+      "sha256": "31bcb2ba7a14235c021bf3e1da68ba7cf80f3d3cd63eef9729e316fb960804af"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-missing-discriminator.json",
+      "sha256": "b545cffd7c2f49a5d17080d448712f944572e9bfd838bbcd6a773352a392e94b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-missing-required-message.json",
+      "sha256": "ae8c58d08a585d7fa87293c7b66705bd81d26fb32b5508a6a5d44606cd2b9711"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-missing-required-requestedschema.json",
+      "sha256": "6cd8c4b9d6f36198dcbb7466543ca3da81a0d23348e9cf2fda0c153129af4e7b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-missing-required-servername.json",
+      "sha256": "2747673151ca255fb217654dd5273666a3a00cd838c02c8eac72b7e4a3295753"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-missing-required-threadid.json",
+      "sha256": "29325b80476f01de4c4637505c9bfb3df6d469e00a90e06ee7bc1251c8f54915"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-wrong-discriminator-type.json",
+      "sha256": "1862400429e101ce10ae21720bd6389d089e11dec33ef68e0cbc8e14b1bee68b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-wrong-nested-type-message.json",
+      "sha256": "38bd11c7416f550613057b9e0247f000f8bcfdf292ef31c1cfc3b58801883d19"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-wrong-nested-type-servername.json",
+      "sha256": "aa221c778e6901e70cfdd36133cef5841c5a1a18174c830b8493c213e14762b9"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-wrong-nested-type-threadid.json",
+      "sha256": "ddfc28d897ceb32b3ea1333987b038615ba6ff2c0da9ff5b87c78f617e7168d8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/openai-form-wrong-nested-type-turnid.json",
+      "sha256": "1bc2dfa675af35087ac1647e735280690f51ee6cd9d2cfc2f809019b16317bf8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-missing-discriminator.json",
+      "sha256": "8b5a0eb4fc63b334649db87bb8db77503ec1b4cc6d932432f73ca1e8f2f0cdac"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-missing-required-elicitationid.json",
+      "sha256": "9c77325410d80492214886beadcefc8734553a631bd839d6203524228b5aebc8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-missing-required-message.json",
+      "sha256": "3bd71a7ce066fe349f2c32cb977f8d74efc4b129fd339692a2c1c63cf92cb989"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-missing-required-servername.json",
+      "sha256": "f28364925e13bbd88c88fca0c5c2c9d751480740d462b64e60ae4e34565760a4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-missing-required-threadid.json",
+      "sha256": "7c8bbea6f9b358a28a03e8df31726963da4bfe92ae4e2379fd308068c24171b0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-missing-required-url.json",
+      "sha256": "0fc0c10997972c5d82ea1df4f40a692660dcb110c656071c4f7c4399a1e7af9a"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-wrong-discriminator-type.json",
+      "sha256": "250cd4d234a62e6656e5b70c38400de759ad85c6fe2a765327d98432d46fd271"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-wrong-nested-type-elicitationid.json",
+      "sha256": "3ddd927b9747dc8b23b060b381acd82d2b230c4c4bc78c0cdf56a3a81441c383"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-wrong-nested-type-message.json",
+      "sha256": "7ff8028319cd836d23a5ebd64080cb6db8958bbda7acb5875c57121c999f94a5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-wrong-nested-type-servername.json",
+      "sha256": "2b22657820ba98ac706f74a2beef190501ad4e781fb9229b3320961fc2d17b73"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-wrong-nested-type-threadid.json",
+      "sha256": "7dc2a33f99d9f9f38cee79cc5316fbdd27e18648f723d8bf9e41304258cdb098"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-wrong-nested-type-turnid.json",
+      "sha256": "65f15c382704ddc07a0b2a43cc675ee1ffc77cd9ede2ccdaeedbb1864ce9a6a0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/mutations/url-wrong-nested-type-url.json",
+      "sha256": "052df4d4c7a95d713486f50a5c001ceb9ee42b0a8fa79ff07cc81b25a2bd32f8"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/openai-form.json",
+      "sha256": "0180778b16f78031fa7840f46edc5a4041e41ffa21e13ce18d70d9ef3537b9ab"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-future-open-object-root.json",
+      "sha256": "cacd5a674eff840cc03140d8d85998e449a5574afce45f7fcc4b51fb506a2245"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-nullable-null-_meta.json",
+      "sha256": "a2851650fc59f12a86d9588ebb51344f238ffb52498bee75120d5a6d7f050ba2"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-nullable-null-requestedschema-properties-synthetickey-default.json",
+      "sha256": "55eee14333c73c8a72c856f4aad50929979f09783cecb35af47b93299ca999e3"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-nullable-null-requestedschema-properties-synthetickey-description.json",
+      "sha256": "1767565fbbabd754061fc8619bf155c7a8adbd264ff962f447e69f19a30e28b6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-nullable-null-requestedschema-properties-synthetickey-title.json",
+      "sha256": "42b10c883368be7cf71e1ba7ffe28252a8b027bd5d04b519d5e72a12025c16d7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-nullable-null-requestedschema-required.json",
+      "sha256": "8f2371e9427842f6737f7bca0ef4e01b11ba2cacaec6382089e4cd1641175ed0"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-nullable-null-requestedschema-schema.json",
+      "sha256": "79324ed97d9c979ab8a5735b09314f192cf2fba506d435fe148bd1c4813e5c33"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-nullable-null-turnid.json",
+      "sha256": "c9ab57c229f80123870ff9746368086cf0cc8ab5ef932dbf88e9067446ce59d6"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-optional-omitted-_meta.json",
+      "sha256": "82974e1bdb1d039e018cf7819f3afe10b24179c25ed9b6e303713ef3b7d12335"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-optional-omitted-requestedschema-properties-synthetickey-default.json",
+      "sha256": "7ab4b474bcc65a9951fa82ebf5ce6fcc35cdda1236ed3d32e9a6d5ea59fa0f3c"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-optional-omitted-requestedschema-properties-synthetickey-description.json",
+      "sha256": "f97b863e78ce95fb8d9b6811a33c54b8155171307c575307bc0baf943b3fc65d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-optional-omitted-requestedschema-properties-synthetickey-title.json",
+      "sha256": "bf0b766f4152096308aa4310676496e06993e3675ff77f267e44f78b7661208b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-optional-omitted-requestedschema-required.json",
+      "sha256": "e0188390435abdcbe7f201373b3d9ff910bd7bb6df4cd681cbefa8a4c123e16f"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-optional-omitted-requestedschema-schema.json",
+      "sha256": "950ba2e30df924e9e44780bb9ad8323a8f00382f8de6a5bc16ed708068d799c7"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/form-optional-omitted-turnid.json",
+      "sha256": "711346d07fbd719874eb4e6e418203850d69fb17318ffdef682a56611219b1f5"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/openai-form-future-open-object-root.json",
+      "sha256": "d1f1930623e46f028268edb523a16e8efa2bf7e3e4466166ce55da95bd206c66"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/openai-form-nullable-null-_meta.json",
+      "sha256": "9d37662bb8147a735fca317b74cf83a924c1bef437bb6605fbce5d8d2c5d066d"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/openai-form-nullable-null-turnid.json",
+      "sha256": "955859de97dae96939d7afb5fe98423f0b11f87aaf4e41eed20a284e40cb4204"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/openai-form-optional-omitted-_meta.json",
+      "sha256": "91bca7e5ffe5d29fafa957f1e768d39bd2a045bd52d53ecbac3ed36b08ade997"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/openai-form-optional-omitted-turnid.json",
+      "sha256": "1892b60e2d7e81d9a1f7c6632d3037736b2c9007860f2136eda9afb99fab9558"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/openai-form-required-nullable-null-requestedschema.json",
+      "sha256": "db131f4d9ddb79cd3813fc5286506af3ddcddcbfd3e06881c19c81a9d1b417ad"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/url-future-open-object-root.json",
+      "sha256": "732eddb4f1db82dbe7ff8442f4456da05ff947bd74d5a75bd6bba08945b43674"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/url-nullable-null-_meta.json",
+      "sha256": "23433052b631c06590cc3a35e0cda100180764c8b6686da4ace411d03e90cdd4"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/url-nullable-null-turnid.json",
+      "sha256": "2dce1c7912b343815a05db24d565f254b97816270648b901c1095aa6416d0647"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/url-optional-omitted-_meta.json",
+      "sha256": "426e9790811fc10f1acebe3a5b7b23814d5f66783ece6ee2140cab46d182f390"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/supplements/url-optional-omitted-turnid.json",
+      "sha256": "d21c5e8f8740d84c5f483e2bf1400533f7eb765eca6c7609c88f2805afd0316b"
+    },
+    {
+      "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/mcpserverelicitationrequestparams/url.json",
+      "sha256": "cee810b2ae1a4d683d2374c4f235fcfb46be0f2b097a38cf708e26a00d198be1"
+    },
+    {
       "path": "tools/codex/app-server-fixtures/0.144.6/cases/unions/pluginsource/future-unknown.json",
       "sha256": "47a9eb06b4e491e832b3da1d3b01919c4419ab905deccea039819b167d3420ed"
     },
@@ -55886,7 +57394,11 @@
     },
     {
       "path": "tools/codex/app_server_a1_4_mcp_reverse.py",
-      "sha256": "14e97ab4909d8cc76bbb94aede3e29aa69b2e67241d180fa68245d2439415f72"
+      "sha256": "44c3f61454fc9f1eca022e2b3f9fe349bf153b08015e16af6102c957494e0681"
+    },
+    {
+      "path": "tools/codex/app_server_a1_4_mcp_reverse_closure.py",
+      "sha256": "5072190f3b900af1601a194e75c7055e57ca38b51c60fd2f1fc4a68de6ff6de9"
     },
     {
       "path": "tools/codex/app_server_a1_4_user_integrations.py",
@@ -55894,11 +57406,11 @@
     },
     {
       "path": "tools/codex/app_server_a1_4_user_integrations_abi.py",
-      "sha256": "a2b7d9c9cf21bc2e296e513852d888632ded6a12f255525f2662b36722bb54e7"
+      "sha256": "72d944eefa7c53bfde8cf97cce87581fa9c47eeb5ab5d8c9658bef3d3d12a3a9"
     },
     {
       "path": "tools/codex/app_server_a1_4_user_integrations_closure.py",
-      "sha256": "845c429aa6b1b120856f1c4bae09203641b455fc5a9e438f4af500a60d3f4d65"
+      "sha256": "3dad682dbd6ace3ac00516db87e6430eae8431cb1df17959d6c30f21c840905a"
     },
     {
       "path": "tools/extraction/filter_history.py",
@@ -55906,7 +57418,7 @@
     },
     {
       "path": "tools/extraction/verify_codex_policy_ownership.py",
-      "sha256": "827abe1c09c3f8b0f5efbf66c522f569d246189f9498dfb573cfccd556d3563c"
+      "sha256": "ff26dd6c6a045462323c47a8fbe078b128509b3e67cefe5f07536fe63ab65bbd"
     },
     {
       "path": "tools/extraction/verify_extraction.py",

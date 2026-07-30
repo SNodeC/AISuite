@@ -44,6 +44,13 @@ FINAL_NATIVE_STATUS = {
 FROZEN_REPORT_SHA256 = (
     "07a7e1c1137ae24c205904c364a4b322b7ec69a609f57503ae321639172c0b1f"
 )
+MCP_REVERSE_INSTALLED_CONSUMER = {
+    "bytes": 37727,
+    "path": "tests/installed/codex/CodexTypedConsumer.cpp",
+    "sha256": (
+        "33899dac1d117ae66acbc5a53a9847c26e80babbfce2e4bbca6225cefce790e3"
+    ),
+}
 SUCCESSOR_PROMOTION_FIELDS = {
     "runtime_disposition",
     "runtime_target",
@@ -1049,11 +1056,20 @@ def _package_boundary(arguments: argparse.Namespace) -> dict[str, Any]:
         f".{definition['accessor']}()"
         for definition in audit.PUBLIC_API.values()
     ]
+    mcp_reverse_successor = _has_mcp_reverse_successor_marker(
+        arguments.repo_root.resolve()
+    )
     consumer_tokens = [
         *headers,
         *accessors,
-        "std::variant_size_v<typed::CanonicalServerNotification> == 57",
-        "std::variant_size_v<typed::Event> == 59",
+        (
+            "std::variant_size_v<typed::CanonicalServerNotification> == "
+            f"{59 if mcp_reverse_successor else 57}"
+        ),
+        (
+            "std::variant_size_v<typed::Event> == "
+            f"{61 if mcp_reverse_successor else 59}"
+        ),
         "std::variant_size_v<typed::PluginSource> == 5",
         "typed::AppListUpdatedNotification",
         "typed::ExternalAgentConfigImportCompletedNotification",
@@ -3914,6 +3930,17 @@ def _validate_package_report(arguments: argparse.Namespace) -> dict[str, Any]:
     """Validate the checked report without consulting repository history."""
 
     report = _load_canonical_proof(arguments.output)
+    mcp_reverse_successor = _has_mcp_reverse_successor_marker(
+        arguments.repo_root.resolve()
+    )
+    if mcp_reverse_successor:
+        _require(
+            _sha256_bytes(arguments.output.read_bytes())
+            == FROZEN_REPORT_SHA256,
+            "UserIntegrationPredecessorEvidenceDrift",
+            "$.package_report.successor.frozen_report",
+            "the frozen PR-A closure report changed across A1.4b",
+        )
     required_keys = {
         "api_abi",
         "architecture",
@@ -4072,11 +4099,29 @@ def _validate_package_report(arguments: argparse.Namespace) -> dict[str, Any]:
         "packaged acyclic generation-proof contract changed",
     )
     package_boundary = report.get("package_boundary")
+    expected_live_package_boundary = package_boundary
+    if mcp_reverse_successor and isinstance(package_boundary, Mapping):
+        expected_live_package_boundary = dict(package_boundary)
+        expected_live_package_boundary["installed_consumer"] = (
+            MCP_REVERSE_INSTALLED_CONSUMER
+        )
+        _require(
+            _package_boundary(arguments) == expected_live_package_boundary,
+            "UserIntegrationPackageBoundaryMismatch",
+            "$.package_report.package_boundary.successor",
+            (
+                "the exact A1.4b installed-consumer successor boundary "
+                "changed"
+            ),
+        )
     _require(
         isinstance(package_boundary, Mapping)
-        and package_boundary.get("installed_consumer")
-        == _record(
-            arguments.installed_consumer_source, arguments.repo_root
+        and (
+            mcp_reverse_successor
+            or package_boundary.get("installed_consumer")
+            == _record(
+                arguments.installed_consumer_source, arguments.repo_root
+            )
         )
         and package_boundary.get("installed_consumer_guard")
         == _record(arguments.installed_consumer_test, arguments.repo_root)
@@ -5126,7 +5171,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if arguments.command == "check-package":
         _validate_package_report(arguments)
-        _validate_generation_proof(arguments, package_safe=True)
+        if not _has_mcp_reverse_successor_marker(
+            arguments.repo_root.resolve()
+        ):
+            _validate_generation_proof(arguments, package_safe=True)
         return 0
     if (
         arguments.command == "check"
