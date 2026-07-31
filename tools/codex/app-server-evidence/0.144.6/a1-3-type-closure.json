@@ -1,6 +1,4 @@
 {
-  "base_sha": "304a817d371597fc764c3404c36cc880bf65536d",
-  "base_tree": "d0c8f21a415139655d4e9d92bb6efd0892b6bf4c",
   "codex_version": "codex-cli 0.144.6",
   "counts": {
     "default_bearing_paths": 20,

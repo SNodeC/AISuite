@@ -9,6 +9,7 @@
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
 #include "ai/openai/codex/typed/Client.h"
+#include "ai/openai/codex/typed/Plugins.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -28,6 +29,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -36,7 +38,7 @@ namespace {
     namespace typed = ai::openai::codex::typed;
 
     using Submission = codex::AppServerClient::RawProtocol::Submission;
-    constexpr std::size_t OperationCount = 5;
+    constexpr std::size_t OperationCount = 4;
 
     bool writeFully(int descriptor, std::string_view bytes) {
         std::size_t offset = 0;
@@ -76,43 +78,60 @@ namespace {
             {"codexHome", "/synthetic/codex-home"},
             {"platformFamily", "unix"},
             {"platformOs", "linux"},
-            {"userAgent", "codex-a1-4-user-integrations-wire/1"},
+            {"userAgent", "codex-a1-4-plugin-catalog-sources-wire/1"},
         };
     }
 
-    codex::Json appsResult() {
+    codex::Json remotePluginSummary() {
         return {
-            {"data", codex::Json::array({{{"id", "synthetic-app"}, {"name", "Synthetic App"}, {"futureAppField", true}}})},
-            {"nextCursor", nullptr},
+            {"authPolicy", "ON_USE"},
+            {"enabled", true},
+            {"id", "synthetic-plugin"},
+            {"installPolicy", "AVAILABLE"},
+            {"installed", true},
+            {"name", "Synthetic Plugin"},
+            {"source", {{"type", "remote"}, {"futureSourceField", true}}},
+            {"futurePluginField", true},
+        };
+    }
+
+    codex::Json installedResult() {
+        return {
+            {"marketplaceLoadErrors", codex::Json::array()},
+            {"marketplaces", codex::Json::array()},
             {"futureResultField", true},
         };
     }
 
-    codex::Json detectResult() {
+    codex::Json listResult() {
         return {
-            {"items",
-             codex::Json::array({{{"description", "Synthetic configuration"}, {"itemType", "CONFIG"}, {"futureMigrationField", true}}})},
+            {"featuredPluginIds", codex::Json::array({"synthetic-plugin"})},
+            {"marketplaceLoadErrors", codex::Json::array()},
+            {"marketplaces", codex::Json::array()},
             {"futureResultField", true},
         };
     }
 
-    codex::Json importResult() {
+    codex::Json readResult() {
         return {
-            {"importId", "synthetic-import"},
+            {"plugin",
+             {
+                 {"appTemplates", codex::Json::array()},
+                 {"apps", codex::Json::array()},
+                 {"hooks", codex::Json::array()},
+                 {"marketplaceName", "synthetic-marketplace"},
+                 {"mcpServers", codex::Json::array()},
+                 {"skills", codex::Json::array()},
+                 {"summary", remotePluginSummary()},
+                 {"futureDetailField", true},
+             }},
             {"futureResultField", true},
         };
     }
 
-    codex::Json historiesResult() {
+    codex::Json shareListResult() {
         return {
             {"data", codex::Json::array()},
-            {"futureResultField", true},
-        };
-    }
-
-    codex::Json feedbackResult() {
-        return {
-            {"threadId", "synthetic-thread"},
             {"futureResultField", true},
         };
     }
@@ -201,7 +220,7 @@ namespace {
                 return inject({{"id", envelope.at("id")},
                                {"error",
                                 {{"code", -32'500},
-                                 {"message", "synthetic user-integration remote failure"},
+                                 {"message", "synthetic plugin catalog failure"},
                                  {"data", {{"operation", operation}}},
                                  {"futureErrorField", true}}}});
             }
@@ -249,13 +268,12 @@ namespace {
     public:
         explicit TestClient(const std::shared_ptr<UnixTransportState>& state)
             : AppServerClient(std::make_unique<UnixTranscriptTransport>(state),
-                              {"codex_a1_4_user_integrations_wire_test", "Codex A1.4 User Integrations Wire Test", "1"}) {
+                              {"codex_a1_4_plugin_catalog_sources_wire_test", "Codex A1.4 Plugin Catalog Sources Wire Test", "1"}) {
         }
     };
 
     struct OperationCase {
         std::string method;
-        detail::ClientRequestTarget target;
         codex::Json expectedParams;
         codex::Json expectedResult;
         std::function<Submission(std::function<void(bool, const codex::Json&)>)> invoke;
@@ -272,7 +290,7 @@ namespace {
         }
 
         void start() {
-            expect(socketReady, "Commit-2 wire test opens its isolated AF_UNIX socketpair");
+            expect(socketReady, "plugin-catalog/sources wire test opens its isolated AF_UNIX socketpair");
             if (!socketReady) {
                 finished = true;
                 core::SNodeC::stop();
@@ -310,16 +328,11 @@ namespace {
         }
 
         template <typename Result, typename Params, typename Submit>
-        OperationCase makeOperation(std::string method,
-                                    detail::ClientRequestTarget target,
-                                    Params params,
-                                    codex::Json expectedParams,
-                                    codex::Json expectedResult,
-                                    Submit submit) {
+        OperationCase
+        makeConcreteOperation(std::string method, Params params, codex::Json expectedParams, codex::Json expectedResult, Submit submit) {
             state->successResults.emplace(method, expectedResult);
             return {
                 method,
-                target,
                 std::move(expectedParams),
                 expectedResult,
                 [params = std::move(params), submit = std::move(submit)](std::function<void(bool, const codex::Json&)> completion) mutable {
@@ -333,88 +346,73 @@ namespace {
         }
 
         void buildCases() {
-            typed::AppsListParams appsParams{};
-            appsParams.cursor = typed::OptionalNullable<std::string>::explicitNull();
-            appsParams.forceRefetch = false;
-            appsParams.limit = typed::OptionalNullable<std::uint32_t>::withValue(25);
-            appsParams.threadId = typed::OptionalNullable<typed::ThreadId>::withValue(typed::ThreadId{"synthetic-thread"});
+            typed::PluginInstalledParams installed{};
+            installed.cwds =
+                typed::OptionalNullable<std::vector<typed::AbsolutePathBuf>>::withValue({typed::AbsolutePathBuf{"/synthetic/workspace"}});
+            installed.installSuggestionPluginNames = typed::OptionalNullable<std::vector<std::string>>::explicitNull();
+            installed.raw = {{"futureInstalledField", true}};
 
-            typed::ExternalAgentConfigDetectParams detectParams{};
-            detectParams.cwds = typed::OptionalNullable<std::vector<std::string>>::withValue({"/synthetic/workspace"});
-            detectParams.includeHome = false;
+            typed::PluginListParams list{};
+            list.cwds = typed::OptionalNullable<std::vector<typed::AbsolutePathBuf>>::explicitNull();
+            list.marketplaceKinds = typed::OptionalNullable<std::vector<typed::PluginListMarketplaceKind>>::withValue(
+                {typed::PluginListMarketplaceKind::local(), typed::PluginListMarketplaceKind::createdByMeRemote()});
+            list.raw = {{"futureListField", true}};
 
-            typed::ExternalAgentConfigImportParams importParams{};
-            importParams.source = typed::OptionalNullable<std::string>::explicitNull();
+            typed::PluginReadParams read{};
+            read.marketplacePath =
+                typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/marketplace"});
+            read.pluginName = "synthetic-plugin";
+            read.remoteMarketplaceName = typed::OptionalNullable<std::string>::explicitNull();
+            read.raw = {{"futureReadField", true}};
 
-            typed::FeedbackUploadParams feedbackParams{};
-            feedbackParams.classification = "bug";
-            feedbackParams.includeLogs = false;
-            feedbackParams.reason = typed::OptionalNullable<std::string>::explicitNull();
-            feedbackParams.threadId = typed::OptionalNullable<typed::ThreadId>::withValue(typed::ThreadId{"synthetic-thread"});
+            typed::PluginShareListParams shareList{};
+            shareList.raw = {{"futureShareListField", true}};
 
-            auto& apps = client->typed().apps();
-            auto& externalAgents = client->typed().externalAgents();
-            auto& feedback = client->typed().feedback();
-
-            cases.push_back(makeOperation<typed::AppsListResponse>("app/list",
-                                                                   detail::ClientRequestTarget::AppsList,
-                                                                   std::move(appsParams),
-                                                                   {
-                                                                       {"cursor", nullptr},
-                                                                       {"forceRefetch", false},
-                                                                       {"limit", 25},
-                                                                       {"threadId", "synthetic-thread"},
-                                                                   },
-                                                                   appsResult(),
-                                                                   [&apps](auto params, auto handler) {
-                                                                       return apps.list(std::move(params), std::move(handler));
-                                                                   }));
-            cases.push_back(makeOperation<typed::ExternalAgentConfigDetectResponse>(
-                "externalAgentConfig/detect",
-                detail::ClientRequestTarget::ExternalAgentConfigDetect,
-                std::move(detectParams),
+            auto& plugins = client->typed().plugins();
+            cases.push_back(
+                makeConcreteOperation<typed::PluginInstalledResponse>("plugin/installed",
+                                                                      std::move(installed),
+                                                                      {
+                                                                          {"cwds", codex::Json::array({"/synthetic/workspace"})},
+                                                                          {"futureInstalledField", true},
+                                                                          {"installSuggestionPluginNames", nullptr},
+                                                                      },
+                                                                      installedResult(),
+                                                                      [&plugins](auto params, auto handler) {
+                                                                          return plugins.installed(std::move(params), std::move(handler));
+                                                                      }));
+            cases.push_back(makeConcreteOperation<typed::PluginListResponse>(
+                "plugin/list",
+                std::move(list),
                 {
-                    {"cwds", codex::Json::array({"/synthetic/workspace"})},
-                    {"includeHome", false},
+                    {"cwds", nullptr},
+                    {"futureListField", true},
+                    {"marketplaceKinds", codex::Json::array({"local", "created-by-me-remote"})},
                 },
-                detectResult(),
-                [&externalAgents](auto params, auto handler) {
-                    return externalAgents.detect(std::move(params), std::move(handler));
+                listResult(),
+                [&plugins](auto params, auto handler) {
+                    return plugins.list(std::move(params), std::move(handler));
                 }));
-            cases.push_back(makeOperation<typed::ExternalAgentConfigImportResponse>("externalAgentConfig/import",
-                                                                                    detail::ClientRequestTarget::ExternalAgentConfigImport,
-                                                                                    std::move(importParams),
-                                                                                    {
-                                                                                        {"migrationItems", codex::Json::array()},
-                                                                                        {"source", nullptr},
-                                                                                    },
-                                                                                    importResult(),
-                                                                                    [&externalAgents](auto params, auto handler) {
-                                                                                        return externalAgents.importConfiguration(
-                                                                                            std::move(params), std::move(handler));
-                                                                                    }));
-            cases.push_back(makeOperation<typed::ExternalAgentConfigImportHistoriesReadResponse>(
-                "externalAgentConfig/import/readHistories",
-                detail::ClientRequestTarget::ExternalAgentConfigImportHistoriesRead,
-                typed::Unit{},
-                nullptr,
-                historiesResult(),
-                [&externalAgents](auto params, auto handler) {
-                    return externalAgents.readImportHistories(std::move(params), std::move(handler));
-                }));
-            cases.push_back(makeOperation<typed::FeedbackUploadResponse>("feedback/upload",
-                                                                         detail::ClientRequestTarget::FeedbackUpload,
-                                                                         std::move(feedbackParams),
-                                                                         {
-                                                                             {"classification", "bug"},
-                                                                             {"includeLogs", false},
-                                                                             {"reason", nullptr},
-                                                                             {"threadId", "synthetic-thread"},
-                                                                         },
-                                                                         feedbackResult(),
-                                                                         [&feedback](auto params, auto handler) {
-                                                                             return feedback.upload(std::move(params), std::move(handler));
-                                                                         }));
+            cases.push_back(makeConcreteOperation<typed::PluginReadResponse>("plugin/read",
+                                                                             std::move(read),
+                                                                             {
+                                                                                 {"futureReadField", true},
+                                                                                 {"marketplacePath", "/synthetic/marketplace"},
+                                                                                 {"pluginName", "synthetic-plugin"},
+                                                                                 {"remoteMarketplaceName", nullptr},
+                                                                             },
+                                                                             readResult(),
+                                                                             [&plugins](auto params, auto handler) {
+                                                                                 return plugins.read(std::move(params), std::move(handler));
+                                                                             }));
+            cases.push_back(makeConcreteOperation<typed::PluginShareListResponse>("plugin/share/list",
+                                                                                  std::move(shareList),
+                                                                                  {{"futureShareListField", true}},
+                                                                                  shareListResult(),
+                                                                                  [&plugins](auto params, auto handler) {
+                                                                                      return plugins.shareList(std::move(params),
+                                                                                                               std::move(handler));
+                                                                                  }));
         }
 
         void invokeLocalRejections() {
@@ -427,7 +425,9 @@ namespace {
                     expect(false, method + " local rejection must not invoke its asynchronous callback");
                 });
                 insideSubmission = false;
-                const bool registryExact = detail::entryFor(operation.target).key.name == operation.method;
+                const detail::ProtocolSurfaceEntry* row =
+                    detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", operation.method);
+                const bool registryExact = row != nullptr && std::holds_alternative<detail::ClientRequestTarget>(row->runtimeTarget);
                 const bool rejected =
                     !submission && !submission.id && submission.error && submission.error->category == codex::Error::Category::InvalidState;
                 exact += rejected && registryExact ? 1U : 0U;
@@ -435,30 +435,26 @@ namespace {
                 expect(registryExact, operation.method + " resolves through its exact registry identity");
             }
             expect(exact == OperationCount && unexpectedLocalCallbacks == 0 && state->outbound.size() == before,
-                   "all five local rejections produce no callback or transport bytes");
+                   "all four plugin-catalog/sources operations reject locally without a callback or transport bytes");
         }
 
         void beginSuccess() {
             state->replyMode = UnixTransportState::ReplyMode::Success;
             const std::size_t before = state->outbound.size();
-
             for (std::size_t index = 0; index < cases.size(); ++index) {
                 OperationCase& operation = cases[index];
                 insideSubmission = true;
                 const Submission submission = operation.invoke(
                     [this, method = operation.method, expected = operation.expectedResult](bool typedSuccess, const codex::Json& raw) {
                         expect(!insideSubmission, method + " completion remains asynchronous");
-                        expect(typedSuccess && raw == expected, method + " decodes its concrete result and retains exact raw JSON");
+                        expect(typedSuccess && raw == expected, method + " decodes its exact typed result and retains raw JSON");
                         ++successCallbackCounts[method];
                         ++successCallbacks;
-                        if (method == "app/list" && !reentrantSubmitted) {
-                            submitReentrant();
+                        if (method == "plugin/installed") {
+                            throw std::runtime_error("intentional plugin-catalog/sources operation callback failure");
                         }
                         if (successCallbacks == OperationCount) {
-                            maybeCompleteSuccess();
-                        }
-                        if (method == "externalAgentConfig/detect") {
-                            throw std::runtime_error("intentional Commit-2 callback failure");
+                            submitReentrant();
                         }
                     });
                 insideSubmission = false;
@@ -470,7 +466,8 @@ namespace {
                 }
             }
 
-            expect(state->outbound.size() == before + OperationCount, "all five operations cross the AF_UNIX transport exactly once");
+            expect(state->outbound.size() == before + OperationCount,
+                   "all four plugin-catalog/sources operations cross the AF_UNIX transport exactly once");
             for (std::size_t index = 0; index < cases.size(); ++index) {
                 const codex::Json expectedEnvelope{
                     {"id", static_cast<std::int64_t>(index + 1)},
@@ -484,90 +481,91 @@ namespace {
         }
 
         void submitReentrant() {
+            if (reentrantSubmitted) {
+                return;
+            }
             reentrantSubmitted = true;
-            typed::AppsListParams params{};
+            typed::PluginListParams params{};
+            params.marketplaceKinds = typed::OptionalNullable<std::vector<typed::PluginListMarketplaceKind>>::withValue(
+                {typed::PluginListMarketplaceKind::sharedWithMe()});
             insideSubmission = true;
-            const Submission submission = client->typed().apps().list(std::move(params), [this](const typed::Apps::ListResult& operation) {
-                expect(!insideSubmission, "reentrant app/list completion remains asynchronous");
-                expect(operation && operation.raw == appsResult(), "reentrant app/list shares the same result decoder");
-                ++reentrantCallbacks;
-                maybeCompleteSuccess();
-            });
+            const Submission submission =
+                client->typed().plugins().list(std::move(params), [this](const typed::Plugins::ListResult& operation) {
+                    expect(!insideSubmission, "reentrant plugin/list completion remains asynchronous");
+                    expect(operation && operation.raw == listResult(), "reentrant plugin/list shares the same decoder and RawProtocol");
+                    ++reentrantCallbacks;
+                    probeDuplicate();
+                });
             insideSubmission = false;
-            expect(submission && submission.id && submission.id->value() == 6,
-                   "reentrant callback submission is accepted with the next exact request ID");
-
+            expect(submission && submission.id && submission.id->value() == 5,
+                   "a C5 completion submits reentrantly with the exact next request ID");
             const codex::Json expectedEnvelope{
-                {"id", 6},
-                {"method", "app/list"},
-                {"params", codex::Json::object()},
+                {"id", 5},
+                {"method", "plugin/list"},
+                {"params", {{"marketplaceKinds", codex::Json::array({"shared-with-me"})}}},
             };
             const OutboundRecord& record = state->outbound.back();
             expect(record.envelope == expectedEnvelope && record.line == expectedEnvelope.dump() + "\n",
-                   "reentrant app/list emits exact JSONL through the same transport");
+                   "reentrant plugin/list emits exact JSONL through the same transport");
         }
 
-        void maybeCompleteSuccess() {
-            if (successCallbacks != OperationCount || reentrantCallbacks != 1 || duplicateProbeStarted) {
+        void probeDuplicate() {
+            if (duplicateProbeStarted) {
                 return;
             }
             duplicateProbeStarted = true;
-            bool exactlyOnce = true;
+            bool exactlyOnce = successCallbacks == OperationCount && reentrantCallbacks == 1;
             for (const OperationCase& operation : cases) {
                 exactlyOnce = exactlyOnce && successCallbackCounts[operation.method] == 1;
             }
-            expect(exactlyOnce, "every initial Commit-2 operation completes exactly once despite one callback exception");
-
-            const bool injected = !initialIds.empty() && state->inject({{"id", initialIds.front().value()}, {"result", appsResult()}});
-            expect(injected, "a duplicate completed response crosses the socket for the one-completion probe");
+            expect(exactlyOnce, "every plugin-catalog/sources success callback runs exactly once despite one throwing");
+            const bool injected = !initialIds.empty() && state->inject({{"id", initialIds.front().value()}, {"result", installedResult()}});
+            expect(injected, "a duplicate completed plugin/installed response crosses the socket for the one-completion probe");
             core::EventReceiver::atNextTick([this]() {
-                expect(successCallbacks == OperationCount && successCallbackCounts["app/list"] == 1,
-                       "a duplicate response cannot complete app/list twice");
+                expect(successCallbacks == OperationCount && successCallbackCounts["plugin/installed"] == 1,
+                       "a duplicate response cannot complete plugin/installed twice");
                 beginRemoteError();
             });
         }
 
         void beginRemoteError() {
             state->replyMode = UnixTransportState::ReplyMode::RemoteError;
-            typed::FeedbackUploadParams params{};
-            params.classification = "bug";
+            typed::PluginInstalledParams params{};
             insideSubmission = true;
             const Submission submission =
-                client->typed().feedback().upload(std::move(params), [this](const typed::Feedback::UploadResult& operation) {
+                client->typed().plugins().installed(std::move(params), [this](const typed::Plugins::InstalledResult& operation) {
                     const codex::Json expectedError{
                         {"code", -32'500},
-                        {"message", "synthetic user-integration remote failure"},
-                        {"data", {{"operation", "feedback/upload"}}},
+                        {"message", "synthetic plugin catalog failure"},
+                        {"data", {{"operation", "plugin/installed"}}},
                         {"futureErrorField", true},
                     };
-                    expect(!insideSubmission && operation.kind == typed::Feedback::UploadResult::Kind::RemoteError && !operation.value &&
+                    expect(!insideSubmission && operation.kind == typed::Plugins::InstalledResult::Kind::RemoteError && !operation.value &&
                                operation.remoteError && operation.remoteError->raw == expectedError && operation.raw.is_null(),
-                           "feedback/upload retains its exact remote error asynchronously");
+                           "plugin/installed preserves its exact remote error asynchronously");
                     ++remoteCallbacks;
                     core::EventReceiver::atNextTick([this]() {
                         beginCancellation();
                     });
                 });
             insideSubmission = false;
-            expect(submission && submission.id && submission.id->value() == 7,
-                   "remote-error probe is accepted with the next exact request ID");
+            expect(submission && submission.id && submission.id->value() == 6, "remote-error probe uses the exact next request ID");
         }
 
         void beginCancellation() {
             state->replyMode = UnixTransportState::ReplyMode::Hold;
-            typed::ExternalAgentConfigDetectParams params{};
+            typed::PluginShareListParams params{};
             insideSubmission = true;
             const Submission submission =
-                client->typed().externalAgents().detect(std::move(params), [this](const typed::ExternalAgents::DetectResult& operation) {
-                    expect(!insideSubmission && operation.kind == typed::ExternalAgents::DetectResult::Kind::Cancelled &&
-                               !operation.value && operation.localError &&
-                               operation.localError->category == codex::Error::Category::Cancelled,
-                           "held external-agent detection is cancelled once by an intentional stop");
+                client->typed().plugins().shareList(std::move(params), [this](const typed::Plugins::ShareListResult& operation) {
+                    expect(!insideSubmission && operation.kind == typed::Plugins::ShareListResult::Kind::Cancelled && !operation.value &&
+                               operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
+                           "held plugin/share/list is cancelled once by an intentional stop");
                     ++cancellationCallbacks;
                     maybeRestart();
                 });
             insideSubmission = false;
-            expect(submission && submission.id && submission.id->value() == 8,
+            expect(submission && submission.id && submission.id->value() == 7,
                    "cancellation probe is pending at the exact next request ID");
             client->stop();
         }
@@ -584,17 +582,19 @@ namespace {
 
         void beginDisconnect() {
             state->replyMode = UnixTransportState::ReplyMode::Hold;
-            typed::AppsListParams params{};
+            typed::PluginReadParams params{};
+            params.pluginName = "synthetic-plugin";
             insideSubmission = true;
-            const Submission submission = client->typed().apps().list(std::move(params), [this](const typed::Apps::ListResult& operation) {
-                expect(!insideSubmission && operation.kind == typed::Apps::ListResult::Kind::Cancelled && !operation.value &&
-                           operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
-                       "unexpected process disconnect cancels the held app/list exactly once");
-                ++disconnectCallbacks;
-                maybeFinishDisconnect();
-            });
+            const Submission submission =
+                client->typed().plugins().read(std::move(params), [this](const typed::Plugins::ReadResult& operation) {
+                    expect(!insideSubmission && operation.kind == typed::Plugins::ReadResult::Kind::Cancelled && !operation.value &&
+                               operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
+                           "unexpected process disconnect cancels held plugin/read exactly once");
+                    ++disconnectCallbacks;
+                    maybeFinishDisconnect();
+                });
             insideSubmission = false;
-            expect(submission && submission.id && submission.id->value() == 10,
+            expect(submission && submission.id && submission.id->value() == 9,
                    "post-reconnect disconnect probe uses the preserved request-ID allocator");
             core::EventReceiver::atNextTick([this]() {
                 if (state->callbacks.onExited) {
@@ -609,8 +609,8 @@ namespace {
             }
             finished = true;
             expect(successCallbacks == OperationCount && reentrantCallbacks == 1 && remoteCallbacks == 1 && cancellationCallbacks == 1 &&
-                       disconnectCallbacks == 1,
-                   "success, reentrant, error, cancellation, and disconnect callbacks each complete exactly once");
+                       disconnectCallbacks == 1 && unexpectedLocalCallbacks == 0,
+                   "success, reentrancy, error, cancellation, reconnect invalidation, and disconnect each complete exactly once");
             core::SNodeC::stop();
         }
 
@@ -654,8 +654,8 @@ int main(int argc, char* argv[]) {
         utils::Timeval({12, 0}));
     const int startResult = core::SNodeC::start(utils::Timeval({13, 0}));
 
-    result.expectTrue(!timedOut && runner.isFinished(), "Commit-2 AF_UNIX lifecycle matrix completes before the watchdog");
-    result.expectEqual(0, startResult, "Commit-2 AF_UNIX lifecycle matrix stops the event loop cleanly");
+    result.expectTrue(!timedOut && runner.isFinished(), "plugin-catalog/sources AF_UNIX lifecycle matrix completes before the watchdog");
+    result.expectEqual(0, startResult, "plugin-catalog/sources AF_UNIX lifecycle matrix stops the event loop cleanly");
     core::SNodeC::free();
     return result.processResult();
 }

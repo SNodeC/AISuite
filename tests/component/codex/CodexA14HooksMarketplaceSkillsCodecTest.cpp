@@ -539,8 +539,9 @@ namespace {
         }
 
         const backend::Snapshot snapshot = backend::makeSnapshot(state);
-        result.expectEqual(
-            wires.size(), snapshot.recentExtensions.size(), "all three Commit-3 notifications preserve extension delivery order");
+        result.expectEqual(wires.size(),
+                           snapshot.recentExtensions.size(),
+                           "all three hooks/marketplace/skills notifications preserve extension delivery order");
         codex::Json frontendPayloads = codex::Json::array();
         for (const backend::ExtensionSnapshot& extension : snapshot.recentExtensions) {
             frontendPayloads.push_back(extension.payload);
@@ -559,7 +560,7 @@ namespace {
         withoutExtensions.omittedRecentExtensions = 0;
         result.expectTrue(withoutExtensions == before && state.threads.empty() && state.threadOrder.empty() &&
                               state.pendingRequests.empty(),
-                          "Commit-3 notifications add no backend product state");
+                          "hooks/marketplace/skills notifications add no backend product state");
 
         backend::ExtensionRecord unrelated{};
         unrelated.method = "future/extension";
@@ -572,7 +573,7 @@ namespace {
         };
         const backend::ExtensionSnapshot unrelatedSnapshot = backend::makeExtensionSnapshot(unrelated);
         result.expectTrue(!unrelatedSnapshot.sensitiveFieldsRedacted && unrelatedSnapshot.payload == unrelated.payload,
-                          "Commit-3 redaction is scoped to the exact notification methods");
+                          "hooks/marketplace/skills redaction is scoped to the exact notification methods");
     }
 } // namespace
 

@@ -78,7 +78,7 @@ namespace {
             {"codexHome", "/synthetic/codex-home"},
             {"platformFamily", "unix"},
             {"platformOs", "linux"},
-            {"userAgent", "codex-a1-4-user-integrations-commit-4-wire/1"},
+            {"userAgent", "codex-a1-4-plugin-operations-wire/1"},
         };
     }
 
@@ -258,7 +258,7 @@ namespace {
     public:
         explicit TestClient(const std::shared_ptr<UnixTransportState>& state)
             : AppServerClient(std::make_unique<UnixTranscriptTransport>(state),
-                              {"codex_a1_4_user_integrations_commit_4_wire_test", "Codex A1.4 User Integrations Commit 4 Wire Test", "1"}) {
+                              {"codex_a1_4_plugin_operations_wire_test", "Codex A1.4 Plugin Operations Wire Test", "1"}) {
         }
     };
 
@@ -280,7 +280,7 @@ namespace {
         }
 
         void start() {
-            expect(socketReady, "Commit-4 wire test opens its isolated AF_UNIX socketpair");
+            expect(socketReady, "plugin-operation wire test opens its isolated AF_UNIX socketpair");
             if (!socketReady) {
                 finished = true;
                 core::SNodeC::stop();
@@ -482,7 +482,7 @@ namespace {
                 expect(registryExact, operation.method + " resolves through its exact registry identity");
             }
             expect(exact == OperationCount && unexpectedLocalCallbacks == 0 && state->outbound.size() == before,
-                   "all seven Commit-4 operations reject locally without a callback or transport bytes");
+                   "all seven plugin-operation operations reject locally without a callback or transport bytes");
         }
 
         void beginSuccess() {
@@ -498,7 +498,7 @@ namespace {
                         ++successCallbackCounts[method];
                         ++successCallbacks;
                         if (method == "plugin/install") {
-                            throw std::runtime_error("intentional Commit-4 operation callback failure");
+                            throw std::runtime_error("intentional plugin-operation operation callback failure");
                         }
                         if (successCallbacks == OperationCount) {
                             submitReentrant();
@@ -514,7 +514,7 @@ namespace {
             }
 
             expect(state->outbound.size() == before + OperationCount,
-                   "all seven Commit-4 operations cross the AF_UNIX transport exactly once");
+                   "all seven plugin-operation operations cross the AF_UNIX transport exactly once");
             for (std::size_t index = 0; index < cases.size(); ++index) {
                 const codex::Json expectedEnvelope{
                     {"id", static_cast<std::int64_t>(index + 1)},
@@ -572,7 +572,7 @@ namespace {
             for (const OperationCase& operation : cases) {
                 exactlyOnce = exactlyOnce && successCallbackCounts[operation.method] == 1;
             }
-            expect(exactlyOnce, "every Commit-4 success callback runs exactly once despite one throwing");
+            expect(exactlyOnce, "every plugin-operation success callback runs exactly once despite one throwing");
             const bool injected = !initialIds.empty() && state->inject({{"id", initialIds.front().value()}, {"result", installResult()}});
             expect(injected, "a duplicate completed plugin response crosses the socket for the one-completion probe");
             core::EventReceiver::atNextTick([this]() {
@@ -711,8 +711,8 @@ int main(int argc, char* argv[]) {
         utils::Timeval({12, 0}));
     const int startResult = core::SNodeC::start(utils::Timeval({13, 0}));
 
-    result.expectTrue(!timedOut && runner.isFinished(), "Commit-4 AF_UNIX lifecycle matrix completes before the watchdog");
-    result.expectEqual(0, startResult, "Commit-4 AF_UNIX lifecycle matrix stops the event loop cleanly");
+    result.expectTrue(!timedOut && runner.isFinished(), "plugin-operation AF_UNIX lifecycle matrix completes before the watchdog");
+    result.expectEqual(0, startResult, "plugin-operation AF_UNIX lifecycle matrix stops the event loop cleanly");
     core::SNodeC::free();
     return result.processResult();
 }

@@ -14,7 +14,7 @@
 
 namespace tests::component::codex {
 
-    // Reviewed A1.1 Commit 2 addition. This is an exact no-regression floor,
+    // Reviewed A1.1 typed-surface baseline. This is an exact no-regression floor,
     // deliberately separate from both A1.0 baselines.
     inline constexpr std::array<TypedSurfaceIdentity, 26> CodexA11B2TypedSurfaceBaseline{{
         {ai::openai::codex::detail::SurfaceCategory::TaggedUnionDiscriminator, "AskForApproval", "$variant", "granular"},

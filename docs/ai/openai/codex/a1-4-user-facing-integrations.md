@@ -6,9 +6,10 @@ This milestone types the 33 stable user-facing integration identities from the
 checked-in Codex App Server 0.144.6 protocol. The vendored stable schemas and
 Rust contracts remain the protocol authority.
 
-The pinned stable schemas, vendored Rust contracts, frozen A1.4 evidence, and
-`ProtocolSurfaceRegistryData.inc` remain authoritative. Experimental schemas
-are not implementation inputs.
+The `ProtocolSurfaceRegistry` is the current implementation-state authority.
+Generated descriptors, production codecs, fixtures, and current product tests
+validate that state against the pinned schemas and Rust contracts. Experimental
+schemas are not implementation inputs.
 
 The exact user-integration denominator is:
 
@@ -201,14 +202,12 @@ C++ API/ABI. SOVERSION intentionally remains 1 under the current A1 policy;
 that unchanged SONAME is not a binary-compatibility claim, and consumers must
 be rebuilt with the updated library.
 
-The authoritative
-`app_server_a1_4_user_integrations_abi.py` generator records 112 layout and
-variant observations from
-`CodexA14UserIntegrationsAbiLayoutProbe.cpp`, hashes every affected public
-header, and captures a sorted manifest of 715 strong exported Codex symbols.
-The generated API/ABI JSON and symbol manifest are checked against both the
-current public headers and the strict GCC library; they are package and
-full-corpus generation inputs rather than a compatibility claim.
+The vendored Codex 0.144.6 schemas and protocol source define this protocol
+surface, while the `ProtocolSurfaceRegistry`, generated descriptors, production
+codecs, and current codec/wire tests verify its implementation. The public-header
+policy, isolated self-containment test, installed consumer, and package tests
+verify the current public API and consumption boundary without treating a
+historical ABI report or symbol snapshot as an active authority.
 
 Sensitive app, external-agent, feedback, hook, marketplace, plugin, skill,
 thread, turn, opaque JSON, and raw-envelope values remain outside production

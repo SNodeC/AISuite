@@ -152,7 +152,7 @@ namespace {
         result.expectTrue(attestation.key.name == "attestation/generate" && dynamic.key.name == "item/tool/call" &&
                               attestation.typedSchemaStatus == detail::TypedSchemaStatus::Complete &&
                               dynamic.typedSchemaStatus == detail::TypedSchemaStatus::Complete,
-                          "only the two Commit-4 server-request registry targets are Complete");
+                          "only the two attestation/dynamic-tool server-request registry targets are Complete");
     }
 } // namespace
 

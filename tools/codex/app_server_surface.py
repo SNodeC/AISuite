@@ -246,10 +246,11 @@ A1_4_PUBLIC_ROOTS = {
     ),
 }
 
-# PR-A Commit 2 exact-key production ownership.  These identities advance
+# A1.4 apps, external-agent, and feedback exact-key production ownership.
+# These identities advance
 # together with their types, codecs, descriptors, facades, fixtures, and
 # focused tests; no other A1.4 identity is included.
-A14_USER_INTEGRATIONS_COMMIT_2 = frozenset(
+A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK = frozenset(
     {
         ("client_request", "ClientRequest", "method", "app/list"),
         (
@@ -291,10 +292,10 @@ A14_USER_INTEGRATIONS_COMMIT_2 = frozenset(
         ),
     }
 )
-# PR-A Commit 3 exact-key production ownership. These identities advance
+# A1.4 hooks, marketplace, and skills exact-key production ownership. These identities advance
 # together with their types, codecs, descriptors, facades, fixtures, and
 # focused tests.
-A14_USER_INTEGRATIONS_COMMIT_3 = frozenset(
+A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS = frozenset(
     {
         ("client_request", "ClientRequest", "method", "hooks/list"),
         ("client_request", "ClientRequest", "method", "marketplace/add"),
@@ -323,10 +324,10 @@ A14_USER_INTEGRATIONS_COMMIT_3 = frozenset(
         ),
     }
 )
-# PR-A Commit 4 exact-key production ownership. These plugin roots do not
+# A1.4 plugin-operation exact-key production ownership. These plugin roots do not
 # transitively reach PluginSource; the four catalog/source-bearing operations
-# and four PluginSource alternatives remain reserved for Commit 5.
-A14_USER_INTEGRATIONS_COMMIT_4 = frozenset(
+# and four PluginSource alternatives remain in the plugin catalog/source group.
+A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS = frozenset(
     {
         ("client_request", "ClientRequest", "method", "plugin/install"),
         (
@@ -347,10 +348,11 @@ A14_USER_INTEGRATIONS_COMMIT_4 = frozenset(
         ("client_request", "ClientRequest", "method", "plugin/uninstall"),
     }
 )
-# PR-A Commit 5 closes the four PluginSource-bearing catalog requests and the
+# The A1.4 plugin catalog/source group contains the four PluginSource-bearing
+# catalog requests and the
 # four known PluginSource alternatives. The alternative order is the exact
 # production-registry order, independent from the stable schema's oneOf order.
-A14_USER_INTEGRATIONS_COMMIT_5 = frozenset(
+A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES = frozenset(
     {
         ("client_request", "ClientRequest", "method", "plugin/installed"),
         ("client_request", "ClientRequest", "method", "plugin/list"),
@@ -363,16 +365,16 @@ A14_USER_INTEGRATIONS_COMMIT_5 = frozenset(
     }
 )
 A14_USER_INTEGRATIONS_IMPLEMENTED = (
-    A14_USER_INTEGRATIONS_COMMIT_2
-    | A14_USER_INTEGRATIONS_COMMIT_3
-    | A14_USER_INTEGRATIONS_COMMIT_4
-    | A14_USER_INTEGRATIONS_COMMIT_5
+    A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK
+    | A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS
+    | A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS
+    | A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES
 )
-# A1.4b Commit 3 exact-key production ownership. These four asynchronous
+# The A1.4b MCP client/notification group contains four asynchronous
 # client operations and two server notifications advance together with their
 # complete public types, codecs, descriptors, facade/event exposure, fixtures,
 # and focused wire tests.
-A14_MCP_REVERSE_COMMIT_3 = frozenset(
+A14_MCP_CLIENT_AND_NOTIFICATIONS = frozenset(
     {
         (
             "client_request",
@@ -412,9 +414,9 @@ A14_MCP_REVERSE_COMMIT_3 = frozenset(
         ),
     }
 )
-# A1.4b Commit 4 exact-key production ownership. These reverse requests use
+# The A1.4b attestation/dynamic-tool group uses
 # the existing RawProtocol occurrence registry and direct-response engine.
-A14_MCP_REVERSE_COMMIT_4 = frozenset(
+A14_ATTESTATION_AND_DYNAMIC_TOOL = frozenset(
     {
         (
             "server_request",
@@ -430,9 +432,9 @@ A14_MCP_REVERSE_COMMIT_4 = frozenset(
         ),
     }
 )
-# A1.4b Commit 5 completes the existing user-input request, adds MCP
+# The A1.4b user-input/elicitation group contains the user-input request, MCP
 # elicitation, and binds the elicitation mode union to its exact owner.
-A14_MCP_REVERSE_COMMIT_5 = frozenset(
+A14_USER_INPUT_AND_ELICITATION = frozenset(
     {
         (
             "server_request",
@@ -467,9 +469,9 @@ A14_MCP_REVERSE_COMMIT_5 = frozenset(
     }
 )
 A14_MCP_REVERSE_IMPLEMENTED = (
-    A14_MCP_REVERSE_COMMIT_3
-    | A14_MCP_REVERSE_COMMIT_4
-    | A14_MCP_REVERSE_COMMIT_5
+    A14_MCP_CLIENT_AND_NOTIFICATIONS
+    | A14_ATTESTATION_AND_DYNAMIC_TOOL
+    | A14_USER_INPUT_AND_ELICITATION
 )
 A14_RUNTIME_PLATFORM_CLIENT_REQUESTS = frozenset(
     {
@@ -1404,7 +1406,7 @@ CONVERSATION_UNION_CODECS = {
     ),
 }
 
-# Commit B4 adds the three operation-aggregate union families.  They reuse the
+# The operation-aggregate group contains three union families. They reuse the
 # same exact-key descriptor mechanism as B2/B3, but remain decode-only because
 # the pinned operation closure reaches them only through successful results.
 B4_CONVERSATION_UNION_CODECS = {
@@ -6455,15 +6457,15 @@ def registry_statuses(
         evidence["opaque_fields_declared"] = True
         evidence["no_known_schema_fields_dropped"] = True
     if identity in A14_USER_INTEGRATIONS_IMPLEMENTED and target is not None:
-        # PR-A Commits 2 through 5 bind each exact implemented integration root to a
+        # The A1.4 user-integration groups bind each exact implemented root to a
         # reviewed schema-complete codec, generated descriptor, grouped facade,
         # schema-derived fixture, and focused wire/notification test.  All
         # objects in this closure are open; raw retention supplements the
         # explicit known-field mapping and no opaque schema field is claimed.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
-    if identity in A14_MCP_REVERSE_COMMIT_3 and target is not None:
-        # A1.4b Commit 3 advances only the four MCP client operations and two
+    if identity in A14_MCP_CLIENT_AND_NOTIFICATIONS and target is not None:
+        # The A1.4b MCP client/notification group contains four client operations and two
         # MCP notifications. Their focused schema/wire coverage includes the
         # closure's open, closed, nullable, default-bearing, and opaque fields;
         # the generated target/descriptor bindings remain the runtime
@@ -6482,15 +6484,15 @@ def registry_statuses(
         # tests cover complete, omitted, null, future-open, and malformed data.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
-    if identity in A14_MCP_REVERSE_COMMIT_4 and target is not None:
-        # A1.4b Commit 4 advances only attestation generation and dynamic-tool
+    if identity in A14_ATTESTATION_AND_DYNAMIC_TOOL and target is not None:
+        # The A1.4b attestation/dynamic-tool group contains attestation generation and dynamic-tool
         # calls. Canonical open-object models, exact decode/encode coverage,
         # generated descriptors, and occurrence-bound response tests establish
         # every completeness dimension without adding another lifecycle.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
-    if identity in A14_MCP_REVERSE_COMMIT_5 and target is not None:
-        # A1.4b Commit 5 closes the canonical tool-user-input contract and the
+    if identity in A14_USER_INPUT_AND_ELICITATION and target is not None:
+        # The A1.4b user-input/elicitation group contains the canonical tool-user-input contract and the
         # distinct MCP elicitation union. Focused schema, codec, response, and
         # occurrence tests cover all stable fields, the 12 closed form-schema
         # objects, opaque/sensitive positions, and future-mode preservation.
@@ -6545,7 +6547,7 @@ def registry_statuses(
         and identity[1] in {"ThreadItem", "ResponseItem"}
         and target is not None
     ):
-        # Commit 3's two generated item target families are exact-keyed
+        # The two generated item target families are exact-keyed
         # production descriptors. The schema-derived item corpus exercises
         # every known branch, represented property, presence state, open
         # value, and the seven protocol-defined opaque paths through the
@@ -7287,8 +7289,8 @@ def generate_server_request_descriptor_data(
             or (
                 key
                 in (
-                    A14_MCP_REVERSE_COMMIT_4
-                    | A14_MCP_REVERSE_COMMIT_5
+                    A14_ATTESTATION_AND_DYNAMIC_TOOL
+                    | A14_USER_INPUT_AND_ELICITATION
                 )
                 and assignment.get("slice") == "A1.4"
                 and assignment.get("module") == "IntegrationsAndLongTail"
@@ -7453,7 +7455,7 @@ def generate_client_operation_descriptor_data(
                 and key
                 in (
                     A14_USER_INTEGRATIONS_IMPLEMENTED
-                    | A14_MCP_REVERSE_COMMIT_3
+                    | A14_MCP_CLIENT_AND_NOTIFICATIONS
                     | A14_RUNTIME_PLATFORM_CLIENT_REQUESTS
                 )
             )
@@ -7755,7 +7757,7 @@ def generate_server_notification_descriptor_data(
     a14_mcp_reverse_keys = {
         key
         for key in residual_keys
-        if key in A14_MCP_REVERSE_COMMIT_3
+        if key in A14_MCP_CLIENT_AND_NOTIFICATIONS
         and assignments[key].get("slice") == "A1.4"
         and assignments[key].get("module") == "IntegrationsAndLongTail"
     }
@@ -8744,11 +8746,9 @@ def generate_operation_production_coverage(
             "tests plus the registry generator; it is not a runtime "
             "disposition or dispatch registry."
         ),
-        # A1.1 is frozen historical evidence. Later slices append to the
-        # global corpus, while the exact A1.1 fixture projection and every
-        # record/count guard above remain live and byte-for-byte enforced.
-        # This index record is independently anchored by the immutable A1.2
-        # start-state capture.
+        # The A1.1 fixture projection remains a current, checked subset of the
+        # global corpus. Later slices append fixtures without changing the
+        # projection and record/count guards enforced here.
         "fixture_index": dict(_A1_1_FROZEN_FIXTURE_INDEX_RECORD),
         "registered_tests": [
             {

@@ -78,7 +78,7 @@ namespace {
             {"codexHome", "/synthetic/codex-home"},
             {"platformFamily", "unix"},
             {"platformOs", "linux"},
-            {"userAgent", "codex-a1-4-user-integrations-commit-3-wire/1"},
+            {"userAgent", "codex-a1-4-hooks-marketplace-skills-wire/1"},
         };
     }
 
@@ -277,7 +277,7 @@ namespace {
     public:
         explicit TestClient(const std::shared_ptr<UnixTransportState>& state)
             : AppServerClient(std::make_unique<UnixTranscriptTransport>(state),
-                              {"codex_a1_4_user_integrations_commit_3_wire_test", "Codex A1.4 User Integrations Commit 3 Wire Test", "1"}) {
+                              {"codex_a1_4_hooks_marketplace_skills_wire_test", "Codex A1.4 Hooks Marketplace Skills Wire Test", "1"}) {
         }
     };
 
@@ -299,7 +299,7 @@ namespace {
         }
 
         void start() {
-            expect(socketReady, "Commit-3 wire test opens its isolated AF_UNIX socketpair");
+            expect(socketReady, "hooks/marketplace/skills wire test opens its isolated AF_UNIX socketpair");
             if (!socketReady) {
                 finished = true;
                 core::SNodeC::stop();
@@ -322,7 +322,7 @@ namespace {
                 if (method == "hook/started" && !reentrantSubmitted) {
                     submitReentrant();
                     typedCallbackThrew = true;
-                    throw std::runtime_error("intentional Commit-3 typed notification callback failure");
+                    throw std::runtime_error("intentional hooks/marketplace/skills typed notification callback failure");
                 }
                 maybeCompleteSuccess();
             });
@@ -530,7 +530,7 @@ namespace {
                         ++successCallbackCounts[method];
                         ++successCallbacks;
                         if (method == "marketplace/add") {
-                            throw std::runtime_error("intentional Commit-3 operation callback failure");
+                            throw std::runtime_error("intentional hooks/marketplace/skills operation callback failure");
                         }
                         if (successCallbacks == OperationCount) {
                             injectNotifications();
@@ -623,7 +623,7 @@ namespace {
                 exactlyOnce = exactlyOnce && successCallbackCounts[operation.method] == 1;
             }
             expect(exactlyOnce && typedCallbackThrew,
-                   "every Commit-3 operation completes once and typed notification exceptions remain contained");
+                   "every hooks/marketplace/skills operation completes once and typed notification exceptions remain contained");
             const std::vector<std::string> expectedOrder{
                 "typed-hook/completed",
                 "raw-hook/completed",
@@ -775,8 +775,8 @@ int main(int argc, char* argv[]) {
         utils::Timeval({12, 0}));
     const int startResult = core::SNodeC::start(utils::Timeval({13, 0}));
 
-    result.expectTrue(!timedOut && runner.isFinished(), "Commit-3 AF_UNIX lifecycle matrix completes before the watchdog");
-    result.expectEqual(0, startResult, "Commit-3 AF_UNIX lifecycle matrix stops the event loop cleanly");
+    result.expectTrue(!timedOut && runner.isFinished(), "hooks/marketplace/skills AF_UNIX lifecycle matrix completes before the watchdog");
+    result.expectEqual(0, startResult, "hooks/marketplace/skills AF_UNIX lifecycle matrix stops the event loop cleanly");
     core::SNodeC::free();
     return result.processResult();
 }

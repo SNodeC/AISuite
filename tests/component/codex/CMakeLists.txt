@@ -417,7 +417,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14AppsExternalAgentFeedbackCodecTest
-    CodexA14UserIntegrationsCommit2Test.cpp
+    CodexA14AppsExternalAgentFeedbackCodecTest.cpp
 )
 target_link_libraries(
     CodexA14AppsExternalAgentFeedbackCodecTest
@@ -439,7 +439,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14AppsExternalAgentFeedbackWireTest
-    CodexA14UserIntegrationsCommit2WireTest.cpp
+    CodexA14AppsExternalAgentFeedbackWireTest.cpp
 )
 target_link_libraries(
     CodexA14AppsExternalAgentFeedbackWireTest
@@ -462,7 +462,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14HooksMarketplaceSkillsCodecTest
-    CodexA14UserIntegrationsCommit3Test.cpp
+    CodexA14HooksMarketplaceSkillsCodecTest.cpp
 )
 target_link_libraries(
     CodexA14HooksMarketplaceSkillsCodecTest
@@ -484,7 +484,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14HooksMarketplaceSkillsWireTest
-    CodexA14UserIntegrationsCommit3WireTest.cpp
+    CodexA14HooksMarketplaceSkillsWireTest.cpp
 )
 target_link_libraries(
     CodexA14HooksMarketplaceSkillsWireTest
@@ -507,7 +507,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14PluginOperationsCodecTest
-    CodexA14UserIntegrationsCommit4Test.cpp
+    CodexA14PluginOperationsCodecTest.cpp
 )
 target_link_libraries(
     CodexA14PluginOperationsCodecTest
@@ -529,7 +529,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14PluginOperationsWireTest
-    CodexA14UserIntegrationsCommit4WireTest.cpp
+    CodexA14PluginOperationsWireTest.cpp
 )
 target_link_libraries(
     CodexA14PluginOperationsWireTest
@@ -552,7 +552,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14PluginCatalogCodecTest
-    CodexA14UserIntegrationsCommit5Test.cpp
+    CodexA14PluginCatalogCodecTest.cpp
 )
 target_link_libraries(
     CodexA14PluginCatalogCodecTest
@@ -574,7 +574,7 @@ set_tests_properties(
 
 snodec_add_test(
     CodexA14PluginCatalogWireTest
-    CodexA14UserIntegrationsCommit5WireTest.cpp
+    CodexA14PluginCatalogWireTest.cpp
 )
 target_link_libraries(
     CodexA14PluginCatalogWireTest

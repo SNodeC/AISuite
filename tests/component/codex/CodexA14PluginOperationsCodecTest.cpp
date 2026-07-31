@@ -366,7 +366,7 @@ namespace {
     }
 
     void testRegistryAndFacade(tests::support::TestResult& result) {
-        constexpr std::array<std::string_view, 7> Commit4Requests{{
+        constexpr std::array<std::string_view, 7> PluginOperationRequests{{
             "plugin/install",
             "plugin/share/checkout",
             "plugin/share/delete",
@@ -375,7 +375,7 @@ namespace {
             "plugin/skill/read",
             "plugin/uninstall",
         }};
-        constexpr std::array<std::string_view, 4> Commit5Requests{{
+        constexpr std::array<std::string_view, 4> PluginCatalogRequests{{
             "plugin/installed",
             "plugin/list",
             "plugin/read",
@@ -471,7 +471,7 @@ namespace {
             result.expectTrue(found, std::string(identity) + " is in the exact staged Complete set");
         }
 
-        for (std::string_view identity : Commit4Requests) {
+        for (std::string_view identity : PluginOperationRequests) {
             const detail::ProtocolSurfaceEntry* row =
                 detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", identity);
             bool descriptorFound = false;
@@ -483,7 +483,7 @@ namespace {
                                   std::holds_alternative<detail::ClientRequestTarget>(row->runtimeTarget) && descriptorFound,
                               std::string(identity) + " has one typed target and one result descriptor");
         }
-        for (std::string_view identity : Commit5Requests) {
+        for (std::string_view identity : PluginCatalogRequests) {
             const detail::ProtocolSurfaceEntry* row =
                 detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", identity);
             bool descriptorFound = false;

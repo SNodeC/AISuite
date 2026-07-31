@@ -242,7 +242,7 @@ namespace {
                               historiesOperation &&
                               std::holds_alternative<typed::ExternalAgentConfigImportHistoriesReadResponse>(*historiesOperation.value) &&
                               feedbackOperation && std::holds_alternative<typed::FeedbackUploadResponse>(*feedbackOperation.value),
-                          "all five Commit-2 result decoders are reachable through exact registry targets");
+                          "all five apps/external-agent/feedback result decoders are reachable through exact registry targets");
 
         const auto missingApps = detail::decodeAppsListResponse(codex::Json::object(), error);
         result.expectTrue(!missingApps && error.find("$.data") != std::string::npos, "app/list rejects a missing required response field");
@@ -398,7 +398,7 @@ namespace {
                     break;
                 }
             }
-            result.expectTrue(found, std::string(identity) + " is one of the exact Commit-2 Complete identities");
+            result.expectTrue(found, std::string(identity) + " is one of the exact apps/external-agent/feedback Complete identities");
         }
     }
 
@@ -458,8 +458,9 @@ namespace {
         }
 
         const backend::Snapshot snapshot = backend::makeSnapshot(state);
-        result.expectEqual(
-            cases.size(), snapshot.recentExtensions.size(), "all three Commit-2 notifications retain extension delivery order");
+        result.expectEqual(cases.size(),
+                           snapshot.recentExtensions.size(),
+                           "all three apps/external-agent/feedback notifications retain extension delivery order");
         if (snapshot.recentExtensions.size() == cases.size()) {
             for (std::size_t index = 0; index < cases.size(); ++index) {
                 const Case& testCase = cases[index];
@@ -499,7 +500,7 @@ namespace {
         };
         const backend::ExtensionSnapshot unrelatedSnapshot = backend::makeExtensionSnapshot(unrelated);
         result.expectTrue(!unrelatedSnapshot.sensitiveFieldsRedacted && unrelatedSnapshot.payload == unrelated.payload,
-                          "Commit-2 redaction is scoped to the three exact notification methods");
+                          "apps/external-agent/feedback redaction is scoped to the three exact notification methods");
     }
 } // namespace
 

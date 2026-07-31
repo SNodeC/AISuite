@@ -16545,51 +16545,5 @@
       "vector_element_paths": [],
       "vector_property_paths": []
     }
-  },
-  "sources": {
-    "app_server_surface_generator": {
-      "path": "tools/codex/app_server_surface.py",
-      "sha256": "628254afe57d142e8c0862d0607180a169dadb93844a1ccabc35e61921408b23"
-    },
-    "assignments": {
-      "path": "tools/codex/app-server-evidence/0.144.6/module-slice-assignment.json",
-      "sha256": "e9097d1d27acd3915da65f7c955c2e8fb25f7ee0fce9b185e4415a1ba85396cf"
-    },
-    "draft07_validator": {
-      "path": "tools/codex/draft07.py",
-      "sha256": "4ecd7d14f3d5eabe43b3ecc1f4eaf2994b47d7a6e99b10ff1569fde59487a39c"
-    },
-    "fixture_generator": {
-      "path": "tools/codex/app_server_fixtures.py",
-      "sha256": "0dbeb63cb7b333087fdb2c78ab71470f4e4791ef6aa4e8751c3b5c0362dc9d96"
-    },
-    "fixture_index": {
-      "path": "tools/codex/app-server-fixtures/0.144.6/index.json",
-      "sha256": "022eb437aa39dceb21912947ba8bcdc1b10ff4b6c5076ba5b1713abfd762ac33"
-    },
-    "generator": {
-      "path": "tools/codex/app_server_a1_1.py",
-      "sha256": "5ec99ac40778125a8517f9bcb14215444d4e84213d2323300317154ad72ea1b8"
-    },
-    "manifest": {
-      "path": "tools/codex/app-server-surface/0.144.6.json",
-      "sha256": "b975aa514fd951161cc68eb26aac2b291b894afb62fd6cc3982bfeacf56a7021"
-    },
-    "operation_contracts": {
-      "path": "tools/codex/app-server-evidence/0.144.6/operation-contracts.json",
-      "sha256": "226c552c5602301966c39539bbf466f345d4aa625e06d6ca603a9dbcd25e3a9e"
-    },
-    "reachability": {
-      "path": "tools/codex/app-server-evidence/0.144.6/nested-reachability.json",
-      "sha256": "07c8bfc8096cb565d7ca0cb1e97c1ffffdeda5b50a82a841971035e506f3ce9a"
-    },
-    "stable_aggregate": {
-      "path": "tools/codex/app-server-schema/0.144.6/stable/codex_app_server_protocol.schemas.json",
-      "sha256": "40c67e463e6170a8666b681caa4636a030e303cee94e7f0cc893fa8af7680466"
-    },
-    "start_state": {
-      "path": "tools/codex/app-server-evidence/0.144.6/a1-1-start-state.json",
-      "sha256": "1614414ea6320f8ac5eb47ef928c4bc8de587c9f429f86d7f94ffeb437b6c705"
-    }
   }
 }

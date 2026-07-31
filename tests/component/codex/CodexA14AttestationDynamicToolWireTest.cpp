@@ -52,7 +52,7 @@ namespace {
                         dynamicError = *value;
                     }
                 } else {
-                    result.expectTrue(false, "Commit-4 wire input decodes only to its two exact typed alternatives");
+                    result.expectTrue(false, "attestation/dynamic-tool wire input decodes only to its two exact typed alternatives");
                 }
                 if (typedCallbacks == 4) {
                     answerOutOfOrder();
@@ -78,7 +78,7 @@ namespace {
         }
 
         void verifyFinal() {
-            result.expectEqual(std::size_t{4}, typedCallbacks, "all four Commit-4 occurrences dispatch exactly once");
+            result.expectEqual(std::size_t{4}, typedCallbacks, "all four attestation/dynamic-tool occurrences dispatch exactly once");
             std::vector<codex::Json> responses;
             for (const codex::Json& envelope : transport->outgoing) {
                 if (envelope.contains("id") && (envelope.contains("result") || envelope.contains("error"))) {
@@ -247,8 +247,8 @@ int main(int argc, char* argv[]) {
     runner.start();
     const int eventLoopResult = core::SNodeC::start(utils::Timeval({9, 0}));
     result.expectTrue(!timedOut && runner.isFinished(),
-                      "the asynchronous Commit-4 reverse-request scenario completes without polling or sleeps");
-    result.expectEqual(0, eventLoopResult, "the Commit-4 reverse-request scenario stops the SNode.C EventLoop cleanly");
+                      "the asynchronous attestation/dynamic-tool reverse-request scenario completes without polling or sleeps");
+    result.expectEqual(0, eventLoopResult, "the attestation/dynamic-tool reverse-request scenario stops the SNode.C EventLoop cleanly");
     runner.verifyFinal();
     core::SNodeC::free();
     return result.processResult();

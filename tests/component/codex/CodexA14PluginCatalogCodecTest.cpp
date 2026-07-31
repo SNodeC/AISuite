@@ -462,7 +462,7 @@ namespace {
             std::string_view parameterType;
             std::string_view resultType;
         };
-        constexpr std::array<ExpectedOperation, 4> Commit5Operations{{
+        constexpr std::array<ExpectedOperation, 4> PluginCatalogOperations{{
             {"plugin/installed", detail::ClientRequestTarget::PluginInstalled, "PluginInstalledParams", "PluginInstalledResponse"},
             {"plugin/list", detail::ClientRequestTarget::PluginList, "PluginListParams", "PluginListResponse"},
             {"plugin/read", detail::ClientRequestTarget::PluginRead, "PluginReadParams", "PluginReadResponse"},
@@ -502,7 +502,7 @@ namespace {
         result.expectTrue(nativeComplete == 56 && nativePartial == 0 && nativeNotImplemented == 0,
                           "the current native A1.4 registry arithmetic is exactly 56/0/0");
 
-        for (const ExpectedOperation& expected : Commit5Operations) {
+        for (const ExpectedOperation& expected : PluginCatalogOperations) {
             const detail::ProtocolSurfaceEntry* row =
                 detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", expected.method);
             const auto* target = row == nullptr ? nullptr : std::get_if<detail::ClientRequestTarget>(&row->runtimeTarget);

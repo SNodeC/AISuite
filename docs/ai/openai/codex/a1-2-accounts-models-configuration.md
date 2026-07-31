@@ -2,26 +2,12 @@
 
 ## Status and authority
 
-This document records the frozen Phase A1.2 start state, completed
-implementation batches, final type/path closure, public API review, and
-boundary decisions for the stable Codex App Server 0.144.6 surface. It is
-review evidence, not a production registry or dispatch input.
-
-The audited starting `origin/master` is
-`9f7b2955d017cab189fb7b7a80211d0c2788f819`. It is the merge of PR 220. The
-required correction commit
-`d32d1cb03aea86b9dcd8deb8078f02a5cee7e5ad` is its second parent and an
-ancestor. The two commits have the same tree
-`adb042243c7d0942fc5a702fd56638f34dce931f`, so the merge changed ancestry but
-not the reviewed A1.1 content. The `master` push workflow run 334 completed
-successfully at this SHA.
-
-The merged A1.1 evidence proves 151/151 A1.1 identities Complete and global
-schema metrics of 167 Complete, 8 Partial, 164 NotImplemented, and 48
-NotApplicable. Its fixture corpus, closure report, exact ratchets, and
-params-only `codex.extension` preservation regression remain independently
-guarded. The six checked-in A1.1 slice artifacts are byte-frozen while current
-live checks allow only reviewed monotonic A1.2 progress.
+This document describes the completed A1.2 accounts, models, and configuration
+surface for the stable Codex App Server 0.144.6 protocol. Current correctness
+is validated from the vendored schemas and Rust protocol source, the
+`ProtocolSurfaceRegistry`, generated descriptors, production codecs, fixtures,
+and current product tests. This document is not a production registry or
+dispatch input.
 
 A1.2 is pinned to the stable surface. Experimental-only inventory remains
 registered and untyped. The stable wire methods
@@ -35,7 +21,7 @@ The mechanically checked inputs are:
 - `tools/codex/app-server-evidence/0.144.6/operation-contracts.json`;
 - `tools/codex/app-server-evidence/0.144.6/schema-completeness-evidence.json`;
 - `tools/codex/app-server-evidence/0.144.6/fixture-coverage.json`;
-- `tools/codex/app-server-evidence/0.144.6/a1-2-start-state.json`;
+- `tools/codex/app-server-protocol-source/0.144.6/`;
 - `tools/codex/app-server-schema/0.144.6/stable/`;
 - `tools/codex/app-server-surface/0.144.6.json`; and
 - `src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc`.
@@ -44,22 +30,12 @@ The mechanically checked inputs are:
 production authority for runtime disposition, runtime target, typed
 implementation status, typed module, A1 slice, schema status, BackendCore
 status, canonical-state status, and frontend disposition. Classification is
-derived evidence-side metadata from the frozen module/slice assignment. It is
-not added to the production registry. Generated audit records, fixtures, and
-private codec descriptors provide reproducibility and exact associations; they
-do not make runtime or exposure decisions.
-
-The A1 audit tools share exact-key/evidence loading, registry and fixture
-transitions, dependency-ordered progress, C++ schema-type mechanics,
-presence wrappers, deterministic rendering, and diagnostic handling through
-`app_server_a1_shared.py`. They share one state-carrying schema walker in
-`app_server_schema_paths.py`, the schema catalog/definition graph and
-path-derived fixture obligations in `app_server_fixtures.py`, and registry
-and authoritative-association parsing in `app_server_surface.py`. The A1.2
-entry point supplies slice-specific reviewed mappings, closure policy, and
-exact report guards rather than cloning the A1.1 generator. Six frozen A1.1
-artifact hashes and their byte-identity test prove that the generalization
-does not rewrite prior outputs.
+derived evidence-side metadata from the current module/slice assignment and is
+not added to the production registry. Fixtures and private codec descriptors
+provide reproducibility and exact associations; they do not make runtime or
+exposure decisions. The shared schema walker, fixture generator, surface tool,
+descriptors, codecs, and current-state tests validate this mapping without
+consulting repository history.
 
 ## Frozen denominator and start state
 
@@ -368,15 +344,11 @@ again when more than one identity independently reaches it. Every seed and
 expansion must pass the independent Draft-07 path before its identity can be
 Complete.
 
-## Final closure
+## Current verification
 
-The checked final report is
-`tools/codex/app-server-evidence/0.144.6/a1-2-closure-report.json`.
-`tools/codex/app_server_a1_2_closure.py check` reconstructs it from the
-canonical registry and checked offline evidence. The report is a ratchet and
-review artifact, not a runtime registry.
-
-At the end of B5, the exact A1.2 ratchet is:
+The current registry, generated descriptors, production codecs, schema-derived
+fixtures, and product tests verify the complete A1.2 surface. Its current slice
+state is:
 
 ```text
 A1.2 Complete:          45
@@ -440,10 +412,6 @@ allow-list entries, and 42 verified package copies. Its planted negative
 self-test ran in the same invocation. The guard prints only paths and record
 identities on failure, never the matched value.
 
-Per-commit test changes, retained pre-existing contracts, and exact negative
-diagnostic codes are recorded in
-`docs/ai/openai/codex/a1-2-test-integrity.md`.
-
-Commit 6 is closure and verification only. Missing runtime types, handlers,
-codecs, descriptors, or facade operations must be repaired in their owning
-B2-B5 commit rather than added during closure.
+Current registry, codec, wire, package, installed-consumer, public-header, and
+security tests retain the relevant product contracts and exact negative
+diagnostic coverage.

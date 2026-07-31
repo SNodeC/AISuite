@@ -30505,7 +30505,7 @@
       }
     }
   },
-  "a1_4_user_integrations_commit_2": {
+  "a1_4_user_integrations_apps_external_agents_feedback": {
     "assignment_derived_notification_keys": [
       {
         "category": "server_notification",
@@ -33071,7 +33071,7 @@
       }
     }
   },
-  "a1_4_user_integrations_commit_3": {
+  "a1_4_user_integrations_hooks_marketplace_skills": {
     "assignment_derived_notification_keys": [
       {
         "category": "server_notification",
@@ -35371,1139 +35371,7 @@
       }
     }
   },
-  "a1_4_user_integrations_commit_4": {
-    "assignment_derived_operation_keys": [
-      {
-        "category": "client_request",
-        "discriminator_field": "method",
-        "domain": "ClientRequest",
-        "name": "plugin/install"
-      },
-      {
-        "category": "client_request",
-        "discriminator_field": "method",
-        "domain": "ClientRequest",
-        "name": "plugin/share/checkout"
-      },
-      {
-        "category": "client_request",
-        "discriminator_field": "method",
-        "domain": "ClientRequest",
-        "name": "plugin/share/delete"
-      },
-      {
-        "category": "client_request",
-        "discriminator_field": "method",
-        "domain": "ClientRequest",
-        "name": "plugin/share/save"
-      },
-      {
-        "category": "client_request",
-        "discriminator_field": "method",
-        "domain": "ClientRequest",
-        "name": "plugin/share/updateTargets"
-      },
-      {
-        "category": "client_request",
-        "discriminator_field": "method",
-        "domain": "ClientRequest",
-        "name": "plugin/skill/read"
-      },
-      {
-        "category": "client_request",
-        "discriminator_field": "method",
-        "domain": "ClientRequest",
-        "name": "plugin/uninstall"
-      }
-    ],
-    "indexed_schema_coverage": {
-      "client_request:ClientRequest:method:plugin/install": {
-        "directions_exercised": [
-          "Decode",
-          "Encode"
-        ],
-        "required_reachable_fixture_ids": [],
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/install:params",
-            "directions_exercised": [
-              "Encode"
-            ],
-            "nullable_property_schema_paths": [
-              "#/properties/marketplacePath",
-              "#/properties/remoteMarketplaceName"
-            ],
-            "optional_property_schema_paths": [
-              "#/properties/marketplacePath",
-              "#/properties/remoteMarketplaceName"
-            ],
-            "property_schema_paths": [
-              "#/properties/marketplacePath",
-              "#/properties/pluginName",
-              "#/properties/remoteMarketplaceName"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/install:result",
-            "directions_exercised": [
-              "Decode"
-            ],
-            "nullable_property_schema_paths": [
-              "#/definitions/AppSummary/properties/category",
-              "#/definitions/AppSummary/properties/description",
-              "#/definitions/AppSummary/properties/installUrl"
-            ],
-            "optional_property_schema_paths": [
-              "#/definitions/AppSummary/properties/category",
-              "#/definitions/AppSummary/properties/description",
-              "#/definitions/AppSummary/properties/installUrl"
-            ],
-            "property_schema_paths": [
-              "#/definitions/AppSummary/properties/category",
-              "#/definitions/AppSummary/properties/description",
-              "#/definitions/AppSummary/properties/id",
-              "#/definitions/AppSummary/properties/installUrl",
-              "#/definitions/AppSummary/properties/name",
-              "#/properties/appsNeedingAuth",
-              "#/properties/authPolicy"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          }
-        },
-        "schema_direction_coverage": true,
-        "schema_fixture_facts": {
-          "nullable_semantics_exercised": true,
-          "optional_omitted_exercised": true,
-          "optional_present_exercised": true,
-          "reachable_union_alternatives_exercised": true,
-          "schema_properties_exercised": true
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/checkout": {
-        "directions_exercised": [
-          "Decode",
-          "Encode"
-        ],
-        "required_reachable_fixture_ids": [],
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/checkout:params",
-            "directions_exercised": [
-              "Encode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [
-              "#/properties/remotePluginId"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/checkout:result",
-            "directions_exercised": [
-              "Decode"
-            ],
-            "nullable_property_schema_paths": [
-              "#/properties/remoteVersion"
-            ],
-            "optional_property_schema_paths": [
-              "#/properties/remoteVersion"
-            ],
-            "property_schema_paths": [
-              "#/properties/marketplaceName",
-              "#/properties/marketplacePath",
-              "#/properties/pluginId",
-              "#/properties/pluginName",
-              "#/properties/pluginPath",
-              "#/properties/remotePluginId",
-              "#/properties/remoteVersion"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          }
-        },
-        "schema_direction_coverage": true,
-        "schema_fixture_facts": {
-          "nullable_semantics_exercised": true,
-          "optional_omitted_exercised": true,
-          "optional_present_exercised": true,
-          "reachable_union_alternatives_exercised": true,
-          "schema_properties_exercised": true
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/delete": {
-        "directions_exercised": [
-          "Decode",
-          "Encode"
-        ],
-        "required_reachable_fixture_ids": [],
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/delete:params",
-            "directions_exercised": [
-              "Encode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [
-              "#/properties/remotePluginId"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/delete:result",
-            "directions_exercised": [
-              "Decode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          }
-        },
-        "schema_direction_coverage": true,
-        "schema_fixture_facts": {
-          "nullable_semantics_exercised": true,
-          "optional_omitted_exercised": true,
-          "optional_present_exercised": true,
-          "reachable_union_alternatives_exercised": true,
-          "schema_properties_exercised": true
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/save": {
-        "directions_exercised": [
-          "Decode",
-          "Encode"
-        ],
-        "required_reachable_fixture_ids": [],
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/save:params",
-            "directions_exercised": [
-              "Encode"
-            ],
-            "nullable_property_schema_paths": [
-              "#/properties/discoverability",
-              "#/properties/remotePluginId",
-              "#/properties/shareTargets"
-            ],
-            "optional_property_schema_paths": [
-              "#/properties/discoverability",
-              "#/properties/remotePluginId",
-              "#/properties/shareTargets"
-            ],
-            "property_schema_paths": [
-              "#/definitions/PluginShareTarget/properties/principalId",
-              "#/definitions/PluginShareTarget/properties/principalType",
-              "#/definitions/PluginShareTarget/properties/role",
-              "#/properties/discoverability",
-              "#/properties/pluginPath",
-              "#/properties/remotePluginId",
-              "#/properties/shareTargets"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/save:result",
-            "directions_exercised": [
-              "Decode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [
-              "#/properties/remotePluginId",
-              "#/properties/shareUrl"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          }
-        },
-        "schema_direction_coverage": true,
-        "schema_fixture_facts": {
-          "nullable_semantics_exercised": true,
-          "optional_omitted_exercised": true,
-          "optional_present_exercised": true,
-          "reachable_union_alternatives_exercised": true,
-          "schema_properties_exercised": true
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/updateTargets": {
-        "directions_exercised": [
-          "Decode",
-          "Encode"
-        ],
-        "required_reachable_fixture_ids": [],
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:params",
-            "directions_exercised": [
-              "Encode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [
-              "#/definitions/PluginShareTarget/properties/principalId",
-              "#/definitions/PluginShareTarget/properties/principalType",
-              "#/definitions/PluginShareTarget/properties/role",
-              "#/properties/discoverability",
-              "#/properties/remotePluginId",
-              "#/properties/shareTargets"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:result",
-            "directions_exercised": [
-              "Decode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [
-              "#/definitions/PluginSharePrincipal/properties/name",
-              "#/definitions/PluginSharePrincipal/properties/principalId",
-              "#/definitions/PluginSharePrincipal/properties/principalType",
-              "#/definitions/PluginSharePrincipal/properties/role",
-              "#/properties/discoverability",
-              "#/properties/principals"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          }
-        },
-        "schema_direction_coverage": true,
-        "schema_fixture_facts": {
-          "nullable_semantics_exercised": true,
-          "optional_omitted_exercised": true,
-          "optional_present_exercised": true,
-          "reachable_union_alternatives_exercised": true,
-          "schema_properties_exercised": true
-        }
-      },
-      "client_request:ClientRequest:method:plugin/skill/read": {
-        "directions_exercised": [
-          "Decode",
-          "Encode"
-        ],
-        "required_reachable_fixture_ids": [],
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/skill/read:params",
-            "directions_exercised": [
-              "Encode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [
-              "#/properties/remoteMarketplaceName",
-              "#/properties/remotePluginId",
-              "#/properties/skillName"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/skill/read:result",
-            "directions_exercised": [
-              "Decode"
-            ],
-            "nullable_property_schema_paths": [
-              "#/properties/contents"
-            ],
-            "optional_property_schema_paths": [
-              "#/properties/contents"
-            ],
-            "property_schema_paths": [
-              "#/properties/contents"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          }
-        },
-        "schema_direction_coverage": true,
-        "schema_fixture_facts": {
-          "nullable_semantics_exercised": true,
-          "optional_omitted_exercised": true,
-          "optional_present_exercised": true,
-          "reachable_union_alternatives_exercised": true,
-          "schema_properties_exercised": true
-        }
-      },
-      "client_request:ClientRequest:method:plugin/uninstall": {
-        "directions_exercised": [
-          "Decode",
-          "Encode"
-        ],
-        "required_reachable_fixture_ids": [],
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/uninstall:params",
-            "directions_exercised": [
-              "Encode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [
-              "#/properties/pluginId"
-            ],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/uninstall:result",
-            "directions_exercised": [
-              "Decode"
-            ],
-            "nullable_property_schema_paths": [],
-            "optional_property_schema_paths": [],
-            "property_schema_paths": [],
-            "schema_fixture_facts": {
-              "direction_assertion_exercised": true,
-              "nullable_semantics_exercised": true,
-              "optional_omitted_exercised": true,
-              "optional_present_exercised": true,
-              "schema_properties_exercised": true
-            }
-          }
-        },
-        "schema_direction_coverage": true,
-        "schema_fixture_facts": {
-          "nullable_semantics_exercised": true,
-          "optional_omitted_exercised": true,
-          "optional_present_exercised": true,
-          "reachable_union_alternatives_exercised": true,
-          "schema_properties_exercised": true
-        }
-      }
-    },
-    "negative_coverage": {
-      "operation_opaque_exclusions": [],
-      "unit_result_invariants": [
-        {
-          "accepted_fixture_id": "operation:client_request:plugin/share/delete:result",
-          "accepted_form": {},
-          "malformed_fixture_id": "operation:client_request:plugin/share/delete:result:malformed-unit-array",
-          "malformed_form": [],
-          "method": "plugin/share/delete",
-          "result_contract_kind": "Unit"
-        },
-        {
-          "accepted_fixture_id": "operation:client_request:plugin/uninstall:result",
-          "accepted_form": {},
-          "malformed_fixture_id": "operation:client_request:plugin/uninstall:result:malformed-unit-array",
-          "malformed_form": [],
-          "method": "plugin/uninstall",
-          "result_contract_kind": "Unit"
-        }
-      ]
-    },
-    "operation_root_fixture_plan": {
-      "client_request:ClientRequest:method:plugin/install": {
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/install:params",
-            "direction": "Encode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/install:params:missing-required:pluginname"
-            ],
-            "nullable_null_fixture_ids": [
-              "operation:client_request:plugin/install:params:nullable-null:marketplacepath",
-              "operation:client_request:plugin/install:params:nullable-null:remotemarketplacename"
-            ],
-            "optional_omitted_fixture_ids": [
-              "operation:client_request:plugin/install:params:optional-omitted:marketplacepath",
-              "operation:client_request:plugin/install:params:optional-omitted:remotemarketplacename"
-            ],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/install:params:wrong-type:marketplacepath",
-              "operation:client_request:plugin/install:params:wrong-type:pluginname",
-              "operation:client_request:plugin/install:params:wrong-type:remotemarketplacename"
-            ]
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/install:result",
-            "direction": "Decode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/install:result:missing-required:appsneedingauth",
-              "operation:client_request:plugin/install:result:missing-required:appsneedingauth-0-id",
-              "operation:client_request:plugin/install:result:missing-required:appsneedingauth-0-name",
-              "operation:client_request:plugin/install:result:missing-required:authpolicy"
-            ],
-            "nullable_null_fixture_ids": [
-              "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-category",
-              "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-description",
-              "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-installurl"
-            ],
-            "optional_omitted_fixture_ids": [
-              "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-category",
-              "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-description",
-              "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-installurl"
-            ],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth",
-              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0",
-              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-category",
-              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-description",
-              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-id",
-              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-installurl",
-              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-name",
-              "operation:client_request:plugin/install:result:wrong-type:authpolicy"
-            ]
-          }
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/checkout": {
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/checkout:params",
-            "direction": "Encode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/share/checkout:params:missing-required:remotepluginid"
-            ],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/share/checkout:params:wrong-type:remotepluginid"
-            ]
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/checkout:result",
-            "direction": "Decode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/share/checkout:result:missing-required:marketplacename",
-              "operation:client_request:plugin/share/checkout:result:missing-required:marketplacepath",
-              "operation:client_request:plugin/share/checkout:result:missing-required:pluginid",
-              "operation:client_request:plugin/share/checkout:result:missing-required:pluginname",
-              "operation:client_request:plugin/share/checkout:result:missing-required:pluginpath",
-              "operation:client_request:plugin/share/checkout:result:missing-required:remotepluginid"
-            ],
-            "nullable_null_fixture_ids": [
-              "operation:client_request:plugin/share/checkout:result:nullable-null:remoteversion"
-            ],
-            "optional_omitted_fixture_ids": [
-              "operation:client_request:plugin/share/checkout:result:optional-omitted:remoteversion"
-            ],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/share/checkout:result:wrong-type:marketplacename",
-              "operation:client_request:plugin/share/checkout:result:wrong-type:marketplacepath",
-              "operation:client_request:plugin/share/checkout:result:wrong-type:pluginid",
-              "operation:client_request:plugin/share/checkout:result:wrong-type:pluginname",
-              "operation:client_request:plugin/share/checkout:result:wrong-type:pluginpath",
-              "operation:client_request:plugin/share/checkout:result:wrong-type:remotepluginid",
-              "operation:client_request:plugin/share/checkout:result:wrong-type:remoteversion"
-            ]
-          }
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/delete": {
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/delete:params",
-            "direction": "Encode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/share/delete:params:missing-required:remotepluginid"
-            ],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/share/delete:params:wrong-type:remotepluginid"
-            ]
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/delete:result",
-            "direction": "Decode",
-            "missing_required_fixture_ids": [],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": []
-          }
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/save": {
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/save:params",
-            "direction": "Encode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/share/save:params:missing-required:pluginpath",
-              "operation:client_request:plugin/share/save:params:missing-required:sharetargets-0-principalid",
-              "operation:client_request:plugin/share/save:params:missing-required:sharetargets-0-principaltype",
-              "operation:client_request:plugin/share/save:params:missing-required:sharetargets-0-role"
-            ],
-            "nullable_null_fixture_ids": [
-              "operation:client_request:plugin/share/save:params:nullable-null:discoverability",
-              "operation:client_request:plugin/share/save:params:nullable-null:remotepluginid",
-              "operation:client_request:plugin/share/save:params:nullable-null:sharetargets"
-            ],
-            "optional_omitted_fixture_ids": [
-              "operation:client_request:plugin/share/save:params:optional-omitted:discoverability",
-              "operation:client_request:plugin/share/save:params:optional-omitted:remotepluginid",
-              "operation:client_request:plugin/share/save:params:optional-omitted:sharetargets"
-            ],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/share/save:params:wrong-type:discoverability",
-              "operation:client_request:plugin/share/save:params:wrong-type:pluginpath",
-              "operation:client_request:plugin/share/save:params:wrong-type:remotepluginid",
-              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets",
-              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0",
-              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0-principalid",
-              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0-principaltype",
-              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0-role"
-            ]
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/save:result",
-            "direction": "Decode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/share/save:result:missing-required:remotepluginid",
-              "operation:client_request:plugin/share/save:result:missing-required:shareurl"
-            ],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/share/save:result:wrong-type:remotepluginid",
-              "operation:client_request:plugin/share/save:result:wrong-type:shareurl"
-            ]
-          }
-        }
-      },
-      "client_request:ClientRequest:method:plugin/share/updateTargets": {
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:params",
-            "direction": "Encode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/share/updateTargets:params:missing-required:discoverability",
-              "operation:client_request:plugin/share/updateTargets:params:missing-required:remotepluginid",
-              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets",
-              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets-0-principalid",
-              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets-0-principaltype",
-              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets-0-role"
-            ],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/share/updateTargets:params:wrong-type:discoverability",
-              "operation:client_request:plugin/share/updateTargets:params:wrong-type:remotepluginid",
-              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets",
-              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0",
-              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0-principalid",
-              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0-principaltype",
-              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0-role"
-            ]
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:result",
-            "direction": "Decode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/share/updateTargets:result:missing-required:discoverability",
-              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals",
-              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-name",
-              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-principalid",
-              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-principaltype",
-              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-role"
-            ],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/share/updateTargets:result:wrong-type:discoverability",
-              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals",
-              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0",
-              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-name",
-              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-principalid",
-              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-principaltype",
-              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-role"
-            ]
-          }
-        }
-      },
-      "client_request:ClientRequest:method:plugin/skill/read": {
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/skill/read:params",
-            "direction": "Encode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/skill/read:params:missing-required:remotemarketplacename",
-              "operation:client_request:plugin/skill/read:params:missing-required:remotepluginid",
-              "operation:client_request:plugin/skill/read:params:missing-required:skillname"
-            ],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/skill/read:params:wrong-type:remotemarketplacename",
-              "operation:client_request:plugin/skill/read:params:wrong-type:remotepluginid",
-              "operation:client_request:plugin/skill/read:params:wrong-type:skillname"
-            ]
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/skill/read:result",
-            "direction": "Decode",
-            "missing_required_fixture_ids": [],
-            "nullable_null_fixture_ids": [
-              "operation:client_request:plugin/skill/read:result:nullable-null:contents"
-            ],
-            "optional_omitted_fixture_ids": [
-              "operation:client_request:plugin/skill/read:result:optional-omitted:contents"
-            ],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/skill/read:result:wrong-type:contents"
-            ]
-          }
-        }
-      },
-      "client_request:ClientRequest:method:plugin/uninstall": {
-        "roots": {
-          "params": {
-            "base_fixture_id": "operation:client_request:plugin/uninstall:params",
-            "direction": "Encode",
-            "missing_required_fixture_ids": [
-              "operation:client_request:plugin/uninstall:params:missing-required:pluginid"
-            ],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": [
-              "operation:client_request:plugin/uninstall:params:wrong-type:pluginid"
-            ]
-          },
-          "result": {
-            "base_fixture_id": "operation:client_request:plugin/uninstall:result",
-            "direction": "Decode",
-            "missing_required_fixture_ids": [],
-            "nullable_null_fixture_ids": [],
-            "optional_omitted_fixture_ids": [],
-            "required_nullable_null_fixture_ids": [],
-            "wrong_type_fixture_ids": []
-          }
-        }
-      }
-    },
-    "positive_coverage": {
-      "containers": {
-        "counts": {
-          "array": 4,
-          "map": 0
-        },
-        "nonempty_values_covered_by_base_fixtures": true,
-        "path_evidence": [
-          {
-            "container_kind": "array",
-            "direction": "Decode",
-            "fixture_id": "operation:client_request:plugin/install:result:explicit-empty-array:appsneedingauth",
-            "instance_path": "$/appsNeedingAuth",
-            "nonempty_fixture_id": "operation:client_request:plugin/install:result",
-            "root": "result",
-            "schema_path": "#/properties/appsNeedingAuth",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/install"
-            }
-          },
-          {
-            "container_kind": "array",
-            "direction": "Encode",
-            "fixture_id": "operation:client_request:plugin/share/save:params:explicit-empty-array:sharetargets",
-            "instance_path": "$/shareTargets",
-            "nonempty_fixture_id": "operation:client_request:plugin/share/save:params",
-            "root": "params",
-            "schema_path": "#/properties/shareTargets",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/save"
-            }
-          },
-          {
-            "container_kind": "array",
-            "direction": "Encode",
-            "fixture_id": "operation:client_request:plugin/share/updateTargets:params:explicit-empty-array:sharetargets",
-            "instance_path": "$/shareTargets",
-            "nonempty_fixture_id": "operation:client_request:plugin/share/updateTargets:params",
-            "root": "params",
-            "schema_path": "#/properties/shareTargets",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/updateTargets"
-            }
-          },
-          {
-            "container_kind": "array",
-            "direction": "Decode",
-            "fixture_id": "operation:client_request:plugin/share/updateTargets:result:explicit-empty-array:principals",
-            "instance_path": "$/principals",
-            "nonempty_fixture_id": "operation:client_request:plugin/share/updateTargets:result",
-            "root": "result",
-            "schema_path": "#/properties/principals",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/updateTargets"
-            }
-          }
-        ],
-        "wrong_element_and_map_value_types_rejected": true
-      },
-      "default_bearing_fields": {
-        "count": 0,
-        "path_evidence": []
-      },
-      "future_fields_on_open_objects": {
-        "count": 18,
-        "path_evidence": [
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/install:params:future-open-object:root",
-            "instance_path": "$",
-            "root": "params",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/install"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/install:result:future-open-object:root",
-            "instance_path": "$",
-            "root": "result",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/install"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/install:result:future-open-object:appsneedingauth-0",
-            "instance_path": "$/appsNeedingAuth/0",
-            "root": "result",
-            "schema_path": "#/definitions/AppSummary",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/install"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/checkout:params:future-open-object:root",
-            "instance_path": "$",
-            "root": "params",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/checkout"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/checkout:result:future-open-object:root",
-            "instance_path": "$",
-            "root": "result",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/checkout"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/delete:params:future-open-object:root",
-            "instance_path": "$",
-            "root": "params",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/delete"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/delete:result:future-open-object:root",
-            "instance_path": "$",
-            "root": "result",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/delete"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/save:params:future-open-object:root",
-            "instance_path": "$",
-            "root": "params",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/save"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/save:params:future-open-object:sharetargets-0",
-            "instance_path": "$/shareTargets/0",
-            "root": "params",
-            "schema_path": "#/definitions/PluginShareTarget",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/save"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/save:result:future-open-object:root",
-            "instance_path": "$",
-            "root": "result",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/save"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/updateTargets:params:future-open-object:root",
-            "instance_path": "$",
-            "root": "params",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/updateTargets"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/updateTargets:params:future-open-object:sharetargets-0",
-            "instance_path": "$/shareTargets/0",
-            "root": "params",
-            "schema_path": "#/definitions/PluginShareTarget",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/updateTargets"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/updateTargets:result:future-open-object:root",
-            "instance_path": "$",
-            "root": "result",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/updateTargets"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/share/updateTargets:result:future-open-object:principals-0",
-            "instance_path": "$/principals/0",
-            "root": "result",
-            "schema_path": "#/definitions/PluginSharePrincipal",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/share/updateTargets"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/skill/read:params:future-open-object:root",
-            "instance_path": "$",
-            "root": "params",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/skill/read"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/skill/read:result:future-open-object:root",
-            "instance_path": "$",
-            "root": "result",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/skill/read"
-            }
-          },
-          {
-            "direction": "Encode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/uninstall:params:future-open-object:root",
-            "instance_path": "$",
-            "root": "params",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/uninstall"
-            }
-          },
-          {
-            "direction": "Decode",
-            "field": "futureSyntheticField",
-            "fixture_id": "operation:client_request:plugin/uninstall:result:future-open-object:root",
-            "instance_path": "$",
-            "root": "result",
-            "schema_path": "#",
-            "surface_key": {
-              "category": "client_request",
-              "discriminator_field": "method",
-              "domain": "ClientRequest",
-              "name": "plugin/uninstall"
-            }
-          }
-        ],
-        "raw_values_are_synthetic": true
-      },
-      "integer_boundaries": {
-        "count": 0,
-        "formats": [],
-        "no_integer_or_number_constraints_in_batch_closure": true,
-        "path_evidence": []
-      }
-    }
-  },
-  "a1_4_user_integrations_commit_5": {
+  "a1_4_user_integrations_plugin_catalog_and_sources": {
     "assignment_derived_operation_keys": [
       {
         "category": "client_request",
@@ -40022,6 +38890,1138 @@
               "discriminator_field": "method",
               "domain": "ClientRequest",
               "name": "plugin/share/list"
+            }
+          }
+        ],
+        "raw_values_are_synthetic": true
+      },
+      "integer_boundaries": {
+        "count": 0,
+        "formats": [],
+        "no_integer_or_number_constraints_in_batch_closure": true,
+        "path_evidence": []
+      }
+    }
+  },
+  "a1_4_user_integrations_plugin_operations": {
+    "assignment_derived_operation_keys": [
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/install"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/checkout"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/delete"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/save"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/share/updateTargets"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/skill/read"
+      },
+      {
+        "category": "client_request",
+        "discriminator_field": "method",
+        "domain": "ClientRequest",
+        "name": "plugin/uninstall"
+      }
+    ],
+    "indexed_schema_coverage": {
+      "client_request:ClientRequest:method:plugin/install": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/install:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [
+              "#/properties/marketplacePath",
+              "#/properties/remoteMarketplaceName"
+            ],
+            "optional_property_schema_paths": [
+              "#/properties/marketplacePath",
+              "#/properties/remoteMarketplaceName"
+            ],
+            "property_schema_paths": [
+              "#/properties/marketplacePath",
+              "#/properties/pluginName",
+              "#/properties/remoteMarketplaceName"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/install:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [
+              "#/definitions/AppSummary/properties/category",
+              "#/definitions/AppSummary/properties/description",
+              "#/definitions/AppSummary/properties/installUrl"
+            ],
+            "optional_property_schema_paths": [
+              "#/definitions/AppSummary/properties/category",
+              "#/definitions/AppSummary/properties/description",
+              "#/definitions/AppSummary/properties/installUrl"
+            ],
+            "property_schema_paths": [
+              "#/definitions/AppSummary/properties/category",
+              "#/definitions/AppSummary/properties/description",
+              "#/definitions/AppSummary/properties/id",
+              "#/definitions/AppSummary/properties/installUrl",
+              "#/definitions/AppSummary/properties/name",
+              "#/properties/appsNeedingAuth",
+              "#/properties/authPolicy"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/checkout": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/checkout:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/properties/remotePluginId"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/checkout:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [
+              "#/properties/remoteVersion"
+            ],
+            "optional_property_schema_paths": [
+              "#/properties/remoteVersion"
+            ],
+            "property_schema_paths": [
+              "#/properties/marketplaceName",
+              "#/properties/marketplacePath",
+              "#/properties/pluginId",
+              "#/properties/pluginName",
+              "#/properties/pluginPath",
+              "#/properties/remotePluginId",
+              "#/properties/remoteVersion"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/delete": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/delete:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/properties/remotePluginId"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/delete:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/save": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/save:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [
+              "#/properties/discoverability",
+              "#/properties/remotePluginId",
+              "#/properties/shareTargets"
+            ],
+            "optional_property_schema_paths": [
+              "#/properties/discoverability",
+              "#/properties/remotePluginId",
+              "#/properties/shareTargets"
+            ],
+            "property_schema_paths": [
+              "#/definitions/PluginShareTarget/properties/principalId",
+              "#/definitions/PluginShareTarget/properties/principalType",
+              "#/definitions/PluginShareTarget/properties/role",
+              "#/properties/discoverability",
+              "#/properties/pluginPath",
+              "#/properties/remotePluginId",
+              "#/properties/shareTargets"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/save:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/properties/remotePluginId",
+              "#/properties/shareUrl"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/updateTargets": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/definitions/PluginShareTarget/properties/principalId",
+              "#/definitions/PluginShareTarget/properties/principalType",
+              "#/definitions/PluginShareTarget/properties/role",
+              "#/properties/discoverability",
+              "#/properties/remotePluginId",
+              "#/properties/shareTargets"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/definitions/PluginSharePrincipal/properties/name",
+              "#/definitions/PluginSharePrincipal/properties/principalId",
+              "#/definitions/PluginSharePrincipal/properties/principalType",
+              "#/definitions/PluginSharePrincipal/properties/role",
+              "#/properties/discoverability",
+              "#/properties/principals"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "client_request:ClientRequest:method:plugin/skill/read": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/skill/read:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/properties/remoteMarketplaceName",
+              "#/properties/remotePluginId",
+              "#/properties/skillName"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/skill/read:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [
+              "#/properties/contents"
+            ],
+            "optional_property_schema_paths": [
+              "#/properties/contents"
+            ],
+            "property_schema_paths": [
+              "#/properties/contents"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      },
+      "client_request:ClientRequest:method:plugin/uninstall": {
+        "directions_exercised": [
+          "Decode",
+          "Encode"
+        ],
+        "required_reachable_fixture_ids": [],
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/uninstall:params",
+            "directions_exercised": [
+              "Encode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [
+              "#/properties/pluginId"
+            ],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/uninstall:result",
+            "directions_exercised": [
+              "Decode"
+            ],
+            "nullable_property_schema_paths": [],
+            "optional_property_schema_paths": [],
+            "property_schema_paths": [],
+            "schema_fixture_facts": {
+              "direction_assertion_exercised": true,
+              "nullable_semantics_exercised": true,
+              "optional_omitted_exercised": true,
+              "optional_present_exercised": true,
+              "schema_properties_exercised": true
+            }
+          }
+        },
+        "schema_direction_coverage": true,
+        "schema_fixture_facts": {
+          "nullable_semantics_exercised": true,
+          "optional_omitted_exercised": true,
+          "optional_present_exercised": true,
+          "reachable_union_alternatives_exercised": true,
+          "schema_properties_exercised": true
+        }
+      }
+    },
+    "negative_coverage": {
+      "operation_opaque_exclusions": [],
+      "unit_result_invariants": [
+        {
+          "accepted_fixture_id": "operation:client_request:plugin/share/delete:result",
+          "accepted_form": {},
+          "malformed_fixture_id": "operation:client_request:plugin/share/delete:result:malformed-unit-array",
+          "malformed_form": [],
+          "method": "plugin/share/delete",
+          "result_contract_kind": "Unit"
+        },
+        {
+          "accepted_fixture_id": "operation:client_request:plugin/uninstall:result",
+          "accepted_form": {},
+          "malformed_fixture_id": "operation:client_request:plugin/uninstall:result:malformed-unit-array",
+          "malformed_form": [],
+          "method": "plugin/uninstall",
+          "result_contract_kind": "Unit"
+        }
+      ]
+    },
+    "operation_root_fixture_plan": {
+      "client_request:ClientRequest:method:plugin/install": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/install:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/install:params:missing-required:pluginname"
+            ],
+            "nullable_null_fixture_ids": [
+              "operation:client_request:plugin/install:params:nullable-null:marketplacepath",
+              "operation:client_request:plugin/install:params:nullable-null:remotemarketplacename"
+            ],
+            "optional_omitted_fixture_ids": [
+              "operation:client_request:plugin/install:params:optional-omitted:marketplacepath",
+              "operation:client_request:plugin/install:params:optional-omitted:remotemarketplacename"
+            ],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/install:params:wrong-type:marketplacepath",
+              "operation:client_request:plugin/install:params:wrong-type:pluginname",
+              "operation:client_request:plugin/install:params:wrong-type:remotemarketplacename"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/install:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/install:result:missing-required:appsneedingauth",
+              "operation:client_request:plugin/install:result:missing-required:appsneedingauth-0-id",
+              "operation:client_request:plugin/install:result:missing-required:appsneedingauth-0-name",
+              "operation:client_request:plugin/install:result:missing-required:authpolicy"
+            ],
+            "nullable_null_fixture_ids": [
+              "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-category",
+              "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-description",
+              "operation:client_request:plugin/install:result:nullable-null:appsneedingauth-0-installurl"
+            ],
+            "optional_omitted_fixture_ids": [
+              "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-category",
+              "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-description",
+              "operation:client_request:plugin/install:result:optional-omitted:appsneedingauth-0-installurl"
+            ],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth",
+              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0",
+              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-category",
+              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-description",
+              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-id",
+              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-installurl",
+              "operation:client_request:plugin/install:result:wrong-type:appsneedingauth-0-name",
+              "operation:client_request:plugin/install:result:wrong-type:authpolicy"
+            ]
+          }
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/checkout": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/checkout:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/share/checkout:params:missing-required:remotepluginid"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/share/checkout:params:wrong-type:remotepluginid"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/checkout:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/share/checkout:result:missing-required:marketplacename",
+              "operation:client_request:plugin/share/checkout:result:missing-required:marketplacepath",
+              "operation:client_request:plugin/share/checkout:result:missing-required:pluginid",
+              "operation:client_request:plugin/share/checkout:result:missing-required:pluginname",
+              "operation:client_request:plugin/share/checkout:result:missing-required:pluginpath",
+              "operation:client_request:plugin/share/checkout:result:missing-required:remotepluginid"
+            ],
+            "nullable_null_fixture_ids": [
+              "operation:client_request:plugin/share/checkout:result:nullable-null:remoteversion"
+            ],
+            "optional_omitted_fixture_ids": [
+              "operation:client_request:plugin/share/checkout:result:optional-omitted:remoteversion"
+            ],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/share/checkout:result:wrong-type:marketplacename",
+              "operation:client_request:plugin/share/checkout:result:wrong-type:marketplacepath",
+              "operation:client_request:plugin/share/checkout:result:wrong-type:pluginid",
+              "operation:client_request:plugin/share/checkout:result:wrong-type:pluginname",
+              "operation:client_request:plugin/share/checkout:result:wrong-type:pluginpath",
+              "operation:client_request:plugin/share/checkout:result:wrong-type:remotepluginid",
+              "operation:client_request:plugin/share/checkout:result:wrong-type:remoteversion"
+            ]
+          }
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/delete": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/delete:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/share/delete:params:missing-required:remotepluginid"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/share/delete:params:wrong-type:remotepluginid"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/delete:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": []
+          }
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/save": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/save:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/share/save:params:missing-required:pluginpath",
+              "operation:client_request:plugin/share/save:params:missing-required:sharetargets-0-principalid",
+              "operation:client_request:plugin/share/save:params:missing-required:sharetargets-0-principaltype",
+              "operation:client_request:plugin/share/save:params:missing-required:sharetargets-0-role"
+            ],
+            "nullable_null_fixture_ids": [
+              "operation:client_request:plugin/share/save:params:nullable-null:discoverability",
+              "operation:client_request:plugin/share/save:params:nullable-null:remotepluginid",
+              "operation:client_request:plugin/share/save:params:nullable-null:sharetargets"
+            ],
+            "optional_omitted_fixture_ids": [
+              "operation:client_request:plugin/share/save:params:optional-omitted:discoverability",
+              "operation:client_request:plugin/share/save:params:optional-omitted:remotepluginid",
+              "operation:client_request:plugin/share/save:params:optional-omitted:sharetargets"
+            ],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/share/save:params:wrong-type:discoverability",
+              "operation:client_request:plugin/share/save:params:wrong-type:pluginpath",
+              "operation:client_request:plugin/share/save:params:wrong-type:remotepluginid",
+              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets",
+              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0",
+              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0-principalid",
+              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0-principaltype",
+              "operation:client_request:plugin/share/save:params:wrong-type:sharetargets-0-role"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/save:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/share/save:result:missing-required:remotepluginid",
+              "operation:client_request:plugin/share/save:result:missing-required:shareurl"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/share/save:result:wrong-type:remotepluginid",
+              "operation:client_request:plugin/share/save:result:wrong-type:shareurl"
+            ]
+          }
+        }
+      },
+      "client_request:ClientRequest:method:plugin/share/updateTargets": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/share/updateTargets:params:missing-required:discoverability",
+              "operation:client_request:plugin/share/updateTargets:params:missing-required:remotepluginid",
+              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets",
+              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets-0-principalid",
+              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets-0-principaltype",
+              "operation:client_request:plugin/share/updateTargets:params:missing-required:sharetargets-0-role"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/share/updateTargets:params:wrong-type:discoverability",
+              "operation:client_request:plugin/share/updateTargets:params:wrong-type:remotepluginid",
+              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets",
+              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0",
+              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0-principalid",
+              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0-principaltype",
+              "operation:client_request:plugin/share/updateTargets:params:wrong-type:sharetargets-0-role"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/share/updateTargets:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/share/updateTargets:result:missing-required:discoverability",
+              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals",
+              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-name",
+              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-principalid",
+              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-principaltype",
+              "operation:client_request:plugin/share/updateTargets:result:missing-required:principals-0-role"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/share/updateTargets:result:wrong-type:discoverability",
+              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals",
+              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0",
+              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-name",
+              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-principalid",
+              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-principaltype",
+              "operation:client_request:plugin/share/updateTargets:result:wrong-type:principals-0-role"
+            ]
+          }
+        }
+      },
+      "client_request:ClientRequest:method:plugin/skill/read": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/skill/read:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/skill/read:params:missing-required:remotemarketplacename",
+              "operation:client_request:plugin/skill/read:params:missing-required:remotepluginid",
+              "operation:client_request:plugin/skill/read:params:missing-required:skillname"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/skill/read:params:wrong-type:remotemarketplacename",
+              "operation:client_request:plugin/skill/read:params:wrong-type:remotepluginid",
+              "operation:client_request:plugin/skill/read:params:wrong-type:skillname"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/skill/read:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [],
+            "nullable_null_fixture_ids": [
+              "operation:client_request:plugin/skill/read:result:nullable-null:contents"
+            ],
+            "optional_omitted_fixture_ids": [
+              "operation:client_request:plugin/skill/read:result:optional-omitted:contents"
+            ],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/skill/read:result:wrong-type:contents"
+            ]
+          }
+        }
+      },
+      "client_request:ClientRequest:method:plugin/uninstall": {
+        "roots": {
+          "params": {
+            "base_fixture_id": "operation:client_request:plugin/uninstall:params",
+            "direction": "Encode",
+            "missing_required_fixture_ids": [
+              "operation:client_request:plugin/uninstall:params:missing-required:pluginid"
+            ],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": [
+              "operation:client_request:plugin/uninstall:params:wrong-type:pluginid"
+            ]
+          },
+          "result": {
+            "base_fixture_id": "operation:client_request:plugin/uninstall:result",
+            "direction": "Decode",
+            "missing_required_fixture_ids": [],
+            "nullable_null_fixture_ids": [],
+            "optional_omitted_fixture_ids": [],
+            "required_nullable_null_fixture_ids": [],
+            "wrong_type_fixture_ids": []
+          }
+        }
+      }
+    },
+    "positive_coverage": {
+      "containers": {
+        "counts": {
+          "array": 4,
+          "map": 0
+        },
+        "nonempty_values_covered_by_base_fixtures": true,
+        "path_evidence": [
+          {
+            "container_kind": "array",
+            "direction": "Decode",
+            "fixture_id": "operation:client_request:plugin/install:result:explicit-empty-array:appsneedingauth",
+            "instance_path": "$/appsNeedingAuth",
+            "nonempty_fixture_id": "operation:client_request:plugin/install:result",
+            "root": "result",
+            "schema_path": "#/properties/appsNeedingAuth",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/install"
+            }
+          },
+          {
+            "container_kind": "array",
+            "direction": "Encode",
+            "fixture_id": "operation:client_request:plugin/share/save:params:explicit-empty-array:sharetargets",
+            "instance_path": "$/shareTargets",
+            "nonempty_fixture_id": "operation:client_request:plugin/share/save:params",
+            "root": "params",
+            "schema_path": "#/properties/shareTargets",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/save"
+            }
+          },
+          {
+            "container_kind": "array",
+            "direction": "Encode",
+            "fixture_id": "operation:client_request:plugin/share/updateTargets:params:explicit-empty-array:sharetargets",
+            "instance_path": "$/shareTargets",
+            "nonempty_fixture_id": "operation:client_request:plugin/share/updateTargets:params",
+            "root": "params",
+            "schema_path": "#/properties/shareTargets",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/updateTargets"
+            }
+          },
+          {
+            "container_kind": "array",
+            "direction": "Decode",
+            "fixture_id": "operation:client_request:plugin/share/updateTargets:result:explicit-empty-array:principals",
+            "instance_path": "$/principals",
+            "nonempty_fixture_id": "operation:client_request:plugin/share/updateTargets:result",
+            "root": "result",
+            "schema_path": "#/properties/principals",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/updateTargets"
+            }
+          }
+        ],
+        "wrong_element_and_map_value_types_rejected": true
+      },
+      "default_bearing_fields": {
+        "count": 0,
+        "path_evidence": []
+      },
+      "future_fields_on_open_objects": {
+        "count": 18,
+        "path_evidence": [
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/install:params:future-open-object:root",
+            "instance_path": "$",
+            "root": "params",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/install"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/install:result:future-open-object:root",
+            "instance_path": "$",
+            "root": "result",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/install"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/install:result:future-open-object:appsneedingauth-0",
+            "instance_path": "$/appsNeedingAuth/0",
+            "root": "result",
+            "schema_path": "#/definitions/AppSummary",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/install"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/checkout:params:future-open-object:root",
+            "instance_path": "$",
+            "root": "params",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/checkout"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/checkout:result:future-open-object:root",
+            "instance_path": "$",
+            "root": "result",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/checkout"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/delete:params:future-open-object:root",
+            "instance_path": "$",
+            "root": "params",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/delete"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/delete:result:future-open-object:root",
+            "instance_path": "$",
+            "root": "result",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/delete"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/save:params:future-open-object:root",
+            "instance_path": "$",
+            "root": "params",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/save"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/save:params:future-open-object:sharetargets-0",
+            "instance_path": "$/shareTargets/0",
+            "root": "params",
+            "schema_path": "#/definitions/PluginShareTarget",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/save"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/save:result:future-open-object:root",
+            "instance_path": "$",
+            "root": "result",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/save"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/updateTargets:params:future-open-object:root",
+            "instance_path": "$",
+            "root": "params",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/updateTargets"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/updateTargets:params:future-open-object:sharetargets-0",
+            "instance_path": "$/shareTargets/0",
+            "root": "params",
+            "schema_path": "#/definitions/PluginShareTarget",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/updateTargets"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/updateTargets:result:future-open-object:root",
+            "instance_path": "$",
+            "root": "result",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/updateTargets"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/share/updateTargets:result:future-open-object:principals-0",
+            "instance_path": "$/principals/0",
+            "root": "result",
+            "schema_path": "#/definitions/PluginSharePrincipal",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/share/updateTargets"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/skill/read:params:future-open-object:root",
+            "instance_path": "$",
+            "root": "params",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/skill/read"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/skill/read:result:future-open-object:root",
+            "instance_path": "$",
+            "root": "result",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/skill/read"
+            }
+          },
+          {
+            "direction": "Encode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/uninstall:params:future-open-object:root",
+            "instance_path": "$",
+            "root": "params",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/uninstall"
+            }
+          },
+          {
+            "direction": "Decode",
+            "field": "futureSyntheticField",
+            "fixture_id": "operation:client_request:plugin/uninstall:result:future-open-object:root",
+            "instance_path": "$",
+            "root": "result",
+            "schema_path": "#",
+            "surface_key": {
+              "category": "client_request",
+              "discriminator_field": "method",
+              "domain": "ClientRequest",
+              "name": "plugin/uninstall"
             }
           }
         ],
@@ -325159,7 +325159,7 @@
   ],
   "sources": {
     "experimental_schema_aggregate_sha256": "4a0ef96787255364d99b15fe40fcfd6227901978d0cddc8b20340bfef98a0d1b",
-    "generator_sha256": "a8e28cef5161e993460ffc77213455f05d4b4785ba97a0661b837d7fb129b4ea",
+    "generator_sha256": "ff430a102653ac45d4128de4a5b7f5b410222e9efeaa35132afeaf273d8fc1b5",
     "operation_contracts_sha256": "18a2021c31fd1cbe72cf50d5163853848b903287a4309b9a1ed4e74b71167d51",
     "stable_schema_aggregate_sha256": "cee1ac3bcaf95e5fcdcf07499c7e6b00fc423b90c670ea3380f1799434b72add",
     "surface_manifest_sha256": "13873103cad83ffb2777ad1ace60cb1deab79e5421e2264c30c3ec4474fa5ba8",
