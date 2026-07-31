@@ -7,7 +7,10 @@ import argparse
 import copy
 import importlib.util
 import json
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
@@ -46,6 +49,100 @@ def tool_arguments(tool: ModuleType) -> argparse.Namespace:
     return arguments
 
 
+class GitFixture:
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.commit_number = 0
+        self.git("init", "-q", "--initial-branch=main")
+        (self.root / "fixture.txt").write_text("base\n", encoding="utf-8")
+        self.git("add", "fixture.txt")
+        tree = self.git("write-tree")
+        self.base = self.commit(tree, (), "Fixture base")
+        self.set_head(self.base)
+        self.base_tree = self.tree(self.base)
+
+    def git(self, *arguments: str, env: dict[str, str] | None = None) -> str:
+        return subprocess.run(
+            ("git", *arguments),
+            cwd=self.root,
+            check=True,
+            text=True,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        ).stdout.strip()
+
+    def commit(
+        self,
+        tree: str,
+        parents: tuple[str, ...],
+        subject: str,
+    ) -> str:
+        self.commit_number += 1
+        timestamp = 946684800 + self.commit_number
+        environment = {
+            **os.environ,
+            "GIT_AUTHOR_NAME": "AISuite closure fixture",
+            "GIT_AUTHOR_EMAIL": "closure@example.invalid",
+            "GIT_COMMITTER_NAME": "AISuite closure fixture",
+            "GIT_COMMITTER_EMAIL": "closure@example.invalid",
+            "GIT_AUTHOR_DATE": f"{timestamp} +0000",
+            "GIT_COMMITTER_DATE": f"{timestamp} +0000",
+        }
+        command = ["commit-tree", tree]
+        for parent in parents:
+            command.extend(("-p", parent))
+        command.extend(("-m", subject))
+        return self.git(*command, env=environment)
+
+    def tree(self, revision: str) -> str:
+        return self.git("rev-parse", f"{revision}^{{tree}}")
+
+    def set_head(self, revision: str) -> None:
+        self.git("update-ref", "refs/heads/main", revision)
+        self.git("symbolic-ref", "HEAD", "refs/heads/main")
+
+    def feature(
+        self,
+        subjects: tuple[str, ...],
+        *,
+        start: str | None = None,
+    ) -> str:
+        parent = self.base if start is None else start
+        for subject in subjects:
+            parent = self.commit(
+                self.tree(parent),
+                (parent,),
+                subject,
+            )
+        return parent
+
+    def merge(
+        self,
+        first_parent: str,
+        second_parent: str,
+        *,
+        tree: str | None = None,
+    ) -> str:
+        return self.commit(
+            self.tree(second_parent) if tree is None else tree,
+            (first_parent, second_parent),
+            "Merge A1.4b fixture",
+        )
+
+    def descendant(self, parent: str, subject: str) -> str:
+        return self.commit(self.tree(parent), (parent,), subject)
+
+    def changed_tree(self, parent: str) -> str:
+        self.git("read-tree", parent)
+        (self.root / "merge-only.txt").write_text(
+            "merge-only change\n",
+            encoding="utf-8",
+        )
+        self.git("add", "merge-only.txt")
+        return self.git("write-tree")
+
+
 class CodexA14McpReverseClosureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -82,6 +179,248 @@ class CodexA14McpReverseClosureTest(unittest.TestCase):
             self.tool.validate_report(changed, self.expected)
         self.assertEqual((expected_code,), caught.exception.codes)
         self.tool.validate_report(self.expected, self.expected)
+
+    def fixture(self) -> GitFixture:
+        temporary = tempfile.TemporaryDirectory(
+            prefix="aisuite-a14b-history-"
+        )
+        self.addCleanup(temporary.cleanup)
+        return GitFixture(Path(temporary.name))
+
+    def resolve_fixture(
+        self,
+        fixture: GitFixture,
+        head: str,
+        *,
+        base_sha: str | None = None,
+        base_tree: str | None = None,
+    ) -> Any:
+        fixture.set_head(head)
+        return self.tool.resolve_history(
+            fixture.root,
+            base_sha=fixture.base if base_sha is None else base_sha,
+            base_tree=(
+                fixture.base_tree if base_tree is None else base_tree
+            ),
+            subjects=tuple(self.tool.COMMIT_SUBJECTS),
+            require_final=True,
+        )
+
+    def assert_history_error(
+        self,
+        fixture: GitFixture,
+        head: str,
+        expected_code: str,
+    ) -> None:
+        with self.assertRaises(self.tool.ClosureError) as caught:
+            self.resolve_fixture(fixture, head)
+        self.assertEqual((expected_code,), caught.exception.codes)
+
+    def test_valid_unmerged_six_commit_feature_branch(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        resolution = self.resolve_fixture(fixture, feature)
+        self.assertEqual("unmerged-feature", resolution.topology_kind)
+        self.assertEqual(feature, resolution.validated_feature_head)
+        self.assertIsNone(resolution.merge_commit)
+        self.assertEqual(6, len(resolution.validated_commits))
+
+    def test_valid_normal_merge_commit(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        merge = fixture.merge(fixture.base, feature)
+        resolution = self.resolve_fixture(fixture, merge)
+        self.assertEqual("direct-merge", resolution.topology_kind)
+        self.assertEqual(feature, resolution.validated_feature_head)
+        self.assertEqual(merge, resolution.merge_commit)
+        self.assertEqual(
+            fixture.tree(feature),
+            fixture.tree(resolution.merge_commit),
+        )
+
+    def test_valid_later_descendant_of_merge(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        merge = fixture.merge(fixture.base, feature)
+        descendant = fixture.descendant(merge, "Later unrelated work")
+        resolution = self.resolve_fixture(fixture, descendant)
+        self.assertEqual("later-descendant", resolution.topology_kind)
+        self.assertEqual(feature, resolution.validated_feature_head)
+        self.assertEqual(merge, resolution.merge_commit)
+        self.assertEqual(6, len(resolution.validated_commits))
+
+    def test_actual_repository_merge_topology_is_bounded(self) -> None:
+        resolution = self.tool.resolve_history(
+            OPTIONS.repo_root,
+            require_final=True,
+        )
+        self.assertEqual(
+            "78db77030adeb08b3a785a5f36a48a77624196c2",
+            resolution.validated_feature_head,
+        )
+        self.assertEqual(
+            "a60b81de74c34d572f4ba58cda8c03383d36944b",
+            resolution.merge_commit,
+        )
+        self.assertEqual(6, len(resolution.validated_commits))
+
+    def test_reversed_merge_parent_order_is_rejected(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        merge = fixture.merge(feature, fixture.base)
+        self.assert_history_error(
+            fixture,
+            merge,
+            "McpReverseClosureMergeParentMismatch",
+        )
+
+    def test_wrong_first_merge_parent_is_rejected(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        wrong_first = fixture.descendant(
+            fixture.base,
+            "Wrong first merge parent",
+        )
+        merge = fixture.merge(wrong_first, feature)
+        self.assert_history_error(
+            fixture,
+            merge,
+            "McpReverseClosureMergeParentMismatch",
+        )
+
+    def test_wrong_second_parent_history_is_rejected(self) -> None:
+        fixture = self.fixture()
+        subjects = list(self.tool.COMMIT_SUBJECTS)
+        subjects[-1] = "Wrong sixth feature subject"
+        feature = fixture.feature(tuple(subjects))
+        merge = fixture.merge(fixture.base, feature)
+        self.assert_history_error(
+            fixture,
+            merge,
+            "McpReverseClosureHistoryMismatch",
+        )
+
+    def test_merge_tree_change_is_rejected(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        merge = fixture.merge(
+            fixture.base,
+            feature,
+            tree=fixture.changed_tree(feature),
+        )
+        self.assert_history_error(
+            fixture,
+            merge,
+            "McpReverseClosureMergeTreeMismatch",
+        )
+
+    def test_five_commit_bounded_range_is_rejected(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS[:5]))
+        self.assert_history_error(
+            fixture,
+            feature,
+            "McpReverseClosureHistoryMismatch",
+        )
+
+    def test_seven_commit_bounded_range_is_rejected(self) -> None:
+        fixture = self.fixture()
+        subjects = (*self.tool.COMMIT_SUBJECTS, "Inserted functional commit")
+        feature = fixture.feature(tuple(subjects))
+        self.assert_history_error(
+            fixture,
+            feature,
+            "McpReverseClosureHistoryMismatch",
+        )
+
+    def test_subject_order_is_rejected(self) -> None:
+        fixture = self.fixture()
+        subjects = list(self.tool.COMMIT_SUBJECTS)
+        subjects[2], subjects[3] = subjects[3], subjects[2]
+        feature = fixture.feature(tuple(subjects))
+        self.assert_history_error(
+            fixture,
+            feature,
+            "McpReverseClosureHistoryMismatch",
+        )
+
+    def test_subject_text_is_rejected(self) -> None:
+        fixture = self.fixture()
+        subjects = list(self.tool.COMMIT_SUBJECTS)
+        subjects[2] += " rewritten"
+        feature = fixture.feature(tuple(subjects))
+        self.assert_history_error(
+            fixture,
+            feature,
+            "McpReverseClosureHistoryMismatch",
+        )
+
+    def test_unrelated_similar_merge_is_rejected(self) -> None:
+        fixture = self.fixture()
+        unrelated_base = fixture.descendant(
+            fixture.base,
+            "Unrelated intervening commit",
+        )
+        similar = fixture.feature(
+            tuple(self.tool.COMMIT_SUBJECTS),
+            start=unrelated_base,
+        )
+        merge = fixture.merge(unrelated_base, similar)
+        self.assert_history_error(
+            fixture,
+            merge,
+            "McpReverseClosureTopologyMismatch",
+        )
+
+    def test_squash_topology_is_rejected(self) -> None:
+        fixture = self.fixture()
+        squash = fixture.descendant(
+            fixture.base,
+            "Squashed A1.4b implementation",
+        )
+        self.assert_history_error(
+            fixture,
+            squash,
+            "McpReverseClosureHistoryMismatch",
+        )
+
+    def test_wrong_base_tree_is_rejected(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        fixture.set_head(feature)
+        with self.assertRaises(self.tool.ClosureError) as caught:
+            self.tool.resolve_history(
+                fixture.root,
+                base_sha=fixture.base,
+                base_tree="0" * 40,
+                subjects=tuple(self.tool.COMMIT_SUBJECTS),
+                require_final=True,
+            )
+        self.assertEqual(
+            ("McpReverseClosureBaseMismatch",),
+            caught.exception.codes,
+        )
+
+    def test_later_subjects_are_outside_the_bounded_range(self) -> None:
+        fixture = self.fixture()
+        feature = fixture.feature(tuple(self.tool.COMMIT_SUBJECTS))
+        merge = fixture.merge(fixture.base, feature)
+        later = fixture.descendant(
+            merge,
+            "Adopt the cleaned SNode.C dependency",
+        )
+        later = fixture.descendant(
+            later,
+            "Unrelated future AISuite work",
+        )
+        resolution = self.resolve_fixture(fixture, later)
+        self.assertEqual("later-descendant", resolution.topology_kind)
+        self.assertEqual(
+            tuple(self.tool.COMMIT_SUBJECTS),
+            tuple(
+                commit.subject for commit in resolution.validated_commits
+            ),
+        )
 
     def test_checked_report_is_exact(self) -> None:
         self.assertEqual(self.actual, self.expected)

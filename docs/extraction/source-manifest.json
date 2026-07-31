@@ -47942,7 +47942,7 @@
     },
     {
       "path": "tests/component/codex/CodexA14McpReverseClosureTest.py",
-      "sha256": "472e4e71399296bf2a0141306932ede01254da23f7de8ac178d6c30a24b04a71"
+      "sha256": "d6175db7fc9cb1cf901c300fcbba144b40edae4d36cbd7079a06b9e4ac2616fd"
     },
     {
       "path": "tests/component/codex/CodexA14NineRequestStdioTest.cpp",
@@ -57398,7 +57398,7 @@
     },
     {
       "path": "tools/codex/app_server_a1_4_mcp_reverse_closure.py",
-      "sha256": "5072190f3b900af1601a194e75c7055e57ca38b51c60fd2f1fc4a68de6ff6de9"
+      "sha256": "9d02846ddc899d6329deab9b8645085b3b75eb3cdd1924f8d0bfd0b7179fcf69"
     },
     {
       "path": "tools/codex/app_server_a1_4_user_integrations.py",
