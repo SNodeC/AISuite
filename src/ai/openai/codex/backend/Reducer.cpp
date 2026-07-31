@@ -853,6 +853,30 @@ namespace ai::openai::codex::backend {
                 },
                 [](const typed::McpServerStatusUpdatedNotification&) -> std::vector<BackendEvent> {
                     return {};
+                },
+                [](const typed::DeprecationNoticeNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::ProcessExitedNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::ProcessOutputDeltaNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::RemoteControlStatusChangedNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::ServerRequestResolvedNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::WarningNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::WindowsWorldWritableWarningNotification&) -> std::vector<BackendEvent> {
+                    return {};
+                },
+                [](const typed::WindowsSandboxSetupCompletedNotification&) -> std::vector<BackendEvent> {
+                    return {};
                 }},
             event);
     }

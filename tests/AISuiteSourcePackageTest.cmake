@@ -65,24 +65,11 @@ foreach(required
     src/ai/openai/codex/typed/Marketplace.h
     src/ai/openai/codex/typed/Plugins.h
     src/ai/openai/codex/typed/Skills.h
+    src/ai/openai/codex/typed/WindowsSandbox.h
     src/apps/codex-backend/main.cpp
     src/apps/codex-backend-client/main.cpp
-    tools/codex/app_server_a1_4.py
-    tools/codex/app_server_a1_4_user_integrations.py
-    tools/codex/app_server_a1_4_user_integrations_abi.py
-    tools/codex/app_server_a1_4_user_integrations_closure.py
+    tools/codex/app_server_surface.py
     tools/codex/app-server-schema/0.144.6/PROVENANCE.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-implementation-plan.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-start-state.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-batch-plan.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-api-abi-evidence.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-closure-report.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pre.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-1.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-generation-pass-2.json
-    tools/codex/app-server-evidence/0.144.6/a1-4-user-integrations-symbols.txt
-    tools/extraction/verify_codex_policy_ownership.py
-    tools/extraction/verify_extraction.py
     tests/CMakeLists.txt
     tests/AISuiteBinaryPackageTest.cmake
     tests/AISuiteSourcePackageTest.cmake
@@ -99,22 +86,11 @@ foreach(required
     tests/policy/codex/CodexSemanticLoggerClassifications.tsv
     tests/policy/security/CMakeLists.txt
     tests/policy/security/CodexSyntheticSecretLeakGuardTest.py
-    tests/component/codex/CodexA14AuditToolTest.py
-    tests/component/codex/CodexA14UserIntegrationsAuditTest.py
-    tests/component/codex/CodexA14UserIntegrationsClosureTest.py
-    tests/installed/codex/CodexA14UserIntegrationsAbiLayoutProbe.cpp
+    tests/component/codex/CodexA14RuntimePlatformCurrentStateTest.py
     tests/installed/codex/CodexTypedConsumer.cpp
     tests/installed/codex/SNodeInstalledCoreConsumer.cpp
     docs/ai/openai/codex/a1-4-user-facing-integrations.md
-    docs/extraction/README.md
-    docs/extraction/codex-policy-baseline-ctest.json
-    docs/extraction/codex-policy-final-ctest.json
-    docs/extraction/codex-policy-ownership.json
-    docs/extraction/codex-policy-ownership.md
-    docs/extraction/filter-map.json
-    docs/extraction/source-manifest.json
-    docs/extraction/validation.md
-    docs/extraction/test-integrity.md
+    docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md
 )
     if(NOT EXISTS "${root}/${required}")
         message(
@@ -141,7 +117,6 @@ foreach(packaged_entry IN LISTS packaged_entries)
     endif()
 endforeach()
 
-find_program(git_executable git REQUIRED)
 find_program(python_executable python3 REQUIRED)
 get_filename_component(package_parent "${root}" DIRECTORY)
 set(package_check_environment
@@ -151,82 +126,17 @@ set(package_check_environment
     "GIT_CEILING_DIRECTORIES=${package_parent}"
 )
 
-# The extracted package is intentionally not a repository. The ceiling makes
-# this assertion independent of where the CPack test itself was launched.
-execute_process(
-    COMMAND
-        ${package_check_environment}
-        "${git_executable}" -C "${root}" rev-parse --show-toplevel
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE package_git_output
-    ERROR_VARIABLE package_git_error
-)
-if(result EQUAL 0)
-    message(
-        FATAL_ERROR
-            "source package unexpectedly resolved Git history under GIT_CEILING_DIRECTORIES=${package_parent}: ${package_git_output}"
-    )
-endif()
-
 execute_process(
     COMMAND
         ${package_check_environment}
         "${python_executable}" -B
-        "${root}/tools/extraction/verify_extraction.py"
-        check-package
+        "${root}/tests/component/codex/CodexA14RuntimePlatformCurrentStateTest.py"
         --repo-root "${root}"
     RESULT_VARIABLE result
 )
 if(NOT result EQUAL 0)
     message(
         FATAL_ERROR
-            "extraction package-boundary check failed inside source package: ${result}"
-    )
-endif()
-
-execute_process(
-    COMMAND
-        ${package_check_environment}
-        "${python_executable}" -B
-        "${root}/tools/extraction/verify_codex_policy_ownership.py"
-        check-package
-        --repo-root "${root}"
-    RESULT_VARIABLE result
-)
-if(NOT result EQUAL 0)
-    message(
-        FATAL_ERROR
-            "CodexPolicySourcePackageMismatch: Codex policy ownership check failed inside source package: ${result}"
-    )
-endif()
-
-execute_process(
-    COMMAND
-        ${package_check_environment}
-        "${python_executable}" -B
-        "${root}/tools/codex/app_server_a1_4_user_integrations_abi.py"
-        check
-        --repo-root "${root}"
-    RESULT_VARIABLE result
-)
-if(NOT result EQUAL 0)
-    message(
-        FATAL_ERROR
-            "A1.4 user-integrations API/ABI evidence failed inside source package: ${result}"
-    )
-endif()
-execute_process(
-    COMMAND
-        ${package_check_environment}
-        "${python_executable}" -B
-        "${root}/tools/codex/app_server_a1_4_user_integrations_closure.py"
-        check-package
-        --repo-root "${root}"
-    RESULT_VARIABLE result
-)
-if(NOT result EQUAL 0)
-    message(
-        FATAL_ERROR
-            "A1.4 user-integrations closure failed inside source package: ${result}"
+            "current A1.4 registry/schema/API validation failed inside source package: ${result}"
     )
 endif()

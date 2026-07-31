@@ -507,7 +507,7 @@ namespace {
         result.expectTrue(userInput.key.name == "item/tool/requestUserInput" && elicitation.key.name == "mcpServer/elicitation/request" &&
                               userInput.typedSchemaStatus == detail::TypedSchemaStatus::Complete &&
                               elicitation.typedSchemaStatus == detail::TypedSchemaStatus::Complete,
-                          "the two Commit-5 server requests are Complete and bound to their exact lifecycle targets");
+                          "the two user-input/MCP-elicitation server requests are Complete and bound to their exact lifecycle targets");
 
         constexpr std::array<detail::IntegrationsAndLongTailUnionTarget, 3> ElicitationTargets{{
             detail::IntegrationsAndLongTailUnionTarget::McpServerElicitationForm,

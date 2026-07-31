@@ -101,7 +101,7 @@ namespace ai::openai::codex::detail {
         constexpr ClientOperationCodecDescriptor ClientOperationDescriptors[] = {
 #include "ai/openai/codex/detail/ClientOperationCodecDescriptors.inc"
         };
-        static_assert(sizeof(ClientOperationDescriptors) / sizeof(*ClientOperationDescriptors) == 84);
+        static_assert(sizeof(ClientOperationDescriptors) / sizeof(*ClientOperationDescriptors) == 86);
 
 #undef CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR
 
@@ -694,6 +694,26 @@ namespace ai::openai::codex::detail {
 
     const ProtocolSurfaceEntry& entryFor(ServerRequestTarget target) {
         return findTarget(target);
+    }
+
+    bool serverRequestEmitsResolvedNotification(ServerRequestTarget target) noexcept {
+        switch (target) {
+            case ServerRequestTarget::CommandExecutionRequestApproval:
+            case ServerRequestTarget::FileChangeRequestApproval:
+            case ServerRequestTarget::ToolRequestUserInput:
+            case ServerRequestTarget::PermissionsRequestApproval:
+            case ServerRequestTarget::McpServerElicitation:
+                return true;
+            case ServerRequestTarget::ChatgptAuthTokensRefresh:
+            case ServerRequestTarget::ApplyPatchApproval:
+            case ServerRequestTarget::ExecCommandApproval:
+            case ServerRequestTarget::AttestationGenerate:
+            case ServerRequestTarget::DynamicToolCall:
+            case ServerRequestTarget::Count:
+                return false;
+        }
+
+        return false;
     }
 
     const ProtocolSurfaceEntry& entryFor(ItemDiscriminatorTarget target) {

@@ -3,15 +3,14 @@
 ## Status and authority
 
 Phase A1.3 completes the stable Codex App Server 0.144.6 commands,
-filesystem, reviews, and approvals typed protocol surface. The audited base is
-commit `304a817d371597fc764c3404c36cc880bf65536d`, tree
-`d0c8f21a415139655d4e9d92bb6efd0892b6bf4c`. The pin remains upstream tag
-`rust-v0.144.6`.
+filesystem, reviews, and approvals typed protocol surface. The protocol pin
+remains upstream tag `rust-v0.144.6`.
 
-The frozen schema inventory, vendored Rust contracts, module/slice assignment,
-fixture evidence, and `ProtocolSurfaceRegistryData.inc` are authoritative.
-The A1.3 audit and closure reports are deterministic guards; they are not a
-second runtime registry.
+The vendored schemas and Rust protocol source define the protocol surface.
+`ProtocolSurfaceRegistryData.inc` records current implementation state, and
+the generated descriptors, production codecs, fixtures, and current product
+tests validate the typed behavior. No separate audit or closure report is a
+production authority.
 
 The denominator is exactly 68 identities:
 
@@ -138,20 +137,10 @@ make it noisy (47,416 base symbols versus 56,863 final, with 6,286 removed and
 15,733 added), and `abidiff` was unavailable. The result is explicitly not ABI
 compatible; installed consumers must rebuild.
 
-The checked-in
-`tools/codex/app-server-evidence/0.144.6/a1-3-api-abi-evidence.json`
-records the reproducible GCC 15.3 probe and symbol method. The same
-`CodexA13AbiLayoutProbe.cpp` source is compiled with `-std=c++20` against the
-base and final `src/` include roots; its checked-in source SHA-256 is
-`f5882c89...d9228`. The base/final normalized dynamic-symbol lists are produced
-with `nm -D --defined-only --format=posix`, first-field extraction, and a
-locale-stable unique sort. Their SHA-256 values are
-`0bd89fe1...68a9` and `6b06827f...dd0`. `comm -23` and `comm -13` derive the
-removed and added counts. The evidence also pins every participating base
-header hash, live-checks every final header hash, records both probe-output
-hashes, and contains the exact placeholder-based configure, compile, run,
-extract, and comparison commands without embedding a rewrite-sensitive final
-commit SHA.
+The current public-header policy, isolated header self-containment test,
+installed consumer, and package tests verify the supported public surface.
+They validate current build and consumption behavior rather than treating a
+historical symbol or layout snapshot as an active authority.
 
 The final B5 event additions follow the same append-only source policy.
 `Event` keeps its previous alternatives at indices 0 through 49 and appends
@@ -279,28 +268,14 @@ data, and review instructions are sensitive. Production diagnostics identify
 only the method/union, structural reason, and safe field path. Tests and
 evidence use synthetic paths and values.
 
-The B5 implementation checkpoint proves all 68 registry identities Complete,
-every root/response and union alternative fixture-covered, and the exact final
-global metrics above. Final closure additionally requires public headers
-installed and self-contained, direct reverse-response and five-way concurrent
-socket evidence, no experimental leakage, no frontend/backend semantic
-expansion, package and consumer checks, API/ABI evidence, secret and
-test-integrity guards, and the same four residual Partial identities.
+## Current verification
 
-## Final closure evidence
-
-`app_server_a1_3_closure.py` rebuilds the audit from frozen inputs and projects
-the final canonical registry into deterministic review evidence. It rejects a
-missing or extra A1.3 identity, a non-A1.3 promotion, stale descriptors,
-incomplete schema or fixture evidence, missing public/install/package
-registrations, experimental leakage, response-path drift, and changes to the
-Frontend Protocol, BackendCommand, BackendState, or reference applications.
-
-The closure result is exactly 68 A1.3 Complete identities and global
-280 Complete, 4 Partial, 55 NotImplemented, and 48 NotApplicable identities.
-The remaining Partial identities are `initialize`, `initialized`, `error`, and
-`item/tool/requestUserInput`. All five approval request types pass the shared
-occurrence/generation path concurrently over AF_UNIX, with out-of-order
-responses retaining their original request IDs and response schemas and with
-no cross-delivery. `serverRequest/resolved` remains excluded and is not used
-for response delivery.
+The current registry keeps all 68 A1.3 identities Complete. Generated
+descriptors, production codecs, schema-derived fixtures, public-header and
+package checks, and focused wire/lifecycle tests verify every root, response,
+and union alternative without experimental leakage or frontend/backend semantic
+expansion. All five approval request types use the shared occurrence/generation
+path concurrently over AF_UNIX, with out-of-order responses retaining their
+original request IDs and response schemas and with no cross-delivery.
+`serverRequest/resolved` reconciliation remains separate from direct response
+delivery.

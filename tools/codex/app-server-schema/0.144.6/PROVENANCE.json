@@ -1,7 +1,6 @@
 {
   "format_version": 2,
   "codex_version": "codex-cli 0.144.6",
-  "starting_snodec_sha": "138f5022c19b24847bee42a21242aaaf7dde5a04",
   "upstream": {
     "project": "OpenAI Codex",
     "repository": "https://github.com/openai/codex",

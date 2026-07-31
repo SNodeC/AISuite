@@ -2,15 +2,9 @@
 
 ## Status and authority
 
-This document records both the frozen Phase A1.1 implementation plan and the
-final closure of that plan. The immutable start-state sections remain Commit 1
-audit evidence; the final closure section is regenerated and checked against
-the live canonical registry after implementation batches B2-B5.
-
-The audited starting `origin/master` is
-`a226e3df5efd55b5dbef12cb1760674388909d7c`. This matches the expected prompt
-base. The merged A1.0 commit
-`cfc129ec879c70fc09c165035f6d1390f61289b8` is an ancestor.
+This document describes the current A1.1 conversation-domain implementation.
+Current behavior is checked from the vendored protocol inputs, production
+registry, generated descriptors, codecs, fixtures, and product tests.
 
 A1.1 is pinned to the stable Codex App Server 0.144.6 protocol. Experimental
 client operations remain inventory-only. Stable inbound realtime
@@ -24,7 +18,6 @@ The mechanically checked inputs are:
 - `tools/codex/app-server-evidence/0.144.6/operation-contracts.json`;
 - `tools/codex/app-server-evidence/0.144.6/schema-completeness-evidence.json`;
 - `tools/codex/app-server-evidence/0.144.6/fixture-coverage.json`;
-- `tools/codex/app-server-evidence/0.144.6/a1-1-start-state.json`;
 - `tools/codex/app-server-schema/0.144.6/stable/`;
 - `tools/codex/app-server-surface/0.144.6.json`; and
 - `src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc`.
@@ -32,25 +25,11 @@ The mechanically checked inputs are:
 `ai::openai::codex::detail::ProtocolSurfaceRegistry` remains the only local
 production authority for runtime disposition, runtime target, typed
 implementation status, typed module, A1 slice, schema status, BackendCore
-status, canonical-state status, and frontend disposition. The generated audit,
-type closure, fixtures, and private codec descriptors are checked evidence;
-they are not a second production registry.
-
-The start-state file is immutable review evidence captured once from the
-verified A1.0 base. Its freeze command requires the exact reviewed base SHA
-and refuses to overwrite an existing snapshot; the force override is reserved
-for the reviewed initial freeze or correction in Commit 1. Commits 2-6 do not
-regenerate that baseline.
-
-Ordinary audit generation and checking deliberately read two views. The
-immutable snapshot preserves the exact starting 26 Partial / 125
-NotImplemented split and starting global metrics. The live canonical registry,
-schema-completeness evidence, and fixture coverage prove monotonic
-implementation progress. Static identity drift, implementation or schema
-demotion, layer-disposition regression, invalid runtime promotion, lost
-completeness facts, and reduced fixture coverage are rejected. Thus later
-commits can advance production coverage without rewriting the evidence of
-what Commit 1 actually audited.
+status, canonical-state status, and frontend disposition. Type closure,
+fixtures, and private codec descriptors are current checked evidence; they are
+not a second production registry. Current-state checks reject identity drift,
+invalid runtime disposition, lost schema-completeness facts, and reduced
+fixture coverage without consulting repository history.
 
 ## Corrected frozen taxonomy
 

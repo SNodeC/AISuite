@@ -4,8 +4,7 @@
  *
  * Adapted for AISuite from the tokenizer and literal-masking machinery in
  * SNode.C tests/policy/log/LoggingApiSurfacePolicyTest.cpp and
- * tests/policy/log/ParameterlessSemanticLoggerPolicyTest.cpp at
- * d18b231a1d2ec2235fd6f204786b0a761cc24ff5.
+ * tests/policy/log/ParameterlessSemanticLoggerPolicyTest.cpp.
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */

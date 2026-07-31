@@ -24,6 +24,7 @@
 #include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
+#include "ai/openai/codex/detail/WindowsSandboxCodec.h"
 
 #include <array>
 #include <cstddef>
@@ -98,6 +99,8 @@ namespace ai::openai::codex::detail {
             "McpResourceReadResponse",
             "McpServerToolCallResponse",
             "ListMcpServerStatusResponse",
+            "WindowsSandboxReadinessResponse",
+            "WindowsSandboxSetupStartResponse",
         }};
 
         std::string_view resultDecoderIdentity(ClientOperationResultDecoder decoder) noexcept {
@@ -128,7 +131,8 @@ namespace ai::openai::codex::detail {
                    target == PluginShareUpdateTargets || target == PluginSkillRead || target == PluginUninstall ||
                    target == PluginInstalled || target == PluginList || target == PluginRead || target == PluginShareList ||
                    target == SkillsConfigWrite || target == SkillsExtraRootsSet || target == SkillsList || target == McpServerOauthLogin ||
-                   target == McpResourceRead || target == McpServerToolCall || target == McpServerStatusList;
+                   target == McpResourceRead || target == McpServerToolCall || target == McpServerStatusList ||
+                   target == WindowsSandboxReadiness || target == WindowsSandboxSetupStart;
         }
 
         std::string decoderFieldPath(ClientRequestTarget target,
@@ -368,6 +372,10 @@ namespace ai::openai::codex::detail {
                     return decode(target, key, decodeMcpServerToolCallResponse(raw, error), error);
                 case ListMcpServerStatusResponse:
                     return decode(target, key, decodeListMcpServerStatusResponse(raw, error), error);
+                case WindowsSandboxReadinessResponse:
+                    return decode(target, key, decodeWindowsSandboxReadinessResponse(raw, error), error);
+                case WindowsSandboxSetupStartResponse:
+                    return decode(target, key, decodeWindowsSandboxSetupStartResponse(raw, error), error);
                 case Count:
                     break;
             }

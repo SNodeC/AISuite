@@ -22,11 +22,13 @@ set(AI_OPENAI_CODEX_CPP
     detail/ProtocolCodec.cpp
     detail/ProtocolSurfaceRegistry.cpp
     detail/ReviewCodec.cpp
+    detail/RuntimePlatformCodec.cpp
     detail/ServerRequestDecoder.cpp
     detail/SkillCodec.cpp
     detail/ThreadCodec.cpp
     detail/Transport.cpp
     detail/TurnCodec.cpp
+    detail/WindowsSandboxCodec.cpp
     stdio/Client.cpp
     stdio/StdioTransport.cpp
     typed/Accounts.cpp
@@ -65,6 +67,7 @@ set(AI_OPENAI_CODEX_PUBLIC_H
     typed/Threads.h
     typed/Turns.h
     typed/Types.h
+    typed/WindowsSandbox.h
 )
 
 add_library(ai-openai-codex SHARED ${AI_OPENAI_CODEX_CPP})
@@ -132,6 +135,7 @@ install(
         typed/Threads.h
         typed/Turns.h
         typed/Types.h
+        typed/WindowsSandbox.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/typed
 )
 

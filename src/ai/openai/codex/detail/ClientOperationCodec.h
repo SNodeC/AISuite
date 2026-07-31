@@ -29,6 +29,7 @@
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
+#include "ai/openai/codex/typed/WindowsSandbox.h"
 
 #include <optional>
 #include <string>
@@ -112,7 +113,9 @@ namespace ai::openai::codex::detail {
                                                      typed::McpServerOauthLoginResponse,
                                                      typed::McpResourceReadResponse,
                                                      typed::McpServerToolCallResponse,
-                                                     typed::ListMcpServerStatusResponse>;
+                                                     typed::ListMcpServerStatusResponse,
+                                                     typed::WindowsSandboxReadinessResponse,
+                                                     typed::WindowsSandboxSetupStartResponse>;
 
     struct ClientOperationDecodeDiagnostic {
         ClientOperationDecodeCode code = ClientOperationDecodeCode::MalformedKnownPayload;

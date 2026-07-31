@@ -113,219 +113,20 @@ set(CODEX_PHASE_A1_1_EVIDENCE_ROOT
     ${PROJECT_SOURCE_DIR}/tools/codex/app-server-evidence/0.144.6
 )
 add_test(
-    NAME CodexA11AuditToolTest
+    NAME CodexA11A13CurrentStateTest
     COMMAND
         ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA11AuditToolTest.py
-        --tool
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_1.py
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --manifest
-        ${CODEX_PHASE_A0_SURFACE_MANIFEST}
-        --registry
-        ${CODEX_PHASE_A0_REGISTRY}
-        --schema-root
-        ${CODEX_PHASE_A0_SCHEMA_ROOT}
-        --assignments
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/module-slice-assignment.json
-        --reachability
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/nested-reachability.json
-        --contracts
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/operation-contracts.json
-        --schema-completeness
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/schema-completeness-evidence.json
-        --fixture-coverage
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/fixture-coverage.json
-        --production-coverage
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/a1-1-operation-production-coverage.json
-        --notification-production-coverage
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/a1-1-notification-production-coverage.json
-        --fixture-index
-        ${PROJECT_SOURCE_DIR}/tools/codex/app-server-fixtures/0.144.6/index.json
-        --draft07-validator
-        ${PROJECT_SOURCE_DIR}/tools/codex/draft07.py
-        --start-state
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/a1-1-start-state.json
-        --plan-output
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/a1-1-implementation-plan.json
-        --closure-output
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}/a1-1-type-closure.json
-)
-set_tests_properties(
-    CodexA11AuditToolTest
-    PROPERTIES
-        LABELS "component;ai;openai;codex;phase-a1-1;schema;audit;generated"
-        TIMEOUT 60
-)
-
-add_test(
-    NAME CodexA11ClosureEvidenceTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_1_closure.py
-        check
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA11A13CurrentStateTest.py
         --repo-root
         ${PROJECT_SOURCE_DIR}
 )
 set_tests_properties(
-    CodexA11ClosureEvidenceTest
-    PROPERTIES
-        LABELS "component;ai;openai;codex;phase-a1-1;closure;generated;documentation"
-        TIMEOUT 30
-)
-
-add_test(
-    NAME CodexA11ArtifactByteIdentityTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA11ArtifactByteIdentityTest.py
-        --evidence-root
-        ${CODEX_PHASE_A1_1_EVIDENCE_ROOT}
-)
-set_tests_properties(
-    CodexA11ArtifactByteIdentityTest
+    CodexA11A13CurrentStateTest
     PROPERTIES
         LABELS
-        "component;ai;openai;codex;phase-a1-1;phase-a1-2;compatibility;generated"
-        TIMEOUT 5
-)
-
-set(CODEX_PHASE_A1_2_EVIDENCE_ROOT
-    ${PROJECT_SOURCE_DIR}/tools/codex/app-server-evidence/0.144.6
-)
-add_test(
-    NAME CodexA12AuditToolTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA12AuditToolTest.py
-        --tool
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_2.py
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --manifest
-        ${CODEX_PHASE_A0_SURFACE_MANIFEST}
-        --registry
-        ${CODEX_PHASE_A0_REGISTRY}
-        --schema-root
-        ${CODEX_PHASE_A0_SCHEMA_ROOT}
-        --assignments
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/module-slice-assignment.json
-        --reachability
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/nested-reachability.json
-        --contracts
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/operation-contracts.json
-        --schema-completeness
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/schema-completeness-evidence.json
-        --fixture-coverage
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/fixture-coverage.json
-        --fixture-index
-        ${PROJECT_SOURCE_DIR}/tools/codex/app-server-fixtures/0.144.6/index.json
-        --draft07-validator
-        ${PROJECT_SOURCE_DIR}/tools/codex/draft07.py
-        --start-state
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/a1-2-start-state.json
-        --plan-output
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/a1-2-implementation-plan.json
-        --closure-output
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/a1-2-type-closure.json
-)
-set_tests_properties(
-    CodexA12AuditToolTest
-    PROPERTIES
-        LABELS "component;ai;openai;codex;phase-a1-2;schema;audit;generated"
-        TIMEOUT 60
-)
-
-add_test(
-    NAME CodexA12DocumentationConsistencyTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA12DocumentationConsistencyTest.py
-        --documentation
-        ${PROJECT_SOURCE_DIR}/docs/ai/openai/codex/a1-2-accounts-models-configuration.md
-        --start-state
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/a1-2-start-state.json
-        --plan
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/a1-2-implementation-plan.json
-        --closure
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/a1-2-type-closure.json
-)
-set_tests_properties(
-    CodexA12DocumentationConsistencyTest
-    PROPERTIES
-        LABELS
-        "component;ai;openai;codex;phase-a1-2;documentation;generated"
-        TIMEOUT 5
-)
-
-add_test(
-    NAME CodexA12ClosureEvidenceTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA12ClosureEvidenceTest.py
-        --tool
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_2_closure.py
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --report
-        ${CODEX_PHASE_A1_2_EVIDENCE_ROOT}/a1-2-closure-report.json
-)
-set_tests_properties(
-    CodexA12ClosureEvidenceTest
-    PROPERTIES
-        DEPENDS CodexA12AuditToolTest
-        LABELS
-        "component;ai;openai;codex;phase-a1-2;closure;generated"
-        TIMEOUT 10
-)
-
-set(CODEX_PHASE_A1_3_EVIDENCE_ROOT
-    ${PROJECT_SOURCE_DIR}/tools/codex/app-server-evidence/0.144.6
-)
-add_test(
-    NAME CodexA13AuditToolTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA13AuditToolTest.py
-        --tool
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_3.py
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --start-state
-        ${CODEX_PHASE_A1_3_EVIDENCE_ROOT}/a1-3-start-state.json
-        --plan
-        ${CODEX_PHASE_A1_3_EVIDENCE_ROOT}/a1-3-implementation-plan.json
-        --closure
-        ${CODEX_PHASE_A1_3_EVIDENCE_ROOT}/a1-3-type-closure.json
-)
-set_tests_properties(
-    CodexA13AuditToolTest
-    PROPERTIES
-        DEPENDS CodexA12ClosureEvidenceTest
-        LABELS "component;ai;openai;codex;phase-a1-3;schema;audit;generated"
-        TIMEOUT 60
-)
-
-add_test(
-    NAME CodexA13ClosureEvidenceTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA13ClosureEvidenceTest.py
-        --tool
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_3_closure.py
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --report
-        ${CODEX_PHASE_A1_3_EVIDENCE_ROOT}/a1-3-closure-report.json
-)
-set_tests_properties(
-    CodexA13ClosureEvidenceTest
-    PROPERTIES
-        DEPENDS CodexA13AuditToolTest
-        LABELS
-        "component;ai;openai;codex;phase-a1-3;closure;generated;documentation"
-        TIMEOUT 30
+            "component;ai;openai;codex;phase-a1-1;phase-a1-2;phase-a1-3;schema;registry;codec;current-state"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 20
 )
 
 add_test(
@@ -376,6 +177,22 @@ set_tests_properties(
     PROPERTIES
         LABELS "component;ai;openai;codex;phase-a1-1;notification;codec;corpus;generated"
         TIMEOUT 30
+)
+
+add_test(
+    NAME CodexA14RuntimePlatformCurrentStateTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexA14RuntimePlatformCurrentStateTest.py
+        --repo-root
+        ${PROJECT_SOURCE_DIR}
+)
+set_tests_properties(
+    CodexA14RuntimePlatformCurrentStateTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;phase-a1-4;schema;registry;current-state"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 10
 )
 
 add_test(
@@ -599,181 +416,181 @@ set_tests_properties(
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit2Test
-    CodexA14UserIntegrationsCommit2Test.cpp
+    CodexA14AppsExternalAgentFeedbackCodecTest
+    CodexA14AppsExternalAgentFeedbackCodecTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit2Test
+    CodexA14AppsExternalAgentFeedbackCodecTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex-backend
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit2Test PRIVATE cxx_std_20
+    CodexA14AppsExternalAgentFeedbackCodecTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit2Test
+    CodexA14AppsExternalAgentFeedbackCodecTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;apps;external-agent;feedback;backend;codec;a1-4;user-integrations;commit-2"
+            "component;ai;openai;codex;typed;apps;external-agent;feedback;backend;codec;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit2WireTest
-    CodexA14UserIntegrationsCommit2WireTest.cpp
+    CodexA14AppsExternalAgentFeedbackWireTest
+    CodexA14AppsExternalAgentFeedbackWireTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit2WireTest
+    CodexA14AppsExternalAgentFeedbackWireTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex
         snodec::core
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit2WireTest PRIVATE cxx_std_20
+    CodexA14AppsExternalAgentFeedbackWireTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit2WireTest
+    CodexA14AppsExternalAgentFeedbackWireTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;apps;external-agent;feedback;operation;wire;lifecycle;a1-4;user-integrations;commit-2"
+            "component;ai;openai;codex;typed;apps;external-agent;feedback;operation;wire;lifecycle;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 20
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit3Test
-    CodexA14UserIntegrationsCommit3Test.cpp
+    CodexA14HooksMarketplaceSkillsCodecTest
+    CodexA14HooksMarketplaceSkillsCodecTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit3Test
+    CodexA14HooksMarketplaceSkillsCodecTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex-backend
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit3Test PRIVATE cxx_std_20
+    CodexA14HooksMarketplaceSkillsCodecTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit3Test
+    CodexA14HooksMarketplaceSkillsCodecTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;hooks;marketplace;skills;backend;codec;a1-4;user-integrations;commit-3"
+            "component;ai;openai;codex;typed;hooks;marketplace;skills;backend;codec;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit3WireTest
-    CodexA14UserIntegrationsCommit3WireTest.cpp
+    CodexA14HooksMarketplaceSkillsWireTest
+    CodexA14HooksMarketplaceSkillsWireTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit3WireTest
+    CodexA14HooksMarketplaceSkillsWireTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex
         snodec::core
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit3WireTest PRIVATE cxx_std_20
+    CodexA14HooksMarketplaceSkillsWireTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit3WireTest
+    CodexA14HooksMarketplaceSkillsWireTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;hooks;marketplace;skills;operation;wire;lifecycle;a1-4;user-integrations;commit-3"
+            "component;ai;openai;codex;typed;hooks;marketplace;skills;operation;wire;lifecycle;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 20
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit4Test
-    CodexA14UserIntegrationsCommit4Test.cpp
+    CodexA14PluginOperationsCodecTest
+    CodexA14PluginOperationsCodecTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit4Test
+    CodexA14PluginOperationsCodecTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit4Test PRIVATE cxx_std_20
+    CodexA14PluginOperationsCodecTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit4Test
+    CodexA14PluginOperationsCodecTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;plugins;codec;a1-4;user-integrations;commit-4"
+            "component;ai;openai;codex;typed;plugins;codec;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit4WireTest
-    CodexA14UserIntegrationsCommit4WireTest.cpp
+    CodexA14PluginOperationsWireTest
+    CodexA14PluginOperationsWireTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit4WireTest
+    CodexA14PluginOperationsWireTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex
         snodec::core
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit4WireTest PRIVATE cxx_std_20
+    CodexA14PluginOperationsWireTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit4WireTest
+    CodexA14PluginOperationsWireTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;plugins;operation;wire;lifecycle;a1-4;user-integrations;commit-4"
+            "component;ai;openai;codex;typed;plugins;operation;wire;lifecycle;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 20
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit5Test
-    CodexA14UserIntegrationsCommit5Test.cpp
+    CodexA14PluginCatalogCodecTest
+    CodexA14PluginCatalogCodecTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit5Test
+    CodexA14PluginCatalogCodecTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit5Test PRIVATE cxx_std_20
+    CodexA14PluginCatalogCodecTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit5Test
+    CodexA14PluginCatalogCodecTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;plugins;catalog;union;codec;a1-4;user-integrations;commit-5"
+            "component;ai;openai;codex;typed;plugins;catalog;union;codec;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
 
 snodec_add_test(
-    CodexA14UserIntegrationsCommit5WireTest
-    CodexA14UserIntegrationsCommit5WireTest.cpp
+    CodexA14PluginCatalogWireTest
+    CodexA14PluginCatalogWireTest.cpp
 )
 target_link_libraries(
-    CodexA14UserIntegrationsCommit5WireTest
+    CodexA14PluginCatalogWireTest
     PRIVATE
         snodec-test-support
         snodec::ai-openai-codex
         snodec::core
 )
 target_compile_features(
-    CodexA14UserIntegrationsCommit5WireTest PRIVATE cxx_std_20
+    CodexA14PluginCatalogWireTest PRIVATE cxx_std_20
 )
 set_tests_properties(
-    CodexA14UserIntegrationsCommit5WireTest
+    CodexA14PluginCatalogWireTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;plugins;catalog;union;operation;wire;lifecycle;a1-4;user-integrations;commit-5"
+            "component;ai;openai;codex;typed;plugins;catalog;union;operation;wire;lifecycle;a1-4;user-integrations"
         SKIP_RETURN_CODE 77
         TIMEOUT 20
 )
@@ -793,9 +610,54 @@ set_tests_properties(
     CodexA14McpClientTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;mcp;codec;facade;a1-4;mcp-reverse;commit-3"
+            "component;ai;openai;codex;typed;mcp;codec;facade;a1-4;mcp-reverse"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14WindowsSandboxClientTest
+    CodexA14WindowsSandboxClientTest.cpp
+)
+target_link_libraries(
+    CodexA14WindowsSandboxClientTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+)
+target_compile_features(
+    CodexA14WindowsSandboxClientTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14WindowsSandboxClientTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;windows-sandbox;codec;facade;a1-4;runtime-platform"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14WindowsSandboxWireTest
+    CodexA14WindowsSandboxWireTest.cpp
+)
+target_link_libraries(
+    CodexA14WindowsSandboxWireTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+        snodec::core
+)
+target_compile_features(
+    CodexA14WindowsSandboxWireTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexA14WindowsSandboxWireTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;windows-sandbox;operation;wire;lifecycle;a1-4;runtime-platform"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 15
 )
 
 snodec_add_test(
@@ -815,7 +677,7 @@ set_tests_properties(
     CodexA14McpNotificationEventTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;mcp;notifications;codec;a1-4;mcp-reverse;commit-3"
+            "component;ai;openai;codex;typed;mcp;notifications;codec;a1-4;mcp-reverse"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
@@ -837,7 +699,7 @@ set_tests_properties(
     CodexA14AttestationDynamicToolCodecTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;server-request;codec;a1-4;mcp-reverse;commit-4"
+            "component;ai;openai;codex;typed;server-request;codec;a1-4;mcp-reverse"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
@@ -860,7 +722,7 @@ set_tests_properties(
     CodexA14AttestationDynamicToolWireTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;server-request;wire;lifecycle;a1-4;mcp-reverse;commit-4"
+            "component;ai;openai;codex;typed;server-request;wire;lifecycle;a1-4;mcp-reverse"
         SKIP_RETURN_CODE 77
         TIMEOUT 15
 )
@@ -881,7 +743,7 @@ set_tests_properties(
     CodexA14McpClientWireTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;mcp;operation;wire;lifecycle;a1-4;mcp-reverse;commit-3"
+            "component;ai;openai;codex;typed;mcp;operation;wire;lifecycle;a1-4;mcp-reverse"
         SKIP_RETURN_CODE 77
         TIMEOUT 15
 )
@@ -907,7 +769,35 @@ set_tests_properties(
     CodexA14NineRequestStdioTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;server-request;lifecycle;wire;stdio;a1-4;mcp-reverse;commit-5"
+            "component;ai;openai;codex;typed;server-request;lifecycle;wire;stdio;a1-4;mcp-reverse"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 20
+)
+
+snodec_add_test(
+    CodexA14ServerRequestResolvedLifecycleTest
+    CodexA14ServerRequestResolvedLifecycleTest.cpp
+)
+target_link_libraries(
+    CodexA14ServerRequestResolvedLifecycleTest
+    PRIVATE
+        snodec-test-support
+        snodec::ai-openai-codex
+        snodec::core
+)
+target_compile_features(
+    CodexA14ServerRequestResolvedLifecycleTest PRIVATE cxx_std_20
+)
+target_compile_definitions(
+    CodexA14ServerRequestResolvedLifecycleTest
+    PRIVATE CODEX_FAKE_APP_SERVER="$<TARGET_FILE:CodexFakeAppServer>"
+)
+add_dependencies(CodexA14ServerRequestResolvedLifecycleTest CodexFakeAppServer)
+set_tests_properties(
+    CodexA14ServerRequestResolvedLifecycleTest
+    PROPERTIES
+        LABELS
+            "component;ai;openai;codex;typed;server-request;notification;lifecycle;wire;stdio;a1-4;runtime-platform"
         SKIP_RETURN_CODE 77
         TIMEOUT 20
 )
@@ -929,7 +819,7 @@ set_tests_properties(
     CodexA14UserInputElicitationCodecTest
     PROPERTIES
         LABELS
-            "component;ai;openai;codex;typed;server-request;codec;a1-4;mcp-reverse;commit-5"
+            "component;ai;openai;codex;typed;server-request;codec;a1-4;mcp-reverse"
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
@@ -1953,4 +1843,38 @@ set_tests_properties(
     AppServerClientRequestLifecycleTest
     PROPERTIES LABELS "component;codex;protocol;request;lifecycle;log"
                SKIP_RETURN_CODE 77 TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14RuntimePlatformNotificationTest
+    CodexA14RuntimePlatformNotificationTest.cpp
+)
+target_link_libraries(
+    CodexA14RuntimePlatformNotificationTest
+    PRIVATE snodec-test-support snodec::ai-openai-codex
+)
+target_compile_features(CodexA14RuntimePlatformNotificationTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexA14RuntimePlatformNotificationTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;typed;runtime;platform;notifications;a1-4"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexA14RuntimePlatformNotificationWireTest
+    CodexA14RuntimePlatformNotificationWireTest.cpp
+)
+target_link_libraries(
+    CodexA14RuntimePlatformNotificationWireTest
+    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+)
+target_compile_features(CodexA14RuntimePlatformNotificationWireTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexA14RuntimePlatformNotificationWireTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;typed;runtime;platform;notifications;wire;a1-4"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 10
 )

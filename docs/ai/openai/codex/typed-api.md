@@ -31,18 +31,20 @@ client.typed().marketplace().add(marketplaceParams, marketplaceHandler);
 client.typed().plugins().list(pluginParams, pluginHandler);
 client.typed().skills().list(skillParams, skillHandler);
 client.typed().mcp().listServers(mcpParams, mcpHandler);
+client.typed().windowsSandbox().checkReadiness(readinessHandler);
+client.typed().windowsSandbox().startSetup(setupParams, setupHandler);
 ```
 
 `typed::Client` is the installed, PIMPL-backed grouped facade. Its current
-accessors return 19 objects owned by the `AppServerClient`: `Accounts`,
+accessors return 20 objects owned by the `AppServerClient`: `Accounts`,
 `Apps`, `Commands`, `Configuration`, `Events`, `ExternalAgents`, `Feedback`,
 `Filesystem`, `Hooks`, `Marketplace`, `Mcp`, `Models`,
 `PermissionProfiles`, `Plugins`, `Requests`, `Reviews`, `Skills`, `Threads`,
-and `Turns`. They do not allocate a second protocol engine. The old direct
-conversation accessors remain source-compatible deprecated forwarders, for
-example `client.threads()` forwards to `client.typed().threads()`. There are
-deliberately no direct `AppServerClient` forwarders for the newer grouped
-domain facades.
+`Turns`, and `WindowsSandbox`. They do not allocate a second protocol engine.
+The old direct conversation accessors remain source-compatible deprecated
+forwarders, for example `client.threads()` forwards to
+`client.typed().threads()`. There are deliberately no direct `AppServerClient`
+forwarders for the newer grouped domain facades.
 
 Unsupported or newly introduced operations remain available through
 `client.raw()`.
@@ -71,19 +73,24 @@ claim a typed implementation or schema completeness.
 
 The grouped API includes the conversation operations completed in A1.0 and
 A1.1, accounts/models/configuration from A1.2, the stable
-commands/filesystem/reviews/approvals slice completed in A1.3, and the 33
-A14-UserIntegrations identities plus the 13 A14-McpReverse identities.
-Remaining stable operations stay raw- or opaque-preserved according to their
-fixed A1.4 ownership. The
+commands/filesystem/reviews/approvals slice completed in A1.3, and all 56
+native A1.4 identities: 33 user-facing integration identities, 13 MCP/reverse
+identities, and ten runtime/platform identities. Stable operations outside the
+native A1.4 denominator stay raw- or opaque-preserved according to their
+current ownership. The
 [A1.3 commands, filesystem, reviews, and approvals report](a1-3-commands-filesystem-reviews-approvals.md)
 records the exact 68-identity denominator, transitive type closure,
 compatibility boundary, and offline evidence. The
 [A1.4 user-facing integrations report](a1-4-user-facing-integrations.md)
-records the exact PR-A denominator, stable schema closure, public variants, and
+records the exact 33-identity denominator, stable schema closure, public variants, and
 package boundary. The
 [A1.4 MCP and reverse-requests report](a1-4-mcp-and-reverse-requests.md)
 records the exact 13-identity MCP/reverse denominator, its 18/55/204 schema
 closure, reverse-request lifecycle, and deferrals.
+The
+[A1.4 runtime and platform report](a1-4-runtime-and-platform-long-tail.md)
+records the final ten native identities, their 11/17/31 schema closure,
+append-only notification indices, and externally resolved occurrence behavior.
 
 The 18 A1.2 client operations are local typed-library APIs:
 
@@ -196,6 +203,23 @@ asynchronous `OperationResult<T>` callback. AISuite neither contacts external
 MCP servers directly nor implements local OAuth, tool execution, resource
 access, or attestation policy.
 
+The final two native A1.4 client operations use the cross-platform
+`WindowsSandbox` facade:
+
+| Facade | Stable wire method | Public method | Result |
+| --- | --- | --- | --- |
+| `windowsSandbox()` | `windowsSandbox/readiness` | `checkReadiness` | `WindowsSandboxReadinessResponse` |
+| `windowsSandbox()` | `windowsSandbox/setupStart` | `startSetup` | `WindowsSandboxSetupStartResponse` |
+
+`checkReadiness` constructs the protocol's `Unit` parameter internally.
+`startSetup` accepts the complete `WindowsSandboxSetupStartParams`, including
+the omitted/null/value state of `cwd` and the existing
+`WindowsSandboxSetupMode`. Both methods schedule through the same
+`RawProtocol`, return `RawProtocol::Submission` immediately, and complete with
+`OperationResult<T>` on the SNode.C event loop. The API is available on Linux,
+macOS, and Windows; AISuite performs no local readiness probe, PowerShell
+execution, elevation, security change, or sandbox installation.
+
 Current outgoing turn input variants are text, remote image, local image,
 skill, and mention. The current stable schema has no generic file-input
 variant. Thread start/resume accept the schema's simple sandbox mode. Turn
@@ -262,7 +286,19 @@ methods currently include:
 - app-list updates and external-agent import completion/progress;
 - hook completion/start lifecycle; and
 - skill-catalog changes; and
-- MCP OAuth completion and startup-status updates.
+- MCP OAuth completion and startup-status updates;
+- process exit and output-delta events;
+- deprecation and warning events;
+- remote-control status observation;
+- reverse-request resolution; and
+- Windows world-writable warnings and sandbox-setup completion.
+
+These runtime/platform notifications are observation only. They add no local
+process control, outgoing remote-control API, Windows setup behavior, backend
+presentation state, or frontend UI policy. Known malformed payloads remain
+available through the raw observer with safe structural diagnostics. Typed
+delivery continues to precede raw delivery, and callbacks remain exception-
+contained and reentrant.
 
 A failed `turn/completed` payload becomes `TurnFailed`; there is no separate
 `turn/failed` wire method in the current schema.
@@ -394,6 +430,37 @@ cannot answer a later request that reuses the same JSON-RPC ID after a restart.
 The ID-only raw response API remains available as the explicit low-level
 compatibility path.
 
+### External resolution notifications
+
+`ServerRequestResolvedNotification` contains only required `threadId` and
+required `requestId`, where the request ID preserves either a string or an
+`int64`. The open payload has no method field and no outcome, result, error,
+item ID, occurrence token, or generation field.
+
+Before typed delivery, the existing raw lifecycle binds the notification to
+the receiving generation, looks up the exact original request ID in the one
+occurrence registry, and reads the candidate's stored thread and request
+target. It retires a matching pending occurrence only for these targets:
+
+- `item/commandExecution/requestApproval`;
+- `item/fileChange/requestApproval`;
+- `item/permissions/requestApproval`;
+- `item/tool/requestUserInput`; and
+- `mcpServer/elicitation/request`.
+
+The same notification does not retire `applyPatchApproval`,
+`execCommandApproval`, `item/tool/call`, or `attestation/generate`. No method
+is inferred from the notification. Unknown IDs, stale generations, duplicate
+or already-retired occurrences, thread mismatches, reconnect ID reuse, and
+negative targets are nonfatal lifecycle no-ops; the typed event and then the
+raw notification remain observable.
+
+An externally resolved occurrence is retired before the callback, so a later
+local response fails without wire output. A direct response remains causally
+independent and requires no resolution notification. If the application
+responds first, a later notification changes no state and never synthesizes a
+second response.
+
 ## Raw and typed observer coexistence
 
 The raw engine has one private typed dispatcher slot in addition to each
@@ -425,9 +492,9 @@ Public `std::variant` and aggregate layouts changed where the typed model
 required it, and this documentation does not claim binary compatibility for
 already-built consumers.
 
-SOVERSION remains 1 through A1.4b. The added facades and public aggregates are
-part of the documented A1 consumer-rebuild boundary; the SOVERSION decision
-remains deferred to the distinct final-A1 closure.
+SOVERSION remains 1 through native A1.4 completion. The added facades and
+public aggregates are part of the documented A1 consumer-rebuild boundary;
+the SOVERSION decision remains deferred to the distinct final-A1 closure.
 
 A1.3 preserves the existing alternative order and appends new `Event` and
 `TypedServerRequest` alternatives, but both public variants change
@@ -448,9 +515,9 @@ authoritative. Raw JSON on results, threads, turns, items, events, server
 requests, and Codex error alternatives remains the escape hatch for protocol
 growth.
 
-A14-McpReverse is complete: the global registry is
-326 Complete / 3 Partial / 10 NotImplemented / 48 NotApplicable, while native
-A1.4 is 46 Complete / 0 Partial / 10 NotImplemented. The remaining Partials
-are exactly `initialize`, `initialized`, and `error`. Native A1.4 still has ten
-runtime/platform identities reserved for the separate PR-C milestone; this
-document does not claim all native A1.4 work is complete.
+Native A1.4 is complete: the global registry is
+336 Complete / 3 Partial / 0 NotImplemented / 48 NotApplicable, while native
+A1.4 is 56 Complete / 0 Partial / 0 NotImplemented. The remaining Partials are
+exactly `initialize`, `initialized`, and `error`, owned by Common/A1.0 and
+deferred to final-A1 completion. All 48 InventoryOnly identities remain
+NotApplicable, and Codex SOVERSION remains 1.

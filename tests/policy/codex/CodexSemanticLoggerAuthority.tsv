@@ -1,7 +1,6 @@
 # SNode.C - A Slim Toolkit for Network Communication
 # Copyright (C) Volker Christian <me@vchrist.at>
-# Extracted from tests/policy/log/ParameterlessSemanticLoggerPolicyTest.cpp
-# blob e4fddcaf69b23549eab318cb86afee6210b2aaad at d18b231a1d2ec2235fd6f204786b0a761cc24ff5.
+# Adapted from SNode.C's parameterless semantic logger policy.
 # SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
 path	helper	expression	classification	rationale
 src/ai/openai/codex/backend/Reducer.cpp	lifecycleLog	turn {}: thread={} turn={}	DOMAIN_OR_PROTOCOL_SCOPE	Typed turn completion is owned by Codex thread and turn identifiers.

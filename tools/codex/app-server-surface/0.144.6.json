@@ -1,7 +1,6 @@
 {
   "format_version": 1,
   "codex_version": "codex-cli 0.144.6",
-  "starting_snodec_sha": "138f5022c19b24847bee42a21242aaaf7dde5a04",
   "schema_authority": "vendored generated JSON Schema",
   "schema_trees": {
     "stable_aggregate_sha256": "cee1ac3bcaf95e5fcdcf07499c7e6b00fc423b90c670ea3380f1799434b72add",

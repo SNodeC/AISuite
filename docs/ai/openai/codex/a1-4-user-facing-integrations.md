@@ -2,18 +2,16 @@
 
 ## Status and authority
 
-This milestone types the 33 stable user-facing integration identities assigned
-to PR A at Codex App Server 0.144.6. The audited base is commit
-`10d3829958a6a17e7437326b6c42c51f3a8de4ec`, tree
-`7b5e6500780f1c633fe18af5fba6164bd222a3ba`. The protocol authority remains
-upstream tag `rust-v0.144.6`, source commit
-`5d1fbf26c43abc65a203928b2e31561cb039e06d`.
+This milestone types the 33 stable user-facing integration identities from the
+checked-in Codex App Server 0.144.6 protocol. The vendored stable schemas and
+Rust contracts remain the protocol authority.
 
-The pinned stable schemas, vendored Rust contracts, frozen A1.4 evidence, and
-`ProtocolSurfaceRegistryData.inc` remain authoritative. Experimental schemas
-are not implementation inputs.
+The `ProtocolSurfaceRegistry` is the current implementation-state authority.
+Generated descriptors, production codecs, fixtures, and current product tests
+validate that state against the pinned schemas and Rust contracts. Experimental
+schemas are not implementation inputs.
 
-The exact PR-A denominator is:
+The exact user-integration denominator is:
 
 | Category | Count |
 |---|---:|
@@ -28,7 +26,7 @@ operations are exactly `plugin/share/delete`, `plugin/uninstall`, and
 `skills/extraRoots/set`. The transitive stable schema closure is fixed at 52
 seed definitions, 118 reachable v2 definitions, and 411 schema paths.
 
-## Staged implementation
+## Functional composition
 
 The first production batch completes:
 
@@ -40,11 +38,6 @@ The first production batch completes:
 - `app/list/updated`;
 - `externalAgentConfig/import/completed`; and
 - `externalAgentConfig/import/progress`.
-
-At this checkpoint native A1.4 is 8 Complete, 1 Partial, and 47
-NotImplemented. The global registry is 288 Complete, 4 Partial, 47
-NotImplemented, and 48 NotApplicable. The Partial identities remain
-`initialize`, `initialized`, `error`, and `item/tool/requestUserInput`.
 
 The public entry points added by this batch are
 `client.typed().apps().list()`,
@@ -73,9 +66,9 @@ appends `AppListUpdatedNotification`,
 `ExternalAgentConfigImportProgressNotification` at canonical indices 51–53
 and Event indices 53–55. No predecessor alternative moves.
 
-Native A1.4 remains in progress after this checkpoint. Hooks, marketplace,
-skills, and plugins are completed by the following production batches; PR B,
-PR C, inherited A1.0 Partials, and InventoryOnly identities remain untouched.
+Hooks, marketplace, skills, and plugins are completed by the following
+functional groups. MCP/reverse and runtime/platform behavior is documented in
+their respective current-state reports.
 Codex SOVERSION remains 1 under the frozen milestone policy.
 
 The second production batch completes:
@@ -91,15 +84,11 @@ The second production batch completes:
 - `hook/started`; and
 - `skills/changed`.
 
-At this checkpoint native A1.4 is 18 Complete, 1 Partial, and 37
-NotImplemented. The global registry is 298 Complete, 4 Partial, 37
-NotImplemented, and 48 NotApplicable.
-
 The batch adds the `Hooks`, `Marketplace`, and `Skills` facades without adding
 local hook execution, marketplace management, or skill scanning. Their public
 methods are `Hooks::list`, `Marketplace::add`, `Marketplace::remove`,
 `Marketplace::upgrade`, `Skills::writeConfig`, `Skills::setExtraRoots`, and
-`Skills::list`. `skills/extraRoots/set` is the first PR-A Unit-result
+`Skills::list`. `skills/extraRoots/set` is the first user-integration Unit-result
 operation; the other six requests have concrete typed responses.
 
 `HookCompletedNotification`, `HookStartedNotification`, and
@@ -123,11 +112,8 @@ reach `PluginSource`:
 - `plugin/skill/read`; and
 - `plugin/uninstall`.
 
-At this checkpoint native A1.4 is 25 Complete, 1 Partial, and 30
-NotImplemented. The global registry is 305 Complete, 4 Partial, 30
-NotImplemented, and 48 NotApplicable. `plugin/share/delete` and
-`plugin/uninstall` use the established exact Unit-result decoder; the other
-five operations have concrete typed responses.
+`plugin/share/delete` and `plugin/uninstall` use the established exact
+Unit-result decoder; the other five operations have concrete typed responses.
 
 The `Plugins` facade exposes `install`, `shareCheckout`, `shareDelete`,
 `shareSave`, `shareUpdateTargets`, `readSkill`, and `uninstall`. It submits
@@ -160,14 +146,11 @@ also retains the raw object but records a malformed-known diagnostic; it is
 never relabeled as a future alternative. Diagnostics identify only structural
 paths and expected types, never plugin values.
 
-At this checkpoint A14-UserIntegrations is complete: native A1.4 is exactly 33
-Complete, 1 Partial, and 22 NotImplemented. The global registry is exactly 313
-Complete, 4 Partial, 22 NotImplemented, and 48 NotApplicable. Native A1.4
-remains in progress: PR B and PR C stay unimplemented, and
-`item/tool/requestUserInput` remains Partial alongside the inherited A1.0
-Partials `initialize`, `initialized`, and `error`.
+A14-UserIntegrations contributes exactly 33 Complete native A1.4 identities.
+MCP/reverse requests and runtime/platform behavior complete the rest of the
+native slice without changing this group's denominator.
 
-The `Plugins` facade now exposes all eleven PR-A methods: `install`,
+The `Plugins` facade exposes all eleven user-integration methods: `install`,
 `installed`, `list`, `read`, `shareCheckout`, `shareDelete`, `shareList`,
 `shareSave`, `shareUpdateTargets`, `readSkill`, and `uninstall`. Each method
 continues to submit through the one existing `RawProtocol`; AISuite performs no
@@ -175,73 +158,56 @@ catalog scan, installation, sharing, or source retrieval itself.
 
 `npm` is only a Codex protocol discriminator and data structure. This
 milestone adds no Node.js or npm build/runtime dependency and executes neither.
-Notification variants remain at their final 57 and 59 alternatives. Codex
-SOVERSION remains 1; the public aggregate and variant additions have real ABI
-impact even though the frozen SONAME policy defers the scoped bump to final A1
-closure.
+This group leaves the canonical and Event variants at 57 and 59 alternatives;
+the later A1.4 groups append to the current sizes of 67 and 69 without moving
+these predecessors. Codex SOVERSION remains 1; the public aggregate and variant
+additions have real ABI impact even though the SOVERSION decision is deferred
+to final-A1 completion.
 
-## Closure, packaging, and integrity
+The current registry has since completed the MCP/reverse and runtime/platform
+groups: global status is 336 Complete / 3 Partial / 0 NotImplemented / 48
+NotApplicable, and native A1.4 is 56 Complete / 0 Partial / 0 NotImplemented.
+The remaining Partials are exactly `initialize`, `initialized`, and `error`,
+owned by Common/A1.0 and deferred to final-A1 completion.
 
-The PR-specific audit freezes the exact `23 / 6 / 0 / 4` taxonomy, `20 / 3`
-concrete/Unit result split, `52 / 118 / 411` stable schema closure, batch
-ownership, public methods, descriptors, fixtures, and installed headers.
-Planted-failure tests require stable diagnostic codes for scope leakage,
-result-contract drift, schema-closure drift, false completion, package
-boundary violations, predecessor or appended variant movement, SOVERSION
-drift, predecessor-evidence drift, and second-pass nondeterminism.
+## Packaging and integrity
 
-The installed-consumer gate reuses the one installed cleaned SNode.C prefix
+Current-state tests cover the exact `23 / 6 / 0 / 4` taxonomy, `20 / 3`
+concrete/Unit result split, `52 / 118 / 411` stable schema closure, public
+methods, descriptors, fixtures, installed headers, and package boundaries.
+
+The installed-consumer gate reuses the one installed current SNode.C prefix
 and the one configured AISuite build, installs AISuite into an isolated
 prefix, and configures the external consumer with package registries disabled
 and inherited compiler, linker, loader, include, CMake, and pkg-config search
 variables removed. Cache, compile-command, verbose-link, `readelf`, and `ldd`
 evidence must resolve AISuite and SNode.C headers and libraries only from the
-two install prefixes while rejecting the AISuite checkout/build and the
-historical SNode.C provenance worktree. A small installed public-header
-consumer links `snodec::core` directly and must compile with the cleaned
+two install prefixes while rejecting the AISuite checkout/build. A small
+installed public-header consumer links `snodec::core` directly and compiles
+against the current installed
 `include/snode.c` root. The sanitized consumers exercise all seven new
 facades, all six appended notification types, and the five-alternative
 `PluginSource` variant through installed public headers.
 
-Local validation supplies the detached historical SNode.C worktree only
-through `AISUITE_TEST_SNODEC_SOURCE_REPOSITORY`; normal dependency discovery
-uses the cleaned installed prefix through `CMAKE_PREFIX_PATH`. Source packages
-contain no `.git`, cannot discover an enclosing checkout under their
-`GIT_CEILING_DIRECTORIES`, retain the three full-corpus generation-proof JSON
-files, and run package-safe extraction, API/ABI, and closure checks. Binary
-packages require all seven facade headers and exclude private tools, tests,
-evidence, and codec implementation files.
-
-The complete inherited and PR-A generated corpus is regenerated with the
-authoritative repository tools in dependency order. Predecessor deltas are
-accepted only where hashes or derived evidence changed because of reviewed
-production/test inputs; identity keys, schema paths, contracts, ownership,
-predecessor variant order, protocol pins, and frozen InventoryOnly boundaries
-must remain unchanged. A second complete generator pass must be byte-identical
-to the first for every target-corpus path, byte count, and SHA-256. That target
-includes the static closure report and the extraction manifest. Exactly three
-proof metadata files sit outside the target they describe; extraction records
-only their fixed paths, while the specialized closure guard canonically hashes
-and validates them and requires the final live target to equal both passes.
-The extraction manifest is the unique last generator in each pass and retains
-the original SNode.C source commit, tree, filtered-history baseline, commit
-map, and original source hashes.
+Dependency discovery uses only the current installed SNode.C prefix through
+`CMAKE_PREFIX_PATH`; no SNode.C source checkout is required by AISuite tests.
+Source packages contain no `.git`, and binary packages require all seven
+facade headers while excluding private tools, tests, evidence, and codec
+implementation files.
 
 `AppServerClient` and `typed::Client` retain their PIMPL ownership model and no
 predecessor variant index moves. The appended public notification alternatives,
 the new public aggregates, and `PluginSource` nevertheless change the public
-C++ API/ABI. SOVERSION intentionally remains 1 under the frozen PR-A policy;
+C++ API/ABI. SOVERSION intentionally remains 1 under the current A1 policy;
 that unchanged SONAME is not a binary-compatibility claim, and consumers must
 be rebuilt with the updated library.
 
-The authoritative
-`app_server_a1_4_user_integrations_abi.py` generator records 112 layout and
-variant observations from
-`CodexA14UserIntegrationsAbiLayoutProbe.cpp`, hashes every affected public
-header, and captures a sorted manifest of 715 strong exported Codex symbols.
-The generated API/ABI JSON and symbol manifest are checked against both the
-current public headers and the strict GCC library; they are package and
-full-corpus generation inputs rather than a compatibility claim.
+The vendored Codex 0.144.6 schemas and protocol source define this protocol
+surface, while the `ProtocolSurfaceRegistry`, generated descriptors, production
+codecs, and current codec/wire tests verify its implementation. The public-header
+policy, isolated self-containment test, installed consumer, and package tests
+verify the current public API and consumption boundary without treating a
+historical ABI report or symbol snapshot as an active authority.
 
 Sensitive app, external-agent, feedback, hook, marketplace, plugin, skill,
 thread, turn, opaque JSON, and raw-envelope values remain outside production

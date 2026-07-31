@@ -2,9 +2,7 @@
  * SNode.C - A Slim Toolkit for Network Communication
  * Copyright (C) Volker Christian <me@vchrist.at>
  *
- * Codex-only extraction of SNode.C
- * tests/policy/log/LoggingApiSurfacePolicyTest.cpp, blob
- * e9beada86e032261d5b128cf58d0efdf1f927234.
+ * Adapted from SNode.C's logging API surface policy.
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */

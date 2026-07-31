@@ -460,6 +460,116 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
+    struct ProcessOutputStream {
+        std::string value;
+
+        [[nodiscard]] static ProcessOutputStream stdoutStream() {
+            return {"stdout"};
+        }
+
+        [[nodiscard]] static ProcessOutputStream stderrStream() {
+            return {"stderr"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "stdout" || value == "stderr";
+        }
+
+        auto operator<=>(const ProcessOutputStream&) const = default;
+    };
+
+    struct RemoteControlConnectionStatus {
+        std::string value;
+
+        [[nodiscard]] static RemoteControlConnectionStatus disabled() {
+            return {"disabled"};
+        }
+
+        [[nodiscard]] static RemoteControlConnectionStatus connecting() {
+            return {"connecting"};
+        }
+
+        [[nodiscard]] static RemoteControlConnectionStatus connected() {
+            return {"connected"};
+        }
+
+        [[nodiscard]] static RemoteControlConnectionStatus errored() {
+            return {"errored"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "disabled" || value == "connecting" || value == "connected" || value == "errored";
+        }
+
+        auto operator<=>(const RemoteControlConnectionStatus&) const = default;
+    };
+
+    struct DeprecationNoticeNotification {
+        OptionalNullable<std::string> details;
+        std::string summary;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct ProcessExitedNotification {
+        std::int32_t exitCode = 0;
+        std::string processHandle;
+        std::string stderr;
+        bool stderrCapReached = false;
+        std::string stdout;
+        bool stdoutCapReached = false;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct ProcessOutputDeltaNotification {
+        bool capReached = false;
+        std::string deltaBase64;
+        std::string processHandle;
+        ProcessOutputStream stream;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct RemoteControlStatusChangedNotification {
+        OptionalNullable<std::string> environmentId;
+        std::string installationId;
+        std::string serverName;
+        RemoteControlConnectionStatus status;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct ServerRequestResolvedNotification {
+        ServerRequestId requestId{std::int64_t{0}};
+        ThreadId threadId;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct WarningNotification {
+        std::string message;
+        OptionalNullable<ThreadId> threadId;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct WindowsWorldWritableWarningNotification {
+        std::uint64_t extraCount = 0;
+        bool failedScan = false;
+        std::vector<std::string> samplePaths;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
+    struct WindowsSandboxSetupCompletedNotification {
+        OptionalNullable<std::string> error;
+        WindowsSandboxSetupMode mode;
+        bool success = false;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
     using CanonicalServerNotification = std::variant<AccountLoginCompletedNotification,
                                                      AccountRateLimitsUpdatedNotification,
                                                      AccountUpdatedNotification,
@@ -518,7 +628,15 @@ namespace ai::openai::codex::typed {
                                                      HookStartedNotification,
                                                      SkillsChangedNotification,
                                                      McpServerOauthLoginCompletedNotification,
-                                                     McpServerStatusUpdatedNotification>;
+                                                     McpServerStatusUpdatedNotification,
+                                                     DeprecationNoticeNotification,
+                                                     ProcessExitedNotification,
+                                                     ProcessOutputDeltaNotification,
+                                                     RemoteControlStatusChangedNotification,
+                                                     ServerRequestResolvedNotification,
+                                                     WarningNotification,
+                                                     WindowsWorldWritableWarningNotification,
+                                                     WindowsSandboxSetupCompletedNotification>;
 
     struct ThreadStarted {
         Thread thread;
@@ -702,7 +820,15 @@ namespace ai::openai::codex::typed {
                                HookStartedNotification,
                                SkillsChangedNotification,
                                McpServerOauthLoginCompletedNotification,
-                               McpServerStatusUpdatedNotification>;
+                               McpServerStatusUpdatedNotification,
+                               DeprecationNoticeNotification,
+                               ProcessExitedNotification,
+                               ProcessOutputDeltaNotification,
+                               RemoteControlStatusChangedNotification,
+                               ServerRequestResolvedNotification,
+                               WarningNotification,
+                               WindowsWorldWritableWarningNotification,
+                               WindowsSandboxSetupCompletedNotification>;
 
     class Events {
     public:

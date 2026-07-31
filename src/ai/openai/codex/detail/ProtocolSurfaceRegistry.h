@@ -150,6 +150,8 @@ namespace ai::openai::codex::detail {
         McpResourceRead,
         McpServerToolCall,
         McpServerStatusList,
+        WindowsSandboxReadiness,
+        WindowsSandboxSetupStart,
         Count
     };
 
@@ -216,6 +218,14 @@ namespace ai::openai::codex::detail {
         SkillsChanged,
         McpServerOauthLoginCompleted,
         McpServerStartupStatusUpdated,
+        DeprecationNotice,
+        ProcessExited,
+        ProcessOutputDelta,
+        RemoteControlStatusChanged,
+        ServerRequestResolved,
+        Warning,
+        WindowsWorldWritableWarning,
+        WindowsSandboxSetupCompleted,
         Count
     };
 
@@ -508,6 +518,8 @@ namespace ai::openai::codex::detail {
         McpResourceReadResponse,
         McpServerToolCallResponse,
         ListMcpServerStatusResponse,
+        WindowsSandboxReadinessResponse,
+        WindowsSandboxSetupStartResponse,
         Count
     };
 
@@ -734,6 +746,7 @@ namespace ai::openai::codex::detail {
     const ProtocolSurfaceEntry& entryFor(ClientNotificationTarget target);
     const ProtocolSurfaceEntry& entryFor(ServerNotificationTarget target);
     const ProtocolSurfaceEntry& entryFor(ServerRequestTarget target);
+    bool serverRequestEmitsResolvedNotification(ServerRequestTarget target) noexcept;
     const ProtocolSurfaceEntry& entryFor(ItemDiscriminatorTarget target);
     const ProtocolSurfaceEntry& entryFor(ResponseItemTarget target);
     const ProtocolSurfaceEntry& entryFor(CodexErrorInfoTarget target);

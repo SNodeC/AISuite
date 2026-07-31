@@ -25,7 +25,6 @@ CODEX_VERSION = "codex-cli 0.144.6"
 VENDORED_RUST_COMMON_PATH = (
     "codex-rs/app-server-protocol/src/protocol/common.rs"
 )
-STARTING_SNODEC_SHA = "138f5022c19b24847bee42a21242aaaf7dde5a04"
 UPSTREAM_PROVENANCE = {
     "project": "OpenAI Codex",
     "repository": "https://github.com/openai/codex",
@@ -247,10 +246,11 @@ A1_4_PUBLIC_ROOTS = {
     ),
 }
 
-# PR-A Commit 2 exact-key production ownership.  These identities advance
+# A1.4 apps, external-agent, and feedback exact-key production ownership.
+# These identities advance
 # together with their types, codecs, descriptors, facades, fixtures, and
 # focused tests; no other A1.4 identity is included.
-A14_USER_INTEGRATIONS_COMMIT_2 = frozenset(
+A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK = frozenset(
     {
         ("client_request", "ClientRequest", "method", "app/list"),
         (
@@ -292,10 +292,10 @@ A14_USER_INTEGRATIONS_COMMIT_2 = frozenset(
         ),
     }
 )
-# PR-A Commit 3 exact-key production ownership. These identities advance
+# A1.4 hooks, marketplace, and skills exact-key production ownership. These identities advance
 # together with their types, codecs, descriptors, facades, fixtures, and
 # focused tests.
-A14_USER_INTEGRATIONS_COMMIT_3 = frozenset(
+A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS = frozenset(
     {
         ("client_request", "ClientRequest", "method", "hooks/list"),
         ("client_request", "ClientRequest", "method", "marketplace/add"),
@@ -324,10 +324,10 @@ A14_USER_INTEGRATIONS_COMMIT_3 = frozenset(
         ),
     }
 )
-# PR-A Commit 4 exact-key production ownership. These plugin roots do not
+# A1.4 plugin-operation exact-key production ownership. These plugin roots do not
 # transitively reach PluginSource; the four catalog/source-bearing operations
-# and four PluginSource alternatives remain reserved for Commit 5.
-A14_USER_INTEGRATIONS_COMMIT_4 = frozenset(
+# and four PluginSource alternatives remain in the plugin catalog/source group.
+A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS = frozenset(
     {
         ("client_request", "ClientRequest", "method", "plugin/install"),
         (
@@ -348,10 +348,11 @@ A14_USER_INTEGRATIONS_COMMIT_4 = frozenset(
         ("client_request", "ClientRequest", "method", "plugin/uninstall"),
     }
 )
-# PR-A Commit 5 closes the four PluginSource-bearing catalog requests and the
+# The A1.4 plugin catalog/source group contains the four PluginSource-bearing
+# catalog requests and the
 # four known PluginSource alternatives. The alternative order is the exact
 # production-registry order, independent from the stable schema's oneOf order.
-A14_USER_INTEGRATIONS_COMMIT_5 = frozenset(
+A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES = frozenset(
     {
         ("client_request", "ClientRequest", "method", "plugin/installed"),
         ("client_request", "ClientRequest", "method", "plugin/list"),
@@ -364,16 +365,16 @@ A14_USER_INTEGRATIONS_COMMIT_5 = frozenset(
     }
 )
 A14_USER_INTEGRATIONS_IMPLEMENTED = (
-    A14_USER_INTEGRATIONS_COMMIT_2
-    | A14_USER_INTEGRATIONS_COMMIT_3
-    | A14_USER_INTEGRATIONS_COMMIT_4
-    | A14_USER_INTEGRATIONS_COMMIT_5
+    A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK
+    | A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS
+    | A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS
+    | A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES
 )
-# A1.4b Commit 3 exact-key production ownership. These four asynchronous
+# The A1.4b MCP client/notification group contains four asynchronous
 # client operations and two server notifications advance together with their
 # complete public types, codecs, descriptors, facade/event exposure, fixtures,
 # and focused wire tests.
-A14_MCP_REVERSE_COMMIT_3 = frozenset(
+A14_MCP_CLIENT_AND_NOTIFICATIONS = frozenset(
     {
         (
             "client_request",
@@ -413,9 +414,9 @@ A14_MCP_REVERSE_COMMIT_3 = frozenset(
         ),
     }
 )
-# A1.4b Commit 4 exact-key production ownership. These reverse requests use
+# The A1.4b attestation/dynamic-tool group uses
 # the existing RawProtocol occurrence registry and direct-response engine.
-A14_MCP_REVERSE_COMMIT_4 = frozenset(
+A14_ATTESTATION_AND_DYNAMIC_TOOL = frozenset(
     {
         (
             "server_request",
@@ -431,9 +432,9 @@ A14_MCP_REVERSE_COMMIT_4 = frozenset(
         ),
     }
 )
-# A1.4b Commit 5 completes the existing user-input request, adds MCP
+# The A1.4b user-input/elicitation group contains the user-input request, MCP
 # elicitation, and binds the elicitation mode union to its exact owner.
-A14_MCP_REVERSE_COMMIT_5 = frozenset(
+A14_USER_INPUT_AND_ELICITATION = frozenset(
     {
         (
             "server_request",
@@ -468,9 +469,40 @@ A14_MCP_REVERSE_COMMIT_5 = frozenset(
     }
 )
 A14_MCP_REVERSE_IMPLEMENTED = (
-    A14_MCP_REVERSE_COMMIT_3
-    | A14_MCP_REVERSE_COMMIT_4
-    | A14_MCP_REVERSE_COMMIT_5
+    A14_MCP_CLIENT_AND_NOTIFICATIONS
+    | A14_ATTESTATION_AND_DYNAMIC_TOOL
+    | A14_USER_INPUT_AND_ELICITATION
+)
+A14_RUNTIME_PLATFORM_CLIENT_REQUESTS = frozenset(
+    {
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "windowsSandbox/readiness",
+        ),
+        (
+            "client_request",
+            "ClientRequest",
+            "method",
+            "windowsSandbox/setupStart",
+        ),
+    }
+)
+A14_RUNTIME_PLATFORM_NOTIFICATIONS = frozenset(
+    {
+        ("server_notification", "ServerNotification", "method", method)
+        for method in (
+            "deprecationNotice",
+            "process/exited",
+            "process/outputDelta",
+            "remoteControl/status/changed",
+            "serverRequest/resolved",
+            "warning",
+            "windows/worldWritableWarning",
+            "windowsSandbox/setupCompleted",
+        )
+    }
 )
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
@@ -1374,7 +1406,7 @@ CONVERSATION_UNION_CODECS = {
     ),
 }
 
-# Commit B4 adds the three operation-aggregate union families.  They reuse the
+# The operation-aggregate group contains three union families. They reuse the
 # same exact-key descriptor mechanism as B2/B3, but remain decode-only because
 # the pinned operation closure reaches them only through successful results.
 B4_CONVERSATION_UNION_CODECS = {
@@ -2107,6 +2139,18 @@ RUNTIME_TARGETS = {
         "client_request",
         "ClientRequest",
         "method",
+        "windowsSandbox/readiness",
+    ): "ClientRequestTarget::WindowsSandboxReadiness",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        "windowsSandbox/setupStart",
+    ): "ClientRequestTarget::WindowsSandboxSetupStart",
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
         "model/list",
     ): "ClientRequestTarget::ModelList",
     (
@@ -2433,6 +2477,54 @@ RUNTIME_TARGETS = {
         "method",
         "mcpServer/startupStatus/updated",
     ): "ServerNotificationTarget::McpServerStartupStatusUpdated",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "deprecationNotice",
+    ): "ServerNotificationTarget::DeprecationNotice",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "process/exited",
+    ): "ServerNotificationTarget::ProcessExited",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "process/outputDelta",
+    ): "ServerNotificationTarget::ProcessOutputDelta",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "remoteControl/status/changed",
+    ): "ServerNotificationTarget::RemoteControlStatusChanged",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "serverRequest/resolved",
+    ): "ServerNotificationTarget::ServerRequestResolved",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "warning",
+    ): "ServerNotificationTarget::Warning",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "windows/worldWritableWarning",
+    ): "ServerNotificationTarget::WindowsWorldWritableWarning",
+    (
+        "server_notification",
+        "ServerNotification",
+        "method",
+        "windowsSandbox/setupCompleted",
+    ): "ServerNotificationTarget::WindowsSandboxSetupCompleted",
     (
         "server_notification",
         "ServerNotification",
@@ -3020,6 +3112,7 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "app/list/updated": "typed::AppListUpdatedNotification",
     "command/exec/outputDelta": "typed::CommandExecOutputDeltaNotification",
     "configWarning": "typed::ConfigWarningNotification",
+    "deprecationNotice": "typed::DeprecationNoticeNotification",
     "error": "typed::TurnErrorEvent",
     "externalAgentConfig/import/completed": (
         "typed::ExternalAgentConfigImportCompletedNotification"
@@ -3061,6 +3154,12 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "mcpServer/startupStatus/updated": (
         "typed::McpServerStatusUpdatedNotification"
     ),
+    "process/exited": "typed::ProcessExitedNotification",
+    "process/outputDelta": "typed::ProcessOutputDeltaNotification",
+    "remoteControl/status/changed": (
+        "typed::RemoteControlStatusChangedNotification"
+    ),
+    "serverRequest/resolved": "typed::ServerRequestResolvedNotification",
     "skills/changed": "typed::SkillsChangedNotification",
     "model/rerouted": "typed::ModelRerouted",
     "model/safetyBuffering/updated": "typed::ModelSafetyBufferingUpdatedNotification",
@@ -3090,6 +3189,13 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "turn/moderationMetadata": "typed::TurnModerationMetadataNotification",
     "turn/plan/updated": "typed::TurnPlanUpdatedNotification",
     "turn/started": "typed::TurnStartedNotification",
+    "warning": "typed::WarningNotification",
+    "windows/worldWritableWarning": (
+        "typed::WindowsWorldWritableWarningNotification"
+    ),
+    "windowsSandbox/setupCompleted": (
+        "typed::WindowsSandboxSetupCompletedNotification"
+    ),
 }
 SERVER_NOTIFICATION_EVENT_ALTERNATIVES_BY_METHOD = {
     method: payload_type.removeprefix("typed::")
@@ -3136,7 +3242,7 @@ SERVER_NOTIFICATION_CODECS = {
     if key[0] == "server_notification"
 }
 if (
-    len(SERVER_NOTIFICATION_CODECS) != 60
+    len(SERVER_NOTIFICATION_CODECS) != 68
     or set(SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD)
     != {key[3] for key in SERVER_NOTIFICATION_CODECS}
 ):
@@ -4472,7 +4578,6 @@ def extract_surface(schema_version_root: Path) -> dict[str, Any]:
     return {
         "format_version": FORMAT_VERSION,
         "codex_version": CODEX_VERSION,
-        "starting_snodec_sha": STARTING_SNODEC_SHA,
         "schema_authority": "vendored generated JSON Schema",
         "schema_trees": {
             "stable_aggregate_sha256": aggregate_hash(stable_records),
@@ -4537,7 +4642,6 @@ def build_provenance(
     return {
         "format_version": PROVENANCE_FORMAT_VERSION,
         "codex_version": CODEX_VERSION,
-        "starting_snodec_sha": STARTING_SNODEC_SHA,
         "upstream": copy.deepcopy(UPSTREAM_PROVENANCE),
         "generation_commands": [
             'CODEX_BIN="${CODEX_BIN:-codex}"',
@@ -6353,30 +6457,42 @@ def registry_statuses(
         evidence["opaque_fields_declared"] = True
         evidence["no_known_schema_fields_dropped"] = True
     if identity in A14_USER_INTEGRATIONS_IMPLEMENTED and target is not None:
-        # PR-A Commits 2 through 5 bind each exact implemented integration root to a
+        # The A1.4 user-integration groups bind each exact implemented root to a
         # reviewed schema-complete codec, generated descriptor, grouped facade,
         # schema-derived fixture, and focused wire/notification test.  All
         # objects in this closure are open; raw retention supplements the
         # explicit known-field mapping and no opaque schema field is claimed.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
-    if identity in A14_MCP_REVERSE_COMMIT_3 and target is not None:
-        # A1.4b Commit 3 advances only the four MCP client operations and two
+    if identity in A14_MCP_CLIENT_AND_NOTIFICATIONS and target is not None:
+        # The A1.4b MCP client/notification group contains four client operations and two
         # MCP notifications. Their focused schema/wire coverage includes the
         # closure's open, closed, nullable, default-bearing, and opaque fields;
         # the generated target/descriptor bindings remain the runtime
         # association authority.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
-    if identity in A14_MCP_REVERSE_COMMIT_4 and target is not None:
-        # A1.4b Commit 4 advances only attestation generation and dynamic-tool
+    if identity in A14_RUNTIME_PLATFORM_CLIENT_REQUESTS and target is not None:
+        # The cross-platform WindowsSandbox facade binds the two stable App
+        # Server operations to their exact schema-complete parameter/result
+        # codecs and asynchronous wire tests. It performs no local setup.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
+    if identity in A14_RUNTIME_PLATFORM_NOTIFICATIONS and target is not None:
+        # The runtime/platform notifications bind exact stable payload roots to
+        # the canonical decoder and Events observer path. Focused table-driven
+        # tests cover complete, omitted, null, future-open, and malformed data.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
+    if identity in A14_ATTESTATION_AND_DYNAMIC_TOOL and target is not None:
+        # The A1.4b attestation/dynamic-tool group contains attestation generation and dynamic-tool
         # calls. Canonical open-object models, exact decode/encode coverage,
         # generated descriptors, and occurrence-bound response tests establish
         # every completeness dimension without adding another lifecycle.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
-    if identity in A14_MCP_REVERSE_COMMIT_5 and target is not None:
-        # A1.4b Commit 5 closes the canonical tool-user-input contract and the
+    if identity in A14_USER_INPUT_AND_ELICITATION and target is not None:
+        # The A1.4b user-input/elicitation group contains the canonical tool-user-input contract and the
         # distinct MCP elicitation union. Focused schema, codec, response, and
         # occurrence tests cover all stable fields, the 12 closed form-schema
         # objects, opaque/sensitive positions, and future-mode preservation.
@@ -6431,7 +6547,7 @@ def registry_statuses(
         and identity[1] in {"ThreadItem", "ResponseItem"}
         and target is not None
     ):
-        # Commit 3's two generated item target families are exact-keyed
+        # The two generated item target families are exact-keyed
         # production descriptors. The schema-derived item corpus exercises
         # every known branch, represented property, presence state, open
         # value, and the seven protocol-defined opaque paths through the
@@ -7173,8 +7289,8 @@ def generate_server_request_descriptor_data(
             or (
                 key
                 in (
-                    A14_MCP_REVERSE_COMMIT_4
-                    | A14_MCP_REVERSE_COMMIT_5
+                    A14_ATTESTATION_AND_DYNAMIC_TOOL
+                    | A14_USER_INPUT_AND_ELICITATION
                 )
                 and assignment.get("slice") == "A1.4"
                 and assignment.get("module") == "IntegrationsAndLongTail"
@@ -7339,7 +7455,8 @@ def generate_client_operation_descriptor_data(
                 and key
                 in (
                     A14_USER_INTEGRATIONS_IMPLEMENTED
-                    | A14_MCP_REVERSE_COMMIT_3
+                    | A14_MCP_CLIENT_AND_NOTIFICATIONS
+                    | A14_RUNTIME_PLATFORM_CLIENT_REQUESTS
                 )
             )
         )
@@ -7352,9 +7469,9 @@ def generate_client_operation_descriptor_data(
         if key in expected_keys
     }
     if (
-        len(expected_keys) != 84
+        len(expected_keys) != 86
         or set(targets) != expected_keys
-        or len(set(targets.values())) != 84
+        or len(set(targets.values())) != 86
         or any(
             not target.startswith("ClientRequestTarget::")
             for target in targets.values()
@@ -7365,7 +7482,7 @@ def generate_client_operation_descriptor_data(
             "the exact 22 stable A1.1, 9 A1.2 B2, 2 A1.2 B3, 2 A1.2 B4, "
             "5 A1.2 B5, 4 A1.3 command, 10 A1.3 filesystem/fuzzy, "
             "1 A1.3 permission-profile, 2 A1.3 review/guardian, and "
-            "23 A1.4 user-integration and 4 A1.4b MCP "
+            "23 A1.4 user-integration, 4 A1.4b MCP, and 2 A1.4c WindowsSandbox "
             "client requests must each own one unique ClientRequestTarget; "
             f"expected_keys={len(expected_keys)}, targets={len(targets)}, "
             f"unique_targets={len(set(targets.values()))}"
@@ -7406,7 +7523,7 @@ def generate_client_operation_descriptor_data(
     }
     if (
         {key[3] for key in unit_keys} != expected_unit_methods
-        or len(expected_keys - unit_keys) != 63
+        or len(expected_keys - unit_keys) != 65
         or any(
             contracts[key]["result_contract_kind"] != "Concrete"
             for key in expected_keys - unit_keys
@@ -7414,8 +7531,8 @@ def generate_client_operation_descriptor_data(
     ):
         raise SurfaceError(
             "ClientOperationDescriptorResultKindMismatch: "
-            "typed A1.1+A1.2+A1.3 plus PR-A and A1.4b Commit 3 requests "
-            "must remain exactly 21 Unit and 63 Concrete requests"
+            "typed A1.1+A1.2+A1.3 plus A1.4 requests must remain exactly "
+            "21 Unit and 65 Concrete requests"
         )
 
     result_decoders = {
@@ -7482,6 +7599,8 @@ def generate_client_operation_descriptor_data(
         "ThreadUnsubscribeResponse",
         "TurnStartResponse",
         "TurnSteerResponse",
+        "WindowsSandboxReadinessResponse",
+        "WindowsSandboxSetupStartResponse",
     }
     result_type_identities = {
         str(contracts[key]["result_type_identity"]) for key in expected_keys
@@ -7542,14 +7661,14 @@ def generate_server_notification_descriptor_data(
     }
     descriptor_keys = set(SERVER_NOTIFICATION_CODECS)
     if (
-        len(expected_keys) != 60
+        len(expected_keys) != 68
         or descriptor_keys != expected_keys
         or len({metadata[0] for metadata in SERVER_NOTIFICATION_CODECS.values()})
-        != 60
+        != 68
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorAssignmentMismatch: "
-            "every one of the 60 typed server-notification targets must own "
+            "every one of the 68 typed server-notification targets must own "
             "one exact generated descriptor"
         )
 
@@ -7638,11 +7757,19 @@ def generate_server_notification_descriptor_data(
     a14_mcp_reverse_keys = {
         key
         for key in residual_keys
-        if key in A14_MCP_REVERSE_COMMIT_3
+        if key in A14_MCP_CLIENT_AND_NOTIFICATIONS
         and assignments[key].get("slice") == "A1.4"
         and assignments[key].get("module") == "IntegrationsAndLongTail"
     }
     residual_keys -= a14_mcp_reverse_keys
+    a14_runtime_platform_keys = {
+        key
+        for key in residual_keys
+        if key in A14_RUNTIME_PLATFORM_NOTIFICATIONS
+        and assignments[key].get("slice") == "A1.4"
+        and assignments[key].get("module") == "IntegrationsAndLongTail"
+    }
+    residual_keys -= a14_runtime_platform_keys
     if (
         len(a11_keys) != 37
         or len(a12_b2_keys) != 3
@@ -7653,6 +7780,7 @@ def generate_server_notification_descriptor_data(
         or len(a13_review_guardian_keys) != 3
         or len(a14_user_integration_keys) != 6
         or len(a14_mcp_reverse_keys) != 2
+        or len(a14_runtime_platform_keys) != 8
         or {key[3] for key in residual_keys} != {"error"}
     ):
         raise SurfaceError(
@@ -7660,7 +7788,8 @@ def generate_server_notification_descriptor_data(
             "descriptors must distinguish the exact 37 A1.1, 3 A1.2 B2, "
             "3 A1.2 B3, 1 A1.2 B4, 1 A1.3 command, and 3 A1.3 "
             "filesystem/fuzzy, 3 A1.3 review/guardian, 6 A1.4 "
-            "user-integration, and 2 A1.4b MCP rows from the "
+            "user-integration, 2 A1.4 MCP, and 8 A1.4 runtime/platform rows "
+            "from the "
             "residual partial error row"
         )
 
@@ -8617,11 +8746,9 @@ def generate_operation_production_coverage(
             "tests plus the registry generator; it is not a runtime "
             "disposition or dispatch registry."
         ),
-        # A1.1 is frozen historical evidence. Later slices append to the
-        # global corpus, while the exact A1.1 fixture projection and every
-        # record/count guard above remain live and byte-for-byte enforced.
-        # This index record is independently anchored by the immutable A1.2
-        # start-state capture.
+        # The A1.1 fixture projection remains a current, checked subset of the
+        # global corpus. Later slices append fixtures without changing the
+        # projection and record/count guards enforced here.
         "fixture_index": dict(_A1_1_FROZEN_FIXTURE_INDEX_RECORD),
         "registered_tests": [
             {
@@ -9992,8 +10119,6 @@ def render_coverage_document(
         "<!-- Generated by tools/codex/app_server_surface.py docs. Do not edit by hand. -->",
         "",
         f"Authoritative target: `{manifest['codex_version']}` generated from the locally installed Codex binary.",
-        f"Starting SNode.C commit: `{manifest['starting_snodec_sha']}`.",
-        "",
         f"Upstream source: [{upstream['project']}]({upstream['repository']}) release "
         f"`{upstream['release']['tag']}` at source commit `{upstream['release']['source_commit_sha']}`.",
         f"License: `{upstream['license']['spdx_identifier']}`; the exact upstream license and NOTICE "

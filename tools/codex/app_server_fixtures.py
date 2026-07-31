@@ -202,7 +202,7 @@ CODEX_ERROR_INFO_HTTP_IDENTITIES = (
     "responseTooManyFailedAttempts",
 )
 
-# Commit B2 owns the exact A1.1 SharedCommon tagged-union batch.  The keys
+# The A1.1 shared-common group owns the exact tagged-union set. The keys
 # themselves are derived from module-slice-assignment evidence below; these
 # reviewed counts and directions are only bidirectional audit ratchets for the
 # fixture plan, not a runtime disposition or dispatch registry.
@@ -229,7 +229,7 @@ B2_OPEN_STRING_ENUMS = {
     "NetworkAccess": ("restricted", "enabled"),
 }
 
-# Commit B3 owns both directionally distinct item families and the nested
+# The A1.1 item group owns both directionally distinct item families and the nested
 # tagged unions that are reachable only through those item roots.  Assignment
 # evidence chooses the exact keys; these family/value maps are bidirectional
 # ratchets against the vendored schema pin.
@@ -365,7 +365,7 @@ B3_OPEN_STRING_ENUMS = {
     ),
 }
 
-# Commit B4 owns the exact stable operation roots and the three union families
+# The A1.1 operation group owns the exact stable roots and three union families
 # first completed by their aggregate codecs.  Assignment evidence selects the
 # exact keys; the reviewed values below ratchet the pinned discriminator and
 # open-string sets without becoming a runtime dispatch table.
@@ -469,7 +469,7 @@ B4_HELPER_STRING_UNIONS = {
     ),
 }
 
-# Commit B5 owns the exact stable inbound notification family. Assignment
+# The A1.1 notification group owns the exact stable inbound family. Assignment
 # evidence remains authoritative; this reviewed method set and the three
 # open-string value sets are bidirectional pin ratchets for independent
 # fixture generation only.
@@ -521,7 +521,7 @@ B5_OPEN_STRING_ENUMS = {
 }
 B5_REASONING_EFFORT_FIXTURE_VALUE = "medium"
 
-# Phase A1.2 Commit B2 owns the complete stable account/authentication batch.
+# The A1.2 account/authentication group owns the complete stable surface.
 # Assignment evidence remains the source of the exact keys; these reviewed
 # sets and directions are independent bidirectional ratchets for fixture
 # synthesis only.
@@ -619,7 +619,7 @@ A12_B2_OPEN_STRING_ENUMS = {
     "WorkspaceMessageType": ("headline", "announcement", "unknown"),
 }
 
-# Phase A1.2 Commit B3 owns the complete stable model/provider batch. The
+# The A1.2 model/provider group owns the complete stable surface. The
 # generated assignment remains authoritative; these exact reviewed sets are
 # independent fixture-routing and taxonomy ratchets.
 A12_B3_MODEL_CLIENT_REQUEST_METHODS = frozenset(
@@ -641,7 +641,7 @@ A12_B3_OPEN_STRING_ENUMS = {
     "ModelVerification": ("trustedAccessForCyber",),
 }
 
-# Phase A1.2 Commit B4 owns only the stable configuration read surface.
+# The A1.2 configuration-read group owns only the stable read surface.
 # Keep the A12_B4 prefix distinct from the A1.1 B4 operation batch above.
 A12_B4_CONFIG_READ_CLIENT_REQUEST_METHODS = frozenset(
     {
@@ -686,7 +686,7 @@ A12_B4_FORCED_WORKSPACE_HELPER_FIXTURE_IDS = frozenset(
     }
 )
 
-# Phase A1.2 Commit B5 owns the stable configuration mutation and feature
+# The A1.2 configuration-mutation group owns the stable mutation and feature
 # management operations. These are client-request identities only; their five
 # successful-result roots are implementation obligations, not registry rows.
 A12_B5_CONFIGURATION_MUTATION_CLIENT_REQUEST_METHODS = frozenset(
@@ -710,7 +710,7 @@ A12_B5_OPEN_STRING_ENUMS = {
     "WriteStatus": ("ok", "okOverridden"),
 }
 
-# Phase A1.3 Commit 2 owns only the connection-scoped one-off command
+# The A1.3 command group owns only the connection-scoped one-off command
 # operations and their output notification. Assignment evidence remains the
 # source of exact keys; these reviewed sets independently ratchet the staged
 # fixture routing without pulling later A1.3 domains into this batch.
@@ -729,7 +729,7 @@ A13_COMMAND_OPEN_STRING_ENUMS = {
     "CommandExecOutputStream": ("stdout", "stderr"),
 }
 
-# Phase A1.3 Commit 3 owns the stable App Server filesystem operations, the
+# The A1.3 filesystem group owns the stable App Server filesystem operations, the
 # one-shot fuzzy search operation, and their three notifications.  The
 # experimental fuzzy-search session controls deliberately remain outside this
 # assignment-derived batch.
@@ -758,7 +758,7 @@ A13_FILESYSTEM_OPEN_STRING_ENUMS = {
     "FuzzyFileSearchMatchType": ("file", "directory"),
 }
 
-# Phase A1.3 Commit 4 owns the permission-profile request, all five stable
+# The A1.3 approval group owns the permission-profile request, all five stable
 # reverse approval/permission requests, and the six reviewed union families
 # reached by those roots.  Legacy and v2 approval roots remain distinct.
 A13_APPROVAL_CLIENT_REQUEST_METHODS = frozenset(
@@ -840,7 +840,7 @@ A13_APPROVAL_OPEN_STRING_ENUMS = {
     "PermissionGrantScope": ("turn", "session"),
 }
 
-# Phase A1.3 Commit 5 owns review/start, the thread-scoped guardian approval
+# The A1.3 review/guardian group owns review/start, the thread-scoped guardian approval
 # acknowledgement, the three stable guardian/review notifications, and the
 # ten reviewed union alternatives reached by those roots.
 A13_REVIEW_CLIENT_REQUEST_METHODS = frozenset(
@@ -891,12 +891,12 @@ A13_REVIEW_OPEN_STRING_ENUMS = {
     "ReviewDelivery": ("inline", "detached"),
 }
 
-# A1.4 PR-A Commit 2 owns exactly the user-facing app, external-agent
+# A1.4 apps, external-agent, and feedback owns exactly the user-facing app, external-agent
 # configuration, and feedback roots.  Keep this list independent of
 # production registry status: assignment evidence selects the reviewed stable
 # roots, while these exact names prevent later PR-A batches from leaking into
 # this fixture stage.
-A14_USER_INTEGRATIONS_C2_CLIENT_REQUEST_METHODS = frozenset(
+A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_CLIENT_REQUEST_METHODS = frozenset(
     {
         "app/list",
         "externalAgentConfig/detect",
@@ -905,17 +905,17 @@ A14_USER_INTEGRATIONS_C2_CLIENT_REQUEST_METHODS = frozenset(
         "feedback/upload",
     }
 )
-A14_USER_INTEGRATIONS_C2_NOTIFICATION_METHODS = frozenset(
+A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_NOTIFICATION_METHODS = frozenset(
     {
         "app/list/updated",
         "externalAgentConfig/import/completed",
         "externalAgentConfig/import/progress",
     }
 )
-# A1.4 PR-A Commit 3 owns exactly the hooks, marketplace, and skills roots.
+# A1.4 hooks, marketplace, and skills owns exactly the hooks, marketplace, and skills roots.
 # This list remains independent of production registry status and explicitly
 # excludes every plugin, MCP, sandbox, and long-tail successor identity.
-A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS = frozenset(
+A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_CLIENT_REQUEST_METHODS = frozenset(
     {
         "hooks/list",
         "marketplace/add",
@@ -926,18 +926,18 @@ A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS = frozenset(
         "skills/list",
     }
 )
-A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS = frozenset(
+A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_NOTIFICATION_METHODS = frozenset(
     {
         "hook/completed",
         "hook/started",
         "skills/changed",
     }
 )
-# A1.4 PR-A Commit 4 owns exactly the plugin operations whose stable
+# A1.4 plugin operations owns exactly the plugin operations whose stable
 # parameter/result closure does not reach PluginSource.  Keep this set
 # independent of production status and disjoint from the four catalog/source
-# operations reserved for Commit 5.
-A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS = frozenset(
+# operations reserved for the plugin catalog/source group.
+A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS_CLIENT_REQUEST_METHODS = frozenset(
     {
         "plugin/install",
         "plugin/share/checkout",
@@ -948,11 +948,11 @@ A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS = frozenset(
         "plugin/uninstall",
     }
 )
-# A1.4 PR-A Commit 5 closes the four catalog operations whose concrete
+# A1.4 plugin catalog and sources closes the four catalog operations whose concrete
 # responses transitively reach PluginSource.  The PluginSource alternative
 # sequence is the reviewed production-registry sequence; it is intentionally
 # not inferred from schema oneOf order or alphabetic traversal.
-A14_USER_INTEGRATIONS_C5_CLIENT_REQUEST_METHODS = frozenset(
+A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_CLIENT_REQUEST_METHODS = frozenset(
     {
         "plugin/installed",
         "plugin/list",
@@ -960,13 +960,13 @@ A14_USER_INTEGRATIONS_C5_CLIENT_REQUEST_METHODS = frozenset(
         "plugin/share/list",
     }
 )
-A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER = (
+A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_ORDER = (
     "git",
     "local",
     "npm",
     "remote",
 )
-A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_DIRECTIONS = {
+A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_DIRECTIONS = {
     "PluginSource": ("Decode",),
 }
 # A1.4b closes exactly the MCP and reverse-request batch audited by
@@ -1869,7 +1869,7 @@ def derive_a13_review_keys(
     return operations, notifications, unions
 
 
-def derive_a14_user_integrations_c2_keys(
+def derive_a14_user_integrations_apps_external_agents_feedback_keys(
     assignments: Mapping[SurfaceKey, Mapping[str, Any]],
 ) -> tuple[tuple[SurfaceKey, ...], tuple[SurfaceKey, ...]]:
     batch = tuple(
@@ -1879,8 +1879,8 @@ def derive_a14_user_integrations_c2_keys(
             if assignment["a1_slice"] == "A1.4"
             and assignment["module"] == "IntegrationsAndLongTail"
             and (
-                key.name in A14_USER_INTEGRATIONS_C2_CLIENT_REQUEST_METHODS
-                or key.name in A14_USER_INTEGRATIONS_C2_NOTIFICATION_METHODS
+                key.name in A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_CLIENT_REQUEST_METHODS
+                or key.name in A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_NOTIFICATION_METHODS
             )
         )
     )
@@ -1895,9 +1895,9 @@ def derive_a14_user_integrations_c2_keys(
         or len(operations) != 5
         or len(notifications) != 3
         or {key.name for key in operations}
-        != A14_USER_INTEGRATIONS_C2_CLIENT_REQUEST_METHODS
+        != A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_CLIENT_REQUEST_METHODS
         or {key.name for key in notifications}
-        != A14_USER_INTEGRATIONS_C2_NOTIFICATION_METHODS
+        != A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_NOTIFICATION_METHODS
         or any(
             key.discriminator_field != "method"
             or assignments[key]["classification"] != "StablePublicRoot"
@@ -1906,14 +1906,14 @@ def derive_a14_user_integrations_c2_keys(
         )
     ):
         raise FixtureError(
-            "A1.4 user-integrations Commit-2 assignment mismatch: "
+            "A1.4 apps/external-agent/feedback assignment mismatch: "
             f"batch={len(batch)} operations={len(operations)} "
             f"notifications={len(notifications)}"
         )
     return operations, notifications
 
 
-def derive_a14_user_integrations_c3_keys(
+def derive_a14_user_integrations_hooks_marketplace_skills_keys(
     assignments: Mapping[SurfaceKey, Mapping[str, Any]],
 ) -> tuple[tuple[SurfaceKey, ...], tuple[SurfaceKey, ...]]:
     batch = tuple(
@@ -1923,9 +1923,9 @@ def derive_a14_user_integrations_c3_keys(
             if assignment["a1_slice"] == "A1.4"
             and assignment["module"] == "IntegrationsAndLongTail"
             and (
-                key.name in A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS
+                key.name in A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_CLIENT_REQUEST_METHODS
                 or key.name
-                in A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS
+                in A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_NOTIFICATION_METHODS
             )
         )
     )
@@ -1940,9 +1940,9 @@ def derive_a14_user_integrations_c3_keys(
         or len(operations) != 7
         or len(notifications) != 3
         or {key.name for key in operations}
-        != A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS
+        != A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_CLIENT_REQUEST_METHODS
         or {key.name for key in notifications}
-        != A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS
+        != A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_NOTIFICATION_METHODS
         or any(
             key.discriminator_field != "method"
             or assignments[key]["classification"] != "StablePublicRoot"
@@ -1951,14 +1951,14 @@ def derive_a14_user_integrations_c3_keys(
         )
     ):
         raise FixtureError(
-            "A1.4 user-integrations Commit-3 assignment mismatch: "
+            "A1.4 hooks/marketplace/skills assignment mismatch: "
             f"batch={len(batch)} operations={len(operations)} "
             f"notifications={len(notifications)}"
         )
     return operations, notifications
 
 
-def derive_a14_user_integrations_c4_keys(
+def derive_a14_user_integrations_plugin_operations_keys(
     assignments: Mapping[SurfaceKey, Mapping[str, Any]],
 ) -> tuple[SurfaceKey, ...]:
     operations = tuple(
@@ -1968,13 +1968,13 @@ def derive_a14_user_integrations_c4_keys(
             if assignment["a1_slice"] == "A1.4"
             and assignment["module"] == "IntegrationsAndLongTail"
             and key.name
-            in A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS
+            in A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS_CLIENT_REQUEST_METHODS
         )
     )
     if (
         len(operations) != 7
         or {key.name for key in operations}
-        != A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS
+        != A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS_CLIENT_REQUEST_METHODS
         or any(
             key.category != CLIENT_REQUEST
             or key.domain != "ClientRequest"
@@ -1985,13 +1985,13 @@ def derive_a14_user_integrations_c4_keys(
         )
     ):
         raise FixtureError(
-            "A1.4 user-integrations Commit-4 assignment mismatch: "
+            "A1.4 plugin operations assignment mismatch: "
             f"operations={len(operations)}"
         )
     return operations
 
 
-def derive_a14_user_integrations_c5_keys(
+def derive_a14_user_integrations_plugin_catalog_and_sources_keys(
     assignments: Mapping[SurfaceKey, Mapping[str, Any]],
 ) -> tuple[tuple[SurfaceKey, ...], tuple[SurfaceKey, ...]]:
     operations = tuple(
@@ -2001,7 +2001,7 @@ def derive_a14_user_integrations_c5_keys(
             if assignment["a1_slice"] == "A1.4"
             and assignment["module"] == "IntegrationsAndLongTail"
             and key.name
-            in A14_USER_INTEGRATIONS_C5_CLIENT_REQUEST_METHODS
+            in A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_CLIENT_REQUEST_METHODS
             and key.category == CLIENT_REQUEST
         )
     )
@@ -2016,13 +2016,13 @@ def derive_a14_user_integrations_c5_keys(
     }
     union_keys = tuple(
         plugin_source_by_name[name]
-        for name in A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER
+        for name in A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_ORDER
         if name in plugin_source_by_name
     )
     if (
         len(operations) != 4
         or {key.name for key in operations}
-        != A14_USER_INTEGRATIONS_C5_CLIENT_REQUEST_METHODS
+        != A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_CLIENT_REQUEST_METHODS
         or any(
             key.domain != "ClientRequest"
             or key.discriminator_field != "method"
@@ -2031,9 +2031,9 @@ def derive_a14_user_integrations_c5_keys(
             for key in operations
         )
         or tuple(key.name for key in union_keys)
-        != A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER
+        != A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_ORDER
         or set(plugin_source_by_name)
-        != set(A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER)
+        != set(A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_ORDER)
         or any(
             assignments[key]["classification"] != "SharedWithinSlice"
             or assignments[key]["stability"] != "stable"
@@ -2041,7 +2041,7 @@ def derive_a14_user_integrations_c5_keys(
         )
     ):
         raise FixtureError(
-            "A1.4 user-integrations Commit-5 assignment mismatch: "
+            "A1.4 plugin catalog/sources assignment mismatch: "
             f"operations={len(operations)} "
             "plugin_source_order="
             f"{tuple(key.name for key in union_keys)}"
@@ -4843,79 +4843,79 @@ class CorpusBuilder:
         self.a13_review_operation_root_coverage: dict[str, Any] = {}
         self.a13_review_notification_root_coverage: dict[str, Any] = {}
         self.a13_review_positive_coverage: dict[str, Any] = {}
-        self.a14_user_integrations_c2_operation_keys: tuple[
+        self.a14_user_integrations_apps_external_agents_feedback_operation_keys: tuple[
             SurfaceKey, ...
         ] = ()
-        self.a14_user_integrations_c2_notification_keys: tuple[
+        self.a14_user_integrations_apps_external_agents_feedback_notification_keys: tuple[
             SurfaceKey, ...
         ] = ()
-        self.a14_user_integrations_c2_negative_coverage: dict[
+        self.a14_user_integrations_apps_external_agents_feedback_negative_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c2_indexed_coverage: dict[
+        self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c2_operation_root_coverage: dict[
+        self.a14_user_integrations_apps_external_agents_feedback_operation_root_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c2_notification_root_coverage: dict[
+        self.a14_user_integrations_apps_external_agents_feedback_notification_root_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c2_positive_coverage: dict[
+        self.a14_user_integrations_apps_external_agents_feedback_positive_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c3_operation_keys: tuple[
+        self.a14_user_integrations_hooks_marketplace_skills_operation_keys: tuple[
             SurfaceKey, ...
         ] = ()
-        self.a14_user_integrations_c3_notification_keys: tuple[
+        self.a14_user_integrations_hooks_marketplace_skills_notification_keys: tuple[
             SurfaceKey, ...
         ] = ()
-        self.a14_user_integrations_c3_negative_coverage: dict[
+        self.a14_user_integrations_hooks_marketplace_skills_negative_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c3_indexed_coverage: dict[
+        self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c3_operation_root_coverage: dict[
+        self.a14_user_integrations_hooks_marketplace_skills_operation_root_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c3_notification_root_coverage: dict[
+        self.a14_user_integrations_hooks_marketplace_skills_notification_root_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c3_positive_coverage: dict[
+        self.a14_user_integrations_hooks_marketplace_skills_positive_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c4_operation_keys: tuple[
+        self.a14_user_integrations_plugin_operations_operation_keys: tuple[
             SurfaceKey, ...
         ] = ()
-        self.a14_user_integrations_c4_negative_coverage: dict[
+        self.a14_user_integrations_plugin_operations_negative_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c4_indexed_coverage: dict[
+        self.a14_user_integrations_plugin_operations_indexed_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c4_operation_root_coverage: dict[
+        self.a14_user_integrations_plugin_operations_operation_root_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c4_positive_coverage: dict[
+        self.a14_user_integrations_plugin_operations_positive_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c5_operation_keys: tuple[
+        self.a14_user_integrations_plugin_catalog_and_sources_operation_keys: tuple[
             SurfaceKey, ...
         ] = ()
-        self.a14_user_integrations_c5_union_keys: tuple[
+        self.a14_user_integrations_plugin_catalog_and_sources_union_keys: tuple[
             SurfaceKey, ...
         ] = ()
-        self.a14_user_integrations_c5_negative_coverage: dict[
+        self.a14_user_integrations_plugin_catalog_and_sources_negative_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c5_indexed_coverage: dict[
+        self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c5_operation_root_coverage: dict[
+        self.a14_user_integrations_plugin_catalog_and_sources_operation_root_coverage: dict[
             str, Any
         ] = {}
-        self.a14_user_integrations_c5_positive_coverage: dict[
+        self.a14_user_integrations_plugin_catalog_and_sources_positive_coverage: dict[
             str, Any
         ] = {}
         self.a14_mcp_reverse_operation_keys: tuple[SurfaceKey, ...] = ()
@@ -5127,20 +5127,20 @@ class CorpusBuilder:
             self.a13_review_union_keys,
         ) = derive_a13_review_keys(self.assignments)
         (
-            self.a14_user_integrations_c2_operation_keys,
-            self.a14_user_integrations_c2_notification_keys,
-        ) = derive_a14_user_integrations_c2_keys(self.assignments)
+            self.a14_user_integrations_apps_external_agents_feedback_operation_keys,
+            self.a14_user_integrations_apps_external_agents_feedback_notification_keys,
+        ) = derive_a14_user_integrations_apps_external_agents_feedback_keys(self.assignments)
         (
-            self.a14_user_integrations_c3_operation_keys,
-            self.a14_user_integrations_c3_notification_keys,
-        ) = derive_a14_user_integrations_c3_keys(self.assignments)
-        self.a14_user_integrations_c4_operation_keys = (
-            derive_a14_user_integrations_c4_keys(self.assignments)
+            self.a14_user_integrations_hooks_marketplace_skills_operation_keys,
+            self.a14_user_integrations_hooks_marketplace_skills_notification_keys,
+        ) = derive_a14_user_integrations_hooks_marketplace_skills_keys(self.assignments)
+        self.a14_user_integrations_plugin_operations_operation_keys = (
+            derive_a14_user_integrations_plugin_operations_keys(self.assignments)
         )
         (
-            self.a14_user_integrations_c5_operation_keys,
-            self.a14_user_integrations_c5_union_keys,
-        ) = derive_a14_user_integrations_c5_keys(self.assignments)
+            self.a14_user_integrations_plugin_catalog_and_sources_operation_keys,
+            self.a14_user_integrations_plugin_catalog_and_sources_union_keys,
+        ) = derive_a14_user_integrations_plugin_catalog_and_sources_keys(self.assignments)
         (
             self.a14_mcp_reverse_operation_keys,
             self.a14_mcp_reverse_notification_keys,
@@ -5157,10 +5157,10 @@ class CorpusBuilder:
         self._build_a13_filesystem_operation_supplements()
         self._build_a13_approval_operation_supplements()
         self._build_a13_review_operation_supplements()
-        self._build_a14_user_integrations_c2_operation_supplements()
-        self._build_a14_user_integrations_c3_operation_supplements()
-        self._build_a14_user_integrations_c4_operation_supplements()
-        self._build_a14_user_integrations_c5_operation_supplements()
+        self._build_a14_user_integrations_apps_external_agents_feedback_operation_supplements()
+        self._build_a14_user_integrations_hooks_marketplace_skills_operation_supplements()
+        self._build_a14_user_integrations_plugin_operations_operation_supplements()
+        self._build_a14_user_integrations_plugin_catalog_and_sources_operation_supplements()
         self._build_a14_mcp_reverse_operation_supplements()
         self._build_b4_helper_union_fixtures()
         self._build_a12_b4_helper_union_fixtures()
@@ -5173,8 +5173,8 @@ class CorpusBuilder:
         self._build_a13_command_notification_fixtures()
         self._build_a13_filesystem_notification_fixtures()
         self._build_a13_review_notification_fixtures()
-        self._build_a14_user_integrations_c2_notification_fixtures()
-        self._build_a14_user_integrations_c3_notification_fixtures()
+        self._build_a14_user_integrations_apps_external_agents_feedback_notification_fixtures()
+        self._build_a14_user_integrations_hooks_marketplace_skills_notification_fixtures()
         self._build_a14_mcp_reverse_notification_fixtures()
         self._build_a12_b4_positive_supplements()
         self._build_a12_b5_positive_supplements()
@@ -5182,10 +5182,10 @@ class CorpusBuilder:
         self._build_a13_filesystem_positive_supplements()
         self._build_a13_approval_positive_supplements()
         self._build_a13_review_positive_supplements()
-        self._build_a14_user_integrations_c2_positive_supplements()
-        self._build_a14_user_integrations_c3_positive_supplements()
-        self._build_a14_user_integrations_c4_positive_supplements()
-        self._build_a14_user_integrations_c5_positive_supplements()
+        self._build_a14_user_integrations_apps_external_agents_feedback_positive_supplements()
+        self._build_a14_user_integrations_hooks_marketplace_skills_positive_supplements()
+        self._build_a14_user_integrations_plugin_operations_positive_supplements()
+        self._build_a14_user_integrations_plugin_catalog_and_sources_positive_supplements()
         self._build_union_fixtures()
         self._build_b2_open_enum_fixtures()
         self._build_b3_open_enum_fixtures()
@@ -5301,16 +5301,16 @@ class CorpusBuilder:
         self._apply_a13_review_indexed_completeness(
             positive_records, positive_fixture_ids
         )
-        self._apply_a14_user_integrations_c2_indexed_completeness(
+        self._apply_a14_user_integrations_apps_external_agents_feedback_indexed_completeness(
             positive_records, positive_fixture_ids
         )
-        self._apply_a14_user_integrations_c3_indexed_completeness(
+        self._apply_a14_user_integrations_hooks_marketplace_skills_indexed_completeness(
             positive_records, positive_fixture_ids
         )
-        self._apply_a14_user_integrations_c4_indexed_completeness(
+        self._apply_a14_user_integrations_plugin_operations_indexed_completeness(
             positive_records, positive_fixture_ids
         )
-        self._apply_a14_user_integrations_c5_indexed_completeness(
+        self._apply_a14_user_integrations_plugin_catalog_and_sources_indexed_completeness(
             positive_records, positive_fixture_ids
         )
         self._apply_a14_mcp_reverse_indexed_completeness(
@@ -5619,98 +5619,98 @@ class CorpusBuilder:
                     self.a13_review_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_2": {
+            "a1_4_user_integrations_apps_external_agents_feedback": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c2_operation_keys
+                    for key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
                 ],
                 "assignment_derived_notification_keys": [
                     key.to_json()
                     for key in (
-                        self.a14_user_integrations_c2_notification_keys
+                        self.a14_user_integrations_apps_external_agents_feedback_notification_keys
                     )
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c2_indexed_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c2_operation_root_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_operation_root_coverage
                 ),
                 "notification_root_fixture_plan": (
-                    self.a14_user_integrations_c2_notification_root_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_notification_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c2_positive_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c2_negative_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_3": {
+            "a1_4_user_integrations_hooks_marketplace_skills": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c3_operation_keys
+                    for key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
                 ],
                 "assignment_derived_notification_keys": [
                     key.to_json()
                     for key in (
-                        self.a14_user_integrations_c3_notification_keys
+                        self.a14_user_integrations_hooks_marketplace_skills_notification_keys
                     )
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c3_indexed_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c3_operation_root_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_operation_root_coverage
                 ),
                 "notification_root_fixture_plan": (
-                    self.a14_user_integrations_c3_notification_root_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_notification_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c3_positive_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c3_negative_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_4": {
+            "a1_4_user_integrations_plugin_operations": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c4_operation_keys
+                    for key in self.a14_user_integrations_plugin_operations_operation_keys
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c4_indexed_coverage
+                    self.a14_user_integrations_plugin_operations_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c4_operation_root_coverage
+                    self.a14_user_integrations_plugin_operations_operation_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c4_positive_coverage
+                    self.a14_user_integrations_plugin_operations_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c4_negative_coverage
+                    self.a14_user_integrations_plugin_operations_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_5": {
+            "a1_4_user_integrations_plugin_catalog_and_sources": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c5_operation_keys
+                    for key in self.a14_user_integrations_plugin_catalog_and_sources_operation_keys
                 ],
                 "assignment_derived_union_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c5_union_keys
+                    for key in self.a14_user_integrations_plugin_catalog_and_sources_union_keys
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c5_indexed_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c5_operation_root_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_operation_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c5_positive_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c5_negative_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_negative_coverage
                 ),
             },
             "a1_4_mcp_reverse": {
@@ -5908,47 +5908,47 @@ class CorpusBuilder:
                 if is_a13_review
                 else {}
             )
-            is_a14_user_integrations_c2 = key in {
-                *self.a14_user_integrations_c2_operation_keys,
-                *self.a14_user_integrations_c2_notification_keys,
+            is_a14_user_integrations_apps_external_agents_feedback = key in {
+                *self.a14_user_integrations_apps_external_agents_feedback_operation_keys,
+                *self.a14_user_integrations_apps_external_agents_feedback_notification_keys,
             }
-            a14_user_integrations_c2_schema_facts = (
-                self.a14_user_integrations_c2_indexed_coverage.get(
+            a14_user_integrations_apps_external_agents_feedback_schema_facts = (
+                self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage.get(
                     key.compact(), {}
                 ).get("schema_fixture_facts", {})
-                if is_a14_user_integrations_c2
+                if is_a14_user_integrations_apps_external_agents_feedback
                 else {}
             )
-            is_a14_user_integrations_c3 = key in {
-                *self.a14_user_integrations_c3_operation_keys,
-                *self.a14_user_integrations_c3_notification_keys,
+            is_a14_user_integrations_hooks_marketplace_skills = key in {
+                *self.a14_user_integrations_hooks_marketplace_skills_operation_keys,
+                *self.a14_user_integrations_hooks_marketplace_skills_notification_keys,
             }
-            a14_user_integrations_c3_schema_facts = (
-                self.a14_user_integrations_c3_indexed_coverage.get(
+            a14_user_integrations_hooks_marketplace_skills_schema_facts = (
+                self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage.get(
                     key.compact(), {}
                 ).get("schema_fixture_facts", {})
-                if is_a14_user_integrations_c3
+                if is_a14_user_integrations_hooks_marketplace_skills
                 else {}
             )
-            is_a14_user_integrations_c4 = (
-                key in self.a14_user_integrations_c4_operation_keys
+            is_a14_user_integrations_plugin_operations = (
+                key in self.a14_user_integrations_plugin_operations_operation_keys
             )
-            a14_user_integrations_c4_schema_facts = (
-                self.a14_user_integrations_c4_indexed_coverage.get(
+            a14_user_integrations_plugin_operations_schema_facts = (
+                self.a14_user_integrations_plugin_operations_indexed_coverage.get(
                     key.compact(), {}
                 ).get("schema_fixture_facts", {})
-                if is_a14_user_integrations_c4
+                if is_a14_user_integrations_plugin_operations
                 else {}
             )
-            is_a14_user_integrations_c5 = key in {
-                *self.a14_user_integrations_c5_operation_keys,
-                *self.a14_user_integrations_c5_union_keys,
+            is_a14_user_integrations_plugin_catalog_and_sources = key in {
+                *self.a14_user_integrations_plugin_catalog_and_sources_operation_keys,
+                *self.a14_user_integrations_plugin_catalog_and_sources_union_keys,
             }
-            a14_user_integrations_c5_schema_facts = (
-                self.a14_user_integrations_c5_indexed_coverage.get(
+            a14_user_integrations_plugin_catalog_and_sources_schema_facts = (
+                self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage.get(
                     key.compact(), {}
                 ).get("schema_fixture_facts", {})
-                if is_a14_user_integrations_c5
+                if is_a14_user_integrations_plugin_catalog_and_sources
                 else {}
             )
             is_a14_mcp_reverse = key in {
@@ -6004,22 +6004,22 @@ class CorpusBuilder:
                     key.compact(), {}
                 )
                 if is_a13_review
-                else self.a14_user_integrations_c2_indexed_coverage.get(
+                else self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage.get(
                     key.compact(), {}
                 )
-                if is_a14_user_integrations_c2
-                else self.a14_user_integrations_c3_indexed_coverage.get(
+                if is_a14_user_integrations_apps_external_agents_feedback
+                else self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage.get(
                     key.compact(), {}
                 )
-                if is_a14_user_integrations_c3
-                else self.a14_user_integrations_c4_indexed_coverage.get(
+                if is_a14_user_integrations_hooks_marketplace_skills
+                else self.a14_user_integrations_plugin_operations_indexed_coverage.get(
                     key.compact(), {}
                 )
-                if is_a14_user_integrations_c4
-                else self.a14_user_integrations_c5_indexed_coverage.get(
+                if is_a14_user_integrations_plugin_operations
+                else self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage.get(
                     key.compact(), {}
                 )
-                if is_a14_user_integrations_c5
+                if is_a14_user_integrations_plugin_catalog_and_sources
                 else self.a14_mcp_reverse_indexed_coverage.get(
                     key.compact(), {}
                 )
@@ -6120,22 +6120,22 @@ class CorpusBuilder:
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c2_schema_facts.get(
+                                a14_user_integrations_apps_external_agents_feedback_schema_facts.get(
                                     "schema_properties_exercised", False
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c3_schema_facts.get(
+                                a14_user_integrations_hooks_marketplace_skills_schema_facts.get(
                                     "schema_properties_exercised", False
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c4_schema_facts.get(
+                                a14_user_integrations_plugin_operations_schema_facts.get(
                                     "schema_properties_exercised", False
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c5_schema_facts.get(
+                                a14_user_integrations_plugin_catalog_and_sources_schema_facts.get(
                                     "schema_properties_exercised", False
                                 )
                             )
@@ -6222,22 +6222,22 @@ class CorpusBuilder:
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c2_schema_facts.get(
+                                a14_user_integrations_apps_external_agents_feedback_schema_facts.get(
                                     "nullable_semantics_exercised", False
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c3_schema_facts.get(
+                                a14_user_integrations_hooks_marketplace_skills_schema_facts.get(
                                     "nullable_semantics_exercised", False
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c4_schema_facts.get(
+                                a14_user_integrations_plugin_operations_schema_facts.get(
                                     "nullable_semantics_exercised", False
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c5_schema_facts.get(
+                                a14_user_integrations_plugin_catalog_and_sources_schema_facts.get(
                                     "nullable_semantics_exercised", False
                                 )
                             )
@@ -6325,25 +6325,25 @@ class CorpusBuilder:
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c2_schema_facts.get(
+                                a14_user_integrations_apps_external_agents_feedback_schema_facts.get(
                                     "reachable_union_alternatives_exercised",
                                     False,
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c3_schema_facts.get(
+                                a14_user_integrations_hooks_marketplace_skills_schema_facts.get(
                                     "reachable_union_alternatives_exercised",
                                     False,
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c4_schema_facts.get(
+                                a14_user_integrations_plugin_operations_schema_facts.get(
                                     "reachable_union_alternatives_exercised",
                                     False,
                                 )
                             )
                             or bool(
-                                a14_user_integrations_c5_schema_facts.get(
+                                a14_user_integrations_plugin_catalog_and_sources_schema_facts.get(
                                     "reachable_union_alternatives_exercised",
                                     False,
                                 )
@@ -6610,98 +6610,98 @@ class CorpusBuilder:
                     self.a13_review_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_2": {
+            "a1_4_user_integrations_apps_external_agents_feedback": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c2_operation_keys
+                    for key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
                 ],
                 "assignment_derived_notification_keys": [
                     key.to_json()
                     for key in (
-                        self.a14_user_integrations_c2_notification_keys
+                        self.a14_user_integrations_apps_external_agents_feedback_notification_keys
                     )
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c2_indexed_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c2_operation_root_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_operation_root_coverage
                 ),
                 "notification_root_fixture_plan": (
-                    self.a14_user_integrations_c2_notification_root_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_notification_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c2_positive_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c2_negative_coverage
+                    self.a14_user_integrations_apps_external_agents_feedback_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_3": {
+            "a1_4_user_integrations_hooks_marketplace_skills": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c3_operation_keys
+                    for key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
                 ],
                 "assignment_derived_notification_keys": [
                     key.to_json()
                     for key in (
-                        self.a14_user_integrations_c3_notification_keys
+                        self.a14_user_integrations_hooks_marketplace_skills_notification_keys
                     )
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c3_indexed_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c3_operation_root_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_operation_root_coverage
                 ),
                 "notification_root_fixture_plan": (
-                    self.a14_user_integrations_c3_notification_root_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_notification_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c3_positive_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c3_negative_coverage
+                    self.a14_user_integrations_hooks_marketplace_skills_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_4": {
+            "a1_4_user_integrations_plugin_operations": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c4_operation_keys
+                    for key in self.a14_user_integrations_plugin_operations_operation_keys
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c4_indexed_coverage
+                    self.a14_user_integrations_plugin_operations_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c4_operation_root_coverage
+                    self.a14_user_integrations_plugin_operations_operation_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c4_positive_coverage
+                    self.a14_user_integrations_plugin_operations_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c4_negative_coverage
+                    self.a14_user_integrations_plugin_operations_negative_coverage
                 ),
             },
-            "a1_4_user_integrations_commit_5": {
+            "a1_4_user_integrations_plugin_catalog_and_sources": {
                 "assignment_derived_operation_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c5_operation_keys
+                    for key in self.a14_user_integrations_plugin_catalog_and_sources_operation_keys
                 ],
                 "assignment_derived_union_keys": [
                     key.to_json()
-                    for key in self.a14_user_integrations_c5_union_keys
+                    for key in self.a14_user_integrations_plugin_catalog_and_sources_union_keys
                 ],
                 "indexed_schema_coverage": (
-                    self.a14_user_integrations_c5_indexed_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage
                 ),
                 "operation_root_fixture_plan": (
-                    self.a14_user_integrations_c5_operation_root_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_operation_root_coverage
                 ),
                 "positive_coverage": (
-                    self.a14_user_integrations_c5_positive_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_positive_coverage
                 ),
                 "negative_coverage": (
-                    self.a14_user_integrations_c5_negative_coverage
+                    self.a14_user_integrations_plugin_catalog_and_sources_negative_coverage
                 ),
             },
             "a1_4_mcp_reverse": {
@@ -6943,13 +6943,13 @@ class CorpusBuilder:
             self.a13_review_indexed_coverage = dict(
                 sorted(self.a13_review_indexed_coverage.items())
             )
-        elif batch == "A1.4 user integrations Commit 5":
-            self.a14_user_integrations_c5_indexed_coverage.update(
+        elif batch == "A1.4 plugin catalog and sources":
+            self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage.update(
                 indexed_coverage
             )
-            self.a14_user_integrations_c5_indexed_coverage = dict(
+            self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage = dict(
                 sorted(
-                    self.a14_user_integrations_c5_indexed_coverage.items()
+                    self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage.items()
                 )
             )
         elif batch == "A1.4 MCP and reverse requests":
@@ -8027,108 +8027,108 @@ class CorpusBuilder:
                 f"{len(self.a13_review_indexed_coverage)}"
             )
 
-    def _apply_a14_user_integrations_c2_indexed_completeness(
+    def _apply_a14_user_integrations_apps_external_agents_feedback_indexed_completeness(
         self,
         positive_records: Sequence[MutableMapping[str, Any]],
         positive_fixture_ids: set[str],
     ) -> None:
-        self.a14_user_integrations_c2_indexed_coverage.update(
+        self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage.update(
             self._apply_b4_operation_indexed_completeness(
                 positive_records,
                 positive_fixture_ids,
-                operation_keys=self.a14_user_integrations_c2_operation_keys,
-                batch="A1.4 user integrations Commit 2",
+                operation_keys=self.a14_user_integrations_apps_external_agents_feedback_operation_keys,
+                batch="A1.4 apps, external agents, and feedback",
                 known_enum_values={},
                 include_a11_operation_helpers=False,
             )
         )
-        self.a14_user_integrations_c2_indexed_coverage.update(
+        self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage.update(
             self._apply_b5_notification_indexed_completeness(
                 positive_records,
                 positive_fixture_ids,
                 notification_keys=(
-                    self.a14_user_integrations_c2_notification_keys
+                    self.a14_user_integrations_apps_external_agents_feedback_notification_keys
                 ),
-                batch="A1.4 user integrations Commit 2",
+                batch="A1.4 apps, external agents, and feedback",
             )
         )
-        self.a14_user_integrations_c2_indexed_coverage = dict(
+        self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage = dict(
             sorted(
-                self.a14_user_integrations_c2_indexed_coverage.items()
+                self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage.items()
             )
         )
-        if len(self.a14_user_integrations_c2_indexed_coverage) != 8:
+        if len(self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage) != 8:
             raise FixtureError(
-                "A1.4 user-integrations Commit-2 indexed coverage must "
+                "A1.4 apps/external-agent/feedback indexed coverage must "
                 "contain exactly 8 identities, got "
-                f"{len(self.a14_user_integrations_c2_indexed_coverage)}"
+                f"{len(self.a14_user_integrations_apps_external_agents_feedback_indexed_coverage)}"
             )
 
-    def _apply_a14_user_integrations_c3_indexed_completeness(
+    def _apply_a14_user_integrations_hooks_marketplace_skills_indexed_completeness(
         self,
         positive_records: Sequence[MutableMapping[str, Any]],
         positive_fixture_ids: set[str],
     ) -> None:
-        self.a14_user_integrations_c3_indexed_coverage.update(
+        self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage.update(
             self._apply_b4_operation_indexed_completeness(
                 positive_records,
                 positive_fixture_ids,
-                operation_keys=self.a14_user_integrations_c3_operation_keys,
-                batch="A1.4 user integrations Commit 3",
+                operation_keys=self.a14_user_integrations_hooks_marketplace_skills_operation_keys,
+                batch="A1.4 hooks, marketplace, and skills",
                 known_enum_values={},
                 include_a11_operation_helpers=False,
             )
         )
-        self.a14_user_integrations_c3_indexed_coverage.update(
+        self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage.update(
             self._apply_b5_notification_indexed_completeness(
                 positive_records,
                 positive_fixture_ids,
                 notification_keys=(
-                    self.a14_user_integrations_c3_notification_keys
+                    self.a14_user_integrations_hooks_marketplace_skills_notification_keys
                 ),
-                batch="A1.4 user integrations Commit 3",
+                batch="A1.4 hooks, marketplace, and skills",
             )
         )
-        self.a14_user_integrations_c3_indexed_coverage = dict(
+        self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage = dict(
             sorted(
-                self.a14_user_integrations_c3_indexed_coverage.items()
+                self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage.items()
             )
         )
-        if len(self.a14_user_integrations_c3_indexed_coverage) != 10:
+        if len(self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage) != 10:
             raise FixtureError(
-                "A1.4 user-integrations Commit-3 indexed coverage must "
+                "A1.4 hooks/marketplace/skills indexed coverage must "
                 "contain exactly 10 identities, got "
-                f"{len(self.a14_user_integrations_c3_indexed_coverage)}"
+                f"{len(self.a14_user_integrations_hooks_marketplace_skills_indexed_coverage)}"
             )
 
-    def _apply_a14_user_integrations_c4_indexed_completeness(
+    def _apply_a14_user_integrations_plugin_operations_indexed_completeness(
         self,
         positive_records: Sequence[MutableMapping[str, Any]],
         positive_fixture_ids: set[str],
     ) -> None:
-        self.a14_user_integrations_c4_indexed_coverage.update(
+        self.a14_user_integrations_plugin_operations_indexed_coverage.update(
             self._apply_b4_operation_indexed_completeness(
                 positive_records,
                 positive_fixture_ids,
-                operation_keys=self.a14_user_integrations_c4_operation_keys,
-                batch="A1.4 user integrations Commit 4",
+                operation_keys=self.a14_user_integrations_plugin_operations_operation_keys,
+                batch="A1.4 plugin operations",
                 known_enum_values={},
                 include_a11_operation_helpers=False,
             )
         )
-        self.a14_user_integrations_c4_indexed_coverage = dict(
+        self.a14_user_integrations_plugin_operations_indexed_coverage = dict(
             sorted(
-                self.a14_user_integrations_c4_indexed_coverage.items()
+                self.a14_user_integrations_plugin_operations_indexed_coverage.items()
             )
         )
-        if len(self.a14_user_integrations_c4_indexed_coverage) != 7:
+        if len(self.a14_user_integrations_plugin_operations_indexed_coverage) != 7:
             raise FixtureError(
-                "A1.4 user-integrations Commit-4 indexed coverage must "
+                "A1.4 plugin operations indexed coverage must "
                 "contain exactly 7 identities, got "
-                f"{len(self.a14_user_integrations_c4_indexed_coverage)}"
+                f"{len(self.a14_user_integrations_plugin_operations_indexed_coverage)}"
             )
 
-    def _apply_a14_user_integrations_c5_indexed_completeness(
+    def _apply_a14_user_integrations_plugin_catalog_and_sources_indexed_completeness(
         self,
         positive_records: Sequence[MutableMapping[str, Any]],
         positive_fixture_ids: set[str],
@@ -8136,32 +8136,32 @@ class CorpusBuilder:
         self._apply_b2_indexed_completeness(
             positive_records,
             positive_fixture_ids,
-            keys=self.a14_user_integrations_c5_union_keys,
+            keys=self.a14_user_integrations_plugin_catalog_and_sources_union_keys,
             directions_by_domain=(
-                A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_DIRECTIONS
+                A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_DIRECTIONS
             ),
-            batch="A1.4 user integrations Commit 5",
+            batch="A1.4 plugin catalog and sources",
         )
-        self.a14_user_integrations_c5_indexed_coverage.update(
+        self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage.update(
             self._apply_b4_operation_indexed_completeness(
                 positive_records,
                 positive_fixture_ids,
-                operation_keys=self.a14_user_integrations_c5_operation_keys,
-                batch="A1.4 user integrations Commit 5",
+                operation_keys=self.a14_user_integrations_plugin_catalog_and_sources_operation_keys,
+                batch="A1.4 plugin catalog and sources",
                 known_enum_values={},
                 include_a11_operation_helpers=False,
             )
         )
-        self.a14_user_integrations_c5_indexed_coverage = dict(
+        self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage = dict(
             sorted(
-                self.a14_user_integrations_c5_indexed_coverage.items()
+                self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage.items()
             )
         )
-        if len(self.a14_user_integrations_c5_indexed_coverage) != 8:
+        if len(self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage) != 8:
             raise FixtureError(
-                "A1.4 user-integrations Commit-5 indexed coverage must "
+                "A1.4 plugin catalog/sources indexed coverage must "
                 "contain exactly 8 identities, got "
-                f"{len(self.a14_user_integrations_c5_indexed_coverage)}"
+                f"{len(self.a14_user_integrations_plugin_catalog_and_sources_indexed_coverage)}"
             )
 
     def _apply_a14_mcp_reverse_indexed_completeness(
@@ -8256,10 +8256,10 @@ class CorpusBuilder:
                         and key.category == CLIENT_REQUEST
                     )
                     or key in self.a13_review_operation_keys
-                    or key in self.a14_user_integrations_c2_operation_keys
-                    or key in self.a14_user_integrations_c3_operation_keys
-                    or key in self.a14_user_integrations_c4_operation_keys
-                    or key in self.a14_user_integrations_c5_operation_keys
+                    or key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
+                    or key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
+                    or key in self.a14_user_integrations_plugin_operations_operation_keys
+                    or key in self.a14_user_integrations_plugin_catalog_and_sources_operation_keys
                     or (
                         key in self.a14_mcp_reverse_operation_keys
                         and key.category == CLIENT_REQUEST
@@ -8333,10 +8333,10 @@ class CorpusBuilder:
                         and key.category == CLIENT_REQUEST
                     )
                     or key in self.a13_review_operation_keys
-                    or key in self.a14_user_integrations_c2_operation_keys
-                    or key in self.a14_user_integrations_c3_operation_keys
-                    or key in self.a14_user_integrations_c4_operation_keys
-                    or key in self.a14_user_integrations_c5_operation_keys
+                    or key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
+                    or key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
+                    or key in self.a14_user_integrations_plugin_operations_operation_keys
+                    or key in self.a14_user_integrations_plugin_catalog_and_sources_operation_keys
                     or (
                         key in self.a14_mcp_reverse_operation_keys
                         and key.category == CLIENT_REQUEST
@@ -9436,33 +9436,33 @@ class CorpusBuilder:
             ),
         )
 
-    def _build_a14_user_integrations_c2_operation_supplements(
+    def _build_a14_user_integrations_apps_external_agents_feedback_operation_supplements(
         self,
     ) -> None:
         coverage, opaque_exclusions = self._build_operation_supplements(
-            self.a14_user_integrations_c2_operation_keys,
-            "A1.4 user integrations Commit 2",
+            self.a14_user_integrations_apps_external_agents_feedback_operation_keys,
+            "A1.4 apps, external agents, and feedback",
         )
         if opaque_exclusions:
             raise FixtureError(
-                "A1.4 user-integrations Commit-2 operations unexpectedly "
+                "A1.4 apps/external-agent/feedback operations unexpectedly "
                 "contain an unconstrained schema value: "
                 f"{opaque_exclusions}"
             )
         if (
-            len(self.a14_user_integrations_c2_operation_keys) != 5
+            len(self.a14_user_integrations_apps_external_agents_feedback_operation_keys) != 5
             or any(
                 self.contracts[key]["result_contract_kind"] != "Concrete"
-                for key in self.a14_user_integrations_c2_operation_keys
+                for key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
             )
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit 2 must retain exactly five "
+                "A1.4 apps/external-agent/feedback must retain exactly five "
                 "Concrete operation contracts"
             )
         read_histories = next(
             key
-            for key in self.a14_user_integrations_c2_operation_keys
+            for key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
             if key.name == "externalAgentConfig/import/readHistories"
         )
         if (
@@ -9473,56 +9473,56 @@ class CorpusBuilder:
                 "A1.4 externalAgentConfig/import/readHistories must retain "
                 "its Unit parameter contract"
             )
-        self.a14_user_integrations_c2_operation_root_coverage = dict(
+        self.a14_user_integrations_apps_external_agents_feedback_operation_root_coverage = dict(
             sorted(coverage.items())
         )
-        self.a14_user_integrations_c2_negative_coverage[
+        self.a14_user_integrations_apps_external_agents_feedback_negative_coverage[
             "operation_opaque_exclusions"
         ] = []
 
-    def _build_a14_user_integrations_c3_operation_supplements(
+    def _build_a14_user_integrations_hooks_marketplace_skills_operation_supplements(
         self,
     ) -> None:
         coverage, opaque_exclusions = self._build_operation_supplements(
-            self.a14_user_integrations_c3_operation_keys,
-            "A1.4 user integrations Commit 3",
+            self.a14_user_integrations_hooks_marketplace_skills_operation_keys,
+            "A1.4 hooks, marketplace, and skills",
         )
         if opaque_exclusions:
             raise FixtureError(
-                "A1.4 user-integrations Commit-3 operations unexpectedly "
+                "A1.4 hooks/marketplace/skills operations unexpectedly "
                 "contain an unconstrained schema value: "
                 f"{opaque_exclusions}"
             )
         unit_methods = {
             key.name
-            for key in self.a14_user_integrations_c3_operation_keys
+            for key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
             if self.contracts[key]["result_contract_kind"] == "Unit"
         }
         concrete_methods = {
             key.name
-            for key in self.a14_user_integrations_c3_operation_keys
+            for key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
             if self.contracts[key]["result_contract_kind"] == "Concrete"
         }
         if (
-            len(self.a14_user_integrations_c3_operation_keys) != 7
+            len(self.a14_user_integrations_hooks_marketplace_skills_operation_keys) != 7
             or unit_methods != {"skills/extraRoots/set"}
             or concrete_methods
-            != A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS
+            != A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_CLIENT_REQUEST_METHODS
             - unit_methods
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit 3 must retain six Concrete "
+                "A1.4 hooks/marketplace/skills must retain six Concrete "
                 "contracts and the sole skills/extraRoots/set Unit result"
             )
-        self.a14_user_integrations_c3_operation_root_coverage = dict(
+        self.a14_user_integrations_hooks_marketplace_skills_operation_root_coverage = dict(
             sorted(coverage.items())
         )
-        self.a14_user_integrations_c3_negative_coverage[
+        self.a14_user_integrations_hooks_marketplace_skills_negative_coverage[
             "operation_opaque_exclusions"
         ] = []
         unit_key = next(
             key
-            for key in self.a14_user_integrations_c3_operation_keys
+            for key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
             if key.name == "skills/extraRoots/set"
         )
         unit_target = self.catalog.standalone(
@@ -9544,7 +9544,7 @@ class CorpusBuilder:
         codes = sorted({item.code for item in diagnostics})
         if not codes:
             raise FixtureError(
-                "A1.4 user-integrations Commit-3 malformed Unit result "
+                "A1.4 hooks/marketplace/skills malformed Unit result "
                 "was accepted by the pinned response schema"
             )
         invalid_unit_id = (
@@ -9564,7 +9564,7 @@ class CorpusBuilder:
             unit_key,
             "malformed_unit_result",
         )
-        self.a14_user_integrations_c3_negative_coverage[
+        self.a14_user_integrations_hooks_marketplace_skills_negative_coverage[
             "unit_result_invariants"
         ] = {
             "method": unit_key.name,
@@ -9577,39 +9577,39 @@ class CorpusBuilder:
             "malformed_form": [],
         }
 
-    def _build_a14_user_integrations_c4_operation_supplements(
+    def _build_a14_user_integrations_plugin_operations_operation_supplements(
         self,
     ) -> None:
         coverage, opaque_exclusions = self._build_operation_supplements(
-            self.a14_user_integrations_c4_operation_keys,
-            "A1.4 user integrations Commit 4",
+            self.a14_user_integrations_plugin_operations_operation_keys,
+            "A1.4 plugin operations",
         )
         if opaque_exclusions:
             raise FixtureError(
-                "A1.4 user-integrations Commit-4 operations unexpectedly "
+                "A1.4 plugin operations operations unexpectedly "
                 "contain an unconstrained schema value: "
                 f"{opaque_exclusions}"
             )
         unit_methods = {
             key.name
-            for key in self.a14_user_integrations_c4_operation_keys
+            for key in self.a14_user_integrations_plugin_operations_operation_keys
             if self.contracts[key]["result_contract_kind"] == "Unit"
         }
         concrete_methods = {
             key.name
-            for key in self.a14_user_integrations_c4_operation_keys
+            for key in self.a14_user_integrations_plugin_operations_operation_keys
             if self.contracts[key]["result_contract_kind"] == "Concrete"
         }
         if (
-            len(self.a14_user_integrations_c4_operation_keys) != 7
+            len(self.a14_user_integrations_plugin_operations_operation_keys) != 7
             or unit_methods
             != {"plugin/share/delete", "plugin/uninstall"}
             or concrete_methods
-            != A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS
+            != A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS_CLIENT_REQUEST_METHODS
             - unit_methods
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit 4 must retain five Concrete "
+                "A1.4 plugin operations must retain five Concrete "
                 "contracts and exactly two reviewed Unit results"
             )
         mutation_counts = {
@@ -9634,11 +9634,11 @@ class CorpusBuilder:
             "wrong_type_fixture_ids": 49,
         }:
             raise FixtureError(
-                "A1.4 user-integrations Commit-4 operation fixture "
+                "A1.4 plugin operations operation fixture "
                 f"accounting changed: {mutation_counts}"
             )
 
-        for key in self.a14_user_integrations_c4_operation_keys:
+        for key in self.a14_user_integrations_plugin_operations_operation_keys:
             contract = self.contracts[key]
             root_identities = (
                 str(contract["parameter_type_identity"]),
@@ -9657,14 +9657,14 @@ class CorpusBuilder:
                     separators=(",", ":"),
                 ):
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-4 operation reaches "
+                        "A1.4 plugin operations operation reaches "
                         f"PluginSource: {key.name}:{type_identity}"
                     )
 
-        self.a14_user_integrations_c4_operation_root_coverage = dict(
+        self.a14_user_integrations_plugin_operations_operation_root_coverage = dict(
             sorted(coverage.items())
         )
-        self.a14_user_integrations_c4_negative_coverage[
+        self.a14_user_integrations_plugin_operations_negative_coverage[
             "operation_opaque_exclusions"
         ] = []
 
@@ -9672,7 +9672,7 @@ class CorpusBuilder:
         for unit_key in sorted(
             (
                 key
-                for key in self.a14_user_integrations_c4_operation_keys
+                for key in self.a14_user_integrations_plugin_operations_operation_keys
                 if key.name in unit_methods
             ),
             key=lambda key: key.name,
@@ -9696,7 +9696,7 @@ class CorpusBuilder:
             codes = sorted({item.code for item in diagnostics})
             if not codes:
                 raise FixtureError(
-                    "A1.4 user-integrations Commit-4 malformed Unit result "
+                    "A1.4 plugin operations malformed Unit result "
                     f"was accepted for {unit_key.name}"
                 )
             invalid_unit_id = (
@@ -9728,32 +9728,32 @@ class CorpusBuilder:
                     "malformed_form": [],
                 }
             )
-        self.a14_user_integrations_c4_negative_coverage[
+        self.a14_user_integrations_plugin_operations_negative_coverage[
             "unit_result_invariants"
         ] = unit_invariants
 
-    def _build_a14_user_integrations_c5_operation_supplements(
+    def _build_a14_user_integrations_plugin_catalog_and_sources_operation_supplements(
         self,
     ) -> None:
         coverage, opaque_exclusions = self._build_operation_supplements(
-            self.a14_user_integrations_c5_operation_keys,
-            "A1.4 user integrations Commit 5",
+            self.a14_user_integrations_plugin_catalog_and_sources_operation_keys,
+            "A1.4 plugin catalog and sources",
         )
         if opaque_exclusions:
             raise FixtureError(
-                "A1.4 user-integrations Commit-5 operations unexpectedly "
+                "A1.4 plugin catalog/sources operations unexpectedly "
                 "contain an unconstrained schema value: "
                 f"{opaque_exclusions}"
             )
         if (
-            len(self.a14_user_integrations_c5_operation_keys) != 4
+            len(self.a14_user_integrations_plugin_catalog_and_sources_operation_keys) != 4
             or any(
                 self.contracts[key]["result_contract_kind"] != "Concrete"
-                for key in self.a14_user_integrations_c5_operation_keys
+                for key in self.a14_user_integrations_plugin_catalog_and_sources_operation_keys
             )
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit 5 must retain exactly four "
+                "A1.4 plugin catalog/sources must retain exactly four "
                 "Concrete operation contracts"
             )
         mutation_counts = {
@@ -9778,11 +9778,11 @@ class CorpusBuilder:
             "wrong_type_fixture_ids": 298,
         }:
             raise FixtureError(
-                "A1.4 user-integrations Commit-5 operation fixture "
+                "A1.4 plugin catalog/sources operation fixture "
                 f"accounting changed: {mutation_counts}"
             )
 
-        for key in self.a14_user_integrations_c5_operation_keys:
+        for key in self.a14_user_integrations_plugin_catalog_and_sources_operation_keys:
             contract = self.contracts[key]
             params = self.catalog.standalone(
                 str(contract["parameter_type_identity"])
@@ -9807,16 +9807,16 @@ class CorpusBuilder:
             )
             if params_reaches or not result_reaches:
                 raise FixtureError(
-                    "A1.4 user-integrations Commit-5 PluginSource "
+                    "A1.4 plugin catalog/sources PluginSource "
                     "reachability changed: "
                     f"{key.name}:params={params_reaches}:"
                     f"result={result_reaches}"
                 )
 
-        self.a14_user_integrations_c5_operation_root_coverage = dict(
+        self.a14_user_integrations_plugin_catalog_and_sources_operation_root_coverage = dict(
             sorted(coverage.items())
         )
-        self.a14_user_integrations_c5_negative_coverage[
+        self.a14_user_integrations_plugin_catalog_and_sources_negative_coverage[
             "operation_opaque_exclusions"
         ] = []
 
@@ -12080,15 +12080,15 @@ class CorpusBuilder:
             for key in self.a13_review_notification_keys
         ]
 
-    def _build_a14_user_integrations_c2_notification_fixtures(
+    def _build_a14_user_integrations_apps_external_agents_feedback_notification_fixtures(
         self,
     ) -> None:
         (
-            self.a14_user_integrations_c2_notification_root_coverage,
+            self.a14_user_integrations_apps_external_agents_feedback_notification_root_coverage,
             payload_mutations,
         ) = self._build_notification_fixtures(
-            self.a14_user_integrations_c2_notification_keys,
-            batch="A1.4 user integrations Commit 2",
+            self.a14_user_integrations_apps_external_agents_feedback_notification_keys,
+            batch="A1.4 apps, external agents, and feedback",
             expected_existing=0,
             expected_generated=3,
             expected_counts={
@@ -12102,19 +12102,19 @@ class CorpusBuilder:
             },
             expected_opaque_paths=set(),
         )
-        self.a14_user_integrations_c2_negative_coverage[
+        self.a14_user_integrations_apps_external_agents_feedback_negative_coverage[
             "notification_payload_mutations"
         ] = payload_mutations
 
-    def _build_a14_user_integrations_c3_notification_fixtures(
+    def _build_a14_user_integrations_hooks_marketplace_skills_notification_fixtures(
         self,
     ) -> None:
         (
-            self.a14_user_integrations_c3_notification_root_coverage,
+            self.a14_user_integrations_hooks_marketplace_skills_notification_root_coverage,
             payload_mutations,
         ) = self._build_notification_fixtures(
-            self.a14_user_integrations_c3_notification_keys,
-            batch="A1.4 user integrations Commit 3",
+            self.a14_user_integrations_hooks_marketplace_skills_notification_keys,
+            batch="A1.4 hooks, marketplace, and skills",
             expected_existing=0,
             expected_generated=3,
             expected_counts={
@@ -12128,7 +12128,7 @@ class CorpusBuilder:
             },
             expected_opaque_paths=set(),
         )
-        self.a14_user_integrations_c3_negative_coverage[
+        self.a14_user_integrations_hooks_marketplace_skills_negative_coverage[
             "notification_payload_mutations"
         ] = payload_mutations
 
@@ -12148,7 +12148,7 @@ class CorpusBuilder:
             "notification_payload_mutations"
         ] = payload_mutations
 
-    def _build_a14_user_integrations_c2_positive_supplements(
+    def _build_a14_user_integrations_apps_external_agents_feedback_positive_supplements(
         self,
     ) -> None:
         container_evidence: list[dict[str, Any]] = []
@@ -12244,7 +12244,7 @@ class CorpusBuilder:
                     continue
                 if instance_path not in optional_paths:
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-2 default-bearing "
+                        "A1.4 apps/external-agent/feedback default-bearing "
                         "property unexpectedly became required: "
                         f"{key.compact()}:{root_name}:"
                         f"{json_path(instance_path)}"
@@ -12287,7 +12287,7 @@ class CorpusBuilder:
                     }
                 )
 
-        for key in self.a14_user_integrations_c2_operation_keys:
+        for key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys:
             contract = self.contracts[key]
             for root_name, type_identity, direction in (
                 (
@@ -12324,7 +12324,7 @@ class CorpusBuilder:
                     ),
                 )
 
-        for key in self.a14_user_integrations_c2_notification_keys:
+        for key in self.a14_user_integrations_apps_external_agents_feedback_notification_keys:
             target, index, branch = self.catalog.method_target(
                 key.category, key.name
             )
@@ -12351,7 +12351,7 @@ class CorpusBuilder:
 
         app_list_key = next(
             key
-            for key in self.a14_user_integrations_c2_operation_keys
+            for key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
             if key.name == "app/list"
         )
         uint32_ids = self._build_uint32_boundary_fixtures(
@@ -12368,7 +12368,7 @@ class CorpusBuilder:
 
         histories_key = next(
             key
-            for key in self.a14_user_integrations_c2_operation_keys
+            for key in self.a14_user_integrations_apps_external_agents_feedback_operation_keys
             if key.name == "externalAgentConfig/import/readHistories"
         )
         int64_coverage = self._add_a13_integer_boundaries(
@@ -12408,13 +12408,13 @@ class CorpusBuilder:
             or container_counts != {"array": 39, "map": 7}
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit-2 default/container "
+                "A1.4 apps/external-agent/feedback default/container "
                 "accounting changed: "
                 f"defaults={len(default_evidence)} "
                 f"containers={container_counts}"
             )
 
-        self.a14_user_integrations_c2_positive_coverage = {
+        self.a14_user_integrations_apps_external_agents_feedback_positive_coverage = {
             "default_bearing_fields": {
                 "count": len(default_evidence),
                 "path_evidence": default_evidence,
@@ -12443,7 +12443,7 @@ class CorpusBuilder:
             },
         }
 
-    def _build_a14_user_integrations_c3_positive_supplements(
+    def _build_a14_user_integrations_hooks_marketplace_skills_positive_supplements(
         self,
     ) -> None:
         container_evidence: list[dict[str, Any]] = []
@@ -12543,7 +12543,7 @@ class CorpusBuilder:
                     continue
                 if instance_path not in optional_paths:
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-3 default-bearing "
+                        "A1.4 hooks/marketplace/skills default-bearing "
                         "property unexpectedly became required: "
                         f"{key.compact()}:{root_name}:"
                         f"{json_path(instance_path)}"
@@ -12595,13 +12595,13 @@ class CorpusBuilder:
                 )
                 if not isinstance(open_object, dict):
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-3 open-object "
+                        "A1.4 hooks/marketplace/skills open-object "
                         "location is not an object"
                     )
                 future_name = "futureSyntheticField"
                 if future_name in open_object:
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-3 future-field "
+                        "A1.4 hooks/marketplace/skills future-field "
                         "sentinel collides with a stable property"
                     )
                 open_object[future_name] = {
@@ -12777,7 +12777,7 @@ class CorpusBuilder:
             codes = sorted({item.code for item in diagnostics})
             if not codes:
                 raise FixtureError(
-                    "A1.4 user-integrations Commit-3 fractional integer "
+                    "A1.4 hooks/marketplace/skills fractional integer "
                     f"boundary was accepted: {key.name}:{root_name}:"
                     f"{json_path(instance_path)}"
                 )
@@ -12819,7 +12819,7 @@ class CorpusBuilder:
                 }
             )
 
-        for key in self.a14_user_integrations_c3_operation_keys:
+        for key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys:
             contract = self.contracts[key]
             for root_name, type_identity, direction in (
                 (
@@ -12855,7 +12855,7 @@ class CorpusBuilder:
                     ),
                 )
 
-        for key in self.a14_user_integrations_c3_notification_keys:
+        for key in self.a14_user_integrations_hooks_marketplace_skills_notification_keys:
             target, index, branch = self.catalog.method_target(
                 key.category, key.name
             )
@@ -12881,7 +12881,7 @@ class CorpusBuilder:
 
         hooks_list_key = next(
             key
-            for key in self.a14_user_integrations_c3_operation_keys
+            for key in self.a14_user_integrations_hooks_marketplace_skills_operation_keys
             if key.name == "hooks/list"
         )
         hooks_list_target = self.catalog.standalone("HooksListResponse")
@@ -12925,7 +12925,7 @@ class CorpusBuilder:
             key = next(
                 candidate
                 for candidate
-                in self.a14_user_integrations_c3_notification_keys
+                in self.a14_user_integrations_hooks_marketplace_skills_notification_keys
                 if candidate.name == method
             )
             target, index, branch = self.catalog.method_target(
@@ -12974,7 +12974,7 @@ class CorpusBuilder:
         )
         if missing_omitted:
             raise FixtureError(
-                "A1.4 user-integrations Commit-3 default evidence lacks "
+                "A1.4 hooks/marketplace/skills default evidence lacks "
                 f"matching omission fixtures: {missing_omitted}"
             )
         container_counts = {
@@ -12991,14 +12991,14 @@ class CorpusBuilder:
             or len(integer_boundary_evidence) != 10
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit-3 positive fixture "
+                "A1.4 hooks/marketplace/skills positive fixture "
                 "accounting changed: "
                 f"defaults={len(default_evidence)} "
                 f"containers={container_counts} "
                 f"future_fields={len(future_field_evidence)} "
                 f"integer_paths={len(integer_boundary_evidence)}"
             )
-        self.a14_user_integrations_c3_positive_coverage = {
+        self.a14_user_integrations_hooks_marketplace_skills_positive_coverage = {
             "default_bearing_fields": {
                 "count": len(default_evidence),
                 "path_evidence": default_evidence,
@@ -13023,7 +13023,7 @@ class CorpusBuilder:
             },
         }
 
-    def _build_a14_user_integrations_c4_positive_supplements(
+    def _build_a14_user_integrations_plugin_operations_positive_supplements(
         self,
     ) -> None:
         container_evidence: list[dict[str, Any]] = []
@@ -13115,7 +13115,7 @@ class CorpusBuilder:
                     continue
                 if instance_path not in optional_paths:
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-4 default-bearing "
+                        "A1.4 plugin operations default-bearing "
                         "property unexpectedly became required: "
                         f"{key.compact()}:{root_name}:"
                         f"{json_path(instance_path)}"
@@ -13162,13 +13162,13 @@ class CorpusBuilder:
                 )
                 if not isinstance(open_object, dict):
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-4 open-object "
+                        "A1.4 plugin operations open-object "
                         "location is not an object"
                     )
                 future_name = "futureSyntheticField"
                 if future_name in open_object:
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-4 future-field "
+                        "A1.4 plugin operations future-field "
                         "sentinel collides with a stable property"
                     )
                 open_object[future_name] = {"synthetic": True}
@@ -13204,7 +13204,7 @@ class CorpusBuilder:
                     }
                 )
 
-        for key in self.a14_user_integrations_c4_operation_keys:
+        for key in self.a14_user_integrations_plugin_operations_operation_keys:
             contract = self.contracts[key]
             for root_name, type_identity, direction in (
                 (
@@ -13248,7 +13248,7 @@ class CorpusBuilder:
         )
         if missing_omitted:
             raise FixtureError(
-                "A1.4 user-integrations Commit-4 default evidence lacks "
+                "A1.4 plugin operations default evidence lacks "
                 f"matching omission fixtures: {missing_omitted}"
             )
         container_counts = {
@@ -13264,13 +13264,13 @@ class CorpusBuilder:
             or len(future_field_evidence) != 18
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit-4 positive fixture "
+                "A1.4 plugin operations positive fixture "
                 "accounting changed: "
                 f"defaults={len(default_evidence)} "
                 f"containers={container_counts} "
                 f"future_fields={len(future_field_evidence)}"
             )
-        self.a14_user_integrations_c4_positive_coverage = {
+        self.a14_user_integrations_plugin_operations_positive_coverage = {
             "default_bearing_fields": {
                 "count": len(default_evidence),
                 "path_evidence": default_evidence,
@@ -13294,7 +13294,7 @@ class CorpusBuilder:
             },
         }
 
-    def _build_a14_user_integrations_c5_positive_supplements(
+    def _build_a14_user_integrations_plugin_catalog_and_sources_positive_supplements(
         self,
     ) -> None:
         container_evidence: list[dict[str, Any]] = []
@@ -13386,7 +13386,7 @@ class CorpusBuilder:
                     continue
                 if instance_path not in optional_paths:
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-5 default-bearing "
+                        "A1.4 plugin catalog/sources default-bearing "
                         "property unexpectedly became required: "
                         f"{key.compact()}:{root_name}:"
                         f"{json_path(instance_path)}"
@@ -13433,13 +13433,13 @@ class CorpusBuilder:
                 )
                 if not isinstance(open_object, dict):
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-5 open-object "
+                        "A1.4 plugin catalog/sources open-object "
                         "location is not an object"
                     )
                 future_name = "futureSyntheticField"
                 if future_name in open_object:
                     raise FixtureError(
-                        "A1.4 user-integrations Commit-5 future-field "
+                        "A1.4 plugin catalog/sources future-field "
                         "sentinel collides with a stable property"
                     )
                 open_object[future_name] = {"synthetic": True}
@@ -13475,7 +13475,7 @@ class CorpusBuilder:
                     }
                 )
 
-        for key in self.a14_user_integrations_c5_operation_keys:
+        for key in self.a14_user_integrations_plugin_catalog_and_sources_operation_keys:
             contract = self.contracts[key]
             for root_name, type_identity, direction in (
                 (
@@ -13519,7 +13519,7 @@ class CorpusBuilder:
         )
         if missing_omitted:
             raise FixtureError(
-                "A1.4 user-integrations Commit-5 default evidence lacks "
+                "A1.4 plugin catalog/sources default evidence lacks "
                 f"matching omission fixtures: {missing_omitted}"
             )
         container_counts = {
@@ -13535,13 +13535,13 @@ class CorpusBuilder:
             or len(future_field_evidence) != 41
         ):
             raise FixtureError(
-                "A1.4 user-integrations Commit-5 positive fixture "
+                "A1.4 plugin catalog/sources positive fixture "
                 "accounting changed: "
                 f"defaults={len(default_evidence)} "
                 f"containers={container_counts} "
                 f"future_fields={len(future_field_evidence)}"
             )
-        self.a14_user_integrations_c5_positive_coverage = {
+        self.a14_user_integrations_plugin_catalog_and_sources_positive_coverage = {
             "default_bearing_fields": {
                 "count": len(default_evidence),
                 "path_evidence": default_evidence,
@@ -15123,11 +15123,11 @@ class CorpusBuilder:
         a13_review_domains = tuple(
             sorted({key.domain for key in self.a13_review_union_keys})
         )
-        a14_user_integrations_c5_domains = tuple(
+        a14_user_integrations_plugin_catalog_and_sources_domains = tuple(
             sorted(
                 {
                     key.domain
-                    for key in self.a14_user_integrations_c5_union_keys
+                    for key in self.a14_user_integrations_plugin_catalog_and_sources_union_keys
                 }
             )
         )
@@ -15184,7 +15184,7 @@ class CorpusBuilder:
             ),
             *(
                 candidate
-                for candidate in a14_user_integrations_c5_domains
+                for candidate in a14_user_integrations_plugin_catalog_and_sources_domains
                 if candidate not in b2_domains
                 and candidate not in b3_domains
                 and candidate not in b4_domains
@@ -15203,7 +15203,7 @@ class CorpusBuilder:
                 and candidate not in a12_b4_domains
                 and candidate not in a13_approval_domains
                 and candidate not in a13_review_domains
-                and candidate not in a14_user_integrations_c5_domains
+                and candidate not in a14_user_integrations_plugin_catalog_and_sources_domains
             ),
         ):
             target = (
@@ -15274,9 +15274,9 @@ class CorpusBuilder:
                     ),
                     key=lambda key: key.name,
                 )
-            elif domain in a14_user_integrations_c5_domains:
+            elif domain in a14_user_integrations_plugin_catalog_and_sources_domains:
                 identities = list(
-                    self.a14_user_integrations_c5_union_keys
+                    self.a14_user_integrations_plugin_catalog_and_sources_union_keys
                 )
             elif domain in a14_mcp_reverse_domains:
                 identities = list(self.a14_mcp_reverse_union_keys)
@@ -15378,11 +15378,11 @@ class CorpusBuilder:
                         else A13_REVIEW_UNION_DIRECTIONS[domain]
                         if domain in a13_review_domains
                         else (
-                            A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_DIRECTIONS[
+                            A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_DIRECTIONS[
                                 domain
                             ]
                         )
-                        if domain in a14_user_integrations_c5_domains
+                        if domain in a14_user_integrations_plugin_catalog_and_sources_domains
                         else A14_MCP_REVERSE_ELICITATION_DIRECTIONS[domain]
                         if domain in a14_mcp_reverse_domains
                         else ()
@@ -15431,11 +15431,11 @@ class CorpusBuilder:
         )
         self._build_b2_union_supplements(
             known_union_values,
-            keys=self.a14_user_integrations_c5_union_keys,
+            keys=self.a14_user_integrations_plugin_catalog_and_sources_union_keys,
             directions_by_domain=(
-                A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_DIRECTIONS
+                A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_DIRECTIONS
             ),
-            batch="A1.4 user integrations Commit 5",
+            batch="A1.4 plugin catalog and sources",
         )
         self._build_b2_union_supplements(
             known_union_values,
@@ -15731,7 +15731,7 @@ class CorpusBuilder:
                 nullable_null_fixture_ids.append(null_id)
 
             if batch in {
-                "A1.4 user integrations Commit 5",
+                "A1.4 plugin catalog and sources",
                 "A1.4 MCP and reverse requests",
             }:
                 for location in collect_open_object_locations(
@@ -15743,13 +15743,13 @@ class CorpusBuilder:
                     )
                     if not isinstance(open_object, dict):
                         raise FixtureError(
-                            "A1.4 user-integrations Commit-5 PluginSource "
+                            "A1.4 plugin catalog/sources PluginSource "
                             "open-object location is not an object"
                         )
                     future_field = "futureSyntheticField"
                     if future_field in open_object:
                         raise FixtureError(
-                            "A1.4 user-integrations Commit-5 PluginSource "
+                            "A1.4 plugin catalog/sources PluginSource "
                             "future-field sentinel collides with a stable field"
                         )
                     open_object[future_field] = {"synthetic": True}
@@ -15757,7 +15757,7 @@ class CorpusBuilder:
                         future_value, target.schema, target.schema_path
                     ):
                         raise FixtureError(
-                            "A1.4 user-integrations Commit-5 PluginSource "
+                            "A1.4 plugin catalog/sources PluginSource "
                             "open object rejected a future field: "
                             f"{key.compact()}:"
                             f"{json_path(location.instance_path)}"
@@ -16166,12 +16166,12 @@ class CorpusBuilder:
             "alternatives": dict(sorted(alternative_coverage.items())),
             "families": dict(sorted(family_coverage.items())),
         }
-        if batch == "A1.4 user integrations Commit 5":
+        if batch == "A1.4 plugin catalog and sources":
             plugin_source_target = self.catalog.union_target(
                 "PluginSource"
             )
             coverage["reviewed_registry_order"] = list(
-                A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER
+                A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_ORDER
             )
             coverage["pinned_schema_branch_indices"] = {
                 key.name: branch_for_union_identity(
@@ -16253,8 +16253,8 @@ class CorpusBuilder:
             self.a13_review_negative_coverage[
                 "review_guardian_unions"
             ] = coverage
-        elif batch == "A1.4 user integrations Commit 5":
-            self.a14_user_integrations_c5_negative_coverage[
+        elif batch == "A1.4 plugin catalog and sources":
+            self.a14_user_integrations_plugin_catalog_and_sources_negative_coverage[
                 "plugin_source_union"
             ] = coverage
         elif batch == "A1.4 MCP and reverse requests":

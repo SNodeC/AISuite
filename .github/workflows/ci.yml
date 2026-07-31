@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  # Resolve indirect DSOs from the cleaned staged SNode.C install both while
-  # linking test executables and while executing focused tests.
+  # Resolve indirect DSOs from the staged current SNode.C install while
+  # linking test executables and executing the ordinary test suite.
   LDFLAGS: -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib
   LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib
 
@@ -19,32 +19,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake g++ ninja-build python3 pkg-config libssl-dev nlohmann-json3-dev
 
-      - name: Prepare cleaned SNode.C and extraction provenance
+      - name: Prepare current SNode.C master
         run: |
-          git clone https://github.com/SNodeC/snode.c.git ../snodec
-          git -C ../snodec checkout 77415c71a87fb7955e9a050bedaca02b65754324
-          git -C ../snodec worktree add --detach ../snodec-provenance \
-            d18b231a1d2ec2235fd6f204786b0a761cc24ff5
-          test "$(git -C ../snodec rev-parse HEAD)" = \
-            77415c71a87fb7955e9a050bedaca02b65754324
-          test "$(git -C ../snodec rev-parse HEAD^{tree})" = \
-            2d39c334f12c308828936656c820447bfcc38d47
-          test ! -d ../snodec/src/ai
-          test "$(git -C ../snodec-provenance rev-parse HEAD)" = \
-            d18b231a1d2ec2235fd6f204786b0a761cc24ff5
-          test "$(git -C ../snodec-provenance rev-parse HEAD^{tree})" = \
-            88a63edc985a851b2b76b0c56df19fae74ea8069
+          git clone --depth 1 --branch master \
+            https://github.com/SNodeC/snode.c.git ../snodec
 
-      - name: Build and install cleaned SNode.C dependency
+      - name: Build and install current SNode.C dependency
         run: |
           cmake -S ../snodec -B ../snodec-build \
             -DCMAKE_BUILD_TYPE=Debug \
@@ -68,17 +54,15 @@ jobs:
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
-            -DAISUITE_TEST_SNODEC_SOURCE_REPOSITORY="$PWD/../snodec-provenance" \
             -DAISUITE_BUILD_TESTS=ON \
             -DAISUITE_BUILD_APPS=ON
 
       - name: Build
         run: cmake --build build --parallel 2
 
-      - name: Focused tests
+      - name: Test
         run: |
           ctest --test-dir build \
-            -L 'ai|openai|codex|extraction' \
             --output-on-failure \
             --parallel 2
 
@@ -87,9 +71,6 @@ jobs:
     container: gcc:15.3.0-trixie
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install dependencies
         run: |
@@ -105,23 +86,12 @@ jobs:
           ninja --version
           dpkg-query -W -f='${Version}\n' nlohmann-json3-dev
 
-      - name: Prepare cleaned SNode.C and extraction provenance
+      - name: Prepare current SNode.C master
         run: |
-          git clone https://github.com/SNodeC/snode.c.git ../snodec
-          git -C ../snodec checkout 77415c71a87fb7955e9a050bedaca02b65754324
-          git -C ../snodec worktree add --detach ../snodec-provenance \
-            d18b231a1d2ec2235fd6f204786b0a761cc24ff5
-          test "$(git -C ../snodec rev-parse HEAD)" = \
-            77415c71a87fb7955e9a050bedaca02b65754324
-          test "$(git -C ../snodec rev-parse HEAD^{tree})" = \
-            2d39c334f12c308828936656c820447bfcc38d47
-          test ! -d ../snodec/src/ai
-          test "$(git -C ../snodec-provenance rev-parse HEAD)" = \
-            d18b231a1d2ec2235fd6f204786b0a761cc24ff5
-          test "$(git -C ../snodec-provenance rev-parse HEAD^{tree})" = \
-            88a63edc985a851b2b76b0c56df19fae74ea8069
+          git clone --depth 1 --branch master \
+            https://github.com/SNodeC/snode.c.git ../snodec
 
-      - name: Build and install cleaned SNode.C dependency
+      - name: Build and install current SNode.C dependency
         run: |
           cmake -S ../snodec -B ../snodec-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
@@ -145,16 +115,14 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
-            -DAISUITE_TEST_SNODEC_SOURCE_REPOSITORY="$PWD/../snodec-provenance" \
             -DAISUITE_BUILD_TESTS=ON \
             -DAISUITE_BUILD_APPS=ON
 
       - name: Build all targets
         run: cmake --build build --target all --parallel 2
 
-      - name: Focused tests
+      - name: Test
         run: |
           ctest --test-dir build \
-            -L 'ai|openai|codex|extraction' \
             --output-on-failure \
             --parallel 2

@@ -4574,7 +4574,7 @@ class AppServerFixtureToolTest(unittest.TestCase):
             self.assertIn(record["future_value_fixture_id"], records_by_id)
             self.assertIn(record["empty_value_fixture_id"], records_by_id)
 
-    def test_a1_4_user_integrations_commit_2_fixture_plan_is_complete(
+    def test_a1_4_user_integrations_apps_external_agents_feedback_fixture_plan_is_complete(
         self,
     ) -> None:
         configured = arguments()
@@ -4586,7 +4586,7 @@ class AppServerFixtureToolTest(unittest.TestCase):
         records_by_id = {
             record["id"]: record for record in index["fixtures"]
         }
-        batch = index["a1_4_user_integrations_commit_2"]
+        batch = index["a1_4_user_integrations_apps_external_agents_feedback"]
 
         operation_keys = batch["assignment_derived_operation_keys"]
         notification_keys = batch[
@@ -4594,12 +4594,12 @@ class AppServerFixtureToolTest(unittest.TestCase):
         ]
         self.assertEqual(5, len(operation_keys))
         self.assertEqual(
-            set(tool.A14_USER_INTEGRATIONS_C2_CLIENT_REQUEST_METHODS),
+            set(tool.A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_CLIENT_REQUEST_METHODS),
             {record["name"] for record in operation_keys},
         )
         self.assertEqual(3, len(notification_keys))
         self.assertEqual(
-            set(tool.A14_USER_INTEGRATIONS_C2_NOTIFICATION_METHODS),
+            set(tool.A14_USER_INTEGRATIONS_APPS_EXTERNAL_AGENTS_FEEDBACK_NOTIFICATION_METHODS),
             {record["name"] for record in notification_keys},
         )
         self.assertTrue(
@@ -4779,7 +4779,7 @@ class AppServerFixtureToolTest(unittest.TestCase):
         ):
             self.assertFalse(records_by_id[fixture_id]["expected_valid"])
 
-    def test_a1_4_user_integrations_commit_3_fixture_plan_is_complete(
+    def test_a1_4_user_integrations_hooks_marketplace_skills_fixture_plan_is_complete(
         self,
     ) -> None:
         configured = arguments()
@@ -4791,7 +4791,7 @@ class AppServerFixtureToolTest(unittest.TestCase):
         records_by_id = {
             record["id"]: record for record in index["fixtures"]
         }
-        batch = index["a1_4_user_integrations_commit_3"]
+        batch = index["a1_4_user_integrations_hooks_marketplace_skills"]
 
         operation_keys = batch["assignment_derived_operation_keys"]
         notification_keys = batch[
@@ -4799,12 +4799,12 @@ class AppServerFixtureToolTest(unittest.TestCase):
         ]
         self.assertEqual(7, len(operation_keys))
         self.assertEqual(
-            set(tool.A14_USER_INTEGRATIONS_C3_CLIENT_REQUEST_METHODS),
+            set(tool.A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_CLIENT_REQUEST_METHODS),
             {record["name"] for record in operation_keys},
         )
         self.assertEqual(3, len(notification_keys))
         self.assertEqual(
-            set(tool.A14_USER_INTEGRATIONS_C3_NOTIFICATION_METHODS),
+            set(tool.A14_USER_INTEGRATIONS_HOOKS_MARKETPLACE_SKILLS_NOTIFICATION_METHODS),
             {record["name"] for record in notification_keys},
         )
         self.assertTrue(
@@ -4954,7 +4954,7 @@ class AppServerFixtureToolTest(unittest.TestCase):
                     records_by_id[fixture_id]["expected_valid"]
                 )
 
-    def test_a1_4_user_integrations_commit_4_fixture_plan_is_complete(
+    def test_a1_4_user_integrations_plugin_operations_fixture_plan_is_complete(
         self,
     ) -> None:
         configured = arguments()
@@ -4966,12 +4966,12 @@ class AppServerFixtureToolTest(unittest.TestCase):
         records_by_id = {
             record["id"]: record for record in index["fixtures"]
         }
-        batch = index["a1_4_user_integrations_commit_4"]
+        batch = index["a1_4_user_integrations_plugin_operations"]
 
         operation_keys = batch["assignment_derived_operation_keys"]
         self.assertEqual(7, len(operation_keys))
         self.assertEqual(
-            set(tool.A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS),
+            set(tool.A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS_CLIENT_REQUEST_METHODS),
             {record["name"] for record in operation_keys},
         )
         self.assertTrue(
@@ -4983,7 +4983,7 @@ class AppServerFixtureToolTest(unittest.TestCase):
             )
         )
         self.assertTrue(
-            set(tool.A14_USER_INTEGRATIONS_C4_CLIENT_REQUEST_METHODS)
+            set(tool.A14_USER_INTEGRATIONS_PLUGIN_OPERATIONS_CLIENT_REQUEST_METHODS)
             .isdisjoint(
                 {
                     "plugin/installed",
@@ -5101,7 +5101,7 @@ class AppServerFixtureToolTest(unittest.TestCase):
             positive["integer_boundaries"],
         )
 
-    def test_a1_4_user_integrations_commit_5_fixture_plan_is_complete(
+    def test_a1_4_user_integrations_plugin_catalog_and_sources_fixture_plan_is_complete(
         self,
     ) -> None:
         configured = arguments()
@@ -5113,17 +5113,17 @@ class AppServerFixtureToolTest(unittest.TestCase):
         records_by_id = {
             record["id"]: record for record in index["fixtures"]
         }
-        batch = index["a1_4_user_integrations_commit_5"]
+        batch = index["a1_4_user_integrations_plugin_catalog_and_sources"]
 
         operation_keys = batch["assignment_derived_operation_keys"]
         self.assertEqual(4, len(operation_keys))
         self.assertEqual(
-            set(tool.A14_USER_INTEGRATIONS_C5_CLIENT_REQUEST_METHODS),
+            set(tool.A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_CLIENT_REQUEST_METHODS),
             {record["name"] for record in operation_keys},
         )
         union_keys = batch["assignment_derived_union_keys"]
         self.assertEqual(
-            list(tool.A14_USER_INTEGRATIONS_C5_PLUGIN_SOURCE_ORDER),
+            list(tool.A14_USER_INTEGRATIONS_PLUGIN_CATALOG_AND_SOURCES_PLUGIN_SOURCE_ORDER),
             [record["name"] for record in union_keys],
         )
         self.assertTrue(
