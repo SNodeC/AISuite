@@ -23,6 +23,7 @@
 #include "ai/openai/codex/detail/ModelCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/ReviewCodec.h"
+#include "ai/openai/codex/detail/RuntimePlatformCodec.h"
 #include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
@@ -572,7 +573,11 @@ namespace ai::openai::codex::detail {
                 notification.method == "item/autoApprovalReview/completed" || notification.method == "item/autoApprovalReview/started" ||
                 notification.method == "model/rerouted" || notification.method == "model/safetyBuffering/updated" ||
                 notification.method == "model/verification" || notification.method == "mcpServer/oauthLogin/completed" ||
-                notification.method == "mcpServer/startupStatus/updated";
+                notification.method == "mcpServer/startupStatus/updated" || notification.method == "deprecationNotice" ||
+                notification.method == "process/exited" || notification.method == "process/outputDelta" ||
+                notification.method == "remoteControl/status/changed" || notification.method == "serverRequest/resolved" ||
+                notification.method == "warning" || notification.method == "windows/worldWritableWarning" ||
+                notification.method == "windowsSandbox/setupCompleted";
             std::string fieldPath = "$.params";
             if (exactPathNotification) {
                 const std::size_t begin = error.find("'$");
@@ -716,6 +721,15 @@ namespace ai::openai::codex::detail {
         typed::Event decodeMcpServerStartupStatusUpdated(const Notification& notification) {
             std::string error;
             auto decoded = decodeMcpServerStatusUpdatedNotification(notification, error);
+            return decoded ? typed::Event{std::move(*decoded)} : malformedEvent(notification, std::move(error));
+        }
+
+        template <typename NotificationType>
+        typed::Event decodeRuntimePlatformNotification(const Notification& notification,
+                                                       std::optional<NotificationType> (*decoder)(const Notification&,
+                                                                                                  std::string&) noexcept) {
+            std::string error;
+            auto decoded = decoder(notification, error);
             return decoded ? typed::Event{std::move(*decoded)} : malformedEvent(notification, std::move(error));
         }
 
@@ -1614,6 +1628,22 @@ namespace ai::openai::codex::detail {
                     return decodeMcpServerOauthLoginCompleted(notification);
                 case ServerNotificationTarget::McpServerStartupStatusUpdated:
                     return decodeMcpServerStartupStatusUpdated(notification);
+                case ServerNotificationTarget::DeprecationNotice:
+                    return decodeRuntimePlatformNotification(notification, decodeDeprecationNoticeNotification);
+                case ServerNotificationTarget::ProcessExited:
+                    return decodeRuntimePlatformNotification(notification, decodeProcessExitedNotification);
+                case ServerNotificationTarget::ProcessOutputDelta:
+                    return decodeRuntimePlatformNotification(notification, decodeProcessOutputDeltaNotification);
+                case ServerNotificationTarget::RemoteControlStatusChanged:
+                    return decodeRuntimePlatformNotification(notification, decodeRemoteControlStatusChangedNotification);
+                case ServerNotificationTarget::ServerRequestResolved:
+                    return decodeRuntimePlatformNotification(notification, decodeServerRequestResolvedNotification);
+                case ServerNotificationTarget::Warning:
+                    return decodeRuntimePlatformNotification(notification, decodeWarningNotification);
+                case ServerNotificationTarget::WindowsWorldWritableWarning:
+                    return decodeRuntimePlatformNotification(notification, decodeWindowsWorldWritableWarningNotification);
+                case ServerNotificationTarget::WindowsSandboxSetupCompleted:
+                    return decodeRuntimePlatformNotification(notification, decodeWindowsSandboxSetupCompletedNotification);
                 case ServerNotificationTarget::Count:
                     break;
             }

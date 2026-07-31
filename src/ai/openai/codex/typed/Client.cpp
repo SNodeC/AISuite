@@ -32,6 +32,7 @@
 #include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
 #include "ai/openai/codex/detail/TurnCodec.h"
+#include "ai/openai/codex/detail/WindowsSandboxCodec.h"
 #include "ai/openai/codex/typed/Accounts.h"
 #include "ai/openai/codex/typed/Apps.h"
 #include "ai/openai/codex/typed/Commands.h"
@@ -54,6 +55,7 @@
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
+#include "ai/openai/codex/typed/WindowsSandbox.h"
 
 #include <cerrno>
 #include <exception>
@@ -90,6 +92,7 @@ namespace ai::openai::codex::typed {
              std::unique_ptr<Skills> skills,
              std::unique_ptr<Threads> threads,
              std::unique_ptr<Turns> turns,
+             std::unique_ptr<WindowsSandbox> windowsSandbox,
              std::unique_ptr<Events> events,
              std::unique_ptr<Requests> requests)
             : accounts(std::move(accounts))
@@ -109,6 +112,7 @@ namespace ai::openai::codex::typed {
             , skills(std::move(skills))
             , threads(std::move(threads))
             , turns(std::move(turns))
+            , windowsSandbox(std::move(windowsSandbox))
             , events(std::move(events))
             , requests(std::move(requests)) {
         }
@@ -130,6 +134,7 @@ namespace ai::openai::codex::typed {
         std::unique_ptr<Skills> skills;
         std::unique_ptr<Threads> threads;
         std::unique_ptr<Turns> turns;
+        std::unique_ptr<WindowsSandbox> windowsSandbox;
         std::unique_ptr<Events> events;
         std::unique_ptr<Requests> requests;
     };
@@ -151,6 +156,7 @@ namespace ai::openai::codex::typed {
                    std::unique_ptr<Skills> skills,
                    std::unique_ptr<Threads> threads,
                    std::unique_ptr<Turns> turns,
+                   std::unique_ptr<WindowsSandbox> windowsSandbox,
                    std::unique_ptr<Events> events,
                    std::unique_ptr<Requests> requests)
         : impl(std::make_unique<Impl>(std::move(accounts),
@@ -170,6 +176,7 @@ namespace ai::openai::codex::typed {
                                       std::move(skills),
                                       std::move(threads),
                                       std::move(turns),
+                                      std::move(windowsSandbox),
                                       std::move(events),
                                       std::move(requests))) {
     }
@@ -310,6 +317,14 @@ namespace ai::openai::codex::typed {
 
     const Turns& Client::turns() const noexcept {
         return *impl->turns;
+    }
+
+    WindowsSandbox& Client::windowsSandbox() noexcept {
+        return *impl->windowsSandbox;
+    }
+
+    const WindowsSandbox& Client::windowsSandbox() const noexcept {
+        return *impl->windowsSandbox;
     }
 
     Events& Client::events() noexcept {
@@ -559,6 +574,23 @@ namespace ai::openai::codex::typed {
                                                                params,
                                                                std::move(handler),
                                                                detail::encodeListMcpServerStatusParams);
+    }
+
+    WindowsSandbox::WindowsSandbox(AppServerClient::RawProtocol& protocol) noexcept
+        : protocol(&protocol) {
+    }
+
+    WindowsSandbox::Submission WindowsSandbox::checkReadiness(CheckReadinessResultHandler handler) {
+        return submitTypedRequest<WindowsSandboxReadinessResponse>(
+            protocol, detail::ClientRequestTarget::WindowsSandboxReadiness, Unit{}, std::move(handler), encodeUnitParams);
+    }
+
+    WindowsSandbox::Submission WindowsSandbox::startSetup(WindowsSandboxSetupStartParams params, StartSetupResultHandler handler) {
+        return submitTypedRequest<WindowsSandboxSetupStartResponse>(protocol,
+                                                                    detail::ClientRequestTarget::WindowsSandboxSetupStart,
+                                                                    params,
+                                                                    std::move(handler),
+                                                                    detail::encodeWindowsSandboxSetupStartParams);
     }
 
     Skills::Skills(AppServerClient::RawProtocol& protocol) noexcept

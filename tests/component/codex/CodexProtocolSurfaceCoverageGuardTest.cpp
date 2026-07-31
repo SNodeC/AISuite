@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <fstream>
 #include <initializer_list>
+#include <iostream>
 #include <iterator>
 #include <map>
 #include <set>
@@ -96,6 +97,17 @@ namespace {
         std::vector<Code> expectedCodes(expected);
         std::sort(actualCodes.begin(), actualCodes.end());
         std::sort(expectedCodes.begin(), expectedCodes.end());
+        if (actualCodes != expectedCodes) {
+            std::cerr << "diagnostic codes: actual=";
+            for (const Code code : actualCodes) {
+                std::cerr << ' ' << static_cast<int>(code);
+            }
+            std::cerr << " expected=";
+            for (const Code code : expectedCodes) {
+                std::cerr << ' ' << static_cast<int>(code);
+            }
+            std::cerr << '\n';
+        }
         return actualCodes == expectedCodes;
     }
 
@@ -462,8 +474,8 @@ int main() {
                       "the B4 registry retains every locked A1.0 and exact A1.1 batch identity");
     result.expectTrue(typedIdentityCount(baseline) == tests::component::codex::TypedSurfaceBaseline.size() +
                                                           tests::component::codex::CodexErrorInfoTypedSurfaceBaseline.size() +
-                                                          tests::component::codex::CodexA11B2TypedSurfaceBaseline.size() + 253,
-                      "A1.1 B3-B5, A1.2, complete A1.3, A1.4 user integrations, and A1.4b Commits 3-5 add exactly 253 typed "
+                                                          tests::component::codex::CodexA11B2TypedSurfaceBaseline.size() + 263,
+                      "A1.1 B3-B5, A1.2, complete A1.3, and complete native A1.4 add exactly 263 typed "
                       "identities while completing inherited partial rows");
     result.expectTrue(schemaStatusCounts(baseline, true) == SchemaStatusCounts{151, 0, 0, 0},
                       "the final A1.1 slice is exactly Complete 151, Partial 0, NotImplemented 0, NotApplicable 0");
@@ -472,8 +484,8 @@ int main() {
                       "the final A1.2 B5 slice is exactly Complete 45, Partial 0, NotImplemented 0, NotApplicable 0");
     result.expectTrue(schemaStatusCountsForSlice(baseline, detail::A1Slice::A1_3) == SchemaStatusCounts{68, 0, 0, 0},
                       "the final A1.3 slice is exactly Complete 68, Partial 0, NotImplemented 0, NotApplicable 0");
-    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{326, 3, 10, 48},
-                      "A1.4b Commit 5 is exactly Complete 326, Partial 3, NotImplemented 10, NotApplicable 48");
+    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{336, 3, 0, 48},
+                      "the current registry is exactly Complete 336, Partial 3, NotImplemented 0, NotApplicable 48");
     result.expectTrue(exactA13Descriptors && exactA13FixtureBijection && a13Rows == 68 && a13DescriptorKeys.size() == 68 &&
                           a13ClientDescriptors == 17 && a13NotificationDescriptors == 7 && a13ServerRequestDescriptors == 5 &&
                           a13UnionDescriptors == 39,
@@ -481,14 +493,14 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> missing = baseline;
     const auto missingEntry =
-        findEntry(missing, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
+        findEntry(missing, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment");
     missing.erase(missingEntry);
     result.expectTrue(hasExactCoverageCodes(missing, manifest, {ErrorCode::MissingRegistryEntry}),
                       "coverage guard reports only MissingRegistryEntry for removal of one untyped stable schema-derived row");
 
     std::vector<detail::ProtocolSurfaceEntry> duplicate = baseline;
     duplicate.push_back(
-        *findEntry(duplicate, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness"));
+        *findEntry(duplicate, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment"));
     std::sort(duplicate.begin(), duplicate.end(), [](const auto& left, const auto& right) {
         return left.key < right.key;
     });
@@ -497,18 +509,18 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> wrongCategory = baseline;
     const auto recategorized =
-        findEntry(wrongCategory, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
-    recategorized->key.category = detail::SurfaceCategory::TaggedUnionDiscriminator;
+        findEntry(wrongCategory, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment");
+    recategorized->key.category = detail::SurfaceCategory::ClientRequest;
     recategorized->operationContract = {};
     std::sort(wrongCategory.begin(), wrongCategory.end(), [](const auto& left, const auto& right) {
         return left.key < right.key;
     });
-    result.expectTrue(hasExactCoverageCodes(wrongCategory, manifest, {ErrorCode::WrongCategory}),
-                      "coverage guard reports only WrongCategory for one isolated category mutation");
+    result.expectTrue(hasExactCoverageCodes(wrongCategory, manifest, {ErrorCode::WrongCategory, ErrorCode::MissingAssociation}),
+                      "coverage guard reports WrongCategory and the resulting missing client association");
 
     std::vector<detail::ProtocolSurfaceEntry> wrongStability = baseline;
     const auto restabilized =
-        findEntry(wrongStability, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
+        findEntry(wrongStability, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment");
     restabilized->stability = detail::Stability::ExperimentalOnly;
     restabilized->operationContract = {};
     result.expectTrue(hasExactCoverageCodes(wrongStability, manifest, {ErrorCode::WrongStability}),
@@ -516,23 +528,28 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> falseTyped = baseline;
     const auto unimplemented =
-        findEntry(falseTyped, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
+        findEntry(falseTyped, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment");
     unimplemented->runtimeDisposition = detail::RuntimeDisposition::Typed;
     unimplemented->typedImplementation = detail::TypedImplementationStatus::Implemented;
     unimplemented->typedSchemaStatus = detail::TypedSchemaStatus::Partial;
-    result.expectTrue(hasExactCoverageCodes(falseTyped, manifest, {ErrorCode::TypedWithoutRuntimeTarget}),
-                      "coverage guard reports only TypedWithoutRuntimeTarget for a false typed claim");
+    result.expectTrue(
+        hasExactCoverageCodes(falseTyped, manifest, {ErrorCode::TypedWithoutRuntimeTarget, ErrorCode::TypedSchemaStatusMismatch}),
+        "coverage guard reports a missing runtime target and inconsistent schema status for a false typed InventoryOnly claim");
 
     std::vector<detail::ProtocolSurfaceEntry> duplicateRuntimeTarget = baseline;
-    const auto duplicateTarget =
-        findEntry(duplicateRuntimeTarget, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
+    const auto duplicateTarget = findEntry(
+        duplicateRuntimeTarget, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment");
     duplicateTarget->runtimeDisposition = detail::RuntimeDisposition::Typed;
     duplicateTarget->typedImplementation = detail::TypedImplementationStatus::Implemented;
     duplicateTarget->typedSchemaStatus = detail::TypedSchemaStatus::Partial;
-    duplicateTarget->runtimeTarget = detail::ClientRequestTarget::Initialize;
+    duplicateTarget->runtimeTarget = detail::ConversationUnionTarget::AskForApprovalGranular;
     result.expectTrue(
-        hasExactCodes(detail::validateProtocolSurface(duplicateRuntimeTarget), {ErrorCode::DuplicateRuntimeTargetRegistration}),
-        "registry validation reports only DuplicateRuntimeTargetRegistration when one declared runtime target occurs twice");
+        hasExactCodes(detail::validateProtocolSurface(duplicateRuntimeTarget),
+                      {ErrorCode::DuplicateRuntimeTargetRegistration,
+                       ErrorCode::RuntimeTargetCanonicalKeyMismatch,
+                       ErrorCode::RegistryRowWithoutCodecDescriptor,
+                       ErrorCode::TypedSchemaStatusMismatch}),
+        "registry validation reports duplicate/canonical/codec/schema diagnostics for a fabricated InventoryOnly runtime target");
 
     std::vector<detail::ProtocolSurfaceEntry> wrongRuntimeTargetCategory = baseline;
     const auto wrongTargetCategory =
@@ -546,14 +563,15 @@ int main() {
                       "registry validation reports only WrongRuntimeTargetCategory for a target attached to the wrong category");
 
     std::vector<detail::ProtocolSurfaceEntry> sentinelRuntimeTarget = baseline;
-    const auto sentinelTarget =
-        findEntry(sentinelRuntimeTarget, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "windowsSandbox/readiness");
+    const auto sentinelTarget = findEntry(
+        sentinelRuntimeTarget, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment");
     sentinelTarget->runtimeDisposition = detail::RuntimeDisposition::Typed;
     sentinelTarget->typedImplementation = detail::TypedImplementationStatus::Implemented;
     sentinelTarget->typedSchemaStatus = detail::TypedSchemaStatus::Partial;
-    sentinelTarget->runtimeTarget = detail::ClientRequestTarget::Count;
-    result.expectTrue(hasExactCodes(detail::validateProtocolSurface(sentinelRuntimeTarget), {ErrorCode::InvalidRuntimeTarget}),
-                      "registry validation reports only InvalidRuntimeTarget for a Count sentinel");
+    sentinelTarget->runtimeTarget = detail::ConversationUnionTarget::Count;
+    result.expectTrue(hasExactCodes(detail::validateProtocolSurface(sentinelRuntimeTarget),
+                                    {ErrorCode::InvalidRuntimeTarget, ErrorCode::TypedSchemaStatusMismatch}),
+                      "registry validation reports an invalid Count sentinel and its inconsistent schema status");
 
     std::vector<detail::ProtocolSurfaceEntry> typedDispositionMismatch = baseline;
     const auto mistypedDisposition =

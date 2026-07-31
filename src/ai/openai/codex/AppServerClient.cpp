@@ -10,6 +10,7 @@
 
 #include "ai/openai/codex/detail/ProtocolCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
+#include "ai/openai/codex/detail/RuntimePlatformCodec.h"
 #include "ai/openai/codex/detail/Transport.h"
 #include "ai/openai/codex/typed/Client.h"
 #include "core/EventReceiver.h"
@@ -370,6 +371,13 @@ namespace ai::openai::codex {
             std::uint64_t connectionGeneration = 0;
             std::uint64_t submissionSequence = 0;
             bool accepted = false;
+        };
+
+        struct PendingServerRequestOccurrence {
+            ServerRequest request;
+            std::uint64_t connectionGeneration = 0;
+            detail::ServerRequestTarget target = detail::ServerRequestTarget::Count;
+            std::optional<std::string> threadId;
         };
 
         void installTransportCallbacks(std::uint64_t generation) {
@@ -760,15 +768,39 @@ namespace ai::openai::codex {
             });
         }
 
+        bool reconcileServerRequestResolved(std::uint64_t generation, const ServerRequestId& requestId, std::string_view threadId) {
+            if (!lifetime->protocolActive || generation != connectionGeneration) {
+                return false;
+            }
+
+            const auto pending = pendingServerRequests.find(requestId);
+            if (pending == pendingServerRequests.end() || pending->second.connectionGeneration != generation || !pending->second.threadId ||
+                *pending->second.threadId != threadId || !detail::serverRequestEmitsResolvedNotification(pending->second.target)) {
+                return false;
+            }
+
+            pendingServerRequests.erase(pending);
+            return true;
+        }
+
         void dispatchNotification(std::uint64_t generation, detail::ProtocolMessage message) {
+            const auto notification = std::make_shared<const Notification>(
+                Notification{std::move(message.method), std::move(message.params), std::move(message.raw)});
+
+            if (notification->method == detail::entryFor(detail::ServerNotificationTarget::ServerRequestResolved).key.name) {
+                std::string decodeError;
+                const auto resolved = detail::decodeServerRequestResolvedNotification(*notification, decodeError);
+                if (resolved) {
+                    reconcileServerRequestResolved(generation, resolved->requestId, resolved->threadId.value);
+                }
+            }
+
             const RawProtocol::NotificationHandler typedHandler = typedNotificationDispatcher;
             const RawProtocol::NotificationHandler rawHandler = onNotification;
             if (!typedHandler && !rawHandler) {
                 return;
             }
 
-            const auto notification = std::make_shared<const Notification>(
-                Notification{std::move(message.method), std::move(message.params), std::move(message.raw)});
             if (typedHandler) {
                 scheduleProtocol(generation, [typedHandler, notification]() {
                     typedHandler(*notification);
@@ -808,20 +840,38 @@ namespace ai::openai::codex {
                 ++nextServerRequestToken;
             }
 
+            detail::ServerRequestTarget target = detail::ServerRequestTarget::Count;
+            if (const detail::ProtocolSurfaceEntry* entry =
+                    detail::findSurface(detail::SurfaceCategory::ServerRequest, "ServerRequest", "method", message.method);
+                entry != nullptr && entry->runtimeDisposition == detail::RuntimeDisposition::Typed) {
+                if (const auto* registeredTarget = std::get_if<detail::ServerRequestTarget>(&entry->runtimeTarget)) {
+                    target = *registeredTarget;
+                }
+            }
+
+            std::optional<std::string> threadId;
+            if (message.params.is_object()) {
+                const auto thread = message.params.find("threadId");
+                if (thread != message.params.end() && thread->is_string()) {
+                    threadId = thread->get<std::string>();
+                }
+            }
+
             ServerRequest request{id, std::move(message.method), std::move(message.params), std::move(message.raw), token};
-            const auto [iterator, inserted] = pendingServerRequests.emplace(id, std::move(request));
+            PendingServerRequestOccurrence occurrence{std::move(request), generation, target, std::move(threadId)};
+            const auto [iterator, inserted] = pendingServerRequests.emplace(id, std::move(occurrence));
             if (!inserted) {
                 fail({Error::Category::Protocol, EEXIST, "duplicate pending app-server request ID"});
                 return;
             }
 
             logScope.logger(logger::Logger::semanticSink())
-                .debug("request started: id={} method={}", serverRequestId(id), iterator->second.method);
+                .debug("request started: id={} method={}", serverRequestId(id), iterator->second.request.method);
 
             const RawProtocol::ServerRequestHandler typedHandler = typedServerRequestDispatcher;
             const RawProtocol::ServerRequestHandler rawHandler = onServerRequest;
             if (typedHandler || rawHandler) {
-                const auto callbackRequest = std::make_shared<const ServerRequest>(iterator->second);
+                const auto callbackRequest = std::make_shared<const ServerRequest>(iterator->second.request);
                 if (typedHandler) {
                     scheduleProtocol(generation, [typedHandler, callbackRequest]() {
                         typedHandler(*callbackRequest);
@@ -860,11 +910,11 @@ namespace ai::openai::codex {
             if (pending == pendingServerRequests.end()) {
                 return sendFailure(Error::Category::InvalidState, ENOENT, "server request ID is not currently pending");
             }
-            if (token.has_value() && pending->second.token != *token) {
+            if (token.has_value() && pending->second.request.token != *token) {
                 return sendFailure(
                     Error::Category::InvalidState, ESTALE, "server request ownership token does not match the currently pending request");
             }
-            if (expectedMethod.has_value() && pending->second.method != *expectedMethod) {
+            if (expectedMethod.has_value() && pending->second.request.method != *expectedMethod) {
                 return sendFailure(Error::Category::InvalidState, EINVAL, "server request ownership token is bound to a different method");
             }
 
@@ -893,7 +943,7 @@ namespace ai::openai::codex {
                                    ECANCELED,
                                    "app-server connection stopped while the server-request response was being enqueued");
             }
-            const std::string method = pending->second.method;
+            const std::string method = pending->second.request.method;
             pendingServerRequests.erase(id);
             logScope.logger(logger::Logger::semanticSink())
                 .debug("request {}: id={} method={}", protocolError ? "failed" : "completed", serverRequestId(id), method);
@@ -965,7 +1015,7 @@ namespace ai::openai::codex {
             deferredIncoming.clear();
             for (const auto& [id, pending] : pendingServerRequests) {
                 logScope.logger(logger::Logger::semanticSink())
-                    .debug("request {}: id={} method={}", serverRequestOutcome, serverRequestId(id), pending.method);
+                    .debug("request {}: id={} method={}", serverRequestOutcome, serverRequestId(id), pending.request.method);
             }
             pendingServerRequests.clear();
 
@@ -1037,7 +1087,7 @@ namespace ai::openai::codex {
         bool serverRequestTokensExhausted = false;
 
         std::map<std::int64_t, PendingRequest> pendingRequests;
-        std::map<ServerRequestId, ServerRequest> pendingServerRequests;
+        std::map<ServerRequestId, PendingServerRequestOccurrence> pendingServerRequests;
         std::deque<detail::ProtocolMessage> preReadyMessages;
         std::deque<DeferredIncoming> deferredIncoming;
         std::size_t transportSendDepth = 0;
@@ -1152,6 +1202,7 @@ namespace ai::openai::codex {
                               std::unique_ptr<typed::Skills>(new typed::Skills(impl->raw())),
                               std::unique_ptr<typed::Threads>(new typed::Threads(impl->raw())),
                               std::unique_ptr<typed::Turns>(new typed::Turns(impl->raw())),
+                              std::unique_ptr<typed::WindowsSandbox>(new typed::WindowsSandbox(impl->raw())),
                               std::unique_ptr<typed::Events>(new typed::Events(impl->raw())),
                               std::unique_ptr<typed::Requests>(new typed::Requests(impl->raw())))));
     }

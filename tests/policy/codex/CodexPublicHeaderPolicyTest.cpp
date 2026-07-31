@@ -2,10 +2,8 @@
  * AISuite - Reusable AI integrations based on SNode.C
  * Copyright (C) Volker Christian <me@vchrist.at>
  *
- * Public-header guard semantics adapted from SNode.C
- * tests/policy/codex/CodexA12PublicHeaderPolicyTest.cpp, blob
- * 73537e7d68b74afb335db8c4bd8b42d533c86814 at
- * d18b231a1d2ec2235fd6f204786b0a761cc24ff5.
+ * Public-header guard semantics adapted from SNode.C's Codex public-header
+ * policy test.
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
@@ -319,7 +317,7 @@ int main(const int argc, char* argv[]) {
     }
 
     std::vector<Component> components = {
-        {"main", "src/ai/openai/codex/CMakeLists.txt", "AI_OPENAI_CODEX_PUBLIC_H", "", 28, {}},
+        {"main", "src/ai/openai/codex/CMakeLists.txt", "AI_OPENAI_CODEX_PUBLIC_H", "", 29, {}},
         {"backend", "src/ai/openai/codex/backend/CMakeLists.txt", "AI_OPENAI_CODEX_BACKEND_PUBLIC_H", "backend", 7, {}},
         {"frontend", "src/ai/openai/codex/frontend/CMakeLists.txt", "AI_OPENAI_CODEX_FRONTEND_PUBLIC_H", "frontend", 7, {}},
     };
@@ -335,8 +333,8 @@ int main(const int argc, char* argv[]) {
     for (const Component& component : components) {
         authority.insert(authority.end(), component.headers.begin(), component.headers.end());
     }
-    if (authority.size() != 42) {
-        valid = aisuite::source_policy::diagnostic(kInventoryDiagnostic, "total public-header count is not 42");
+    if (authority.size() != 43) {
+        valid = aisuite::source_policy::diagnostic(kInventoryDiagnostic, "total public-header count is not 43");
     }
     std::string duplicate;
     if (hasDuplicates(authority, duplicate)) {
@@ -370,7 +368,7 @@ int main(const int argc, char* argv[]) {
         valid = checkGuard(root, header) && valid;
     }
     if (valid) {
-        std::cout << "Codex public-header policy verified: main=28 backend=7 frontend=7 total=42\n";
+        std::cout << "Codex public-header policy verified: main=29 backend=7 frontend=7 total=43\n";
     }
     return valid ? 0 : 1;
 }

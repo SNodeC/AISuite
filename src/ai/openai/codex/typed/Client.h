@@ -27,6 +27,7 @@
 #include "ai/openai/codex/typed/Skills.h"         // IWYU pragma: export
 #include "ai/openai/codex/typed/Threads.h"        // IWYU pragma: export
 #include "ai/openai/codex/typed/Turns.h"          // IWYU pragma: export
+#include "ai/openai/codex/typed/WindowsSandbox.h" // IWYU pragma: export
 
 #include <memory>
 
@@ -97,6 +98,9 @@ namespace ai::openai::codex::typed {
         Turns& turns() noexcept;
         const Turns& turns() const noexcept;
 
+        WindowsSandbox& windowsSandbox() noexcept;
+        const WindowsSandbox& windowsSandbox() const noexcept;
+
         Events& events() noexcept;
         const Events& events() const noexcept;
 
@@ -123,6 +127,7 @@ namespace ai::openai::codex::typed {
                std::unique_ptr<Skills> skills,
                std::unique_ptr<Threads> threads,
                std::unique_ptr<Turns> turns,
+               std::unique_ptr<WindowsSandbox> windowsSandbox,
                std::unique_ptr<Events> events,
                std::unique_ptr<Requests> requests);
 

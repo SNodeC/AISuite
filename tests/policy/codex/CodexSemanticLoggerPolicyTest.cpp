@@ -2,9 +2,7 @@
  * SNode.C - A Slim Toolkit for Network Communication
  * Copyright (C) Volker Christian <me@vchrist.at>
  *
- * Codex-only extraction of SNode.C
- * tests/policy/log/ParameterlessSemanticLoggerPolicyTest.cpp, blob
- * e4fddcaf69b23549eab318cb86afee6210b2aaad.
+ * Adapted from SNode.C's parameterless semantic logger policy.
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */

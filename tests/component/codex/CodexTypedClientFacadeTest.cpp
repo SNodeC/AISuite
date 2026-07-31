@@ -294,7 +294,7 @@ int main() {
     static_assert(!HasDirectReviewsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectSkillsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectConfigurationAccessor<codex::AppServerClient>);
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 59);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 67);
     static_assert(std::is_same_v<std::variant_alternative_t<47, typed::CanonicalServerNotification>,
                                  typed::FuzzyFileSearchSessionUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<48, typed::CanonicalServerNotification>, typed::GuardianWarningNotification>);
@@ -310,7 +310,7 @@ int main() {
     static_assert(std::is_same_v<std::variant_alternative_t<54, typed::CanonicalServerNotification>, typed::HookCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<55, typed::CanonicalServerNotification>, typed::HookStartedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<56, typed::CanonicalServerNotification>, typed::SkillsChangedNotification>);
-    static_assert(std::variant_size_v<typed::Event> == 61);
+    static_assert(std::variant_size_v<typed::Event> == 69);
     static_assert(std::is_same_v<std::variant_alternative_t<49, typed::Event>, typed::FuzzyFileSearchSessionUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<50, typed::Event>, typed::GuardianWarningNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::Event>, typed::ItemGuardianApprovalReviewCompletedNotification>);

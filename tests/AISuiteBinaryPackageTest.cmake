@@ -85,13 +85,13 @@ foreach(archive_entry IN LISTS archive_entries)
     endif()
 endforeach()
 list(LENGTH codex_public_headers codex_public_header_count)
-if(NOT codex_main_header_count EQUAL 28 OR
+if(NOT codex_main_header_count EQUAL 29 OR
    NOT codex_backend_header_count EQUAL 7 OR
    NOT codex_frontend_header_count EQUAL 7 OR
-   NOT codex_public_header_count EQUAL 42)
+   NOT codex_public_header_count EQUAL 43)
     message(
         FATAL_ERROR
-            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, total=${codex_public_header_count}; expected 28/7/7/42"
+            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, total=${codex_public_header_count}; expected 29/7/7/43"
     )
 endif()
 
@@ -103,6 +103,7 @@ foreach(required
     "include/aisuite/ai/openai/codex/typed/Hooks.h"
     "include/aisuite/ai/openai/codex/typed/Marketplace.h"
     "include/aisuite/ai/openai/codex/typed/Mcp.h"
+    "include/aisuite/ai/openai/codex/typed/WindowsSandbox.h"
     "include/aisuite/ai/openai/codex/typed/Plugins.h"
     "include/aisuite/ai/openai/codex/typed/Skills.h"
     "lib/libaisuite-openai-codex.so.1"
@@ -133,14 +134,7 @@ foreach(forbidden
     "CodexPublicHeaderSelfContainmentTest"
     "CodexLoggingApiSurfacePolicyTest"
     "CodexSemanticLoggerPolicyTest"
-    "CodexPolicyOwnershipTest"
     "CodexPolicyMutationTest"
-    "verify_codex_policy_ownership.py"
-    "codex-policy-baseline-ctest.json"
-    "codex-policy-final-ctest.json"
-    "codex-policy-ownership.json"
-    "codex-policy-ownership.md"
-    "docs/extraction/"
     "src/ai/openai/codex/detail/"
     "ProtocolSurfaceRegistryData.inc"
 )

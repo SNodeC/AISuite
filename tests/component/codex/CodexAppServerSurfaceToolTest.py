@@ -378,9 +378,9 @@ def test_operation_descriptor_guards(
         for line in generated.splitlines()
         if line.startswith("CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR(")
     ]
-    if len(rows) != 84:
+    if len(rows) != 86:
         raise AssertionError(
-            "client-operation descriptor must contain exactly 84 rows"
+            "client-operation descriptor must contain exactly 86 rows"
         )
     method_rows = {
         match.group(1): line
@@ -448,14 +448,12 @@ def test_operation_descriptor_guards(
         "review/start",
         "thread/approveGuardianDeniedAction",
     }
-    a1_4_user_integration_commit_2_methods = {
+    a1_4_user_integration_methods = {
         "app/list",
         "externalAgentConfig/detect",
         "externalAgentConfig/import",
         "externalAgentConfig/import/readHistories",
         "feedback/upload",
-    }
-    a1_4_user_integration_commit_3_methods = {
         "hooks/list",
         "marketplace/add",
         "marketplace/remove",
@@ -463,8 +461,6 @@ def test_operation_descriptor_guards(
         "skills/config/write",
         "skills/extraRoots/set",
         "skills/list",
-    }
-    a1_4_user_integration_commit_4_methods = {
         "plugin/install",
         "plugin/share/checkout",
         "plugin/share/delete",
@@ -472,8 +468,6 @@ def test_operation_descriptor_guards(
         "plugin/share/updateTargets",
         "plugin/skill/read",
         "plugin/uninstall",
-    }
-    a1_4_user_integration_commit_5_methods = {
         "plugin/installed",
         "plugin/list",
         "plugin/read",
@@ -485,153 +479,39 @@ def test_operation_descriptor_guards(
         "mcpServer/tool/call",
         "mcpServerStatus/list",
     }
+    a1_4_runtime_platform_methods = {
+        "windowsSandbox/readiness",
+        "windowsSandbox/setupStart",
+    }
+    method_groups = (
+        a1_1_methods,
+        a1_2_b2_methods,
+        a1_2_b3_methods,
+        a1_2_b4_methods,
+        a1_2_b5_methods,
+        a1_3_command_methods,
+        a1_3_filesystem_methods,
+        a1_3_permission_methods,
+        a1_3_review_guardian_methods,
+        a1_4_user_integration_methods,
+        a1_4_mcp_reverse_methods,
+        a1_4_runtime_platform_methods,
+    )
+    expected_methods = set().union(*method_groups)
     if (
-        len(method_rows) != 84
+        len(method_rows) != 86
         or len(a1_1_methods) != 22
-        or set(method_rows)
-        != a1_1_methods
-        | a1_2_b2_methods
-        | a1_2_b3_methods
-        | a1_2_b4_methods
-        | a1_2_b5_methods
-        | a1_3_command_methods
-        | a1_3_filesystem_methods
-        | a1_3_permission_methods
-        | a1_3_review_guardian_methods
-        | a1_4_user_integration_commit_2_methods
-        | a1_4_user_integration_commit_3_methods
-        | a1_4_user_integration_commit_4_methods
-        | a1_4_user_integration_commit_5_methods
-        | a1_4_mcp_reverse_methods
-        or a1_1_methods & a1_2_b2_methods
-        or (a1_1_methods | a1_2_b2_methods) & a1_2_b3_methods
-        or (
-            a1_1_methods | a1_2_b2_methods | a1_2_b3_methods
-        )
-        & a1_2_b4_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-        )
-        & a1_2_b5_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-        )
-        & a1_3_command_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-        )
-        & a1_3_filesystem_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-        )
-        & a1_3_permission_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_permission_methods
-        )
-        & a1_3_review_guardian_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_permission_methods
-            | a1_3_review_guardian_methods
-        )
-        & a1_4_user_integration_commit_2_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_permission_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-        )
-        & a1_4_user_integration_commit_3_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_permission_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-            | a1_4_user_integration_commit_3_methods
-        )
-        & a1_4_user_integration_commit_4_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_permission_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-            | a1_4_user_integration_commit_3_methods
-            | a1_4_user_integration_commit_4_methods
-        )
-        & a1_4_user_integration_commit_5_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_2_b5_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_permission_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-            | a1_4_user_integration_commit_3_methods
-            | a1_4_user_integration_commit_4_methods
-            | a1_4_user_integration_commit_5_methods
-        )
-        & a1_4_mcp_reverse_methods
+        or set(method_rows) != expected_methods
+        or sum(map(len, method_groups)) != len(expected_methods)
     ):
         raise AssertionError(
             "client-operation descriptors lost the exact 22 A1.1 / "
             "nine A1.2 B2 / two A1.2 B3 / two A1.2 B4 / five A1.2 B5 "
             "/ four A1.3 command / ten A1.3 filesystem/fuzzy / one A1.3 "
             "permission-profile / two A1.3 review/guardian / five A1.4 "
-            "user-integration Commit-2 / seven Commit-3 / seven Commit-4 / "
-            "four Commit-5 / four A1.4b MCP projection"
+            "apps/external-agent/feedback / seven hooks/marketplace/skills / "
+            "eleven plugin operations/catalog / four A1.4 MCP / two A1.4 "
+            "runtime-platform operations"
         )
     targets = {
         match.group(1)
@@ -642,7 +522,7 @@ def test_operation_descriptor_guards(
             )
         )
     }
-    if len(targets) != 84:
+    if len(targets) != 86:
         raise AssertionError(
             "client-operation descriptor targets are not an exact bijection"
         )
@@ -669,7 +549,7 @@ def test_operation_descriptor_guards(
             "ClientOperationResultDecoder::" in line
             for line in rows
         )
-        != 63
+        != 65
     ):
         raise AssertionError(
             "client-operation descriptor result-kind split changed"
@@ -748,35 +628,25 @@ def test_operation_descriptor_guards(
         )
         != 1
         or sum(
-            "ResultContractKind::Concrete" in method_rows[method]
-            for method in a1_4_user_integration_commit_2_methods
-        )
-        != 5
-        or sum(
             "ResultContractKind::Unit" in method_rows[method]
-            for method in a1_4_user_integration_commit_3_methods
+            for method in a1_4_user_integration_methods
         )
-        != 1
+        != 3
         or sum(
             "ResultContractKind::Concrete" in method_rows[method]
-            for method in a1_4_user_integration_commit_3_methods
+            for method in a1_4_user_integration_methods
         )
-        != 6
-        or sum(
-            "ResultContractKind::Unit" in method_rows[method]
-            for method in a1_4_user_integration_commit_4_methods
-        )
-        != 2
-        or sum(
-            "ResultContractKind::Concrete" in method_rows[method]
-            for method in a1_4_user_integration_commit_4_methods
-        )
-        != 5
+        != 20
         or sum(
             "ResultContractKind::Concrete" in method_rows[method]
             for method in a1_4_mcp_reverse_methods
         )
         != 4
+        or sum(
+            "ResultContractKind::Concrete" in method_rows[method]
+            for method in a1_4_runtime_platform_methods
+        )
+        != 2
         or any(
             expected not in method_rows[method]
             for method, expected in {
@@ -1302,12 +1172,10 @@ def test_notification_descriptor_guards(
         "item/autoApprovalReview/completed",
         "item/autoApprovalReview/started",
     }
-    a1_4_user_integration_commit_2_methods = {
+    a1_4_user_integration_methods = {
         "app/list/updated",
         "externalAgentConfig/import/completed",
         "externalAgentConfig/import/progress",
-    }
-    a1_4_user_integration_commit_3_methods = {
         "hook/completed",
         "hook/started",
         "skills/changed",
@@ -1316,110 +1184,46 @@ def test_notification_descriptor_guards(
         "mcpServer/oauthLogin/completed",
         "mcpServer/startupStatus/updated",
     }
+    a1_4_runtime_platform_methods = {
+        "deprecationNotice",
+        "process/exited",
+        "process/outputDelta",
+        "remoteControl/status/changed",
+        "serverRequest/resolved",
+        "warning",
+        "windows/worldWritableWarning",
+        "windowsSandbox/setupCompleted",
+    }
     residual_methods = {"error"}
+    method_groups = (
+        a1_1_methods,
+        a1_2_b2_methods,
+        a1_2_b3_methods,
+        a1_2_b4_methods,
+        a1_3_command_methods,
+        a1_3_filesystem_methods,
+        a1_3_review_guardian_methods,
+        a1_4_user_integration_methods,
+        a1_4_mcp_reverse_methods,
+        a1_4_runtime_platform_methods,
+        residual_methods,
+    )
+    expected_methods = set().union(*method_groups)
     if (
-        len(rows) != 60
-        or len(targets) != 60
-        or len(method_rows) != 60
+        len(rows) != 68
+        or len(targets) != 68
+        or len(method_rows) != 68
         or len(a1_1_methods) != 37
-        or set(method_rows)
-        != (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-            | a1_4_user_integration_commit_3_methods
-            | a1_4_mcp_reverse_methods
-            | residual_methods
-        )
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-            | a1_4_user_integration_commit_3_methods
-            | a1_4_mcp_reverse_methods
-        )
-        & residual_methods
-        or a1_1_methods & a1_2_b2_methods
-        or (a1_1_methods | a1_2_b2_methods) & a1_2_b3_methods
-        or (
-            a1_1_methods | a1_2_b2_methods | a1_2_b3_methods
-        )
-        & a1_2_b4_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-        )
-        & a1_3_command_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_3_command_methods
-        )
-        & a1_3_filesystem_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-        )
-        & a1_3_review_guardian_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_review_guardian_methods
-        )
-        & a1_4_user_integration_commit_2_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-        )
-        & a1_4_user_integration_commit_3_methods
-        or (
-            a1_1_methods
-            | a1_2_b2_methods
-            | a1_2_b3_methods
-            | a1_2_b4_methods
-            | a1_3_command_methods
-            | a1_3_filesystem_methods
-            | a1_3_review_guardian_methods
-            | a1_4_user_integration_commit_2_methods
-            | a1_4_user_integration_commit_3_methods
-        )
-        & a1_4_mcp_reverse_methods
+        or set(method_rows) != expected_methods
+        or sum(map(len, method_groups)) != len(expected_methods)
     ):
         raise AssertionError(
-            "server-notification descriptors are not an exact 60-row "
+            "server-notification descriptors are not an exact 68-row "
             "target bijection with the reviewed slice projection"
         )
     if (
         sum(line.endswith(", true)") for line in rows) != 37
-        or sum(line.endswith(", false)") for line in rows) != 23
+        or sum(line.endswith(", false)") for line in rows) != 31
         or any(
             not method_rows[method].endswith(", true)")
             for method in a1_1_methods
@@ -1433,9 +1237,9 @@ def test_notification_descriptor_guards(
                 | a1_3_command_methods
                 | a1_3_filesystem_methods
                 | a1_3_review_guardian_methods
-                | a1_4_user_integration_commit_2_methods
-                | a1_4_user_integration_commit_3_methods
+                | a1_4_user_integration_methods
                 | a1_4_mcp_reverse_methods
+                | a1_4_runtime_platform_methods
                 | residual_methods
             )
         )

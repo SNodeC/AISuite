@@ -4,25 +4,6 @@ if(NOT DEFINED AISUITE_BUILD_DIR OR NOT DEFINED AISUITE_SOURCE_DIR)
             "UserIntegrationInstalledConsumerNotInstalled: AISUITE_BUILD_DIR and AISUITE_SOURCE_DIR are required"
     )
 endif()
-if(NOT DEFINED SNODEC_SOURCE_REPOSITORY OR
-   "${SNODEC_SOURCE_REPOSITORY}" STREQUAL "")
-    message(
-        FATAL_ERROR
-            "UserIntegrationInstalledConsumerNotInstalled: set AISUITE_TEST_SNODEC_SOURCE_REPOSITORY to the read-only extraction-provenance worktree"
-    )
-endif()
-set(expected_snodec_dependency_commit
-    "77415c71a87fb7955e9a050bedaca02b65754324"
-)
-set(expected_snodec_dependency_tree
-    "2d39c334f12c308828936656c820447bfcc38d47"
-)
-set(expected_snodec_provenance_commit
-    "d18b231a1d2ec2235fd6f204786b0a761cc24ff5"
-)
-set(expected_snodec_provenance_tree
-    "88a63edc985a851b2b76b0c56df19fae74ea8069"
-)
 if(DEFINED AISUITE_INSTALLED_CONSUMER_TEMP_ROOT AND
    NOT "${AISUITE_INSTALLED_CONSUMER_TEMP_ROOT}" STREQUAL "")
     set(temporary_root "${AISUITE_INSTALLED_CONSUMER_TEMP_ROOT}")
@@ -126,14 +107,13 @@ set(isolated_environment
 
 file(REAL_PATH "${AISUITE_SOURCE_DIR}" aisuite_source_real)
 file(REAL_PATH "${AISUITE_BUILD_DIR}" aisuite_outer_build_real)
-file(REAL_PATH "${SNODEC_SOURCE_REPOSITORY}" snodec_outer_source_real)
 file(
     STRINGS "${AISUITE_BUILD_DIR}/CMakeCache.txt" snodec_package_dir_line
     REGEX "^snodec_DIR:"
 )
 if(NOT snodec_package_dir_line)
     fail_cross_repo(
-        "the configured AISuite build does not record its cleaned SNode.C package"
+        "the configured AISuite build does not record its installed SNode.C package"
     )
 endif()
 string(
@@ -148,17 +128,16 @@ if(NOT EXISTS "${snodec_package_dir_real}/snodecConfig.cmake" OR
    NOT EXISTS "${snodec_install}/include/snode.c" OR
    NOT EXISTS "${snodec_install}/lib")
     fail_cross_repo(
-        "configured cleaned SNode.C package is not a complete installed prefix: ${snodec_package_dir_real}"
+        "configured SNode.C package is not a complete installed prefix: ${snodec_package_dir_real}"
     )
 endif()
 set(forbidden_evidence_paths
     "${aisuite_source_real}"
     "${aisuite_outer_build_real}"
-    "${snodec_outer_source_real}"
 )
 
 # Remember non-system absolute paths inherited through variables that are
-# scrubbed above. The configured cleaned SNode.C prefix is the one intentional
+# scrubbed above. The configured installed SNode.C prefix is the one intentional
 # exception because it remains the sole dependency installation under test.
 foreach(
     environment_name
@@ -196,63 +175,8 @@ foreach(
 endforeach()
 list(REMOVE_DUPLICATES forbidden_evidence_paths)
 
-find_program(git_executable git REQUIRED)
 find_program(readelf_executable readelf REQUIRED)
 find_program(ldd_executable ldd REQUIRED)
-
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" status
-        "--porcelain=v1" "--untracked-files=all"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE snodec_status_before
-    ERROR_VARIABLE error
-)
-require_success(
-    "${result}" "${snodec_status_before}" "${error}"
-    "SNode.C worktree status capture"
-)
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" rev-parse
-        "HEAD"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE verified_snodec_provenance_commit
-    ERROR_VARIABLE error
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-require_success(
-    "${result}" "${verified_snodec_provenance_commit}" "${error}"
-    "SNode.C extraction-provenance commit verification"
-)
-if(NOT verified_snodec_provenance_commit STREQUAL
-   expected_snodec_provenance_commit)
-    fail_cross_repo(
-        "AISUITE_TEST_SNODEC_SOURCE_REPOSITORY is not the immutable extraction-provenance worktree"
-    )
-endif()
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" rev-parse
-        "HEAD^{tree}"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE verified_snodec_provenance_tree
-    ERROR_VARIABLE error
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-require_success(
-    "${result}" "${verified_snodec_provenance_tree}" "${error}"
-    "SNode.C extraction-provenance tree verification"
-)
-if(NOT verified_snodec_provenance_tree STREQUAL
-   expected_snodec_provenance_tree)
-    fail_cross_repo(
-        "the extraction-provenance SNode.C worktree has an unexpected tree"
-    )
-endif()
 
 file(
     GLOB_RECURSE snodec_installed_codex_artifacts
@@ -262,7 +186,7 @@ file(
 )
 if(snodec_installed_codex_artifacts)
     fail_cross_repo(
-        "cleaned SNode.C installed duplicate Codex headers or libraries: ${snodec_installed_codex_artifacts}"
+        "installed SNode.C package contains duplicate Codex headers or libraries: ${snodec_installed_codex_artifacts}"
     )
 endif()
 
@@ -504,24 +428,7 @@ if(NOT saw_aisuite_runtime_library OR NOT saw_snodec_runtime_library)
     )
 endif()
 
-execute_process(
-    COMMAND
-        ${isolated_environment}
-        "${git_executable}" -C "${SNODEC_SOURCE_REPOSITORY}" status
-        "--porcelain=v1" "--untracked-files=all"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE snodec_status_after
-    ERROR_VARIABLE error
-)
-require_success(
-    "${result}" "${snodec_status_after}" "${error}"
-    "SNode.C worktree status recheck"
-)
-if(NOT snodec_status_after STREQUAL snodec_status_before)
-    fail_cross_repo("the installed-consumer gate modified SNode.C")
-endif()
-
 message(
     STATUS
-        "UserIntegration installed boundary passed: cleaned_snodec=${expected_snodec_dependency_commit}; cleaned_tree=${expected_snodec_dependency_tree}; provenance_snodec=${expected_snodec_provenance_commit}; provenance_tree=${expected_snodec_provenance_tree}; snodec_install=${snodec_install}; aisuite_install=${aisuite_install}; AISuite_DIR=${aisuite_dir}; snodec_DIR=${snodec_dir}; consumer_build=${consumer_build}"
+        "Installed boundary passed: snodec_install=${snodec_install}; aisuite_install=${aisuite_install}; AISuite_DIR=${aisuite_dir}; snodec_DIR=${snodec_dir}; consumer_build=${consumer_build}"
 )

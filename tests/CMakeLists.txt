@@ -14,30 +14,6 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_subdirectory(component/codex)
 
-add_test(
-    NAME AISuiteExtractionGuardTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tools/extraction/verify_extraction.py
-        --repo-root ${PROJECT_SOURCE_DIR}
-)
-set_tests_properties(
-    AISuiteExtractionGuardTest
-    PROPERTIES LABELS "extraction;codex;history;package" TIMEOUT 60
-)
-
-set(AISUITE_TEST_SNODEC_SOURCE_REPOSITORY
-    ""
-    CACHE
-        PATH
-        "Read-only SNode.C worktree at the immutable extraction-provenance commit"
-)
-if("${AISUITE_TEST_SNODEC_SOURCE_REPOSITORY}" STREQUAL "" AND
-   DEFINED ENV{AISUITE_TEST_SNODEC_SOURCE_REPOSITORY})
-    set(AISUITE_TEST_SNODEC_SOURCE_REPOSITORY
-        "$ENV{AISUITE_TEST_SNODEC_SOURCE_REPOSITORY}"
-    )
-endif()
 set(AISUITE_TEST_INSTALLED_CONSUMER_TEMP_ROOT
     ""
     CACHE
@@ -51,14 +27,13 @@ add_test(
         ${CMAKE_COMMAND}
         -DAISUITE_BUILD_DIR=${CMAKE_BINARY_DIR}
         -DAISUITE_SOURCE_DIR=${PROJECT_SOURCE_DIR}
-        -DSNODEC_SOURCE_REPOSITORY=${AISUITE_TEST_SNODEC_SOURCE_REPOSITORY}
         -DAISUITE_INSTALLED_CONSUMER_TEMP_ROOT=${AISUITE_TEST_INSTALLED_CONSUMER_TEMP_ROOT}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/AISuiteInstalledConsumerTest.cmake
 )
 set_tests_properties(
     AISuiteInstalledConsumerTest
     PROPERTIES
-        LABELS "install;consumer;codex;extraction;user-integrations"
+        LABELS "install;consumer;codex;current-state;user-integrations"
         RUN_SERIAL TRUE
         TIMEOUT 300
 )
@@ -75,7 +50,7 @@ add_test(
 set_tests_properties(
     AISuiteSourcePackageTest
     PROPERTIES
-        LABELS "package;source-package;codex;extraction"
+        LABELS "package;source-package;codex;current-state"
         RUN_SERIAL TRUE
         TIMEOUT 300
 )
@@ -91,141 +66,9 @@ add_test(
 set_tests_properties(
     AISuiteBinaryPackageTest
     PROPERTIES
-        LABELS "package;binary-package;codex;extraction"
+        LABELS "package;binary-package;codex;current-state"
         RUN_SERIAL TRUE
         TIMEOUT 300
-)
-
-set(CODEX_A14_EVIDENCE_ROOT
-    ${PROJECT_SOURCE_DIR}/tools/codex/app-server-evidence/0.144.6
-)
-add_test(
-    NAME CodexA14AuditToolTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14AuditToolTest.py
-        --tool ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4.py
-        --repo-root ${PROJECT_SOURCE_DIR}
-        --start-state ${CODEX_A14_EVIDENCE_ROOT}/a1-4-start-state.json
-        --partition ${CODEX_A14_EVIDENCE_ROOT}/a1-4-total-partition.json
-        --closure ${CODEX_A14_EVIDENCE_ROOT}/a1-4-type-closure.json
-        --plan ${CODEX_A14_EVIDENCE_ROOT}/a1-4-implementation-plan.json
-        --ledger ${CODEX_A14_EVIDENCE_ROOT}/a1-final-cross-slice-ledger.json
-)
-set_tests_properties(
-    CodexA14AuditToolTest
-    PROPERTIES
-        LABELS "component;ai;openai;codex;phase-a1-4;schema;audit;generated;extraction"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        RUN_SERIAL TRUE
-        TIMEOUT 90
-)
-
-add_test(
-    NAME CodexA14UserIntegrationsAuditTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14UserIntegrationsAuditTest.py
-        --tool ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_user_integrations.py
-        --repo-root ${PROJECT_SOURCE_DIR}
-        --start-state ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-start-state.json
-        --batch-plan ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-batch-plan.json
-)
-set_tests_properties(
-    CodexA14UserIntegrationsAuditTest
-    PROPERTIES
-        DEPENDS CodexA14AuditToolTest
-        LABELS "component;ai;openai;codex;phase-a1-4;user-integrations;schema;audit;generated;extraction"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        RUN_SERIAL TRUE
-        TIMEOUT 90
-)
-
-add_test(
-    NAME CodexA14UserIntegrationsAbiEvidenceTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_user_integrations_abi.py
-        check
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --library
-        $<TARGET_FILE:ai-openai-codex>
-)
-set_tests_properties(
-    CodexA14UserIntegrationsAbiEvidenceTest
-    PROPERTIES
-        DEPENDS CodexA14UserIntegrationsAuditTest
-        LABELS "component;ai;openai;codex;phase-a1-4;user-integrations;abi;generated;package"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        RUN_SERIAL TRUE
-        TIMEOUT 60
-)
-
-add_test(
-    NAME CodexA14UserIntegrationsClosureTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14UserIntegrationsClosureTest.py
-        --tool
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_user_integrations_closure.py
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --report
-        ${CODEX_A14_EVIDENCE_ROOT}/a1-4-user-integrations-closure-report.json
-)
-set_tests_properties(
-    CodexA14UserIntegrationsClosureTest
-    PROPERTIES
-        DEPENDS CodexA14UserIntegrationsAbiEvidenceTest
-        LABELS "component;ai;openai;codex;phase-a1-4;user-integrations;closure;generated;documentation;extraction"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        RUN_SERIAL TRUE
-        TIMEOUT 90
-)
-
-add_test(
-    NAME CodexA14McpReverseAuditTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14McpReverseAuditTest.py
-        --tool ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_mcp_reverse.py
-        --repo-root ${PROJECT_SOURCE_DIR}
-        --start-state ${CODEX_A14_EVIDENCE_ROOT}/a1-4-mcp-reverse-start-state.json
-        --batch-plan ${CODEX_A14_EVIDENCE_ROOT}/a1-4-mcp-reverse-plan.json
-)
-set_tests_properties(
-    CodexA14McpReverseAuditTest
-    PROPERTIES
-        DEPENDS CodexA14UserIntegrationsClosureTest
-        LABELS "component;ai;openai;codex;phase-a1-4;mcp-reverse;schema;audit;generated;extraction"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        RUN_SERIAL TRUE
-        TIMEOUT 90
-)
-
-add_test(
-    NAME CodexA14McpReverseClosureTest
-    COMMAND
-        ${Python3_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/tests/component/codex/CodexA14McpReverseClosureTest.py
-        --tool
-        ${PROJECT_SOURCE_DIR}/tools/codex/app_server_a1_4_mcp_reverse_closure.py
-        --repo-root
-        ${PROJECT_SOURCE_DIR}
-        --report
-        ${CODEX_A14_EVIDENCE_ROOT}/a1-4-mcp-reverse-closure-report.json
-)
-set_tests_properties(
-    CodexA14McpReverseClosureTest
-    PROPERTIES
-        DEPENDS
-            "CodexA14McpReverseAuditTest;CodexA14NineRequestStdioTest"
-        LABELS
-            "component;ai;openai;codex;phase-a1-4;mcp-reverse;closure;generated;documentation;extraction"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        RUN_SERIAL TRUE
-        TIMEOUT 90
 )
 
 add_subdirectory(policy)

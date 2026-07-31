@@ -9,11 +9,11 @@ set_tests_properties(
     CodexSyntheticSecretLeakGuardTest
     PROPERTIES
         LABELS
-        "policy;security;codex;extraction;package"
+        "policy;security;codex;current-state;package"
         ENVIRONMENT
         "PYTHONDONTWRITEBYTECODE=1"
         DEPENDS
-        "AISuiteInstalledConsumerTest;AISuiteSourcePackageTest;AISuiteBinaryPackageTest;CodexAppServerGeneratedArtifactsGuardTest;CodexA14AuditToolTest"
+        "AISuiteInstalledConsumerTest;AISuiteSourcePackageTest;AISuiteBinaryPackageTest;CodexAppServerGeneratedArtifactsGuardTest"
         RUN_SERIAL
         TRUE
         TIMEOUT

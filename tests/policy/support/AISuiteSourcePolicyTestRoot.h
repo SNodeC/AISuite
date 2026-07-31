@@ -2,8 +2,7 @@
  * AISuite - Reusable AI integrations based on SNode.C
  * Copyright (C) Volker Christian <me@vchrist.at>
  *
- * Adapted from SNode.C tests/policy/SourcePolicyTestRoot.h, blob
- * 47ec895a1bb6d6344d3c9d6bbdbc345c72a09380.
+ * Adapted from SNode.C tests/policy/SourcePolicyTestRoot.h.
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */

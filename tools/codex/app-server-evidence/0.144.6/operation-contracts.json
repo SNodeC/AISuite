@@ -2348,7 +2348,7 @@
   "inputs": {
     "rust_source_sha256": "5679cbc5b3e935a2edd69fbe62b82b956eff4d5d050c9969b090ccc9d367fdee",
     "stable_schema_aggregate_sha256": "cee1ac3bcaf95e5fcdcf07499c7e6b00fc423b90c670ea3380f1799434b72add",
-    "surface_manifest_sha256": "b975aa514fd951161cc68eb26aac2b291b894afb62fd6cc3982bfeacf56a7021"
+    "surface_manifest_sha256": "13873103cad83ffb2777ad1ace60cb1deab79e5421e2264c30c3ec4474fa5ba8"
   },
   "result_contract_counts": {
     "Concrete": 76,

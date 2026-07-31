@@ -406,6 +406,78 @@ namespace {
         return true;
     }
 
+    Json resolvedNotification(Json requestId, std::string threadId) {
+        return {{"method", "serverRequest/resolved"}, {"params", {{"requestId", std::move(requestId)}, {"threadId", std::move(threadId)}}}};
+    }
+
+    bool receiveExact(LineReader& input, const Json& expected) {
+        Json message;
+        return readJson(input, message) && message == expected;
+    }
+
+    bool receiveResolvedStepAcknowledgement(LineReader& input, std::size_t index) {
+        return receiveExact(input, {{"method", "test/a14-resolved-step"}, {"params", {{"index", index}}}});
+    }
+
+    bool sendResolvedStep(LineReader& input,
+                          std::size_t index,
+                          Json requestId,
+                          std::string threadId,
+                          const std::optional<Json>& expectedResponse = std::nullopt) {
+        if (!writeJson(resolvedNotification(std::move(requestId), std::move(threadId)))) {
+            return false;
+        }
+        if (expectedResponse && !receiveExact(input, *expectedResponse)) {
+            return false;
+        }
+        return receiveResolvedStepAcknowledgement(input, index);
+    }
+
+    bool receiveMcpListAndReply(LineReader& input) {
+        Json request;
+        const std::optional<long long> id = readJson(input, request) ? integerRequestId(request) : std::nullopt;
+        return id && request.value("method", "") == "mcpServerStatus/list" && request.value("params", Json()) == Json::object() &&
+               writeJson({{"id", *id}, {"result", {{"data", Json::array()}, {"nextCursor", nullptr}}}});
+    }
+
+    int runA14ServerRequestResolved(LineReader& input, bool firstLaunch) {
+        const Json ready = {{"method", "test/a14-resolved-ready"}, {"params", Json::object()}};
+
+        if (!firstLaunch) {
+            if (!sendResolvedStep(input, 12, 103, "thread-command") || !writeJson(nineServerRequests()[2]) || !receiveExact(input, ready) ||
+                !sendResolvedStep(input, 13, 103, "thread-command")) {
+                return 104;
+            }
+            return input.waitForEof(true) ? 0 : 105;
+        }
+
+        if (!writeNineServerRequests() || !receiveExact(input, nineSuccessResponses()[4]) || !receiveExact(input, ready)) {
+            return 100;
+        }
+
+        if (!sendResolvedStep(input, 0, 105, "thread-permission") || !sendResolvedStep(input, 1, 103, "thread-wrong") ||
+            !sendResolvedStep(input, 2, 999, "thread-unknown")) {
+            return 101;
+        }
+
+        if (!writeJson(resolvedNotification(103, "thread-command")) || !receiveMcpListAndReply(input) ||
+            !receiveResolvedStepAcknowledgement(input, 3) || !sendResolvedStep(input, 4, 103, "thread-command") ||
+            !sendResolvedStep(input, 5, "request-file", "thread-file") ||
+            !sendResolvedStep(input, 6, "request-user-input", "thread-user") || !sendResolvedStep(input, 7, 109, "thread-elicitation")) {
+            return 102;
+        }
+
+        const std::vector<Json> expected = nineSuccessResponses();
+        if (!sendResolvedStep(input, 8, 101, "thread-negative-apply", std::optional<Json>{expected[8]}) ||
+            !sendResolvedStep(input, 9, "request-exec", "thread-negative-exec", std::optional<Json>{expected[7]}) ||
+            !sendResolvedStep(input, 10, "request-attestation", "thread-negative-attestation", std::optional<Json>{expected[3]}) ||
+            !sendResolvedStep(input, 11, 107, "thread-dynamic", std::optional<Json>{expected[2]})) {
+            return 103;
+        }
+
+        return 42;
+    }
+
     Json threadOperationResult(const Json& thread) {
         return {{"approvalPolicy", "on-request"},
                 {"approvalsReviewer", "user"},
@@ -765,6 +837,7 @@ int main(int argc, char* argv[]) {
     std::string mode = argc > 1 ? argv[1] : "normal";
     int protocolExitMarker = -1;
     int nineRequestMarker = -1;
+    int resolvedRequestMarker = -1;
 
     if (mode.starts_with("pidfile-")) {
         if (argc < 3) {
@@ -801,6 +874,19 @@ int main(int argc, char* argv[]) {
         }
         if (nineRequestMarker >= 0 && ::close(nineRequestMarker) != 0) {
             return 37;
+        }
+    }
+
+    if (mode == "a14-server-request-resolved") {
+        if (argc < 3) {
+            return 38;
+        }
+        resolvedRequestMarker = ::open(argv[2], O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (resolvedRequestMarker < 0 && errno != EEXIST) {
+            return 39;
+        }
+        if (resolvedRequestMarker >= 0 && ::close(resolvedRequestMarker) != 0) {
+            return 40;
         }
     }
 
@@ -863,7 +949,8 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    if (mode == "protocol-flow" || mode == "protocol-exit-once" || mode == "typed-flow" || mode == "a14-nine-requests") {
+    if (mode == "protocol-flow" || mode == "protocol-exit-once" || mode == "typed-flow" || mode == "a14-nine-requests" ||
+        mode == "a14-server-request-resolved") {
         if (!writeAll(STDERR_FILENO, "protocol-initialized\n") || !writeAll(STDOUT_FILENO, initializeResponse(requestId(initialize))) ||
             !receiveInitialized(input)) {
             if (protocolExitMarker >= 0) {
@@ -879,6 +966,9 @@ int main(int argc, char* argv[]) {
         }
         if (mode == "a14-nine-requests") {
             return runA14NineRequests(input, nineRequestMarker >= 0);
+        }
+        if (mode == "a14-server-request-resolved") {
+            return runA14ServerRequestResolved(input, resolvedRequestMarker >= 0);
         }
         return runProtocolExitOnce(input, argv[2], protocolExitMarker);
     }

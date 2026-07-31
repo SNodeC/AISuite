@@ -29,6 +29,7 @@
 #include <ai/openai/codex/typed/Skills.h>
 #include <ai/openai/codex/typed/Threads.h>
 #include <ai/openai/codex/typed/Turns.h>
+#include <ai/openai/codex/typed/WindowsSandbox.h>
 #include <iostream>
 #include <map>
 #include <optional>
@@ -49,8 +50,8 @@ int main() {
     static_assert(std::variant_size_v<typed::WebSearchAction> == 5);
     static_assert(std::variant_size_v<typed::ThreadItem> == 19);
     static_assert(std::variant_size_v<typed::ResponseItem> == 17);
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 59);
-    static_assert(std::variant_size_v<typed::Event> == 61);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 67);
+    static_assert(std::variant_size_v<typed::Event> == 69);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
                                  typed::ExternalAgentConfigImportCompletedNotification>);
@@ -63,6 +64,11 @@ int main() {
                                  typed::McpServerOauthLoginCompletedNotification>);
     static_assert(
         std::is_same_v<std::variant_alternative_t<58, typed::CanonicalServerNotification>, typed::McpServerStatusUpdatedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<59, typed::CanonicalServerNotification>, typed::DeprecationNoticeNotification>);
+    static_assert(
+        std::is_same_v<std::variant_alternative_t<63, typed::CanonicalServerNotification>, typed::ServerRequestResolvedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<66, typed::CanonicalServerNotification>,
+                                 typed::WindowsSandboxSetupCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<53, typed::Event>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
@@ -71,6 +77,9 @@ int main() {
     static_assert(std::is_same_v<std::variant_alternative_t<58, typed::Event>, typed::SkillsChangedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<59, typed::Event>, typed::McpServerOauthLoginCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<60, typed::Event>, typed::McpServerStatusUpdatedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<61, typed::Event>, typed::DeprecationNoticeNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<65, typed::Event>, typed::ServerRequestResolvedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<68, typed::Event>, typed::WindowsSandboxSetupCompletedNotification>);
     static_assert(std::variant_size_v<typed::PluginSource> == 5);
     static_assert(std::is_same_v<std::variant_alternative_t<0, typed::PluginSource>, typed::GitPluginSource>);
     static_assert(std::is_same_v<std::variant_alternative_t<1, typed::PluginSource>, typed::LocalPluginSource>);
@@ -414,6 +423,17 @@ int main() {
         std::move(installedMcpStatusParams), [](const typed::OperationResult<typed::ListMcpServerStatusResponse>&) {
         });
     (void) mcpStatusSubmission;
+    const auto windowsReadinessSubmission =
+        client.typed().windowsSandbox().checkReadiness([](const typed::OperationResult<typed::WindowsSandboxReadinessResponse>&) {
+        });
+    typed::WindowsSandboxSetupStartParams windowsSetupParams;
+    windowsSetupParams.cwd = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull();
+    windowsSetupParams.mode = typed::WindowsSandboxSetupMode::unelevated();
+    const auto windowsSetupSubmission = client.typed().windowsSandbox().startSetup(
+        std::move(windowsSetupParams), [](const typed::OperationResult<typed::WindowsSandboxSetupStartResponse>&) {
+        });
+    (void) windowsReadinessSubmission;
+    (void) windowsSetupSubmission;
     client.typed().events().setOnEvent([](const typed::Event& event) {
         std::visit(
             [](const auto& value) {

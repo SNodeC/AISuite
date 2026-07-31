@@ -192,8 +192,8 @@ int main() {
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
-    result.expectTrue(schemaComplete == 326 && schemaPartial == 3 && schemaNotImplemented == 10 && schemaNotApplicable == 48,
-                      "A1.4b Commit 5 reaches the exact 326/3/10/48 global completeness metrics");
+    result.expectTrue(schemaComplete == 336 && schemaPartial == 3 && schemaNotImplemented == 0 && schemaNotApplicable == 48,
+                      "the current registry reaches the exact 336/3/0/48 global completeness metrics");
     result.expectTrue(slices == std::array<std::size_t, 6>{19, 151, 45, 68, 56, 48} && codexErrorInfoA1_0 == 16 &&
                           stableUnreachableInventory == 12,
                       "registry preserves the frozen A1 slice assignment, CodexErrorInfo exception, and 12 stable unreachable rows");
@@ -206,7 +206,7 @@ int main() {
                       "every identity has one fixed module/slice assignment and a mechanically derived schema status");
 
     expectTargets<detail::ClientRequestTarget>(result,
-                                               std::array<std::string_view, 85>{"initialize",
+                                               std::array<std::string_view, 87>{"initialize",
                                                                                 "account/login/cancel",
                                                                                 "account/login/start",
                                                                                 "account/logout",
@@ -290,14 +290,16 @@ int main() {
                                                                                 "mcpServer/oauth/login",
                                                                                 "mcpServer/resource/read",
                                                                                 "mcpServer/tool/call",
-                                                                                "mcpServerStatus/list"},
+                                                                                "mcpServerStatus/list",
+                                                                                "windowsSandbox/readiness",
+                                                                                "windowsSandbox/setupStart"},
                                                "every typed outgoing request target resolves to its exact registered wire method");
     expectTargets<detail::ClientNotificationTarget>(result,
                                                     std::array<std::string_view, 1>{"initialized"},
                                                     "the typed outgoing notification target resolves to its exact registered wire method");
     expectTargets<detail::ServerNotificationTarget>(
         result,
-        std::array<std::string_view, 60>{"error",
+        std::array<std::string_view, 68>{"error",
                                          "account/login/completed",
                                          "account/rateLimits/updated",
                                          "account/updated",
@@ -356,8 +358,16 @@ int main() {
                                          "hook/started",
                                          "skills/changed",
                                          "mcpServer/oauthLogin/completed",
-                                         "mcpServer/startupStatus/updated"},
-        "all 60 typed notification dispatch targets resolve to their exact registered wire methods");
+                                         "mcpServer/startupStatus/updated",
+                                         "deprecationNotice",
+                                         "process/exited",
+                                         "process/outputDelta",
+                                         "remoteControl/status/changed",
+                                         "serverRequest/resolved",
+                                         "warning",
+                                         "windows/worldWritableWarning",
+                                         "windowsSandbox/setupCompleted"},
+        "all 68 typed notification dispatch targets resolve to their exact registered wire methods");
     expectTargets<detail::ServerRequestTarget>(
         result,
         std::array<std::string_view, 10>{"item/commandExecution/requestApproval",
