@@ -3,8 +3,9 @@
 
 The production ProtocolSurfaceRegistry remains the status authority.  This
 tool checks that authority, the frozen A1.4b audit, public variants and API,
-dependency separation, and the bounded six-commit history.  Its JSON output is
-only a deterministic review summary; it is not a second registry.
+dependency separation, and the bounded six-commit history before or after its
+normal GitHub merge.  Its JSON output is only a deterministic review summary;
+it is not a second registry.
 """
 
 from __future__ import annotations
@@ -241,6 +242,24 @@ class ClosureError(RuntimeError):
         )
 
 
+@dataclass(frozen=True)
+class HistoryCommit:
+    sha: str
+    tree: str
+    parents: tuple[str, ...]
+    subject: str
+
+
+@dataclass(frozen=True)
+class HistoryResolution:
+    current_head: str
+    topology_kind: str
+    validated_base: str
+    validated_feature_head: str
+    validated_commits: tuple[HistoryCommit, ...]
+    merge_commit: str | None
+
+
 def require(
     condition: bool,
     code: str,
@@ -374,37 +393,92 @@ def normalized(source: str) -> str:
     return re.sub(r"\s+", " ", source)
 
 
-def validate_history(repo_root: Path, *, require_final: bool) -> None:
+def history_commit(repo_root: Path, revision: str) -> HistoryCommit:
+    fields = run(
+        repo_root,
+        "git",
+        "show",
+        "-s",
+        "--format=%H%x09%T%x09%P%x09%s",
+        revision,
+    ).split("\t", 3)
     require(
-        run(repo_root, "git", "rev-parse", BASE_SHA) == BASE_SHA
-        and run(repo_root, "git", "show", "-s", "--format=%T", BASE_SHA)
-        == BASE_TREE
-        and run(repo_root, "git", "merge-base", BASE_SHA, "HEAD") == BASE_SHA,
-        "McpReverseClosureBaseMismatch",
-        "$.authority.base",
-        "AISuite base SHA or tree changed",
+        len(fields) == 4,
+        "McpReverseClosureTopologyMismatch",
+        "$.history",
+        f"unable to inspect history commit {revision}",
     )
+    sha, tree, parents, subject = fields
+    return HistoryCommit(
+        sha=sha,
+        tree=tree,
+        parents=tuple(parents.split()),
+        subject=subject,
+    )
+
+
+def is_ancestor(repo_root: Path, ancestor: str, descendant: str) -> bool:
+    return (
+        subprocess.run(
+            (
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                ancestor,
+                descendant,
+            ),
+            cwd=repo_root,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode
+        == 0
+    )
+
+
+def feature_range(
+    repo_root: Path,
+    *,
+    base_sha: str,
+    feature_head: str,
+    subjects: Sequence[str],
+    require_final: bool,
+) -> tuple[HistoryCommit, ...]:
     rows = run(
         repo_root,
         "git",
         "log",
         "--reverse",
-        "--format=%H%x09%P%x09%s",
-        f"{BASE_SHA}..HEAD",
+        "--format=%H%x09%T%x09%P%x09%s",
+        f"{base_sha}..{feature_head}",
     ).splitlines()
-    parsed = [tuple(row.split("\t", 2)) for row in rows if row.count("\t") == 2]
-    subjects = tuple(row[2] for row in parsed)
+    parsed: list[HistoryCommit] = []
+    for row in rows:
+        fields = row.split("\t", 3)
+        if len(fields) != 4:
+            continue
+        sha, tree, parents, subject = fields
+        parsed.append(
+            HistoryCommit(
+                sha=sha,
+                tree=tree,
+                parents=tuple(parents.split()),
+                subject=subject,
+            )
+        )
     actual_count = len(parsed)
     count_is_valid = (
-        actual_count == 6 if require_final else actual_count in {5, 6}
+        actual_count == len(subjects)
+        if require_final
+        else actual_count in {len(subjects) - 1, len(subjects)}
     )
-    expected_parent = BASE_SHA
+    expected_parent = base_sha
     linear = True
-    for sha, parents, _subject in parsed:
-        if parents != expected_parent:
+    for commit in parsed:
+        if commit.parents != (expected_parent,):
             linear = False
             break
-        expected_parent = sha
+        expected_parent = commit.sha
     require(
         count_is_valid
         and int(
@@ -413,16 +487,17 @@ def validate_history(repo_root: Path, *, require_final: bool) -> None:
                 "git",
                 "rev-list",
                 "--count",
-                f"{BASE_SHA}..HEAD",
+                f"{base_sha}..{feature_head}",
             )
         )
         == actual_count
         and linear
-        and subjects == COMMIT_SUBJECTS[:actual_count],
+        and tuple(commit.subject for commit in parsed)
+        == tuple(subjects[:actual_count]),
         "McpReverseClosureHistoryMismatch",
         "$.history",
         (
-            "final history must contain the exact six subjects"
+            "final bounded feature history must contain the exact six subjects"
             if require_final
             else (
                 "construction history must contain the exact five-subject "
@@ -430,8 +505,202 @@ def validate_history(repo_root: Path, *, require_final: bool) -> None:
             )
         ),
     )
+    return tuple(parsed)
 
-    revisions = [BASE_SHA, *(row[0] for row in parsed)]
+
+def try_feature_range(
+    repo_root: Path,
+    *,
+    base_sha: str,
+    feature_head: str,
+    subjects: Sequence[str],
+    require_final: bool,
+) -> tuple[HistoryCommit, ...] | None:
+    try:
+        return feature_range(
+            repo_root,
+            base_sha=base_sha,
+            feature_head=feature_head,
+            subjects=subjects,
+            require_final=require_final,
+        )
+    except ClosureError as error:
+        if error.codes == ("McpReverseClosureHistoryMismatch",):
+            return None
+        raise
+
+
+def reachable_valid_merges(
+    repo_root: Path,
+    *,
+    base_sha: str,
+    subjects: Sequence[str],
+    require_final: bool,
+) -> tuple[tuple[HistoryCommit, tuple[HistoryCommit, ...]], ...]:
+    rows = run(
+        repo_root,
+        "git",
+        "log",
+        "--format=%H%x09%T%x09%P%x09%s",
+        "HEAD",
+    ).splitlines()
+    candidates: list[tuple[HistoryCommit, tuple[HistoryCommit, ...]]] = []
+    for row in rows:
+        fields = row.split("\t", 3)
+        if len(fields) != 4:
+            continue
+        sha, tree, parents, subject = fields
+        commit = HistoryCommit(
+            sha=sha,
+            tree=tree,
+            parents=tuple(parents.split()),
+            subject=subject,
+        )
+        if len(commit.parents) != 2 or commit.parents[0] != base_sha:
+            continue
+        commits = try_feature_range(
+            repo_root,
+            base_sha=base_sha,
+            feature_head=commit.parents[1],
+            subjects=subjects,
+            require_final=require_final,
+        )
+        if commits is None:
+            continue
+        feature_head = history_commit(repo_root, commit.parents[1])
+        if commit.tree == feature_head.tree:
+            candidates.append((commit, commits))
+    return tuple(candidates)
+
+
+def resolve_history(
+    repo_root: Path,
+    *,
+    base_sha: str = BASE_SHA,
+    base_tree: str = BASE_TREE,
+    subjects: Sequence[str] = COMMIT_SUBJECTS,
+    require_final: bool,
+) -> HistoryResolution:
+    base = history_commit(repo_root, base_sha)
+    head = history_commit(repo_root, "HEAD")
+    require(
+        base.sha == base_sha
+        and base.tree == base_tree
+        and is_ancestor(repo_root, base_sha, head.sha),
+        "McpReverseClosureBaseMismatch",
+        "$.authority.base",
+        "AISuite base SHA, tree, or ancestry changed",
+    )
+
+    unmerged = try_feature_range(
+        repo_root,
+        base_sha=base_sha,
+        feature_head=head.sha,
+        subjects=subjects,
+        require_final=require_final,
+    )
+    if unmerged is not None:
+        return HistoryResolution(
+            current_head=head.sha,
+            topology_kind="unmerged-feature",
+            validated_base=base_sha,
+            validated_feature_head=head.sha,
+            validated_commits=unmerged,
+            merge_commit=None,
+        )
+
+    candidates = reachable_valid_merges(
+        repo_root,
+        base_sha=base_sha,
+        subjects=subjects,
+        require_final=require_final,
+    )
+    require(
+        len(candidates) <= 1,
+        "McpReverseClosureTopologyMismatch",
+        "$.history.merge",
+        "multiple valid A1.4b merge topologies are reachable from HEAD",
+    )
+    if candidates:
+        merge, commits = candidates[0]
+        return HistoryResolution(
+            current_head=head.sha,
+            topology_kind=(
+                "direct-merge" if merge.sha == head.sha else "later-descendant"
+            ),
+            validated_base=base_sha,
+            validated_feature_head=merge.parents[1],
+            validated_commits=commits,
+            merge_commit=merge.sha,
+        )
+
+    if len(head.parents) == 2:
+        second_range = try_feature_range(
+            repo_root,
+            base_sha=base_sha,
+            feature_head=head.parents[1],
+            subjects=subjects,
+            require_final=require_final,
+        )
+        direct_candidate = (
+            head.parents[0] == base_sha
+            or head.parents[1] == base_sha
+            or second_range is not None
+        )
+        if direct_candidate:
+            require(
+                head.parents[0] == base_sha,
+                "McpReverseClosureMergeParentMismatch",
+                "$.history.merge.parents",
+                "A1.4b merge first parent must be the frozen base",
+            )
+            commits = feature_range(
+                repo_root,
+                base_sha=base_sha,
+                feature_head=head.parents[1],
+                subjects=subjects,
+                require_final=require_final,
+            )
+            feature_head = history_commit(repo_root, head.parents[1])
+            require(
+                head.tree == feature_head.tree,
+                "McpReverseClosureMergeTreeMismatch",
+                "$.history.merge.tree",
+                "A1.4b merge tree must equal its second-parent feature tree",
+            )
+            raise AssertionError(
+                "validated direct merge was not selected as a candidate"
+            )
+
+    require(
+        len(head.parents) <= 1,
+        "McpReverseClosureTopologyMismatch",
+        "$.history",
+        "HEAD does not contain a valid bounded A1.4b merge topology",
+    )
+    feature_range(
+        repo_root,
+        base_sha=base_sha,
+        feature_head=head.sha,
+        subjects=subjects,
+        require_final=require_final,
+    )
+    raise AssertionError("invalid unmerged history unexpectedly validated")
+
+
+def validate_history(
+    repo_root: Path,
+    *,
+    require_final: bool,
+) -> HistoryResolution:
+    resolution = resolve_history(
+        repo_root,
+        require_final=require_final,
+    )
+    parsed = resolution.validated_commits
+    actual_count = len(parsed)
+
+    revisions = [BASE_SHA, *(commit.sha for commit in parsed)]
     registry_rows = [registry_at(repo_root, revision) for revision in revisions]
     require(
         not changed_registry_keys(registry_rows[0], registry_rows[1])
@@ -462,7 +731,7 @@ def validate_history(repo_root: Path, *, require_final: bool) -> None:
         "$.history.commits[5]",
         "Commit 6 changed the production registry",
     )
-    commit_5, commit_6 = parsed[4][0], parsed[5][0]
+    commit_5, commit_6 = parsed[4].sha, parsed[5].sha
     changed_paths = run(
         repo_root,
         "git",
@@ -496,6 +765,7 @@ def validate_history(repo_root: Path, *, require_final: bool) -> None:
         "$.history.commits[5]",
         "Commit 6 contains a production, dependency, or extraction correction",
     )
+    return resolution
 
 
 def validate_audit(arguments: argparse.Namespace) -> dict[str, Any]:
