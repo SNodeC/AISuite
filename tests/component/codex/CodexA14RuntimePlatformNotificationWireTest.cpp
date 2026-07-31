@@ -75,12 +75,11 @@ namespace {
                 });
             client = std::make_unique<tests::codex::FakeAppServerClient>(transport);
             client->typed().events().setOnEvent([this](const typed::Event& event) {
-                const codex::Json& raw = std::visit(
-                    [](const auto& value) -> const codex::Json& {
-                        return value.raw;
+                const std::string marker = std::visit(
+                    [](const auto& value) {
+                        return value.raw.at("params").at("fixtureCase").template get<std::string>();
                     },
                     event);
-                const std::string marker = raw.at("params").at("fixtureCase").get<std::string>();
                 order.emplace_back("typed:" + marker);
                 ++typedCallbacks;
 
