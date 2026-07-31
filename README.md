@@ -4,22 +4,15 @@ AISuite is the home of reusable C++ AI integrations built on SNode.C. Its
 initial provider is a typed, asynchronous client, backend, and frontend protocol
 for the OpenAI Codex App Server.
 
-This repository was extracted additively from `SNodeC/snode.c` at commit
-`d18b231a1d2ec2235fd6f204786b0a761cc24ff5`. That tree remains immutable
-extraction provenance. Normal compilation and linking use the cleaned SNode.C
-dependency at `77415c71a87fb7955e9a050bedaca02b65754324`, after the separately
-reviewed SNode.C Codex removal.
+AISuite consumes the current installed SNode.C package while keeping its Codex
+protocol implementation and versioned protocol sources in this repository.
 
 AISuite now owns the three remaining Codex-specific source-policy
 responsibilities: installed public-header policy, backend logging API surface
 policy, and parameterless semantic-logger classification policy. Four new
 functional tests implement those responsibilities, while the unchanged
 pre-existing synthetic-secret guard remains a separate fifth functional policy
-test. See the
-[Codex policy ownership report](docs/extraction/codex-policy-ownership.md) for
-the pinned SNode.C provenance, 41-header inventory, exact logger rules,
-component-suite preservation, focused-CI proof, mutations, and package
-boundaries.
+test.
 
 ## Build
 
@@ -34,12 +27,6 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-Test-enabled builds must also set
-`AISUITE_TEST_SNODEC_SOURCE_REPOSITORY=/absolute/path/to/snode.c` to a clean
-worktree at the historical extraction-provenance commit. That worktree is read
-only: the installed-consumer gate reuses the configured cleaned SNode.C package
-and never builds the provenance tree.
-
 ## CMake consumption
 
 ```cmake
@@ -53,25 +40,28 @@ The public C++ namespace remains `ai::openai::codex` and public includes retain
 forms such as `<ai/openai/codex/AppServerClient.h>`. The typed client now
 groups user-facing integrations behind the installed `Apps`,
 `ExternalAgents`, `Feedback`, `Hooks`, `Marketplace`, `Plugins`, and `Skills`
-facades.
+facades. MCP operations use `Mcp`, and the cross-platform Codex App Server
+Windows protocol uses `WindowsSandbox`.
 
 ## Current protocol status
 
-The A14-UserIntegrations milestone completes exactly 33 A1.4 identities:
-23 client requests, six server notifications, and four `PluginSource`
-alternatives. The live registry is:
+Native A1.4 is complete. Its final runtime/platform slice adds exactly ten
+identities: two Windows sandbox client requests and eight server notifications.
+The live registry is:
 
-- 313 Complete
-- 4 Partial
-- 22 NotImplemented
+- 336 Complete
+- 3 Partial
+- 0 NotImplemented
 - 48 NotApplicable
 
-Native A1.4 remains in progress at 33 Complete, 1 Partial, and 22
-NotImplemented. PR B, PR C, the inherited A1.0 Partials, and InventoryOnly
-identities remain untouched. See the
-[user-facing integrations report](docs/ai/openai/codex/a1-4-user-facing-integrations.md)
-for the exact scope and verification boundary.
+Native A1.4 is 56 Complete / 0 Partial / 0 NotImplemented. The remaining
+Partial identities are `initialize`, `initialized`, and `error`, owned by
+Common/A1.0 and deferred to final-A1 completion. All 48 InventoryOnly
+identities remain NotApplicable, and Codex SOVERSION remains 1. See the
+[runtime and platform report](docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md)
+for the exact surface and lifecycle behavior.
 
-AISuite Codex policy ownership is complete, and the separately reviewed SNode.C
-cutover is performed. Normal builds use cleaned SNode.C; the historical tree is
-provenance-only. This dependency adoption does not change protocol behavior.
+AISuite validates current build and runtime compatibility with the installed
+SNode.C package. CI builds the current SNode.C `master` branch once, installs
+it, and configures AISuite only against that prefix. No SNode.C source checkout
+is required by AISuite tests.

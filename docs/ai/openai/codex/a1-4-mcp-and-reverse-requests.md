@@ -1,20 +1,15 @@
 # Codex A1.4 MCP and reverse requests
 
-**A14-McpReverse complete. Native A1.4 has ten runtime/platform identities
-remaining.**
+**A14-McpReverse complete. Native A1.4 is complete.**
 
 This milestone types the frozen MCP and reverse-request surface from Codex CLI
-0.144.6 (`rust-v0.144.6`, source
-`5d1fbf26c43abc65a203928b2e31561cb039e06d`). It completes exactly 13
-registry identities: four client requests, two server notifications, four
-server requests, and three tagged-union alternatives.
+0.144.6 (`rust-v0.144.6`). It completes exactly 13 registry identities: four
+client requests, two server notifications, four server requests, and three
+tagged-union alternatives.
 
-Normal AISuite compilation and linking use the cleaned SNode.C commit
-`77415c71a87fb7955e9a050bedaca02b65754324`, tree
-`2d39c334f12c308828936656c820447bfcc38d47`. The historical SNode.C commit
-`d18b231a1d2ec2235fd6f204786b0a761cc24ff5`, tree
-`88a63edc985a851b2b76b0c56df19fae74ea8069`, remains read-only extraction
-provenance and is neither built nor linked.
+AISuite builds and tests against the current installed SNode.C package. The
+Codex 0.144.6 protocol sources and schemas checked into AISuite remain the
+versioned protocol authority.
 
 ## Exact scope
 
@@ -178,15 +173,19 @@ All existing public alternative indices are preserved:
 
 | Variant | Appended alternatives |
 | --- | --- |
-| `CanonicalServerNotification` | 57 OAuth completion, 58 startup-status update; final size 59 |
-| `Event` | 59 OAuth completion, 60 startup-status update; final size 61 |
-| `TypedServerRequest` | 8 attestation, 9 dynamic tool, 10 MCP elicitation; final size 11 |
+| `CanonicalServerNotification` | 57 OAuth completion, 58 startup-status update; size after this group 59 |
+| `Event` | 59 OAuth completion, 60 startup-status update; size after this group 61 |
+| `TypedServerRequest` | 8 attestation, 9 dynamic tool, 10 MCP elicitation; current size 11 |
 
 `UserInputRequest` remains `TypedServerRequest` index 2 and
 `UnknownServerRequest` remains index 4. Notifications use the existing
 decoder and observer mechanism, with typed delivery before raw delivery.
 Callback exceptions remain contained, and callbacks may submit another typed
 request reentrantly.
+
+The runtime/platform notifications subsequently append canonical indices
+59–66 and Event indices 61–68. Current sizes are therefore 67 and 69, with all
+MCP/reverse and predecessor indices unchanged.
 
 The focused real-stdio lifecycle case holds all five approvals and all four
 new reverse requests pending simultaneously. It covers nine distinct
@@ -196,11 +195,11 @@ callback exceptions, reentrant MCP submission, disconnect cleanup, shutdown
 cleanup, and return to an empty occurrence registry. It uses SNode.C-managed
 non-blocking descriptors and the EventLoop; it adds no polling loop or sleep.
 
-## Closure and deferrals
+## Schema and deferrals
 
 The frozen schema closure is exactly 18 seed definitions, 55 reachable
-definitions (34 legacy and 21 v2), and 204 schema paths. The final production
-registry is:
+definitions (34 legacy and 21 v2), and 204 schema paths. At completion of this
+functional group, the production registry was:
 
 | Scope | Complete | Partial | Not implemented | Not applicable |
 | --- | ---: | ---: | ---: | ---: |
@@ -211,13 +210,15 @@ The three global Partial identities remain exactly `initialize`,
 `initialized`, and `error`; they stay Common/A1.0-owned until the distinct
 final-A1 closure. All 48 InventoryOnly identities remain NotApplicable.
 
-PR C remains untouched:
+The subsequent runtime/platform group completes:
 `windowsSandbox/readiness`, `windowsSandbox/setupStart`,
 `deprecationNotice`, `process/exited`, `process/outputDelta`,
 `remoteControl/status/changed`, `serverRequest/resolved`, `warning`,
 `windows/worldWritableWarning`, and `windowsSandbox/setupCompleted`.
-Codex SOVERSION remains 1 and its final decision remains deferred to the
-separate final-A1 closure.
+The current global registry is therefore 336 Complete / 3 Partial / 0
+NotImplemented / 48 NotApplicable, and native A1.4 is 56 Complete / 0 Partial
+/ 0 NotImplemented. Codex SOVERSION remains 1 and its final decision remains
+deferred to separate final-A1 completion.
 
 Three bounded exhaustive-visitor adaptations preserve backend compile
 compatibility without adding product behavior: `BackendCore` leaves the three
