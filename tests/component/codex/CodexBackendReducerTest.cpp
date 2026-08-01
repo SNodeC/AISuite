@@ -611,7 +611,11 @@ namespace {
         typed::UnknownItem located;
         located.type = "futureItem";
         located.raw = Json{{"type", "futureItem"}, {"id", "unknown-located"}, {"future", Json::array({1, 2, 3})}};
-        located.decodingError = "future detailed field is unsupported";
+        located.diagnostic = typed::DecodeDiagnostic{typed::DecodeIssueKind::MalformedKnownPayload,
+                                                     typed::DecodeIssueSeverity::ProtocolWarning,
+                                                     "ThreadItem",
+                                                     "$.future",
+                                                     "known protocol payload did not match its typed contract"};
         located.metadata.id = typed::ItemId{"unknown-located"};
         located.metadata.threadId = typed::ThreadId{"thread-unknown"};
         located.metadata.turnId = typed::TurnId{"turn-unknown"};
@@ -632,9 +636,9 @@ namespace {
         result.expectTrue(canonicalUnknown && canonicalUnknown->metadata.id && canonicalUnknown->metadata.id->value == "unknown-located" &&
                               canonicalUnknown->metadata.threadId && canonicalUnknown->metadata.threadId->value == "thread-unknown" &&
                               canonicalUnknown->metadata.turnId && canonicalUnknown->metadata.turnId->value == "turn-unknown" &&
-                              canonicalUnknown->raw == located.raw && canonicalUnknown->decodingError == located.decodingError &&
+                              canonicalUnknown->raw == located.raw && canonicalUnknown->diagnostic == located.diagnostic &&
                               state.recentExtensions.empty(),
-                          "canonical unknown items retain their ID, envelope location, raw JSON, and decoding error");
+                          "canonical unknown items retain their ID, envelope location, raw JSON, and structured diagnostic");
 
         backend::ReducerOptions boundedOptions;
         boundedOptions.retainedExtensions = 1;
@@ -697,7 +701,11 @@ namespace {
         typed::UnknownItem unknown;
         unknown.type = "futureItem";
         unknown.raw = Json{{"id", "unknown-item"}, {"future", Json::array({1, 2, 3})}};
-        unknown.decodingError = "future item shape";
+        unknown.diagnostic = typed::DecodeDiagnostic{typed::DecodeIssueKind::UnknownDiscriminator,
+                                                     typed::DecodeIssueSeverity::ForwardCompatibility,
+                                                     "ThreadItem",
+                                                     "$.type",
+                                                     "unrecognized protocol discriminator was retained as raw JSON"};
         reducer.apply(state,
                       backend::ItemUpserted{typed::ThreadId{"thread-extension"},
                                             typed::TurnId{"turn-extension"},
@@ -714,20 +722,32 @@ namespace {
                                                        "future/event",
                                                        "$.method",
                                                        "unrecognized App Server notification method"};
-        const typed::UnknownEvent unknownEvent{"future/event",
-                                               Json{{"value", 7}},
-                                               Json{{"method", "future/event"}},
-                                               std::string("future decoder"),
-                                               futureDiagnostic};
+        const typed::UnknownEvent unknownEvent{"future/event", Json{{"value", 7}}, Json{{"method", "future/event"}}, futureDiagnostic};
         const std::vector<backend::BackendEvent> translated = reducer.translate(typed::Event{unknownEvent});
         const auto* extension = translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated[0]) : nullptr;
-        result.expectTrue(extension && extension->method == "future/event" && extension->payload == unknownEvent.params &&
-                              extension->decodingError == "future decoder" && extension->diagnostic &&
-                              extension->diagnostic->kind == futureDiagnostic.kind &&
-                              extension->diagnostic->severity == futureDiagnostic.severity &&
-                              extension->diagnostic->surface == futureDiagnostic.surface &&
-                              extension->diagnostic->fieldPath == futureDiagnostic.fieldPath,
-                          "unknown typed Codex events translate to deliberately namespaced backend extensions with structured classification");
+        result.expectTrue(
+            extension && extension->method == "future/event" && extension->payload == unknownEvent.params && !extension->decodingError &&
+                extension->diagnostic && extension->diagnostic->kind == futureDiagnostic.kind &&
+                extension->diagnostic->severity == futureDiagnostic.severity &&
+                extension->diagnostic->surface == futureDiagnostic.surface &&
+                extension->diagnostic->fieldPath == futureDiagnostic.fieldPath,
+            "unknown typed Codex events translate to deliberately namespaced backend extensions with structured classification");
+
+        const typed::DecodeDiagnostic malformedDiagnostic{typed::DecodeIssueKind::MalformedKnownPayload,
+                                                          typed::DecodeIssueSeverity::ProtocolWarning,
+                                                          "known/event",
+                                                          "$.params.secret",
+                                                          "known protocol payload did not match its typed contract"};
+        const typed::UnknownEvent malformedEvent{
+            "known/event", Json{{"secret", "must-not-appear"}}, Json{{"method", "known/event"}}, malformedDiagnostic};
+        const std::vector<backend::BackendEvent> malformedTranslated = reducer.translate(typed::Event{malformedEvent});
+        const auto* malformedExtension =
+            malformedTranslated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&malformedTranslated[0]) : nullptr;
+        result.expectTrue(malformedExtension && malformedExtension->decodingError &&
+                              *malformedExtension->decodingError ==
+                                  "known protocol payload did not match its typed contract at $.params.secret" &&
+                              malformedExtension->decodingError->find("must-not-appear") == std::string::npos,
+                          "malformed-known typed diagnostics derive a value-free structural backend string");
 
         if (extension) {
             reducer.apply(state, *extension);
@@ -927,8 +947,11 @@ namespace {
             "future/request",
             Json{{"safe", "visible"}, {"accessToken", unknownAccessToken}, {"question", {{"secret", true}, {"text", unknownSecretAnswer}}}},
             Json{{"occurrenceToken", occurrenceSentinel}},
-            unknownDecodingError,
-            std::nullopt};
+            typed::DecodeDiagnostic{typed::DecodeIssueKind::MalformedKnownPayload,
+                                    typed::DecodeIssueSeverity::ProtocolWarning,
+                                    "future/request",
+                                    "",
+                                    unknownDecodingError}};
         reducer.apply(state,
                       backend::PendingRequestAdded{
                           backend::PendingRequestState{backend::PendingRequestId{10}, typed::TypedServerRequest{unknownRequest}, 3}});

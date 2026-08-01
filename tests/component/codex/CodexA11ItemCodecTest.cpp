@@ -579,7 +579,7 @@ namespace {
                 } else if (malformed) {
                     ++malformedCount;
                     const auto* unknown = decoded ? std::get_if<typed::UnknownItem>(&*decoded) : nullptr;
-                    malformedExact = malformedExact && unknown && error.empty() && unknown->raw == raw && unknown->decodingError &&
+                    malformedExact = malformedExact && unknown && error.empty() && unknown->raw == raw &&
                                      diagnosticIs(unknown->diagnostic,
                                                   typed::DecodeIssueKind::MalformedKnownPayload,
                                                   typed::DecodeIssueSeverity::ProtocolWarning,
@@ -603,7 +603,7 @@ namespace {
                 } else if (malformed) {
                     ++malformedCount;
                     const auto* unknown = decoded ? std::get_if<typed::UnknownResponseItem>(&*decoded) : nullptr;
-                    malformedExact = malformedExact && unknown && error.empty() && unknown->raw == raw && unknown->decodingError &&
+                    malformedExact = malformedExact && unknown && error.empty() && unknown->raw == raw &&
                                      diagnosticIs(unknown->diagnostic,
                                                   typed::DecodeIssueKind::MalformedKnownPayload,
                                                   typed::DecodeIssueSeverity::ProtocolWarning,

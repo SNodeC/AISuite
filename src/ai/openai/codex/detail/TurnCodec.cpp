@@ -390,16 +390,9 @@ namespace ai::openai::codex::detail {
         return encodeUserInput(input, error);
     }
 
-    std::optional<Json> encodeTurnStartParams(const typed::ThreadId& threadId,
-                                              const std::vector<typed::TurnInput>& input,
-                                              const typed::TurnStartOptions& options,
-                                              std::string& error) {
-        return encodeTurnStartParams(typed::toTurnStartParams(threadId, input, options), error);
-    }
-
     std::optional<Json>
     encodeTurnInterruptParams(const typed::ThreadId& threadId, const typed::TurnId& turnId, std::string& error) {
-        return encodeTurnInterruptParams(typed::toTurnInterruptParams(threadId, turnId), error);
+        return encodeTurnInterruptParams(typed::TurnInterruptParams{threadId, turnId}, error);
     }
 
     std::optional<typed::Turn> decodeTurnStartResult(const Json& value,

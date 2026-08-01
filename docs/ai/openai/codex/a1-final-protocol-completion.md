@@ -27,10 +27,10 @@ The initialize response retains all four required values:
 - `platformOs`;
 - `userAgent`.
 
-`getInitializeResponse()` exposes the canonical value, while
-`getInitializeResult()` remains the source-compatible projection. One decoder
-populates both and retains the complete raw response object. A malformed result
-does not transition the client to Ready.
+`getInitializeResponse()` exposes the canonical value and retains the complete
+raw response object. A malformed result does not transition the client to
+Ready. Final A1b subsequently removed the legacy `InitializeResult` projection,
+leaving `decodeInitializeResponse(...)` as the single decoder.
 
 After a matching valid response, the client enqueues exactly:
 
@@ -66,7 +66,8 @@ projection.
 ## Current state and boundary
 
 The production registry is 339 Complete / 0 Partial / 0 NotImplemented / 48
-NotApplicable. InventoryOnly remains unchanged. Codex SOVERSION remains 1, all
-compatibility APIs remain present, and Final A1b owns the later compatibility
-transition. Final A1a introduces no façade redesign and no second transport,
-pending map, event loop, notification path, or handshake state machine.
+NotApplicable. InventoryOnly remains unchanged. Final A1b leaves that protocol
+state untouched while moving the Codex libraries to SOVERSION 2 and removing
+only its frozen compatibility list. Final A1a introduced no façade redesign and
+no second transport, pending map, event loop, notification path, or handshake
+state machine.

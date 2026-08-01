@@ -327,15 +327,14 @@ invent the A1.1 alternatives.
 Unknown notification methods become `UnknownEvent`. Unknown item
 discriminators become `UnknownItem`. Unknown items retain any valid common item
 ID plus the thread and turn IDs supplied by their notification or parent turn.
-A malformed item-local field also degrades to `UnknownItem` with a
-`decodingError` when its object can still be retained; a malformed notification
+A malformed item-local field also degrades to `UnknownItem` with a structured
+`diagnostic` when its object can still be retained; a malformed notification
 envelope becomes `UnknownEvent`. These values retain their original raw JSON
 and do not fail the connection.
 
 ## Structured decode diagnostics and Codex errors
 
-Typed forward-compatibility handling has a structured diagnostic in addition
-to the temporarily retained optional string error:
+Typed forward-compatibility handling uses one structured diagnostic:
 
 ```cpp
 struct DecodeDiagnostic {
@@ -488,7 +487,7 @@ through the event loop.
 
 ## ABI and forward compatibility
 
-A1 is one deliberate in-progress C++ rebuild boundary. A1.0 adds
+A1 established one deliberate C++ rebuild boundary. A1.0 added
 `AppServerClient::typed()`, the one-pointer-PIMPL `typed::Client`, structured
 diagnostics, and public error variants. `AppServerClient` itself still contains
 only its existing `Impl` pointer; all grouped facades use the same raw engine.
@@ -496,9 +495,10 @@ Public `std::variant` and aggregate layouts changed where the typed model
 required it, and this documentation does not claim binary compatibility for
 already-built consumers.
 
-SOVERSION remains 1 through Final A1a protocol completion. The added facades
-and public aggregates are part of the documented A1 consumer-rebuild boundary;
-the compatibility decision remains deferred to Final A1b.
+Final A1b moves the main, backend, and frontend Codex libraries from SOVERSION
+1 to SOVERSION 2. Consumers must rebuild against the installed SOVERSION-2
+libraries. Project version, library names, imported CMake target names, include
+paths, and package component names remain unchanged.
 
 A1.3 preserves the existing alternative order and appends new `Event` and
 `TypedServerRequest` alternatives, but both public variants change
@@ -513,14 +513,15 @@ is the forward-compatibility escape hatch, and `client.raw()` remains
 available for protocol additions not yet represented by the typed layer.
 
 The legacy direct facade accessors remain available at source level with
-deprecation diagnostics. `Item` remains an alias of `ThreadItem`. Existing
-optional string decode errors remain while structured classification becomes
-authoritative. Raw JSON on results, threads, turns, items, events, server
-requests, and Codex error alternatives remains the escape hatch for protocol
-growth.
+deprecation diagnostics. `Item` remains an alias of `ThreadItem`. Structured
+`DecodeDiagnostic` is the sole typed decode-failure representation on unknown
+items, events, and server requests. Raw JSON on results, threads, turns, items,
+events, server requests, and Codex error alternatives remains the escape hatch
+for protocol growth.
 
 The stable Codex A1 typed protocol surface is complete: the global registry is
 339 Complete / 0 Partial / 0 NotImplemented / 48 NotApplicable, while native
 A1.4 remains 56 Complete / 0 Partial / 0 NotImplemented. All 48 InventoryOnly
-identities remain NotApplicable, and Codex SOVERSION remains 1 pending Final
-A1b.
+identities remain NotApplicable. Codex SOVERSION is 2 after the frozen Final
+A1b compatibility removal; the broader access-path and naming decisions remain
+deferred to A1.5.

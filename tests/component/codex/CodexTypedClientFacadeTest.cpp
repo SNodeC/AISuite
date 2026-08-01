@@ -20,7 +20,6 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
-#include <vector>
 
 namespace {
     namespace codex = ai::openai::codex;
@@ -80,140 +79,29 @@ namespace {
         client.configuration();
     };
 
-    using LegacyThreadStartMember =
-        typed::Threads::Submission (typed::Threads::*)(typed::ThreadStartOptions, typed::Threads::ThreadResultHandler);
-    using LegacyThreadResumeMember = typed::Threads::Submission (typed::Threads::*)(
-        typed::ThreadId, typed::ThreadResumeOptions, typed::Threads::ThreadResultHandler);
-    using LegacyThreadListMember =
-        typed::Threads::Submission (typed::Threads::*)(typed::ThreadListOptions, typed::Threads::ThreadListResultHandler);
-    using LegacyThreadReadMember =
-        typed::Threads::Submission (typed::Threads::*)(typed::ThreadId, typed::Threads::ThreadResultHandler);
-    using LegacyThreadReadOptionsMember = typed::Threads::Submission (typed::Threads::*)(
-        typed::ThreadId, typed::ThreadReadOptions, typed::Threads::ThreadResultHandler);
-    using LegacyTurnStartMember = typed::Turns::Submission (typed::Turns::*)(
-        typed::ThreadId, std::vector<typed::TurnInput>, typed::TurnStartOptions, typed::Turns::TurnResultHandler);
-    using LegacyTurnInterruptMember =
-        typed::Turns::Submission (typed::Turns::*)(typed::ThreadId, typed::TurnId, typed::Turns::InterruptResultHandler);
+    using ThreadStartMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadStartParams,
+                                                                             typed::Threads::ThreadStartResultHandler);
+    using ThreadResumeMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadResumeParams,
+                                                                              typed::Threads::ThreadResumeResultHandler);
+    using ThreadListMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadListParams,
+                                                                            typed::Threads::ThreadListResultHandler);
+    using ThreadReadMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadReadParams,
+                                                                            typed::Threads::ThreadReadResultHandler);
+    using TurnStartMember = typed::Turns::Submission (typed::Turns::*)(typed::TurnStartParams, typed::Turns::TurnStartResultHandler);
+    using TurnInterruptMember = typed::Turns::Submission (typed::Turns::*)(typed::TurnInterruptParams, typed::Turns::UnitResultHandler);
     using ReviewStartMember = typed::Reviews::Submission (typed::Reviews::*)(typed::ReviewStartParams,
                                                                              typed::Reviews::ReviewStartResultHandler);
     using GuardianApprovalMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadApproveGuardianDeniedActionParams,
                                                                                   typed::Threads::UnitResultHandler);
 
-    static_assert(std::same_as<decltype(static_cast<LegacyThreadStartMember>(&typed::Threads::start)), LegacyThreadStartMember>);
-    static_assert(std::same_as<decltype(static_cast<LegacyThreadResumeMember>(&typed::Threads::resume)), LegacyThreadResumeMember>);
-    static_assert(std::same_as<decltype(static_cast<LegacyThreadListMember>(&typed::Threads::list)), LegacyThreadListMember>);
-    static_assert(std::same_as<decltype(static_cast<LegacyThreadReadMember>(&typed::Threads::read)), LegacyThreadReadMember>);
-    static_assert(
-        std::same_as<decltype(static_cast<LegacyThreadReadOptionsMember>(&typed::Threads::read)), LegacyThreadReadOptionsMember>);
-    static_assert(std::same_as<decltype(static_cast<LegacyTurnStartMember>(&typed::Turns::start)), LegacyTurnStartMember>);
-    static_assert(std::same_as<decltype(static_cast<LegacyTurnInterruptMember>(&typed::Turns::interrupt)), LegacyTurnInterruptMember>);
+    static_assert(std::same_as<decltype(&typed::Threads::start), ThreadStartMember>);
+    static_assert(std::same_as<decltype(&typed::Threads::resume), ThreadResumeMember>);
+    static_assert(std::same_as<decltype(&typed::Threads::list), ThreadListMember>);
+    static_assert(std::same_as<decltype(&typed::Threads::read), ThreadReadMember>);
+    static_assert(std::same_as<decltype(&typed::Turns::start), TurnStartMember>);
+    static_assert(std::same_as<decltype(&typed::Turns::interrupt), TurnInterruptMember>);
     static_assert(std::same_as<decltype(&typed::Reviews::start), ReviewStartMember>);
     static_assert(std::same_as<decltype(&typed::Threads::approveGuardianDeniedAction), GuardianApprovalMember>);
-
-    static_assert(requires(typed::Threads& threads,
-                           typed::ThreadStartOptions& options,
-                           typed::Threads::ThreadResultHandler& typedHandler,
-                           GenericResultHandler& genericHandler) {
-        { threads.start({}, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        {
-            threads.start({.cwd = "/legacy-start", .sandboxMode = typed::SandboxMode::workspaceWrite(), .ephemeral = true},
-                          GenericResultHandler{})
-        } -> std::same_as<typed::Threads::Submission>;
-        { threads.start(options, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.start(std::move(options), GenericResultHandler{}) } -> std::same_as<typed::Threads::Submission>;
-        { threads.start(options, typedHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.start(std::move(options), std::move(typedHandler)) } -> std::same_as<typed::Threads::Submission>;
-    });
-
-    static_assert(requires(typed::Threads& threads,
-                           typed::ThreadResumeOptions& options,
-                           typed::Threads::ThreadResultHandler& typedHandler,
-                           GenericResultHandler& genericHandler) {
-        {
-            threads.resume({"legacy-thread"},
-                           {.cwd = "/legacy-resume", .sandboxMode = typed::SandboxMode::readOnly()},
-                           GenericResultHandler{})
-        } -> std::same_as<typed::Threads::Submission>;
-        { threads.resume({"legacy-thread"}, options, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        {
-            threads.resume({"legacy-thread"}, std::move(options), GenericResultHandler{})
-        } -> std::same_as<typed::Threads::Submission>;
-        { threads.resume({"legacy-thread"}, options, typedHandler) } -> std::same_as<typed::Threads::Submission>;
-        {
-            threads.resume({"legacy-thread"}, std::move(options), std::move(typedHandler))
-        } -> std::same_as<typed::Threads::Submission>;
-    });
-
-    static_assert(requires(typed::Threads& threads,
-                           typed::ThreadListOptions& options,
-                           typed::Threads::ThreadListResultHandler& typedHandler,
-                           GenericResultHandler& genericHandler) {
-        { threads.list({}, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        {
-            threads.list({.cursor = "legacy-cursor", .limit = 2, .archived = false, .searchTerm = "legacy"},
-                         GenericResultHandler{})
-        } -> std::same_as<typed::Threads::Submission>;
-        { threads.list(options, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.list(std::move(options), GenericResultHandler{}) } -> std::same_as<typed::Threads::Submission>;
-        { threads.list(options, typedHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.list(std::move(options), std::move(typedHandler)) } -> std::same_as<typed::Threads::Submission>;
-    });
-
-    static_assert(requires(typed::Threads& threads,
-                           typed::ThreadReadOptions& options,
-                           typed::Threads::ThreadResultHandler& typedHandler,
-                           GenericResultHandler& genericHandler) {
-        { threads.read({"legacy-thread"}, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        {
-            threads.read({"legacy-thread"}, {.includeTurns = true}, GenericResultHandler{})
-        } -> std::same_as<typed::Threads::Submission>;
-        { threads.read({"legacy-thread"}, options, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        {
-            threads.read({"legacy-thread"}, std::move(options), GenericResultHandler{})
-        } -> std::same_as<typed::Threads::Submission>;
-        { threads.read({"legacy-thread"}, options, typedHandler) } -> std::same_as<typed::Threads::Submission>;
-        {
-            threads.read({"legacy-thread"}, std::move(options), std::move(typedHandler))
-        } -> std::same_as<typed::Threads::Submission>;
-    });
-
-    static_assert(requires(typed::Turns& turns,
-                           std::vector<typed::TurnInput>& input,
-                           typed::TurnStartOptions& options,
-                           typed::Turns::TurnResultHandler& typedHandler,
-                           GenericResultHandler& genericHandler) {
-        {
-            turns.start({"legacy-thread"},
-                        {},
-                        {.cwd = "/legacy-turn", .approvalPolicy = typed::ApprovalPolicy::onRequest()},
-                        GenericResultHandler{})
-        } -> std::same_as<typed::Turns::Submission>;
-        { turns.start({"legacy-thread"}, input, options, genericHandler) } -> std::same_as<typed::Turns::Submission>;
-        {
-            turns.start({"legacy-thread"}, std::move(input), std::move(options), GenericResultHandler{})
-        } -> std::same_as<typed::Turns::Submission>;
-        { turns.start({"legacy-thread"}, input, options, typedHandler) } -> std::same_as<typed::Turns::Submission>;
-        {
-            turns.start({"legacy-thread"}, std::move(input), std::move(options), std::move(typedHandler))
-        } -> std::same_as<typed::Turns::Submission>;
-    });
-
-    static_assert(requires(typed::Turns& turns,
-                           typed::Turns::InterruptResultHandler& typedHandler,
-                           GenericResultHandler& genericHandler) {
-        {
-            turns.interrupt({"legacy-thread"}, {"legacy-turn"}, genericHandler)
-        } -> std::same_as<typed::Turns::Submission>;
-        {
-            turns.interrupt({"legacy-thread"}, {"legacy-turn"}, GenericResultHandler{})
-        } -> std::same_as<typed::Turns::Submission>;
-        {
-            turns.interrupt({"legacy-thread"}, {"legacy-turn"}, typedHandler)
-        } -> std::same_as<typed::Turns::Submission>;
-        {
-            turns.interrupt({"legacy-thread"}, {"legacy-turn"}, std::move(typedHandler))
-        } -> std::same_as<typed::Turns::Submission>;
-    });
 
     static_assert(requires(typed::Threads& threads,
                            typed::ThreadStartParams& start,

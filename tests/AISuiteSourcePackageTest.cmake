@@ -87,10 +87,13 @@ foreach(required
     tests/policy/security/CMakeLists.txt
     tests/policy/security/CodexSyntheticSecretLeakGuardTest.py
     tests/component/codex/CodexA14RuntimePlatformCurrentStateTest.py
+    tests/installed/codex/CMakeLists.txt
+    tests/installed/codex/CodexRetainedCompatibilityConsumer.cpp
     tests/installed/codex/CodexTypedConsumer.cpp
     tests/installed/codex/SNodeInstalledCoreConsumer.cpp
     docs/ai/openai/codex/a1-4-user-facing-integrations.md
     docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md
+    docs/ai/openai/codex/a1-final-abi-transition.md
 )
     if(NOT EXISTS "${root}/${required}")
         message(

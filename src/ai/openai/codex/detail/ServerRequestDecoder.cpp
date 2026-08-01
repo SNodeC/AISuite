@@ -33,15 +33,15 @@
 namespace ai::openai::codex::detail {
 
     namespace {
-        typed::UnknownServerRequest unknownRequest(const ServerRequest& request, std::optional<std::string> decodingError = std::nullopt) {
-            const bool malformed = decodingError.has_value();
+        typed::UnknownServerRequest unknownRequest(const ServerRequest& request, std::optional<std::string> decodeError = std::nullopt) {
+            const bool malformed = decodeError.has_value();
             std::string fieldPath = "$.params";
             if (malformed && request.method == "account/chatgptAuthTokens/refresh") {
-                const std::size_t begin = decodingError->find("'$");
+                const std::size_t begin = decodeError->find("'$");
                 if (begin != std::string::npos) {
-                    const std::size_t end = decodingError->find('\'', begin + 1);
+                    const std::size_t end = decodeError->find('\'', begin + 1);
                     if (end != std::string::npos) {
-                        fieldPath = decodingError->substr(begin + 1, end - begin - 1);
+                        fieldPath = decodeError->substr(begin + 1, end - begin - 1);
                     }
                 }
             }
@@ -50,7 +50,6 @@ namespace ai::openai::codex::detail {
                     request.method,
                     request.params,
                     request.raw,
-                    std::move(decodingError),
                     malformed ? std::optional<typed::DecodeDiagnostic>{malformedKnownDiagnostic(request.method, std::move(fieldPath))}
                               : std::optional<typed::DecodeDiagnostic>{unknownMethodDiagnostic(request.method)}};
         }

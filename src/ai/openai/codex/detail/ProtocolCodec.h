@@ -40,7 +40,6 @@ namespace ai::openai::codex::detail {
     };
 
     std::optional<typed::InitializeResponse> decodeInitializeResponse(const Json& result, std::string& errorMessage);
-    std::optional<InitializeResult> decodeInitializeResult(const Json& result, std::string& errorMessage);
 
     class ProtocolCodec {
     public:

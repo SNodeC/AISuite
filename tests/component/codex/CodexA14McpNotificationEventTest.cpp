@@ -49,8 +49,7 @@ namespace {
     bool malformedEventAt(const typed::Event& event, const codex::Notification& wire, std::string_view path) {
         const auto* unknown = std::get_if<typed::UnknownEvent>(&event);
         return unknown != nullptr && unknown->method == wire.method && unknown->params == wire.params && unknown->raw == wire.raw &&
-               unknown->decodingError.has_value() && unknown->diagnostic.has_value() &&
-               unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
+               unknown->diagnostic.has_value() && unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
                unknown->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
                unknown->diagnostic->surface == wire.method && unknown->diagnostic->fieldPath == path;
     }

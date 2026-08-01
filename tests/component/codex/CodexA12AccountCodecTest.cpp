@@ -650,12 +650,7 @@ namespace {
                 codex::ServerRequestToken{71},
             });
         const auto* unknown = std::get_if<typed::UnknownServerRequest>(&malformedRequest);
-        result.expectTrue(unknown && unknown->params == malformedParams && unknown->raw == malformedEnvelope &&
-                              unknown->decodingError &&
-                              unknown->decodingError->find("$.params.reason") != std::string::npos &&
-                              unknown->decodingError->find(SyntheticAccountId) == std::string::npos &&
-                              unknown->decodingError->find(SyntheticAccessToken) == std::string::npos &&
-                              unknown->diagnostic &&
+        result.expectTrue(unknown && unknown->params == malformedParams && unknown->raw == malformedEnvelope && unknown->diagnostic &&
                               unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
                               unknown->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
                               unknown->diagnostic->fieldPath == "$.params.reason" &&

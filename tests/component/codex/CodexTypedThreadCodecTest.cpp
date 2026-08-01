@@ -19,21 +19,21 @@
 
 namespace {
     using ai::openai::codex::Json;
+    using ai::openai::codex::detail::decodeSessionSource;
+    using ai::openai::codex::detail::decodeSubAgentSource;
     using ai::openai::codex::detail::decodeThread;
     using ai::openai::codex::detail::decodeThreadListResult;
     using ai::openai::codex::detail::decodeThreadOperationResult;
     using ai::openai::codex::detail::decodeThreadReadResult;
     using ai::openai::codex::detail::decodeThreadStartResponse;
-    using ai::openai::codex::detail::decodeSessionSource;
-    using ai::openai::codex::detail::decodeSubAgentSource;
     using ai::openai::codex::detail::decodeThreadStatus;
     using ai::openai::codex::detail::decodeUnitResult;
     using ai::openai::codex::detail::encodeThreadListParams;
     using ai::openai::codex::detail::encodeThreadReadParams;
     using ai::openai::codex::detail::encodeThreadResumeParams;
     using ai::openai::codex::detail::encodeThreadStartParams;
-    using ai::openai::codex::typed::ApprovalPolicy;
     using ai::openai::codex::typed::ActiveThreadStatus;
+    using ai::openai::codex::typed::ApprovalPolicy;
     using ai::openai::codex::typed::AskForApproval;
     using ai::openai::codex::typed::ClientUserMessageId;
     using ai::openai::codex::typed::CustomSessionSource;
@@ -42,37 +42,36 @@ namespace {
     using ai::openai::codex::typed::IdleThreadStatus;
     using ai::openai::codex::typed::LegacyAppPathString;
     using ai::openai::codex::typed::ModelId;
+    using ai::openai::codex::typed::NotLoadedThreadStatus;
     using ai::openai::codex::typed::OtherSubAgentSource;
     using ai::openai::codex::typed::SandboxMode;
     using ai::openai::codex::typed::SessionId;
     using ai::openai::codex::typed::SessionSourceKind;
-    using ai::openai::codex::typed::SystemErrorThreadStatus;
     using ai::openai::codex::typed::SubAgentSessionSource;
     using ai::openai::codex::typed::SubAgentSourceKind;
+    using ai::openai::codex::typed::SystemErrorThreadStatus;
     using ai::openai::codex::typed::Thread;
     using ai::openai::codex::typed::ThreadForkResponse;
     using ai::openai::codex::typed::ThreadId;
+    using ai::openai::codex::typed::ThreadListParams;
     using ai::openai::codex::typed::ThreadLoadedListResponse;
-    using ai::openai::codex::typed::ThreadListOptions;
-    using ai::openai::codex::typed::ThreadReadOptions;
+    using ai::openai::codex::typed::ThreadReadParams;
     using ai::openai::codex::typed::ThreadResumeParams;
-    using ai::openai::codex::typed::ThreadResumeOptions;
     using ai::openai::codex::typed::ThreadResumeResponse;
-    using ai::openai::codex::typed::ThreadStartOptions;
-    using ai::openai::codex::typed::ThreadStartResponse;
     using ai::openai::codex::typed::ThreadSpawnSubAgentDetails;
     using ai::openai::codex::typed::ThreadSpawnSubAgentSource;
-    using ai::openai::codex::typed::NotLoadedThreadStatus;
-    using ai::openai::codex::typed::UnknownSessionSourceAlternative;
-    using ai::openai::codex::typed::UnknownSubAgentSource;
-    using ai::openai::codex::typed::UnknownThreadStatus;
+    using ai::openai::codex::typed::ThreadStartParams;
+    using ai::openai::codex::typed::ThreadStartResponse;
+    using ai::openai::codex::typed::threadStatusDiscriminator;
+    using ai::openai::codex::typed::threadStatusRaw;
     using ai::openai::codex::typed::Turn;
     using ai::openai::codex::typed::TurnItemsView;
     using ai::openai::codex::typed::TurnStartParams;
     using ai::openai::codex::typed::TurnSteerParams;
+    using ai::openai::codex::typed::UnknownSessionSourceAlternative;
+    using ai::openai::codex::typed::UnknownSubAgentSource;
+    using ai::openai::codex::typed::UnknownThreadStatus;
     using ai::openai::codex::typed::UserMessageThreadItem;
-    using ai::openai::codex::typed::threadStatusDiscriminator;
-    using ai::openai::codex::typed::threadStatusRaw;
 
     static_assert(std::is_same_v<decltype(ThreadSpawnSubAgentSource::threadSpawn), ThreadSpawnSubAgentDetails>,
                   "the reviewed SubAgentSource/thread_spawn closure mapping must name "
@@ -670,14 +669,14 @@ namespace {
                               "thread/list rejects a malformed optional cursor");
     }
 
-    void testOptionEncoding(tests::support::TestResult& testResult) {
+    void testCanonicalParameterEncoding(tests::support::TestResult& testResult) {
         std::string error = "stale";
-        ThreadStartOptions start;
-        start.cwd = "/tmp/start";
+        ThreadStartParams start;
+        start.cwd = std::string{"/tmp/start"};
         start.model = ModelId{"gpt-5.4"};
-        start.modelProvider = "openai";
-        start.approvalPolicy = ApprovalPolicy{"on-request"};
-        start.sandboxMode = SandboxMode{"workspace-write"};
+        start.modelProvider = std::string{"openai"};
+        start.approvalPolicy = AskForApproval{ApprovalPolicy{"on-request"}};
+        start.sandbox = SandboxMode{"workspace-write"};
         start.ephemeral = true;
         const Json expectedStart = {
             {"cwd", "/tmp/start"},
@@ -689,16 +688,17 @@ namespace {
         };
         const std::optional<Json> encodedStart = encodeThreadStartParams(start, error);
         testResult.expectTrue(encodedStart && *encodedStart == expectedStart && error.empty(),
-                              "thread/start options use exact current-schema field names and extensible string values");
-        const std::optional<Json> minimumStart = encodeThreadStartParams(ThreadStartOptions{}, error);
-        testResult.expectTrue(minimumStart && *minimumStart == Json::object(), "thread/start omits every unsupported or absent option");
+                              "canonical thread/start parameters use exact schema field names and extensible string values");
+        const std::optional<Json> minimumStart = encodeThreadStartParams(ThreadStartParams{}, error);
+        testResult.expectTrue(minimumStart && *minimumStart == Json::object(), "thread/start omits every absent optional field");
 
-        ThreadResumeOptions resume;
-        resume.cwd = "/tmp/resume";
+        ThreadResumeParams resume;
+        resume.threadId = ThreadId{"thread-resume"};
+        resume.cwd = std::string{"/tmp/resume"};
         resume.model = ModelId{"future-model"};
-        resume.modelProvider = "future-provider";
-        resume.approvalPolicy = ApprovalPolicy{"future-policy"};
-        resume.sandboxMode = SandboxMode{"future-sandbox"};
+        resume.modelProvider = std::string{"future-provider"};
+        resume.approvalPolicy = AskForApproval{ApprovalPolicy{"future-policy"}};
+        resume.sandbox = SandboxMode{"future-sandbox"};
         const Json expectedResume = {
             {"threadId", "thread-resume"},
             {"cwd", "/tmp/resume"},
@@ -707,9 +707,9 @@ namespace {
             {"approvalPolicy", "future-policy"},
             {"sandbox", "future-sandbox"},
         };
-        const std::optional<Json> encodedResume = encodeThreadResumeParams(ThreadId{"thread-resume"}, resume, error);
+        const std::optional<Json> encodedResume = encodeThreadResumeParams(resume, error);
         testResult.expectTrue(encodedResume && *encodedResume == expectedResume && error.empty(),
-                              "deprecated thread/resume preserves future non-empty approval and sandbox values on the exact wire");
+                              "canonical thread/resume preserves future non-empty approval and sandbox values on the exact wire");
 
         ThreadResumeParams canonicalResume;
         canonicalResume.threadId = ThreadId{"thread-canonical"};
@@ -721,23 +721,24 @@ namespace {
                                   error.empty(),
                               "canonical thread/resume preserves the same open non-empty approval scalar");
 
-        resume.approvalPolicy = ApprovalPolicy{""};
-        testResult.expectTrue(!encodeThreadResumeParams(ThreadId{"thread-resume"}, resume, error) && !error.empty(),
+        resume.approvalPolicy = AskForApproval{ApprovalPolicy{""}};
+        testResult.expectTrue(!encodeThreadResumeParams(resume, error) && !error.empty(),
                               "thread/resume rejects an empty approval scalar prohibited by the open value contract");
 
-        ThreadListOptions list;
-        list.cursor = "cursor";
+        ThreadListParams list;
+        list.cursor = std::string{"cursor"};
         list.limit = 25;
         list.archived = true;
-        list.searchTerm = "typed";
+        list.searchTerm = std::string{"typed"};
         const std::optional<Json> encodedList = encodeThreadListParams(list, error);
         testResult.expectTrue(encodedList &&
                                   *encodedList == Json{{"cursor", "cursor"}, {"limit", 25}, {"archived", true}, {"searchTerm", "typed"}},
                               "thread/list encodes supported pagination and filter options");
 
-        ThreadReadOptions read;
+        ThreadReadParams read;
+        read.threadId = ThreadId{"thread-read"};
         read.includeTurns = true;
-        const std::optional<Json> encodedRead = encodeThreadReadParams(ThreadId{"thread-read"}, read, error);
+        const std::optional<Json> encodedRead = encodeThreadReadParams(read, error);
         testResult.expectTrue(encodedRead && *encodedRead == Json{{"threadId", "thread-read"}, {"includeTurns", true}},
                               "thread/read encodes its strong ID and includeTurns option");
     }
@@ -763,7 +764,7 @@ int main() {
     testOperationAndReadWrappers(testResult);
     testConversationUnionFoundation(testResult);
     testListPage(testResult);
-    testOptionEncoding(testResult);
+    testCanonicalParameterEncoding(testResult);
     testExactUnitContract(testResult);
 
     return testResult.processResult();

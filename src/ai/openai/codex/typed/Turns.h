@@ -83,22 +83,6 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
-    // Transitional compatibility for the formerly operation-specific empty
-    // result type.
-    using TurnInterruptResult = Unit;
-
-    // Compatibility aggregate for the original convenience overload.
-    struct TurnStartOptions {
-        std::optional<std::string> cwd;
-        std::optional<ModelId> model;
-        std::optional<ReasoningEffort> reasoningEffort;
-        std::optional<ApprovalPolicy> approvalPolicy;
-        std::optional<SandboxPolicy> sandboxPolicy;
-    };
-
-    TurnStartParams toTurnStartParams(ThreadId threadId, std::vector<TurnInput> input, TurnStartOptions options);
-    TurnInterruptParams toTurnInterruptParams(ThreadId threadId, TurnId turnId);
-
     class Turns {
     public:
         using Submission = AppServerClient::RawProtocol::Submission;
@@ -109,14 +93,6 @@ namespace ai::openai::codex::typed {
         Submission interrupt(TurnInterruptParams params, UnitResultHandler handler);
         Submission start(TurnStartParams params, TurnStartResultHandler handler);
         Submission steer(TurnSteerParams params, TurnSteerResultHandler handler);
-
-        using TurnResultHandler = std::function<void(const OperationResult<Turn>&)>;
-        using InterruptResultHandler = UnitResultHandler;
-
-        [[deprecated("use start(TurnStartParams, TurnStartResultHandler)")]]
-        Submission start(ThreadId threadId, std::vector<TurnInput> input, TurnStartOptions options, TurnResultHandler handler);
-        [[deprecated("use interrupt(TurnInterruptParams, UnitResultHandler)")]]
-        Submission interrupt(ThreadId threadId, TurnId turnId, InterruptResultHandler handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

@@ -253,8 +253,8 @@ namespace {
 
                     if (completion.requestId == "start-success" && completionCounts[completion.requestId] == 1) {
                         backend::TurnStart command;
-                        command.threadId = typed::ThreadId{"thread-success"};
-                        command.input = {textInput("submitted reentrantly")};
+                        command.params.threadId = typed::ThreadId{"thread-success"};
+                        command.params.input = {textInput("submitted reentrantly")};
                         expect(static_cast<bool>(controller.submit("turn-reentrant", std::move(command))),
                                "a command completion callback can submit another typed command reentrantly");
                     }
@@ -383,41 +383,41 @@ namespace {
                    "explicit controller acquisition remains in force after backend startup");
 
             backend::ThreadStart start;
-            start.options.cwd = "/success";
+            start.params.cwd = std::string{"/success"};
             expect(static_cast<bool>(controller.submit("start-success", std::move(start))), "controller submits thread/start");
 
             backend::ThreadResume resume;
-            resume.threadId = typed::ThreadId{"thread-remote"};
+            resume.params.threadId = typed::ThreadId{"thread-remote"};
             expect(static_cast<bool>(controller.submit("resume-remote", std::move(resume))), "controller submits thread/resume");
 
             backend::ThreadList list;
-            list.options.cursor = "explicit";
-            list.options.limit = 3;
+            list.params.cursor = std::string{"explicit"};
+            list.params.limit = 3;
             expect(static_cast<bool>(controller.submit("list-explicit", std::move(list))), "controller submits thread/list");
 
             backend::ThreadRead read;
-            read.threadId = typed::ThreadId{"thread-read"};
-            read.options.includeTurns = true;
+            read.params.threadId = typed::ThreadId{"thread-read"};
+            read.params.includeTurns = true;
             expect(static_cast<bool>(controller.submit("read-full", std::move(read))), "controller submits thread/read");
 
             backend::TurnStart startTurn;
-            startTurn.threadId = typed::ThreadId{"thread-success"};
-            startTurn.input = {textInput("start a turn")};
+            startTurn.params.threadId = typed::ThreadId{"thread-success"};
+            startTurn.params.input = {textInput("start a turn")};
             expect(static_cast<bool>(controller.submit("turn-start", std::move(startTurn))), "controller submits turn/start");
 
             backend::TurnInterrupt interrupt;
-            interrupt.threadId = typed::ThreadId{"thread-success"};
-            interrupt.turnId = typed::TurnId{"turn-start"};
+            interrupt.params.threadId = typed::ThreadId{"thread-success"};
+            interrupt.params.turnId = typed::TurnId{"turn-start"};
             expect(static_cast<bool>(controller.submit("turn-interrupt", std::move(interrupt))), "controller submits turn/interrupt");
 
             backend::ThreadStart malformed;
-            malformed.options.cwd = "/malformed";
+            malformed.params.cwd = std::string{"/malformed"};
             expect(static_cast<bool>(controller.submit("decode-error", std::move(malformed))),
                    "malformed typed-result operation is accepted before typed decoding completion");
 
             transport->rejectNextSend = true;
             backend::ThreadStart localFailure;
-            localFailure.options.cwd = "/local-enqueue-failure";
+            localFailure.params.cwd = std::string{"/local-enqueue-failure"};
             expect(static_cast<bool>(controller.submit("local-error", std::move(localFailure))),
                    "transport enqueue failure remains an asynchronous correlated command completion");
 
@@ -561,7 +561,7 @@ namespace {
             const backend::Snapshot beforeClose = backendCore->snapshot();
             pendingApprovalId = beforeClose.pendingRequests.front().id;
             backend::ThreadStart pending;
-            pending.options.cwd = "/deferred-close";
+            pending.params.cwd = std::string{"/deferred-close"};
             expect(static_cast<bool>(controller.submit("closed-operation", std::move(pending))),
                    "controller starts an operation whose response will arrive after session close");
             controller.close("controller disconnected intentionally");
@@ -621,7 +621,7 @@ namespace {
 
         void beginUnsolicitedStopScenario() {
             backend::ThreadStart operation;
-            operation.options.cwd = "/unsolicited-stop";
+            operation.params.cwd = std::string{"/unsolicited-stop"};
             expect(static_cast<bool>(observer.submit("unsolicited-stop-operation", std::move(operation))),
                    "controller submits an operation whose typed completion is scheduled but not yet delivered");
 
@@ -691,7 +691,7 @@ namespace {
 
         void beginStopRestartGenerationScenario() {
             backend::ThreadStart stale;
-            stale.options.cwd = "/old-generation";
+            stale.params.cwd = std::string{"/old-generation"};
             expect(static_cast<bool>(observer.submit("old-generation-operation", std::move(stale))),
                    "controller submits operation retained across explicit stop boundary");
             expect(static_cast<bool>(observer.submit("stop-now", backend::SnapshotGet{})),
@@ -733,7 +733,7 @@ namespace {
                        "prior-generation typed completion neither mutates state nor duplicates command completion");
 
                 backend::ThreadStart fresh;
-                fresh.options.cwd = "/fresh";
+                fresh.params.cwd = std::string{"/fresh"};
                 expect(static_cast<bool>(observer.submit("fresh-generation-operation", std::move(fresh))),
                        "new generation accepts fresh typed operations");
                 waitUntil(

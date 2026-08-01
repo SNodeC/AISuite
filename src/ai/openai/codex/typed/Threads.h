@@ -13,14 +13,11 @@
 #include "ai/openai/codex/typed/Reviews.h"
 #include "ai/openai/codex/typed/Turns.h"
 
-#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
 #include <string>
-#include <type_traits>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -337,40 +334,6 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
-    // Compatibility aggregates for the six A1.0 convenience overloads.
-    struct ThreadStartOptions {
-        std::optional<std::string> cwd;
-        std::optional<ModelId> model;
-        std::optional<std::string> modelProvider;
-        std::optional<ApprovalPolicy> approvalPolicy;
-        std::optional<SandboxMode> sandboxMode;
-        std::optional<bool> ephemeral;
-    };
-
-    struct ThreadResumeOptions {
-        std::optional<std::string> cwd;
-        std::optional<ModelId> model;
-        std::optional<std::string> modelProvider;
-        std::optional<ApprovalPolicy> approvalPolicy;
-        std::optional<SandboxMode> sandboxMode;
-    };
-
-    struct ThreadListOptions {
-        std::optional<std::string> cursor;
-        std::optional<std::uint32_t> limit;
-        std::optional<bool> archived;
-        std::optional<std::string> searchTerm;
-    };
-
-    struct ThreadReadOptions {
-        std::optional<bool> includeTurns;
-    };
-
-    ThreadStartParams toThreadStartParams(ThreadStartOptions options);
-    ThreadResumeParams toThreadResumeParams(ThreadId threadId, ThreadResumeOptions options);
-    ThreadListParams toThreadListParams(ThreadListOptions options);
-    ThreadReadParams toThreadReadParams(ThreadId threadId, ThreadReadOptions options = {});
-
     class Threads {
     public:
         using Submission = AppServerClient::RawProtocol::Submission;
@@ -398,52 +361,23 @@ namespace ai::openai::codex::typed {
         Submission getGoal(ThreadGoalGetParams params, ThreadGoalGetResultHandler handler);
         Submission setGoal(ThreadGoalSetParams params, ThreadGoalSetResultHandler handler);
         Submission injectItems(ThreadInjectItemsParams params, UnitResultHandler handler);
-        template <typename Params>
-            requires std::same_as<std::remove_cvref_t<Params>, ThreadListParams>
-        Submission list(Params&& params, ThreadListResultHandler handler) {
-            return submitList(std::forward<Params>(params), std::move(handler));
-        }
+        Submission list(ThreadListParams params, ThreadListResultHandler handler);
         Submission listLoaded(ThreadLoadedListParams params, ThreadLoadedListResultHandler handler);
         Submission updateMetadata(ThreadMetadataUpdateParams params, ThreadMetadataUpdateResultHandler handler);
         Submission setName(ThreadSetNameParams params, UnitResultHandler handler);
-        template <typename Params>
-            requires std::same_as<std::remove_cvref_t<Params>, ThreadReadParams>
-        Submission read(Params&& params, ThreadReadResultHandler handler) {
-            return submitRead(std::forward<Params>(params), std::move(handler));
-        }
+        Submission read(ThreadReadParams params, ThreadReadResultHandler handler);
         Submission resume(ThreadResumeParams params, ThreadResumeResultHandler handler);
         [[deprecated("thread/rollback is deprecated by the stable App Server protocol")]]
         Submission rollback(ThreadRollbackParams params, ThreadRollbackResultHandler handler);
         Submission shellCommand(ThreadShellCommandParams params, UnitResultHandler handler);
-        template <typename Params>
-            requires std::same_as<std::remove_cvref_t<Params>, ThreadStartParams>
-        Submission start(Params&& params, ThreadStartResultHandler handler) {
-            return submitStart(std::forward<Params>(params), std::move(handler));
-        }
+        Submission start(ThreadStartParams params, ThreadStartResultHandler handler);
         Submission unarchive(ThreadUnarchiveParams params, ThreadUnarchiveResultHandler handler);
         Submission unsubscribe(ThreadUnsubscribeParams params, ThreadUnsubscribeResultHandler handler);
-
-        using ThreadResultHandler = std::function<void(const OperationResult<Thread>&)>;
-
-        [[deprecated("use start(ThreadStartParams, ThreadStartResultHandler)")]]
-        Submission start(ThreadStartOptions options, ThreadResultHandler handler);
-        [[deprecated("use resume(ThreadResumeParams, ThreadResumeResultHandler)")]]
-        Submission resume(ThreadId threadId, ThreadResumeOptions options, ThreadResultHandler handler);
-        [[deprecated("use list(ThreadListParams, ThreadListResultHandler)")]]
-        Submission list(ThreadListOptions options, ThreadListResultHandler handler);
-        [[deprecated("use read(ThreadReadParams, ThreadReadResultHandler)")]]
-        Submission read(ThreadId threadId, ThreadResultHandler handler);
-        [[deprecated("use read(ThreadReadParams, ThreadReadResultHandler)")]]
-        Submission read(ThreadId threadId, ThreadReadOptions options, ThreadResultHandler handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;
 
         explicit Threads(AppServerClient::RawProtocol& protocol) noexcept;
-
-        Submission submitList(ThreadListParams params, ThreadListResultHandler handler);
-        Submission submitRead(ThreadReadParams params, ThreadReadResultHandler handler);
-        Submission submitStart(ThreadStartParams params, ThreadStartResultHandler handler);
 
         AppServerClient::RawProtocol* protocol;
     };

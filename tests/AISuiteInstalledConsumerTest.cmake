@@ -204,6 +204,54 @@ require_success(
     "install from the one configured AISuite build"
 )
 
+foreach(
+    codex_library
+    IN ITEMS
+       aisuite-openai-codex
+       aisuite-openai-codex-backend
+       aisuite-openai-codex-frontend
+)
+    set(codex_soversion_library
+        "${aisuite_install}/lib/lib${codex_library}.so.2"
+    )
+    set(codex_legacy_soversion_library
+        "${aisuite_install}/lib/lib${codex_library}.so.1"
+    )
+    if(NOT EXISTS "${codex_soversion_library}")
+        fail_installed(
+            "installed SOVERSION-2 library is missing: ${codex_soversion_library}"
+        )
+    endif()
+    if(EXISTS "${codex_legacy_soversion_library}" OR
+       IS_SYMLINK "${codex_legacy_soversion_library}")
+        fail_installed(
+            "obsolete SOVERSION-1 compatibility library is installed: ${codex_legacy_soversion_library}"
+        )
+    endif()
+    execute_process(
+        COMMAND
+            ${isolated_environment}
+            "${readelf_executable}" -d "${codex_soversion_library}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE codex_dynamic_metadata
+        ERROR_VARIABLE error
+    )
+    require_success(
+        "${result}" "${codex_dynamic_metadata}" "${error}"
+        "ELF SONAME inspection for ${codex_library}"
+    )
+    string(
+        FIND "${codex_dynamic_metadata}"
+        "Library soname: [lib${codex_library}.so.2]"
+        codex_soname_index
+    )
+    if(codex_soname_index EQUAL -1)
+        fail_installed(
+            "${codex_library} does not declare the required .so.2 SONAME"
+        )
+    endif()
+endforeach()
+
 file(
     COPY "${AISUITE_SOURCE_DIR}/tests/installed/codex/"
     DESTINATION "${consumer_source}"
@@ -325,10 +373,12 @@ set(installed_consumers
     AISuiteInstalledCodexFilesystemHeaderConsumer
     AISuiteInstalledCodexPermissionProfilesHeaderConsumer
     AISuiteInstalledCodexReviewsHeaderConsumer
-    AISuiteInstalledCodexDeprecatedTypedConsumer
+    AISuiteInstalledCodexRetainedCompatibilityConsumer
     AISuiteInstalledCodexBackendFrontendConsumer
 )
-set(saw_aisuite_runtime_library FALSE)
+set(saw_aisuite_main_runtime_library FALSE)
+set(saw_aisuite_backend_runtime_library FALSE)
+set(saw_aisuite_frontend_runtime_library FALSE)
 set(saw_snodec_runtime_library FALSE)
 foreach(consumer IN LISTS installed_consumers)
     set(executable "${consumer_build}/${consumer}")
@@ -372,7 +422,6 @@ foreach(consumer IN LISTS installed_consumers)
            uses_aisuite
     )
     if(NOT uses_aisuite EQUAL -1)
-        set(saw_aisuite_runtime_library TRUE)
         string(FIND "${linked_libraries}" "${aisuite_install}/lib"
                linked_aisuite_index
         )
@@ -380,6 +429,44 @@ foreach(consumer IN LISTS installed_consumers)
             fail_cross_repo(
                 "${consumer} did not resolve AISuite Codex libraries from ${aisuite_install}"
             )
+        endif()
+        string(FIND "${linked_libraries}" "libaisuite-openai-codex.so.1"
+               linked_legacy_main
+        )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-backend.so.1"
+               linked_legacy_backend
+        )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend.so.1"
+               linked_legacy_frontend
+        )
+        if(NOT linked_legacy_main EQUAL -1 OR
+           NOT linked_legacy_backend EQUAL -1 OR
+           NOT linked_legacy_frontend EQUAL -1)
+            fail_installed(
+                "${consumer} resolved an obsolete AISuite Codex .so.1 runtime"
+            )
+        endif()
+        string(FIND "${linked_libraries}" "libaisuite-openai-codex.so.2"
+               linked_main
+        )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-backend.so.2"
+               linked_backend
+        )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend.so.2"
+               linked_frontend
+        )
+        if(NOT linked_main EQUAL -1)
+            set(saw_aisuite_main_runtime_library TRUE)
+        endif()
+        if(NOT linked_backend EQUAL -1)
+            set(saw_aisuite_backend_runtime_library TRUE)
+        endif()
+        if(NOT linked_frontend EQUAL -1)
+            set(saw_aisuite_frontend_runtime_library TRUE)
         endif()
     endif()
     string(FIND "${linked_libraries}" "libsnodec-" uses_snodec)
@@ -422,9 +509,12 @@ foreach(consumer IN LISTS installed_consumers)
         "sanitized installed runtime for ${consumer}"
     )
 endforeach()
-if(NOT saw_aisuite_runtime_library OR NOT saw_snodec_runtime_library)
+if(NOT saw_aisuite_main_runtime_library OR
+   NOT saw_aisuite_backend_runtime_library OR
+   NOT saw_aisuite_frontend_runtime_library OR
+   NOT saw_snodec_runtime_library)
     fail_cross_repo(
-        "consumer runtime proof did not observe libraries from both isolated install prefixes"
+        "consumer runtime proof did not observe all three AISuite Codex .so.2 libraries and SNode.C from their isolated install prefixes"
     )
 endif()
 

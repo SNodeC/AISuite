@@ -208,12 +208,14 @@ namespace {
                               error.empty(),
                           "plugin/uninstall encodes its exact required plugin ID");
 
-        typed::PluginInstallParams invalidState{};
-        invalidState.pluginName = "synthetic-plugin";
-        invalidState.marketplacePath = {false, std::optional<typed::AbsolutePathBuf>{typed::AbsolutePathBuf{"/synthetic/inconsistent"}}};
-        result.expectTrue(!detail::encodePluginInstallParams(invalidState, error) && error.find("$.marketplacePath") != std::string::npos &&
-                              error.find("/synthetic/inconsistent") == std::string::npos,
-                          "plugin/install rejects an inconsistent nullable state without disclosing its value");
+        typed::PluginInstallParams valuedPath{};
+        valuedPath.pluginName = "synthetic-plugin";
+        valuedPath.marketplacePath =
+            typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/marketplace"});
+        result.expectTrue(detail::encodePluginInstallParams(valuedPath, error) ==
+                                  codex::Json{{"marketplacePath", "/synthetic/marketplace"}, {"pluginName", "synthetic-plugin"}} &&
+                              error.empty(),
+                          "plugin/install encodes OptionalNullable::withValue without changing tri-state semantics");
 
         typed::PluginUninstallParams invalidRaw{};
         invalidRaw.pluginId = "synthetic-plugin";

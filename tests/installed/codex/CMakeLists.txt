@@ -46,18 +46,19 @@ foreach(
 endforeach()
 
 add_executable(
-    AISuiteInstalledCodexDeprecatedTypedConsumer
-    CodexDeprecatedTypedConsumer.cpp
+    AISuiteInstalledCodexRetainedCompatibilityConsumer
+    CodexRetainedCompatibilityConsumer.cpp
 )
 target_compile_features(
-    AISuiteInstalledCodexDeprecatedTypedConsumer PRIVATE cxx_std_20
+    AISuiteInstalledCodexRetainedCompatibilityConsumer PRIVATE cxx_std_20
 )
 target_compile_options(
-    AISuiteInstalledCodexDeprecatedTypedConsumer
+    AISuiteInstalledCodexRetainedCompatibilityConsumer
     PRIVATE -Werror -Wno-deprecated-declarations
 )
 target_link_libraries(
-    AISuiteInstalledCodexDeprecatedTypedConsumer PRIVATE AISuite::OpenAICodex
+    AISuiteInstalledCodexRetainedCompatibilityConsumer
+    PRIVATE AISuite::OpenAICodex
 )
 
 add_executable(

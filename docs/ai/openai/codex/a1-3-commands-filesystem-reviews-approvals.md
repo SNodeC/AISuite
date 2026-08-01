@@ -113,10 +113,10 @@ appended at indices 5 through 7. `CommandApprovalRequest` and
 gain schema-complete canonical parameters and diagnostics. Those aggregate
 and variant layout changes are ABI changes: consumers using the installed
 typed aggregates must rebuild. `typed::Client` and `AppServerClient` keep their
-one-pointer and PIMPL object layouts, respectively. SOVERSION remains 1 under
-the frozen A1 policy, which defers the milestone-wide bump decision to A1.4;
-this document does not claim binary compatibility from an unchanged symbol
-list.
+one-pointer and PIMPL object layouts, respectively. SOVERSION remained 1 for
+this implementation slice; Final A1b subsequently moves all three Codex
+libraries to SOVERSION 2. This document does not claim binary compatibility
+from an unchanged symbol list.
 
 The exact GCC 15 base-to-final object-layout comparison is:
 

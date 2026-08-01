@@ -937,7 +937,6 @@ namespace ai::openai::codex::typed {
         std::string method;
         Json params;
         Json raw;
-        std::optional<std::string> decodingError;
         std::optional<DecodeDiagnostic> diagnostic;
     };
 

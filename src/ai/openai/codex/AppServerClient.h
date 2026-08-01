@@ -104,7 +104,6 @@ namespace ai::openai::codex {
         [[deprecated("use typed().requests()")]]
         const typed::Requests& requests() const noexcept;
 
-        std::optional<InitializeResult> getInitializeResult() const;
         std::optional<typed::InitializeResponse> getInitializeResponse() const;
 
         void setOnStateChanged(Callbacks::StateChanged callback);

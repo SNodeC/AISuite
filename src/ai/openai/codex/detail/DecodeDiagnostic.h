@@ -10,6 +10,7 @@
 
 #include "ai/openai/codex/typed/Types.h"
 
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -62,6 +63,19 @@ namespace ai::openai::codex::detail {
                                     typed::DecodeIssueSeverity::ProtocolWarning,
                                     std::move(surface),
                                     std::move(fieldPath));
+    }
+
+    inline std::optional<std::string> safeDecodeDiagnosticText(const std::optional<typed::DecodeDiagnostic>& diagnostic) {
+        if (!diagnostic || diagnostic->severity != typed::DecodeIssueSeverity::ProtocolWarning) {
+            return std::nullopt;
+        }
+
+        std::string text = diagnostic->message;
+        if (!diagnostic->fieldPath.empty()) {
+            text += " at ";
+            text += diagnostic->fieldPath;
+        }
+        return text;
     }
 
 } // namespace ai::openai::codex::detail

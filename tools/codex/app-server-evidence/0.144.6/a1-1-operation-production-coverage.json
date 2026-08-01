@@ -60,28 +60,28 @@
     },
     {
       "path": "src/ai/openai/codex/detail/ItemDecoder.cpp",
-      "bytes": 85279,
-      "sha256": "ceff8ba0c8811271df88eeaf548bf58f79c72879d885d6d0204b42d78081401d"
+      "bytes": 84387,
+      "sha256": "5309c1724720634d3725caf5b0d53ff83ac000fa4b9f1b00a8023fcadcfbd50e"
     },
     {
       "path": "src/ai/openai/codex/detail/ThreadCodec.cpp",
-      "bytes": 66242,
-      "sha256": "127c4c61493ae0e98d6a1b94c65ac385ce4802fc93930532b1c6a8465a3739dd"
+      "bytes": 65340,
+      "sha256": "6f9de2dcc149103543ee11393b09c85de0960eb988a1b5d24cda2f1bfe379c8b"
     },
     {
       "path": "src/ai/openai/codex/detail/ThreadCodec.h",
-      "bytes": 6472,
-      "sha256": "f1cb675dce46421fb0939a14558129134fd30f6aba0e4ffc00251752761a7771"
+      "bytes": 5969,
+      "sha256": "1c26249ce924079702b339b53bc05cb2e2e0d0f57e247dd4a549ccb41fcd9760"
     },
     {
       "path": "src/ai/openai/codex/detail/TurnCodec.cpp",
-      "bytes": 18174,
-      "sha256": "a7613174c7956d0d17b8bd324a6f737df9789e5eddf592b7169560e99d75171c"
+      "bytes": 17745,
+      "sha256": "0be26b36e59df4aeb0d2ee998d6d62cf1b4694ccf5a45a08102d9788a32153ad"
     },
     {
       "path": "src/ai/openai/codex/detail/TurnCodec.h",
-      "bytes": 2455,
-      "sha256": "44620f091d2413e90ceec70035d16714f1259568c591f95997815540de55d92a"
+      "bytes": 2133,
+      "sha256": "407e1950cb3f990b9eda62f7c870ab3352dec8eb42fbcf09c6d9b5e363ac9a6a"
     },
     {
       "path": "src/ai/openai/codex/typed/Client.cpp",
@@ -90,13 +90,13 @@
     },
     {
       "path": "src/ai/openai/codex/typed/Conversation.h",
-      "bytes": 16646,
-      "sha256": "52aa532f67c804ae3626968c61d78131d2289162cc5d654afdd84e302a352621"
+      "bytes": 15609,
+      "sha256": "42d0e85547d9dc5622c29142178930cff9b68fa65bc5b0e96af1c27e1aaf2678"
     },
     {
       "path": "src/ai/openai/codex/typed/Items.h",
-      "bytes": 36501,
-      "sha256": "06197bff0f81be86453ec7bc8e52a41f8a232c24db7c8e697ee11ed472610996"
+      "bytes": 36401,
+      "sha256": "927ee523a164f139119ff6e2faeef0ce7bad6a81e19ebcf58facf183b377d932"
     },
     {
       "path": "src/ai/openai/codex/typed/Threads.h",
@@ -105,13 +105,13 @@
     },
     {
       "path": "src/ai/openai/codex/typed/Turns.h",
-      "bytes": 4937,
-      "sha256": "876f7496031c7e52b2e3cb49ffc68e1afae57a742a02f82ca42788af372eb9a6"
+      "bytes": 3732,
+      "sha256": "4a783d7eaa5f5949ac7d7ba4c97bac61e75c2b4edc27e1b85d9dd181b81d9ba4"
     },
     {
       "path": "src/ai/openai/codex/typed/Types.h",
-      "bytes": 16640,
-      "sha256": "b1bdc8ba25ec86ab83d7a8a89e9b80dff8dce5a27ea8d125064525cfa9cd8cc5"
+      "bytes": 16357,
+      "sha256": "5766c2287e65090206532129063866956cf91b57b2ae1d13f498145ac7f4089e"
     },
     {
       "path": "tests/component/codex/CMakeLists.txt",
@@ -135,13 +135,13 @@
     },
     {
       "path": "tests/component/codex/CodexTypedThreadCodecTest.cpp",
-      "bytes": 48718,
-      "sha256": "a270630b722809f252785bfea3fb45781a8e29c91a24beb79717eb11e3438d16"
+      "bytes": 48815,
+      "sha256": "f7f1cdd2e738f369113c0d12df0841f7bcf7386e67098d6fd4f31e2111f9ad68"
     },
     {
       "path": "tests/component/codex/CodexA11OperationWireTest.cpp",
-      "bytes": 123788,
-      "sha256": "ba98e6f8afa6058a6c802c046ad1a30c7731d13114235aa34895fa5e818d9d9c"
+      "bytes": 123598,
+      "sha256": "6fb6fba9948e609d4b202c34a827c2a52e19aaac3a911f0e20821d108b8f70a1"
     },
     {
       "path": "tests/installed/codex/CodexTypedConsumer.cpp",

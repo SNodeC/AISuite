@@ -37,10 +37,6 @@ namespace ai::openai::codex::detail {
 
     // A1.0 compatibility codec entrypoints.
     std::optional<Json> encodeTurnInput(const typed::TurnInput& input, std::string& error);
-    std::optional<Json> encodeTurnStartParams(const typed::ThreadId& threadId,
-                                              const std::vector<typed::TurnInput>& input,
-                                              const typed::TurnStartOptions& options,
-                                              std::string& error);
     std::optional<Json>
     encodeTurnInterruptParams(const typed::ThreadId& threadId, const typed::TurnId& turnId, std::string& error);
     std::optional<typed::Turn> decodeTurnStartResult(const Json& value, const typed::ThreadId& threadId, std::string& error);

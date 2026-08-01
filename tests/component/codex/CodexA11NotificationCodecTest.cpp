@@ -784,14 +784,11 @@ int main() {
     const Observation sensitiveObservation = decodeFixture(sensitive);
     const auto* unknown =
         sensitiveObservation.event ? std::get_if<typed::UnknownEvent>(&*sensitiveObservation.event) : nullptr;
-    result.expectTrue(
-        sensitiveObservation.codes == std::vector<std::string>{"MalformedKnownPayload", "ProtocolWarning"} && unknown &&
-            unknown->diagnostic && unknown->diagnostic->surface == "thread/realtime/error" &&
-            unknown->diagnostic->fieldPath == "$.params" &&
-            unknown->diagnostic->message.find("sensitive-notification-value") == std::string::npos &&
-            unknown->decodingError &&
-            unknown->decodingError->find("sensitive-notification-value") == std::string::npos,
-        "malformed-known notification diagnostics contain identity/path but never secret payload values");
+    result.expectTrue(sensitiveObservation.codes == std::vector<std::string>{"MalformedKnownPayload", "ProtocolWarning"} && unknown &&
+                          unknown->diagnostic && unknown->diagnostic->surface == "thread/realtime/error" &&
+                          unknown->diagnostic->fieldPath == "$.params" &&
+                          unknown->diagnostic->message.find("sensitive-notification-value") == std::string::npos,
+                      "malformed-known notification diagnostics contain identity/path but never secret payload values");
 
     return result.processResult();
 }

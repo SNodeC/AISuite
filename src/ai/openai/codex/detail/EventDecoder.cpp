@@ -536,15 +536,9 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        typed::Event unknownEvent(const Notification& notification, std::optional<std::string> decodingError = std::nullopt) {
-            const bool malformed = decodingError.has_value();
+        typed::Event unknownEvent(const Notification& notification) {
             return typed::Event{typed::UnknownEvent{
-                notification.method,
-                notification.params,
-                notification.raw,
-                std::move(decodingError),
-                malformed ? std::optional<typed::DecodeDiagnostic>{malformedKnownDiagnostic(notification.method, "$.params")}
-                          : std::optional<typed::DecodeDiagnostic>{unknownMethodDiagnostic(notification.method)}}};
+                notification.method, notification.params, notification.raw, unknownMethodDiagnostic(notification.method)}};
         }
 
         typed::Event malformedEvent(const Notification& notification, std::string error) {
@@ -577,11 +571,10 @@ namespace ai::openai::codex::detail {
                     }
                 }
             }
-            typed::Event event = unknownEvent(notification, notification.method + ": " + std::move(error));
-            if (auto* unknown = std::get_if<typed::UnknownEvent>(&event); unknown != nullptr && unknown->diagnostic) {
-                unknown->diagnostic->fieldPath = std::move(fieldPath);
-            }
-            return event;
+            return typed::Event{typed::UnknownEvent{notification.method,
+                                                    notification.params,
+                                                    notification.raw,
+                                                    malformedKnownDiagnostic(notification.method, std::move(fieldPath))}};
         }
 
         typed::Event decodeCommandExecOutputDelta(const Notification& notification) {
@@ -1457,11 +1450,8 @@ namespace ai::openai::codex::detail {
             std::optional<typed::DecodeDiagnostic> turnDiagnostic;
             std::optional<typed::TurnError> typedError = detail::decodeTurnError(*turnError, turnDiagnostic);
             if (!typedError) {
-                return typed::Event{typed::UnknownEvent{notification.method,
-                                                        notification.params,
-                                                        notification.raw,
-                                                        notification.method + ": error payload could not be decoded",
-                                                        std::move(turnDiagnostic)}};
+                return typed::Event{
+                    typed::UnknownEvent{notification.method, notification.params, notification.raw, std::move(turnDiagnostic)}};
             }
             typed::ErrorNotification canonical{
                 *typedError, typed::ThreadId{std::move(threadId)}, typed::TurnId{std::move(turnId)}, willRetry, notification.raw, {}};
@@ -1641,19 +1631,19 @@ namespace ai::openai::codex::detail {
             }
 
             return unknownEvent(notification);
-        } catch (const std::exception& exception) {
+        } catch (const std::exception&) {
             try {
-                return unknownEvent(notification, std::string("event decoding failed: ") + exception.what());
-            } catch (...) {
                 return typed::Event{typed::UnknownEvent{
-                    "", nullptr, nullptr, "event decoding failed", malformedKnownDiagnostic("ServerNotification", "$")}};
+                    notification.method, notification.params, notification.raw, malformedKnownDiagnostic(notification.method, "$.params")}};
+            } catch (...) {
+                return typed::Event{typed::UnknownEvent{"", nullptr, nullptr, malformedKnownDiagnostic("ServerNotification", "$")}};
             }
         } catch (...) {
             try {
-                return unknownEvent(notification, "event decoding failed with an unknown exception");
-            } catch (...) {
                 return typed::Event{typed::UnknownEvent{
-                    "", nullptr, nullptr, "event decoding failed", malformedKnownDiagnostic("ServerNotification", "$")}};
+                    notification.method, notification.params, notification.raw, malformedKnownDiagnostic(notification.method, "$.params")}};
+            } catch (...) {
+                return typed::Event{typed::UnknownEvent{"", nullptr, nullptr, malformedKnownDiagnostic("ServerNotification", "$")}};
             }
         }
     }

@@ -43,14 +43,11 @@ namespace {
                                      const codex::Notification& notification,
                                      std::string_view path) {
         const auto* unknown = std::get_if<typed::UnknownEvent>(&event);
-        return unknown && unknown->method == notification.method &&
-               unknown->params == notification.params &&
-               unknown->raw == notification.raw && unknown->decodingError &&
-               unknown->diagnostic &&
+        return unknown && unknown->method == notification.method && unknown->params == notification.params &&
+               unknown->raw == notification.raw && unknown->diagnostic &&
                unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
                unknown->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
-               unknown->diagnostic->surface == notification.method &&
-               unknown->diagnostic->fieldPath == path;
+               unknown->diagnostic->surface == notification.method && unknown->diagnostic->fieldPath == path;
     }
 
     codex::Notification notification(std::string method, codex::Json params) {

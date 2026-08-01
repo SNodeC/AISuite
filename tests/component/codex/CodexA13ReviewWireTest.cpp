@@ -682,8 +682,8 @@ namespace {
                 typedEventOrder.push_back("malformed-root");
                 ++malformedRootEvents;
                 expect(unknown->diagnostic && unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
-                           unknown->decodingError && unknown->decodingError->find("SYNTHETIC_SENSITIVE_COMMAND") == std::string::npos &&
-                           unknown->decodingError->find("SYNTHETIC_SENSITIVE_EXTENSION") == std::string::npos,
+                           unknown->diagnostic->message.find("SYNTHETIC_SENSITIVE_COMMAND") == std::string::npos &&
+                           unknown->diagnostic->message.find("SYNTHETIC_SENSITIVE_EXTENSION") == std::string::npos,
                        "malformed notification remains raw-observable with a redacted diagnostic");
             }
         }

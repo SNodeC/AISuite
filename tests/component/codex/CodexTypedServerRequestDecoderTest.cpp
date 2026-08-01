@@ -21,6 +21,7 @@ namespace {
     using ai::openai::codex::detail::decodeServerRequest;
     using ai::openai::codex::typed::AuthenticationRequest;
     using ai::openai::codex::typed::CommandApprovalRequest;
+    using ai::openai::codex::typed::DecodeIssueSeverity;
     using ai::openai::codex::typed::FileChangeApprovalRequest;
     using ai::openai::codex::typed::TypedServerRequest;
     using ai::openai::codex::typed::UnknownServerRequest;
@@ -203,8 +204,9 @@ namespace {
         testResult.expectTrue(unknown != nullptr, "unknown request method decodes as UnknownServerRequest");
         testResult.expectTrue(unknown && hasStringId(unknown->requestId, "future-id") && unknown->method == "future/server/request",
                               "unknown request remains answerable with its exact request ID and method");
-        testResult.expectTrue(unknown && unknown->params == unknownParams && unknown->raw == rawUnknown.raw && !unknown->decodingError,
-                              "unknown request preserves exact params and complete raw envelope without a decoding error");
+        testResult.expectTrue(unknown && unknown->params == unknownParams && unknown->raw == rawUnknown.raw && unknown->diagnostic &&
+                                  unknown->diagnostic->severity == DecodeIssueSeverity::ForwardCompatibility,
+                              "unknown request preserves exact params, raw envelope, and forward-compatibility diagnostic");
 
         Json missingIdParams = {
             {"threadId", "thread-malformed"},
@@ -215,8 +217,8 @@ namespace {
             makeRequest(ServerRequestId{43}, "item/commandExecution/requestApproval", missingIdParams, "malformed");
         const TypedServerRequest decodedMissingId = decodeServerRequest(rawMissingId);
         const UnknownServerRequest* missingId = std::get_if<UnknownServerRequest>(&decodedMissingId);
-        testResult.expectTrue(missingId && missingId->decodingError && !missingId->decodingError->empty(),
-                              "known request missing a required typed ID falls back to unknown with a decode reason");
+        testResult.expectTrue(missingId && missingId->diagnostic && missingId->diagnostic->severity == DecodeIssueSeverity::ProtocolWarning,
+                              "known request missing a required typed ID falls back to unknown with a structured diagnostic");
         testResult.expectTrue(missingId && hasIntegerId(missingId->requestId, 43) && missingId->params == missingIdParams &&
                                   missingId->raw == rawMissingId.raw,
                               "malformed known request remains answerable and preserves exact params and raw envelope");
@@ -227,8 +229,9 @@ namespace {
             makeRequest(ServerRequestId{44}, "item/tool/requestUserInput", malformedOptions, "bad-options");
         const TypedServerRequest decodedMalformedOptions = decodeServerRequest(rawMalformedOptions);
         const UnknownServerRequest* badOptions = std::get_if<UnknownServerRequest>(&decodedMalformedOptions);
-        testResult.expectTrue(badOptions && badOptions->decodingError && !badOptions->decodingError->empty(),
-                              "user-input option missing a required field falls back to unknown with a decode reason");
+        testResult.expectTrue(badOptions && badOptions->diagnostic &&
+                                  badOptions->diagnostic->severity == DecodeIssueSeverity::ProtocolWarning,
+                              "user-input option missing a required field falls back to unknown with a structured diagnostic");
         testResult.expectTrue(badOptions && badOptions->raw == rawMalformedOptions.raw,
                               "malformed user-input option retains the exact complete raw request");
 
@@ -238,8 +241,9 @@ namespace {
             makeRequest(ServerRequestId{45}, "item/tool/requestUserInput", negativeTimeout, "bad-timeout");
         const TypedServerRequest decodedNegativeTimeout = decodeServerRequest(rawNegativeTimeout);
         const UnknownServerRequest* badTimeout = std::get_if<UnknownServerRequest>(&decodedNegativeTimeout);
-        testResult.expectTrue(badTimeout && badTimeout->decodingError && !badTimeout->decodingError->empty(),
-                              "negative autoResolutionMs falls back to unknown with a decode reason");
+        testResult.expectTrue(badTimeout && badTimeout->diagnostic &&
+                                  badTimeout->diagnostic->severity == DecodeIssueSeverity::ProtocolWarning,
+                              "negative autoResolutionMs falls back to unknown with a structured diagnostic");
         testResult.expectTrue(badTimeout && badTimeout->params == negativeTimeout && badTimeout->raw == rawNegativeTimeout.raw,
                               "invalid uint64 input retains exact params and complete raw request");
     }

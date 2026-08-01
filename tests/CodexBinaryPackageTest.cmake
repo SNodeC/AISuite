@@ -88,9 +88,9 @@ list(SORT expected_codex_public_headers)
 
 set(
     expected_soversion_libraries
-    "libsnodec-ai-openai-codex-backend.so.1"
-    "libsnodec-ai-openai-codex-frontend.so.1"
-    "libsnodec-ai-openai-codex.so.1"
+    "libsnodec-ai-openai-codex-backend.so.2"
+    "libsnodec-ai-openai-codex-frontend.so.2"
+    "libsnodec-ai-openai-codex.so.2"
 )
 list(SORT expected_soversion_libraries)
 
@@ -171,7 +171,7 @@ foreach(binary_archive IN LISTS binary_archives)
 
         get_filename_component(archive_entry_name "${archive_entry}" NAME)
         if(archive_entry_name MATCHES
-           "^libsnodec-ai-openai-codex(-backend|-frontend)?\\.so\\.1$")
+           "^libsnodec-ai-openai-codex(-backend|-frontend)?\\.so\\.2$")
             list(APPEND
                  observed_soversion_libraries "${archive_entry_name}")
         endif()

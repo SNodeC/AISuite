@@ -338,8 +338,8 @@ namespace {
         const auto* unknown = std::get_if<typed::UnknownEvent>(&malformedEvent);
         result.expectTrue(unknown && unknown->diagnostic && unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
                               unknown->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
-                              unknown->diagnostic->fieldPath == "$.params.details" && unknown->decodingError &&
-                              unknown->decodingError->find("include-this-value-in-diagnostics") == std::string::npos,
+                              unknown->diagnostic->fieldPath == "$.params.details" &&
+                              unknown->diagnostic->message.find("include-this-value-in-diagnostics") == std::string::npos,
                           "malformed configWarning diagnostics report only stable codes and field paths, never field values");
     }
 } // namespace

@@ -414,12 +414,6 @@ namespace {
                        state->outgoing[0]["params"]["futureInitialize"] == true,
                    "the automatic initialize request uses the complete canonical presence-state configuration");
 
-            const std::optional<ai::openai::codex::InitializeResult> initializeResult = client->getInitializeResult();
-            expect(initializeResult && initializeResult->codexHome == "/tmp/codex-home" && initializeResult->platformFamily == "unix" &&
-                       initializeResult->platformOs == "linux" && initializeResult->userAgent == "codex-test/1",
-                   "typed initialization fields are cached after the internal handshake");
-            expect(initializeResult && initializeResult->raw["future"]["kept"] == true,
-                   "the complete raw initialization result retains future fields");
             const auto initializeResponse = client->getInitializeResponse();
             expect(initializeResponse && initializeResponse->codexHome.value == "/tmp/codex-home" &&
                        initializeResponse->platformFamily == "unix" && initializeResponse->platformOs == "linux" &&
@@ -744,8 +738,8 @@ namespace {
                     expect(!initializedSendFailureReachedReady && change.error && change.error->category == Error::Category::Transport &&
                                change.error->code == 31,
                            "synchronous failure during initialized send cannot resurrect initialization into Ready");
-                    expect(!client->getInitializeResult(),
-                           "failed initialized notification send does not publish an initialization result");
+                    expect(!client->getInitializeResponse(),
+                           "failed initialized notification send does not publish an initialization response");
                     client->stop();
                 } else if (change.current == State::Stopped) {
                     defer([this]() {
@@ -773,8 +767,7 @@ namespace {
                 } else if (change.current == State::Failed) {
                     expect(!malformedInitializeReachedReady && change.error && change.error->category == Error::Category::Initialization,
                            "a malformed initialize response fails initialization without transitioning to Ready");
-                    expect(!client->getInitializeResult() && !client->getInitializeResponse(),
-                           "a malformed initialize response publishes neither legacy nor canonical result state");
+                    expect(!client->getInitializeResponse(), "a malformed initialize response does not publish canonical result state");
                     client->stop();
                 } else if (change.current == State::Stopped) {
                     defer([this]() {

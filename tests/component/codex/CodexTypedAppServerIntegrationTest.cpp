@@ -175,8 +175,8 @@ int main(int argc, char* argv[]) {
         ++typedEventCount;
 
         if (const auto* unknown = std::get_if<typed::UnknownEvent>(&event)) {
-            if (unknown->decodingError.has_value() && unknownEventDiagnostic.empty()) {
-                unknownEventDiagnostic = unknown->method + ": " + *unknown->decodingError;
+            if (unknown->diagnostic.has_value() && unknownEventDiagnostic.empty()) {
+                unknownEventDiagnostic = unknown->method + ": " + unknown->diagnostic->message + " at " + unknown->diagnostic->fieldPath;
             }
             return;
         }

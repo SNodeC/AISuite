@@ -75,13 +75,6 @@ namespace ai::openai::codex::typed {
             , value(std::move(input)) {
         }
 
-        // Retains source compatibility with the original aggregate's
-        // OptionalNullable{present, value} spelling.
-        constexpr OptionalNullable(bool isPresent, std::optional<T> input)
-            : present(isPresent)
-            , value(std::move(input)) {
-        }
-
         [[nodiscard]] static constexpr OptionalNullable omitted() noexcept {
             return {};
         }

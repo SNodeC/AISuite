@@ -5,10 +5,11 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include <cstdint>
 #include <ai/openai/codex/backend/BackendCore.h>
+#include <ai/openai/codex/frontend/Codec.h>
 #include <ai/openai/codex/frontend/Protocol.h>
 #include <ai/openai/codex/stdio/Client.h>
+#include <cstdint>
 #include <string_view>
 
 int main() {
@@ -19,5 +20,6 @@ int main() {
     static_assert(ProtocolIdentity == std::string_view{"snodec.codex-frontend"});
 
     BackendCore<ai::openai::codex::stdio::Client> backend;
-    return backend.isReady() ? 1 : 0;
+    const auto decoded = Codec::decodeClient(std::string_view{"{}"});
+    return backend.isReady() || decoded.hasValue() ? 1 : 0;
 }

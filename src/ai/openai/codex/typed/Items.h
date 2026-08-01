@@ -813,7 +813,6 @@ namespace ai::openai::codex::typed {
     struct UnknownItem {
         std::optional<std::string> type;
         Json raw = Json::object();
-        std::optional<std::string> decodingError;
         UnknownItemMetadata metadata = {};
         std::optional<DecodeDiagnostic> diagnostic;
 
@@ -1040,7 +1039,6 @@ namespace ai::openai::codex::typed {
     struct UnknownResponseItem {
         std::optional<std::string> type;
         Json raw = Json::object();
-        std::optional<std::string> decodingError;
         UnknownResponseItemMetadata metadata = {};
         std::optional<DecodeDiagnostic> diagnostic;
 

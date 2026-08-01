@@ -25,32 +25,27 @@ namespace ai::openai::codex::backend {
     };
 
     struct ThreadStart {
-        typed::ThreadStartOptions options;
+        typed::ThreadStartParams params;
     };
 
     struct ThreadResume {
-        typed::ThreadId threadId;
-        typed::ThreadResumeOptions options;
+        typed::ThreadResumeParams params;
     };
 
     struct ThreadList {
-        typed::ThreadListOptions options;
+        typed::ThreadListParams params;
     };
 
     struct ThreadRead {
-        typed::ThreadId threadId;
-        typed::ThreadReadOptions options;
+        typed::ThreadReadParams params;
     };
 
     struct TurnStart {
-        typed::ThreadId threadId;
-        std::vector<typed::TurnInput> input;
-        typed::TurnStartOptions options;
+        typed::TurnStartParams params;
     };
 
     struct TurnInterrupt {
-        typed::ThreadId threadId;
-        typed::TurnId turnId;
+        typed::TurnInterruptParams params;
     };
 
     struct ApprovalRespond {
@@ -122,14 +117,8 @@ namespace ai::openai::codex::backend {
         SequenceNumber after;
     };
 
-    using CommandValue = std::variant<std::monostate,
-                                      Snapshot,
-                                      ControllerResult,
-                                      ReplayResult,
-                                      typed::Thread,
-                                      typed::ThreadPage,
-                                      typed::Turn,
-                                      typed::TurnInterruptResult>;
+    using CommandValue =
+        std::variant<std::monostate, Snapshot, ControllerResult, ReplayResult, typed::Thread, typed::ThreadPage, typed::Turn, typed::Unit>;
 
     struct CommandResult {
         CommandValue value;
