@@ -6,20 +6,23 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/AppServerClient.h"
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
-#include "ai/openai/codex/typed/Events.h"
-#include "ai/openai/codex/typed/Reviews.h"
 #include "support/TestResult.h"
 
 #include <concepts>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
+
+#ifndef AISUITE_TEST_PROJECT_VERSION
+#error "AISUITE_TEST_PROJECT_VERSION must be supplied by CMake"
+#endif
 
 namespace {
     namespace codex = ai::openai::codex;
@@ -32,110 +35,102 @@ namespace {
     };
 
     template <typename Client>
-    concept HasDirectAccountsAccessor = requires(Client& client) {
-        client.accounts();
+    concept HasTypedAccessor = requires(Client& client) { client.typed(); };
+
+    template <typename Client>
+    concept HasConstRawAccessor = requires(const Client& client) { client.raw(); };
+
+#define DEFINE_CONST_ACCESSOR_CONCEPT(Name, name)                                                                                          \
+    template <typename Client>                                                                                                             \
+    concept HasConst##Name##Accessor = requires(const Client& client) { client.name(); }
+
+    DEFINE_CONST_ACCESSOR_CONCEPT(Accounts, accounts);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Apps, apps);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Commands, commands);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Configuration, configuration);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Events, events);
+    DEFINE_CONST_ACCESSOR_CONCEPT(ExternalAgents, externalAgents);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Feedback, feedback);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Filesystem, filesystem);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Hooks, hooks);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Marketplace, marketplace);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Mcp, mcp);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Models, models);
+    DEFINE_CONST_ACCESSOR_CONCEPT(PermissionProfiles, permissionProfiles);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Plugins, plugins);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Requests, requests);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Reviews, reviews);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Skills, skills);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Threads, threads);
+    DEFINE_CONST_ACCESSOR_CONCEPT(Turns, turns);
+    DEFINE_CONST_ACCESSOR_CONCEPT(WindowsSandbox, windowsSandbox);
+
+#undef DEFINE_CONST_ACCESSOR_CONCEPT
+
+    template <typename Client>
+    concept HasRemoteControlAccessor = requires(Client& client) { client.remoteControl(); };
+
+    template <typename Facade>
+    concept HasLegacyLogoutUnit =
+        requires(Facade& facade, typed::DoneHandler handler) { facade.logout(typed::Unit{}, std::move(handler)); };
+
+    template <typename Facade>
+    concept HasLegacyRateLimitsUnit = requires(Facade& facade, typed::CompletionHandler<typed::GetAccountRateLimitsResponse> handler) {
+        facade.readRateLimits(typed::Unit{}, std::move(handler));
     };
 
-    template <typename Client>
-    concept HasDirectAppsAccessor = requires(Client& client) { client.apps(); };
-
-    template <typename Client>
-    concept HasDirectCommandsAccessor = requires(Client& client) { client.commands(); };
-
-    template <typename Client>
-    concept HasDirectFilesystemAccessor = requires(Client& client) { client.filesystem(); };
-
-    template <typename Client>
-    concept HasDirectExternalAgentsAccessor = requires(Client& client) { client.externalAgents(); };
-
-    template <typename Client>
-    concept HasDirectFeedbackAccessor = requires(Client& client) { client.feedback(); };
-
-    template <typename Client>
-    concept HasDirectHooksAccessor = requires(Client& client) { client.hooks(); };
-
-    template <typename Client>
-    concept HasDirectMarketplaceAccessor = requires(Client& client) { client.marketplace(); };
-
-    template <typename Client>
-    concept HasDirectModelsAccessor = requires(Client& client) {
-        client.models();
+    template <typename Facade>
+    concept HasLegacyUsageUnit = requires(Facade& facade, typed::CompletionHandler<typed::GetAccountTokenUsageResponse> handler) {
+        facade.readUsage(typed::Unit{}, std::move(handler));
     };
 
-    template <typename Client>
-    concept HasDirectPermissionProfilesAccessor = requires(Client& client) { client.permissionProfiles(); };
+    template <typename Facade>
+    concept HasLegacyWorkspaceMessagesUnit =
+        requires(Facade& facade, typed::CompletionHandler<typed::GetWorkspaceMessagesResponse> handler) {
+            facade.readWorkspaceMessages(typed::Unit{}, std::move(handler));
+        };
 
-    template <typename Client>
-    concept HasDirectPluginsAccessor = requires(Client& client) { client.plugins(); };
+    template <typename Facade>
+    concept HasLegacyReloadMcpUnit =
+        requires(Facade& facade, typed::DoneHandler handler) { facade.reloadMcpServers(typed::Unit{}, std::move(handler)); };
 
-    template <typename Client>
-    concept HasDirectReviewsAccessor = requires(Client& client) { client.reviews(); };
-
-    template <typename Client>
-    concept HasDirectSkillsAccessor = requires(Client& client) { client.skills(); };
-
-    template <typename Client>
-    concept HasDirectConfigurationAccessor = requires(Client& client) {
-        client.configuration();
+    template <typename Facade>
+    concept HasLegacyRequirementsUnit = requires(Facade& facade, typed::CompletionHandler<typed::ConfigRequirementsReadResponse> handler) {
+        facade.readRequirements(typed::Unit{}, std::move(handler));
     };
 
-    using ThreadStartMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadStartParams,
-                                                                             typed::Threads::ThreadStartResultHandler);
-    using ThreadResumeMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadResumeParams,
-                                                                              typed::Threads::ThreadResumeResultHandler);
-    using ThreadListMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadListParams,
-                                                                            typed::Threads::ThreadListResultHandler);
-    using ThreadReadMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadReadParams,
-                                                                            typed::Threads::ThreadReadResultHandler);
-    using TurnStartMember = typed::Turns::Submission (typed::Turns::*)(typed::TurnStartParams, typed::Turns::TurnStartResultHandler);
-    using TurnInterruptMember = typed::Turns::Submission (typed::Turns::*)(typed::TurnInterruptParams, typed::Turns::UnitResultHandler);
-    using ReviewStartMember = typed::Reviews::Submission (typed::Reviews::*)(typed::ReviewStartParams,
-                                                                             typed::Reviews::ReviewStartResultHandler);
-    using GuardianApprovalMember = typed::Threads::Submission (typed::Threads::*)(typed::ThreadApproveGuardianDeniedActionParams,
-                                                                                  typed::Threads::UnitResultHandler);
+    template <typename Facade>
+    concept HasLegacyImportHistoriesUnit =
+        requires(Facade& facade, typed::CompletionHandler<typed::ExternalAgentConfigImportHistoriesReadResponse> handler) {
+            facade.readImportHistories(typed::Unit{}, std::move(handler));
+        };
 
-    static_assert(std::same_as<decltype(&typed::Threads::start), ThreadStartMember>);
-    static_assert(std::same_as<decltype(&typed::Threads::resume), ThreadResumeMember>);
-    static_assert(std::same_as<decltype(&typed::Threads::list), ThreadListMember>);
-    static_assert(std::same_as<decltype(&typed::Threads::read), ThreadReadMember>);
-    static_assert(std::same_as<decltype(&typed::Turns::start), TurnStartMember>);
-    static_assert(std::same_as<decltype(&typed::Turns::interrupt), TurnInterruptMember>);
-    static_assert(std::same_as<decltype(&typed::Reviews::start), ReviewStartMember>);
-    static_assert(std::same_as<decltype(&typed::Threads::approveGuardianDeniedAction), GuardianApprovalMember>);
+    template <typename Facade>
+    concept HasProviderCapabilitiesParams =
+        requires(Facade& facade, typed::CompletionHandler<typed::ModelProviderCapabilitiesReadResponse> handler) {
+            facade.readProviderCapabilities(typed::ModelProviderCapabilitiesReadParams{}, std::move(handler));
+        };
 
-    static_assert(requires(typed::Threads& threads,
-                           typed::ThreadStartParams& start,
-                           typed::ThreadResumeParams& resume,
-                           typed::ThreadListParams& list,
-                           typed::ThreadReadParams& read,
-                           typed::Threads::ThreadStartResultHandler& startHandler,
-                           typed::Threads::ThreadResumeResultHandler& resumeHandler,
-                           typed::Threads::ThreadListResultHandler& listHandler,
-                           typed::Threads::ThreadReadResultHandler& readHandler,
-                           GenericResultHandler& genericHandler) {
-        { threads.start(start, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.start(std::move(start), std::move(startHandler)) } -> std::same_as<typed::Threads::Submission>;
-        { threads.resume(resume, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.resume(std::move(resume), std::move(resumeHandler)) } -> std::same_as<typed::Threads::Submission>;
-        { threads.list(list, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.list(std::move(list), std::move(listHandler)) } -> std::same_as<typed::Threads::Submission>;
-        { threads.read(read, genericHandler) } -> std::same_as<typed::Threads::Submission>;
-        { threads.read(std::move(read), std::move(readHandler)) } -> std::same_as<typed::Threads::Submission>;
-    });
+    template <typename Facade>
+    concept HasPluginShareListParams = requires(Facade& facade, typed::CompletionHandler<typed::PluginShareListResponse> handler) {
+        facade.shareList(typed::PluginShareListParams{}, std::move(handler));
+    };
 
-    static_assert(requires(typed::Turns& turns,
-                           typed::TurnStartParams& start,
-                           typed::TurnInterruptParams& interrupt,
-                           typed::Turns::TurnStartResultHandler& startHandler,
-                           typed::Turns::UnitResultHandler& interruptHandler,
-                           GenericResultHandler& genericHandler) {
-        { turns.start(start, genericHandler) } -> std::same_as<typed::Turns::Submission>;
-        { turns.start(std::move(start), std::move(startHandler)) } -> std::same_as<typed::Turns::Submission>;
-        { turns.interrupt(interrupt, genericHandler) } -> std::same_as<typed::Turns::Submission>;
-        {
-            turns.interrupt(std::move(interrupt), std::move(interruptHandler))
-        } -> std::same_as<typed::Turns::Submission>;
-    });
+    template <typename Facade>
+    concept HasParameterlessStartLogin =
+        requires(Facade& facade, typed::CompletionHandler<typed::LoginAccountResponse> handler) { facade.startLogin(std::move(handler)); };
+
+    template <typename Facade>
+    concept HasRemoteControlEnable =
+        requires(Facade& facade, GenericResultHandler handler) { facade.enableRemoteControl(std::move(handler)); };
+
+    template <typename Facade>
+    concept HasRemoteControlDisable =
+        requires(Facade& facade, GenericResultHandler handler) { facade.disableRemoteControl(std::move(handler)); };
+
+    template <typename Facade>
+    constexpr bool FacadeLifetimeSafe = !std::is_copy_constructible_v<Facade> && !std::is_move_constructible_v<Facade> &&
+                                        !std::is_copy_assignable_v<Facade> && !std::is_move_assignable_v<Facade>;
 
     class InertTransport final : public codex::detail::Transport {
     public:
@@ -156,113 +151,255 @@ namespace {
     class TestClient final : public codex::AppServerClient {
     public:
         TestClient()
-            : AppServerClient(std::make_unique<InertTransport>(), {"typed_facade_test", "Typed Facade Test", "1"}) {
+            : AppServerClient(std::make_unique<InertTransport>(), codex::ClientInfo{}) {
         }
+    };
+
+    struct ProbeValue {
+        int member = 0;
     };
 } // namespace
 
 int main() {
-    static_assert(!std::is_copy_constructible_v<codex::typed::Client>);
-    static_assert(!std::is_move_constructible_v<codex::typed::Client>);
-    static_assert(sizeof(codex::typed::Client) == sizeof(void*));
     static_assert(sizeof(codex::AppServerClient) == 2 * sizeof(void*));
-    static_assert(std::is_same_v<decltype(std::declval<codex::AppServerClient&>().typed()), codex::typed::Client&>);
-    static_assert(std::is_same_v<decltype(std::declval<const codex::AppServerClient&>().typed()), const codex::typed::Client&>);
-    static_assert(!HasDirectAccountsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectAppsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectCommandsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectFilesystemAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectExternalAgentsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectFeedbackAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectHooksAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectMarketplaceAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectModelsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectPermissionProfilesAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectPluginsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectReviewsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectSkillsAccessor<codex::AppServerClient>);
-    static_assert(!HasDirectConfigurationAccessor<codex::AppServerClient>);
+    static_assert(!HasTypedAccessor<codex::AppServerClient>);
+    static_assert(!HasConstRawAccessor<codex::AppServerClient>);
+    static_assert(!HasRemoteControlAccessor<codex::AppServerClient>);
+
+#define ASSERT_DIRECT_ACCESSOR(name, Facade)                                                                                               \
+    static_assert(                                                                                                                         \
+        std::same_as<decltype(static_cast<typed::Facade& (codex::AppServerClient::*) () noexcept>(&codex::AppServerClient::name)),         \
+                     typed::Facade& (codex::AppServerClient::*) () noexcept>)
+
+    ASSERT_DIRECT_ACCESSOR(accounts, Accounts);
+    ASSERT_DIRECT_ACCESSOR(apps, Apps);
+    ASSERT_DIRECT_ACCESSOR(commands, Commands);
+    ASSERT_DIRECT_ACCESSOR(configuration, Configuration);
+    ASSERT_DIRECT_ACCESSOR(events, Events);
+    ASSERT_DIRECT_ACCESSOR(externalAgents, ExternalAgents);
+    ASSERT_DIRECT_ACCESSOR(feedback, Feedback);
+    ASSERT_DIRECT_ACCESSOR(filesystem, Filesystem);
+    ASSERT_DIRECT_ACCESSOR(hooks, Hooks);
+    ASSERT_DIRECT_ACCESSOR(marketplace, Marketplace);
+    ASSERT_DIRECT_ACCESSOR(mcp, Mcp);
+    ASSERT_DIRECT_ACCESSOR(models, Models);
+    ASSERT_DIRECT_ACCESSOR(permissionProfiles, PermissionProfiles);
+    ASSERT_DIRECT_ACCESSOR(plugins, Plugins);
+    ASSERT_DIRECT_ACCESSOR(requests, Requests);
+    ASSERT_DIRECT_ACCESSOR(reviews, Reviews);
+    ASSERT_DIRECT_ACCESSOR(skills, Skills);
+    ASSERT_DIRECT_ACCESSOR(threads, Threads);
+    ASSERT_DIRECT_ACCESSOR(turns, Turns);
+    ASSERT_DIRECT_ACCESSOR(windowsSandbox, WindowsSandbox);
+
+#undef ASSERT_DIRECT_ACCESSOR
+
+    static_assert(!HasConstAccountsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstAppsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstCommandsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstConfigurationAccessor<codex::AppServerClient>);
+    static_assert(!HasConstEventsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstExternalAgentsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstFeedbackAccessor<codex::AppServerClient>);
+    static_assert(!HasConstFilesystemAccessor<codex::AppServerClient>);
+    static_assert(!HasConstHooksAccessor<codex::AppServerClient>);
+    static_assert(!HasConstMarketplaceAccessor<codex::AppServerClient>);
+    static_assert(!HasConstMcpAccessor<codex::AppServerClient>);
+    static_assert(!HasConstModelsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstPermissionProfilesAccessor<codex::AppServerClient>);
+    static_assert(!HasConstPluginsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstRequestsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstReviewsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstSkillsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstThreadsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstTurnsAccessor<codex::AppServerClient>);
+    static_assert(!HasConstWindowsSandboxAccessor<codex::AppServerClient>);
+
+    static_assert(FacadeLifetimeSafe<typed::Accounts>);
+    static_assert(FacadeLifetimeSafe<typed::Apps>);
+    static_assert(FacadeLifetimeSafe<typed::Commands>);
+    static_assert(FacadeLifetimeSafe<typed::Configuration>);
+    static_assert(FacadeLifetimeSafe<typed::Events>);
+    static_assert(FacadeLifetimeSafe<typed::ExternalAgents>);
+    static_assert(FacadeLifetimeSafe<typed::Feedback>);
+    static_assert(FacadeLifetimeSafe<typed::Filesystem>);
+    static_assert(FacadeLifetimeSafe<typed::Hooks>);
+    static_assert(FacadeLifetimeSafe<typed::Marketplace>);
+    static_assert(FacadeLifetimeSafe<typed::Mcp>);
+    static_assert(FacadeLifetimeSafe<typed::Models>);
+    static_assert(FacadeLifetimeSafe<typed::PermissionProfiles>);
+    static_assert(FacadeLifetimeSafe<typed::Plugins>);
+    static_assert(FacadeLifetimeSafe<typed::Requests>);
+    static_assert(FacadeLifetimeSafe<typed::Reviews>);
+    static_assert(FacadeLifetimeSafe<typed::Skills>);
+    static_assert(FacadeLifetimeSafe<typed::Threads>);
+    static_assert(FacadeLifetimeSafe<typed::Turns>);
+    static_assert(FacadeLifetimeSafe<typed::WindowsSandbox>);
+
+    static_assert(std::same_as<decltype(std::declval<codex::AppServerClient::RawProtocol&>().request(
+                                   std::declval<std::string>(),
+                                   std::declval<codex::Json>(),
+                                   std::declval<codex::AppServerClient::RawProtocol::ResponseHandler>())),
+                               codex::Submission>);
+    static_assert(std::same_as<decltype(std::declval<codex::AppServerClient::RawProtocol&>().notify(std::declval<std::string>(),
+                                                                                                    std::declval<codex::Json>())),
+                               codex::SendResult>);
+    static_assert(std::same_as<typed::CompletionHandler<typed::ThreadStartResponse>,
+                               std::function<void(const typed::OperationResult<typed::ThreadStartResponse>&)>>);
+    static_assert(std::same_as<typed::DoneHandler, std::function<void(const typed::OperationResult<typed::Unit>&)>>);
+
+    static_assert(requires(typed::Accounts& accounts,
+                           typed::DoneHandler done,
+                           typed::CompletionHandler<typed::GetAccountRateLimitsResponse> rateLimits,
+                           typed::CompletionHandler<typed::GetAccountTokenUsageResponse> usage,
+                           typed::CompletionHandler<typed::GetWorkspaceMessagesResponse> messages) {
+        { accounts.logout(std::move(done)) } -> std::same_as<codex::Submission>;
+        { accounts.readRateLimits(std::move(rateLimits)) } -> std::same_as<codex::Submission>;
+        { accounts.readUsage(std::move(usage)) } -> std::same_as<codex::Submission>;
+        { accounts.readWorkspaceMessages(std::move(messages)) } -> std::same_as<codex::Submission>;
+    });
+    static_assert(requires(typed::Configuration& configuration,
+                           typed::DoneHandler done,
+                           typed::CompletionHandler<typed::ConfigRequirementsReadResponse> requirements) {
+        { configuration.reloadMcpServers(std::move(done)) } -> std::same_as<codex::Submission>;
+        { configuration.readRequirements(std::move(requirements)) } -> std::same_as<codex::Submission>;
+    });
+    static_assert(requires(typed::ExternalAgents& externalAgents,
+                           typed::CompletionHandler<typed::ExternalAgentConfigImportHistoriesReadResponse> histories) {
+        { externalAgents.readImportHistories(std::move(histories)) } -> std::same_as<codex::Submission>;
+    });
+    static_assert(!HasLegacyLogoutUnit<typed::Accounts>);
+    static_assert(!HasLegacyRateLimitsUnit<typed::Accounts>);
+    static_assert(!HasLegacyUsageUnit<typed::Accounts>);
+    static_assert(!HasLegacyWorkspaceMessagesUnit<typed::Accounts>);
+    static_assert(!HasLegacyReloadMcpUnit<typed::Configuration>);
+    static_assert(!HasLegacyRequirementsUnit<typed::Configuration>);
+    static_assert(!HasLegacyImportHistoriesUnit<typed::ExternalAgents>);
+
+    static_assert(requires(typed::Models& models, typed::CompletionHandler<typed::ModelProviderCapabilitiesReadResponse> handler) {
+        { models.readProviderCapabilities(std::move(handler)) } -> std::same_as<codex::Submission>;
+    });
+    static_assert(requires(typed::Plugins& plugins, typed::CompletionHandler<typed::PluginShareListResponse> handler) {
+        { plugins.shareList(std::move(handler)) } -> std::same_as<codex::Submission>;
+    });
+    static_assert(!HasProviderCapabilitiesParams<typed::Models>);
+    static_assert(!HasPluginShareListParams<typed::Plugins>);
+    static_assert(requires(
+        typed::Accounts& accounts, typed::LoginAccountParams params, typed::CompletionHandler<typed::LoginAccountResponse> handler) {
+        { accounts.startLogin(std::move(params), std::move(handler)) } -> std::same_as<codex::Submission>;
+    });
+    static_assert(!HasParameterlessStartLogin<typed::Accounts>);
+    static_assert(std::same_as<std::variant_alternative_t<8, typed::TypedServerRequest>, typed::AttestationGenerateRequest>);
+
+    static_assert(requires(typed::Threads& threads,
+                           typed::Accounts& accounts,
+                           typed::Models& models,
+                           typed::Configuration& configuration,
+                           typed::PermissionProfiles& permissions,
+                           typed::Apps& apps,
+                           typed::ExternalAgents& externalAgents,
+                           typed::Hooks& hooks,
+                           typed::Marketplace& marketplace,
+                           typed::Plugins& plugins,
+                           typed::Skills& skills,
+                           typed::Mcp& mcp,
+                           GenericResultHandler handler) {
+        { threads.start(handler) } -> std::same_as<codex::Submission>;
+        { threads.list(handler) } -> std::same_as<codex::Submission>;
+        { threads.listLoaded(handler) } -> std::same_as<codex::Submission>;
+        { accounts.read(handler) } -> std::same_as<codex::Submission>;
+        { models.list(handler) } -> std::same_as<codex::Submission>;
+        { configuration.read(handler) } -> std::same_as<codex::Submission>;
+        { configuration.listExperimentalFeatures(handler) } -> std::same_as<codex::Submission>;
+        { permissions.list(handler) } -> std::same_as<codex::Submission>;
+        { apps.list(handler) } -> std::same_as<codex::Submission>;
+        { externalAgents.detect(handler) } -> std::same_as<codex::Submission>;
+        { hooks.list(handler) } -> std::same_as<codex::Submission>;
+        { marketplace.upgrade(handler) } -> std::same_as<codex::Submission>;
+        { plugins.installed(handler) } -> std::same_as<codex::Submission>;
+        { plugins.list(handler) } -> std::same_as<codex::Submission>;
+        { skills.list(handler) } -> std::same_as<codex::Submission>;
+        { mcp.listServers(handler) } -> std::same_as<codex::Submission>;
+    });
+    static_assert(!HasRemoteControlEnable<typed::Commands>);
+    static_assert(!HasRemoteControlDisable<typed::Commands>);
+
+    using ThreadStartCwd = codex::Submission (typed::Threads::*)(typed::AbsolutePath, typed::CompletionHandler<typed::ThreadStartResponse>);
+    using ThreadResumeId = codex::Submission (typed::Threads::*)(typed::ThreadId, typed::CompletionHandler<typed::ThreadResumeResponse>);
+    using ThreadReadId = codex::Submission (typed::Threads::*)(typed::ThreadId, typed::CompletionHandler<typed::ThreadReadResponse>);
+    using TurnStartInput = codex::Submission (typed::Turns::*)(
+        typed::ThreadId, std::vector<typed::TurnInput>, typed::CompletionHandler<typed::TurnStartResponse>);
+    using TurnStartText =
+        codex::Submission (typed::Turns::*)(typed::ThreadId, std::string, typed::CompletionHandler<typed::TurnStartResponse>);
+    using TurnInterruptIds = codex::Submission (typed::Turns::*)(typed::ThreadId, typed::TurnId, typed::DoneHandler);
+    static_assert(std::same_as<decltype(static_cast<ThreadStartCwd>(&typed::Threads::start)), ThreadStartCwd>);
+    static_assert(std::same_as<decltype(static_cast<ThreadResumeId>(&typed::Threads::resume)), ThreadResumeId>);
+    static_assert(std::same_as<decltype(static_cast<ThreadReadId>(&typed::Threads::read)), ThreadReadId>);
+    static_assert(std::same_as<decltype(static_cast<TurnStartInput>(&typed::Turns::start)), TurnStartInput>);
+    static_assert(std::same_as<decltype(static_cast<TurnStartText>(&typed::Turns::start)), TurnStartText>);
+    static_assert(std::same_as<decltype(static_cast<TurnInterruptIds>(&typed::Turns::interrupt)), TurnInterruptIds>);
+
     static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
-    static_assert(std::is_same_v<std::variant_alternative_t<47, typed::CanonicalServerNotification>,
-                                 typed::FuzzyFileSearchSessionUpdatedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<48, typed::CanonicalServerNotification>, typed::GuardianWarningNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<49, typed::CanonicalServerNotification>,
-                                 typed::ItemGuardianApprovalReviewCompletedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<50, typed::CanonicalServerNotification>,
-                                 typed::ItemGuardianApprovalReviewStartedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
-                                 typed::ExternalAgentConfigImportCompletedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<53, typed::CanonicalServerNotification>,
-                                 typed::ExternalAgentConfigImportProgressNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<54, typed::CanonicalServerNotification>, typed::HookCompletedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<55, typed::CanonicalServerNotification>, typed::HookStartedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<56, typed::CanonicalServerNotification>, typed::SkillsChangedNotification>);
+    static_assert(std::same_as<std::variant_alternative_t<67, typed::CanonicalServerNotification>, typed::ErrorNotification>);
     static_assert(std::variant_size_v<typed::Event> == 69);
-    static_assert(std::is_same_v<std::variant_alternative_t<49, typed::Event>, typed::FuzzyFileSearchSessionUpdatedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<50, typed::Event>, typed::GuardianWarningNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<51, typed::Event>, typed::ItemGuardianApprovalReviewCompletedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<52, typed::Event>, typed::ItemGuardianApprovalReviewStartedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<53, typed::Event>, typed::AppListUpdatedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<56, typed::Event>, typed::HookCompletedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<57, typed::Event>, typed::HookStartedNotification>);
-    static_assert(std::is_same_v<std::variant_alternative_t<58, typed::Event>, typed::SkillsChangedNotification>);
+    static_assert(std::same_as<std::variant_alternative_t<44, typed::Event>, typed::TurnErrorEvent>);
+    static_assert(std::same_as<std::variant_alternative_t<45, typed::Event>, typed::UnknownEvent>);
+    static_assert(std::variant_size_v<typed::TypedServerRequest> == 11);
 
     tests::support::TestResult result;
     TestClient client;
-    const codex::AppServerClient& constClient = client;
 
-    result.expectTrue(&client.typed() == &client.typed(), "non-const typed() returns one stable grouped facade");
-    result.expectTrue(&constClient.typed() == &client.typed(), "const typed() returns the same grouped facade");
-    result.expectTrue(&client.typed().accounts() == &constClient.typed().accounts(),
-                      "accounts() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().apps() == &constClient.typed().apps(),
-                      "apps() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().commands() == &constClient.typed().commands(),
-                      "commands() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().filesystem() == &constClient.typed().filesystem(),
-                      "filesystem() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().externalAgents() == &constClient.typed().externalAgents(),
-                      "externalAgents() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().feedback() == &constClient.typed().feedback(),
-                      "feedback() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().hooks() == &constClient.typed().hooks(),
-                      "hooks() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().marketplace() == &constClient.typed().marketplace(),
-                      "marketplace() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().models() == &constClient.typed().models(),
-                      "models() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().permissionProfiles() == &constClient.typed().permissionProfiles(),
-                      "permissionProfiles() returns the same facade backed by the grouped "
-                      "client's one RawProtocol");
-    result.expectTrue(&client.typed().plugins() == &constClient.typed().plugins(),
-                      "plugins() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().reviews() == &constClient.typed().reviews(),
-                      "reviews() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().skills() == &constClient.typed().skills(),
-                      "skills() returns the same facade backed by the grouped client's one RawProtocol");
-    result.expectTrue(&client.typed().configuration() == &constClient.typed().configuration(),
-                      "configuration() returns the same facade backed by the grouped client's one RawProtocol");
+#define EXPECT_STABLE_FACADE(name) result.expectTrue(&client.name() == &client.name(), #name "() returns one stable client-owned façade")
 
-    result.expectTrue(&client.threads() == &client.typed().threads(),
-                      "deprecated threads() forwards to the grouped facade object");
-    result.expectTrue(&client.turns() == &client.typed().turns(),
-                      "deprecated turns() forwards to the grouped facade object");
-    result.expectTrue(&client.events() == &client.typed().events(),
-                      "deprecated events() forwards to the grouped facade object");
-    result.expectTrue(&client.requests() == &client.typed().requests(),
-                      "deprecated requests() forwards to the grouped facade object");
+    EXPECT_STABLE_FACADE(accounts);
+    EXPECT_STABLE_FACADE(apps);
+    EXPECT_STABLE_FACADE(commands);
+    EXPECT_STABLE_FACADE(configuration);
+    EXPECT_STABLE_FACADE(events);
+    EXPECT_STABLE_FACADE(externalAgents);
+    EXPECT_STABLE_FACADE(feedback);
+    EXPECT_STABLE_FACADE(filesystem);
+    EXPECT_STABLE_FACADE(hooks);
+    EXPECT_STABLE_FACADE(marketplace);
+    EXPECT_STABLE_FACADE(mcp);
+    EXPECT_STABLE_FACADE(models);
+    EXPECT_STABLE_FACADE(permissionProfiles);
+    EXPECT_STABLE_FACADE(plugins);
+    EXPECT_STABLE_FACADE(requests);
+    EXPECT_STABLE_FACADE(reviews);
+    EXPECT_STABLE_FACADE(skills);
+    EXPECT_STABLE_FACADE(threads);
+    EXPECT_STABLE_FACADE(turns);
+    EXPECT_STABLE_FACADE(windowsSandbox);
 
-    result.expectTrue(&constClient.threads() == &constClient.typed().threads(),
-                      "deprecated const threads() forwards to the grouped facade object");
-    result.expectTrue(&constClient.turns() == &constClient.typed().turns(),
-                      "deprecated const turns() forwards to the grouped facade object");
-    result.expectTrue(&constClient.events() == &constClient.typed().events(),
-                      "deprecated const events() forwards to the grouped facade object");
-    result.expectTrue(&constClient.requests() == &constClient.typed().requests(),
-                      "deprecated const requests() forwards to the grouped facade object");
+#undef EXPECT_STABLE_FACADE
+
+    const codex::ClientInfo identity{};
+    result.expectTrue(identity.name == "aisuite" && identity.title == "AISuite" && identity.version == AISUITE_TEST_PROJECT_VERSION,
+                      "default client identity uses AISuite and the configured project version");
+
+    typed::OperationResult<ProbeValue> success;
+    success.value = ProbeValue{42};
+    result.expectTrue(success && success.isSuccess() && !success.isRemoteError() && !success.isCancelled() && !success.isLocalError() &&
+                          (*success).member == 42 && success->member == 42,
+                      "successful OperationResult supports predicates and optional-like access");
+    const auto& constSuccess = success;
+    result.expectTrue((*constSuccess).member == 42 && constSuccess->member == 42,
+                      "const successful OperationResult supports optional-like access");
+
+    typed::OperationResult<ProbeValue> remote;
+    remote.kind = typed::OperationResult<ProbeValue>::Kind::RemoteError;
+    typed::OperationResult<ProbeValue> cancelled;
+    cancelled.kind = typed::OperationResult<ProbeValue>::Kind::Cancelled;
+    typed::OperationResult<ProbeValue> local;
+    local.kind = typed::OperationResult<ProbeValue>::Kind::LocalError;
+    result.expectTrue(!remote && remote.isRemoteError() && !remote.isSuccess() && !remote.isCancelled() && !remote.isLocalError(),
+                      "remote-error OperationResult predicate is exact");
+    result.expectTrue(!cancelled && cancelled.isCancelled() && !cancelled.isSuccess() && !cancelled.isRemoteError() &&
+                          !cancelled.isLocalError(),
+                      "cancelled OperationResult predicate is exact");
+    result.expectTrue(!local && local.isLocalError() && !local.isSuccess() && !local.isRemoteError() && !local.isCancelled(),
+                      "local-error OperationResult predicate is exact");
 
     return result.processResult();
 }

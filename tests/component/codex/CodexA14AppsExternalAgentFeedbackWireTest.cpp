@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -35,7 +35,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 5;
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -352,9 +352,9 @@ namespace {
             feedbackParams.reason = typed::OptionalNullable<std::string>::explicitNull();
             feedbackParams.threadId = typed::OptionalNullable<typed::ThreadId>::withValue(typed::ThreadId{"synthetic-thread"});
 
-            auto& apps = client->typed().apps();
-            auto& externalAgents = client->typed().externalAgents();
-            auto& feedback = client->typed().feedback();
+            auto& apps = client->apps();
+            auto& externalAgents = client->externalAgents();
+            auto& feedback = client->feedback();
 
             cases.push_back(makeOperation<typed::AppsListResponse>("app/list",
                                                                    detail::ClientRequestTarget::AppsList,
@@ -399,8 +399,8 @@ namespace {
                 typed::Unit{},
                 nullptr,
                 historiesResult(),
-                [&externalAgents](auto params, auto handler) {
-                    return externalAgents.readImportHistories(std::move(params), std::move(handler));
+                [&externalAgents](auto, auto handler) {
+                    return externalAgents.readImportHistories(std::move(handler));
                 }));
             cases.push_back(makeOperation<typed::FeedbackUploadResponse>("feedback/upload",
                                                                          detail::ClientRequestTarget::FeedbackUpload,
@@ -487,12 +487,13 @@ namespace {
             reentrantSubmitted = true;
             typed::AppsListParams params{};
             insideSubmission = true;
-            const Submission submission = client->typed().apps().list(std::move(params), [this](const typed::Apps::ListResult& operation) {
-                expect(!insideSubmission, "reentrant app/list completion remains asynchronous");
-                expect(operation && operation.raw == appsResult(), "reentrant app/list shares the same result decoder");
-                ++reentrantCallbacks;
-                maybeCompleteSuccess();
-            });
+            const Submission submission =
+                client->apps().list(std::move(params), [this](const typed::OperationResult<typed::AppsListResponse>& operation) {
+                    expect(!insideSubmission, "reentrant app/list completion remains asynchronous");
+                    expect(operation && operation.raw == appsResult(), "reentrant app/list shares the same result decoder");
+                    ++reentrantCallbacks;
+                    maybeCompleteSuccess();
+                });
             insideSubmission = false;
             expect(submission && submission.id && submission.id->value() == 6,
                    "reentrant callback submission is accepted with the next exact request ID");
@@ -533,16 +534,18 @@ namespace {
             typed::FeedbackUploadParams params{};
             params.classification = "bug";
             insideSubmission = true;
-            const Submission submission =
-                client->typed().feedback().upload(std::move(params), [this](const typed::Feedback::UploadResult& operation) {
+            const Submission submission = client->feedback().upload(
+                std::move(params), [this](const typed::OperationResult<typed::FeedbackUploadResponse>& operation) {
                     const codex::Json expectedError{
                         {"code", -32'500},
                         {"message", "synthetic user-integration remote failure"},
                         {"data", {{"operation", "feedback/upload"}}},
                         {"futureErrorField", true},
                     };
-                    expect(!insideSubmission && operation.kind == typed::Feedback::UploadResult::Kind::RemoteError && !operation.value &&
-                               operation.remoteError && operation.remoteError->raw == expectedError && operation.raw.is_null(),
+                    expect(!insideSubmission &&
+                               operation.kind == typed::OperationResult<typed::FeedbackUploadResponse>::Kind::RemoteError &&
+                               !operation.value && operation.remoteError && operation.remoteError->raw == expectedError &&
+                               operation.raw.is_null(),
                            "feedback/upload retains its exact remote error asynchronously");
                     ++remoteCallbacks;
                     core::EventReceiver::atNextTick([this]() {
@@ -558,9 +561,10 @@ namespace {
             state->replyMode = UnixTransportState::ReplyMode::Hold;
             typed::ExternalAgentConfigDetectParams params{};
             insideSubmission = true;
-            const Submission submission =
-                client->typed().externalAgents().detect(std::move(params), [this](const typed::ExternalAgents::DetectResult& operation) {
-                    expect(!insideSubmission && operation.kind == typed::ExternalAgents::DetectResult::Kind::Cancelled &&
+            const Submission submission = client->externalAgents().detect(
+                std::move(params), [this](const typed::OperationResult<typed::ExternalAgentConfigDetectResponse>& operation) {
+                    expect(!insideSubmission &&
+                               operation.kind == typed::OperationResult<typed::ExternalAgentConfigDetectResponse>::Kind::Cancelled &&
                                !operation.value && operation.localError &&
                                operation.localError->category == codex::Error::Category::Cancelled,
                            "held external-agent detection is cancelled once by an intentional stop");
@@ -587,13 +591,15 @@ namespace {
             state->replyMode = UnixTransportState::ReplyMode::Hold;
             typed::AppsListParams params{};
             insideSubmission = true;
-            const Submission submission = client->typed().apps().list(std::move(params), [this](const typed::Apps::ListResult& operation) {
-                expect(!insideSubmission && operation.kind == typed::Apps::ListResult::Kind::Cancelled && !operation.value &&
-                           operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
-                       "unexpected process disconnect cancels the held app/list exactly once");
-                ++disconnectCallbacks;
-                maybeFinishDisconnect();
-            });
+            const Submission submission =
+                client->apps().list(std::move(params), [this](const typed::OperationResult<typed::AppsListResponse>& operation) {
+                    expect(!insideSubmission && operation.kind == typed::OperationResult<typed::AppsListResponse>::Kind::Cancelled &&
+                               !operation.value && operation.localError &&
+                               operation.localError->category == codex::Error::Category::Cancelled,
+                           "unexpected process disconnect cancels the held app/list exactly once");
+                    ++disconnectCallbacks;
+                    maybeFinishDisconnect();
+                });
             insideSubmission = false;
             expect(submission && submission.id && submission.id->value() == 10,
                    "post-reconnect disconnect probe uses the preserved request-ID allocator");

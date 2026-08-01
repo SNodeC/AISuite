@@ -5,11 +5,11 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/detail/ClientOperationCodec.h"
 #include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "support/TestResult.h"
 
 #include <array>
@@ -73,7 +73,7 @@ namespace {
         std::string error = "stale";
 
         typed::PluginInstallParams install{};
-        install.marketplacePath = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull();
+        install.marketplacePath = typed::OptionalNullable<typed::AbsolutePath>::explicitNull();
         install.pluginName = "synthetic-plugin";
         install.remoteMarketplaceName = typed::OptionalNullable<std::string>::withValue("synthetic-marketplace");
         install.raw = {{"futureInstallField", true}};
@@ -127,7 +127,7 @@ namespace {
         typed::PluginShareSaveParams save{};
         save.discoverability =
             typed::OptionalNullable<typed::PluginShareDiscoverability>::withValue(typed::PluginShareDiscoverability::unlisted());
-        save.pluginPath = typed::AbsolutePathBuf{"/synthetic/plugins/synthetic-plugin"};
+        save.pluginPath = typed::AbsolutePath{"/synthetic/plugins/synthetic-plugin"};
         save.remotePluginId = typed::OptionalNullable<std::string>::explicitNull();
         save.shareTargets =
             typed::OptionalNullable<std::vector<typed::PluginShareTarget>>::withValue(std::vector<typed::PluginShareTarget>{target});
@@ -149,7 +149,7 @@ namespace {
                           "plugin/share/save preserves nullable states, ordered targets, open enums, and nested future fields");
 
         typed::PluginShareSaveParams nullTargets{};
-        nullTargets.pluginPath = typed::AbsolutePathBuf{"/synthetic/plugins/synthetic-plugin"};
+        nullTargets.pluginPath = typed::AbsolutePath{"/synthetic/plugins/synthetic-plugin"};
         nullTargets.shareTargets = typed::OptionalNullable<std::vector<typed::PluginShareTarget>>::explicitNull();
         const auto encodedNullTargets = detail::encodePluginShareSaveParams(nullTargets, error);
         result.expectTrue(encodedNullTargets ==
@@ -210,8 +210,7 @@ namespace {
 
         typed::PluginInstallParams valuedPath{};
         valuedPath.pluginName = "synthetic-plugin";
-        valuedPath.marketplacePath =
-            typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/marketplace"});
+        valuedPath.marketplacePath = typed::OptionalNullable<typed::AbsolutePath>::withValue(typed::AbsolutePath{"/synthetic/marketplace"});
         result.expectTrue(detail::encodePluginInstallParams(valuedPath, error) ==
                                   codex::Json{{"marketplacePath", "/synthetic/marketplace"}, {"pluginName", "synthetic-plugin"}} &&
                               error.empty(),
@@ -501,32 +500,28 @@ namespace {
 } // namespace
 
 int main() {
-    using PluginsAccessor = typed::Plugins& (typed::Client::*) () noexcept;
-    using ConstPluginsAccessor = const typed::Plugins& (typed::Client::*) () const noexcept;
+    using PluginsAccessor = typed::Plugins& (codex::AppServerClient::*) () noexcept;
 
-    static_assert(
-        std::is_same_v<decltype(&typed::Plugins::install),
-                       typed::Plugins::Submission (typed::Plugins::*)(typed::PluginInstallParams, typed::Plugins::InstallResultHandler)>);
+    static_assert(std::is_same_v<decltype(&typed::Plugins::install),
+                                 codex::Submission (typed::Plugins::*)(typed::PluginInstallParams,
+                                                                       typed::CompletionHandler<typed::PluginInstallResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Plugins::shareCheckout),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginShareCheckoutParams,
-                                                                                typed::Plugins::ShareCheckoutResultHandler)>);
+                                 codex::Submission (typed::Plugins::*)(typed::PluginShareCheckoutParams,
+                                                                       typed::CompletionHandler<typed::PluginShareCheckoutResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Plugins::shareDelete),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginShareDeleteParams,
-                                                                                typed::Plugins::ShareDeleteResultHandler)>);
+                                 codex::Submission (typed::Plugins::*)(typed::PluginShareDeleteParams, typed::DoneHandler)>);
     static_assert(std::is_same_v<decltype(&typed::Plugins::shareSave),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginShareSaveParams,
-                                                                                typed::Plugins::ShareSaveResultHandler)>);
+                                 codex::Submission (typed::Plugins::*)(typed::PluginShareSaveParams,
+                                                                       typed::CompletionHandler<typed::PluginShareSaveResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Plugins::shareUpdateTargets),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginShareUpdateTargetsParams,
-                                                                                typed::Plugins::ShareUpdateTargetsResultHandler)>);
+                                 codex::Submission (typed::Plugins::*)(typed::PluginShareUpdateTargetsParams,
+                                                                       typed::CompletionHandler<typed::PluginShareUpdateTargetsResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Plugins::readSkill),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginSkillReadParams,
-                                                                                typed::Plugins::ReadSkillResultHandler)>);
+                                 codex::Submission (typed::Plugins::*)(typed::PluginSkillReadParams,
+                                                                       typed::CompletionHandler<typed::PluginSkillReadResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Plugins::uninstall),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginUninstallParams,
-                                                                                typed::Plugins::UninstallResultHandler)>);
-    static_assert(std::is_same_v<decltype(static_cast<PluginsAccessor>(&typed::Client::plugins)), PluginsAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<ConstPluginsAccessor>(&typed::Client::plugins)), ConstPluginsAccessor>);
+                                 codex::Submission (typed::Plugins::*)(typed::PluginUninstallParams, typed::DoneHandler)>);
+    static_assert(std::is_same_v<decltype(static_cast<PluginsAccessor>(&codex::AppServerClient::plugins)), PluginsAccessor>);
 
     tests::support::TestResult result;
     testRequestEncoding(result);

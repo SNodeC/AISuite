@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/typed/Client.h"
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/Mcp.h"
 #include "component/codex/CodexBackendTestSupport.h"
@@ -70,7 +70,7 @@ namespace {
                 });
 
             client = std::make_unique<tests::codex::FakeAppServerClient>(transport);
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 if (std::holds_alternative<typed::McpServerOauthLoginCompletedNotification>(event)) {
                     notificationOrder.emplace_back("typed-oauth");
                     submitReentrantList();
@@ -173,20 +173,20 @@ namespace {
             expectedParams["mcpServerStatus/list"] = {{"detail", "full"}, {"limit", 2}};
 
             insideSubmission = true;
-            const auto oauthSubmission =
-                client->typed().mcp().startOauthLogin(std::move(oauth), [this](const typed::Mcp::StartOauthLoginResult& operation) {
+            const auto oauthSubmission = client->mcp().startOauthLogin(
+                std::move(oauth), [this](const typed::OperationResult<typed::McpServerOauthLoginResponse>& operation) {
                     completed(operation, "mcpServer/oauth/login");
                 });
-            const auto readSubmission =
-                client->typed().mcp().readResource(std::move(read), [this](const typed::Mcp::ReadResourceResult& operation) {
+            const auto readSubmission = client->mcp().readResource(
+                std::move(read), [this](const typed::OperationResult<typed::McpResourceReadResponse>& operation) {
                     completed(operation, "mcpServer/resource/read");
                 });
             const auto callSubmission =
-                client->typed().mcp().callTool(std::move(call), [this](const typed::Mcp::CallToolResult& operation) {
+                client->mcp().callTool(std::move(call), [this](const typed::OperationResult<typed::McpServerToolCallResponse>& operation) {
                     completed(operation, "mcpServer/tool/call");
                 });
-            const auto listSubmission =
-                client->typed().mcp().listServers(std::move(list), [this](const typed::Mcp::ListServersResult& operation) {
+            const auto listSubmission = client->mcp().listServers(
+                std::move(list), [this](const typed::OperationResult<typed::ListMcpServerStatusResponse>& operation) {
                     completed(operation, "mcpServerStatus/list");
                 });
             insideSubmission = false;
@@ -207,8 +207,8 @@ namespace {
             typed::ListMcpServerStatusParams params{};
             params.detail = typed::OptionalNullable<typed::McpServerStatusDetail>::withValue(typed::McpServerStatusDetail::full());
             params.limit = typed::OptionalNullable<std::uint32_t>::withValue(2);
-            const auto submission =
-                client->typed().mcp().listServers(std::move(params), [this](const typed::Mcp::ListServersResult& operation) {
+            const auto submission = client->mcp().listServers(
+                std::move(params), [this](const typed::OperationResult<typed::ListMcpServerStatusResponse>& operation) {
                     completed(operation, "mcpServerStatus/list");
                 });
             result.expectTrue(submission && submission.id && submission.id->value() == 5,

@@ -266,7 +266,9 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
         main_block = re.search(r"set\(AI_OPENAI_CODEX_PUBLIC_H\s+(.*?)\n\)", main_cmake, re.S)
         self.assertIsNotNone(main_block)
         self.assertEqual(29, len(main_block.group(1).split()))
+        self.assertIn("Api.h", main_block.group(1))
         self.assertIn("typed/WindowsSandbox.h", main_block.group(1))
+        self.assertNotIn("typed/Client.h", main_block.group(1))
         for relative, variable in (
             ("src/ai/openai/codex/backend/CMakeLists.txt", "AI_OPENAI_CODEX_BACKEND_PUBLIC_H"),
             ("src/ai/openai/codex/frontend/CMakeLists.txt", "AI_OPENAI_CODEX_FRONTEND_PUBLIC_H"),
@@ -278,7 +280,7 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
         root_cmake = (self.repo_root / "CMakeLists.txt").read_text(encoding="utf-8")
         self.assertRegex(root_cmake, r"set\(AISUITE_CODEX_SOVERSION\s+2\)")
 
-    def test_final_a1b_public_compatibility_boundary(self) -> None:
+    def test_current_public_api_boundary(self) -> None:
         def source(relative: str) -> str:
             return (self.repo_root / relative).read_text(encoding="utf-8")
 
@@ -333,11 +335,49 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
         ):
             self.assertIn(retained, optional_nullable)
 
+        public_client = source("src/ai/openai/codex/AppServerClient.h")
+        for forbidden in (
+            "typed() noexcept",
+            "raw() const noexcept",
+            '[[deprecated("use typed()',
+        ):
+            self.assertNotIn(forbidden, public_client)
+        self.assertFalse((self.repo_root / "src/ai/openai/codex/typed/Client.h").exists())
+
+        for facade, accessor in (
+            ("Accounts", "accounts"),
+            ("Apps", "apps"),
+            ("Commands", "commands"),
+            ("Configuration", "configuration"),
+            ("Events", "events"),
+            ("ExternalAgents", "externalAgents"),
+            ("Feedback", "feedback"),
+            ("Filesystem", "filesystem"),
+            ("Hooks", "hooks"),
+            ("Marketplace", "marketplace"),
+            ("Mcp", "mcp"),
+            ("Models", "models"),
+            ("PermissionProfiles", "permissionProfiles"),
+            ("Plugins", "plugins"),
+            ("Requests", "requests"),
+            ("Reviews", "reviews"),
+            ("Skills", "skills"),
+            ("Threads", "threads"),
+            ("Turns", "turns"),
+            ("WindowsSandbox", "windowsSandbox"),
+        ):
+            self.assertEqual(
+                1,
+                public_client.count(f"typed::{facade}& {accessor}() noexcept"),
+                f"{accessor} must have exactly one non-const direct accessor",
+            )
+
         retained_by_file = {
             "src/ai/openai/codex/AppServerClient.h": (
                 "struct ClientInfo",
+                'std::string name = "aisuite"',
+                'std::string title = "AISuite"',
                 "RawProtocol& raw() noexcept",
-                "typed::Client& typed() noexcept",
                 "typed::Threads& threads() noexcept",
                 "typed::Turns& turns() noexcept",
                 "typed::Events& events() noexcept",
@@ -347,9 +387,9 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
             "src/ai/openai/codex/typed/Types.h": (
                 "struct InitializeParams",
                 "InitializeParams(const ai::openai::codex::ClientInfo&",
+                "struct AbsolutePath",
             ),
             "src/ai/openai/codex/typed/Threads.h": (
-                "using ThreadPage = ThreadListResponse",
                 "Submission start(ThreadStartParams",
                 "Submission resume(ThreadResumeParams",
                 "Submission list(ThreadListParams",
@@ -360,12 +400,19 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
                 "Submission interrupt(TurnInterruptParams",
             ),
             "src/ai/openai/codex/typed/Conversation.h": (
-                "using ExternalSandboxPolicy = ExternalSandboxSandboxPolicy",
-                "using TurnInput = UserInput",
+                "struct ExternalSandboxPolicy",
+                "struct TextInput",
+                "struct ImageUrlInput",
+                "struct LocalImageInput",
+                "struct SkillInput",
+                "struct MentionInput",
+                "struct UnknownTurnInput",
+                "using TurnInput = std::variant<",
             ),
             "src/ai/openai/codex/typed/Items.h": (
-                "using AgentMessageItem = AgentMessageThreadItem",
-                "using Item = ThreadItem",
+                "using ThreadItem = std::variant<",
+                "using ResponseItem = std::variant<",
+                "struct PathString",
                 "struct UnknownItem",
                 "struct UnknownResponseItem",
                 "std::optional<DecodeDiagnostic> diagnostic",
@@ -376,8 +423,8 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
                 "std::optional<DecodeDiagnostic> diagnostic",
             ),
             "src/ai/openai/codex/typed/ServerRequests.h": (
-                "using ChatgptAuthTokensRefreshRequest = AuthenticationRequest",
-                "using PermissionsRequestApprovalRequest = PermissionsApprovalRequest",
+                "struct AuthenticationRequest",
+                "struct PermissionsApprovalRequest",
                 "struct UnknownServerRequest",
                 "std::optional<DecodeDiagnostic> diagnostic",
             ),
@@ -386,6 +433,79 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
             contents = source(relative)
             for retained_name in retained_names:
                 self.assertIn(retained_name, contents, f"{retained_name} is missing from {relative}")
+
+        forbidden_names = {
+            "src/ai/openai/codex/typed/Conversation.h": (
+                "ExternalSandboxSandboxPolicy",
+                "TextUserInput",
+                "ImageUserInput",
+                "LocalImageUserInput",
+                "SkillUserInput",
+                "MentionUserInput",
+                "UnknownUserInput",
+                "using UserInput =",
+            ),
+            "src/ai/openai/codex/typed/Items.h": (
+                "using AgentMessageItem =",
+                "using CommandExecutionItem =",
+                "using FileChangeItem =",
+                "using ToolCallItem =",
+                "using ReasoningItem =",
+                "using UserMessageItem =",
+                "using WebSearchItem =",
+                "using Item =",
+                "LegacyAppPathString",
+            ),
+            "src/ai/openai/codex/typed/Threads.h": ("using ThreadPage =",),
+            "src/ai/openai/codex/typed/ServerRequests.h": (
+                "PermissionsRequestApprovalRequest",
+                "ChatgptAuthTokensRefreshRequest",
+                "respondRefresh(",
+            ),
+            "src/ai/openai/codex/typed/Types.h": ("AbsolutePathBuf",),
+        }
+        for relative, names in forbidden_names.items():
+            contents = source(relative)
+            for name in names:
+                self.assertNotIn(name, contents, f"{name} remains in {relative}")
+
+        api = source("src/ai/openai/codex/Api.h")
+        self.assertIn("ai/openai/codex/AppServerClient.h", api)
+        self.assertIn("ai/openai/codex/stdio/Client.h", api)
+        for facade in (
+            "Accounts",
+            "Apps",
+            "Commands",
+            "Configuration",
+            "Events",
+            "ExternalAgents",
+            "Feedback",
+            "Filesystem",
+            "Hooks",
+            "Marketplace",
+            "Mcp",
+            "Models",
+            "PermissionProfiles",
+            "Plugins",
+            "ServerRequests",
+            "Reviews",
+            "Skills",
+            "Threads",
+            "Turns",
+            "WindowsSandbox",
+        ):
+            self.assertIn(f"ai/openai/codex/typed/{facade}.h", api)
+
+        for relative in (
+            "src/ai/openai/codex/CMakeLists.txt",
+            "src/ai/openai/codex/backend/CMakeLists.txt",
+            "src/ai/openai/codex/frontend/CMakeLists.txt",
+        ):
+            cmake = source(relative)
+            self.assertNotIn("snodec::ai-openai-codex", cmake)
+        self.assertIn("AISuite::OpenAICodex", source("src/ai/openai/codex/CMakeLists.txt"))
+        self.assertIn("AISuite::OpenAICodexBackend", source("src/ai/openai/codex/backend/CMakeLists.txt"))
+        self.assertIn("AISuite::OpenAICodexFrontend", source("src/ai/openai/codex/frontend/CMakeLists.txt"))
 
 
 def main() -> int:

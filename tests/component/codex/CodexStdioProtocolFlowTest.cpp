@@ -6,9 +6,9 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/stdio/Client.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
 #include "support/TestResult.h"
@@ -114,7 +114,7 @@ namespace {
             if (const auto integerId = std::get_if<std::int64_t>(&request.id.value())) {
                 integerServerRequestPreserved = *integerId == 700 && request.method == "item/commandExecution/requestApproval" &&
                                                 request.raw["id"] == 700 && request.params.value("itemId", "") == "command-700";
-                const codex::AppServerClient::RawProtocol::SendResult result = client.raw().respond(request.id, {{"decision", "accept"}});
+                const codex::SendResult result = client.raw().respond(request.id, {{"decision", "accept"}});
                 integerResponseAccepted = static_cast<bool>(result);
             } else if (const auto stringId = std::get_if<std::string>(&request.id.value())) {
                 stringServerRequestPreserved =
@@ -124,7 +124,7 @@ namespace {
                     -32000,
                     "Request rejected",
                     std::optional<codex::Json>{codex::Json{{"reason", "component-test"}}}};
-                const codex::AppServerClient::RawProtocol::SendResult result = client.raw().reject(request.id, std::move(error));
+                const codex::SendResult result = client.raw().reject(request.id, std::move(error));
                 stringRejectionAccepted = static_cast<bool>(result);
             }
         });
@@ -295,7 +295,7 @@ namespace {
         std::string agentText;
         std::string commandOutput;
 
-        client.typed().events().setOnEvent([&](const typed::Event& event) {
+        client.events().setOnEvent([&](const typed::Event& event) {
             ++typedEventCount;
             if (const auto* started = std::get_if<typed::ThreadStarted>(&event)) {
                 threadStarted =
@@ -310,7 +310,7 @@ namespace {
             } else if (const auto* delta = std::get_if<typed::CommandOutputDelta>(&event)) {
                 commandOutput += delta->output;
             } else if (const auto* completed = std::get_if<typed::ItemCompleted>(&event)) {
-                itemCompleted = std::holds_alternative<typed::CommandExecutionItem>(completed->item);
+                itemCompleted = std::holds_alternative<typed::CommandExecutionThreadItem>(completed->item);
             } else if (const auto* completed = std::get_if<typed::TurnCompleted>(&event)) {
                 turnCompleted = completed->turn.status.value == "completed";
                 client.stop();
@@ -325,30 +325,27 @@ namespace {
             rawUnknownEventSeen = rawUnknownEventSeen || notification.method == "future/event";
         });
 
-        client.typed().requests().setOnRequest([&](const typed::TypedServerRequest& request) {
+        client.requests().setOnRequest([&](const typed::TypedServerRequest& request) {
             ++typedRequestCount;
             if (const auto* approval = std::get_if<typed::CommandApprovalRequest>(&request)) {
                 commandApprovalSeen =
                     approval->command == std::optional<std::string>("printf protocol-flow") && approval->startedAtMs == 2000;
                 allResponsesAccepted =
-                    allResponsesAccepted &&
-                    static_cast<bool>(client.typed().requests().respond(*approval, typed::ApprovalDecision::accept()));
+                    allResponsesAccepted && static_cast<bool>(client.requests().respond(*approval, typed::ApprovalDecision::accept()));
             } else if (const auto* approval = std::get_if<typed::FileChangeApprovalRequest>(&request)) {
                 fileApprovalSeen = approval->reason == std::optional<std::string>("apply deterministic patch");
                 allResponsesAccepted =
-                    allResponsesAccepted &&
-                    static_cast<bool>(client.typed().requests().respond(*approval, typed::ApprovalDecision::decline()));
+                    allResponsesAccepted && static_cast<bool>(client.requests().respond(*approval, typed::ApprovalDecision::decline()));
             } else if (const auto* input = std::get_if<typed::UserInputRequest>(&request)) {
                 userInputSeen =
                     input->questions.size() == 1 && input->questions.front().allowsFreeText && input->questions.front().options.size() == 1;
                 std::vector<typed::UserInputAnswer> answers{{"scope", {"Current"}}};
-                const auto response = client.typed().requests().respond(*input, std::move(answers));
+                const auto response = client.requests().respond(*input, std::move(answers));
                 allResponsesAccepted = allResponsesAccepted && static_cast<bool>(response);
             } else if (const auto* unknown = std::get_if<typed::UnknownServerRequest>(&request)) {
                 unknownRequestSeen = unknown->method == "future/serverRequest" && unknown->params["future"] == true;
                 allResponsesAccepted =
-                    allResponsesAccepted &&
-                    static_cast<bool>(client.typed().requests().respondRaw(*unknown, {{"handled", true}}));
+                    allResponsesAccepted && static_cast<bool>(client.requests().respondRaw(*unknown, {{"handled", true}}));
             }
         });
         client.raw().setOnServerRequest([&](const codex::ServerRequest& request) {
@@ -364,89 +361,79 @@ namespace {
                 typed::ThreadStartParams startParams;
                 startParams.cwd = typed::OptionalNullable<std::string>::withValue(std::string{"/tmp/project"});
                 insideSubmission = true;
-                const auto submission = client.typed().threads().start(
-                    std::move(startParams),
-                    [&](const typed::OperationResult<typed::ThreadStartResponse>& startResult) {
-                    inlineCallback = inlineCallback || insideSubmission;
-                    threadStartValid = startResult && startResult.value->thread.id.value == "thread-fake-001" &&
-                                       startResult.value->model.value == "gpt-5" && startResult.raw["cwd"] == "/tmp/project";
+                const auto submission = client.threads().start(
+                    std::move(startParams), [&](const typed::OperationResult<typed::ThreadStartResponse>& startResult) {
+                        inlineCallback = inlineCallback || insideSubmission;
+                        threadStartValid = startResult && startResult.value->thread.id.value == "thread-fake-001" &&
+                                           startResult.value->model.value == "gpt-5" && startResult.raw["cwd"] == "/tmp/project";
 
-                    typed::ThreadResumeParams resumeParams;
-                    resumeParams.threadId = startResult.value->thread.id;
-                    resumeParams.cwd = typed::OptionalNullable<std::string>::withValue(std::string{"/tmp/project"});
-                    insideSubmission = true;
-                    const auto resumeSubmission = client.typed().threads().resume(
-                        std::move(resumeParams),
-                        [&](const typed::OperationResult<typed::ThreadResumeResponse>& resumeResult) {
-                            inlineCallback = inlineCallback || insideSubmission;
-                            threadResumeValid = resumeResult && resumeResult.value->thread.id.value == "thread-fake-001";
+                        typed::ThreadResumeParams resumeParams;
+                        resumeParams.threadId = startResult.value->thread.id;
+                        resumeParams.cwd = typed::OptionalNullable<std::string>::withValue(std::string{"/tmp/project"});
+                        insideSubmission = true;
+                        const auto resumeSubmission = client.threads().resume(
+                            std::move(resumeParams), [&](const typed::OperationResult<typed::ThreadResumeResponse>& resumeResult) {
+                                inlineCallback = inlineCallback || insideSubmission;
+                                threadResumeValid = resumeResult && resumeResult.value->thread.id.value == "thread-fake-001";
 
-                            typed::ThreadListParams listParams;
-                            listParams.cursor =
-                                typed::OptionalNullable<std::string>::withValue(std::string{"cursor-1"});
-                            listParams.limit = typed::OptionalNullable<std::uint32_t>::withValue(std::uint32_t{2});
-                            insideSubmission = true;
-                            const auto listSubmission = client.typed().threads().list(
-                                std::move(listParams),
-                                [&](const typed::OperationResult<typed::ThreadListResponse>& listResult) {
-                                    inlineCallback = inlineCallback || insideSubmission;
-                                    threadListValid = listResult && listResult.value->data.size() == 1 &&
-                                                      listResult.value->nextCursor == std::optional<std::string>("cursor-2");
+                                typed::ThreadListParams listParams;
+                                listParams.cursor = typed::OptionalNullable<std::string>::withValue(std::string{"cursor-1"});
+                                listParams.limit = typed::OptionalNullable<std::uint32_t>::withValue(std::uint32_t{2});
+                                insideSubmission = true;
+                                const auto listSubmission = client.threads().list(
+                                    std::move(listParams), [&](const typed::OperationResult<typed::ThreadListResponse>& listResult) {
+                                        inlineCallback = inlineCallback || insideSubmission;
+                                        threadListValid = listResult && listResult.value->data.size() == 1 &&
+                                                          listResult.value->nextCursor == std::optional<std::string>("cursor-2");
 
-                                    typed::ThreadReadParams readParams;
-                                    readParams.threadId = typed::ThreadId{"thread-fake-001"};
-                                    readParams.includeTurns = true;
-                                    insideSubmission = true;
-                                    const auto readSubmission = client.typed().threads().read(
-                                        std::move(readParams),
-                                        [&](const typed::OperationResult<typed::ThreadReadResponse>& readResult) {
-                                            inlineCallback = inlineCallback || insideSubmission;
-                                            threadReadValid =
-                                                readResult && readResult.value->thread.raw == readResult.raw["thread"];
+                                        typed::ThreadReadParams readParams;
+                                        readParams.threadId = typed::ThreadId{"thread-fake-001"};
+                                        readParams.includeTurns = true;
+                                        insideSubmission = true;
+                                        const auto readSubmission = client.threads().read(
+                                            std::move(readParams),
+                                            [&](const typed::OperationResult<typed::ThreadReadResponse>& readResult) {
+                                                inlineCallback = inlineCallback || insideSubmission;
+                                                threadReadValid = readResult && readResult.value->thread.raw == readResult.raw["thread"];
 
-                                            typed::TurnStartParams turnParams;
-                                            turnParams.threadId = typed::ThreadId{"thread-fake-001"};
-                                            turnParams.input = {textInput("Analyse the current branch.")};
-                                            turnParams.effort =
-                                                typed::OptionalNullable<typed::ReasoningEffort>::withValue(
+                                                typed::TurnStartParams turnParams;
+                                                turnParams.threadId = typed::ThreadId{"thread-fake-001"};
+                                                turnParams.input = {textInput("Analyse the current branch.")};
+                                                turnParams.effort = typed::OptionalNullable<typed::ReasoningEffort>::withValue(
                                                     typed::ReasoningEffort::high());
-                                            insideSubmission = true;
-                                            const auto turnSubmission = client.typed().turns().start(
-                                                std::move(turnParams),
-                                                [&](const typed::OperationResult<typed::TurnStartResponse>& turnResult) {
-                                                    inlineCallback = inlineCallback || insideSubmission;
-                                                    turnStartValid =
-                                                        turnResult &&
-                                                        turnResult.value->turn.threadId.value == "thread-fake-001" &&
-                                                        turnResult.value->turn.status.value == "inProgress";
+                                                insideSubmission = true;
+                                                const auto turnSubmission = client.turns().start(
+                                                    std::move(turnParams),
+                                                    [&](const typed::OperationResult<typed::TurnStartResponse>& turnResult) {
+                                                        inlineCallback = inlineCallback || insideSubmission;
+                                                        turnStartValid = turnResult &&
+                                                                         turnResult.value->turn.threadId.value == "thread-fake-001" &&
+                                                                         turnResult.value->turn.status.value == "inProgress";
 
-                                                    typed::TurnInterruptParams interruptParams;
-                                                    interruptParams.threadId =
-                                                        typed::ThreadId{"thread-fake-001"};
-                                                    interruptParams.turnId = typed::TurnId{"turn-fake-001"};
-                                                    insideSubmission = true;
-                                                    const auto interruptSubmission = client.typed().turns().interrupt(
-                                                        std::move(interruptParams),
-                                                        [&](const typed::OperationResult<typed::Unit>& interruptResult) {
-                                                            inlineCallback =
-                                                                inlineCallback || insideSubmission;
-                                                            turnInterruptValid =
-                                                                static_cast<bool>(interruptResult);
-                                                        });
-                                                    submissionsAccepted = submissionsAccepted && static_cast<bool>(interruptSubmission);
-                                                    insideSubmission = false;
-                                                });
-                                            submissionsAccepted = submissionsAccepted && static_cast<bool>(turnSubmission);
-                                            insideSubmission = false;
-                                        });
-                                    submissionsAccepted = submissionsAccepted && static_cast<bool>(readSubmission);
-                                    insideSubmission = false;
-                                });
-                            submissionsAccepted = submissionsAccepted && static_cast<bool>(listSubmission);
-                            insideSubmission = false;
-                        });
-                    submissionsAccepted = submissionsAccepted && static_cast<bool>(resumeSubmission);
-                    insideSubmission = false;
+                                                        typed::TurnInterruptParams interruptParams;
+                                                        interruptParams.threadId = typed::ThreadId{"thread-fake-001"};
+                                                        interruptParams.turnId = typed::TurnId{"turn-fake-001"};
+                                                        insideSubmission = true;
+                                                        const auto interruptSubmission = client.turns().interrupt(
+                                                            std::move(interruptParams),
+                                                            [&](const typed::OperationResult<typed::Unit>& interruptResult) {
+                                                                inlineCallback = inlineCallback || insideSubmission;
+                                                                turnInterruptValid = static_cast<bool>(interruptResult);
+                                                            });
+                                                        submissionsAccepted = submissionsAccepted && static_cast<bool>(interruptSubmission);
+                                                        insideSubmission = false;
+                                                    });
+                                                submissionsAccepted = submissionsAccepted && static_cast<bool>(turnSubmission);
+                                                insideSubmission = false;
+                                            });
+                                        submissionsAccepted = submissionsAccepted && static_cast<bool>(readSubmission);
+                                        insideSubmission = false;
+                                    });
+                                submissionsAccepted = submissionsAccepted && static_cast<bool>(listSubmission);
+                                insideSubmission = false;
+                            });
+                        submissionsAccepted = submissionsAccepted && static_cast<bool>(resumeSubmission);
+                        insideSubmission = false;
                     });
                 submissionsAccepted = submissionsAccepted && static_cast<bool>(submission);
                 insideSubmission = false;

@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Models.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -37,7 +37,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 2;
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -288,7 +288,7 @@ namespace {
                 return;
             }
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 const auto* verification = std::get_if<typed::ModelVerificationNotification>(&event);
                 if (!verification || !verification->raw.contains("params")) {
                     return;
@@ -437,7 +437,7 @@ namespace {
         }
 
         void buildCases() {
-            auto& models = client->typed().models();
+            auto& models = client->models();
             cases.push_back(makeOperation<typed::ModelListResponse>(
                 "model/list",
                 detail::ClientRequestTarget::ModelList,
@@ -456,12 +456,9 @@ namespace {
                 detail::ClientRequestTarget::ModelProviderCapabilitiesRead,
                 typed::ModelProviderCapabilitiesReadParams{},
                 codex::Json::object(),
-                {{"imageGeneration", true},
-                 {"namespaceTools", false},
-                 {"webSearch", true},
-                 {"futureResult", true}},
-                [&models](auto params, auto resultHandler) {
-                    return models.readProviderCapabilities(std::move(params), std::move(resultHandler));
+                {{"imageGeneration", true}, {"namespaceTools", false}, {"webSearch", true}, {"futureResult", true}},
+                [&models](auto, auto resultHandler) {
+                    return models.readProviderCapabilities(std::move(resultHandler));
                 }));
         }
 

@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Configuration.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -37,7 +37,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 5;
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -297,7 +297,7 @@ namespace {
                 return;
             }
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 const auto* warning = std::get_if<typed::ConfigWarningNotification>(&event);
                 if (!warning || !warning->raw.contains("params")) {
                     return;
@@ -476,7 +476,7 @@ namespace {
         }
 
         void buildCases() {
-            auto& configuration = client->typed().configuration();
+            auto& configuration = client->configuration();
             const codex::Json batchOpaque{
                 {"array", codex::Json::array({1, "two", nullptr, false})},
                 {"nested", {{"wire", "exact"}}},
@@ -494,8 +494,7 @@ namespace {
                             {typed::ConfigKeyPath{"features.null"}, typed::MergeStrategy::replace(), std::nullopt},
                         },
                     .expectedVersion = typed::OptionalNullable<std::string>::explicitNull(),
-                    .filePath =
-                        typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/config.toml"}),
+                    .filePath = typed::OptionalNullable<typed::AbsolutePath>::withValue(typed::AbsolutePath{"/synthetic/config.toml"}),
                     .reloadUserConfig = false,
                 },
                 {{"edits",
@@ -514,9 +513,8 @@ namespace {
                                                        typed::Unit{},
                                                        nullptr,
                                                        codex::Json::object(),
-                                                       [&configuration](auto params, auto resultHandler) {
-                                                           return configuration.reloadMcpServers(std::move(params),
-                                                                                                 std::move(resultHandler));
+                                                       [&configuration](auto, auto resultHandler) {
+                                                           return configuration.reloadMcpServers(std::move(resultHandler));
                                                        }));
             cases.push_back(makeOperation<typed::ConfigWriteResponse>(
                 "config/value/write",
@@ -524,7 +522,7 @@ namespace {
                 detail::ResultContractKind::Concrete,
                 typed::ConfigValueWriteParams{
                     .expectedVersion = typed::OptionalNullable<std::string>::withValue("value-v0"),
-                    .filePath = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull(),
+                    .filePath = typed::OptionalNullable<typed::AbsolutePath>::explicitNull(),
                     .keyPath = typed::ConfigKeyPath{"features.value"},
                     .mergeStrategy = typed::MergeStrategy::replace(),
                     .value = std::optional<codex::Json>{codex::Json::array({true, nullptr, {{"wire", "exact"}}})},

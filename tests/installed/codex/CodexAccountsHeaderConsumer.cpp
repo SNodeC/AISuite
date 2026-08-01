@@ -8,28 +8,30 @@
 #include <type_traits>
 
 int main() {
+    namespace codex = ai::openai::codex;
     namespace typed = ai::openai::codex::typed;
 
-    using CancelLogin =
-        typed::Accounts::Submission (typed::Accounts::*)(typed::CancelLoginAccountParams, typed::Accounts::CancelLoginResultHandler);
+    using CancelLogin = codex::Submission (typed::Accounts::*)(typed::CancelLoginAccountParams,
+                                                               typed::CompletionHandler<typed::CancelLoginAccountResponse>);
     using StartLogin =
-        typed::Accounts::Submission (typed::Accounts::*)(typed::LoginAccountParams, typed::Accounts::StartLoginResultHandler);
-    using Logout = typed::Accounts::Submission (typed::Accounts::*)(typed::Unit, typed::Accounts::UnitResultHandler);
-    using ConsumeCredit = typed::Accounts::Submission (typed::Accounts::*)(typed::ConsumeAccountRateLimitResetCreditParams,
-                                                                           typed::Accounts::ConsumeRateLimitResetCreditResultHandler);
-    using ReadRateLimits = typed::Accounts::Submission (typed::Accounts::*)(typed::Unit, typed::Accounts::ReadRateLimitsResultHandler);
-    using ReadAccount = typed::Accounts::Submission (typed::Accounts::*)(typed::GetAccountParams, typed::Accounts::ReadResultHandler);
-    using SendNudge = typed::Accounts::Submission (typed::Accounts::*)(typed::SendAddCreditsNudgeEmailParams,
-                                                                       typed::Accounts::SendAddCreditsNudgeEmailResultHandler);
-    using ReadUsage = typed::Accounts::Submission (typed::Accounts::*)(typed::Unit, typed::Accounts::ReadUsageResultHandler);
-    using ReadMessages = typed::Accounts::Submission (typed::Accounts::*)(typed::Unit, typed::Accounts::ReadWorkspaceMessagesResultHandler);
+        codex::Submission (typed::Accounts::*)(typed::LoginAccountParams, typed::CompletionHandler<typed::LoginAccountResponse>);
+    using Logout = codex::Submission (typed::Accounts::*)(typed::DoneHandler);
+    using ConsumeCredit = codex::Submission (typed::Accounts::*)(
+        typed::ConsumeAccountRateLimitResetCreditParams, typed::CompletionHandler<typed::ConsumeAccountRateLimitResetCreditResponse>);
+    using ReadRateLimits = codex::Submission (typed::Accounts::*)(typed::CompletionHandler<typed::GetAccountRateLimitsResponse>);
+    using ReadAccount =
+        codex::Submission (typed::Accounts::*)(typed::GetAccountParams, typed::CompletionHandler<typed::GetAccountResponse>);
+    using SendNudge = codex::Submission (typed::Accounts::*)(typed::SendAddCreditsNudgeEmailParams,
+                                                             typed::CompletionHandler<typed::SendAddCreditsNudgeEmailResponse>);
+    using ReadUsage = codex::Submission (typed::Accounts::*)(typed::CompletionHandler<typed::GetAccountTokenUsageResponse>);
+    using ReadMessages = codex::Submission (typed::Accounts::*)(typed::CompletionHandler<typed::GetWorkspaceMessagesResponse>);
 
     static_assert(std::is_same_v<decltype(&typed::Accounts::cancelLogin), CancelLogin>);
     static_assert(std::is_same_v<decltype(&typed::Accounts::startLogin), StartLogin>);
     static_assert(std::is_same_v<decltype(&typed::Accounts::logout), Logout>);
     static_assert(std::is_same_v<decltype(&typed::Accounts::consumeRateLimitResetCredit), ConsumeCredit>);
     static_assert(std::is_same_v<decltype(&typed::Accounts::readRateLimits), ReadRateLimits>);
-    static_assert(std::is_same_v<decltype(&typed::Accounts::read), ReadAccount>);
+    static_assert(std::is_same_v<decltype(static_cast<ReadAccount>(&typed::Accounts::read)), ReadAccount>);
     static_assert(std::is_same_v<decltype(&typed::Accounts::sendAddCreditsNudgeEmail), SendNudge>);
     static_assert(std::is_same_v<decltype(&typed::Accounts::readUsage), ReadUsage>);
     static_assert(std::is_same_v<decltype(&typed::Accounts::readWorkspaceMessages), ReadMessages>);

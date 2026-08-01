@@ -5,9 +5,9 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -230,7 +230,7 @@ namespace {
                 return;
             }
 
-            client->typed().requests().setOnRequest([this](const typed::TypedServerRequest& request) {
+            client->requests().setOnRequest([this](const typed::TypedServerRequest& request) {
                 typedObserverOrder.push_back(requestId(request));
                 const auto* authentication = std::get_if<typed::AuthenticationRequest>(&request);
                 expect(authentication != nullptr,
@@ -417,22 +417,20 @@ namespace {
                            request.reason == "unauthorized" && request.previousAccountId == SyntheticAccountId,
                        "first auth-refresh request preserves full envelope, exact params, strong identity, and compatibility view");
 
-                const auto sent = client->typed().requests().respondRefresh(
-                    request,
-                    typed::ChatgptAuthTokensRefreshResponse{
-                        SyntheticAccessToken,
-                        typed::AccountId{SyntheticAccountId},
-                        typed::PlanType::plus(),
-                    });
+                const auto sent = client->requests().respond(request,
+                                                             typed::ChatgptAuthTokensRefreshResponse{
+                                                                 SyntheticAccessToken,
+                                                                 typed::AccountId{SyntheticAccountId},
+                                                                 typed::PlanType::plus(),
+                                                             });
                 expect(static_cast<bool>(sent), "canonical auth-refresh response is accepted exactly once");
                 const std::size_t beforeDuplicate = state->outgoing.size();
-                const auto duplicate = client->typed().requests().respondRefresh(
-                    request,
-                    typed::ChatgptAuthTokensRefreshResponse{
-                        SyntheticAccessToken,
-                        typed::AccountId{SyntheticAccountId},
-                        typed::PlanType::plus(),
-                    });
+                const auto duplicate = client->requests().respond(request,
+                                                                  typed::ChatgptAuthTokensRefreshResponse{
+                                                                      SyntheticAccessToken,
+                                                                      typed::AccountId{SyntheticAccountId},
+                                                                      typed::PlanType::plus(),
+                                                                  });
                 if (duplicate.error) {
                     inspectSensitiveText(duplicate.error->message);
                 }
@@ -460,13 +458,12 @@ namespace {
                        "second auth-refresh occurrence preserves explicit null and future reason without losing its known outer request");
                 const std::size_t beforeStale = state->outgoing.size();
                 if (firstRequest) {
-                    const auto stale = client->typed().requests().respondRefresh(
-                        *firstRequest,
-                        typed::ChatgptAuthTokensRefreshResponse{
-                            SyntheticAccessToken,
-                            typed::AccountId{SyntheticAccountId},
-                            typed::OptionalNullable<typed::PlanType>::explicitNull(),
-                        });
+                    const auto stale = client->requests().respond(*firstRequest,
+                                                                  typed::ChatgptAuthTokensRefreshResponse{
+                                                                      SyntheticAccessToken,
+                                                                      typed::AccountId{SyntheticAccountId},
+                                                                      typed::OptionalNullable<typed::PlanType>::explicitNull(),
+                                                                  });
                     if (stale.error) {
                         inspectSensitiveText(stale.error->message);
                     }
@@ -478,13 +475,12 @@ namespace {
                            "old occurrence token cannot answer a fresh same-ID auth request and leaks no secret");
                     staleSameGenerationRejected = true;
                 }
-                const auto legacy = client->typed().requests().respond(
-                    request,
-                    typed::AuthenticationResponse{
-                        SyntheticAccessToken,
-                        SyntheticAccountId,
-                        std::nullopt,
-                    });
+                const auto legacy = client->requests().respond(request,
+                                                               typed::AuthenticationResponse{
+                                                                   SyntheticAccessToken,
+                                                                   SyntheticAccountId,
+                                                                   std::nullopt,
+                                                               });
                 expect(static_cast<bool>(legacy),
                        "legacy AuthenticationResponse adapter remains source-compatible and answers the current occurrence");
                 return;
@@ -507,13 +503,12 @@ namespace {
                    "fresh generation receives a distinct exact auth-refresh occurrence");
             const std::size_t beforeStale = state->outgoing.size();
             if (firstGenerationRequest) {
-                const auto stale = client->typed().requests().respondRefresh(
-                    *firstGenerationRequest,
-                    typed::ChatgptAuthTokensRefreshResponse{
-                        SyntheticAccessToken,
-                        typed::AccountId{SyntheticAccountId},
-                        typed::OptionalNullable<typed::PlanType>::omitted(),
-                    });
+                const auto stale = client->requests().respond(*firstGenerationRequest,
+                                                              typed::ChatgptAuthTokensRefreshResponse{
+                                                                  SyntheticAccessToken,
+                                                                  typed::AccountId{SyntheticAccountId},
+                                                                  typed::OptionalNullable<typed::PlanType>::omitted(),
+                                                              });
                 if (stale.error) {
                     inspectSensitiveText(stale.error->message);
                 }
@@ -525,13 +520,12 @@ namespace {
                        "disconnected occurrence token cannot answer a same-ID request in a new generation");
                 staleGenerationRejected = true;
             }
-            const auto fresh = client->typed().requests().respondRefresh(
-                request,
-                typed::ChatgptAuthTokensRefreshResponse{
-                    SyntheticAccessToken,
-                    typed::AccountId{SyntheticAccountId},
-                    typed::OptionalNullable<typed::PlanType>::omitted(),
-                });
+            const auto fresh = client->requests().respond(request,
+                                                          typed::ChatgptAuthTokensRefreshResponse{
+                                                              SyntheticAccessToken,
+                                                              typed::AccountId{SyntheticAccountId},
+                                                              typed::OptionalNullable<typed::PlanType>::omitted(),
+                                                          });
             expect(static_cast<bool>(fresh), "fresh-generation occurrence remains answerable after stale rejection");
         }
 

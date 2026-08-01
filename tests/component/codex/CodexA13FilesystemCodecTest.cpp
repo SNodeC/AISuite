@@ -59,8 +59,8 @@ namespace {
     static_assert(!HasFuzzySessionStart<typed::Filesystem>);
     static_assert(!HasFuzzySessionUpdate<typed::Filesystem>);
     static_assert(!HasFuzzySessionStop<typed::Filesystem>);
-    static_assert(std::is_same_v<decltype(typed::FsReadFileParams::path), typed::AbsolutePathBuf>);
-    static_assert(std::is_same_v<decltype(typed::FsWriteFileParams::path), typed::AbsolutePathBuf>);
+    static_assert(std::is_same_v<decltype(typed::FsReadFileParams::path), typed::AbsolutePath>);
+    static_assert(std::is_same_v<decltype(typed::FsWriteFileParams::path), typed::AbsolutePath>);
     static_assert(std::is_same_v<decltype(typed::FsWriteFileParams::dataBase64), std::string>);
 
     bool hasDiagnostic(const std::vector<typed::DecodeDiagnostic>& diagnostics,

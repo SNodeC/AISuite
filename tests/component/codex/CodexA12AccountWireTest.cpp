@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -36,7 +36,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
 
     constexpr std::size_t OperationCount = 9;
     constexpr const char* SyntheticApiKey = "synthetic-api-key-for-account-wire";
@@ -269,7 +269,7 @@ namespace {
                 return;
             }
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 const auto* updated = std::get_if<typed::AccountUpdatedNotification>(&event);
                 if (!updated || !updated->raw.contains("params")) {
                     return;
@@ -453,7 +453,7 @@ namespace {
         }
 
         void buildCases() {
-            auto& accounts = client->typed().accounts();
+            auto& accounts = client->accounts();
             cases.push_back(makeOperation<typed::CancelLoginAccountResponse>(
                 "account/login/cancel",
                 detail::ClientRequestTarget::AccountLoginCancel,
@@ -472,15 +472,14 @@ namespace {
                 [&accounts](auto params, auto resultHandler) {
                     return accounts.startLogin(std::move(params), std::move(resultHandler));
                 }));
-            cases.push_back(makeOperation<typed::Unit>(
-                "account/logout",
-                detail::ClientRequestTarget::AccountLogout,
-                typed::Unit{},
-                nullptr,
-                codex::Json::object(),
-                [&accounts](auto params, auto resultHandler) {
-                    return accounts.logout(std::move(params), std::move(resultHandler));
-                }));
+            cases.push_back(makeOperation<typed::Unit>("account/logout",
+                                                       detail::ClientRequestTarget::AccountLogout,
+                                                       typed::Unit{},
+                                                       nullptr,
+                                                       codex::Json::object(),
+                                                       [&accounts](auto, auto resultHandler) {
+                                                           return accounts.logout(std::move(resultHandler));
+                                                       }));
             cases.push_back(makeOperation<typed::ConsumeAccountRateLimitResetCreditResponse>(
                 "account/rateLimitResetCredit/consume",
                 detail::ClientRequestTarget::AccountRateLimitResetCreditConsume,
@@ -493,15 +492,14 @@ namespace {
                 [&accounts](auto params, auto resultHandler) {
                     return accounts.consumeRateLimitResetCredit(std::move(params), std::move(resultHandler));
                 }));
-            cases.push_back(makeOperation<typed::GetAccountRateLimitsResponse>(
-                "account/rateLimits/read",
-                detail::ClientRequestTarget::AccountRateLimitsRead,
-                typed::Unit{},
-                nullptr,
-                {{"rateLimits", codex::Json::object()}},
-                [&accounts](auto params, auto resultHandler) {
-                    return accounts.readRateLimits(std::move(params), std::move(resultHandler));
-                }));
+            cases.push_back(makeOperation<typed::GetAccountRateLimitsResponse>("account/rateLimits/read",
+                                                                               detail::ClientRequestTarget::AccountRateLimitsRead,
+                                                                               typed::Unit{},
+                                                                               nullptr,
+                                                                               {{"rateLimits", codex::Json::object()}},
+                                                                               [&accounts](auto, auto resultHandler) {
+                                                                                   return accounts.readRateLimits(std::move(resultHandler));
+                                                                               }));
             cases.push_back(makeOperation<typed::GetAccountResponse>(
                 "account/read",
                 detail::ClientRequestTarget::AccountRead,
@@ -520,24 +518,23 @@ namespace {
                 [&accounts](auto params, auto resultHandler) {
                     return accounts.sendAddCreditsNudgeEmail(std::move(params), std::move(resultHandler));
                 }));
-            cases.push_back(makeOperation<typed::GetAccountTokenUsageResponse>(
-                "account/usage/read",
-                detail::ClientRequestTarget::AccountUsageRead,
-                typed::Unit{},
-                nullptr,
-                {{"summary", codex::Json::object()}},
-                [&accounts](auto params, auto resultHandler) {
-                    return accounts.readUsage(std::move(params), std::move(resultHandler));
-                }));
-            cases.push_back(makeOperation<typed::GetWorkspaceMessagesResponse>(
-                "account/workspaceMessages/read",
-                detail::ClientRequestTarget::AccountWorkspaceMessagesRead,
-                typed::Unit{},
-                nullptr,
-                {{"featureEnabled", true}, {"messages", codex::Json::array()}},
-                [&accounts](auto params, auto resultHandler) {
-                    return accounts.readWorkspaceMessages(std::move(params), std::move(resultHandler));
-                }));
+            cases.push_back(makeOperation<typed::GetAccountTokenUsageResponse>("account/usage/read",
+                                                                               detail::ClientRequestTarget::AccountUsageRead,
+                                                                               typed::Unit{},
+                                                                               nullptr,
+                                                                               {{"summary", codex::Json::object()}},
+                                                                               [&accounts](auto, auto resultHandler) {
+                                                                                   return accounts.readUsage(std::move(resultHandler));
+                                                                               }));
+            cases.push_back(
+                makeOperation<typed::GetWorkspaceMessagesResponse>("account/workspaceMessages/read",
+                                                                   detail::ClientRequestTarget::AccountWorkspaceMessagesRead,
+                                                                   typed::Unit{},
+                                                                   nullptr,
+                                                                   {{"featureEnabled", true}, {"messages", codex::Json::array()}},
+                                                                   [&accounts](auto, auto resultHandler) {
+                                                                       return accounts.readWorkspaceMessages(std::move(resultHandler));
+                                                                   }));
         }
 
         void invokeLocalRejections() {
@@ -558,11 +555,10 @@ namespace {
             expect(exact == OperationCount && unexpectedLocalCallbacks == 0,
                    "all nine account methods reject locally without callbacks or transport traffic");
 
-            const Submission unknown = client->typed().accounts().startLogin(
-                typed::UnknownLoginAccountParams{std::string("future-login")},
-                [this](const typed::OperationResult<typed::LoginAccountResponse>&) {
-                    ++unexpectedLocalCallbacks;
-                });
+            const Submission unknown = client->accounts().startLogin(typed::UnknownLoginAccountParams{std::string("future-login")},
+                                                                     [this](const typed::OperationResult<typed::LoginAccountResponse>&) {
+                                                                         ++unexpectedLocalCallbacks;
+                                                                     });
             expect(!unknown && unknown.error && unknown.error->category == codex::Error::Category::Protocol &&
                        unknown.error->message == "LoginAccountParams future discriminator cannot be encoded",
                    "future outgoing login union rejects synchronously before reaching RawProtocol");

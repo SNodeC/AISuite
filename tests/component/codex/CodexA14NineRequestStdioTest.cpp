@@ -5,9 +5,9 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/stdio/Client.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Mcp.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
@@ -154,7 +154,7 @@ namespace {
             static_assert(std::is_same_v<std::variant_alternative_t<9, typed::TypedServerRequest>, typed::DynamicToolCallRequest>);
             static_assert(std::is_same_v<std::variant_alternative_t<10, typed::TypedServerRequest>, typed::McpServerElicitationRequest>);
 
-            client.typed().requests().setOnRequest([this](const typed::TypedServerRequest& request) {
+            client.requests().setOnRequest([this](const typed::TypedServerRequest& request) {
                 insideRequestCallback = true;
                 struct ResetFlag {
                     bool& value;
@@ -181,32 +181,30 @@ namespace {
             result.expectTrue(condition, std::move(message));
         }
 
-        typed::Requests::SendResult respondSuccess(const typed::TypedServerRequest& request) {
+        codex::SendResult respondSuccess(const typed::TypedServerRequest& request) {
             return std::visit(
-                [this](const auto& typedRequest) -> typed::Requests::SendResult {
+                [this](const auto& typedRequest) -> codex::SendResult {
                     using Request = std::decay_t<decltype(typedRequest)>;
                     if constexpr (std::is_same_v<Request, typed::ApplyPatchApprovalRequest>) {
-                        return client.typed().requests().respond(typedRequest,
-                                                                 typed::ApplyPatchApprovalResponse{typed::DeniedReviewDecision{}});
+                        return client.requests().respond(typedRequest, typed::ApplyPatchApprovalResponse{typed::DeniedReviewDecision{}});
                     } else if constexpr (std::is_same_v<Request, typed::ExecCommandApprovalRequest>) {
-                        return client.typed().requests().respond(typedRequest,
-                                                                 typed::ExecCommandApprovalResponse{typed::TimedOutReviewDecision{}});
+                        return client.requests().respond(typedRequest, typed::ExecCommandApprovalResponse{typed::TimedOutReviewDecision{}});
                     } else if constexpr (std::is_same_v<Request, typed::CommandApprovalRequest>) {
-                        return client.typed().requests().respond(
+                        return client.requests().respond(
                             typedRequest, typed::CommandExecutionRequestApprovalResponse{typed::DeclineCommandExecutionApprovalDecision{}});
                     } else if constexpr (std::is_same_v<Request, typed::FileChangeApprovalRequest>) {
-                        return client.typed().requests().respond(
+                        return client.requests().respond(
                             typedRequest, typed::FileChangeRequestApprovalResponse{typed::FileChangeApprovalDecision::cancel()});
                     } else if constexpr (std::is_same_v<Request, typed::PermissionsApprovalRequest>) {
-                        return client.typed().requests().respond(typedRequest, permissionResponse());
+                        return client.requests().respond(typedRequest, permissionResponse());
                     } else if constexpr (std::is_same_v<Request, typed::AttestationGenerateRequest>) {
-                        return client.typed().requests().respond(typedRequest, attestationResponse());
+                        return client.requests().respond(typedRequest, attestationResponse());
                     } else if constexpr (std::is_same_v<Request, typed::DynamicToolCallRequest>) {
-                        return client.typed().requests().respond(typedRequest, dynamicToolResponse());
+                        return client.requests().respond(typedRequest, dynamicToolResponse());
                     } else if constexpr (std::is_same_v<Request, typed::UserInputRequest>) {
-                        return client.typed().requests().respond(typedRequest, userInputResponse());
+                        return client.requests().respond(typedRequest, userInputResponse());
                     } else if constexpr (std::is_same_v<Request, typed::McpServerElicitationRequest>) {
-                        return client.typed().requests().respond(typedRequest, elicitationResponse());
+                        return client.requests().respond(typedRequest, elicitationResponse());
                     } else {
                         return {false,
                                 codex::Error{codex::Error::Category::Protocol,
@@ -217,16 +215,16 @@ namespace {
                 request);
         }
 
-        typed::Requests::SendResult rejectNew(const typed::TypedServerRequest& request) {
+        codex::SendResult rejectNew(const typed::TypedServerRequest& request) {
             return std::visit(
-                [this](const auto& typedRequest) -> typed::Requests::SendResult {
+                [this](const auto& typedRequest) -> codex::SendResult {
                     using Request = std::decay_t<decltype(typedRequest)>;
                     if constexpr (std::is_same_v<Request, typed::AttestationGenerateRequest> ||
                                   std::is_same_v<Request, typed::DynamicToolCallRequest> ||
                                   std::is_same_v<Request, typed::UserInputRequest> ||
                                   std::is_same_v<Request, typed::McpServerElicitationRequest>) {
-                        return client.typed().requests().reject(
-                            typedRequest, codex::ProtocolError{-32'140, "synthetic reverse request rejection", std::nullopt});
+                        return client.requests().reject(typedRequest,
+                                                        codex::ProtocolError{-32'140, "synthetic reverse request rejection", std::nullopt});
                     } else {
                         return respondSuccess(typed::TypedServerRequest{typedRequest});
                     }
@@ -296,7 +294,7 @@ namespace {
 
         void submitReentrantMcpRequest() {
             typed::ListMcpServerStatusParams params;
-            const auto submission = client.typed().mcp().listServers(
+            const auto submission = client.mcp().listServers(
                 std::move(params), [this](const typed::OperationResult<typed::ListMcpServerStatusResponse>& operation) {
                     mcpCompletionInline = insideRequestCallback;
                     mcpCompletion = operation && operation.value->data.empty() && operation.value->nextCursor.isNull();
@@ -307,25 +305,25 @@ namespace {
         void rejectMalformedNewResponses() {
             std::size_t rejected = 0;
             for (const typed::TypedServerRequest& request : initialRequests) {
-                const typed::Requests::SendResult invalid = std::visit(
-                    [this](const auto& typedRequest) -> typed::Requests::SendResult {
+                const codex::SendResult invalid = std::visit(
+                    [this](const auto& typedRequest) -> codex::SendResult {
                         using Request = std::decay_t<decltype(typedRequest)>;
                         if constexpr (std::is_same_v<Request, typed::AttestationGenerateRequest>) {
                             typed::AttestationGenerateResponse response = attestationResponse();
                             response.raw = nullptr;
-                            return client.typed().requests().respond(typedRequest, std::move(response));
+                            return client.requests().respond(typedRequest, std::move(response));
                         } else if constexpr (std::is_same_v<Request, typed::DynamicToolCallRequest>) {
                             typed::DynamicToolCallResponse response = dynamicToolResponse();
                             response.raw = nullptr;
-                            return client.typed().requests().respond(typedRequest, std::move(response));
+                            return client.requests().respond(typedRequest, std::move(response));
                         } else if constexpr (std::is_same_v<Request, typed::UserInputRequest>) {
                             typed::ToolRequestUserInputResponse response = userInputResponse();
                             response.raw = nullptr;
-                            return client.typed().requests().respond(typedRequest, std::move(response));
+                            return client.requests().respond(typedRequest, std::move(response));
                         } else if constexpr (std::is_same_v<Request, typed::McpServerElicitationRequest>) {
                             typed::McpServerElicitationRequestResponse response = elicitationResponse();
                             response.action.value = "future-action";
-                            return client.typed().requests().respond(typedRequest, std::move(response));
+                            return client.requests().respond(typedRequest, std::move(response));
                         } else {
                             return {true, std::nullopt};
                         }

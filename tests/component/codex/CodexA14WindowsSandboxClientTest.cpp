@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/detail/ClientOperationCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/WindowsSandboxCodec.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/WindowsSandbox.h"
 #include "support/TestResult.h"
 
@@ -24,7 +24,7 @@ namespace {
     void testSetupEncoding(tests::support::TestResult& result) {
         std::string error = "stale";
         typed::WindowsSandboxSetupStartParams params{};
-        params.cwd = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull();
+        params.cwd = typed::OptionalNullable<typed::AbsolutePath>::explicitNull();
         params.mode = typed::WindowsSandboxSetupMode::elevated();
         params.raw = {{"cwd", "stale"}, {"mode", "stale"}, {"futureField", codex::Json{{"retained", true}}}};
 
@@ -33,7 +33,7 @@ namespace {
                               error.empty(),
                           "windowsSandbox/setupStart encodes exact stable fields and retains open future fields");
 
-        params.cwd = typed::OptionalNullable<typed::AbsolutePathBuf>::omitted();
+        params.cwd = typed::OptionalNullable<typed::AbsolutePath>::omitted();
         params.mode = typed::WindowsSandboxSetupMode::unelevated();
         const auto omitted = detail::encodeWindowsSandboxSetupStartParams(params, error);
         result.expectTrue(omitted && !omitted->contains("cwd") && omitted->at("mode") == "unelevated" &&
@@ -80,18 +80,16 @@ namespace {
     }
 
     void testRegistryAndFacade(tests::support::TestResult& result) {
-        using WindowsSandboxAccessor = typed::WindowsSandbox& (typed::Client::*) () noexcept;
-        using ConstWindowsSandboxAccessor = const typed::WindowsSandbox& (typed::Client::*) () const noexcept;
+        using WindowsSandboxAccessor = typed::WindowsSandbox& (codex::AppServerClient::*) () noexcept;
         static_assert(
-            std::is_same_v<decltype(static_cast<WindowsSandboxAccessor>(&typed::Client::windowsSandbox)), WindowsSandboxAccessor>);
-        static_assert(std::is_same_v<decltype(static_cast<ConstWindowsSandboxAccessor>(&typed::Client::windowsSandbox)),
-                                     ConstWindowsSandboxAccessor>);
-        static_assert(std::is_same_v<decltype(&typed::WindowsSandbox::checkReadiness),
-                                     typed::WindowsSandbox::Submission (typed::WindowsSandbox::*)(
-                                         typed::WindowsSandbox::CheckReadinessResultHandler)>);
-        static_assert(std::is_same_v<decltype(&typed::WindowsSandbox::startSetup),
-                                     typed::WindowsSandbox::Submission (typed::WindowsSandbox::*)(
-                                         typed::WindowsSandboxSetupStartParams, typed::WindowsSandbox::StartSetupResultHandler)>);
+            std::is_same_v<decltype(static_cast<WindowsSandboxAccessor>(&codex::AppServerClient::windowsSandbox)), WindowsSandboxAccessor>);
+        static_assert(
+            std::is_same_v<decltype(&typed::WindowsSandbox::checkReadiness),
+                           codex::Submission (typed::WindowsSandbox::*)(typed::CompletionHandler<typed::WindowsSandboxReadinessResponse>)>);
+        static_assert(
+            std::is_same_v<decltype(&typed::WindowsSandbox::startSetup),
+                           codex::Submission (typed::WindowsSandbox::*)(
+                               typed::WindowsSandboxSetupStartParams, typed::CompletionHandler<typed::WindowsSandboxSetupStartResponse>)>);
 
         const detail::ProtocolSurfaceEntry& readiness = detail::entryFor(detail::ClientRequestTarget::WindowsSandboxReadiness);
         const detail::ProtocolSurfaceEntry& setup = detail::entryFor(detail::ClientRequestTarget::WindowsSandboxSetupStart);

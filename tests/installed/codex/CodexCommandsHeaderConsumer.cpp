@@ -14,13 +14,13 @@
 #include <vector>
 
 int main() {
+    namespace codex = ai::openai::codex;
     namespace typed = ai::openai::codex::typed;
 
-    using Exec = typed::Commands::Submission (typed::Commands::*)(typed::CommandExecParams, typed::Commands::ExecResultHandler);
-    using Resize = typed::Commands::Submission (typed::Commands::*)(typed::CommandExecResizeParams, typed::Commands::UnitResultHandler);
-    using Terminate =
-        typed::Commands::Submission (typed::Commands::*)(typed::CommandExecTerminateParams, typed::Commands::UnitResultHandler);
-    using Write = typed::Commands::Submission (typed::Commands::*)(typed::CommandExecWriteParams, typed::Commands::UnitResultHandler);
+    using Exec = codex::Submission (typed::Commands::*)(typed::CommandExecParams, typed::CompletionHandler<typed::CommandExecResponse>);
+    using Resize = codex::Submission (typed::Commands::*)(typed::CommandExecResizeParams, typed::DoneHandler);
+    using Terminate = codex::Submission (typed::Commands::*)(typed::CommandExecTerminateParams, typed::DoneHandler);
+    using Write = codex::Submission (typed::Commands::*)(typed::CommandExecWriteParams, typed::DoneHandler);
 
     static_assert(std::is_same_v<decltype(&typed::Commands::exec), Exec>);
     static_assert(std::is_same_v<decltype(&typed::Commands::resize), Resize>);

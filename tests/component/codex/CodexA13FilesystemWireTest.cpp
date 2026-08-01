@@ -5,11 +5,11 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Results.h"
 #include "ai/openai/codex/typed/Types.h"
 #include "core/EventReceiver.h"
@@ -46,7 +46,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 10;
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -382,7 +382,7 @@ namespace {
                 return;
             }
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 if (const auto* changed = std::get_if<typed::FsChangedNotification>(&event)) {
                     ++typedChangedEvents;
                     expect(changed->watchId.value == "watch/wire-id" && changed->changedPaths.size() == 2 &&
@@ -391,7 +391,7 @@ namespace {
                            "typed fs/changed retains watch correlation, path bytes, and raw");
                     if (!reentrantSubmitted) {
                         reentrantSubmitted = true;
-                        const Submission submission = client->typed().filesystem().readFile(
+                        const Submission submission = client->filesystem().readFile(
                             {{"/synthetic/no-local-access/reentrant.bin"}},
                             [this](const typed::OperationResult<typed::FsReadFileResponse>& operation) {
                                 expect(operation.kind == typed::OperationResult<typed::FsReadFileResponse>::Kind::Success &&
@@ -613,7 +613,7 @@ namespace {
         }
 
         void buildCases() {
-            auto& filesystem = client->typed().filesystem();
+            auto& filesystem = client->filesystem();
             const std::string path = "/synthetic/no-local-access/path with spaces/back\\slash";
             cases.push_back(makeOperation<typed::Unit>("fs/copy",
                                                        detail::ClientRequestTarget::FsCopy,

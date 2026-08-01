@@ -24,7 +24,7 @@ namespace {
     using ai::openai::codex::detail::encodeTurnInput;
     using ai::openai::codex::detail::encodeTurnInterruptParams;
     using ai::openai::codex::detail::encodeTurnStartParams;
-    using ai::openai::codex::typed::AbsolutePathBuf;
+    using ai::openai::codex::typed::AbsolutePath;
     using ai::openai::codex::typed::ApprovalPolicy;
     using ai::openai::codex::typed::AskForApproval;
     using ai::openai::codex::typed::DangerFullAccessSandboxPolicy;
@@ -286,7 +286,7 @@ namespace {
         params.effort = ReasoningEffort{"xhigh"};
         params.approvalPolicy = AskForApproval{ApprovalPolicy{"future-policy"}};
         WorkspaceWriteSandboxPolicy workspacePolicy;
-        workspacePolicy.writableRoots = std::vector<AbsolutePathBuf>{{"/tmp/project"}};
+        workspacePolicy.writableRoots = std::vector<AbsolutePath>{{"/tmp/project"}};
         workspacePolicy.networkAccess = true;
         workspacePolicy.excludeTmpdirEnvVar = true;
         workspacePolicy.excludeSlashTmp = false;

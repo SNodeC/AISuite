@@ -36,20 +36,20 @@ namespace {
         return result;
     }
 
-    typed::Item agentItem(const std::string& threadId, const std::string& turnId, const std::string& itemId, std::string text = {}) {
-        typed::AgentMessageItem item;
+    typed::ThreadItem agentItem(const std::string& threadId, const std::string& turnId, const std::string& itemId, std::string text = {}) {
+        typed::AgentMessageThreadItem item;
         item.metadata = metadata(threadId, turnId, itemId);
         item.text = std::move(text);
         return item;
     }
 
-    typed::UserMessageItem userMessageItem(const std::string& threadId,
-                                           const std::string& turnId,
-                                           const std::string& itemId,
-                                           Json content,
-                                           Json raw,
-                                           std::optional<std::string> clientId = std::nullopt) {
-        typed::UserMessageItem item;
+    typed::UserMessageThreadItem userMessageItem(const std::string& threadId,
+                                                 const std::string& turnId,
+                                                 const std::string& itemId,
+                                                 Json content,
+                                                 Json raw,
+                                                 std::optional<std::string> clientId = std::nullopt) {
+        typed::UserMessageThreadItem item;
         item.metadata = metadata(threadId, turnId, itemId);
         item.metadata.raw = std::move(raw);
         if (!item.metadata.raw.contains("content")) {
@@ -63,17 +63,17 @@ namespace {
             if (const auto discriminator = entry.find("type"); discriminator != entry.end() && discriminator->is_string()) {
                 type = discriminator->get<std::string>();
             }
-            item.content.emplace_back(typed::UnknownUserInput{std::move(type), std::move(entry), std::nullopt});
+            item.content.emplace_back(typed::UnknownTurnInput{std::move(type), std::move(entry), std::nullopt});
         }
         return item;
     }
 
-    typed::Item reasoningItem(const std::string& threadId,
-                              const std::string& turnId,
-                              const std::string& itemId,
-                              std::string text = {},
-                              std::string summary = {}) {
-        typed::ReasoningItem item;
+    typed::ThreadItem reasoningItem(const std::string& threadId,
+                                    const std::string& turnId,
+                                    const std::string& itemId,
+                                    std::string text = {},
+                                    std::string summary = {}) {
+        typed::ReasoningThreadItem item;
         item.metadata = metadata(threadId, turnId, itemId);
         if (!text.empty()) {
             item.content = std::vector<std::string>{std::move(text)};
@@ -84,14 +84,14 @@ namespace {
         return item;
     }
 
-    typed::Item commandItem(const std::string& threadId,
-                            const std::string& turnId,
-                            const std::string& itemId,
-                            std::optional<std::string> output = std::nullopt) {
-        typed::CommandExecutionItem item;
+    typed::ThreadItem commandItem(const std::string& threadId,
+                                  const std::string& turnId,
+                                  const std::string& itemId,
+                                  std::optional<std::string> output = std::nullopt) {
+        typed::CommandExecutionThreadItem item;
         item.metadata = metadata(threadId, turnId, itemId);
         item.command = "printf test";
-        item.cwd = typed::LegacyAppPathString{"/tmp/project"};
+        item.cwd = typed::PathString{"/tmp/project"};
         item.status = typed::CommandExecutionStatus::inProgress();
         item.aggregatedOutput = std::move(output);
         return item;
@@ -100,7 +100,7 @@ namespace {
     typed::Turn turn(const std::string& threadId,
                      const std::string& turnId,
                      typed::TurnStatus status = typed::TurnStatus::inProgress(),
-                     std::vector<typed::Item> items = {}) {
+                     std::vector<typed::ThreadItem> items = {}) {
         typed::Turn result;
         result.id = typed::TurnId{turnId};
         result.threadId = typed::ThreadId{threadId};
@@ -115,7 +115,7 @@ namespace {
         typed::Thread result;
         result.id = typed::ThreadId{threadId};
         result.title = "Thread " + threadId;
-        result.cwd = typed::AbsolutePathBuf{"/tmp/project"};
+        result.cwd = typed::AbsolutePath{"/tmp/project"};
         result.model = typed::ModelId{"gpt-5"};
         result.modelProvider = "openai";
         result.preview = "preview " + threadId;
@@ -192,7 +192,7 @@ namespace {
                               state.threads.at("thread-start").thread.title == "Resumed title",
                           "thread/resume result replaces the typed thread without duplicating its order entry");
 
-        typed::ThreadPage firstPage;
+        typed::ThreadListResponse firstPage;
         firstPage.data = {thread("thread-list-b"), thread("thread-list-a")};
         firstPage.nextCursor = std::string{"cursor-2"};
         firstPage.backwardsCursor = std::string{"cursor-before"};
@@ -201,7 +201,7 @@ namespace {
                               state.threadList.nextCursor == "cursor-2" && state.threads.size() == 3,
                           "first thread/list page merges threads and retains pagination state");
 
-        typed::ThreadPage secondPage;
+        typed::ThreadListResponse secondPage;
         secondPage.data = {thread("thread-list-c"), thread("thread-list-b")};
         secondPage.backwardsCursor = std::string{"cursor-1"};
         reducer.apply(state, backend::ThreadListUpdated{secondPage, std::string("cursor-2"), false});
@@ -419,13 +419,13 @@ namespace {
                               failedState->modelReroutes[0].to.value == "gpt-new",
                           "token usage and model rerouting are retained on the owning turn");
 
-        typed::FileChangeItem file;
+        typed::FileChangeThreadItem file;
         file.metadata = metadata("thread-terminal", "turn-failed", "file-item");
         file.status = typed::PatchApplyStatus::inProgress();
         reducer.apply(state,
                       backend::ItemUpserted{typed::ThreadId{"thread-terminal"},
                                             typed::TurnId{"turn-failed"},
-                                            typed::Item{file},
+                                            typed::ThreadItem{file},
                                             backend::ItemLifecycle::Started,
                                             std::nullopt});
         const Json changes = Json::array({Json{{"path", "a.cpp"}, {"kind", "update"}}});
@@ -444,12 +444,13 @@ namespace {
         const Json startedContent = Json::array({Json{{"type", "text"}, {"text", "Answer just with OK!"}}});
         const Json startedRaw = {
             {"type", "userMessage"}, {"id", "user-item"}, {"clientId", nullptr}, {"content", startedContent}, {"future", 1}};
-        const typed::UserMessageItem startedItem = userMessageItem("thread-user", "turn-user", "user-item", startedContent, startedRaw);
+        const typed::UserMessageThreadItem startedItem =
+            userMessageItem("thread-user", "turn-user", "user-item", startedContent, startedRaw);
         const Json startedEnvelope =
             Json{{"method", "item/started"},
                  {"params", {{"threadId", "thread-user"}, {"turnId", "turn-user"}, {"item", startedRaw}, {"startedAtMs", 101}}}};
         const std::vector<backend::BackendEvent> startedEvents =
-            reducer.translate(typed::Event{typed::ItemStarted{typed::Item{startedItem}, 101, startedEnvelope}});
+            reducer.translate(typed::Event{typed::ItemStarted{typed::ThreadItem{startedItem}, 101, startedEnvelope}});
         const auto* startedUpsert = startedEvents.size() == 1 ? std::get_if<backend::ItemUpserted>(&startedEvents.front()) : nullptr;
         result.expectTrue(startedUpsert && startedUpsert->threadId.value == "thread-user" && startedUpsert->turnId.value == "turn-user" &&
                               startedUpsert->lifecycle == backend::ItemLifecycle::Started && startedUpsert->occurredAtMs == 101,
@@ -459,7 +460,7 @@ namespace {
         }
 
         const backend::ItemState* startedState = findItem(state, "thread-user", "turn-user", "user-item");
-        const auto* canonicalStarted = startedState ? std::get_if<typed::UserMessageItem>(&startedState->item) : nullptr;
+        const auto* canonicalStarted = startedState ? std::get_if<typed::UserMessageThreadItem>(&startedState->item) : nullptr;
         result.expectTrue(canonicalStarted && canonicalStarted->metadata.raw.at("content") == startedContent &&
                               !canonicalStarted->clientId && canonicalStarted->metadata.raw == startedRaw &&
                               startedState->lifecycle == backend::ItemLifecycle::Started && startedState->startedAtMs == 101 &&
@@ -470,13 +471,13 @@ namespace {
                                                    Json{{"type", "futureContent"}, {"payload", Json::array({1, 2, 3})}}});
         const Json completedRaw = {
             {"type", "userMessage"}, {"id", "user-item"}, {"clientId", nullptr}, {"content", completedContent}, {"future", 2}};
-        const typed::UserMessageItem completedItem =
+        const typed::UserMessageThreadItem completedItem =
             userMessageItem("thread-user", "turn-user", "user-item", completedContent, completedRaw);
         const Json completedEnvelope =
             Json{{"method", "item/completed"},
                  {"params", {{"threadId", "thread-user"}, {"turnId", "turn-user"}, {"item", completedRaw}, {"completedAtMs", 202}}}};
         const std::vector<backend::BackendEvent> completedEvents =
-            reducer.translate(typed::Event{typed::ItemCompleted{typed::Item{completedItem}, 202, completedEnvelope}});
+            reducer.translate(typed::Event{typed::ItemCompleted{typed::ThreadItem{completedItem}, 202, completedEnvelope}});
         const auto* completedUpsert = completedEvents.size() == 1 ? std::get_if<backend::ItemUpserted>(&completedEvents.front()) : nullptr;
         result.expectTrue(completedUpsert && completedUpsert->threadId.value == "thread-user" &&
                               completedUpsert->turnId.value == "turn-user" &&
@@ -488,7 +489,7 @@ namespace {
 
         const backend::TurnState* userTurn = findTurn(state, "thread-user", "turn-user");
         const backend::ItemState* completedState = findItem(state, "thread-user", "turn-user", "user-item");
-        const auto* canonicalCompleted = completedState ? std::get_if<typed::UserMessageItem>(&completedState->item) : nullptr;
+        const auto* canonicalCompleted = completedState ? std::get_if<typed::UserMessageThreadItem>(&completedState->item) : nullptr;
         result.expectTrue(
             userTurn && userTurn->items.size() == 1 && userTurn->itemOrder.size() == 1 &&
                 userTurn->itemOrder.front().value == "user-item" && canonicalCompleted &&
@@ -510,8 +511,8 @@ namespace {
                               userMessageData.at("retainedContentItems") == completedContent.size(),
                           "small userMessage snapshots preserve array content and report equal original and retained bounds");
 
-        typed::Turn terminalTurn =
-            turn("thread-user", "turn-user", typed::TurnStatus::completed(), std::vector<typed::Item>{typed::Item{completedItem}});
+        typed::Turn terminalTurn = turn(
+            "thread-user", "turn-user", typed::TurnStatus::completed(), std::vector<typed::ThreadItem>{typed::ThreadItem{completedItem}});
         reducer.apply(state, backend::TurnCompleted{std::move(terminalTurn)});
         completedState = findItem(state, "thread-user", "turn-user", "user-item");
         result.expectTrue(completedState && completedState->lifecycle == backend::ItemLifecycle::Completed &&
@@ -525,12 +526,12 @@ namespace {
         backend::BackendState smallState;
         const Json smallContent =
             Json::array({Json{{"type", "text"}, {"text", "small"}}, Json{{"type", "future"}, {"nested", Json{{"kept", true}}}}});
-        typed::UserMessageItem smallItem =
+        typed::UserMessageThreadItem smallItem =
             userMessageItem("thread-small", "turn-small", "item-small", smallContent, Json{{"id", "item-small"}}, "client-small");
         reducer.apply(smallState,
                       backend::ItemUpserted{typed::ThreadId{"thread-small"},
                                             typed::TurnId{"turn-small"},
-                                            typed::Item{smallItem},
+                                            typed::ThreadItem{smallItem},
                                             backend::ItemLifecycle::Completed,
                                             10});
         const backend::Snapshot smallStateSnapshot = backend::makeSnapshot(smallState);
@@ -552,12 +553,12 @@ namespace {
                                         {"payload", std::string(12U * 1024U, static_cast<char>('a' + index))},
                                         {"opaque", Json{{"index", index}, {"enabled", index % 2 == 0}}}});
         }
-        typed::UserMessageItem largeItem =
+        typed::UserMessageThreadItem largeItem =
             userMessageItem("thread-large", "turn-large", "item-large", largeContent, Json{{"id", "item-large"}}, "client-large");
         reducer.apply(largeState,
                       backend::ItemUpserted{typed::ThreadId{"thread-large"},
                                             typed::TurnId{"turn-large"},
-                                            typed::Item{largeItem},
+                                            typed::ThreadItem{largeItem},
                                             backend::ItemLifecycle::Completed,
                                             20});
         const backend::Snapshot largeStateSnapshot = backend::makeSnapshot(largeState);
@@ -571,7 +572,7 @@ namespace {
                                       retainedContent[index].dump() == largeContent[index].dump();
         }
         const backend::ItemState* canonicalLarge = findItem(largeState, "thread-large", "turn-large", "item-large");
-        const auto* canonicalLargeUser = canonicalLarge ? std::get_if<typed::UserMessageItem>(&canonicalLarge->item) : nullptr;
+        const auto* canonicalLargeUser = canonicalLarge ? std::get_if<typed::UserMessageThreadItem>(&canonicalLarge->item) : nullptr;
         result.expectTrue(largeContent.dump().size() > backend::MaxSerializedUserMessageDataBytes && retainedContent.is_array() &&
                               largeData.at("contentTruncated").get<bool>() && retainedPrefixUnchanged &&
                               largeData.at("originalContentItems") == largeContent.size() &&
@@ -585,12 +586,12 @@ namespace {
 
         backend::BackendState oversizedFirstState;
         const Json oversizedFirstContent = Json::array({Json{{"type", "futureHuge"}, {"payload", std::string(70U * 1024U, 'z')}}});
-        typed::UserMessageItem oversizedFirstItem =
+        typed::UserMessageThreadItem oversizedFirstItem =
             userMessageItem("thread-first", "turn-first", "item-first", oversizedFirstContent, Json{{"id", "item-first"}});
         reducer.apply(oversizedFirstState,
                       backend::ItemUpserted{typed::ThreadId{"thread-first"},
                                             typed::TurnId{"turn-first"},
-                                            typed::Item{oversizedFirstItem},
+                                            typed::ThreadItem{oversizedFirstItem},
                                             backend::ItemLifecycle::Completed,
                                             30});
         const backend::Snapshot oversizedFirstSnapshot = backend::makeSnapshot(oversizedFirstState);
@@ -623,7 +624,7 @@ namespace {
             Json{{"method", "item/started"},
                  {"params", {{"threadId", "thread-unknown"}, {"turnId", "turn-unknown"}, {"item", located.raw}, {"startedAtMs", 303}}}};
         const std::vector<backend::BackendEvent> locatedEvents =
-            reducer.translate(typed::Event{typed::ItemStarted{typed::Item{located}, 303, locatedEnvelope}});
+            reducer.translate(typed::Event{typed::ItemStarted{typed::ThreadItem{located}, 303, locatedEnvelope}});
         const auto* locatedUpsert = locatedEvents.size() == 1 ? std::get_if<backend::ItemUpserted>(&locatedEvents.front()) : nullptr;
         result.expectTrue(locatedUpsert && locatedUpsert->threadId.value == "thread-unknown" &&
                               locatedUpsert->turnId.value == "turn-unknown",
@@ -654,7 +655,7 @@ namespace {
             Json{{"method", "item/started"},
                  {"params", {{"threadId", "thread-no-id"}, {"turnId", "turn-no-id"}, {"item", noId.raw}, {"startedAtMs", 404}}}};
         const std::vector<backend::BackendEvent> noIdEvents =
-            boundedReducer.translate(typed::Event{typed::ItemStarted{typed::Item{noId}, 404, noIdEnvelope}});
+            boundedReducer.translate(typed::Event{typed::ItemStarted{typed::ThreadItem{noId}, 404, noIdEnvelope}});
         const auto* noIdUpsert = noIdEvents.size() == 1 ? std::get_if<backend::ItemUpserted>(&noIdEvents.front()) : nullptr;
         result.expectTrue(noIdUpsert && noIdUpsert->threadId.value == "thread-no-id" && noIdUpsert->turnId.value == "turn-no-id",
                           "an unknown item with a valid location but no stable ID reaches canonical ID validation");
@@ -678,7 +679,7 @@ namespace {
         const Json missingLocationEnvelope =
             Json{{"method", "item/started"}, {"params", {{"threadId", "thread-missing-location"}, {"item", missingLocation.raw}}}};
         const std::vector<backend::BackendEvent> missingLocationEvents =
-            reducer.translate(typed::Event{typed::ItemStarted{typed::Item{missingLocation}, 505, missingLocationEnvelope}});
+            reducer.translate(typed::Event{typed::ItemStarted{typed::ThreadItem{missingLocation}, 505, missingLocationEnvelope}});
         const auto* locationExtension =
             missingLocationEvents.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&missingLocationEvents.front()) : nullptr;
         result.expectTrue(locationExtension && locationExtension->method == "item/started" &&
@@ -709,7 +710,7 @@ namespace {
         reducer.apply(state,
                       backend::ItemUpserted{typed::ThreadId{"thread-extension"},
                                             typed::TurnId{"turn-extension"},
-                                            typed::Item{unknown},
+                                            typed::ThreadItem{unknown},
                                             backend::ItemLifecycle::Started,
                                             std::nullopt});
         const backend::ItemState* unknownState = findItem(state, "thread-extension", "turn-extension", "unknown-item");

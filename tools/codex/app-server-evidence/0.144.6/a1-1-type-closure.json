@@ -274,7 +274,7 @@
   },
   "definitions": [
     {
-      "cpp_owner": "typed::AbsolutePathBuf",
+      "cpp_owner": "typed::AbsolutePath",
       "cross_slice_ownership": "A11ForwardShared",
       "definition_key": {
         "name": "AbsolutePathBuf",
@@ -1291,7 +1291,7 @@
       "schema_shape": "object"
     },
     {
-      "cpp_owner": "typed::LegacyAppPathString",
+      "cpp_owner": "typed::PathString",
       "cross_slice_ownership": "A11ForwardShared",
       "definition_key": {
         "name": "LegacyAppPathString",
@@ -4423,7 +4423,7 @@
       "schema_shape": "object"
     },
     {
-      "cpp_owner": "typed::UserInput",
+      "cpp_owner": "typed::TurnInput",
       "cross_slice_ownership": "A11ForwardShared",
       "definition_key": {
         "name": "UserInput",
@@ -5085,11 +5085,11 @@
       "schema_path": "#/definitions/v2/CommandAction/oneOf/0/properties/name"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::ReadCommandAction::path -> typed::AbsolutePathBuf",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::ReadCommandAction::path -> typed::AbsolutePath",
       "cpp_member": "path",
       "cpp_owner": "typed::ReadCommandAction",
-      "cpp_type": "typed::AbsolutePathBuf",
+      "cpp_type": "typed::AbsolutePath",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -8298,9 +8298,9 @@
     },
     {
       "cpp_base_type": "typed::NetworkAccess",
-      "cpp_mapping": "typed::ExternalSandboxSandboxPolicy::networkAccess -> std::optional<typed::NetworkAccess>",
+      "cpp_mapping": "typed::ExternalSandboxPolicy::networkAccess -> std::optional<typed::NetworkAccess>",
       "cpp_member": "networkAccess",
-      "cpp_owner": "typed::ExternalSandboxSandboxPolicy",
+      "cpp_owner": "typed::ExternalSandboxPolicy",
       "cpp_type": "std::optional<typed::NetworkAccess>",
       "directionality": "Both",
       "disposition": "PublicHandwrittenType",
@@ -8312,9 +8312,9 @@
     },
     {
       "cpp_base_type": "detail::ExactDiscriminatorLiteral<\"externalSandbox\">",
-      "cpp_mapping": "typed::ExternalSandboxSandboxPolicy::type -> detail::ExactDiscriminatorLiteral<\"externalSandbox\">",
+      "cpp_mapping": "typed::ExternalSandboxPolicy::type -> detail::ExactDiscriminatorLiteral<\"externalSandbox\">",
       "cpp_member": "type",
-      "cpp_owner": "typed::ExternalSandboxSandboxPolicy",
+      "cpp_owner": "typed::ExternalSandboxPolicy",
       "cpp_type": "detail::ExactDiscriminatorLiteral<\"externalSandbox\">",
       "directionality": "Both",
       "disposition": "PrivateCodecHelper",
@@ -8381,11 +8381,11 @@
       "schema_path": "#/definitions/v2/SandboxPolicy/oneOf/3/properties/type"
     },
     {
-      "cpp_base_type": "std::vector<typed::AbsolutePathBuf>",
-      "cpp_mapping": "typed::WorkspaceWriteSandboxPolicy::writableRoots -> std::optional<std::vector<typed::AbsolutePathBuf>>",
+      "cpp_base_type": "std::vector<typed::AbsolutePath>",
+      "cpp_mapping": "typed::WorkspaceWriteSandboxPolicy::writableRoots -> std::optional<std::vector<typed::AbsolutePath>>",
       "cpp_member": "writableRoots",
       "cpp_owner": "typed::WorkspaceWriteSandboxPolicy",
-      "cpp_type": "std::optional<std::vector<typed::AbsolutePathBuf>>",
+      "cpp_type": "std::optional<std::vector<typed::AbsolutePath>>",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -8395,11 +8395,11 @@
       "schema_path": "#/definitions/v2/SandboxPolicy/oneOf/3/properties/writableRoots"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::WorkspaceWriteSandboxPolicy::writableRoots[] -> typed::AbsolutePathBuf",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::WorkspaceWriteSandboxPolicy::writableRoots[] -> typed::AbsolutePath",
       "cpp_member": "writableRoots[]",
       "cpp_owner": "typed::WorkspaceWriteSandboxPolicy",
-      "cpp_type": "typed::AbsolutePathBuf",
+      "cpp_type": "typed::AbsolutePath",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
       "schema_node_kind": "array_element",
@@ -8744,11 +8744,11 @@
       "schema_path": "#/definitions/v2/Thread/properties/createdAt"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::Thread::cwd -> typed::AbsolutePathBuf",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::Thread::cwd -> typed::AbsolutePath",
       "cpp_member": "cwd",
       "cpp_owner": "typed::Thread",
-      "cpp_type": "typed::AbsolutePathBuf",
+      "cpp_type": "typed::AbsolutePath",
       "directionality": "DecodeOnly",
       "disposition": "PublicHandwrittenType",
       "nullable": false,
@@ -9339,11 +9339,11 @@
       "schema_path": "#/definitions/v2/ThreadForkResponse/properties/approvalsReviewer"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::ThreadForkResponse::cwd -> typed::AbsolutePathBuf",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::ThreadForkResponse::cwd -> typed::AbsolutePath",
       "cpp_member": "cwd",
       "cpp_owner": "typed::ThreadForkResponse",
-      "cpp_type": "typed::AbsolutePathBuf",
+      "cpp_type": "typed::AbsolutePath",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -9353,11 +9353,11 @@
       "schema_path": "#/definitions/v2/ThreadForkResponse/properties/cwd"
     },
     {
-      "cpp_base_type": "std::vector<typed::LegacyAppPathString>",
-      "cpp_mapping": "typed::ThreadForkResponse::instructionSources -> std::vector<typed::LegacyAppPathString>",
+      "cpp_base_type": "std::vector<typed::PathString>",
+      "cpp_mapping": "typed::ThreadForkResponse::instructionSources -> std::vector<typed::PathString>",
       "cpp_member": "instructionSources",
       "cpp_owner": "typed::ThreadForkResponse",
-      "cpp_type": "std::vector<typed::LegacyAppPathString>",
+      "cpp_type": "std::vector<typed::PathString>",
       "default_behavior": "CanonicalValueOnOmission",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
@@ -9369,11 +9369,11 @@
       "schema_path": "#/definitions/v2/ThreadForkResponse/properties/instructionSources"
     },
     {
-      "cpp_base_type": "typed::LegacyAppPathString",
-      "cpp_mapping": "typed::ThreadForkResponse::instructionSources[] -> typed::LegacyAppPathString",
+      "cpp_base_type": "typed::PathString",
+      "cpp_mapping": "typed::ThreadForkResponse::instructionSources[] -> typed::PathString",
       "cpp_member": "instructionSources[]",
       "cpp_owner": "typed::ThreadForkResponse",
-      "cpp_type": "typed::LegacyAppPathString",
+      "cpp_type": "typed::PathString",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "schema_node_kind": "array_element",
@@ -9832,11 +9832,11 @@
       "semantic_identifier_role": "scalar_property"
     },
     {
-      "cpp_base_type": "std::vector<typed::UserInput>",
-      "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::UserInput>",
+      "cpp_base_type": "std::vector<typed::TurnInput>",
+      "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::TurnInput>",
       "cpp_member": "content",
       "cpp_owner": "typed::UserMessageThreadItem",
-      "cpp_type": "std::vector<typed::UserInput>",
+      "cpp_type": "std::vector<typed::TurnInput>",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -9846,11 +9846,11 @@
       "schema_path": "#/definitions/v2/ThreadItem/oneOf/0/properties/content"
     },
     {
-      "cpp_base_type": "typed::UserInput",
-      "cpp_mapping": "typed::UserMessageThreadItem::content[] -> typed::UserInput",
+      "cpp_base_type": "typed::TurnInput",
+      "cpp_mapping": "typed::UserMessageThreadItem::content[] -> typed::TurnInput",
       "cpp_member": "content[]",
       "cpp_owner": "typed::UserMessageThreadItem",
-      "cpp_type": "typed::UserInput",
+      "cpp_type": "typed::TurnInput",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "schema_node_kind": "array_element",
@@ -10090,11 +10090,11 @@
       "semantic_identifier_role": "scalar_property"
     },
     {
-      "cpp_base_type": "typed::LegacyAppPathString",
-      "cpp_mapping": "typed::ImageViewThreadItem::path -> typed::LegacyAppPathString",
+      "cpp_base_type": "typed::PathString",
+      "cpp_mapping": "typed::ImageViewThreadItem::path -> typed::PathString",
       "cpp_member": "path",
       "cpp_owner": "typed::ImageViewThreadItem",
-      "cpp_type": "typed::LegacyAppPathString",
+      "cpp_type": "typed::PathString",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -10206,11 +10206,11 @@
       "schema_path": "#/definitions/v2/ThreadItem/oneOf/14/properties/revisedPrompt"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::ImageGenerationThreadItem::savedPath -> typed::OptionalNullable<typed::AbsolutePathBuf>",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::ImageGenerationThreadItem::savedPath -> typed::OptionalNullable<typed::AbsolutePath>",
       "cpp_member": "savedPath",
       "cpp_owner": "typed::ImageGenerationThreadItem",
-      "cpp_type": "typed::OptionalNullable<typed::AbsolutePathBuf>",
+      "cpp_type": "typed::OptionalNullable<typed::AbsolutePath>",
       "directionality": "DecodeOnly",
       "disposition": "PublicHandwrittenType",
       "nullable": true,
@@ -10619,11 +10619,11 @@
       "schema_path": "#/definitions/v2/ThreadItem/oneOf/5/properties/commandActions/items"
     },
     {
-      "cpp_base_type": "typed::LegacyAppPathString",
-      "cpp_mapping": "typed::CommandExecutionThreadItem::cwd -> typed::LegacyAppPathString",
+      "cpp_base_type": "typed::PathString",
+      "cpp_mapping": "typed::CommandExecutionThreadItem::cwd -> typed::PathString",
       "cpp_member": "cwd",
       "cpp_owner": "typed::CommandExecutionThreadItem",
-      "cpp_type": "typed::LegacyAppPathString",
+      "cpp_type": "typed::PathString",
       "directionality": "DecodeOnly",
       "disposition": "PublicHandwrittenType",
       "nullable": false,
@@ -12309,11 +12309,11 @@
       "schema_path": "#/definitions/v2/ThreadResumeResponse/properties/approvalsReviewer"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::ThreadResumeResponse::cwd -> typed::AbsolutePathBuf",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::ThreadResumeResponse::cwd -> typed::AbsolutePath",
       "cpp_member": "cwd",
       "cpp_owner": "typed::ThreadResumeResponse",
-      "cpp_type": "typed::AbsolutePathBuf",
+      "cpp_type": "typed::AbsolutePath",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -12323,11 +12323,11 @@
       "schema_path": "#/definitions/v2/ThreadResumeResponse/properties/cwd"
     },
     {
-      "cpp_base_type": "std::vector<typed::LegacyAppPathString>",
-      "cpp_mapping": "typed::ThreadResumeResponse::instructionSources -> std::vector<typed::LegacyAppPathString>",
+      "cpp_base_type": "std::vector<typed::PathString>",
+      "cpp_mapping": "typed::ThreadResumeResponse::instructionSources -> std::vector<typed::PathString>",
       "cpp_member": "instructionSources",
       "cpp_owner": "typed::ThreadResumeResponse",
-      "cpp_type": "std::vector<typed::LegacyAppPathString>",
+      "cpp_type": "std::vector<typed::PathString>",
       "default_behavior": "CanonicalValueOnOmission",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
@@ -12339,11 +12339,11 @@
       "schema_path": "#/definitions/v2/ThreadResumeResponse/properties/instructionSources"
     },
     {
-      "cpp_base_type": "typed::LegacyAppPathString",
-      "cpp_mapping": "typed::ThreadResumeResponse::instructionSources[] -> typed::LegacyAppPathString",
+      "cpp_base_type": "typed::PathString",
+      "cpp_mapping": "typed::ThreadResumeResponse::instructionSources[] -> typed::PathString",
       "cpp_member": "instructionSources[]",
       "cpp_owner": "typed::ThreadResumeResponse",
-      "cpp_type": "typed::LegacyAppPathString",
+      "cpp_type": "typed::PathString",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "schema_node_kind": "array_element",
@@ -12566,11 +12566,11 @@
       "schema_path": "#/definitions/v2/ThreadSettings/properties/collaborationMode"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::ThreadSettings::cwd -> typed::AbsolutePathBuf",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::ThreadSettings::cwd -> typed::AbsolutePath",
       "cpp_member": "cwd",
       "cpp_owner": "typed::ThreadSettings",
-      "cpp_type": "typed::AbsolutePathBuf",
+      "cpp_type": "typed::AbsolutePath",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -12992,11 +12992,11 @@
       "schema_path": "#/definitions/v2/ThreadStartResponse/properties/approvalsReviewer"
     },
     {
-      "cpp_base_type": "typed::AbsolutePathBuf",
-      "cpp_mapping": "typed::ThreadStartResponse::cwd -> typed::AbsolutePathBuf",
+      "cpp_base_type": "typed::AbsolutePath",
+      "cpp_mapping": "typed::ThreadStartResponse::cwd -> typed::AbsolutePath",
       "cpp_member": "cwd",
       "cpp_owner": "typed::ThreadStartResponse",
-      "cpp_type": "typed::AbsolutePathBuf",
+      "cpp_type": "typed::AbsolutePath",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -13006,11 +13006,11 @@
       "schema_path": "#/definitions/v2/ThreadStartResponse/properties/cwd"
     },
     {
-      "cpp_base_type": "std::vector<typed::LegacyAppPathString>",
-      "cpp_mapping": "typed::ThreadStartResponse::instructionSources -> std::vector<typed::LegacyAppPathString>",
+      "cpp_base_type": "std::vector<typed::PathString>",
+      "cpp_mapping": "typed::ThreadStartResponse::instructionSources -> std::vector<typed::PathString>",
       "cpp_member": "instructionSources",
       "cpp_owner": "typed::ThreadStartResponse",
-      "cpp_type": "std::vector<typed::LegacyAppPathString>",
+      "cpp_type": "std::vector<typed::PathString>",
       "default_behavior": "CanonicalValueOnOmission",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
@@ -13022,11 +13022,11 @@
       "schema_path": "#/definitions/v2/ThreadStartResponse/properties/instructionSources"
     },
     {
-      "cpp_base_type": "typed::LegacyAppPathString",
-      "cpp_mapping": "typed::ThreadStartResponse::instructionSources[] -> typed::LegacyAppPathString",
+      "cpp_base_type": "typed::PathString",
+      "cpp_mapping": "typed::ThreadStartResponse::instructionSources[] -> typed::PathString",
       "cpp_member": "instructionSources[]",
       "cpp_owner": "typed::ThreadStartResponse",
-      "cpp_type": "typed::LegacyAppPathString",
+      "cpp_type": "typed::PathString",
       "directionality": "DecodeOnly",
       "disposition": "ReusedExistingType",
       "schema_node_kind": "array_element",
@@ -13975,11 +13975,11 @@
       "schema_path": "#/definitions/v2/TurnStartParams/properties/effort"
     },
     {
-      "cpp_base_type": "std::vector<typed::UserInput>",
-      "cpp_mapping": "typed::TurnStartParams::input -> std::vector<typed::UserInput>",
+      "cpp_base_type": "std::vector<typed::TurnInput>",
+      "cpp_mapping": "typed::TurnStartParams::input -> std::vector<typed::TurnInput>",
       "cpp_member": "input",
       "cpp_owner": "typed::TurnStartParams",
-      "cpp_type": "std::vector<typed::UserInput>",
+      "cpp_type": "std::vector<typed::TurnInput>",
       "directionality": "EncodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -13989,11 +13989,11 @@
       "schema_path": "#/definitions/v2/TurnStartParams/properties/input"
     },
     {
-      "cpp_base_type": "typed::UserInput",
-      "cpp_mapping": "typed::TurnStartParams::input[] -> typed::UserInput",
+      "cpp_base_type": "typed::TurnInput",
+      "cpp_mapping": "typed::TurnStartParams::input[] -> typed::TurnInput",
       "cpp_member": "input[]",
       "cpp_owner": "typed::TurnStartParams",
-      "cpp_type": "typed::UserInput",
+      "cpp_type": "typed::TurnInput",
       "directionality": "EncodeOnly",
       "disposition": "ReusedExistingType",
       "schema_node_kind": "array_element",
@@ -14179,11 +14179,11 @@
       "semantic_identifier_role": "scalar_property"
     },
     {
-      "cpp_base_type": "std::vector<typed::UserInput>",
-      "cpp_mapping": "typed::TurnSteerParams::input -> std::vector<typed::UserInput>",
+      "cpp_base_type": "std::vector<typed::TurnInput>",
+      "cpp_mapping": "typed::TurnSteerParams::input -> std::vector<typed::TurnInput>",
       "cpp_member": "input",
       "cpp_owner": "typed::TurnSteerParams",
-      "cpp_type": "std::vector<typed::UserInput>",
+      "cpp_type": "std::vector<typed::TurnInput>",
       "directionality": "EncodeOnly",
       "disposition": "ReusedExistingType",
       "nullable": false,
@@ -14193,11 +14193,11 @@
       "schema_path": "#/definitions/v2/TurnSteerParams/properties/input"
     },
     {
-      "cpp_base_type": "typed::UserInput",
-      "cpp_mapping": "typed::TurnSteerParams::input[] -> typed::UserInput",
+      "cpp_base_type": "typed::TurnInput",
+      "cpp_mapping": "typed::TurnSteerParams::input[] -> typed::TurnInput",
       "cpp_member": "input[]",
       "cpp_owner": "typed::TurnSteerParams",
-      "cpp_type": "typed::UserInput",
+      "cpp_type": "typed::TurnInput",
       "directionality": "EncodeOnly",
       "disposition": "ReusedExistingType",
       "schema_node_kind": "array_element",
@@ -14237,9 +14237,9 @@
     },
     {
       "cpp_base_type": "std::string",
-      "cpp_mapping": "typed::TextUserInput::text -> std::string",
+      "cpp_mapping": "typed::TextInput::text -> std::string",
       "cpp_member": "text",
-      "cpp_owner": "typed::TextUserInput",
+      "cpp_owner": "typed::TextInput",
       "cpp_type": "std::string",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14251,9 +14251,9 @@
     },
     {
       "cpp_base_type": "std::vector<typed::TextElement>",
-      "cpp_mapping": "typed::TextUserInput::textElements -> std::optional<std::vector<typed::TextElement>>",
+      "cpp_mapping": "typed::TextInput::textElements -> std::optional<std::vector<typed::TextElement>>",
       "cpp_member": "textElements",
-      "cpp_owner": "typed::TextUserInput",
+      "cpp_owner": "typed::TextInput",
       "cpp_type": "std::optional<std::vector<typed::TextElement>>",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14265,9 +14265,9 @@
     },
     {
       "cpp_base_type": "typed::TextElement",
-      "cpp_mapping": "typed::TextUserInput::textElements[] -> typed::TextElement",
+      "cpp_mapping": "typed::TextInput::textElements[] -> typed::TextElement",
       "cpp_member": "textElements[]",
-      "cpp_owner": "typed::TextUserInput",
+      "cpp_owner": "typed::TextInput",
       "cpp_type": "typed::TextElement",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14276,9 +14276,9 @@
     },
     {
       "cpp_base_type": "detail::ExactDiscriminatorLiteral<\"text\">",
-      "cpp_mapping": "typed::TextUserInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
+      "cpp_mapping": "typed::TextInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
       "cpp_member": "type",
-      "cpp_owner": "typed::TextUserInput",
+      "cpp_owner": "typed::TextInput",
       "cpp_type": "detail::ExactDiscriminatorLiteral<\"text\">",
       "directionality": "Both",
       "disposition": "PrivateCodecHelper",
@@ -14290,9 +14290,9 @@
     },
     {
       "cpp_base_type": "typed::ImageDetail",
-      "cpp_mapping": "typed::ImageUserInput::detail -> typed::OptionalNullable<typed::ImageDetail>",
+      "cpp_mapping": "typed::ImageUrlInput::detail -> typed::OptionalNullable<typed::ImageDetail>",
       "cpp_member": "detail",
-      "cpp_owner": "typed::ImageUserInput",
+      "cpp_owner": "typed::ImageUrlInput",
       "cpp_type": "typed::OptionalNullable<typed::ImageDetail>",
       "default_behavior": "PreserveOmittedNullValue",
       "directionality": "Both",
@@ -14306,9 +14306,9 @@
     },
     {
       "cpp_base_type": "detail::ExactDiscriminatorLiteral<\"image\">",
-      "cpp_mapping": "typed::ImageUserInput::type -> detail::ExactDiscriminatorLiteral<\"image\">",
+      "cpp_mapping": "typed::ImageUrlInput::type -> detail::ExactDiscriminatorLiteral<\"image\">",
       "cpp_member": "type",
-      "cpp_owner": "typed::ImageUserInput",
+      "cpp_owner": "typed::ImageUrlInput",
       "cpp_type": "detail::ExactDiscriminatorLiteral<\"image\">",
       "directionality": "Both",
       "disposition": "PrivateCodecHelper",
@@ -14320,9 +14320,9 @@
     },
     {
       "cpp_base_type": "std::string",
-      "cpp_mapping": "typed::ImageUserInput::url -> std::string",
+      "cpp_mapping": "typed::ImageUrlInput::url -> std::string",
       "cpp_member": "url",
-      "cpp_owner": "typed::ImageUserInput",
+      "cpp_owner": "typed::ImageUrlInput",
       "cpp_type": "std::string",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14334,9 +14334,9 @@
     },
     {
       "cpp_base_type": "typed::ImageDetail",
-      "cpp_mapping": "typed::LocalImageUserInput::detail -> typed::OptionalNullable<typed::ImageDetail>",
+      "cpp_mapping": "typed::LocalImageInput::detail -> typed::OptionalNullable<typed::ImageDetail>",
       "cpp_member": "detail",
-      "cpp_owner": "typed::LocalImageUserInput",
+      "cpp_owner": "typed::LocalImageInput",
       "cpp_type": "typed::OptionalNullable<typed::ImageDetail>",
       "default_behavior": "PreserveOmittedNullValue",
       "directionality": "Both",
@@ -14350,9 +14350,9 @@
     },
     {
       "cpp_base_type": "std::string",
-      "cpp_mapping": "typed::LocalImageUserInput::path -> std::string",
+      "cpp_mapping": "typed::LocalImageInput::path -> std::string",
       "cpp_member": "path",
-      "cpp_owner": "typed::LocalImageUserInput",
+      "cpp_owner": "typed::LocalImageInput",
       "cpp_type": "std::string",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14364,9 +14364,9 @@
     },
     {
       "cpp_base_type": "detail::ExactDiscriminatorLiteral<\"localImage\">",
-      "cpp_mapping": "typed::LocalImageUserInput::type -> detail::ExactDiscriminatorLiteral<\"localImage\">",
+      "cpp_mapping": "typed::LocalImageInput::type -> detail::ExactDiscriminatorLiteral<\"localImage\">",
       "cpp_member": "type",
-      "cpp_owner": "typed::LocalImageUserInput",
+      "cpp_owner": "typed::LocalImageInput",
       "cpp_type": "detail::ExactDiscriminatorLiteral<\"localImage\">",
       "directionality": "Both",
       "disposition": "PrivateCodecHelper",
@@ -14378,9 +14378,9 @@
     },
     {
       "cpp_base_type": "std::string",
-      "cpp_mapping": "typed::SkillUserInput::name -> std::string",
+      "cpp_mapping": "typed::SkillInput::name -> std::string",
       "cpp_member": "name",
-      "cpp_owner": "typed::SkillUserInput",
+      "cpp_owner": "typed::SkillInput",
       "cpp_type": "std::string",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14392,9 +14392,9 @@
     },
     {
       "cpp_base_type": "std::string",
-      "cpp_mapping": "typed::SkillUserInput::path -> std::string",
+      "cpp_mapping": "typed::SkillInput::path -> std::string",
       "cpp_member": "path",
-      "cpp_owner": "typed::SkillUserInput",
+      "cpp_owner": "typed::SkillInput",
       "cpp_type": "std::string",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14406,9 +14406,9 @@
     },
     {
       "cpp_base_type": "detail::ExactDiscriminatorLiteral<\"skill\">",
-      "cpp_mapping": "typed::SkillUserInput::type -> detail::ExactDiscriminatorLiteral<\"skill\">",
+      "cpp_mapping": "typed::SkillInput::type -> detail::ExactDiscriminatorLiteral<\"skill\">",
       "cpp_member": "type",
-      "cpp_owner": "typed::SkillUserInput",
+      "cpp_owner": "typed::SkillInput",
       "cpp_type": "detail::ExactDiscriminatorLiteral<\"skill\">",
       "directionality": "Both",
       "disposition": "PrivateCodecHelper",
@@ -14420,9 +14420,9 @@
     },
     {
       "cpp_base_type": "std::string",
-      "cpp_mapping": "typed::MentionUserInput::name -> std::string",
+      "cpp_mapping": "typed::MentionInput::name -> std::string",
       "cpp_member": "name",
-      "cpp_owner": "typed::MentionUserInput",
+      "cpp_owner": "typed::MentionInput",
       "cpp_type": "std::string",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14434,9 +14434,9 @@
     },
     {
       "cpp_base_type": "std::string",
-      "cpp_mapping": "typed::MentionUserInput::path -> std::string",
+      "cpp_mapping": "typed::MentionInput::path -> std::string",
       "cpp_member": "path",
-      "cpp_owner": "typed::MentionUserInput",
+      "cpp_owner": "typed::MentionInput",
       "cpp_type": "std::string",
       "directionality": "Both",
       "disposition": "ReusedExistingType",
@@ -14448,9 +14448,9 @@
     },
     {
       "cpp_base_type": "detail::ExactDiscriminatorLiteral<\"mention\">",
-      "cpp_mapping": "typed::MentionUserInput::type -> detail::ExactDiscriminatorLiteral<\"mention\">",
+      "cpp_mapping": "typed::MentionInput::type -> detail::ExactDiscriminatorLiteral<\"mention\">",
       "cpp_member": "type",
-      "cpp_owner": "typed::MentionUserInput",
+      "cpp_owner": "typed::MentionInput",
       "cpp_type": "detail::ExactDiscriminatorLiteral<\"mention\">",
       "directionality": "Both",
       "disposition": "PrivateCodecHelper",

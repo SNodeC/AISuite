@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/detail/ClientOperationCodec.h"
 #include "ai/openai/codex/detail/PluginCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "support/TestResult.h"
 
 #include <array>
@@ -214,7 +214,7 @@ namespace {
 
         typed::PluginInstalledParams installed{};
         installed.cwds =
-            typed::OptionalNullable<std::vector<typed::AbsolutePathBuf>>::withValue({typed::AbsolutePathBuf{"/synthetic/workspace"}});
+            typed::OptionalNullable<std::vector<typed::AbsolutePath>>::withValue({typed::AbsolutePath{"/synthetic/workspace"}});
         installed.installSuggestionPluginNames = typed::OptionalNullable<std::vector<std::string>>::explicitNull();
         installed.raw = {{"futureInstalledField", true}};
         const auto encodedInstalled = detail::encodePluginInstalledParams(installed, error);
@@ -233,7 +233,7 @@ namespace {
                           "plugin/installed distinguishes omitted fields from explicit null");
 
         typed::PluginListParams list{};
-        list.cwds = typed::OptionalNullable<std::vector<typed::AbsolutePathBuf>>::explicitNull();
+        list.cwds = typed::OptionalNullable<std::vector<typed::AbsolutePath>>::explicitNull();
         list.marketplaceKinds = typed::OptionalNullable<std::vector<typed::PluginListMarketplaceKind>>::withValue(
             {typed::PluginListMarketplaceKind::local(), typed::PluginListMarketplaceKind::workspaceDirectory()});
         list.raw = {{"futureListField", true}};
@@ -248,7 +248,7 @@ namespace {
                           "plugin/list encodes exact marketplace discriminators, null cwd, and future fields");
 
         typed::PluginReadParams read{};
-        read.marketplacePath = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull();
+        read.marketplacePath = typed::OptionalNullable<typed::AbsolutePath>::explicitNull();
         read.pluginName = "synthetic-plugin";
         read.remoteMarketplaceName = typed::OptionalNullable<std::string>::withValue("synthetic-marketplace");
         read.raw = {{"futureReadField", true}};
@@ -270,8 +270,8 @@ namespace {
                           "plugin/share/list preserves its open empty-parameter object exactly");
 
         typed::PluginListParams invalid{};
-        invalid.cwds = typed::OptionalNullable<std::vector<typed::AbsolutePathBuf>>::omitted();
-        invalid.cwds.value = std::vector<typed::AbsolutePathBuf>{typed::AbsolutePathBuf{"/synthetic/sensitive-path"}};
+        invalid.cwds = typed::OptionalNullable<std::vector<typed::AbsolutePath>>::omitted();
+        invalid.cwds.value = std::vector<typed::AbsolutePath>{typed::AbsolutePath{"/synthetic/sensitive-path"}};
         result.expectTrue(!detail::encodePluginListParams(invalid, error) && error.find("$.cwds") != std::string::npos &&
                               error.find("/synthetic/sensitive-path") == std::string::npos,
                           "C5 encoders reject inconsistent nullable state without exposing sensitive values");
@@ -547,18 +547,17 @@ namespace {
 } // namespace
 
 int main() {
-    static_assert(std::is_same_v<decltype(&typed::Plugins::installed),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginInstalledParams,
-                                                                                typed::Plugins::InstalledResultHandler)>);
-    static_assert(
-        std::is_same_v<decltype(&typed::Plugins::list),
-                       typed::Plugins::Submission (typed::Plugins::*)(typed::PluginListParams, typed::Plugins::ListResultHandler)>);
-    static_assert(
-        std::is_same_v<decltype(&typed::Plugins::read),
-                       typed::Plugins::Submission (typed::Plugins::*)(typed::PluginReadParams, typed::Plugins::ReadResultHandler)>);
+    using PluginInstalledMember =
+        codex::Submission (typed::Plugins::*)(typed::PluginInstalledParams, typed::CompletionHandler<typed::PluginInstalledResponse>);
+    using PluginListMember =
+        codex::Submission (typed::Plugins::*)(typed::PluginListParams, typed::CompletionHandler<typed::PluginListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<PluginInstalledMember>(&typed::Plugins::installed)), PluginInstalledMember>);
+    static_assert(std::is_same_v<decltype(static_cast<PluginListMember>(&typed::Plugins::list)), PluginListMember>);
+    static_assert(std::is_same_v<decltype(&typed::Plugins::read),
+                                 codex::Submission (typed::Plugins::*)(typed::PluginReadParams,
+                                                                       typed::CompletionHandler<typed::PluginReadResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Plugins::shareList),
-                                 typed::Plugins::Submission (typed::Plugins::*)(typed::PluginShareListParams,
-                                                                                typed::Plugins::ShareListResultHandler)>);
+                                 codex::Submission (typed::Plugins::*)(typed::CompletionHandler<typed::PluginShareListResponse>)>);
 
     tests::support::TestResult result;
     testRequestEncoding(result);

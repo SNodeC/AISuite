@@ -10,11 +10,12 @@
 #include <type_traits>
 
 int main() {
+    namespace codex = ai::openai::codex;
     namespace typed = ai::openai::codex::typed;
 
-    using List = typed::PermissionProfiles::Submission (typed::PermissionProfiles::*)(typed::PermissionProfileListParams,
-                                                                                      typed::PermissionProfiles::ListResultHandler);
-    static_assert(std::is_same_v<decltype(&typed::PermissionProfiles::list), List>);
+    using List = codex::Submission (typed::PermissionProfiles::*)(typed::PermissionProfileListParams,
+                                                                  typed::CompletionHandler<typed::PermissionProfileListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<List>(&typed::PermissionProfiles::list)), List>);
 
     const typed::PermissionProfileListParams params{
         .cursor = typed::OptionalNullable<std::string>::explicitNull(),

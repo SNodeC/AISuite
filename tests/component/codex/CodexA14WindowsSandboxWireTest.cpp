@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/typed/Client.h"
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/typed/WindowsSandbox.h"
 #include "component/codex/CodexBackendTestSupport.h"
 #include "core/EventReceiver.h"
@@ -101,18 +101,18 @@ namespace {
 
         void submitPrimary() {
             typed::WindowsSandboxSetupStartParams params{};
-            params.cwd = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull();
+            params.cwd = typed::OptionalNullable<typed::AbsolutePath>::explicitNull();
             params.mode = typed::WindowsSandboxSetupMode::elevated();
 
             insideSubmission = true;
-            const auto readiness =
-                client->typed().windowsSandbox().checkReadiness([this](const typed::WindowsSandbox::CheckReadinessResult& operation) {
+            const auto readiness = client->windowsSandbox().checkReadiness(
+                [this](const typed::OperationResult<typed::WindowsSandboxReadinessResponse>& operation) {
                     completed(operation, "windowsSandbox/readiness");
                     submitReentrant();
                     throw std::runtime_error("synthetic WindowsSandbox completion callback");
                 });
-            const auto setup = client->typed().windowsSandbox().startSetup(
-                std::move(params), [this](const typed::WindowsSandbox::StartSetupResult& operation) {
+            const auto setup = client->windowsSandbox().startSetup(
+                std::move(params), [this](const typed::OperationResult<typed::WindowsSandboxSetupStartResponse>& operation) {
                     completed(operation, "windowsSandbox/setupStart");
                 });
             insideSubmission = false;
@@ -127,10 +127,10 @@ namespace {
             }
             reentrantSubmitted = true;
             typed::WindowsSandboxSetupStartParams params{};
-            params.cwd = typed::OptionalNullable<typed::AbsolutePathBuf>::omitted();
+            params.cwd = typed::OptionalNullable<typed::AbsolutePath>::omitted();
             params.mode = typed::WindowsSandboxSetupMode::unelevated();
-            const auto submission = client->typed().windowsSandbox().startSetup(
-                std::move(params), [this](const typed::WindowsSandbox::StartSetupResult& operation) {
+            const auto submission = client->windowsSandbox().startSetup(
+                std::move(params), [this](const typed::OperationResult<typed::WindowsSandboxSetupStartResponse>& operation) {
                     completed(operation, "windowsSandbox/setupStart");
                 });
             result.expectTrue(submission && submission.id && submission.id->value() == 3,

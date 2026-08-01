@@ -40,10 +40,10 @@ namespace {
     using ai::openai::codex::typed::DecodeIssueKind;
     using ai::openai::codex::typed::DecodeIssueSeverity;
     using ai::openai::codex::typed::IdleThreadStatus;
-    using ai::openai::codex::typed::LegacyAppPathString;
     using ai::openai::codex::typed::ModelId;
     using ai::openai::codex::typed::NotLoadedThreadStatus;
     using ai::openai::codex::typed::OtherSubAgentSource;
+    using ai::openai::codex::typed::PathString;
     using ai::openai::codex::typed::SandboxMode;
     using ai::openai::codex::typed::SessionId;
     using ai::openai::codex::typed::SessionSourceKind;
@@ -79,7 +79,7 @@ namespace {
     static_assert(std::is_same_v<decltype(Turn::itemsView), TurnItemsView>, "Turn.itemsView must materialize its reviewed schema default");
     static_assert(std::is_same_v<decltype(Thread::sessionId), SessionId>,
                   "Thread.sessionId must remain a distinct App Server conversation-tree identifier");
-    using InstructionSources = std::vector<LegacyAppPathString>;
+    using InstructionSources = std::vector<PathString>;
     static_assert(std::is_same_v<decltype(ThreadLoadedListResponse::data), std::vector<ThreadId>>,
                   "ThreadLoadedListResponse.data must preserve its semantic ThreadId "
                   "element type");

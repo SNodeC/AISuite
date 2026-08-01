@@ -239,7 +239,7 @@ namespace {
                 } else if constexpr (std::is_same_v<Value, typed::ReadOnlySandboxPolicy>) {
                     result.label = "readOnly";
                     result.fieldsMapped = optionalBoolMatches(value.networkAccess, raw, "networkAccess");
-                } else if constexpr (std::is_same_v<Value, typed::ExternalSandboxSandboxPolicy>) {
+                } else if constexpr (std::is_same_v<Value, typed::ExternalSandboxPolicy>) {
                     result.label = "externalSandbox";
                     const auto member = raw.find("networkAccess");
                     result.fieldsMapped = member == raw.end() ? !value.networkAccess
@@ -303,26 +303,26 @@ namespace {
             [&](const auto& value) {
                 using Value = std::decay_t<decltype(value)>;
                 result.rawRetained = value.raw == raw;
-                if constexpr (std::is_same_v<Value, typed::TextUserInput>) {
+                if constexpr (std::is_same_v<Value, typed::TextInput>) {
                     result.label = "text";
                     result.fieldsMapped = value.text == raw.at("text").get<std::string>() && textElementsMatch(value.textElements, raw);
-                } else if constexpr (std::is_same_v<Value, typed::ImageUserInput>) {
+                } else if constexpr (std::is_same_v<Value, typed::ImageUrlInput>) {
                     result.label = "image";
                     result.fieldsMapped = value.url == raw.at("url").get<std::string>() &&
                                           nullableStringMatches(value.detail, raw, "detail", [](const typed::ImageDetail& input) {
                                               return Json(input.value);
                                           });
-                } else if constexpr (std::is_same_v<Value, typed::LocalImageUserInput>) {
+                } else if constexpr (std::is_same_v<Value, typed::LocalImageInput>) {
                     result.label = "localImage";
                     result.fieldsMapped = value.path == raw.at("path").get<std::string>() &&
                                           nullableStringMatches(value.detail, raw, "detail", [](const typed::ImageDetail& input) {
                                               return Json(input.value);
                                           });
-                } else if constexpr (std::is_same_v<Value, typed::SkillUserInput>) {
+                } else if constexpr (std::is_same_v<Value, typed::SkillInput>) {
                     result.label = "skill";
                     result.fieldsMapped =
                         value.name == raw.at("name").get<std::string>() && value.path == raw.at("path").get<std::string>();
-                } else if constexpr (std::is_same_v<Value, typed::MentionUserInput>) {
+                } else if constexpr (std::is_same_v<Value, typed::MentionInput>) {
                     result.label = "mention";
                     result.fieldsMapped =
                         value.name == raw.at("name").get<std::string>() && value.path == raw.at("path").get<std::string>();
@@ -457,9 +457,9 @@ int main() {
     static_assert(std::variant_size_v<typed::DynamicToolCallOutputContentItem> == 3);
     static_assert(std::variant_size_v<typed::PatchChangeKind> == 4);
     static_assert(std::variant_size_v<typed::SandboxPolicy> == 5);
-    static_assert(std::variant_size_v<typed::UserInput> == 6);
+    static_assert(std::variant_size_v<typed::TurnInput> == 6);
     static_assert(std::variant_size_v<typed::WebSearchAction> == 5);
-    static_assert(std::is_same_v<typed::TurnInput, typed::UserInput>);
+    static_assert(std::is_same_v<typed::TurnInput, typed::TurnInput>);
 
     const Json index = fixture("index.json");
     std::size_t positiveCount = 0;
@@ -486,7 +486,7 @@ int main() {
             if (id.rfind("enum:ImageDetail:", 0) == 0) {
                 const Json outer = {{"type", "image"}, {"url", "https://example.test/image"}, {"detail", raw}};
                 const auto decoded = detail::decodeUserInput(outer);
-                const auto* image = decoded.value ? std::get_if<typed::ImageUserInput>(&*decoded.value) : nullptr;
+                const auto* image = decoded.value ? std::get_if<typed::ImageUrlInput>(&*decoded.value) : nullptr;
                 const std::optional<Json> encoded = decoded.value ? detail::encodeUserInput(*decoded.value, error) : std::nullopt;
                 result.expectTrue(image && image->detail.hasValue() && image->detail.value->value == raw.get<std::string>() &&
                                       image->detail.value->isKnown() && image->raw == outer && !decoded.diagnostic && encoded &&
@@ -496,7 +496,7 @@ int main() {
             } else if (id.rfind("enum:NetworkAccess:", 0) == 0) {
                 const Json outer = {{"type", "externalSandbox"}, {"networkAccess", raw}};
                 const auto decoded = detail::decodeSandboxPolicy(outer);
-                const auto* sandbox = decoded.value ? std::get_if<typed::ExternalSandboxSandboxPolicy>(&*decoded.value) : nullptr;
+                const auto* sandbox = decoded.value ? std::get_if<typed::ExternalSandboxPolicy>(&*decoded.value) : nullptr;
                 const std::optional<Json> encoded = decoded.value ? detail::encodeSandboxPolicy(*decoded.value, error) : std::nullopt;
                 result.expectTrue(sandbox && sandbox->networkAccess && sandbox->networkAccess->value == raw.get<std::string>() &&
                                       sandbox->networkAccess->isKnown() && sandbox->raw == outer && !decoded.diagnostic && encoded &&
@@ -581,11 +581,11 @@ int main() {
                       "CommandAction preserves omitted/null/value as three distinct states");
 
     const auto omittedInput = detail::decodeUserInput(fixture("cases/unions/userinput/supplements/image-optional-omitted-detail.json"));
-    const auto* omittedImage = omittedInput.value ? std::get_if<typed::ImageUserInput>(&*omittedInput.value) : nullptr;
+    const auto* omittedImage = omittedInput.value ? std::get_if<typed::ImageUrlInput>(&*omittedInput.value) : nullptr;
     const auto nullInput = detail::decodeUserInput(fixture("cases/unions/userinput/supplements/image-nullable-null-detail.json"));
-    const auto* nullImage = nullInput.value ? std::get_if<typed::ImageUserInput>(&*nullInput.value) : nullptr;
+    const auto* nullImage = nullInput.value ? std::get_if<typed::ImageUrlInput>(&*nullInput.value) : nullptr;
     const auto valueInput = detail::decodeUserInput(fixture("cases/unions/userinput/image.json"));
-    const auto* valueImage = valueInput.value ? std::get_if<typed::ImageUserInput>(&*valueInput.value) : nullptr;
+    const auto* valueImage = valueInput.value ? std::get_if<typed::ImageUrlInput>(&*valueInput.value) : nullptr;
     result.expectTrue(omittedImage && omittedImage->detail.isOmitted() && nullImage && nullImage->detail.isNull() && valueImage &&
                           valueImage->detail.hasValue(),
                       "UserInput image detail preserves omitted/null/value as three distinct states");
@@ -596,7 +596,7 @@ int main() {
         {"detail", fixture("cases/enums/imagedetail/future-unknown.json")},
     };
     const auto futureImage = detail::decodeUserInput(futureImageDetail);
-    const auto* typedFutureImage = futureImage.value ? std::get_if<typed::ImageUserInput>(&*futureImage.value) : nullptr;
+    const auto* typedFutureImage = futureImage.value ? std::get_if<typed::ImageUrlInput>(&*futureImage.value) : nullptr;
     result.expectTrue(typedFutureImage && typedFutureImage->detail.hasValue() &&
                           typedFutureImage->detail.value->value ==
                               fixture("cases/enums/imagedetail/future-unknown.json").get<std::string>() &&
@@ -615,8 +615,7 @@ int main() {
         {"networkAccess", fixture("cases/enums/networkaccess/future-unknown.json")},
     };
     const auto futureSandbox = detail::decodeSandboxPolicy(futureNetwork);
-    const auto* typedFutureSandbox =
-        futureSandbox.value ? std::get_if<typed::ExternalSandboxSandboxPolicy>(&*futureSandbox.value) : nullptr;
+    const auto* typedFutureSandbox = futureSandbox.value ? std::get_if<typed::ExternalSandboxPolicy>(&*futureSandbox.value) : nullptr;
     result.expectTrue(typedFutureSandbox && typedFutureSandbox->networkAccess &&
                           typedFutureSandbox->networkAccess->value ==
                               fixture("cases/enums/networkaccess/future-unknown.json").get<std::string>() &&
@@ -631,7 +630,7 @@ int main() {
 
     const Json emptyImageDetail = {{"type", "image"}, {"url", "https://example.test/image"}, {"detail", ""}};
     const auto emptyImage = detail::decodeUserInput(emptyImageDetail);
-    const auto* typedEmptyImage = emptyImage.value ? std::get_if<typed::ImageUserInput>(&*emptyImage.value) : nullptr;
+    const auto* typedEmptyImage = emptyImage.value ? std::get_if<typed::ImageUrlInput>(&*emptyImage.value) : nullptr;
     const std::optional<Json> reencodedEmptyImage =
         emptyImage.value ? detail::encodeUserInput(*emptyImage.value, futureEnumEncodeError) : std::nullopt;
     result.expectTrue(typedEmptyImage && typedEmptyImage->detail.hasValue() && typedEmptyImage->detail.value->value.empty() &&
@@ -642,7 +641,7 @@ int main() {
 
     const Json emptyNetworkAccess = {{"type", "externalSandbox"}, {"networkAccess", ""}};
     const auto emptySandbox = detail::decodeSandboxPolicy(emptyNetworkAccess);
-    const auto* typedEmptySandbox = emptySandbox.value ? std::get_if<typed::ExternalSandboxSandboxPolicy>(&*emptySandbox.value) : nullptr;
+    const auto* typedEmptySandbox = emptySandbox.value ? std::get_if<typed::ExternalSandboxPolicy>(&*emptySandbox.value) : nullptr;
     const std::optional<Json> reencodedEmptySandbox =
         emptySandbox.value ? detail::encodeSandboxPolicy(*emptySandbox.value, futureEnumEncodeError) : std::nullopt;
     result.expectTrue(typedEmptySandbox && typedEmptySandbox->networkAccess && typedEmptySandbox->networkAccess->value.empty() &&
@@ -672,19 +671,19 @@ int main() {
                       "malformed diagnostics contain identity/path only while raw input retains the sensitive value");
 
     std::string encodeError;
-    typed::UnknownUserInput unknownInput{};
+    typed::UnknownTurnInput unknownInput{};
     unknownInput.type = "future";
     unknownInput.raw = {{"type", "future"}};
-    const std::optional<Json> unknownEncoding = detail::encodeUserInput(typed::UserInput{unknownInput}, encodeError);
+    const std::optional<Json> unknownEncoding = detail::encodeUserInput(typed::TurnInput{unknownInput}, encodeError);
     result.expectTrue(!unknownEncoding && !encodeError.empty(),
                       "outgoing explicit unknown UserInput is rejected synchronously in favor of the raw API");
 
-    typed::ImageUserInput inconsistent{};
+    typed::ImageUrlInput inconsistent{};
     inconsistent.url = "https://example.test/image";
     inconsistent.detail = typed::OptionalNullable<typed::ImageDetail>::omitted();
     inconsistent.detail.value = typed::ImageDetail::high();
     encodeError.clear();
-    const std::optional<Json> inconsistentEncoding = detail::encodeUserInput(typed::UserInput{inconsistent}, encodeError);
+    const std::optional<Json> inconsistentEncoding = detail::encodeUserInput(typed::TurnInput{inconsistent}, encodeError);
     result.expectTrue(!inconsistentEncoding && !encodeError.empty(),
                       "an internally inconsistent omitted-plus-value tri-state is rejected synchronously");
 

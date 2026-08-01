@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/Reviews.h"
 #include "ai/openai/codex/typed/Threads.h"
@@ -38,7 +38,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
 
     bool writeFully(int descriptor, std::string_view bytes) {
         std::size_t offset = 0;
@@ -320,7 +320,7 @@ namespace {
                 return;
             }
 
-            const Submission rejectedReview = client->typed().reviews().start(
+            const Submission rejectedReview = client->reviews().start(
                 {
                     .threadId = {"thread-local-rejection"},
                     .target = typed::UncommittedChangesReviewTarget{},
@@ -329,7 +329,7 @@ namespace {
                 [this](const typed::OperationResult<typed::ReviewStartResponse>&) {
                     ++unexpectedLocalCallbacks;
                 });
-            const Submission rejectedGuardian = client->typed().threads().approveGuardianDeniedAction(
+            const Submission rejectedGuardian = client->threads().approveGuardianDeniedAction(
                 {
                     .threadId = {"thread-local-rejection"},
                     .event = {{"synthetic", true}},
@@ -344,7 +344,7 @@ namespace {
                        state->outbound.empty(),
                    "both review operations reject synchronously before RawProtocol is ready");
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 handleTypedEvent(event);
             });
             client->raw().setOnNotification([this](const codex::Notification& notification) {
@@ -404,7 +404,7 @@ namespace {
             const std::size_t before = state->outbound.size();
 
             insideSubmission = true;
-            const Submission inlineSubmission = client->typed().reviews().start(
+            const Submission inlineSubmission = client->reviews().start(
                 {
                     .threadId = {"thread-review-inline"},
                     .target = typed::UncommittedChangesReviewTarget{},
@@ -421,7 +421,7 @@ namespace {
                     maybeInjectEvents();
                 });
 
-            const Submission detachedSubmission = client->typed().reviews().start(
+            const Submission detachedSubmission = client->reviews().start(
                 {
                     .threadId = {"thread-origin"},
                     .target = typed::CustomReviewTarget{"Review only synthetic changes."},
@@ -439,7 +439,7 @@ namespace {
                     throw std::runtime_error("intentional detached review completion callback failure");
                 });
 
-            const Submission guardianSubmission = client->typed().threads().approveGuardianDeniedAction(
+            const Submission guardianSubmission = client->threads().approveGuardianDeniedAction(
                 {
                     .threadId = {"thread-guardian"},
                     .event =
@@ -635,7 +635,7 @@ namespace {
                        "guardianWarning uses the existing typed event mechanism");
                 if (!reentrantSubmitted) {
                     reentrantSubmitted = true;
-                    const Submission submission = client->typed().threads().approveGuardianDeniedAction(
+                    const Submission submission = client->threads().approveGuardianDeniedAction(
                         {
                             .threadId = {"thread-review-events"},
                             .event = {{"assessment", "synthetic-reentrant"}},
@@ -741,7 +741,7 @@ namespace {
 
         void beginRemoteError() {
             state->replyMode = UnixTransportState::ReplyMode::RemoteError;
-            const Submission submission = client->typed().reviews().start(
+            const Submission submission = client->reviews().start(
                 lifecycleParams("thread-remote-error"), [this](const typed::OperationResult<typed::ReviewStartResponse>& operation) {
                     expect(operation.kind == typed::OperationResult<typed::ReviewStartResponse>::Kind::RemoteError && !operation.value &&
                                operation.remoteError && operation.remoteError->code == -32'415 &&
@@ -756,7 +756,7 @@ namespace {
 
         void beginCancellation() {
             state->replyMode = UnixTransportState::ReplyMode::Hold;
-            const Submission submission = client->typed().reviews().start(
+            const Submission submission = client->reviews().start(
                 lifecycleParams("thread-cancelled"), [this](const typed::OperationResult<typed::ReviewStartResponse>& operation) {
                     expect(operation.kind == typed::OperationResult<typed::ReviewStartResponse>::Kind::Cancelled && !operation.value &&
                                operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
@@ -780,7 +780,7 @@ namespace {
 
         void beginGenerationProbe() {
             state->replyMode = UnixTransportState::ReplyMode::Hold;
-            const Submission submission = client->typed().reviews().start(
+            const Submission submission = client->reviews().start(
                 lifecycleParams("thread-generation"), [this](const typed::OperationResult<typed::ReviewStartResponse>& operation) {
                     expect(operation && operation.value && operation.value->reviewThreadId.value == "thread-generation" &&
                                operation.value->turn.threadId.value == "thread-generation",

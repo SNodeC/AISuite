@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/stdio/Client.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Mcp.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
@@ -125,10 +125,10 @@ namespace {
                 !detail::serverRequestEmitsResolvedNotification(detail::ServerRequestTarget::AttestationGenerate);
             expect(matrix, "the authoritative occurrence metadata helper retains the exact five-positive/four-negative matrix");
 
-            client.typed().requests().setOnRequest([this](const typed::TypedServerRequest& request) {
+            client.requests().setOnRequest([this](const typed::TypedServerRequest& request) {
                 handleRequest(request);
             });
-            client.typed().events().setOnEvent([this](const typed::Event& event) {
+            client.events().setOnEvent([this](const typed::Event& event) {
                 insideTypedEvent = true;
                 struct Reset {
                     bool& flag;
@@ -183,31 +183,30 @@ namespace {
             result.expectTrue(condition, std::move(message));
         }
 
-        typed::Requests::SendResult respondSuccess(const typed::TypedServerRequest& request) {
+        codex::SendResult respondSuccess(const typed::TypedServerRequest& request) {
             return std::visit(
-                [this](const auto& value) -> typed::Requests::SendResult {
+                [this](const auto& value) -> codex::SendResult {
                     using Request = std::decay_t<decltype(value)>;
                     if constexpr (std::is_same_v<Request, typed::ApplyPatchApprovalRequest>) {
-                        return client.typed().requests().respond(value, typed::ApplyPatchApprovalResponse{typed::DeniedReviewDecision{}});
+                        return client.requests().respond(value, typed::ApplyPatchApprovalResponse{typed::DeniedReviewDecision{}});
                     } else if constexpr (std::is_same_v<Request, typed::ExecCommandApprovalRequest>) {
-                        return client.typed().requests().respond(value,
-                                                                 typed::ExecCommandApprovalResponse{typed::TimedOutReviewDecision{}});
+                        return client.requests().respond(value, typed::ExecCommandApprovalResponse{typed::TimedOutReviewDecision{}});
                     } else if constexpr (std::is_same_v<Request, typed::CommandApprovalRequest>) {
-                        return client.typed().requests().respond(
+                        return client.requests().respond(
                             value, typed::CommandExecutionRequestApprovalResponse{typed::DeclineCommandExecutionApprovalDecision{}});
                     } else if constexpr (std::is_same_v<Request, typed::FileChangeApprovalRequest>) {
-                        return client.typed().requests().respond(
+                        return client.requests().respond(
                             value, typed::FileChangeRequestApprovalResponse{typed::FileChangeApprovalDecision::cancel()});
                     } else if constexpr (std::is_same_v<Request, typed::PermissionsApprovalRequest>) {
-                        return client.typed().requests().respond(value, permissionResponse());
+                        return client.requests().respond(value, permissionResponse());
                     } else if constexpr (std::is_same_v<Request, typed::AttestationGenerateRequest>) {
-                        return client.typed().requests().respond(value, typed::AttestationGenerateResponse{"synthetic-attestation-token"});
+                        return client.requests().respond(value, typed::AttestationGenerateResponse{"synthetic-attestation-token"});
                     } else if constexpr (std::is_same_v<Request, typed::DynamicToolCallRequest>) {
-                        return client.typed().requests().respond(value, dynamicToolResponse());
+                        return client.requests().respond(value, dynamicToolResponse());
                     } else if constexpr (std::is_same_v<Request, typed::UserInputRequest>) {
-                        return client.typed().requests().respond(value, userInputResponse());
+                        return client.requests().respond(value, userInputResponse());
                     } else if constexpr (std::is_same_v<Request, typed::McpServerElicitationRequest>) {
-                        return client.typed().requests().respond(value, elicitationResponse());
+                        return client.requests().respond(value, elicitationResponse());
                     } else {
                         return {false,
                                 codex::Error{codex::Error::Category::Protocol, EINVAL, "unexpected request in resolved lifecycle test"}};
@@ -234,7 +233,7 @@ namespace {
 
         void submitReentrantClientRequest() {
             typed::ListMcpServerStatusParams params;
-            const auto submission = client.typed().mcp().listServers(
+            const auto submission = client.mcp().listServers(
                 std::move(params), [this](const typed::OperationResult<typed::ListMcpServerStatusResponse>& operation) {
                     mcpCompletionInline = insideTypedEvent;
                     mcpCompleted = operation && operation.value->data.empty() && operation.value->nextCursor.isNull();
@@ -267,7 +266,7 @@ namespace {
             }
 
             currentCommand = request;
-            const auto stale = oldCommand ? respondSuccess(*oldCommand) : typed::Requests::SendResult{};
+            const auto stale = oldCommand ? respondSuccess(*oldCommand) : codex::SendResult{};
             staleTokenRejected =
                 !stale && stale.error && stale.error->category == codex::Error::Category::InvalidState && stale.error->code == ESTALE;
             expect(staleTokenRejected, "the old generation token cannot answer the reused JSON-RPC ID in the current generation");

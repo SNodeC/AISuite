@@ -147,7 +147,6 @@ namespace {
 int main() {
     tests::support::TestResult result;
 
-    static_assert(std::is_same_v<Item, ThreadItem>);
     static_assert(!std::is_same_v<ThreadItem, ResponseItem>);
 
     constexpr std::array knownFixtures{

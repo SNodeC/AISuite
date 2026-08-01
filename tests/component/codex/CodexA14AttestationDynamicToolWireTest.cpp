@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/typed/Client.h"
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
 #include "component/codex/CodexBackendTestSupport.h"
 #include "core/EventReceiver.h"
@@ -37,7 +37,7 @@ namespace {
         void start() {
             tests::codex::installInitializingFake(transport);
             client = std::make_unique<tests::codex::FakeAppServerClient>(transport);
-            client->typed().requests().setOnRequest([this](const typed::TypedServerRequest& request) {
+            client->requests().setOnRequest([this](const typed::TypedServerRequest& request) {
                 ++typedCallbacks;
                 if (const auto* value = std::get_if<typed::AttestationGenerateRequest>(&request)) {
                     if (std::holds_alternative<std::string>(value->requestId.value())) {
@@ -164,13 +164,13 @@ namespace {
                 {},
             };
             const auto wrongMethodResult =
-                client->typed().requests().respond(wrongMethod, typed::AttestationGenerateResponse{"not-sent", codex::Json::object()});
+                client->requests().respond(wrongMethod, typed::AttestationGenerateResponse{"not-sent", codex::Json::object()});
             result.expectTrue(!wrongMethodResult && wrongMethodResult.error && wrongMethodResult.error->code == EINVAL,
                               "method-bound ownership rejects a valid token attached to the wrong request kind");
 
             typed::DynamicToolCallResponse malformed;
             malformed.raw = nullptr;
-            const auto malformedResult = client->typed().requests().respond(*dynamicSuccess, malformed);
+            const auto malformedResult = client->requests().respond(*dynamicSuccess, malformed);
             result.expectTrue(!malformedResult && malformedResult.error &&
                                   malformedResult.error->category == codex::Error::Category::Protocol,
                               "malformed successful responses are rejected locally without retiring their occurrence");
@@ -180,26 +180,26 @@ namespace {
                 typed::InputTextDynamicToolCallOutputContentItem{"synthetic tool output", {{"futureItem", true}}, {}}};
             dynamicResponse.success = true;
             dynamicResponse.raw = {{"futureResult", true}};
-            const auto dynamicResult = client->typed().requests().respond(*dynamicSuccess, std::move(dynamicResponse));
+            const auto dynamicResult = client->requests().respond(*dynamicSuccess, std::move(dynamicResponse));
             result.expectTrue(static_cast<bool>(dynamicResult), "dynamic-tool occurrence accepts its corrected typed response");
-            const auto dynamicDuplicate = client->typed().requests().respond(*dynamicSuccess, typed::DynamicToolCallResponse{});
+            const auto dynamicDuplicate = client->requests().respond(*dynamicSuccess, typed::DynamicToolCallResponse{});
             result.expectTrue(!dynamicDuplicate && dynamicDuplicate.error && dynamicDuplicate.error->code == ENOENT,
                               "a completed dynamic-tool occurrence rejects a duplicate response");
 
-            const auto attestationReject = client->typed().requests().reject(
+            const auto attestationReject = client->requests().reject(
                 *attestationError,
                 codex::ProtocolError{
                     -32'403, "attestation declined", std::optional<codex::Json>{codex::Json{{"reason", "synthetic-attestation-decline"}}}});
             result.expectTrue(static_cast<bool>(attestationReject), "attestation occurrence accepts an explicit typed JSON-RPC rejection");
 
-            const auto attestationResult = client->typed().requests().respond(*attestationSuccess,
-                                                                              typed::AttestationGenerateResponse{
-                                                                                  "opaque-attestation-token",
-                                                                                  {{"futureResult", true}},
-                                                                              });
+            const auto attestationResult = client->requests().respond(*attestationSuccess,
+                                                                      typed::AttestationGenerateResponse{
+                                                                          "opaque-attestation-token",
+                                                                          {{"futureResult", true}},
+                                                                      });
             result.expectTrue(static_cast<bool>(attestationResult), "attestation occurrence accepts its typed successful response");
 
-            const auto dynamicReject = client->typed().requests().reject(
+            const auto dynamicReject = client->requests().reject(
                 *dynamicError,
                 codex::ProtocolError{
                     -32'404, "dynamic tool declined", std::optional<codex::Json>{codex::Json{{"reason", "synthetic-tool-decline"}}}});

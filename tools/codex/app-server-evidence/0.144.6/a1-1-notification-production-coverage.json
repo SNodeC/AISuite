@@ -445,7 +445,7 @@
         },
         {
           "schema_path": "#/definitions/ThreadItem/oneOf/0/properties/content",
-          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::UserInput>",
+          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::TurnInput>",
           "presence_model": "RequiredValue",
           "directionality": "DecodeOnly"
         },
@@ -463,19 +463,19 @@
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text",
-          "cpp_mapping": "typed::TextUserInput::text -> std::string",
+          "cpp_mapping": "typed::TextInput::text -> std::string",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text_elements",
-          "cpp_mapping": "typed::TextUserInput::textElements -> std::optional<std::vector<typed::TextElement>>",
+          "cpp_mapping": "typed::TextInput::textElements -> std::optional<std::vector<typed::TextElement>>",
           "presence_model": "OptionalValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/type",
-          "cpp_mapping": "typed::TextUserInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
+          "cpp_mapping": "typed::TextInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         }
@@ -1285,7 +1285,7 @@
         },
         {
           "schema_path": "#/definitions/ThreadItem/oneOf/0/properties/content",
-          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::UserInput>",
+          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::TurnInput>",
           "presence_model": "RequiredValue",
           "directionality": "DecodeOnly"
         },
@@ -1303,19 +1303,19 @@
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text",
-          "cpp_mapping": "typed::TextUserInput::text -> std::string",
+          "cpp_mapping": "typed::TextInput::text -> std::string",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text_elements",
-          "cpp_mapping": "typed::TextUserInput::textElements -> std::optional<std::vector<typed::TextElement>>",
+          "cpp_mapping": "typed::TextInput::textElements -> std::optional<std::vector<typed::TextElement>>",
           "presence_model": "OptionalValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/type",
-          "cpp_mapping": "typed::TextUserInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
+          "cpp_mapping": "typed::TextInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         }
@@ -2616,7 +2616,7 @@
         },
         {
           "schema_path": "#/definitions/ThreadSettings/properties/cwd",
-          "cpp_mapping": "typed::ThreadSettings::cwd -> typed::AbsolutePathBuf",
+          "cpp_mapping": "typed::ThreadSettings::cwd -> typed::AbsolutePath",
           "presence_model": "RequiredValue",
           "directionality": "DecodeOnly"
         },
@@ -2932,7 +2932,7 @@
         },
         {
           "schema_path": "#/definitions/Thread/properties/cwd",
-          "cpp_mapping": "typed::Thread::cwd -> typed::AbsolutePathBuf",
+          "cpp_mapping": "typed::Thread::cwd -> typed::AbsolutePath",
           "presence_model": "RequiredValue",
           "directionality": "DecodeOnly"
         },
@@ -3040,7 +3040,7 @@
         },
         {
           "schema_path": "#/definitions/ThreadItem/oneOf/0/properties/content",
-          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::UserInput>",
+          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::TurnInput>",
           "presence_model": "RequiredValue",
           "directionality": "DecodeOnly"
         },
@@ -3136,19 +3136,19 @@
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text",
-          "cpp_mapping": "typed::TextUserInput::text -> std::string",
+          "cpp_mapping": "typed::TextInput::text -> std::string",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text_elements",
-          "cpp_mapping": "typed::TextUserInput::textElements -> std::optional<std::vector<typed::TextElement>>",
+          "cpp_mapping": "typed::TextInput::textElements -> std::optional<std::vector<typed::TextElement>>",
           "presence_model": "OptionalValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/type",
-          "cpp_mapping": "typed::TextUserInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
+          "cpp_mapping": "typed::TextInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         }
@@ -3683,7 +3683,7 @@
         },
         {
           "schema_path": "#/definitions/ThreadItem/oneOf/0/properties/content",
-          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::UserInput>",
+          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::TurnInput>",
           "presence_model": "RequiredValue",
           "directionality": "DecodeOnly"
         },
@@ -3779,19 +3779,19 @@
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text",
-          "cpp_mapping": "typed::TextUserInput::text -> std::string",
+          "cpp_mapping": "typed::TextInput::text -> std::string",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text_elements",
-          "cpp_mapping": "typed::TextUserInput::textElements -> std::optional<std::vector<typed::TextElement>>",
+          "cpp_mapping": "typed::TextInput::textElements -> std::optional<std::vector<typed::TextElement>>",
           "presence_model": "OptionalValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/type",
-          "cpp_mapping": "typed::TextUserInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
+          "cpp_mapping": "typed::TextInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         }
@@ -4273,7 +4273,7 @@
         },
         {
           "schema_path": "#/definitions/ThreadItem/oneOf/0/properties/content",
-          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::UserInput>",
+          "cpp_mapping": "typed::UserMessageThreadItem::content -> std::vector<typed::TurnInput>",
           "presence_model": "RequiredValue",
           "directionality": "DecodeOnly"
         },
@@ -4369,19 +4369,19 @@
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text",
-          "cpp_mapping": "typed::TextUserInput::text -> std::string",
+          "cpp_mapping": "typed::TextInput::text -> std::string",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/text_elements",
-          "cpp_mapping": "typed::TextUserInput::textElements -> std::optional<std::vector<typed::TextElement>>",
+          "cpp_mapping": "typed::TextInput::textElements -> std::optional<std::vector<typed::TextElement>>",
           "presence_model": "OptionalValue",
           "directionality": "Both"
         },
         {
           "schema_path": "#/definitions/UserInput/oneOf/0/properties/type",
-          "cpp_mapping": "typed::TextUserInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
+          "cpp_mapping": "typed::TextInput::type -> detail::ExactDiscriminatorLiteral<\"text\">",
           "presence_model": "RequiredValue",
           "directionality": "Both"
         }

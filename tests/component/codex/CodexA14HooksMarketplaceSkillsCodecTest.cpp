@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/backend/Reducer.h"
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/detail/EventDecoder.h"
@@ -13,7 +14,6 @@
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/SkillCodec.h"
 #include "ai/openai/codex/detail/ThreadCodec.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "support/TestResult.h"
 
 #include <array>
@@ -214,8 +214,7 @@ namespace {
         typed::SkillsConfigWriteParams write{};
         write.enabled = false;
         write.name = typed::OptionalNullable<std::string>::explicitNull();
-        write.path =
-            typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/skills/synthetic-skill"});
+        write.path = typed::OptionalNullable<typed::AbsolutePath>::withValue(typed::AbsolutePath{"/synthetic/skills/synthetic-skill"});
         write.raw = {{"futureSkillsWriteField", true}};
         const auto encodedWrite = detail::encodeSkillsConfigWriteParams(write, error);
         result.expectTrue(encodedWrite ==
@@ -230,8 +229,8 @@ namespace {
 
         typed::SkillsExtraRootsSetParams roots{};
         roots.extraRoots = {
-            typed::AbsolutePathBuf{"/synthetic/skills/one"},
-            typed::AbsolutePathBuf{"/synthetic/skills/two"},
+            typed::AbsolutePath{"/synthetic/skills/one"},
+            typed::AbsolutePath{"/synthetic/skills/two"},
         };
         roots.raw = {{"futureSkillsRootsField", true}};
         const auto encodedRoots = detail::encodeSkillsExtraRootsSetParams(roots, error);
@@ -577,12 +576,9 @@ namespace {
 } // namespace
 
 int main() {
-    using HooksAccessor = typed::Hooks& (typed::Client::*) () noexcept;
-    using ConstHooksAccessor = const typed::Hooks& (typed::Client::*) () const noexcept;
-    using MarketplaceAccessor = typed::Marketplace& (typed::Client::*) () noexcept;
-    using ConstMarketplaceAccessor = const typed::Marketplace& (typed::Client::*) () const noexcept;
-    using SkillsAccessor = typed::Skills& (typed::Client::*) () noexcept;
-    using ConstSkillsAccessor = const typed::Skills& (typed::Client::*) () const noexcept;
+    using HooksAccessor = typed::Hooks& (codex::AppServerClient::*) () noexcept;
+    using MarketplaceAccessor = typed::Marketplace& (codex::AppServerClient::*) () noexcept;
+    using SkillsAccessor = typed::Skills& (codex::AppServerClient::*) () noexcept;
 
     static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
     static_assert(std::variant_size_v<typed::Event> == 69);
@@ -593,31 +589,28 @@ int main() {
     static_assert(std::is_same_v<std::variant_alternative_t<57, typed::Event>, typed::HookStartedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<58, typed::Event>, typed::SkillsChangedNotification>);
 
-    static_assert(std::is_same_v<decltype(&typed::Hooks::list),
-                                 typed::Hooks::Submission (typed::Hooks::*)(typed::HooksListParams, typed::Hooks::ListResultHandler)>);
+    using HooksListMember = codex::Submission (typed::Hooks::*)(typed::HooksListParams, typed::CompletionHandler<typed::HooksListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<HooksListMember>(&typed::Hooks::list)), HooksListMember>);
     static_assert(std::is_same_v<decltype(&typed::Marketplace::add),
-                                 typed::Marketplace::Submission (typed::Marketplace::*)(typed::MarketplaceAddParams,
-                                                                                        typed::Marketplace::AddResultHandler)>);
+                                 codex::Submission (typed::Marketplace::*)(typed::MarketplaceAddParams,
+                                                                           typed::CompletionHandler<typed::MarketplaceAddResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Marketplace::remove),
-                                 typed::Marketplace::Submission (typed::Marketplace::*)(typed::MarketplaceRemoveParams,
-                                                                                        typed::Marketplace::RemoveResultHandler)>);
-    static_assert(std::is_same_v<decltype(&typed::Marketplace::upgrade),
-                                 typed::Marketplace::Submission (typed::Marketplace::*)(typed::MarketplaceUpgradeParams,
-                                                                                        typed::Marketplace::UpgradeResultHandler)>);
+                                 codex::Submission (typed::Marketplace::*)(typed::MarketplaceRemoveParams,
+                                                                           typed::CompletionHandler<typed::MarketplaceRemoveResponse>)>);
+    using MarketplaceUpgradeMember = codex::Submission (typed::Marketplace::*)(typed::MarketplaceUpgradeParams,
+                                                                               typed::CompletionHandler<typed::MarketplaceUpgradeResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<MarketplaceUpgradeMember>(&typed::Marketplace::upgrade)), MarketplaceUpgradeMember>);
     static_assert(std::is_same_v<decltype(&typed::Skills::writeConfig),
-                                 typed::Skills::Submission (typed::Skills::*)(typed::SkillsConfigWriteParams,
-                                                                              typed::Skills::WriteConfigResultHandler)>);
+                                 codex::Submission (typed::Skills::*)(typed::SkillsConfigWriteParams,
+                                                                      typed::CompletionHandler<typed::SkillsConfigWriteResponse>)>);
     static_assert(std::is_same_v<decltype(&typed::Skills::setExtraRoots),
-                                 typed::Skills::Submission (typed::Skills::*)(typed::SkillsExtraRootsSetParams,
-                                                                              typed::Skills::SetExtraRootsResultHandler)>);
-    static_assert(std::is_same_v<decltype(&typed::Skills::list),
-                                 typed::Skills::Submission (typed::Skills::*)(typed::SkillsListParams, typed::Skills::ListResultHandler)>);
-    static_assert(std::is_same_v<decltype(static_cast<HooksAccessor>(&typed::Client::hooks)), HooksAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<ConstHooksAccessor>(&typed::Client::hooks)), ConstHooksAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<MarketplaceAccessor>(&typed::Client::marketplace)), MarketplaceAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<ConstMarketplaceAccessor>(&typed::Client::marketplace)), ConstMarketplaceAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<SkillsAccessor>(&typed::Client::skills)), SkillsAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<ConstSkillsAccessor>(&typed::Client::skills)), ConstSkillsAccessor>);
+                                 codex::Submission (typed::Skills::*)(typed::SkillsExtraRootsSetParams, typed::DoneHandler)>);
+    using SkillsListMember =
+        codex::Submission (typed::Skills::*)(typed::SkillsListParams, typed::CompletionHandler<typed::SkillsListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<SkillsListMember>(&typed::Skills::list)), SkillsListMember>);
+    static_assert(std::is_same_v<decltype(static_cast<HooksAccessor>(&codex::AppServerClient::hooks)), HooksAccessor>);
+    static_assert(std::is_same_v<decltype(static_cast<MarketplaceAccessor>(&codex::AppServerClient::marketplace)), MarketplaceAccessor>);
+    static_assert(std::is_same_v<decltype(static_cast<SkillsAccessor>(&codex::AppServerClient::skills)), SkillsAccessor>);
 
     tests::support::TestResult result;
     testRequestEncoding(result);

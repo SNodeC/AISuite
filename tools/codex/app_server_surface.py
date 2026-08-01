@@ -665,7 +665,7 @@ OPERATION_PRODUCTION_COVERAGE_SOURCES = (
     "src/ai/openai/codex/detail/ThreadCodec.h",
     "src/ai/openai/codex/detail/TurnCodec.cpp",
     "src/ai/openai/codex/detail/TurnCodec.h",
-    "src/ai/openai/codex/typed/Client.cpp",
+    "src/ai/openai/codex/typed/Facades.cpp",
     "src/ai/openai/codex/typed/Conversation.h",
     "src/ai/openai/codex/typed/Items.h",
     "src/ai/openai/codex/typed/Threads.h",
@@ -677,7 +677,7 @@ OPERATION_PRODUCTION_COVERAGE_SOURCES = (
     "tests/component/codex/CodexConversationB4NestedCodecTest.cpp",
     "tests/component/codex/CodexTypedThreadCodecTest.cpp",
     "tests/component/codex/CodexA11OperationWireTest.cpp",
-    "tests/installed/codex/CodexTypedConsumer.cpp",
+    "tests/installed/codex/CodexApiConsumer.cpp",
 )
 NOTIFICATION_PRODUCTION_COVERAGE_SOURCES = (
     "tools/codex/app_server_surface.py",
@@ -753,13 +753,6 @@ _A1_1_FROZEN_EXTENSIBLE_SOURCE_RECORDS = {
             "ff5ddb64e3215b5f12564c9ffdd7af514da3206997563c554db9adfe7ef86347"
         ),
     },
-    "src/ai/openai/codex/typed/Client.cpp": {
-        "path": "src/ai/openai/codex/typed/Client.cpp",
-        "bytes": 27168,
-        "sha256": (
-            "ced9d7f1533e4ad316c2c9bc1ab51503e7947e2decccc92e13f5462f5dfd6c3d"
-        ),
-    },
     "src/ai/openai/codex/typed/Events.h": {
         "path": "src/ai/openai/codex/typed/Events.h",
         "bytes": 21876,
@@ -791,13 +784,6 @@ _A1_1_FROZEN_EXTENSIBLE_SOURCE_RECORDS = {
         "bytes": 10657,
         "sha256": (
             "a3bb814bb38048ca4f1d48a9bd1efe2abea47cbea3c240399ddeaeebb286c4ac"
-        ),
-    },
-    "tests/installed/codex/CodexTypedConsumer.cpp": {
-        "path": "tests/installed/codex/CodexTypedConsumer.cpp",
-        "bytes": 8292,
-        "sha256": (
-            "97f3eacdabde7db2ba035ba1ceed0cd649ac6413b6ca2bcd16d965313968d799"
         ),
     },
     "tools/codex/app_server_surface.py": {
@@ -10244,9 +10230,10 @@ def render_coverage_document(
             "",
             "## Phase boundary",
             "",
-            "A0 establishes the census, registry, guards, and owner worksheet. A1 adds the",
-            "frozen typed surface; A2 adds commands and canonical state; A3 exposes only",
-            "owner-approved Frontend Protocol operations. Full Phase A is not complete.",
+            "A0 established the census, registry, guards, and owner worksheet. Final A1 and",
+            "A1.5 complete the typed protocol and application façade; A1.6 adds commands",
+            "and canonical state; A1.7 exposes only owner-approved Frontend Protocol",
+            "operations. Provider-neutral architecture remains separate A2 work.",
             "",
         ]
     )

@@ -67,7 +67,7 @@ namespace {
                     {typed::ConfigKeyPath{"beta"}, typed::MergeStrategy{"futureMerge"}, std::nullopt},
                 },
             .expectedVersion = typed::OptionalNullable<std::string>::explicitNull(),
-            .filePath = typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/config.toml"}),
+            .filePath = typed::OptionalNullable<typed::AbsolutePath>::withValue(typed::AbsolutePath{"/synthetic/config.toml"}),
             .reloadUserConfig = false,
         };
         const codex::Json expectedBatch{
@@ -88,7 +88,7 @@ namespace {
 
         const typed::ConfigValueWriteParams value{
             .expectedVersion = typed::OptionalNullable<std::string>::withValue("version-1"),
-            .filePath = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull(),
+            .filePath = typed::OptionalNullable<typed::AbsolutePath>::explicitNull(),
             .keyPath = typed::ConfigKeyPath{"features.synthetic"},
             .mergeStrategy = typed::MergeStrategy::replace(),
             .value = std::optional<codex::Json>{codex::Json::array({true, nullptr, {{"nested", "exact"}}})},
@@ -121,7 +121,7 @@ namespace {
         typed::ConfigValueWriteParams inconsistentValue{};
         inconsistentValue.keyPath = typed::ConfigKeyPath{"features.invalid"};
         inconsistentValue.mergeStrategy = typed::MergeStrategy::replace();
-        inconsistentValue.filePath.value = typed::AbsolutePathBuf{"/must-not-encode"};
+        inconsistentValue.filePath.value = typed::AbsolutePath{"/must-not-encode"};
         const auto rejectedValue = detail::encodeConfigValueWriteParams(inconsistentValue, error);
         result.expectTrue(!rejectedValue && error.find("$.filePath") != std::string::npos,
                           "config/value/write rejects an inconsistent omitted filePath at its exact path");
