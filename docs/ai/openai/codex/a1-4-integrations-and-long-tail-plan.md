@@ -163,12 +163,12 @@ canonical indices 59 through 66 and `Event` indices 61 through 68:
 | `windows/worldWritableWarning` | 65 | 67 |
 | `windowsSandbox/setupCompleted` | 66 | 68 |
 
-`CanonicalServerNotification` now has 67 alternatives and `Event` has 69.
+`CanonicalServerNotification` now has 68 alternatives and `Event` has 69.
 `TypedServerRequest` remains unchanged with 11 alternatives:
 `UserInputRequest` remains index 2, `UnknownServerRequest` index 4,
 `AttestationGenerateRequest` index 8, `DynamicToolCallRequest` index 9, and
-`McpServerElicitationRequest` index 10. Canonical notification index 67 remains
-unconsumed for the Common `error` completion.
+`McpServerElicitationRequest` index 10. Final A1a appended
+`ErrorNotification` at canonical notification index 67.
 
 The installed Codex header inventory is 29 main-library headers, seven backend
 headers, and seven frontend headers, 43 total. `typed/WindowsSandbox.h` is the
@@ -180,13 +180,13 @@ all three Codex libraries from SOVERSION 1 to SOVERSION 2.
 
 | Scope | Complete | Partial | Not implemented | Not applicable |
 | --- | ---: | ---: | ---: | ---: |
-| Global | 336 | 3 | 0 | 48 |
+| Global | 339 | 0 | 0 | 48 |
 | Native A1.4 | 56 | 0 | 0 | — |
 
-Native A1.4 is complete. The remaining Partial identities are `initialize`,
-`initialized`, and `error`, owned by Common/A1.0 and deferred to final-A1
-completion. The 36 experimental-only and 12 stable-but-unreachable
-InventoryOnly identities remain NotApplicable.
+Native A1.4 remains complete. Final A1a completed the Common/A1.0 identities
+`initialize`, `initialized`, and `error`, leaving no Partial identities. The 36
+experimental-only and 12 stable-but-unreachable InventoryOnly identities remain
+NotApplicable.
 
 ## Architecture, diagnostics, and non-goals
 

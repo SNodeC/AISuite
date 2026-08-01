@@ -198,12 +198,12 @@ Every predecessor index is preserved. The new alternatives occupy:
 | `windows/worldWritableWarning` | 65 | 67 |
 | `windowsSandbox/setupCompleted` | 66 | 68 |
 
-The final sizes are 67 canonical notifications and 69 typed events.
+The current sizes are 68 canonical notifications and 69 typed events.
 `TypedServerRequest` remains unchanged at 11 alternatives, including
 `UserInputRequest` at index 2, `UnknownServerRequest` at 4,
 `AttestationGenerateRequest` at 8, `DynamicToolCallRequest` at 9, and
-`McpServerElicitationRequest` at 10. Canonical notification index 67 remains
-available for the later Common `error` completion.
+`McpServerElicitationRequest` at 10. Final A1a appended
+`ErrorNotification` at canonical notification index 67.
 
 ## Schema completeness and current state
 
@@ -218,13 +218,13 @@ The final production registry is:
 
 | Scope | Complete | Partial | Not implemented | Not applicable |
 | --- | ---: | ---: | ---: | ---: |
-| Global | 336 | 3 | 0 | 48 |
+| Global | 339 | 0 | 0 | 48 |
 | Native A1.4 | 56 | 0 | 0 | — |
 
-Native A1.4 is complete. The remaining Partial identities are `initialize`,
-`initialized`, and `error`, owned by Common/A1.0 and deferred to final-A1
-completion. All 48 InventoryOnly identities remain NotApplicable. Final A1b
-subsequently moves all three Codex libraries to SOVERSION 2.
+Native A1.4 remains complete. Final A1a completed the Common/A1.0 identities
+`initialize`, `initialized`, and `error`, leaving no Partial identities. All 48
+InventoryOnly identities remain NotApplicable. Final A1b subsequently moves all
+three Codex libraries to SOVERSION 2.
 
 The installed Codex public-header inventory is 29 main-library headers, seven
 backend headers, and seven frontend headers: 43 total. The only added header in
