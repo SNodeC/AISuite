@@ -68,8 +68,12 @@ capabilities.
 ## Lifecycle
 
 The client is non-blocking. `start()` schedules transport startup and the
-automatic `initialize`/`initialized` handshake. Operations submitted before
-Ready are queued on the same connection generation.
+automatic `initialize`/`initialized` handshake. Typed and raw application
+operations must be submitted after the client reaches `Ready`; an earlier
+submission fails immediately with a local `InvalidState` error. Structurally
+valid incoming non-initialization messages received during initialization may
+be retained by the bounded pre-ready input queue, but outgoing application
+requests are not queued before `Ready`.
 
 ```cpp
 client.setOnStateChanged([&](const codex::StateChange& change) {
@@ -227,8 +231,10 @@ client.models().list(
 
 `OperationResult<T>` distinguishes Success, RemoteError, Cancelled, and
 LocalError. It retains the decoded value, request ID, raw result, protocol
-error, local error, and structured Codex error information. `operator bool`,
-the four state predicates, `operator*`, and `operator->` do not block or throw.
+error, local error, and structured Codex error information. `operator bool()`
+and `isSuccess()` both require a successful kind and a decoded value.
+`operator*` and `operator->` may be used only when that condition holds; they
+are unchecked optional-like accessors and do not manufacture a missing value.
 
 ## Other domains
 

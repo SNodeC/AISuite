@@ -378,6 +378,10 @@ int main() {
     result.expectTrue(identity.name == "aisuite" && identity.title == "AISuite" && identity.version == AISUITE_TEST_PROJECT_VERSION,
                       "default client identity uses AISuite and the configured project version");
 
+    typed::OperationResult<ProbeValue> empty;
+    result.expectTrue(!empty && !empty.isSuccess() && !empty.isRemoteError() && !empty.isCancelled() && !empty.isLocalError(),
+                      "value-less OperationResult is not successful");
+
     typed::OperationResult<ProbeValue> success;
     success.value = ProbeValue{42};
     result.expectTrue(success && success.isSuccess() && !success.isRemoteError() && !success.isCancelled() && !success.isLocalError() &&

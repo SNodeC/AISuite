@@ -40,7 +40,7 @@ namespace ai::openai::codex::typed {
         }
 
         bool isSuccess() const noexcept {
-            return kind == Kind::Success;
+            return static_cast<bool>(*this);
         }
 
         bool isRemoteError() const noexcept {
