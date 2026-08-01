@@ -147,11 +147,11 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeAbsolutePathArray(const Json& value, std::vector<typed::AbsolutePathBuf>& result) {
+        bool decodeAbsolutePathArray(const Json& value, std::vector<typed::AbsolutePath>& result) {
             if (!value.is_array()) {
                 return false;
             }
-            std::vector<typed::AbsolutePathBuf> decoded;
+            std::vector<typed::AbsolutePath> decoded;
             decoded.reserve(value.size());
             for (const Json& element : value) {
                 if (!element.is_string()) {
@@ -430,7 +430,7 @@ namespace ai::openai::codex::detail {
             if (type == "command") {
                 typed::CommandGuardianApprovalReviewAction result;
                 if (!decodeRequired(value, "command", result.command, decodeString, invalidPath) ||
-                    !decodeRequired(value, "cwd", result.cwd, decodeStrongString<typed::AbsolutePathBuf>, invalidPath) ||
+                    !decodeRequired(value, "cwd", result.cwd, decodeStrongString<typed::AbsolutePath>, invalidPath) ||
                     !decodeRequired(
                         value,
                         "source",
@@ -451,7 +451,7 @@ namespace ai::openai::codex::detail {
             if (type == "execve") {
                 typed::ExecveGuardianApprovalReviewAction result;
                 if (!decodeRequired(value, "argv", result.argv, decodeStringArray, invalidPath) ||
-                    !decodeRequired(value, "cwd", result.cwd, decodeStrongString<typed::AbsolutePathBuf>, invalidPath) ||
+                    !decodeRequired(value, "cwd", result.cwd, decodeStrongString<typed::AbsolutePath>, invalidPath) ||
                     !decodeRequired(value, "program", result.program, decodeString, invalidPath) ||
                     !decodeRequired(
                         value,
@@ -472,7 +472,7 @@ namespace ai::openai::codex::detail {
 
             if (type == "applyPatch") {
                 typed::ApplyPatchGuardianApprovalReviewAction result;
-                if (!decodeRequired(value, "cwd", result.cwd, decodeStrongString<typed::AbsolutePathBuf>, invalidPath) ||
+                if (!decodeRequired(value, "cwd", result.cwd, decodeStrongString<typed::AbsolutePath>, invalidPath) ||
                     !decodeRequired(value, "files", result.files, decodeAbsolutePathArray, invalidPath)) {
                     return malformedPreserved<typed::GuardianApprovalReviewAction, typed::UnknownGuardianApprovalReviewAction>(
                         value, type, Surface, std::move(invalidPath));

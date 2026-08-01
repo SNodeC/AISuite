@@ -378,7 +378,7 @@ namespace ai::openai::codex::frontend {
             }
             typed::WorkspaceWriteSandboxPolicy result;
             if (!policy.writableRoots.empty()) {
-                std::vector<typed::AbsolutePathBuf> roots;
+                std::vector<typed::AbsolutePath> roots;
                 roots.reserve(policy.writableRoots.size());
                 for (const std::string& root : policy.writableRoots) {
                     roots.emplace_back(root);
@@ -1041,7 +1041,7 @@ namespace ai::openai::codex::frontend {
                                const backend::ThreadSnapshot* found = findThread(currentSnapshot, thread.id.value);
                                return found != nullptr ? Json{{"thread", threadSnapshotJson(*found)}} : Json{{"threadId", thread.id.value}};
                            },
-                           [&currentSnapshot](const typed::ThreadPage& page) {
+                           [&currentSnapshot](const typed::ThreadListResponse& page) {
                                Json encoded{{"threads", Json::array()}};
                                for (const typed::Thread& thread : page.data) {
                                    const backend::ThreadSnapshot* found = findThread(currentSnapshot, thread.id.value);

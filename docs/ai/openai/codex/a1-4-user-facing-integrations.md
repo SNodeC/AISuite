@@ -40,17 +40,16 @@ The first production batch completes:
 - `externalAgentConfig/import/progress`.
 
 The public entry points added by this batch are
-`client.typed().apps().list()`,
-`client.typed().externalAgents().detect()`,
-`client.typed().externalAgents().importConfiguration()`,
-`client.typed().externalAgents().readImportHistories()`, and
-`client.typed().feedback().upload()`. The three notifications use the existing
+`client.apps().list()`, `client.externalAgents().detect()`,
+`client.externalAgents().importConfiguration()`,
+`client.externalAgents().readImportHistories()`, and
+`client.feedback().upload()`. The three notifications use the existing
 typed `Events` observer and continue to coexist with raw observation.
 
 All operations reuse the single existing path:
 
 ```
-AppServerClient -> RawProtocol -> typed::Client -> grouped facade or Events
+AppServerClient -> RawProtocol -> direct typed facade or Events
 ```
 
 AISuite does not list apps locally, import external-agent state, or upload
@@ -195,12 +194,14 @@ Source packages contain no `.git`, and binary packages require all seven
 facade headers while excluding private tools, tests, evidence, and codec
 implementation files.
 
-`AppServerClient` and `typed::Client` retain their PIMPL ownership model and no
-predecessor variant index moves. The appended public notification alternatives,
+`AppServerClient` retains its PIMPL ownership model and owns one stable façade
+object per direct domain; no predecessor variant index moves. The appended public notification alternatives,
 the new public aggregates, and `PluginSource` nevertheless change the public
-C++ API/ABI. SOVERSION intentionally remains 1 under the current A1 policy;
-that unchanged SONAME is not a binary-compatibility claim, and consumers must
-be rebuilt with the updated library.
+C++ API/ABI. SOVERSION remained 1 for this A1.4 implementation slice; Final
+A1b subsequently established SOVERSION 2, and A1.5 completes that
+still-unreleased application API boundary. The earlier unchanged SONAME was
+not a binary-compatibility claim, and consumers had to rebuild with the
+updated library.
 
 The vendored Codex 0.144.6 schemas and protocol source define this protocol
 surface, while the `ProtocolSurfaceRegistry`, generated descriptors, production

@@ -8,13 +8,14 @@
 #include <type_traits>
 
 int main() {
+    namespace codex = ai::openai::codex;
     namespace typed = ai::openai::codex::typed;
 
-    using List = typed::Models::Submission (typed::Models::*)(typed::ModelListParams, typed::Models::ListResultHandler);
-    using ReadProviderCapabilities = typed::Models::Submission (typed::Models::*)(typed::ModelProviderCapabilitiesReadParams,
-                                                                                  typed::Models::ReadProviderCapabilitiesResultHandler);
+    using List = codex::Submission (typed::Models::*)(typed::ModelListParams, typed::CompletionHandler<typed::ModelListResponse>);
+    using ReadProviderCapabilities =
+        codex::Submission (typed::Models::*)(typed::CompletionHandler<typed::ModelProviderCapabilitiesReadResponse>);
 
-    static_assert(std::is_same_v<decltype(&typed::Models::list), List>);
+    static_assert(std::is_same_v<decltype(static_cast<List>(&typed::Models::list)), List>);
     static_assert(std::is_same_v<decltype(&typed::Models::readProviderCapabilities), ReadProviderCapabilities>);
 
     const typed::ModelRerouteReason futureReason{"installed-future-reroute"};

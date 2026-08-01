@@ -11,11 +11,12 @@
 #include <vector>
 
 int main() {
+    namespace codex = ai::openai::codex;
     namespace typed = ai::openai::codex::typed;
 
-    using Copy = typed::Filesystem::Submission (typed::Filesystem::*)(typed::FsCopyParams, typed::Filesystem::UnitResultHandler);
+    using Copy = codex::Submission (typed::Filesystem::*)(typed::FsCopyParams, typed::DoneHandler);
     using Search =
-        typed::Filesystem::Submission (typed::Filesystem::*)(typed::FuzzyFileSearchParams, typed::Filesystem::FuzzyFileSearchResultHandler);
+        codex::Submission (typed::Filesystem::*)(typed::FuzzyFileSearchParams, typed::CompletionHandler<typed::FuzzyFileSearchResponse>);
 
     static_assert(std::is_same_v<decltype(&typed::Filesystem::copy), Copy>);
     static_assert(std::is_same_v<decltype(&typed::Filesystem::fuzzyFileSearch), Search>);

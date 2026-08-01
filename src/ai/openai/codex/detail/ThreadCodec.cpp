@@ -435,7 +435,7 @@ namespace ai::openai::codex::detail {
                 fail(error, std::string(context) + " field 'instructionSources' must be an array");
                 return std::nullopt;
             } else {
-                std::vector<typed::LegacyAppPathString> paths;
+                std::vector<typed::PathString> paths;
                 paths.reserve(instructionSources->size());
                 for (std::size_t index = 0; index < instructionSources->size(); ++index) {
                     if (!(*instructionSources)[index].is_string()) {
@@ -1321,7 +1321,7 @@ namespace ai::openai::codex::detail {
         return std::move(response->thread);
     }
 
-    std::optional<typed::ThreadPage> decodeThreadListResult(const Json& value, std::string& error) {
+    std::optional<typed::ThreadListResponse> decodeThreadListResult(const Json& value, std::string& error) {
         return decodeThreadListResponse(value, error);
     }
 

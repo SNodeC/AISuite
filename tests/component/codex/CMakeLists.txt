@@ -240,7 +240,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexProtocolSurfaceRegistryTest PRIVATE snodec-test-support
-                                             snodec::ai-openai-codex
+                                             AISuite::OpenAICodex
 )
 target_compile_features(CodexProtocolSurfaceRegistryTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -254,7 +254,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexProtocolSurfaceCoverageGuardTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(
     CodexProtocolSurfaceCoverageGuardTest PRIVATE cxx_std_20
@@ -272,7 +272,7 @@ set_tests_properties(
 snodec_add_test(CodexSchemaTranscriptUnixTest CodexSchemaTranscriptUnixTest.cpp)
 target_link_libraries(
     CodexSchemaTranscriptUnixTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-backend
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
 )
 target_compile_features(CodexSchemaTranscriptUnixTest PRIVATE cxx_std_20)
 target_compile_definitions(
@@ -291,7 +291,7 @@ target_compile_features(CodexFakeAppServer PRIVATE cxx_std_20)
 
 snodec_add_test(CodexStdioLifecycleTest CodexStdioLifecycleTest.cpp)
 target_link_libraries(
-    CodexStdioLifecycleTest PRIVATE snodec-test-support snodec::ai-openai-codex
+    CodexStdioLifecycleTest PRIVATE snodec-test-support AISuite::OpenAICodex
                                     snodec::core
 )
 target_compile_features(CodexStdioLifecycleTest PRIVATE cxx_std_20)
@@ -304,7 +304,7 @@ add_dependencies(CodexStdioLifecycleTest CodexFakeAppServer)
 add_executable(CodexStdioProtocolFlowTest CodexStdioProtocolFlowTest.cpp)
 target_link_libraries(
     CodexStdioProtocolFlowTest PRIVATE snodec-test-support
-                                       snodec::ai-openai-codex snodec::core
+                                       AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexStdioProtocolFlowTest PRIVATE cxx_std_20)
 target_compile_definitions(
@@ -331,7 +331,7 @@ endforeach()
 
 snodec_add_test(CodexProtocolCodecTest CodexProtocolCodecTest.cpp)
 target_link_libraries(
-    CodexProtocolCodecTest PRIVATE snodec-test-support snodec::ai-openai-codex
+    CodexProtocolCodecTest PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexProtocolCodecTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -342,7 +342,7 @@ set_tests_properties(
 
 snodec_add_test(CodexProtocolEngineTest CodexProtocolEngineTest.cpp)
 target_link_libraries(
-    CodexProtocolEngineTest PRIVATE snodec-test-support snodec::ai-openai-codex
+    CodexProtocolEngineTest PRIVATE snodec-test-support AISuite::OpenAICodex
                                     snodec::core
 )
 target_compile_features(CodexProtocolEngineTest PRIVATE cxx_std_20)
@@ -355,7 +355,7 @@ set_tests_properties(
 snodec_add_test(CodexA11OperationWireTest CodexA11OperationWireTest.cpp)
 target_link_libraries(
     CodexA11OperationWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA11OperationWireTest PRIVATE cxx_std_20)
 target_compile_definitions(
@@ -376,7 +376,7 @@ set_tests_properties(
 snodec_add_test(CodexA12AccountCodecTest CodexA12AccountCodecTest.cpp)
 target_link_libraries(
     CodexA12AccountCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexA12AccountCodecTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -390,7 +390,7 @@ set_tests_properties(
 snodec_add_test(CodexA12AccountWireTest CodexA12AccountWireTest.cpp)
 target_link_libraries(
     CodexA12AccountWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA12AccountWireTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -404,7 +404,7 @@ set_tests_properties(
 snodec_add_test(CodexA12ModelCodecTest CodexA12ModelCodecTest.cpp)
 target_link_libraries(
     CodexA12ModelCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexA12ModelCodecTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -423,7 +423,7 @@ target_link_libraries(
     CodexA14AppsExternalAgentFeedbackCodecTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex-backend
+        AISuite::OpenAICodexBackend
 )
 target_compile_features(
     CodexA14AppsExternalAgentFeedbackCodecTest PRIVATE cxx_std_20
@@ -445,7 +445,7 @@ target_link_libraries(
     CodexA14AppsExternalAgentFeedbackWireTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(
@@ -468,7 +468,7 @@ target_link_libraries(
     CodexA14HooksMarketplaceSkillsCodecTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex-backend
+        AISuite::OpenAICodexBackend
 )
 target_compile_features(
     CodexA14HooksMarketplaceSkillsCodecTest PRIVATE cxx_std_20
@@ -490,7 +490,7 @@ target_link_libraries(
     CodexA14HooksMarketplaceSkillsWireTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(
@@ -513,7 +513,7 @@ target_link_libraries(
     CodexA14PluginOperationsCodecTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA14PluginOperationsCodecTest PRIVATE cxx_std_20
@@ -535,7 +535,7 @@ target_link_libraries(
     CodexA14PluginOperationsWireTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(
@@ -558,7 +558,7 @@ target_link_libraries(
     CodexA14PluginCatalogCodecTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA14PluginCatalogCodecTest PRIVATE cxx_std_20
@@ -580,7 +580,7 @@ target_link_libraries(
     CodexA14PluginCatalogWireTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(
@@ -603,7 +603,7 @@ target_link_libraries(
     CodexA14McpClientTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
 )
 target_compile_features(CodexA14McpClientTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -623,7 +623,7 @@ target_link_libraries(
     CodexA14WindowsSandboxClientTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA14WindowsSandboxClientTest PRIVATE cxx_std_20
@@ -645,7 +645,7 @@ target_link_libraries(
     CodexA14WindowsSandboxWireTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(
@@ -668,7 +668,7 @@ target_link_libraries(
     CodexA14McpNotificationEventTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA14McpNotificationEventTest PRIVATE cxx_std_20
@@ -690,7 +690,7 @@ target_link_libraries(
     CodexA14AttestationDynamicToolCodecTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA14AttestationDynamicToolCodecTest PRIVATE cxx_std_20
@@ -712,7 +712,7 @@ target_link_libraries(
     CodexA14AttestationDynamicToolWireTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(
@@ -735,7 +735,7 @@ target_link_libraries(
     CodexA14McpClientWireTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(CodexA14McpClientWireTest PRIVATE cxx_std_20)
@@ -756,7 +756,7 @@ target_link_libraries(
     CodexA14NineRequestStdioTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(CodexA14NineRequestStdioTest PRIVATE cxx_std_20)
@@ -782,7 +782,7 @@ target_link_libraries(
     CodexA14ServerRequestResolvedLifecycleTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
         snodec::core
 )
 target_compile_features(
@@ -810,7 +810,7 @@ target_link_libraries(
     CodexA14UserInputElicitationCodecTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
+        AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA14UserInputElicitationCodecTest PRIVATE cxx_std_20
@@ -827,7 +827,7 @@ set_tests_properties(
 snodec_add_test(CodexA12ModelWireTest CodexA12ModelWireTest.cpp)
 target_link_libraries(
     CodexA12ModelWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA12ModelWireTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -844,7 +844,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12ConfigurationReadCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA12ConfigurationReadCodecTest PRIVATE cxx_std_20
@@ -863,7 +863,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12ConfigurationReadWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(
     CodexA12ConfigurationReadWireTest PRIVATE cxx_std_20
@@ -882,7 +882,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12ConfigurationMutationCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA12ConfigurationMutationCodecTest PRIVATE cxx_std_20
@@ -901,7 +901,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12ConfigurationMutationWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(
     CodexA12ConfigurationMutationWireTest PRIVATE cxx_std_20
@@ -920,7 +920,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13CommandCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexA13CommandCodecTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -937,7 +937,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13CommandWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA13CommandWireTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -954,7 +954,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13CommandBackendCompatibilityTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-backend
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
 )
 target_compile_features(
     CodexA13CommandBackendCompatibilityTest PRIVATE cxx_std_20
@@ -973,7 +973,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13FilesystemCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexA13FilesystemCodecTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -990,7 +990,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13FilesystemWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA13FilesystemWireTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1007,7 +1007,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13FilesystemBackendCompatibilityTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-backend
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
 )
 target_compile_features(
     CodexA13FilesystemBackendCompatibilityTest PRIVATE cxx_std_20
@@ -1026,7 +1026,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13ApprovalCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexA13ApprovalCodecTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1043,7 +1043,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13ApprovalWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA13ApprovalWireTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1062,8 +1062,8 @@ target_link_libraries(
     CodexA13ApprovalBackendCompatibilityTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
-        snodec::ai-openai-codex-frontend
+        AISuite::OpenAICodex
+        AISuite::OpenAICodexFrontend
 )
 target_compile_features(
     CodexA13ApprovalBackendCompatibilityTest PRIVATE cxx_std_20
@@ -1083,7 +1083,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13ReviewCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexA13ReviewCodecTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1100,7 +1100,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA13ReviewWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA13ReviewWireTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1119,8 +1119,8 @@ target_link_libraries(
     CodexA13ReviewBackendCompatibilityTest
     PRIVATE
         snodec-test-support
-        snodec::ai-openai-codex
-        snodec::ai-openai-codex-frontend
+        AISuite::OpenAICodex
+        AISuite::OpenAICodexFrontend
 )
 target_compile_features(
     CodexA13ReviewBackendCompatibilityTest PRIVATE cxx_std_20
@@ -1140,7 +1140,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12AuthRefreshWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA12AuthRefreshWireTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1157,7 +1157,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA11OperationResultCorpusTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA11OperationResultCorpusTest PRIVATE cxx_std_20
@@ -1182,7 +1182,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA11OperationAggregateValueCorpusTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA11OperationAggregateValueCorpusTest PRIVATE cxx_std_20
@@ -1207,7 +1207,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA11NotificationCodecTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(
     CodexA11NotificationCodecTest PRIVATE cxx_std_20
@@ -1236,7 +1236,7 @@ foreach(
 )
     snodec_add_test(${typed_test} ${typed_test}.cpp)
     target_link_libraries(
-        ${typed_test} PRIVATE snodec-test-support snodec::ai-openai-codex
+        ${typed_test} PRIVATE snodec-test-support AISuite::OpenAICodex
     )
     target_compile_features(${typed_test} PRIVATE cxx_std_20)
     set_tests_properties(
@@ -1275,7 +1275,7 @@ target_compile_definitions(
 snodec_add_test(CodexBackendReducerTest CodexBackendReducerTest.cpp)
 target_link_libraries(
     CodexBackendReducerTest PRIVATE snodec-test-support
-                                    snodec::ai-openai-codex-backend
+                                    AISuite::OpenAICodexBackend
 )
 target_compile_features(CodexBackendReducerTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1290,7 +1290,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexThreadItemBackendParityTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-backend
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
 )
 target_compile_features(
     CodexThreadItemBackendParityTest PRIVATE cxx_std_20
@@ -1311,7 +1311,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA11NotificationBackendPreservationTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-backend
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
 )
 target_compile_features(
     CodexA11NotificationBackendPreservationTest PRIVATE cxx_std_20
@@ -1330,7 +1330,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12AccountBackendPreservationTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-frontend snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
 )
 target_compile_features(
     CodexA12AccountBackendPreservationTest PRIVATE cxx_std_20
@@ -1349,7 +1349,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12ModelBackendCompatibilityTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-frontend snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
 )
 target_compile_features(
     CodexA12ModelBackendCompatibilityTest PRIVATE cxx_std_20
@@ -1368,7 +1368,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA12ConfigurationReadBackendPreservationTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-backend
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
 )
 target_compile_features(
     CodexA12ConfigurationReadBackendPreservationTest PRIVATE cxx_std_20
@@ -1384,7 +1384,7 @@ set_tests_properties(
 snodec_add_test(CodexFrontendProtocolV1Test CodexFrontendProtocolV1Test.cpp)
 target_link_libraries(
     CodexFrontendProtocolV1Test PRIVATE snodec-test-support
-                                        snodec::ai-openai-codex-frontend
+                                        AISuite::OpenAICodexFrontend
 )
 target_compile_features(CodexFrontendProtocolV1Test PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1397,7 +1397,7 @@ set_tests_properties(
 snodec_add_test(CodexFrontendAdapterTest CodexFrontendAdapterTest.cpp)
 target_link_libraries(
     CodexFrontendAdapterTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-frontend snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
 )
 target_compile_features(CodexFrontendAdapterTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1535,7 +1535,7 @@ if(TARGET codex-backend-client-support)
         target_link_libraries(
             CodexBackendClientRealBackendAcceptanceTest
             PRIVATE snodec-test-support codex-backend-client-support
-                    codex-backend-unix-adapter snodec::ai-openai-codex-backend
+                    codex-backend-unix-adapter AISuite::OpenAICodexBackend
                     snodec::net-un-stream-legacy snodec::core
         )
         target_compile_features(
@@ -1575,7 +1575,7 @@ endif()
 snodec_add_test(CodexBackendSessionTest CodexBackendSessionTest.cpp)
 target_link_libraries(
     CodexBackendSessionTest PRIVATE snodec-test-support
-                                    snodec::ai-openai-codex-backend
+                                    AISuite::OpenAICodexBackend
 )
 target_compile_features(CodexBackendSessionTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1587,7 +1587,7 @@ set_tests_properties(
 snodec_add_test(CodexBackendCoreTest CodexBackendCoreTest.cpp)
 target_link_libraries(
     CodexBackendCoreTest PRIVATE snodec-test-support
-                                 snodec::ai-openai-codex-backend snodec::core
+                                 AISuite::OpenAICodexBackend snodec::core
 )
 target_compile_features(CodexBackendCoreTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1608,8 +1608,8 @@ target_include_directories(
 )
 target_link_libraries(
     CodexBackendUnixAcceptanceTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-frontend
-            snodec::ai-openai-codex-backend snodec::net-un-stream-legacy
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+            AISuite::OpenAICodexBackend snodec::net-un-stream-legacy
             snodec::core
 )
 target_compile_features(CodexBackendUnixAcceptanceTest PRIVATE cxx_std_20)
@@ -1623,7 +1623,7 @@ set_tests_properties(
 snodec_add_test(CodexTypedProtocolEngineTest CodexTypedProtocolEngineTest.cpp)
 target_link_libraries(
     CodexTypedProtocolEngineTest PRIVATE snodec-test-support
-                                         snodec::ai-openai-codex snodec::core
+                                         AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexTypedProtocolEngineTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1632,37 +1632,35 @@ set_tests_properties(
                SKIP_RETURN_CODE 77 TIMEOUT 30
 )
 
-snodec_add_test(CodexTypedClientFacadeTest CodexTypedClientFacadeTest.cpp)
+snodec_add_test(CodexPublicApiFacadeTest CodexPublicApiFacadeTest.cpp)
 target_link_libraries(
-    CodexTypedClientFacadeTest PRIVATE snodec-test-support
-                                       snodec::ai-openai-codex
+    CodexPublicApiFacadeTest PRIVATE snodec-test-support AISuite::OpenAICodex
 )
-target_compile_features(CodexTypedClientFacadeTest PRIVATE cxx_std_20)
-target_compile_options(
-    CodexTypedClientFacadeTest PRIVATE -Wno-deprecated-declarations
+target_compile_features(CodexPublicApiFacadeTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexPublicApiFacadeTest
+    PRIVATE AISUITE_TEST_PROJECT_VERSION="${PROJECT_VERSION}"
 )
 set_tests_properties(
-    CodexTypedClientFacadeTest
-    PROPERTIES LABELS "component;ai;openai;codex;typed;facade;compatibility"
-               TIMEOUT 5
+    CodexPublicApiFacadeTest
+    PROPERTIES LABELS "component;ai;openai;codex;api;facade" TIMEOUT 5
 )
 
 add_test(
-    NAME CodexTypedFacadeUsageGuardTest
+    NAME CodexPublicApiUsageGuardTest
     COMMAND
         ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexTypedFacadeUsageGuardTest.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexPublicApiUsageGuardTest.py
         --source-root ${PROJECT_SOURCE_DIR}/src
 )
 set_tests_properties(
-    CodexTypedFacadeUsageGuardTest
-    PROPERTIES LABELS "component;ai;openai;codex;typed;facade;policy"
-               TIMEOUT 5
+    CodexPublicApiUsageGuardTest
+    PROPERTIES LABELS "component;ai;openai;codex;api;facade;policy" TIMEOUT 5
 )
 
 add_executable(CodexStdioScenarioTest CodexStdioScenarioTest.cpp)
 target_link_libraries(
-    CodexStdioScenarioTest PRIVATE snodec-test-support snodec::ai-openai-codex
+    CodexStdioScenarioTest PRIVATE snodec-test-support AISuite::OpenAICodex
                                    snodec::core
 )
 target_compile_features(CodexStdioScenarioTest PRIVATE cxx_std_20)
@@ -1674,7 +1672,7 @@ add_dependencies(CodexStdioScenarioTest CodexFakeAppServer)
 
 add_executable(CodexGlobalShutdownTest CodexGlobalShutdownTest.cpp)
 target_link_libraries(
-    CodexGlobalShutdownTest PRIVATE snodec-test-support snodec::ai-openai-codex
+    CodexGlobalShutdownTest PRIVATE snodec-test-support AISuite::OpenAICodex
                                     snodec::core
 )
 target_compile_features(CodexGlobalShutdownTest PRIVATE cxx_std_20)
@@ -1701,7 +1699,7 @@ endforeach()
 snodec_add_test(CodexShutdownAdmissionTest CodexShutdownAdmissionTest.cpp)
 target_link_libraries(
     CodexShutdownAdmissionTest PRIVATE snodec-test-support
-                                       snodec::ai-openai-codex snodec::core
+                                       AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexShutdownAdmissionTest PRIVATE cxx_std_20)
 target_compile_definitions(
@@ -1718,7 +1716,7 @@ set_tests_properties(
 add_executable(CodexDescriptorCollisionTest CodexDescriptorCollisionTest.cpp)
 target_link_libraries(
     CodexDescriptorCollisionTest PRIVATE snodec-test-support
-                                         snodec::ai-openai-codex snodec::core
+                                         AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexDescriptorCollisionTest PRIVATE cxx_std_20)
 target_compile_definitions(
@@ -1780,7 +1778,7 @@ endforeach()
 snodec_add_test(CodexAppServerIntegrationTest CodexAppServerIntegrationTest.cpp)
 target_link_libraries(
     CodexAppServerIntegrationTest PRIVATE snodec-test-support
-                                          snodec::ai-openai-codex snodec::core
+                                          AISuite::OpenAICodex snodec::core
 )
 
 snodec_add_test(
@@ -1788,7 +1786,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexTypedAppServerIntegrationTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexTypedAppServerIntegrationTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1816,7 +1814,7 @@ target_include_directories(
 target_compile_features(CodexBackendLifecycleTest PRIVATE cxx_std_20)
 target_link_libraries(
     CodexBackendLifecycleTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex-backend snodec::logger
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend snodec::logger
 )
 set_tests_properties(
     CodexBackendLifecycleTest
@@ -1836,7 +1834,7 @@ target_compile_features(
 )
 target_link_libraries(
     AppServerClientRequestLifecycleTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
             snodec::logger
 )
 set_tests_properties(
@@ -1851,7 +1849,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA14RuntimePlatformNotificationTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex
+    PRIVATE snodec-test-support AISuite::OpenAICodex
 )
 target_compile_features(CodexA14RuntimePlatformNotificationTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1868,7 +1866,7 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexA14RuntimePlatformNotificationWireTest
-    PRIVATE snodec-test-support snodec::ai-openai-codex snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodex snodec::core
 )
 target_compile_features(CodexA14RuntimePlatformNotificationWireTest PRIVATE cxx_std_20)
 set_tests_properties(

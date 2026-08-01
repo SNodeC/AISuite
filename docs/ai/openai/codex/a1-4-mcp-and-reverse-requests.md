@@ -43,19 +43,19 @@ to tool user input.
 
 Include the installed `ai/openai/codex/typed/Mcp.h` header. Each method takes
 the complete parameter object, submits through the existing `RawProtocol`,
-returns a `RawProtocol::Submission` immediately, and later delivers an
+returns a shared `Submission` immediately, and later delivers an
 `OperationResult<T>` on the SNode.C event loop:
 
 ```cpp
 #include <ai/openai/codex/AppServerClient.h>
-#include <ai/openai/codex/typed/Client.h>
+#include <ai/openai/codex/Api.h>
 #include <ai/openai/codex/typed/Mcp.h>
 
 #include <utility>
 
 void listMcpServers(ai::openai::codex::AppServerClient& client) {
     ai::openai::codex::typed::ListMcpServerStatusParams params;
-    client.typed().mcp().listServers(
+    client.mcp().listServers(
         std::move(params),
         [](const auto& result) {
             // Handle the typed asynchronous result.
@@ -72,7 +72,7 @@ policy locally; the Codex App Server owns those operations.
 ## Reverse requests and responses
 
 Reverse requests use the established
-`client.typed().requests().setOnRequest()` observer and the same occurrence
+`client.requests().setOnRequest()` observer and the same occurrence
 registry as the five approval requests. Each typed request contains its
 original JSON-RPC ID, connection generation-bound occurrence token, canonical
 parameters, raw forward-compatibility value, and safe structural diagnostics.
@@ -96,7 +96,7 @@ wire action string or fabricating content:
 
 ```cpp
 #include <ai/openai/codex/AppServerClient.h>
-#include <ai/openai/codex/typed/Client.h>
+#include <ai/openai/codex/Api.h>
 #include <ai/openai/codex/typed/ServerRequests.h>
 
 #include <utility>
@@ -104,7 +104,7 @@ wire action string or fabricating content:
 
 void declineElicitation(ai::openai::codex::AppServerClient& client) {
     namespace typed = ai::openai::codex::typed;
-    client.typed().requests().setOnRequest(
+    client.requests().setOnRequest(
         [&client](const typed::TypedServerRequest& request) {
             const auto* elicitation =
                 std::get_if<typed::McpServerElicitationRequest>(&request);
@@ -113,7 +113,7 @@ void declineElicitation(ai::openai::codex::AppServerClient& client) {
             }
             typed::McpServerElicitationRequestResponse response;
             response.action = typed::McpServerElicitationAction::decline();
-            client.typed().requests().respond(*elicitation, std::move(response));
+            client.requests().respond(*elicitation, std::move(response));
         });
 }
 ```

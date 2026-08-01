@@ -81,12 +81,12 @@ remain distinct from a genuinely unknown future alternative.
 
 The typed public map is:
 
-- `client.typed().commands()` with `exec`, `resize`, `terminate`, and `write`;
-- `client.typed().filesystem()` with the nine filesystem operations and
+- `client.commands()` with `exec`, `resize`, `terminate`, and `write`;
+- `client.filesystem()` with the nine filesystem operations and
   one-shot `fuzzyFileSearch`;
-- `client.typed().permissionProfiles().list()`;
-- `client.typed().reviews().start()`;
-- `client.typed().threads().approveGuardianDeniedAction()`;
+- `client.permissionProfiles().list()`;
+- `client.reviews().start()`;
+- `client.threads().approveGuardianDeniedAction()`;
 - the existing `events()` observer for all seven notifications; and
 - the existing `requests()` occurrence/response mechanism for all five
   reverse requests.
@@ -97,8 +97,8 @@ reviews/guardian (15). Every identity, registry promotion, codec, descriptor,
 dispatcher, public method, installed header, and primary test belongs to its
 owning implementation batch.
 
-`typed::Client` retains its one-pointer PIMPL representation. New facade
-objects remain behind that PIMPL. Event and reverse-request variants preserve
+The domain façade objects are owned directly by the `AppServerClient` PIMPL.
+Event and reverse-request variants preserve
 the order of existing alternatives and append A1.3 alternatives. Appending
 alternatives is source compatible for non-exhaustive users but changes the
 layout and index space of those public `std::variant` types; the closure audit
@@ -112,8 +112,8 @@ appended at indices 5 through 7. `CommandApprovalRequest` and
 `FileChangeApprovalRequest` retain their existing source-level field names but
 gain schema-complete canonical parameters and diagnostics. Those aggregate
 and variant layout changes are ABI changes: consumers using the installed
-typed aggregates must rebuild. `typed::Client` and `AppServerClient` keep their
-one-pointer and PIMPL object layouts, respectively. SOVERSION remained 1 for
+typed aggregates must rebuild. `AppServerClient` keeps its PIMPL object
+layout. SOVERSION remained 1 for
 this implementation slice; Final A1b subsequently moves all three Codex
 libraries to SOVERSION 2. This document does not claim binary compatibility
 from an unchanged symbol list.
@@ -123,7 +123,6 @@ The exact GCC 15 base-to-final object-layout comparison is:
 | Public type | Base bytes | Final bytes |
 |---|---:|---:|
 | `AppServerClient` | 16 | 16 |
-| `typed::Client` | 8 | 8 |
 | `typed::Event` | 2,776 | 2,776 |
 | `typed::CanonicalServerNotification` | 1,400 | 1,400 |
 | `typed::TypedServerRequest` | 312 | 960 |
@@ -160,7 +159,7 @@ future-unknown alternative after all known alternatives.
 All operations use the existing path:
 
 ```
-AppServerClient -> RawProtocol -> typed::Client -> typed facade/events/requests
+AppServerClient -> RawProtocol -> typed facade/events/requests
 ```
 
 There is one transport, JSONL engine, request-ID allocator, pending-operation

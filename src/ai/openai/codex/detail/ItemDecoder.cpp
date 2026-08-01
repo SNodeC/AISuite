@@ -354,11 +354,11 @@ namespace ai::openai::codex::detail {
             return decodeStringValue(value, result.value, path, state);
         }
 
-        bool decodeAbsolutePath(const Json& value, typed::AbsolutePathBuf& result, std::string_view path, DecodeState& state) {
+        bool decodeAbsolutePath(const Json& value, typed::AbsolutePath& result, std::string_view path, DecodeState& state) {
             return decodeStringValue(value, result.value, path, state);
         }
 
-        bool decodeLegacyPath(const Json& value, typed::LegacyAppPathString& result, std::string_view path, DecodeState& state) {
+        bool decodePathString(const Json& value, typed::PathString& result, std::string_view path, DecodeState& state) {
             return decodeStringValue(value, result.value, path, state);
         }
 
@@ -824,7 +824,7 @@ namespace ai::openai::codex::detail {
                                [&](const Json& field, typed::CommandAction& decoded, std::string_view path, DecodeState& nestedState) {
                                    return decodeNestedUnion(field, decoded, path, nestedState, item.diagnostics, decodeCommandAction);
                                }) ||
-                !requiredDecoded(value, "cwd", item.cwd, state, decodeLegacyPath) ||
+                !requiredDecoded(value, "cwd", item.cwd, state, decodePathString) ||
                 !requiredDecoded(
                     value,
                     "status",
@@ -981,7 +981,7 @@ namespace ai::openai::codex::detail {
                                                          DecodeState& state) {
             typed::ImageViewThreadItem item;
             if (!makeMetadata(value, threadId, turnId, item.metadata, state) ||
-                !requiredDecoded(value, "path", item.path, state, decodeLegacyPath)) {
+                !requiredDecoded(value, "path", item.path, state, decodePathString)) {
                 return std::nullopt;
             }
             return typed::ThreadItem{std::move(item)};
@@ -1115,7 +1115,7 @@ namespace ai::openai::codex::detail {
                                "content",
                                item.content,
                                state,
-                               [&](const Json& field, typed::UserInput& decoded, std::string_view path, DecodeState& nestedState) {
+                               [&](const Json& field, typed::TurnInput& decoded, std::string_view path, DecodeState& nestedState) {
                                    return decodeNestedUnion(field, decoded, path, nestedState, item.diagnostics, decodeUserInput);
                                }) ||
                 !optionalNullable(value, "clientId", item.clientId, state, decodeStrongClientUserMessageId)) {
@@ -1430,7 +1430,7 @@ namespace ai::openai::codex::detail {
 
     } // namespace
 
-    std::optional<typed::Item>
+    std::optional<typed::ThreadItem>
     decodeItem(const Json& value, std::optional<typed::ThreadId> threadId, std::optional<typed::TurnId> turnId, std::string& error) {
         try {
             error.clear();
@@ -1443,20 +1443,20 @@ namespace ai::openai::codex::detail {
             if (discriminator == nullptr || !discriminator->is_string() || discriminator->get_ref<const std::string&>().empty()) {
                 DecodeState state{ThreadItemSurface};
                 state.fail("$.type");
-                return typed::Item{makeUnknownItem(value, std::nullopt, threadId, turnId, std::move(state.diagnostic))};
+                return typed::ThreadItem{makeUnknownItem(value, std::nullopt, threadId, turnId, std::move(state.diagnostic))};
             }
 
             const std::string type = discriminator->get<std::string>();
             const ProtocolSurfaceEntry* entry = findSurface(SurfaceCategory::ItemDiscriminator, ThreadItemSurface, TypeField, type);
             if (entry == nullptr) {
-                return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::nullopt)};
+                return typed::ThreadItem{makeUnknownItem(value, type, threadId, turnId, std::nullopt)};
             }
 
             const ThreadItemCodecDescriptor* descriptor = descriptorForThreadItem(*entry);
             if (descriptor == nullptr) {
                 DecodeState state{ThreadItemSurface};
                 state.fail("$.type");
-                return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::move(state.diagnostic))};
+                return typed::ThreadItem{makeUnknownItem(value, type, threadId, turnId, std::move(state.diagnostic))};
             }
 
             DecodeState state{ThreadItemSurface};
@@ -1522,13 +1522,13 @@ namespace ai::openai::codex::detail {
             }
 
             if (decoded) {
-                return std::optional<typed::Item>{std::move(*decoded)};
+                return std::optional<typed::ThreadItem>{std::move(*decoded)};
             }
             if (state.error.empty()) {
                 state.fail("$");
             }
             error.clear();
-            return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::move(state.diagnostic))};
+            return typed::ThreadItem{makeUnknownItem(value, type, threadId, turnId, std::move(state.diagnostic))};
         } catch (const std::exception&) {
             error = "ThreadItem decoding failed without exposing payload data";
         } catch (...) {

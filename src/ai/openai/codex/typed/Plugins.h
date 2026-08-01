@@ -247,7 +247,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct LocalPluginSource {
-        AbsolutePathBuf path;
+        AbsolutePath path;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -321,7 +321,7 @@ namespace ai::openai::codex::typed {
     }
 
     struct PluginInstallParams {
-        OptionalNullable<AbsolutePathBuf> marketplacePath;
+        OptionalNullable<AbsolutePath> marketplacePath;
         std::string pluginName;
         OptionalNullable<std::string> remoteMarketplaceName;
         Json raw = Json::object();
@@ -349,10 +349,10 @@ namespace ai::openai::codex::typed {
 
     struct PluginShareCheckoutResponse {
         std::string marketplaceName;
-        AbsolutePathBuf marketplacePath;
+        AbsolutePath marketplacePath;
         std::string pluginId;
         std::string pluginName;
-        AbsolutePathBuf pluginPath;
+        AbsolutePath pluginPath;
         std::string remotePluginId;
         OptionalNullable<std::string> remoteVersion;
         Json raw = Json::object();
@@ -381,7 +381,7 @@ namespace ai::openai::codex::typed {
 
     struct PluginShareSaveParams {
         OptionalNullable<PluginShareDiscoverability> discoverability;
-        AbsolutePathBuf pluginPath;
+        AbsolutePath pluginPath;
         OptionalNullable<std::string> remotePluginId;
         OptionalNullable<std::vector<PluginShareTarget>> shareTargets;
         Json raw = Json::object();
@@ -464,7 +464,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct MarketplaceLoadErrorInfo {
-        AbsolutePathBuf marketplacePath;
+        AbsolutePath marketplacePath;
         std::string message;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -476,19 +476,19 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> brandColor;
         std::vector<std::string> capabilities;
         OptionalNullable<std::string> category;
-        OptionalNullable<AbsolutePathBuf> composerIcon;
+        OptionalNullable<AbsolutePath> composerIcon;
         OptionalNullable<std::string> composerIconUrl;
         OptionalNullable<std::vector<std::string>> defaultPrompt;
         OptionalNullable<std::string> developerName;
         OptionalNullable<std::string> displayName;
-        OptionalNullable<AbsolutePathBuf> logo;
-        OptionalNullable<AbsolutePathBuf> logoDark;
+        OptionalNullable<AbsolutePath> logo;
+        OptionalNullable<AbsolutePath> logoDark;
         OptionalNullable<std::string> logoUrl;
         OptionalNullable<std::string> logoUrlDark;
         OptionalNullable<std::string> longDescription;
         OptionalNullable<std::string> privacyPolicyUrl;
         std::vector<std::string> screenshotUrls;
-        std::vector<AbsolutePathBuf> screenshots;
+        std::vector<AbsolutePath> screenshots;
         OptionalNullable<std::string> shortDescription;
         OptionalNullable<std::string> termsOfServiceUrl;
         OptionalNullable<std::string> websiteUrl;
@@ -537,7 +537,7 @@ namespace ai::openai::codex::typed {
     struct PluginMarketplaceEntry {
         OptionalNullable<MarketplaceInterface> interface;
         std::string name;
-        OptionalNullable<AbsolutePathBuf> path;
+        OptionalNullable<AbsolutePath> path;
         std::vector<PluginSummary> plugins;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -559,7 +559,7 @@ namespace ai::openai::codex::typed {
         bool enabled = false;
         OptionalNullable<SkillInterface> interface;
         std::string name;
-        OptionalNullable<AbsolutePathBuf> path;
+        OptionalNullable<AbsolutePath> path;
         OptionalNullable<std::string> shortDescription;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -573,7 +573,7 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> description;
         std::vector<PluginHookSummary> hooks;
         std::string marketplaceName;
-        OptionalNullable<AbsolutePathBuf> marketplacePath;
+        OptionalNullable<AbsolutePath> marketplacePath;
         std::vector<std::string> mcpServers;
         OptionalNullable<std::string> shareUrl;
         std::vector<SkillSummary> skills;
@@ -585,7 +585,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct PluginShareListItem {
-        OptionalNullable<AbsolutePathBuf> localPluginPath;
+        OptionalNullable<AbsolutePath> localPluginPath;
         PluginSummary plugin;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -594,7 +594,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct PluginInstalledParams {
-        OptionalNullable<std::vector<AbsolutePathBuf>> cwds;
+        OptionalNullable<std::vector<AbsolutePath>> cwds;
         OptionalNullable<std::vector<std::string>> installSuggestionPluginNames;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -612,7 +612,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct PluginListParams {
-        OptionalNullable<std::vector<AbsolutePathBuf>> cwds;
+        OptionalNullable<std::vector<AbsolutePath>> cwds;
         OptionalNullable<std::vector<PluginListMarketplaceKind>> marketplaceKinds;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -631,7 +631,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct PluginReadParams {
-        OptionalNullable<AbsolutePathBuf> marketplacePath;
+        OptionalNullable<AbsolutePath> marketplacePath;
         std::string pluginName;
         OptionalNullable<std::string> remoteMarketplaceName;
         Json raw = Json::object();
@@ -665,41 +665,24 @@ namespace ai::openai::codex::typed {
 
     class Plugins {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using InstallResult = OperationResult<PluginInstallResponse>;
-        using InstallResultHandler = std::function<void(const InstallResult&)>;
-        using InstalledResult = OperationResult<PluginInstalledResponse>;
-        using InstalledResultHandler = std::function<void(const InstalledResult&)>;
-        using ListResult = OperationResult<PluginListResponse>;
-        using ListResultHandler = std::function<void(const ListResult&)>;
-        using ReadResult = OperationResult<PluginReadResponse>;
-        using ReadResultHandler = std::function<void(const ReadResult&)>;
-        using ShareCheckoutResult = OperationResult<PluginShareCheckoutResponse>;
-        using ShareCheckoutResultHandler = std::function<void(const ShareCheckoutResult&)>;
-        using ShareDeleteResult = OperationResult<Unit>;
-        using ShareDeleteResultHandler = std::function<void(const ShareDeleteResult&)>;
-        using ShareListResult = OperationResult<PluginShareListResponse>;
-        using ShareListResultHandler = std::function<void(const ShareListResult&)>;
-        using ShareSaveResult = OperationResult<PluginShareSaveResponse>;
-        using ShareSaveResultHandler = std::function<void(const ShareSaveResult&)>;
-        using ShareUpdateTargetsResult = OperationResult<PluginShareUpdateTargetsResponse>;
-        using ShareUpdateTargetsResultHandler = std::function<void(const ShareUpdateTargetsResult&)>;
-        using ReadSkillResult = OperationResult<PluginSkillReadResponse>;
-        using ReadSkillResultHandler = std::function<void(const ReadSkillResult&)>;
-        using UninstallResult = OperationResult<Unit>;
-        using UninstallResultHandler = std::function<void(const UninstallResult&)>;
+        Plugins(const Plugins&) = delete;
+        Plugins(Plugins&&) = delete;
+        Plugins& operator=(const Plugins&) = delete;
+        Plugins& operator=(Plugins&&) = delete;
 
-        Submission install(PluginInstallParams params, InstallResultHandler handler);
-        Submission installed(PluginInstalledParams params, InstalledResultHandler handler);
-        Submission list(PluginListParams params, ListResultHandler handler);
-        Submission read(PluginReadParams params, ReadResultHandler handler);
-        Submission shareCheckout(PluginShareCheckoutParams params, ShareCheckoutResultHandler handler);
-        Submission shareDelete(PluginShareDeleteParams params, ShareDeleteResultHandler handler);
-        Submission shareList(PluginShareListParams params, ShareListResultHandler handler);
-        Submission shareSave(PluginShareSaveParams params, ShareSaveResultHandler handler);
-        Submission shareUpdateTargets(PluginShareUpdateTargetsParams params, ShareUpdateTargetsResultHandler handler);
-        Submission readSkill(PluginSkillReadParams params, ReadSkillResultHandler handler);
-        Submission uninstall(PluginUninstallParams params, UninstallResultHandler handler);
+        Submission install(PluginInstallParams params, CompletionHandler<PluginInstallResponse> handler);
+        Submission installed(PluginInstalledParams params, CompletionHandler<PluginInstalledResponse> handler);
+        Submission installed(CompletionHandler<PluginInstalledResponse> handler);
+        Submission list(PluginListParams params, CompletionHandler<PluginListResponse> handler);
+        Submission list(CompletionHandler<PluginListResponse> handler);
+        Submission read(PluginReadParams params, CompletionHandler<PluginReadResponse> handler);
+        Submission shareCheckout(PluginShareCheckoutParams params, CompletionHandler<PluginShareCheckoutResponse> handler);
+        Submission shareDelete(PluginShareDeleteParams params, DoneHandler handler);
+        Submission shareList(CompletionHandler<PluginShareListResponse> handler);
+        Submission shareSave(PluginShareSaveParams params, CompletionHandler<PluginShareSaveResponse> handler);
+        Submission shareUpdateTargets(PluginShareUpdateTargetsParams params, CompletionHandler<PluginShareUpdateTargetsResponse> handler);
+        Submission readSkill(PluginSkillReadParams params, CompletionHandler<PluginSkillReadResponse> handler);
+        Submission uninstall(PluginUninstallParams params, DoneHandler handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

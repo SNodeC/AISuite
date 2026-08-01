@@ -365,7 +365,7 @@ endif()
 set(installed_consumers
     AISuiteInstalledSNodeCoreConsumer
     AISuiteInstalledCodexConsumer
-    AISuiteInstalledCodexTypedConsumer
+    AISuiteInstalledCodexApiConsumer
     AISuiteInstalledCodexAccountsHeaderConsumer
     AISuiteInstalledCodexModelsHeaderConsumer
     AISuiteInstalledCodexConfigurationHeaderConsumer
@@ -373,7 +373,7 @@ set(installed_consumers
     AISuiteInstalledCodexFilesystemHeaderConsumer
     AISuiteInstalledCodexPermissionProfilesHeaderConsumer
     AISuiteInstalledCodexReviewsHeaderConsumer
-    AISuiteInstalledCodexRetainedCompatibilityConsumer
+    AISuiteInstalledCodexApplicationProjectionConsumer
     AISuiteInstalledCodexBackendFrontendConsumer
 )
 set(saw_aisuite_main_runtime_library FALSE)

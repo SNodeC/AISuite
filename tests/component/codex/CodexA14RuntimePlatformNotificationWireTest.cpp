@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/typed/Client.h"
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "component/codex/CodexBackendTestSupport.h"
 #include "core/EventReceiver.h"
@@ -74,7 +74,7 @@ namespace {
                     }
                 });
             client = std::make_unique<tests::codex::FakeAppServerClient>(transport);
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 const std::string marker = std::visit(
                     [](const auto& value) {
                         return value.raw.at("params").at("fixtureCase").template get<std::string>();
@@ -85,9 +85,10 @@ namespace {
 
                 if (marker == "warning-valid" && !reentrantSubmitted) {
                     reentrantSubmitted = true;
-                    const auto submission = client->typed().windowsSandbox().checkReadiness(
-                        [this](const typed::WindowsSandbox::CheckReadinessResult& operation) {
-                            result.expectTrue(operation.kind == typed::WindowsSandbox::CheckReadinessResult::Kind::Success,
+                    const auto submission = client->windowsSandbox().checkReadiness(
+                        [this](const typed::OperationResult<typed::WindowsSandboxReadinessResponse>& operation) {
+                            result.expectTrue(operation.kind ==
+                                                  typed::OperationResult<typed::WindowsSandboxReadinessResponse>::Kind::Success,
                                               "a runtime notification callback may submit an ordinary typed request");
                             ++operationCallbacks;
                             maybeFinish();

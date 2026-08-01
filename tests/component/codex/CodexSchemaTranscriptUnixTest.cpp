@@ -175,7 +175,7 @@ int main() {
     const typed::Event itemEvent = itemMessage ? detail::decodeEvent(asNotification(*itemMessage))
                                                : typed::Event{typed::UnknownEvent{"missing", nullptr, nullptr, std::nullopt}};
     const typed::ItemStarted* started = std::get_if<typed::ItemStarted>(&itemEvent);
-    const typed::AgentMessageItem* agent = started ? std::get_if<typed::AgentMessageItem>(&started->item) : nullptr;
+    const typed::AgentMessageThreadItem* agent = started ? std::get_if<typed::AgentMessageThreadItem>(&started->item) : nullptr;
     const detail::ProtocolSurfaceEntry* itemEntry =
         detail::findSurface(detail::SurfaceCategory::ItemDiscriminator, "ThreadItem", "type", "agentMessage");
     result.expectTrue(receivedItem == itemFixture && started && started->startedAtMs == 101 && agent &&

@@ -5,8 +5,6 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/typed/Client.h"
-
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/AccountCodec.h"
@@ -60,7 +58,6 @@
 #include <cerrno>
 #include <exception>
 #include <functional>
-#include <memory>
 #include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -72,279 +69,8 @@
 #include <vector>
 
 namespace ai::openai::codex::typed {
-
-    class Client::Impl {
-    public:
-        Impl(std::unique_ptr<Accounts> accounts,
-             std::unique_ptr<Apps> apps,
-             std::unique_ptr<Commands> commands,
-             std::unique_ptr<Filesystem> filesystem,
-             std::unique_ptr<Configuration> configuration,
-             std::unique_ptr<ExternalAgents> externalAgents,
-             std::unique_ptr<Feedback> feedback,
-             std::unique_ptr<Hooks> hooks,
-             std::unique_ptr<Marketplace> marketplace,
-             std::unique_ptr<Mcp> mcp,
-             std::unique_ptr<Models> models,
-             std::unique_ptr<PermissionProfiles> permissionProfiles,
-             std::unique_ptr<Plugins> plugins,
-             std::unique_ptr<Reviews> reviews,
-             std::unique_ptr<Skills> skills,
-             std::unique_ptr<Threads> threads,
-             std::unique_ptr<Turns> turns,
-             std::unique_ptr<WindowsSandbox> windowsSandbox,
-             std::unique_ptr<Events> events,
-             std::unique_ptr<Requests> requests)
-            : accounts(std::move(accounts))
-            , apps(std::move(apps))
-            , commands(std::move(commands))
-            , filesystem(std::move(filesystem))
-            , configuration(std::move(configuration))
-            , externalAgents(std::move(externalAgents))
-            , feedback(std::move(feedback))
-            , hooks(std::move(hooks))
-            , marketplace(std::move(marketplace))
-            , mcp(std::move(mcp))
-            , models(std::move(models))
-            , permissionProfiles(std::move(permissionProfiles))
-            , plugins(std::move(plugins))
-            , reviews(std::move(reviews))
-            , skills(std::move(skills))
-            , threads(std::move(threads))
-            , turns(std::move(turns))
-            , windowsSandbox(std::move(windowsSandbox))
-            , events(std::move(events))
-            , requests(std::move(requests)) {
-        }
-
-        std::unique_ptr<Accounts> accounts;
-        std::unique_ptr<Apps> apps;
-        std::unique_ptr<Commands> commands;
-        std::unique_ptr<Filesystem> filesystem;
-        std::unique_ptr<Configuration> configuration;
-        std::unique_ptr<ExternalAgents> externalAgents;
-        std::unique_ptr<Feedback> feedback;
-        std::unique_ptr<Hooks> hooks;
-        std::unique_ptr<Marketplace> marketplace;
-        std::unique_ptr<Mcp> mcp;
-        std::unique_ptr<Models> models;
-        std::unique_ptr<PermissionProfiles> permissionProfiles;
-        std::unique_ptr<Plugins> plugins;
-        std::unique_ptr<Reviews> reviews;
-        std::unique_ptr<Skills> skills;
-        std::unique_ptr<Threads> threads;
-        std::unique_ptr<Turns> turns;
-        std::unique_ptr<WindowsSandbox> windowsSandbox;
-        std::unique_ptr<Events> events;
-        std::unique_ptr<Requests> requests;
-    };
-
-    Client::Client(std::unique_ptr<Accounts> accounts,
-                   std::unique_ptr<Apps> apps,
-                   std::unique_ptr<Commands> commands,
-                   std::unique_ptr<Filesystem> filesystem,
-                   std::unique_ptr<Configuration> configuration,
-                   std::unique_ptr<ExternalAgents> externalAgents,
-                   std::unique_ptr<Feedback> feedback,
-                   std::unique_ptr<Hooks> hooks,
-                   std::unique_ptr<Marketplace> marketplace,
-                   std::unique_ptr<Mcp> mcp,
-                   std::unique_ptr<Models> models,
-                   std::unique_ptr<PermissionProfiles> permissionProfiles,
-                   std::unique_ptr<Plugins> plugins,
-                   std::unique_ptr<Reviews> reviews,
-                   std::unique_ptr<Skills> skills,
-                   std::unique_ptr<Threads> threads,
-                   std::unique_ptr<Turns> turns,
-                   std::unique_ptr<WindowsSandbox> windowsSandbox,
-                   std::unique_ptr<Events> events,
-                   std::unique_ptr<Requests> requests)
-        : impl(std::make_unique<Impl>(std::move(accounts),
-                                      std::move(apps),
-                                      std::move(commands),
-                                      std::move(filesystem),
-                                      std::move(configuration),
-                                      std::move(externalAgents),
-                                      std::move(feedback),
-                                      std::move(hooks),
-                                      std::move(marketplace),
-                                      std::move(mcp),
-                                      std::move(models),
-                                      std::move(permissionProfiles),
-                                      std::move(plugins),
-                                      std::move(reviews),
-                                      std::move(skills),
-                                      std::move(threads),
-                                      std::move(turns),
-                                      std::move(windowsSandbox),
-                                      std::move(events),
-                                      std::move(requests))) {
-    }
-
-    Client::~Client() = default;
-
-    Accounts& Client::accounts() noexcept {
-        return *impl->accounts;
-    }
-
-    const Accounts& Client::accounts() const noexcept {
-        return *impl->accounts;
-    }
-
-    Apps& Client::apps() noexcept {
-        return *impl->apps;
-    }
-
-    const Apps& Client::apps() const noexcept {
-        return *impl->apps;
-    }
-
-    Commands& Client::commands() noexcept {
-        return *impl->commands;
-    }
-
-    const Commands& Client::commands() const noexcept {
-        return *impl->commands;
-    }
-
-    Filesystem& Client::filesystem() noexcept {
-        return *impl->filesystem;
-    }
-
-    const Filesystem& Client::filesystem() const noexcept {
-        return *impl->filesystem;
-    }
-
-    Configuration& Client::configuration() noexcept {
-        return *impl->configuration;
-    }
-
-    const Configuration& Client::configuration() const noexcept {
-        return *impl->configuration;
-    }
-
-    ExternalAgents& Client::externalAgents() noexcept {
-        return *impl->externalAgents;
-    }
-
-    const ExternalAgents& Client::externalAgents() const noexcept {
-        return *impl->externalAgents;
-    }
-
-    Feedback& Client::feedback() noexcept {
-        return *impl->feedback;
-    }
-
-    const Feedback& Client::feedback() const noexcept {
-        return *impl->feedback;
-    }
-
-    Hooks& Client::hooks() noexcept {
-        return *impl->hooks;
-    }
-
-    const Hooks& Client::hooks() const noexcept {
-        return *impl->hooks;
-    }
-
-    Marketplace& Client::marketplace() noexcept {
-        return *impl->marketplace;
-    }
-
-    const Marketplace& Client::marketplace() const noexcept {
-        return *impl->marketplace;
-    }
-
-    Mcp& Client::mcp() noexcept {
-        return *impl->mcp;
-    }
-
-    const Mcp& Client::mcp() const noexcept {
-        return *impl->mcp;
-    }
-
-    Models& Client::models() noexcept {
-        return *impl->models;
-    }
-
-    const Models& Client::models() const noexcept {
-        return *impl->models;
-    }
-
-    PermissionProfiles& Client::permissionProfiles() noexcept {
-        return *impl->permissionProfiles;
-    }
-
-    const PermissionProfiles& Client::permissionProfiles() const noexcept {
-        return *impl->permissionProfiles;
-    }
-
-    Plugins& Client::plugins() noexcept {
-        return *impl->plugins;
-    }
-
-    const Plugins& Client::plugins() const noexcept {
-        return *impl->plugins;
-    }
-
-    Reviews& Client::reviews() noexcept {
-        return *impl->reviews;
-    }
-
-    const Reviews& Client::reviews() const noexcept {
-        return *impl->reviews;
-    }
-
-    Skills& Client::skills() noexcept {
-        return *impl->skills;
-    }
-
-    const Skills& Client::skills() const noexcept {
-        return *impl->skills;
-    }
-
-    Threads& Client::threads() noexcept {
-        return *impl->threads;
-    }
-
-    const Threads& Client::threads() const noexcept {
-        return *impl->threads;
-    }
-
-    Turns& Client::turns() noexcept {
-        return *impl->turns;
-    }
-
-    const Turns& Client::turns() const noexcept {
-        return *impl->turns;
-    }
-
-    WindowsSandbox& Client::windowsSandbox() noexcept {
-        return *impl->windowsSandbox;
-    }
-
-    const WindowsSandbox& Client::windowsSandbox() const noexcept {
-        return *impl->windowsSandbox;
-    }
-
-    Events& Client::events() noexcept {
-        return *impl->events;
-    }
-
-    const Events& Client::events() const noexcept {
-        return *impl->events;
-    }
-
-    Requests& Client::requests() noexcept {
-        return *impl->requests;
-    }
-
-    const Requests& Client::requests() const noexcept {
-        return *impl->requests;
-    }
-
     namespace {
-        AppServerClient::RawProtocol::Submission submissionFailure(std::string message) {
+        Submission submissionFailure(std::string message) {
             return {std::nullopt, Error{Error::Category::Protocol, EINVAL, std::move(message)}};
         }
 
@@ -419,12 +145,12 @@ namespace ai::openai::codex::typed {
         }
 
         template <typename T, typename Params, typename Handler, typename Encoder>
-        AppServerClient::RawProtocol::Submission submitTypedRequest(AppServerClient::RawProtocol* protocol,
-                                                                   detail::ClientRequestTarget target,
-                                                                   const Params& params,
-                                                                   Handler handler,
-                                                                   Encoder encoder,
-                                                                   std::optional<ThreadId> contextualThreadId = std::nullopt) {
+        Submission submitTypedRequest(AppServerClient::RawProtocol* protocol,
+                                      detail::ClientRequestTarget target,
+                                      const Params& params,
+                                      Handler handler,
+                                      Encoder encoder,
+                                      std::optional<ThreadId> contextualThreadId = std::nullopt) {
             const std::string method = registeredMethod(target);
             if (!handler) {
                 return submissionFailure("typed " + method + " requires a result handler");
@@ -478,16 +204,21 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Apps::Submission Apps::list(AppsListParams params, ListResultHandler handler) {
+    Submission Apps::list(AppsListParams params, CompletionHandler<AppsListResponse> handler) {
         return submitTypedRequest<AppsListResponse>(
             protocol, detail::ClientRequestTarget::AppsList, params, std::move(handler), detail::encodeAppsListParams);
+    }
+
+    Submission Apps::list(CompletionHandler<AppsListResponse> handler) {
+        return list(AppsListParams{}, std::move(handler));
     }
 
     ExternalAgents::ExternalAgents(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    ExternalAgents::Submission ExternalAgents::detect(ExternalAgentConfigDetectParams params, DetectResultHandler handler) {
+    Submission ExternalAgents::detect(ExternalAgentConfigDetectParams params,
+                                      CompletionHandler<ExternalAgentConfigDetectResponse> handler) {
         return submitTypedRequest<ExternalAgentConfigDetectResponse>(protocol,
                                                                      detail::ClientRequestTarget::ExternalAgentConfigDetect,
                                                                      params,
@@ -495,8 +226,12 @@ namespace ai::openai::codex::typed {
                                                                      detail::encodeExternalAgentConfigDetectParams);
     }
 
-    ExternalAgents::Submission ExternalAgents::importConfiguration(ExternalAgentConfigImportParams params,
-                                                                   ImportConfigurationResultHandler handler) {
+    Submission ExternalAgents::detect(CompletionHandler<ExternalAgentConfigDetectResponse> handler) {
+        return detect(ExternalAgentConfigDetectParams{}, std::move(handler));
+    }
+
+    Submission ExternalAgents::importConfiguration(ExternalAgentConfigImportParams params,
+                                                   CompletionHandler<ExternalAgentConfigImportResponse> handler) {
         return submitTypedRequest<ExternalAgentConfigImportResponse>(protocol,
                                                                      detail::ClientRequestTarget::ExternalAgentConfigImport,
                                                                      params,
@@ -504,16 +239,16 @@ namespace ai::openai::codex::typed {
                                                                      detail::encodeExternalAgentConfigImportParams);
     }
 
-    ExternalAgents::Submission ExternalAgents::readImportHistories(Unit params, ReadImportHistoriesResultHandler handler) {
+    Submission ExternalAgents::readImportHistories(CompletionHandler<ExternalAgentConfigImportHistoriesReadResponse> handler) {
         return submitTypedRequest<ExternalAgentConfigImportHistoriesReadResponse>(
-            protocol, detail::ClientRequestTarget::ExternalAgentConfigImportHistoriesRead, params, std::move(handler), encodeUnitParams);
+            protocol, detail::ClientRequestTarget::ExternalAgentConfigImportHistoriesRead, Unit{}, std::move(handler), encodeUnitParams);
     }
 
     Feedback::Feedback(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    Feedback::Submission Feedback::upload(FeedbackUploadParams params, UploadResultHandler handler) {
+    Submission Feedback::upload(FeedbackUploadParams params, CompletionHandler<FeedbackUploadResponse> handler) {
         return submitTypedRequest<FeedbackUploadResponse>(
             protocol, detail::ClientRequestTarget::FeedbackUpload, params, std::move(handler), detail::encodeFeedbackUploadParams);
     }
@@ -522,35 +257,43 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Hooks::Submission Hooks::list(HooksListParams params, ListResultHandler handler) {
+    Submission Hooks::list(HooksListParams params, CompletionHandler<HooksListResponse> handler) {
         return submitTypedRequest<HooksListResponse>(
             protocol, detail::ClientRequestTarget::HooksList, params, std::move(handler), detail::encodeHooksListParams);
+    }
+
+    Submission Hooks::list(CompletionHandler<HooksListResponse> handler) {
+        return list(HooksListParams{}, std::move(handler));
     }
 
     Marketplace::Marketplace(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    Marketplace::Submission Marketplace::add(MarketplaceAddParams params, AddResultHandler handler) {
+    Submission Marketplace::add(MarketplaceAddParams params, CompletionHandler<MarketplaceAddResponse> handler) {
         return submitTypedRequest<MarketplaceAddResponse>(
             protocol, detail::ClientRequestTarget::MarketplaceAdd, params, std::move(handler), detail::encodeMarketplaceAddParams);
     }
 
-    Marketplace::Submission Marketplace::remove(MarketplaceRemoveParams params, RemoveResultHandler handler) {
+    Submission Marketplace::remove(MarketplaceRemoveParams params, CompletionHandler<MarketplaceRemoveResponse> handler) {
         return submitTypedRequest<MarketplaceRemoveResponse>(
             protocol, detail::ClientRequestTarget::MarketplaceRemove, params, std::move(handler), detail::encodeMarketplaceRemoveParams);
     }
 
-    Marketplace::Submission Marketplace::upgrade(MarketplaceUpgradeParams params, UpgradeResultHandler handler) {
+    Submission Marketplace::upgrade(MarketplaceUpgradeParams params, CompletionHandler<MarketplaceUpgradeResponse> handler) {
         return submitTypedRequest<MarketplaceUpgradeResponse>(
             protocol, detail::ClientRequestTarget::MarketplaceUpgrade, params, std::move(handler), detail::encodeMarketplaceUpgradeParams);
+    }
+
+    Submission Marketplace::upgrade(CompletionHandler<MarketplaceUpgradeResponse> handler) {
+        return upgrade(MarketplaceUpgradeParams{}, std::move(handler));
     }
 
     Mcp::Mcp(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    Mcp::Submission Mcp::startOauthLogin(McpServerOauthLoginParams params, StartOauthLoginResultHandler handler) {
+    Submission Mcp::startOauthLogin(McpServerOauthLoginParams params, CompletionHandler<McpServerOauthLoginResponse> handler) {
         return submitTypedRequest<McpServerOauthLoginResponse>(protocol,
                                                                detail::ClientRequestTarget::McpServerOauthLogin,
                                                                params,
@@ -558,17 +301,17 @@ namespace ai::openai::codex::typed {
                                                                detail::encodeMcpServerOauthLoginParams);
     }
 
-    Mcp::Submission Mcp::readResource(McpResourceReadParams params, ReadResourceResultHandler handler) {
+    Submission Mcp::readResource(McpResourceReadParams params, CompletionHandler<McpResourceReadResponse> handler) {
         return submitTypedRequest<McpResourceReadResponse>(
             protocol, detail::ClientRequestTarget::McpResourceRead, params, std::move(handler), detail::encodeMcpResourceReadParams);
     }
 
-    Mcp::Submission Mcp::callTool(McpServerToolCallParams params, CallToolResultHandler handler) {
+    Submission Mcp::callTool(McpServerToolCallParams params, CompletionHandler<McpServerToolCallResponse> handler) {
         return submitTypedRequest<McpServerToolCallResponse>(
             protocol, detail::ClientRequestTarget::McpServerToolCall, params, std::move(handler), detail::encodeMcpServerToolCallParams);
     }
 
-    Mcp::Submission Mcp::listServers(ListMcpServerStatusParams params, ListServersResultHandler handler) {
+    Submission Mcp::listServers(ListMcpServerStatusParams params, CompletionHandler<ListMcpServerStatusResponse> handler) {
         return submitTypedRequest<ListMcpServerStatusResponse>(protocol,
                                                                detail::ClientRequestTarget::McpServerStatusList,
                                                                params,
@@ -576,16 +319,21 @@ namespace ai::openai::codex::typed {
                                                                detail::encodeListMcpServerStatusParams);
     }
 
+    Submission Mcp::listServers(CompletionHandler<ListMcpServerStatusResponse> handler) {
+        return listServers(ListMcpServerStatusParams{}, std::move(handler));
+    }
+
     WindowsSandbox::WindowsSandbox(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    WindowsSandbox::Submission WindowsSandbox::checkReadiness(CheckReadinessResultHandler handler) {
+    Submission WindowsSandbox::checkReadiness(CompletionHandler<WindowsSandboxReadinessResponse> handler) {
         return submitTypedRequest<WindowsSandboxReadinessResponse>(
             protocol, detail::ClientRequestTarget::WindowsSandboxReadiness, Unit{}, std::move(handler), encodeUnitParams);
     }
 
-    WindowsSandbox::Submission WindowsSandbox::startSetup(WindowsSandboxSetupStartParams params, StartSetupResultHandler handler) {
+    Submission WindowsSandbox::startSetup(WindowsSandboxSetupStartParams params,
+                                          CompletionHandler<WindowsSandboxSetupStartResponse> handler) {
         return submitTypedRequest<WindowsSandboxSetupStartResponse>(protocol,
                                                                     detail::ClientRequestTarget::WindowsSandboxSetupStart,
                                                                     params,
@@ -597,12 +345,12 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Skills::Submission Skills::writeConfig(SkillsConfigWriteParams params, WriteConfigResultHandler handler) {
+    Submission Skills::writeConfig(SkillsConfigWriteParams params, CompletionHandler<SkillsConfigWriteResponse> handler) {
         return submitTypedRequest<SkillsConfigWriteResponse>(
             protocol, detail::ClientRequestTarget::SkillsConfigWrite, params, std::move(handler), detail::encodeSkillsConfigWriteParams);
     }
 
-    Skills::Submission Skills::setExtraRoots(SkillsExtraRootsSetParams params, SetExtraRootsResultHandler handler) {
+    Submission Skills::setExtraRoots(SkillsExtraRootsSetParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(protocol,
                                         detail::ClientRequestTarget::SkillsExtraRootsSet,
                                         params,
@@ -610,36 +358,48 @@ namespace ai::openai::codex::typed {
                                         detail::encodeSkillsExtraRootsSetParams);
     }
 
-    Skills::Submission Skills::list(SkillsListParams params, ListResultHandler handler) {
+    Submission Skills::list(SkillsListParams params, CompletionHandler<SkillsListResponse> handler) {
         return submitTypedRequest<SkillsListResponse>(
             protocol, detail::ClientRequestTarget::SkillsList, params, std::move(handler), detail::encodeSkillsListParams);
+    }
+
+    Submission Skills::list(CompletionHandler<SkillsListResponse> handler) {
+        return list(SkillsListParams{}, std::move(handler));
     }
 
     Plugins::Plugins(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    Plugins::Submission Plugins::install(PluginInstallParams params, InstallResultHandler handler) {
+    Submission Plugins::install(PluginInstallParams params, CompletionHandler<PluginInstallResponse> handler) {
         return submitTypedRequest<PluginInstallResponse>(
             protocol, detail::ClientRequestTarget::PluginInstall, params, std::move(handler), detail::encodePluginInstallParams);
     }
 
-    Plugins::Submission Plugins::installed(PluginInstalledParams params, InstalledResultHandler handler) {
+    Submission Plugins::installed(PluginInstalledParams params, CompletionHandler<PluginInstalledResponse> handler) {
         return submitTypedRequest<PluginInstalledResponse>(
             protocol, detail::ClientRequestTarget::PluginInstalled, params, std::move(handler), detail::encodePluginInstalledParams);
     }
 
-    Plugins::Submission Plugins::list(PluginListParams params, ListResultHandler handler) {
+    Submission Plugins::installed(CompletionHandler<PluginInstalledResponse> handler) {
+        return installed(PluginInstalledParams{}, std::move(handler));
+    }
+
+    Submission Plugins::list(PluginListParams params, CompletionHandler<PluginListResponse> handler) {
         return submitTypedRequest<PluginListResponse>(
             protocol, detail::ClientRequestTarget::PluginList, params, std::move(handler), detail::encodePluginListParams);
     }
 
-    Plugins::Submission Plugins::read(PluginReadParams params, ReadResultHandler handler) {
+    Submission Plugins::list(CompletionHandler<PluginListResponse> handler) {
+        return list(PluginListParams{}, std::move(handler));
+    }
+
+    Submission Plugins::read(PluginReadParams params, CompletionHandler<PluginReadResponse> handler) {
         return submitTypedRequest<PluginReadResponse>(
             protocol, detail::ClientRequestTarget::PluginRead, params, std::move(handler), detail::encodePluginReadParams);
     }
 
-    Plugins::Submission Plugins::shareCheckout(PluginShareCheckoutParams params, ShareCheckoutResultHandler handler) {
+    Submission Plugins::shareCheckout(PluginShareCheckoutParams params, CompletionHandler<PluginShareCheckoutResponse> handler) {
         return submitTypedRequest<PluginShareCheckoutResponse>(protocol,
                                                                detail::ClientRequestTarget::PluginShareCheckout,
                                                                params,
@@ -647,22 +407,26 @@ namespace ai::openai::codex::typed {
                                                                detail::encodePluginShareCheckoutParams);
     }
 
-    Plugins::Submission Plugins::shareDelete(PluginShareDeleteParams params, ShareDeleteResultHandler handler) {
+    Submission Plugins::shareDelete(PluginShareDeleteParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::PluginShareDelete, params, std::move(handler), detail::encodePluginShareDeleteParams);
     }
 
-    Plugins::Submission Plugins::shareList(PluginShareListParams params, ShareListResultHandler handler) {
-        return submitTypedRequest<PluginShareListResponse>(
-            protocol, detail::ClientRequestTarget::PluginShareList, params, std::move(handler), detail::encodePluginShareListParams);
+    Submission Plugins::shareList(CompletionHandler<PluginShareListResponse> handler) {
+        return submitTypedRequest<PluginShareListResponse>(protocol,
+                                                           detail::ClientRequestTarget::PluginShareList,
+                                                           PluginShareListParams{},
+                                                           std::move(handler),
+                                                           detail::encodePluginShareListParams);
     }
 
-    Plugins::Submission Plugins::shareSave(PluginShareSaveParams params, ShareSaveResultHandler handler) {
+    Submission Plugins::shareSave(PluginShareSaveParams params, CompletionHandler<PluginShareSaveResponse> handler) {
         return submitTypedRequest<PluginShareSaveResponse>(
             protocol, detail::ClientRequestTarget::PluginShareSave, params, std::move(handler), detail::encodePluginShareSaveParams);
     }
 
-    Plugins::Submission Plugins::shareUpdateTargets(PluginShareUpdateTargetsParams params, ShareUpdateTargetsResultHandler handler) {
+    Submission Plugins::shareUpdateTargets(PluginShareUpdateTargetsParams params,
+                                           CompletionHandler<PluginShareUpdateTargetsResponse> handler) {
         return submitTypedRequest<PluginShareUpdateTargetsResponse>(protocol,
                                                                     detail::ClientRequestTarget::PluginShareUpdateTargets,
                                                                     params,
@@ -670,12 +434,12 @@ namespace ai::openai::codex::typed {
                                                                     detail::encodePluginShareUpdateTargetsParams);
     }
 
-    Plugins::Submission Plugins::readSkill(PluginSkillReadParams params, ReadSkillResultHandler handler) {
+    Submission Plugins::readSkill(PluginSkillReadParams params, CompletionHandler<PluginSkillReadResponse> handler) {
         return submitTypedRequest<PluginSkillReadResponse>(
             protocol, detail::ClientRequestTarget::PluginSkillRead, params, std::move(handler), detail::encodePluginSkillReadParams);
     }
 
-    Plugins::Submission Plugins::uninstall(PluginUninstallParams params, UninstallResultHandler handler) {
+    Submission Plugins::uninstall(PluginUninstallParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::PluginUninstall, params, std::move(handler), detail::encodePluginUninstallParams);
     }
@@ -684,22 +448,22 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Accounts::Submission Accounts::cancelLogin(CancelLoginAccountParams params, CancelLoginResultHandler handler) {
+    Submission Accounts::cancelLogin(CancelLoginAccountParams params, CompletionHandler<CancelLoginAccountResponse> handler) {
         return submitTypedRequest<CancelLoginAccountResponse>(
             protocol, detail::ClientRequestTarget::AccountLoginCancel, params, std::move(handler), detail::encodeCancelLoginAccountParams);
     }
 
-    Accounts::Submission Accounts::startLogin(LoginAccountParams params, StartLoginResultHandler handler) {
+    Submission Accounts::startLogin(LoginAccountParams params, CompletionHandler<LoginAccountResponse> handler) {
         return submitTypedRequest<LoginAccountResponse>(
             protocol, detail::ClientRequestTarget::AccountLoginStart, params, std::move(handler), detail::encodeLoginAccountParams);
     }
 
-    Accounts::Submission Accounts::logout(Unit params, UnitResultHandler handler) {
-        return submitTypedRequest<Unit>(protocol, detail::ClientRequestTarget::AccountLogout, params, std::move(handler), encodeUnitParams);
+    Submission Accounts::logout(DoneHandler handler) {
+        return submitTypedRequest<Unit>(protocol, detail::ClientRequestTarget::AccountLogout, Unit{}, std::move(handler), encodeUnitParams);
     }
 
-    Accounts::Submission Accounts::consumeRateLimitResetCredit(ConsumeAccountRateLimitResetCreditParams params,
-                                                               ConsumeRateLimitResetCreditResultHandler handler) {
+    Submission Accounts::consumeRateLimitResetCredit(ConsumeAccountRateLimitResetCreditParams params,
+                                                     CompletionHandler<ConsumeAccountRateLimitResetCreditResponse> handler) {
         return submitTypedRequest<ConsumeAccountRateLimitResetCreditResponse>(
             protocol,
             detail::ClientRequestTarget::AccountRateLimitResetCreditConsume,
@@ -708,18 +472,22 @@ namespace ai::openai::codex::typed {
             detail::encodeConsumeAccountRateLimitResetCreditParams);
     }
 
-    Accounts::Submission Accounts::readRateLimits(Unit params, ReadRateLimitsResultHandler handler) {
+    Submission Accounts::readRateLimits(CompletionHandler<GetAccountRateLimitsResponse> handler) {
         return submitTypedRequest<GetAccountRateLimitsResponse>(
-            protocol, detail::ClientRequestTarget::AccountRateLimitsRead, params, std::move(handler), encodeUnitParams);
+            protocol, detail::ClientRequestTarget::AccountRateLimitsRead, Unit{}, std::move(handler), encodeUnitParams);
     }
 
-    Accounts::Submission Accounts::read(GetAccountParams params, ReadResultHandler handler) {
+    Submission Accounts::read(GetAccountParams params, CompletionHandler<GetAccountResponse> handler) {
         return submitTypedRequest<GetAccountResponse>(
             protocol, detail::ClientRequestTarget::AccountRead, params, std::move(handler), detail::encodeGetAccountParams);
     }
 
-    Accounts::Submission Accounts::sendAddCreditsNudgeEmail(SendAddCreditsNudgeEmailParams params,
-                                                            SendAddCreditsNudgeEmailResultHandler handler) {
+    Submission Accounts::read(CompletionHandler<GetAccountResponse> handler) {
+        return read(GetAccountParams{}, std::move(handler));
+    }
+
+    Submission Accounts::sendAddCreditsNudgeEmail(SendAddCreditsNudgeEmailParams params,
+                                                  CompletionHandler<SendAddCreditsNudgeEmailResponse> handler) {
         return submitTypedRequest<SendAddCreditsNudgeEmailResponse>(protocol,
                                                                     detail::ClientRequestTarget::AccountSendAddCreditsNudgeEmail,
                                                                     params,
@@ -731,17 +499,17 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Commands::Submission Commands::exec(CommandExecParams params, ExecResultHandler handler) {
+    Submission Commands::exec(CommandExecParams params, CompletionHandler<CommandExecResponse> handler) {
         return submitTypedRequest<CommandExecResponse>(
             protocol, detail::ClientRequestTarget::CommandExec, params, std::move(handler), detail::encodeCommandExecParams);
     }
 
-    Commands::Submission Commands::resize(CommandExecResizeParams params, UnitResultHandler handler) {
+    Submission Commands::resize(CommandExecResizeParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::CommandExecResize, params, std::move(handler), detail::encodeCommandExecResizeParams);
     }
 
-    Commands::Submission Commands::terminate(CommandExecTerminateParams params, UnitResultHandler handler) {
+    Submission Commands::terminate(CommandExecTerminateParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(protocol,
                                         detail::ClientRequestTarget::CommandExecTerminate,
                                         params,
@@ -749,7 +517,7 @@ namespace ai::openai::codex::typed {
                                         detail::encodeCommandExecTerminateParams);
     }
 
-    Commands::Submission Commands::write(CommandExecWriteParams params, UnitResultHandler handler) {
+    Submission Commands::write(CommandExecWriteParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::CommandExecWrite, params, std::move(handler), detail::encodeCommandExecWriteParams);
     }
@@ -758,71 +526,71 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Filesystem::Submission Filesystem::copy(FsCopyParams params, UnitResultHandler handler) {
+    Submission Filesystem::copy(FsCopyParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::FsCopy, params, std::move(handler), detail::encodeFsCopyParams);
     }
 
-    Filesystem::Submission Filesystem::createDirectory(FsCreateDirectoryParams params, UnitResultHandler handler) {
+    Submission Filesystem::createDirectory(FsCreateDirectoryParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::FsCreateDirectory, params, std::move(handler), detail::encodeFsCreateDirectoryParams);
     }
 
-    Filesystem::Submission Filesystem::getMetadata(FsGetMetadataParams params, GetMetadataResultHandler handler) {
+    Submission Filesystem::getMetadata(FsGetMetadataParams params, CompletionHandler<FsGetMetadataResponse> handler) {
         return submitTypedRequest<FsGetMetadataResponse>(
             protocol, detail::ClientRequestTarget::FsGetMetadata, params, std::move(handler), detail::encodeFsGetMetadataParams);
     }
 
-    Filesystem::Submission Filesystem::readDirectory(FsReadDirectoryParams params, ReadDirectoryResultHandler handler) {
+    Submission Filesystem::readDirectory(FsReadDirectoryParams params, CompletionHandler<FsReadDirectoryResponse> handler) {
         return submitTypedRequest<FsReadDirectoryResponse>(
             protocol, detail::ClientRequestTarget::FsReadDirectory, params, std::move(handler), detail::encodeFsReadDirectoryParams);
     }
 
-    Filesystem::Submission Filesystem::readFile(FsReadFileParams params, ReadFileResultHandler handler) {
+    Submission Filesystem::readFile(FsReadFileParams params, CompletionHandler<FsReadFileResponse> handler) {
         return submitTypedRequest<FsReadFileResponse>(
             protocol, detail::ClientRequestTarget::FsReadFile, params, std::move(handler), detail::encodeFsReadFileParams);
     }
 
-    Filesystem::Submission Filesystem::remove(FsRemoveParams params, UnitResultHandler handler) {
+    Submission Filesystem::remove(FsRemoveParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::FsRemove, params, std::move(handler), detail::encodeFsRemoveParams);
     }
 
-    Filesystem::Submission Filesystem::watch(FsWatchParams params, WatchResultHandler handler) {
+    Submission Filesystem::watch(FsWatchParams params, CompletionHandler<FsWatchResponse> handler) {
         return submitTypedRequest<FsWatchResponse>(
             protocol, detail::ClientRequestTarget::FsWatch, params, std::move(handler), detail::encodeFsWatchParams);
     }
 
-    Filesystem::Submission Filesystem::unwatch(FsUnwatchParams params, UnitResultHandler handler) {
+    Submission Filesystem::unwatch(FsUnwatchParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::FsUnwatch, params, std::move(handler), detail::encodeFsUnwatchParams);
     }
 
-    Filesystem::Submission Filesystem::writeFile(FsWriteFileParams params, UnitResultHandler handler) {
+    Submission Filesystem::writeFile(FsWriteFileParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol, detail::ClientRequestTarget::FsWriteFile, params, std::move(handler), detail::encodeFsWriteFileParams);
     }
 
-    Filesystem::Submission Filesystem::fuzzyFileSearch(FuzzyFileSearchParams params, FuzzyFileSearchResultHandler handler) {
+    Submission Filesystem::fuzzyFileSearch(FuzzyFileSearchParams params, CompletionHandler<FuzzyFileSearchResponse> handler) {
         return submitTypedRequest<FuzzyFileSearchResponse>(
             protocol, detail::ClientRequestTarget::FuzzyFileSearch, params, std::move(handler), detail::encodeFuzzyFileSearchParams);
     }
 
-    Accounts::Submission Accounts::readUsage(Unit params, ReadUsageResultHandler handler) {
+    Submission Accounts::readUsage(CompletionHandler<GetAccountTokenUsageResponse> handler) {
         return submitTypedRequest<GetAccountTokenUsageResponse>(
-            protocol, detail::ClientRequestTarget::AccountUsageRead, params, std::move(handler), encodeUnitParams);
+            protocol, detail::ClientRequestTarget::AccountUsageRead, Unit{}, std::move(handler), encodeUnitParams);
     }
 
-    Accounts::Submission Accounts::readWorkspaceMessages(Unit params, ReadWorkspaceMessagesResultHandler handler) {
+    Submission Accounts::readWorkspaceMessages(CompletionHandler<GetWorkspaceMessagesResponse> handler) {
         return submitTypedRequest<GetWorkspaceMessagesResponse>(
-            protocol, detail::ClientRequestTarget::AccountWorkspaceMessagesRead, params, std::move(handler), encodeUnitParams);
+            protocol, detail::ClientRequestTarget::AccountWorkspaceMessagesRead, Unit{}, std::move(handler), encodeUnitParams);
     }
 
     Configuration::Configuration(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    Configuration::Submission Configuration::batchWrite(ConfigBatchWriteParams params, BatchWriteResultHandler handler) {
+    Submission Configuration::batchWrite(ConfigBatchWriteParams params, CompletionHandler<ConfigWriteResponse> handler) {
         return submitTypedRequest<ConfigWriteResponse>(
             protocol,
             detail::ClientRequestTarget::ConfigBatchWrite,
@@ -831,26 +599,26 @@ namespace ai::openai::codex::typed {
             detail::encodeConfigBatchWriteParams);
     }
 
-    Configuration::Submission Configuration::reloadMcpServers(Unit params, UnitResultHandler handler) {
+    Submission Configuration::reloadMcpServers(DoneHandler handler) {
         return submitTypedRequest<Unit>(
-            protocol,
-            detail::ClientRequestTarget::ConfigMcpServerReload,
-            params,
-            std::move(handler),
-            encodeUnitParams);
+            protocol, detail::ClientRequestTarget::ConfigMcpServerReload, Unit{}, std::move(handler), encodeUnitParams);
     }
 
-    Configuration::Submission Configuration::read(ConfigReadParams params, ReadResultHandler handler) {
+    Submission Configuration::read(ConfigReadParams params, CompletionHandler<ConfigReadResponse> handler) {
         return submitTypedRequest<ConfigReadResponse>(
             protocol, detail::ClientRequestTarget::ConfigRead, params, std::move(handler), detail::encodeConfigReadParams);
     }
 
-    Configuration::Submission Configuration::readRequirements(Unit params, ReadRequirementsResultHandler handler) {
-        return submitTypedRequest<ConfigRequirementsReadResponse>(
-            protocol, detail::ClientRequestTarget::ConfigRequirementsRead, params, std::move(handler), encodeUnitParams);
+    Submission Configuration::read(CompletionHandler<ConfigReadResponse> handler) {
+        return read(ConfigReadParams{}, std::move(handler));
     }
 
-    Configuration::Submission Configuration::writeValue(ConfigValueWriteParams params, WriteValueResultHandler handler) {
+    Submission Configuration::readRequirements(CompletionHandler<ConfigRequirementsReadResponse> handler) {
+        return submitTypedRequest<ConfigRequirementsReadResponse>(
+            protocol, detail::ClientRequestTarget::ConfigRequirementsRead, Unit{}, std::move(handler), encodeUnitParams);
+    }
+
+    Submission Configuration::writeValue(ConfigValueWriteParams params, CompletionHandler<ConfigWriteResponse> handler) {
         return submitTypedRequest<ConfigWriteResponse>(
             protocol,
             detail::ClientRequestTarget::ConfigValueWrite,
@@ -859,9 +627,8 @@ namespace ai::openai::codex::typed {
             detail::encodeConfigValueWriteParams);
     }
 
-    Configuration::Submission Configuration::setExperimentalFeatureEnablement(
-        ExperimentalFeatureEnablementSetParams params,
-        SetExperimentalFeatureEnablementResultHandler handler) {
+    Submission Configuration::setExperimentalFeatureEnablement(ExperimentalFeatureEnablementSetParams params,
+                                                               CompletionHandler<ExperimentalFeatureEnablementSetResponse> handler) {
         return submitTypedRequest<ExperimentalFeatureEnablementSetResponse>(
             protocol,
             detail::ClientRequestTarget::ExperimentalFeatureEnablementSet,
@@ -870,9 +637,8 @@ namespace ai::openai::codex::typed {
             detail::encodeExperimentalFeatureEnablementSetParams);
     }
 
-    Configuration::Submission Configuration::listExperimentalFeatures(
-        ExperimentalFeatureListParams params,
-        ListExperimentalFeaturesResultHandler handler) {
+    Submission Configuration::listExperimentalFeatures(ExperimentalFeatureListParams params,
+                                                       CompletionHandler<ExperimentalFeatureListResponse> handler) {
         return submitTypedRequest<ExperimentalFeatureListResponse>(
             protocol,
             detail::ClientRequestTarget::ExperimentalFeatureList,
@@ -881,20 +647,27 @@ namespace ai::openai::codex::typed {
             detail::encodeExperimentalFeatureListParams);
     }
 
+    Submission Configuration::listExperimentalFeatures(CompletionHandler<ExperimentalFeatureListResponse> handler) {
+        return listExperimentalFeatures(ExperimentalFeatureListParams{}, std::move(handler));
+    }
+
     Models::Models(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    Models::Submission Models::list(ModelListParams params, ListResultHandler handler) {
+    Submission Models::list(ModelListParams params, CompletionHandler<ModelListResponse> handler) {
         return submitTypedRequest<ModelListResponse>(
             protocol, detail::ClientRequestTarget::ModelList, params, std::move(handler), detail::encodeModelListParams);
     }
 
-    Models::Submission Models::readProviderCapabilities(ModelProviderCapabilitiesReadParams params,
-                                                        ReadProviderCapabilitiesResultHandler handler) {
+    Submission Models::list(CompletionHandler<ModelListResponse> handler) {
+        return list(ModelListParams{}, std::move(handler));
+    }
+
+    Submission Models::readProviderCapabilities(CompletionHandler<ModelProviderCapabilitiesReadResponse> handler) {
         return submitTypedRequest<ModelProviderCapabilitiesReadResponse>(protocol,
                                                                          detail::ClientRequestTarget::ModelProviderCapabilitiesRead,
-                                                                         params,
+                                                                         ModelProviderCapabilitiesReadParams{},
                                                                          std::move(handler),
                                                                          detail::encodeModelProviderCapabilitiesReadParams);
     }
@@ -903,7 +676,7 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    PermissionProfiles::Submission PermissionProfiles::list(PermissionProfileListParams params, ListResultHandler handler) {
+    Submission PermissionProfiles::list(PermissionProfileListParams params, CompletionHandler<PermissionProfileListResponse> handler) {
         return submitTypedRequest<PermissionProfileListResponse>(protocol,
                                                                  detail::ClientRequestTarget::PermissionProfileList,
                                                                  params,
@@ -911,11 +684,15 @@ namespace ai::openai::codex::typed {
                                                                  detail::encodePermissionProfileListParams);
     }
 
+    Submission PermissionProfiles::list(CompletionHandler<PermissionProfileListResponse> handler) {
+        return list(PermissionProfileListParams{}, std::move(handler));
+    }
+
     Reviews::Reviews(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
     }
 
-    Reviews::Submission Reviews::start(ReviewStartParams params, ReviewStartResultHandler handler) {
+    Submission Reviews::start(ReviewStartParams params, CompletionHandler<ReviewStartResponse> handler) {
         return submitTypedRequest<ReviewStartResponse>(
             protocol, detail::ClientRequestTarget::ReviewStart, params, std::move(handler), detail::encodeReviewStartParams);
     }
@@ -924,7 +701,7 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Threads::Submission Threads::archive(ThreadArchiveParams params, UnitResultHandler handler) {
+    Submission Threads::archive(ThreadArchiveParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
             detail::ClientRequestTarget::ThreadArchive,
@@ -933,7 +710,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadArchiveParams);
     }
 
-    Threads::Submission Threads::approveGuardianDeniedAction(ThreadApproveGuardianDeniedActionParams params, UnitResultHandler handler) {
+    Submission Threads::approveGuardianDeniedAction(ThreadApproveGuardianDeniedActionParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(protocol,
                                         detail::ClientRequestTarget::ThreadApproveGuardianDeniedAction,
                                         params,
@@ -941,7 +718,7 @@ namespace ai::openai::codex::typed {
                                         detail::encodeThreadApproveGuardianDeniedActionParams);
     }
 
-    Threads::Submission Threads::startCompaction(ThreadCompactStartParams params, UnitResultHandler handler) {
+    Submission Threads::startCompaction(ThreadCompactStartParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
             detail::ClientRequestTarget::ThreadCompactStart,
@@ -950,7 +727,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadCompactStartParams);
     }
 
-    Threads::Submission Threads::remove(ThreadDeleteParams params, UnitResultHandler handler) {
+    Submission Threads::remove(ThreadDeleteParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
             detail::ClientRequestTarget::ThreadDelete,
@@ -959,7 +736,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadDeleteParams);
     }
 
-    Threads::Submission Threads::fork(ThreadForkParams params, ThreadForkResultHandler handler) {
+    Submission Threads::fork(ThreadForkParams params, CompletionHandler<ThreadForkResponse> handler) {
         return submitTypedRequest<ThreadForkResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadFork,
@@ -968,7 +745,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadForkParams);
     }
 
-    Threads::Submission Threads::clearGoal(ThreadGoalClearParams params, ThreadGoalClearResultHandler handler) {
+    Submission Threads::clearGoal(ThreadGoalClearParams params, CompletionHandler<ThreadGoalClearResponse> handler) {
         return submitTypedRequest<ThreadGoalClearResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadGoalClear,
@@ -977,7 +754,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadGoalClearParams);
     }
 
-    Threads::Submission Threads::getGoal(ThreadGoalGetParams params, ThreadGoalGetResultHandler handler) {
+    Submission Threads::getGoal(ThreadGoalGetParams params, CompletionHandler<ThreadGoalGetResponse> handler) {
         return submitTypedRequest<ThreadGoalGetResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadGoalGet,
@@ -986,7 +763,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadGoalGetParams);
     }
 
-    Threads::Submission Threads::setGoal(ThreadGoalSetParams params, ThreadGoalSetResultHandler handler) {
+    Submission Threads::setGoal(ThreadGoalSetParams params, CompletionHandler<ThreadGoalSetResponse> handler) {
         return submitTypedRequest<ThreadGoalSetResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadGoalSet,
@@ -995,7 +772,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadGoalSetParams);
     }
 
-    Threads::Submission Threads::injectItems(ThreadInjectItemsParams params, UnitResultHandler handler) {
+    Submission Threads::injectItems(ThreadInjectItemsParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
             detail::ClientRequestTarget::ThreadInjectItems,
@@ -1004,7 +781,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadInjectItemsParams);
     }
 
-    Threads::Submission Threads::list(ThreadListParams params, ThreadListResultHandler handler) {
+    Submission Threads::list(ThreadListParams params, CompletionHandler<ThreadListResponse> handler) {
         return submitTypedRequest<ThreadListResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadList,
@@ -1015,7 +792,11 @@ namespace ai::openai::codex::typed {
             });
     }
 
-    Threads::Submission Threads::listLoaded(ThreadLoadedListParams params, ThreadLoadedListResultHandler handler) {
+    Submission Threads::list(CompletionHandler<ThreadListResponse> handler) {
+        return list(ThreadListParams{}, std::move(handler));
+    }
+
+    Submission Threads::listLoaded(ThreadLoadedListParams params, CompletionHandler<ThreadLoadedListResponse> handler) {
         return submitTypedRequest<ThreadLoadedListResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadLoadedList,
@@ -1024,7 +805,11 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadLoadedListParams);
     }
 
-    Threads::Submission Threads::updateMetadata(ThreadMetadataUpdateParams params, ThreadMetadataUpdateResultHandler handler) {
+    Submission Threads::listLoaded(CompletionHandler<ThreadLoadedListResponse> handler) {
+        return listLoaded(ThreadLoadedListParams{}, std::move(handler));
+    }
+
+    Submission Threads::updateMetadata(ThreadMetadataUpdateParams params, CompletionHandler<ThreadMetadataUpdateResponse> handler) {
         return submitTypedRequest<ThreadMetadataUpdateResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadMetadataUpdate,
@@ -1033,7 +818,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadMetadataUpdateParams);
     }
 
-    Threads::Submission Threads::setName(ThreadSetNameParams params, UnitResultHandler handler) {
+    Submission Threads::setName(ThreadSetNameParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
             detail::ClientRequestTarget::ThreadSetName,
@@ -1042,7 +827,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadSetNameParams);
     }
 
-    Threads::Submission Threads::read(ThreadReadParams params, ThreadReadResultHandler handler) {
+    Submission Threads::read(ThreadReadParams params, CompletionHandler<ThreadReadResponse> handler) {
         return submitTypedRequest<ThreadReadResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadRead,
@@ -1053,7 +838,13 @@ namespace ai::openai::codex::typed {
             });
     }
 
-    Threads::Submission Threads::resume(ThreadResumeParams params, ThreadResumeResultHandler handler) {
+    Submission Threads::read(ThreadId threadId, CompletionHandler<ThreadReadResponse> handler) {
+        ThreadReadParams params;
+        params.threadId = std::move(threadId);
+        return read(std::move(params), std::move(handler));
+    }
+
+    Submission Threads::resume(ThreadResumeParams params, CompletionHandler<ThreadResumeResponse> handler) {
         return submitTypedRequest<ThreadResumeResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadResume,
@@ -1064,7 +855,13 @@ namespace ai::openai::codex::typed {
             });
     }
 
-    Threads::Submission Threads::rollback(ThreadRollbackParams params, ThreadRollbackResultHandler handler) {
+    Submission Threads::resume(ThreadId threadId, CompletionHandler<ThreadResumeResponse> handler) {
+        ThreadResumeParams params;
+        params.threadId = std::move(threadId);
+        return resume(std::move(params), std::move(handler));
+    }
+
+    Submission Threads::rollback(ThreadRollbackParams params, CompletionHandler<ThreadRollbackResponse> handler) {
         return submitTypedRequest<ThreadRollbackResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadRollback,
@@ -1073,7 +870,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadRollbackParams);
     }
 
-    Threads::Submission Threads::shellCommand(ThreadShellCommandParams params, UnitResultHandler handler) {
+    Submission Threads::shellCommand(ThreadShellCommandParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
             detail::ClientRequestTarget::ThreadShellCommand,
@@ -1082,7 +879,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadShellCommandParams);
     }
 
-    Threads::Submission Threads::start(ThreadStartParams params, ThreadStartResultHandler handler) {
+    Submission Threads::start(ThreadStartParams params, CompletionHandler<ThreadStartResponse> handler) {
         return submitTypedRequest<ThreadStartResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadStart,
@@ -1093,7 +890,17 @@ namespace ai::openai::codex::typed {
             });
     }
 
-    Threads::Submission Threads::unarchive(ThreadUnarchiveParams params, ThreadUnarchiveResultHandler handler) {
+    Submission Threads::start(CompletionHandler<ThreadStartResponse> handler) {
+        return start(ThreadStartParams{}, std::move(handler));
+    }
+
+    Submission Threads::start(AbsolutePath cwd, CompletionHandler<ThreadStartResponse> handler) {
+        ThreadStartParams params;
+        params.cwd = std::move(cwd.value);
+        return start(std::move(params), std::move(handler));
+    }
+
+    Submission Threads::unarchive(ThreadUnarchiveParams params, CompletionHandler<ThreadUnarchiveResponse> handler) {
         return submitTypedRequest<ThreadUnarchiveResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadUnarchive,
@@ -1102,7 +909,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadUnarchiveParams);
     }
 
-    Threads::Submission Threads::unsubscribe(ThreadUnsubscribeParams params, ThreadUnsubscribeResultHandler handler) {
+    Submission Threads::unsubscribe(ThreadUnsubscribeParams params, CompletionHandler<ThreadUnsubscribeResponse> handler) {
         return submitTypedRequest<ThreadUnsubscribeResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadUnsubscribe,
@@ -1115,7 +922,7 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    Turns::Submission Turns::interrupt(TurnInterruptParams params, UnitResultHandler handler) {
+    Submission Turns::interrupt(TurnInterruptParams params, DoneHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
             detail::ClientRequestTarget::TurnInterrupt,
@@ -1126,7 +933,11 @@ namespace ai::openai::codex::typed {
             });
     }
 
-    Turns::Submission Turns::start(TurnStartParams params, TurnStartResultHandler handler) {
+    Submission Turns::interrupt(ThreadId threadId, TurnId turnId, DoneHandler handler) {
+        return interrupt(TurnInterruptParams{std::move(threadId), std::move(turnId)}, std::move(handler));
+    }
+
+    Submission Turns::start(TurnStartParams params, CompletionHandler<TurnStartResponse> handler) {
         const ThreadId threadId = params.threadId;
         return submitTypedRequest<TurnStartResponse>(
             protocol,
@@ -1139,7 +950,20 @@ namespace ai::openai::codex::typed {
             threadId);
     }
 
-    Turns::Submission Turns::steer(TurnSteerParams params, TurnSteerResultHandler handler) {
+    Submission Turns::start(ThreadId threadId, std::vector<TurnInput> input, CompletionHandler<TurnStartResponse> handler) {
+        TurnStartParams params;
+        params.threadId = std::move(threadId);
+        params.input = std::move(input);
+        return start(std::move(params), std::move(handler));
+    }
+
+    Submission Turns::start(ThreadId threadId, std::string text, CompletionHandler<TurnStartResponse> handler) {
+        TextInput input;
+        input.text = std::move(text);
+        return start(std::move(threadId), std::vector<TurnInput>{std::move(input)}, std::move(handler));
+    }
+
+    Submission Turns::steer(TurnSteerParams params, CompletionHandler<TurnSteerResponse> handler) {
         return submitTypedRequest<TurnSteerResponse>(
             protocol,
             detail::ClientRequestTarget::TurnSteer,
@@ -1180,7 +1004,7 @@ namespace ai::openai::codex::typed {
         });
     }
 
-    Requests::SendResult Requests::respond(const CommandApprovalRequest& request, ApprovalDecision decision) {
+    SendResult Requests::respond(const CommandApprovalRequest& request, ApprovalDecision decision) {
         if (decision.value.empty()) {
             return validationFailure("approval decision must not be empty");
         }
@@ -1190,7 +1014,7 @@ namespace ai::openai::codex::typed {
                                       Json{{"decision", std::move(decision.value)}});
     }
 
-    Requests::SendResult Requests::respond(const CommandApprovalRequest& request, CommandExecutionRequestApprovalResponse response) {
+    SendResult Requests::respond(const CommandApprovalRequest& request, CommandExecutionRequestApprovalResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeCommandExecutionRequestApprovalResponse(response, error);
         if (!encoded) {
@@ -1202,7 +1026,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const FileChangeApprovalRequest& request, ApprovalDecision decision) {
+    SendResult Requests::respond(const FileChangeApprovalRequest& request, ApprovalDecision decision) {
         if (decision.value.empty()) {
             return validationFailure("approval decision must not be empty");
         }
@@ -1212,7 +1036,7 @@ namespace ai::openai::codex::typed {
                                       Json{{"decision", std::move(decision.value)}});
     }
 
-    Requests::SendResult Requests::respond(const FileChangeApprovalRequest& request, FileChangeRequestApprovalResponse response) {
+    SendResult Requests::respond(const FileChangeApprovalRequest& request, FileChangeRequestApprovalResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeFileChangeRequestApprovalResponse(response, error);
         if (!encoded) {
@@ -1224,7 +1048,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const ApplyPatchApprovalRequest& request, ApplyPatchApprovalResponse response) {
+    SendResult Requests::respond(const ApplyPatchApprovalRequest& request, ApplyPatchApprovalResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeApplyPatchApprovalResponse(response, error);
         if (!encoded) {
@@ -1236,7 +1060,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const ExecCommandApprovalRequest& request, ExecCommandApprovalResponse response) {
+    SendResult Requests::respond(const ExecCommandApprovalRequest& request, ExecCommandApprovalResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeExecCommandApprovalResponse(response, error);
         if (!encoded) {
@@ -1248,7 +1072,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const PermissionsApprovalRequest& request, PermissionsRequestApprovalResponse response) {
+    SendResult Requests::respond(const PermissionsApprovalRequest& request, PermissionsRequestApprovalResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodePermissionsRequestApprovalResponse(response, error);
         if (!encoded) {
@@ -1260,7 +1084,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const AttestationGenerateRequest& request, AttestationGenerateResponse response) {
+    SendResult Requests::respond(const AttestationGenerateRequest& request, AttestationGenerateResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeAttestationGenerateResponse(response, error);
         if (!encoded) {
@@ -1272,7 +1096,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const DynamicToolCallRequest& request, DynamicToolCallResponse response) {
+    SendResult Requests::respond(const DynamicToolCallRequest& request, DynamicToolCallResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeDynamicToolCallResponse(response, error);
         if (!encoded) {
@@ -1282,7 +1106,7 @@ namespace ai::openai::codex::typed {
             request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const UserInputRequest& request, ToolRequestUserInputResponse response) {
+    SendResult Requests::respond(const UserInputRequest& request, ToolRequestUserInputResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeToolRequestUserInputResponse(response, error);
         if (!encoded) {
@@ -1294,7 +1118,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers) {
+    SendResult Requests::respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers) {
         std::set<std::string> questionIds;
         for (const UserInputQuestion& question : request.questions) {
             questionIds.insert(question.id);
@@ -1314,7 +1138,7 @@ namespace ai::openai::codex::typed {
         return respond(request, std::move(response));
     }
 
-    Requests::SendResult Requests::respond(const McpServerElicitationRequest& request, McpServerElicitationRequestResponse response) {
+    SendResult Requests::respond(const McpServerElicitationRequest& request, McpServerElicitationRequestResponse response) {
         std::string error;
         std::optional<Json> encoded = detail::encodeMcpServerElicitationRequestResponse(response, error);
         if (!encoded) {
@@ -1326,8 +1150,7 @@ namespace ai::openai::codex::typed {
                                       std::move(*encoded));
     }
 
-    Requests::SendResult Requests::respondRefresh(const ChatgptAuthTokensRefreshRequest& request,
-                                                  ChatgptAuthTokensRefreshResponse response) {
+    SendResult Requests::respond(const AuthenticationRequest& request, ChatgptAuthTokensRefreshResponse response) {
         std::string error;
         std::optional<Json> result = detail::encodeChatgptAuthTokensRefreshResponse(std::move(response), error);
         if (!result) {
@@ -1339,44 +1162,44 @@ namespace ai::openai::codex::typed {
                                       std::move(*result));
     }
 
-    Requests::SendResult Requests::respond(const AuthenticationRequest& request, AuthenticationResponse response) {
+    SendResult Requests::respond(const AuthenticationRequest& request, AuthenticationResponse response) {
         ChatgptAuthTokensRefreshResponse canonical{
             std::move(response.accessToken),
             AccountId{std::move(response.chatgptAccountId)},
             response.chatgptPlanType ? OptionalNullable<PlanType>::withValue(PlanType{std::move(*response.chatgptPlanType)})
                                      : OptionalNullable<PlanType>::explicitNull()};
-        return respondRefresh(request, std::move(canonical));
+        return respond(request, std::move(canonical));
     }
 
-    Requests::SendResult Requests::reject(const AttestationGenerateRequest& request, ProtocolError error) {
+    SendResult Requests::reject(const AttestationGenerateRequest& request, ProtocolError error) {
         return protocol->rejectOwned(
             request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::AttestationGenerate), std::move(error));
     }
 
-    Requests::SendResult Requests::reject(const DynamicToolCallRequest& request, ProtocolError error) {
+    SendResult Requests::reject(const DynamicToolCallRequest& request, ProtocolError error) {
         return protocol->rejectOwned(
             request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::DynamicToolCall), std::move(error));
     }
 
-    Requests::SendResult Requests::reject(const UserInputRequest& request, ProtocolError error) {
+    SendResult Requests::reject(const UserInputRequest& request, ProtocolError error) {
         return protocol->rejectOwned(
             request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::ToolRequestUserInput), std::move(error));
     }
 
-    Requests::SendResult Requests::reject(const McpServerElicitationRequest& request, ProtocolError error) {
+    SendResult Requests::reject(const McpServerElicitationRequest& request, ProtocolError error) {
         return protocol->rejectOwned(
             request.requestId, request.requestToken, registeredMethod(detail::ServerRequestTarget::McpServerElicitation), std::move(error));
     }
 
-    Requests::SendResult Requests::respondRaw(const UnknownServerRequest& request, Json result) {
+    SendResult Requests::respondRaw(const UnknownServerRequest& request, Json result) {
         return protocol->respondOwned(request.requestId, request.requestToken, std::move(result));
     }
 
-    Requests::SendResult Requests::reject(const UnknownServerRequest& request, ProtocolError error) {
+    SendResult Requests::reject(const UnknownServerRequest& request, ProtocolError error) {
         return protocol->rejectOwned(request.requestId, request.requestToken, std::move(error));
     }
 
-    Requests::SendResult Requests::validationFailure(std::string message) {
+    SendResult Requests::validationFailure(std::string message) {
         return {false, Error{Error::Category::Protocol, EINVAL, std::move(message)}};
     }
 

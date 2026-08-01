@@ -118,7 +118,7 @@ namespace ai::openai::codex::typed {
         AskForApproval approvalPolicy;
         ApprovalsReviewer approvalsReviewer;
         CollaborationMode collaborationMode;
-        AbsolutePathBuf cwd;
+        AbsolutePath cwd;
         OptionalNullable<ReasoningEffort> effort;
         ModelId model;
         std::string modelProvider;
@@ -681,14 +681,14 @@ namespace ai::openai::codex::typed {
     };
 
     struct ItemStarted {
-        Item item;
+        ThreadItem item;
         std::int64_t startedAtMs = 0;
         Json raw;
         std::optional<ItemStartedNotification> canonical = std::nullopt;
     };
 
     struct ItemCompleted {
-        Item item;
+        ThreadItem item;
         std::int64_t completedAtMs = 0;
         Json raw;
         std::optional<ItemCompletedNotification> canonical = std::nullopt;
@@ -842,6 +842,11 @@ namespace ai::openai::codex::typed {
     class Events {
     public:
         using EventHandler = std::function<void(const Event&)>;
+
+        Events(const Events&) = delete;
+        Events(Events&&) = delete;
+        Events& operator=(const Events&) = delete;
+        Events& operator=(Events&&) = delete;
 
         void setOnEvent(EventHandler handler);
 

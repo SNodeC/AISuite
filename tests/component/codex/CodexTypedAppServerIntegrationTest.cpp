@@ -5,8 +5,8 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/stdio/Client.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
 #include "support/TestResult.h"
@@ -171,7 +171,7 @@ int main(int argc, char* argv[]) {
         diagnostics.push_back(diagnostic.message);
     });
 
-    client.typed().events().setOnEvent([&](const typed::Event& event) {
+    client.events().setOnEvent([&](const typed::Event& event) {
         ++typedEventCount;
 
         if (const auto* unknown = std::get_if<typed::UnknownEvent>(&event)) {
@@ -197,10 +197,10 @@ int main(int argc, char* argv[]) {
         }
     });
 
-    client.typed().requests().setOnRequest([&](const typed::TypedServerRequest& request) {
+    client.requests().setOnRequest([&](const typed::TypedServerRequest& request) {
         if (const auto* command = std::get_if<typed::CommandApprovalRequest>(&request)) {
             ++approvalRequestsSeen;
-            const auto response = client.typed().requests().respond(*command, typed::ApprovalDecision::decline());
+            const auto response = client.requests().respond(*command, typed::ApprovalDecision::decline());
             if (response) {
                 ++approvalRequestsDeclined;
             } else {
@@ -209,7 +209,7 @@ int main(int argc, char* argv[]) {
             }
         } else if (const auto* fileChange = std::get_if<typed::FileChangeApprovalRequest>(&request)) {
             ++approvalRequestsSeen;
-            const auto response = client.typed().requests().respond(*fileChange, typed::ApprovalDecision::decline());
+            const auto response = client.requests().respond(*fileChange, typed::ApprovalDecision::decline());
             if (response) {
                 ++approvalRequestsDeclined;
             } else {
@@ -240,66 +240,64 @@ int main(int argc, char* argv[]) {
             params.ephemeral = typed::OptionalNullable<bool>::withValue(true);
 
             threadStartAttempted = true;
-            const auto submission = client.typed().threads().start(
-                std::move(params),
-                [&](const typed::OperationResult<typed::ThreadStartResponse>& result) {
-                using Result = typed::OperationResult<typed::ThreadStartResponse>;
+            const auto submission =
+                client.threads().start(std::move(params), [&](const typed::OperationResult<typed::ThreadStartResponse>& result) {
+                    using Result = typed::OperationResult<typed::ThreadStartResponse>;
 
-                if (result.kind == Result::Kind::RemoteError) {
-                    skipRuntime("typed thread/start was unavailable: " + describeRemoteError(result.remoteError));
-                    return;
-                }
-                if (result.kind == Result::Kind::Cancelled && !runtimeSkipReason.empty()) {
-                    return;
-                }
-                if (!result) {
-                    failWorkflow("typed thread/start did not produce a typed thread: " + describeLocalError(result.localError));
-                    return;
-                }
+                    if (result.kind == Result::Kind::RemoteError) {
+                        skipRuntime("typed thread/start was unavailable: " + describeRemoteError(result.remoteError));
+                        return;
+                    }
+                    if (result.kind == Result::Kind::Cancelled && !runtimeSkipReason.empty()) {
+                        return;
+                    }
+                    if (!result) {
+                        failWorkflow("typed thread/start did not produce a typed thread: " + describeLocalError(result.localError));
+                        return;
+                    }
 
-                threadStartSucceeded = true;
-                typed::ReadOnlySandboxPolicy readOnlySandbox;
-                readOnlySandbox.networkAccess = false;
-                typed::TurnStartParams turnParams;
-                turnParams.threadId = result.value->thread.id;
-                turnParams.input = {textInput("Reply with exactly OK. Do not use tools and do not modify any files.")};
-                turnParams.cwd = typed::OptionalNullable<std::string>::withValue(workspace.string());
-                turnParams.approvalPolicy = typed::OptionalNullable<typed::AskForApproval>::withValue(
-                    typed::AskForApproval{typed::ApprovalPolicy::never()});
-                turnParams.sandboxPolicy = typed::OptionalNullable<typed::SandboxPolicy>::withValue(
-                    typed::SandboxPolicy{std::move(readOnlySandbox)});
+                    threadStartSucceeded = true;
+                    typed::ReadOnlySandboxPolicy readOnlySandbox;
+                    readOnlySandbox.networkAccess = false;
+                    typed::TurnStartParams turnParams;
+                    turnParams.threadId = result.value->thread.id;
+                    turnParams.input = {textInput("Reply with exactly OK. Do not use tools and do not modify any files.")};
+                    turnParams.cwd = typed::OptionalNullable<std::string>::withValue(workspace.string());
+                    turnParams.approvalPolicy =
+                        typed::OptionalNullable<typed::AskForApproval>::withValue(typed::AskForApproval{typed::ApprovalPolicy::never()});
+                    turnParams.sandboxPolicy =
+                        typed::OptionalNullable<typed::SandboxPolicy>::withValue(typed::SandboxPolicy{std::move(readOnlySandbox)});
 
-                turnStartAttempted = true;
-                const auto turnSubmission = client.typed().turns().start(
-                    std::move(turnParams),
-                    [&](const typed::OperationResult<typed::TurnStartResponse>& turnResult) {
-                        using TurnResult = typed::OperationResult<typed::TurnStartResponse>;
+                    turnStartAttempted = true;
+                    const auto turnSubmission = client.turns().start(
+                        std::move(turnParams), [&](const typed::OperationResult<typed::TurnStartResponse>& turnResult) {
+                            using TurnResult = typed::OperationResult<typed::TurnStartResponse>;
 
-                        turnResultCallbackSeen = true;
-                        if (turnResult.kind == TurnResult::Kind::RemoteError) {
-                            turnRemoteError = true;
-                            turnOutcomeDescription = describeRemoteError(turnResult.remoteError);
-                            requestStop();
-                            return;
-                        }
-                        if (turnResult.kind == TurnResult::Kind::Cancelled && !runtimeSkipReason.empty()) {
-                            return;
-                        }
-                        if (!turnResult) {
-                            failWorkflow("typed turn/start did not produce a typed turn: " + describeLocalError(turnResult.localError));
-                            return;
-                        }
+                            turnResultCallbackSeen = true;
+                            if (turnResult.kind == TurnResult::Kind::RemoteError) {
+                                turnRemoteError = true;
+                                turnOutcomeDescription = describeRemoteError(turnResult.remoteError);
+                                requestStop();
+                                return;
+                            }
+                            if (turnResult.kind == TurnResult::Kind::Cancelled && !runtimeSkipReason.empty()) {
+                                return;
+                            }
+                            if (!turnResult) {
+                                failWorkflow("typed turn/start did not produce a typed turn: " + describeLocalError(turnResult.localError));
+                                return;
+                            }
 
-                        turnStartSucceeded = true;
-                        if (terminalTurnEvent) {
-                            requestStop();
-                        }
-                    });
-                turnSubmissionAccepted = static_cast<bool>(turnSubmission);
-                if (!turnSubmissionAccepted) {
-                    failWorkflow("typed turn/start submission was rejected locally: " + describeLocalError(turnSubmission.error));
-                }
-            });
+                            turnStartSucceeded = true;
+                            if (terminalTurnEvent) {
+                                requestStop();
+                            }
+                        });
+                    turnSubmissionAccepted = static_cast<bool>(turnSubmission);
+                    if (!turnSubmissionAccepted) {
+                        failWorkflow("typed turn/start submission was rejected locally: " + describeLocalError(turnSubmission.error));
+                    }
+                });
             threadSubmissionAccepted = static_cast<bool>(submission);
             if (!threadSubmissionAccepted) {
                 failWorkflow("typed thread/start submission was rejected locally: " + describeLocalError(submission.error));

@@ -187,14 +187,14 @@ namespace ai::openai::codex::typed {
 
     class Models {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using ListResultHandler = std::function<void(const OperationResult<ModelListResponse>&)>;
-        using ReadProviderCapabilitiesResultHandler =
-            std::function<void(const OperationResult<ModelProviderCapabilitiesReadResponse>&)>;
+        Models(const Models&) = delete;
+        Models(Models&&) = delete;
+        Models& operator=(const Models&) = delete;
+        Models& operator=(Models&&) = delete;
 
-        Submission list(ModelListParams params, ListResultHandler handler);
-        Submission readProviderCapabilities(ModelProviderCapabilitiesReadParams params,
-                                            ReadProviderCapabilitiesResultHandler handler);
+        Submission list(ModelListParams params, CompletionHandler<ModelListResponse> handler);
+        Submission list(CompletionHandler<ModelListResponse> handler);
+        Submission readProviderCapabilities(CompletionHandler<ModelProviderCapabilitiesReadResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

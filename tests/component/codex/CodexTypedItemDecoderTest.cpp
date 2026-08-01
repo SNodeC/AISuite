@@ -17,34 +17,34 @@
 namespace {
     using ai::openai::codex::Json;
     using ai::openai::codex::detail::decodeItem;
-    using ai::openai::codex::typed::AgentMessageItem;
-    using ai::openai::codex::typed::CommandExecutionItem;
+    using ai::openai::codex::typed::AgentMessageThreadItem;
+    using ai::openai::codex::typed::CommandExecutionThreadItem;
     using ai::openai::codex::typed::DecodeIssueKind;
     using ai::openai::codex::typed::DecodeIssueSeverity;
     using ai::openai::codex::typed::DynamicToolCallThreadItem;
-    using ai::openai::codex::typed::FileChangeItem;
-    using ai::openai::codex::typed::ImageUserInput;
+    using ai::openai::codex::typed::FileChangeThreadItem;
+    using ai::openai::codex::typed::ImageUrlInput;
     using ai::openai::codex::typed::InputTextDynamicToolCallOutputContentItem;
-    using ai::openai::codex::typed::Item;
-    using ai::openai::codex::typed::ReasoningItem;
-    using ai::openai::codex::typed::TextUserInput;
+    using ai::openai::codex::typed::McpToolCallThreadItem;
+    using ai::openai::codex::typed::ReasoningThreadItem;
+    using ai::openai::codex::typed::TextInput;
     using ai::openai::codex::typed::ThreadId;
-    using ai::openai::codex::typed::ToolCallItem;
+    using ai::openai::codex::typed::ThreadItem;
     using ai::openai::codex::typed::TurnId;
     using ai::openai::codex::typed::UnknownItem;
     using ai::openai::codex::typed::UnknownPatchChangeKind;
-    using ai::openai::codex::typed::UnknownUserInput;
+    using ai::openai::codex::typed::UnknownTurnInput;
     using ai::openai::codex::typed::UnknownWebSearchAction;
     using ai::openai::codex::typed::UnrecognizedCommandAction;
-    using ai::openai::codex::typed::UserMessageItem;
-    using ai::openai::codex::typed::WebSearchItem;
+    using ai::openai::codex::typed::UserMessageThreadItem;
+    using ai::openai::codex::typed::WebSearchThreadItem;
 
-    std::optional<Item> decode(const Json& raw, std::string& error) {
+    std::optional<ThreadItem> decode(const Json& raw, std::string& error) {
         return decodeItem(raw, ThreadId{"thread-typed"}, TurnId{"turn-typed"}, error);
     }
 
     template <typename T>
-    const T* as(const std::optional<Item>& item) {
+    const T* as(const std::optional<ThreadItem>& item) {
         return item ? std::get_if<T>(&*item) : nullptr;
     }
 
@@ -95,8 +95,8 @@ namespace {
             {"futureAgentField", Json::array({1, "kept"})},
         };
         std::string error = "stale";
-        const std::optional<Item> decoded = decode(raw, error);
-        const AgentMessageItem* item = as<AgentMessageItem>(decoded);
+        const std::optional<ThreadItem> decoded = decode(raw, error);
+        const AgentMessageThreadItem* item = as<AgentMessageThreadItem>(decoded);
 
         testResult.expectTrue(item != nullptr, "agentMessage item is classified");
         testResult.expectTrue(item && item->text == "Analysis complete." && item->phase.hasValue() &&
@@ -111,8 +111,8 @@ namespace {
         }
 
         const Json withoutPhase = {{"type", "agentMessage"}, {"id", "agent-2"}, {"text", "No phase"}};
-        const std::optional<Item> decodedWithoutPhase = decode(withoutPhase, error);
-        const AgentMessageItem* noPhase = as<AgentMessageItem>(decodedWithoutPhase);
+        const std::optional<ThreadItem> decodedWithoutPhase = decode(withoutPhase, error);
+        const AgentMessageThreadItem* noPhase = as<AgentMessageThreadItem>(decodedWithoutPhase);
         testResult.expectTrue(noPhase && noPhase->phase.isOmitted(), "agentMessage preserves an omitted optional phase");
     }
 
@@ -130,17 +130,14 @@ namespace {
             {"futureUserMessageField", Json{{"kept", true}}},
         };
         std::string error = "stale";
-        const std::optional<Item> decoded = decode(raw, error);
-        const UserMessageItem* item = as<UserMessageItem>(decoded);
+        const std::optional<ThreadItem> decoded = decode(raw, error);
+        const UserMessageThreadItem* item = as<UserMessageThreadItem>(decoded);
 
         testResult.expectTrue(item != nullptr, "userMessage item is classified");
         testResult.expectTrue(item && item->clientId.isNull(), "userMessage preserves an explicit-null clientId");
-        const TextUserInput* text =
-            item && item->content.size() == 3 ? std::get_if<TextUserInput>(&item->content[0]) : nullptr;
-        const ImageUserInput* image =
-            item && item->content.size() == 3 ? std::get_if<ImageUserInput>(&item->content[1]) : nullptr;
-        const UnknownUserInput* future =
-            item && item->content.size() == 3 ? std::get_if<UnknownUserInput>(&item->content[2]) : nullptr;
+        const TextInput* text = item && item->content.size() == 3 ? std::get_if<TextInput>(&item->content[0]) : nullptr;
+        const ImageUrlInput* image = item && item->content.size() == 3 ? std::get_if<ImageUrlInput>(&item->content[1]) : nullptr;
+        const UnknownTurnInput* future = item && item->content.size() == 3 ? std::get_if<UnknownTurnInput>(&item->content[2]) : nullptr;
         testResult.expectTrue(text && text->text == "Answer just with OK!" && text->textElements &&
                                   text->textElements->empty() && text->raw == content[0] && image &&
                                   image->url == "https://example.invalid/input.png" && image->detail.isNull() &&
@@ -160,17 +157,16 @@ namespace {
         Json withClientId = raw;
         withClientId["id"] = "user-message-2";
         withClientId["clientId"] = "client-message-2";
-        const std::optional<Item> decodedWithClientId = decode(withClientId, error);
-        const UserMessageItem* clientItem = as<UserMessageItem>(decodedWithClientId);
-        testResult.expectTrue(clientItem && clientItem->clientId.hasValue() &&
-                                  clientItem->clientId->value == "client-message-2" && clientItem->content.size() == 3 &&
-                                  std::get<UnknownUserInput>(clientItem->content[2]).raw == content[2],
+        const std::optional<ThreadItem> decodedWithClientId = decode(withClientId, error);
+        const UserMessageThreadItem* clientItem = as<UserMessageThreadItem>(decodedWithClientId);
+        testResult.expectTrue(clientItem && clientItem->clientId.hasValue() && clientItem->clientId->value == "client-message-2" &&
+                                  clientItem->content.size() == 3 && std::get<UnknownTurnInput>(clientItem->content[2]).raw == content[2],
                               "userMessage preserves a non-null clientId without changing typed or unknown content");
 
         Json invalidContent = raw;
         invalidContent["id"] = "user-message-invalid-content";
         invalidContent["content"] = Json::object({{"text", "not an array"}});
-        const std::optional<Item> decodedInvalidContent = decode(invalidContent, error);
+        const std::optional<ThreadItem> decodedInvalidContent = decode(invalidContent, error);
         const UnknownItem* invalidContentItem = as<UnknownItem>(decodedInvalidContent);
         testResult.expectTrue(invalidContentItem && invalidContentItem->type == "userMessage" &&
                                   isMalformedKnown(invalidContentItem->diagnostic, "$.content") && error.empty(),
@@ -186,7 +182,7 @@ namespace {
         Json invalidClientId = raw;
         invalidClientId["id"] = "user-message-invalid-client";
         invalidClientId["clientId"] = Json::array({"not", "a", "string"});
-        const std::optional<Item> decodedInvalidClientId = decode(invalidClientId, error);
+        const std::optional<ThreadItem> decodedInvalidClientId = decode(invalidClientId, error);
         const UnknownItem* invalidClientItem = as<UnknownItem>(decodedInvalidClientId);
         testResult.expectTrue(invalidClientItem && isMalformedKnown(invalidClientItem->diagnostic, "$.clientId") && error.empty(),
                               "malformed userMessage clientId retains metadata and the exact malformed-known diagnostic");
@@ -208,8 +204,8 @@ namespace {
             {"futureReasoningField", true},
         };
         std::string error;
-        const std::optional<Item> decoded = decode(raw, error);
-        const ReasoningItem* item = as<ReasoningItem>(decoded);
+        const std::optional<ThreadItem> decoded = decode(raw, error);
+        const ReasoningThreadItem* item = as<ReasoningThreadItem>(decoded);
 
         testResult.expectTrue(item && item->summary && item->summary->size() == 2 && item->summary->at(0) == "first" &&
                                   item->content && item->content->size() == 1 && item->content->at(0) == "detail",
@@ -219,8 +215,8 @@ namespace {
         }
 
         const Json defaults = {{"type", "reasoning"}, {"id", "reasoning-defaults"}};
-        const std::optional<Item> decodedDefaults = decode(defaults, error);
-        const ReasoningItem* defaultItem = as<ReasoningItem>(decodedDefaults);
+        const std::optional<ThreadItem> decodedDefaults = decode(defaults, error);
+        const ReasoningThreadItem* defaultItem = as<ReasoningThreadItem>(decodedDefaults);
         testResult.expectTrue(defaultItem && !defaultItem->summary && !defaultItem->content &&
                                   defaultItem->summaryOrDefault().empty() && defaultItem->contentOrDefault().empty(),
                               "reasoning preserves omitted optional arrays while its compatibility accessors remain empty");
@@ -241,8 +237,8 @@ namespace {
             {"futureCommandField", Json{{"preserved", true}}},
         };
         std::string error;
-        const std::optional<Item> decoded = decode(raw, error);
-        const CommandExecutionItem* item = as<CommandExecutionItem>(decoded);
+        const std::optional<ThreadItem> decoded = decode(raw, error);
+        const CommandExecutionThreadItem* item = as<CommandExecutionThreadItem>(decoded);
 
         const UnrecognizedCommandAction* futureAction =
             item && item->commandActions.size() == 1 ? std::get_if<UnrecognizedCommandAction>(&item->commandActions.front()) : nullptr;
@@ -284,8 +280,8 @@ namespace {
             {"status", "completed"},
             {"commandActions", Json::array()},
         };
-        const std::optional<Item> decodedOptionalFields = decode(optionalFieldsAbsent, error);
-        const CommandExecutionItem* optionalItem = as<CommandExecutionItem>(decodedOptionalFields);
+        const std::optional<ThreadItem> decodedOptionalFields = decode(optionalFieldsAbsent, error);
+        const CommandExecutionThreadItem* optionalItem = as<CommandExecutionThreadItem>(decodedOptionalFields);
         testResult.expectTrue(optionalItem && optionalItem->processId.isOmitted() && optionalItem->exitCode.isOmitted() &&
                                   optionalItem->durationMs.isOmitted() && optionalItem->aggregatedOutput.isOmitted() &&
                                   !optionalItem->source && optionalItem->sourceOrDefault().value == "agent",
@@ -294,8 +290,8 @@ namespace {
         Json maximumValues = optionalFieldsAbsent;
         maximumValues["exitCode"] = std::numeric_limits<std::int32_t>::max();
         maximumValues["durationMs"] = std::numeric_limits<std::int64_t>::max();
-        const std::optional<Item> decodedMaximumValues = decode(maximumValues, error);
-        const CommandExecutionItem* maximumItem = as<CommandExecutionItem>(decodedMaximumValues);
+        const std::optional<ThreadItem> decodedMaximumValues = decode(maximumValues, error);
+        const CommandExecutionThreadItem* maximumItem = as<CommandExecutionThreadItem>(decodedMaximumValues);
         testResult.expectTrue(maximumItem && maximumItem->exitCode.hasValue() &&
                                   *maximumItem->exitCode == std::numeric_limits<std::int32_t>::max() &&
                                   maximumItem->durationMs.hasValue() &&
@@ -304,7 +300,7 @@ namespace {
 
         Json exitOverflow = optionalFieldsAbsent;
         exitOverflow["exitCode"] = static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) + 1;
-        const std::optional<Item> decodedExitOverflow = decode(exitOverflow, error);
+        const std::optional<ThreadItem> decodedExitOverflow = decode(exitOverflow, error);
         const UnknownItem* exitOverflowItem = as<UnknownItem>(decodedExitOverflow);
         testResult.expectTrue(exitOverflowItem && isMalformedKnown(exitOverflowItem->diagnostic, "$.exitCode") && error.empty(),
                               "commandExecution with exitCode outside int32 degrades with the exact malformed-known diagnostic");
@@ -315,7 +311,7 @@ namespace {
 
         Json durationOverflow = optionalFieldsAbsent;
         durationOverflow["durationMs"] = std::numeric_limits<std::uint64_t>::max();
-        const std::optional<Item> decodedDurationOverflow = decode(durationOverflow, error);
+        const std::optional<ThreadItem> decodedDurationOverflow = decode(durationOverflow, error);
         const UnknownItem* durationOverflowItem = as<UnknownItem>(decodedDurationOverflow);
         testResult.expectTrue(durationOverflowItem && isMalformedKnown(durationOverflowItem->diagnostic, "$.durationMs") && error.empty(),
                               "commandExecution with durationMs outside int64 degrades with the exact malformed-known diagnostic");
@@ -339,8 +335,8 @@ namespace {
             {"futureFileField", 8},
         };
         std::string error;
-        const std::optional<Item> decoded = decode(raw, error);
-        const FileChangeItem* item = as<FileChangeItem>(decoded);
+        const std::optional<ThreadItem> decoded = decode(raw, error);
+        const FileChangeThreadItem* item = as<FileChangeThreadItem>(decoded);
 
         const UnknownPatchChangeKind* futureKind =
             item && item->changes.size() == 1 ? std::get_if<UnknownPatchChangeKind>(&item->changes.front().kind) : nullptr;
@@ -371,8 +367,8 @@ namespace {
             {"futureMcpField", "kept"},
         };
         std::string error;
-        const std::optional<Item> decodedMcp = decode(mcpRaw, error);
-        const ToolCallItem* mcp = as<ToolCallItem>(decodedMcp);
+        const std::optional<ThreadItem> decodedMcp = decode(mcpRaw, error);
+        const McpToolCallThreadItem* mcp = as<McpToolCallThreadItem>(decodedMcp);
 
         testResult.expectTrue(mcp && mcp->server == "files" && mcp->tool == "read" &&
                                   mcp->status.value == "completed" && mcp->arguments &&
@@ -397,7 +393,7 @@ namespace {
             {"success", false},
             {"futureDynamicField", true},
         };
-        const std::optional<Item> decodedDynamic = decode(dynamicRaw, error);
+        const std::optional<ThreadItem> decodedDynamic = decode(dynamicRaw, error);
         const DynamicToolCallThreadItem* dynamic = as<DynamicToolCallThreadItem>(decodedDynamic);
         const InputTextDynamicToolCallOutputContentItem* dynamicText =
             dynamic && dynamic->contentItems.hasValue() && dynamic->contentItems->size() == 1
@@ -429,8 +425,8 @@ namespace {
             {"futureWebField", nullptr},
         };
         std::string error;
-        const std::optional<Item> decoded = decode(raw, error);
-        const WebSearchItem* item = as<WebSearchItem>(decoded);
+        const std::optional<ThreadItem> decoded = decode(raw, error);
+        const WebSearchThreadItem* item = as<WebSearchThreadItem>(decoded);
 
         const UnknownWebSearchAction* futureAction =
             item && item->action.hasValue() ? std::get_if<UnknownWebSearchAction>(&*item->action) : nullptr;
@@ -452,8 +448,8 @@ namespace {
         }
 
         const Json actionAbsent = {{"type", "webSearch"}, {"id", "web-2"}, {"query", "optional"}};
-        const std::optional<Item> decodedActionAbsent = decode(actionAbsent, error);
-        const WebSearchItem* noAction = as<WebSearchItem>(decodedActionAbsent);
+        const std::optional<ThreadItem> decodedActionAbsent = decode(actionAbsent, error);
+        const WebSearchThreadItem* noAction = as<WebSearchThreadItem>(decodedActionAbsent);
         testResult.expectTrue(noAction && noAction->action.isOmitted(), "webSearch preserves an omitted optional action");
     }
 
@@ -464,7 +460,7 @@ namespace {
             {"futurePayload", Json::array({1, false, "three"})},
         };
         std::string error = "stale";
-        const std::optional<Item> decodedFuture = decode(futureRaw, error);
+        const std::optional<ThreadItem> decodedFuture = decode(futureRaw, error);
         const UnknownItem* future = as<UnknownItem>(decodedFuture);
         testResult.expectTrue(future && future->type == "futureItem" &&
                                   isForwardCompatibility(future->diagnostic, DecodeIssueKind::UnknownDiscriminator, "$.type") &&
@@ -475,7 +471,7 @@ namespace {
         }
 
         const Json missingText = {{"type", "agentMessage"}, {"id", "bad-agent"}};
-        const std::optional<Item> decodedMissingText = decode(missingText, error);
+        const std::optional<ThreadItem> decodedMissingText = decode(missingText, error);
         const UnknownItem* missingTextItem = as<UnknownItem>(decodedMissingText);
         testResult.expectTrue(missingTextItem && missingTextItem->type == "agentMessage" &&
                                   isMalformedKnown(missingTextItem->diagnostic, "$.text") && error.empty(),
@@ -485,7 +481,7 @@ namespace {
         }
 
         const Json invalidId = {{"type", "reasoning"}, {"id", 7}};
-        const std::optional<Item> decodedInvalidId = decode(invalidId, error);
+        const std::optional<ThreadItem> decodedInvalidId = decode(invalidId, error);
         const UnknownItem* invalidIdItem = as<UnknownItem>(decodedInvalidId);
         testResult.expectTrue(invalidIdItem && invalidIdItem->type == "reasoning" && isMalformedKnown(invalidIdItem->diagnostic, "$.id") &&
                                   error.empty(),
@@ -495,7 +491,7 @@ namespace {
         }
 
         const Json missingId = {{"type", "futureItem"}, {"futurePayload", true}};
-        const std::optional<Item> decodedMissingId = decode(missingId, error);
+        const std::optional<ThreadItem> decodedMissingId = decode(missingId, error);
         const UnknownItem* missingIdItem = as<UnknownItem>(decodedMissingId);
         testResult.expectTrue(missingIdItem && isMalformedKnown(missingIdItem->diagnostic, "$.id") && error.empty(),
                               "unknown item missing its ID retains the exact bounded malformed-known diagnostic");
@@ -504,7 +500,7 @@ namespace {
         }
 
         const Json emptyId = {{"type", "futureItem"}, {"id", ""}, {"futurePayload", false}};
-        const std::optional<Item> decodedEmptyId = decode(emptyId, error);
+        const std::optional<ThreadItem> decodedEmptyId = decode(emptyId, error);
         const UnknownItem* emptyIdItem = as<UnknownItem>(decodedEmptyId);
         testResult.expectTrue(emptyIdItem && !emptyIdItem->metadata.id && isMalformedKnown(emptyIdItem->diagnostic, "$.id") &&
                                   error.empty(),
@@ -514,7 +510,7 @@ namespace {
         }
 
         const Json missingType = {{"id", "missing-type"}};
-        const std::optional<Item> decodedMissingType = decode(missingType, error);
+        const std::optional<ThreadItem> decodedMissingType = decode(missingType, error);
         const UnknownItem* missingTypeItem = as<UnknownItem>(decodedMissingType);
         testResult.expectTrue(missingTypeItem && !missingTypeItem->type && isMalformedKnown(missingTypeItem->diagnostic, "$.type") &&
                                   error.empty(),
@@ -523,7 +519,7 @@ namespace {
             expectUnknownMetadata(testResult, *missingTypeItem, std::string("missing-type"), missingType, "item missing its discriminator");
         }
 
-        const std::optional<Item> rejectedScalar = decode(Json::array({1, 2}), error);
+        const std::optional<ThreadItem> rejectedScalar = decode(Json::array({1, 2}), error);
         testResult.expectTrue(!rejectedScalar && !error.empty(), "non-object item reports a decoding error without throwing");
     }
 } // namespace

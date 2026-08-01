@@ -24,15 +24,15 @@ int main() {
     protocol.setOnUnknownMessage([](const UnknownMessage&) {
     });
 
-    const AppServerClient::RawProtocol::Submission request = protocol.request("thread/start", Json::object(), [](const Response&) {
+    const Submission request = protocol.request("thread/start", Json::object(), [](const Response&) {
     });
-    const AppServerClient::RawProtocol::SendResult notification = protocol.notify("client/example", Json::object());
+    const SendResult notification = protocol.notify("client/example", Json::object());
 
     const ServerRequestId integerId(7);
-    const AppServerClient::RawProtocol::SendResult response = protocol.respond(integerId, Json{{"decision", "accept"}});
+    const SendResult response = protocol.respond(integerId, Json{{"decision", "accept"}});
 
     const ServerRequestId stringId(std::string("request-7"));
-    const AppServerClient::RawProtocol::SendResult rejection =
+    const SendResult rejection =
         protocol.reject(stringId, ProtocolError{.code = -32000, .message = "Request rejected", .data = std::nullopt});
 
     const std::optional<typed::InitializeResponse> initializeResponse = client.getInitializeResponse();

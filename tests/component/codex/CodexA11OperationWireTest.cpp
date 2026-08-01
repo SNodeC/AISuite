@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -45,7 +45,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
 
     constexpr std::string_view ThreadIdValue = "synthetic-bd0d0f38fe";
     constexpr std::string_view TurnIdValue = "synthetic-e026a1a7e9";
@@ -57,10 +57,10 @@ namespace {
     static_assert(std::is_aggregate_v<typed::ThreadStartParams>);
 
     static_assert(requires(typed::Threads& threads,
-                           typed::Threads::ThreadListResultHandler listHandler,
-                           typed::Threads::ThreadStartResultHandler threadHandler) {
+                           typed::CompletionHandler<typed::ThreadListResponse> listHandler,
+                           typed::CompletionHandler<typed::ThreadStartResponse> threadHandler) {
         threads.list({}, std::move(listHandler));
-        threads.start({}, std::move(threadHandler));
+        threads.start(typed::ThreadStartParams{}, std::move(threadHandler));
     });
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -279,8 +279,8 @@ namespace {
         return {std::string(TurnIdValue)};
     }
 
-    typed::UserInput textInput() {
-        typed::TextUserInput input;
+    typed::TurnInput textInput() {
+        typed::TextInput input;
         input.text = "synthetic-796383c7b4";
         typed::TextElement element;
         element.byteRange = {0, 0};
@@ -545,6 +545,7 @@ namespace {
                 client = std::make_unique<TestClient>(state);
                 buildCases();
                 buildEncodingCases();
+                buildErgonomicEncodingCases();
                 buildLaunchResponseCases();
             }
         }
@@ -558,7 +559,7 @@ namespace {
             }
             expect(cases.size() == OperationCount, "A1.1 operation harness contains the exact 22 stable request methods");
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 const typed::UnknownEvent* unknown = std::get_if<typed::UnknownEvent>(&event);
                 if (unknown && unknown->method == "test/a1-1/raw-observer" && unknown->params.is_object() &&
                     unknown->params.contains("operation") && unknown->params["operation"].is_string()) {
@@ -759,6 +760,41 @@ namespace {
                     });
                 },
             };
+        }
+
+        template <typename Result, typename Params, typename CanonicalSubmit, typename ErgonomicSubmit>
+        void addEquivalentEncodingCases(std::string label,
+                                        std::string method,
+                                        std::string_view slug,
+                                        Params params,
+                                        codex::Json expectedParams,
+                                        CanonicalSubmit canonicalSubmit,
+                                        ErgonomicSubmit ergonomicSubmit) {
+            state->successResults[method] = readFixture(slug, "result");
+            encodingCases.push_back(makeEncodingCase<Result>(
+                label + ":canonical", method, slug, std::move(params), expectedParams, std::move(canonicalSubmit)));
+            encodingCases.push_back(makeEncodingCase<Result>(label + ":application",
+                                                             std::move(method),
+                                                             slug,
+                                                             typed::Unit{},
+                                                             std::move(expectedParams),
+                                                             [submit = std::move(ergonomicSubmit)](auto, auto handler) mutable {
+                                                                 return submit(std::move(handler));
+                                                             }));
+        }
+
+        template <typename Result, typename Submit>
+        void addParameterlessEncodingCase(
+            std::string label, std::string method, std::string_view slug, codex::Json expectedParams, Submit submit) {
+            state->successResults[method] = readFixture(slug, "result");
+            encodingCases.push_back(makeEncodingCase<Result>(std::move(label),
+                                                             std::move(method),
+                                                             slug,
+                                                             typed::Unit{},
+                                                             std::move(expectedParams),
+                                                             [submit = std::move(submit)](auto, auto handler) mutable {
+                                                                 return submit(std::move(handler));
+                                                             }));
         }
 
         template <typename Result, typename Params, typename Submit>
@@ -1147,8 +1183,8 @@ namespace {
         }
 
         void buildCases() {
-            auto& threads = client->typed().threads();
-            auto& turns = client->typed().turns();
+            auto& threads = client->threads();
+            auto& turns = client->turns();
 
             cases.push_back(makeOperation<typed::Unit>("thread/archive",
                                                        "thread-archive",
@@ -1306,8 +1342,8 @@ namespace {
         }
 
         void buildEncodingCases() {
-            auto& threads = client->typed().threads();
-            auto& turns = client->typed().turns();
+            auto& threads = client->threads();
+            auto& turns = client->turns();
             const codex::Json nontrivialOpaque = {
                 {"nested", {{"enabled", true}, {"values", codex::Json::array({1, "two", nullptr, codex::Json{{"leaf", 3}}})}}},
             };
@@ -1815,8 +1851,366 @@ namespace {
                                                                                }));
         }
 
+        void buildErgonomicEncodingCases() {
+            auto& accounts = client->accounts();
+            auto& apps = client->apps();
+            auto& configuration = client->configuration();
+            auto& externalAgents = client->externalAgents();
+            auto& hooks = client->hooks();
+            auto& marketplace = client->marketplace();
+            auto& mcp = client->mcp();
+            auto& models = client->models();
+            auto& permissionProfiles = client->permissionProfiles();
+            auto& plugins = client->plugins();
+            auto& skills = client->skills();
+            auto& threads = client->threads();
+            auto& turns = client->turns();
+
+            addParameterlessEncodingCase<typed::Unit>(
+                "a1-5/account/logout", "account/logout", "account-logout", nullptr, [&accounts](auto handler) {
+                    return accounts.logout(std::move(handler));
+                });
+            addParameterlessEncodingCase<typed::GetAccountRateLimitsResponse>(
+                "a1-5/account/rate-limits", "account/rateLimits/read", "account-ratelimits-read", nullptr, [&accounts](auto handler) {
+                    return accounts.readRateLimits(std::move(handler));
+                });
+            addParameterlessEncodingCase<typed::GetAccountTokenUsageResponse>(
+                "a1-5/account/usage", "account/usage/read", "account-usage-read", nullptr, [&accounts](auto handler) {
+                    return accounts.readUsage(std::move(handler));
+                });
+            addParameterlessEncodingCase<typed::GetWorkspaceMessagesResponse>("a1-5/account/workspace-messages",
+                                                                              "account/workspaceMessages/read",
+                                                                              "account-workspacemessages-read",
+                                                                              nullptr,
+                                                                              [&accounts](auto handler) {
+                                                                                  return accounts.readWorkspaceMessages(std::move(handler));
+                                                                              });
+            addParameterlessEncodingCase<typed::Unit>(
+                "a1-5/config/reload-mcp", "config/mcpServer/reload", "config-mcpserver-reload", nullptr, [&configuration](auto handler) {
+                    return configuration.reloadMcpServers(std::move(handler));
+                });
+            addParameterlessEncodingCase<typed::ConfigRequirementsReadResponse>("a1-5/config/read-requirements",
+                                                                                "configRequirements/read",
+                                                                                "configrequirements-read",
+                                                                                nullptr,
+                                                                                [&configuration](auto handler) {
+                                                                                    return configuration.readRequirements(
+                                                                                        std::move(handler));
+                                                                                });
+            addParameterlessEncodingCase<typed::ExternalAgentConfigImportHistoriesReadResponse>(
+                "a1-5/external-agent/import-histories",
+                "externalAgentConfig/import/readHistories",
+                "externalagentconfig-import-readhistories",
+                nullptr,
+                [&externalAgents](auto handler) {
+                    return externalAgents.readImportHistories(std::move(handler));
+                });
+            addParameterlessEncodingCase<typed::ModelProviderCapabilitiesReadResponse>("a1-5/model/provider-capabilities",
+                                                                                       "modelProvider/capabilities/read",
+                                                                                       "modelprovider-capabilities-read",
+                                                                                       codex::Json::object(),
+                                                                                       [&models](auto handler) {
+                                                                                           return models.readProviderCapabilities(
+                                                                                               std::move(handler));
+                                                                                       });
+            addParameterlessEncodingCase<typed::PluginShareListResponse>(
+                "a1-5/plugin/share-list", "plugin/share/list", "plugin-share-list", codex::Json::object(), [&plugins](auto handler) {
+                    return plugins.shareList(std::move(handler));
+                });
+
+            addEquivalentEncodingCases<typed::ThreadStartResponse>(
+                "a1-5/thread/start-default",
+                "thread/start",
+                "thread-start",
+                typed::ThreadStartParams{},
+                codex::Json::object(),
+                [&threads](auto params, auto handler) {
+                    return threads.start(std::move(params), std::move(handler));
+                },
+                [&threads](auto handler) {
+                    return threads.start(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ThreadListResponse>(
+                "a1-5/thread/list-default",
+                "thread/list",
+                "thread-list",
+                typed::ThreadListParams{},
+                codex::Json::object(),
+                [&threads](auto params, auto handler) {
+                    return threads.list(std::move(params), std::move(handler));
+                },
+                [&threads](auto handler) {
+                    return threads.list(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ThreadLoadedListResponse>(
+                "a1-5/thread/list-loaded-default",
+                "thread/loaded/list",
+                "thread-loaded-list",
+                typed::ThreadLoadedListParams{},
+                codex::Json::object(),
+                [&threads](auto params, auto handler) {
+                    return threads.listLoaded(std::move(params), std::move(handler));
+                },
+                [&threads](auto handler) {
+                    return threads.listLoaded(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::GetAccountResponse>(
+                "a1-5/account/read-default",
+                "account/read",
+                "account-read",
+                typed::GetAccountParams{},
+                codex::Json::object(),
+                [&accounts](auto params, auto handler) {
+                    return accounts.read(std::move(params), std::move(handler));
+                },
+                [&accounts](auto handler) {
+                    return accounts.read(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ModelListResponse>(
+                "a1-5/model/list-default",
+                "model/list",
+                "model-list",
+                typed::ModelListParams{},
+                codex::Json::object(),
+                [&models](auto params, auto handler) {
+                    return models.list(std::move(params), std::move(handler));
+                },
+                [&models](auto handler) {
+                    return models.list(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ConfigReadResponse>(
+                "a1-5/config/read-default",
+                "config/read",
+                "config-read",
+                typed::ConfigReadParams{},
+                codex::Json::object(),
+                [&configuration](auto params, auto handler) {
+                    return configuration.read(std::move(params), std::move(handler));
+                },
+                [&configuration](auto handler) {
+                    return configuration.read(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ExperimentalFeatureListResponse>(
+                "a1-5/config/experimental-features-default",
+                "experimentalFeature/list",
+                "experimentalfeature-list",
+                typed::ExperimentalFeatureListParams{},
+                codex::Json::object(),
+                [&configuration](auto params, auto handler) {
+                    return configuration.listExperimentalFeatures(std::move(params), std::move(handler));
+                },
+                [&configuration](auto handler) {
+                    return configuration.listExperimentalFeatures(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::PermissionProfileListResponse>(
+                "a1-5/permission-profile/list-default",
+                "permissionProfile/list",
+                "permissionprofile-list",
+                typed::PermissionProfileListParams{},
+                codex::Json::object(),
+                [&permissionProfiles](auto params, auto handler) {
+                    return permissionProfiles.list(std::move(params), std::move(handler));
+                },
+                [&permissionProfiles](auto handler) {
+                    return permissionProfiles.list(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::AppsListResponse>(
+                "a1-5/app/list-default",
+                "app/list",
+                "app-list",
+                typed::AppsListParams{},
+                codex::Json::object(),
+                [&apps](auto params, auto handler) {
+                    return apps.list(std::move(params), std::move(handler));
+                },
+                [&apps](auto handler) {
+                    return apps.list(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ExternalAgentConfigDetectResponse>(
+                "a1-5/external-agent/detect-default",
+                "externalAgentConfig/detect",
+                "externalagentconfig-detect",
+                typed::ExternalAgentConfigDetectParams{},
+                codex::Json::object(),
+                [&externalAgents](auto params, auto handler) {
+                    return externalAgents.detect(std::move(params), std::move(handler));
+                },
+                [&externalAgents](auto handler) {
+                    return externalAgents.detect(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::HooksListResponse>(
+                "a1-5/hooks/list-default",
+                "hooks/list",
+                "hooks-list",
+                typed::HooksListParams{},
+                codex::Json::object(),
+                [&hooks](auto params, auto handler) {
+                    return hooks.list(std::move(params), std::move(handler));
+                },
+                [&hooks](auto handler) {
+                    return hooks.list(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::MarketplaceUpgradeResponse>(
+                "a1-5/marketplace/upgrade-default",
+                "marketplace/upgrade",
+                "marketplace-upgrade",
+                typed::MarketplaceUpgradeParams{},
+                codex::Json::object(),
+                [&marketplace](auto params, auto handler) {
+                    return marketplace.upgrade(std::move(params), std::move(handler));
+                },
+                [&marketplace](auto handler) {
+                    return marketplace.upgrade(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::PluginInstalledResponse>(
+                "a1-5/plugin/installed-default",
+                "plugin/installed",
+                "plugin-installed",
+                typed::PluginInstalledParams{},
+                codex::Json::object(),
+                [&plugins](auto params, auto handler) {
+                    return plugins.installed(std::move(params), std::move(handler));
+                },
+                [&plugins](auto handler) {
+                    return plugins.installed(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::PluginListResponse>(
+                "a1-5/plugin/list-default",
+                "plugin/list",
+                "plugin-list",
+                typed::PluginListParams{},
+                codex::Json::object(),
+                [&plugins](auto params, auto handler) {
+                    return plugins.list(std::move(params), std::move(handler));
+                },
+                [&plugins](auto handler) {
+                    return plugins.list(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::SkillsListResponse>(
+                "a1-5/skills/list-default",
+                "skills/list",
+                "skills-list",
+                typed::SkillsListParams{},
+                codex::Json::object(),
+                [&skills](auto params, auto handler) {
+                    return skills.list(std::move(params), std::move(handler));
+                },
+                [&skills](auto handler) {
+                    return skills.list(std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ListMcpServerStatusResponse>(
+                "a1-5/mcp/list-servers-default",
+                "mcpServerStatus/list",
+                "mcpserverstatus-list",
+                typed::ListMcpServerStatusParams{},
+                codex::Json::object(),
+                [&mcp](auto params, auto handler) {
+                    return mcp.listServers(std::move(params), std::move(handler));
+                },
+                [&mcp](auto handler) {
+                    return mcp.listServers(std::move(handler));
+                });
+
+            typed::ThreadStartParams startAtCwd;
+            startAtCwd.cwd = std::string{"/synthetic/project"};
+            addEquivalentEncodingCases<typed::ThreadStartResponse>(
+                "a1-5/thread/start-cwd",
+                "thread/start",
+                "thread-start",
+                std::move(startAtCwd),
+                {{"cwd", "/synthetic/project"}},
+                [&threads](auto params, auto handler) {
+                    return threads.start(std::move(params), std::move(handler));
+                },
+                [&threads](auto handler) {
+                    return threads.start(typed::AbsolutePath{"/synthetic/project"}, std::move(handler));
+                });
+            typed::ThreadResumeParams resumeById;
+            resumeById.threadId = threadId();
+            addEquivalentEncodingCases<typed::ThreadResumeResponse>(
+                "a1-5/thread/resume-id",
+                "thread/resume",
+                "thread-resume",
+                std::move(resumeById),
+                {{"threadId", ThreadIdValue}},
+                [&threads](auto params, auto handler) {
+                    return threads.resume(std::move(params), std::move(handler));
+                },
+                [&threads](auto handler) {
+                    return threads.resume(threadId(), std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::ThreadReadResponse>(
+                "a1-5/thread/read-id",
+                "thread/read",
+                "thread-read",
+                typed::ThreadReadParams{threadId(), std::nullopt},
+                {{"threadId", ThreadIdValue}},
+                [&threads](auto params, auto handler) {
+                    return threads.read(std::move(params), std::move(handler));
+                },
+                [&threads](auto handler) {
+                    return threads.read(threadId(), std::move(handler));
+                });
+
+            typed::TextInput vectorText;
+            vectorText.text = "synthetic-vector-input";
+            typed::TurnStartParams vectorStart;
+            vectorStart.threadId = threadId();
+            vectorStart.input = {typed::TurnInput{vectorText}};
+            const codex::Json vectorStartParams = {
+                {"input",
+                 codex::Json::array(
+                     {codex::Json{{"text", "synthetic-vector-input"}, {"text_elements", codex::Json::array()}, {"type", "text"}}})},
+                {"threadId", ThreadIdValue},
+            };
+            addEquivalentEncodingCases<typed::TurnStartResponse>(
+                "a1-5/turn/start-vector",
+                "turn/start",
+                "turn-start",
+                std::move(vectorStart),
+                vectorStartParams,
+                [&turns](auto params, auto handler) {
+                    return turns.start(std::move(params), std::move(handler));
+                },
+                [&turns, vectorText](auto handler) mutable {
+                    return turns.start(threadId(), std::vector<typed::TurnInput>{vectorText}, std::move(handler));
+                });
+            typed::TextInput stringText;
+            stringText.text = "synthetic-string-input";
+            typed::TurnStartParams stringStart;
+            stringStart.threadId = threadId();
+            stringStart.input = {typed::TurnInput{stringText}};
+            addEquivalentEncodingCases<typed::TurnStartResponse>(
+                "a1-5/turn/start-string",
+                "turn/start",
+                "turn-start",
+                std::move(stringStart),
+                {{"input",
+                  codex::Json::array(
+                      {codex::Json{{"text", "synthetic-string-input"}, {"text_elements", codex::Json::array()}, {"type", "text"}}})},
+                 {"threadId", ThreadIdValue}},
+                [&turns](auto params, auto handler) {
+                    return turns.start(std::move(params), std::move(handler));
+                },
+                [&turns](auto handler) {
+                    return turns.start(threadId(), std::string{"synthetic-string-input"}, std::move(handler));
+                });
+            addEquivalentEncodingCases<typed::Unit>(
+                "a1-5/turn/interrupt-ids",
+                "turn/interrupt",
+                "turn-interrupt",
+                typed::TurnInterruptParams{threadId(), turnId()},
+                {{"threadId", ThreadIdValue}, {"turnId", TurnIdValue}},
+                [&turns](auto params, auto handler) {
+                    return turns.interrupt(std::move(params), std::move(handler));
+                },
+                [&turns](auto handler) {
+                    return turns.interrupt(threadId(), turnId(), std::move(handler));
+                });
+        }
+
         void buildLaunchResponseCases() {
-            auto& threads = client->typed().threads();
+            auto& threads = client->threads();
 
             for (LaunchResponseVariant variant :
                  {LaunchResponseVariant::Omitted, LaunchResponseVariant::Null, LaunchResponseVariant::UnknownOpenEnums}) {

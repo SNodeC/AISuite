@@ -320,20 +320,17 @@ wrong-type case. Final validation rejects 1,271 required-field removals and
 1,258 wrong-type mutations and exercises 1,065 optional present/omitted
 locations.
 
-## Grouped client and decode foundation
+## Client façade and decode foundation
 
-`AppServerClient::typed()` returns the installed, one-pointer-PIMPL
-`typed::Client`. Its const and non-const accessors delegate to the one existing
-`Threads`, `Turns`, `Events`, and `Requests` facade object. Those objects retain
+`AppServerClient` owns one stable `Threads`, `Turns`, `Events`, and `Requests`
+façade object and exposes each through its direct non-const accessor. Those objects retain
 the existing raw connection, request-ID allocator, pending registries,
 generation checks, callback order, observer slots, cancellation behavior, and
 occurrence-token ownership. No second protocol engine or request registry is
 introduced.
 
-The old direct accessors remain deprecated source-compatible forwarders. All
-production SNode.C callers use `client.typed()`. Project-wide `-Werror` remains
-enabled; only the tests that deliberately compile the deprecated API suppress
-`-Wdeprecated-declarations`, at target scope.
+A1.5 resolves the earlier access-path deferral in favor of direct domain
+access. Project-wide `-Werror` remains enabled.
 
 Nested-union dispatch extends the canonical registry's existing runtime-target
 variant with a private `CodexErrorInfo` target family. The production decoder
@@ -370,12 +367,11 @@ source commit `5d1fbf26c43abc65a203928b2e31561cb039e06d`,
 `data`. Other arbitrary error-data shapes are left raw and are not interpreted
 as structured Codex errors.
 
-The item direction is now explicit: `ThreadItem` is the existing variant,
-`Item` remains its compatibility alias, and `ResponseItem` is a separate public
-type direction. Missing A1.1 alternatives are not invented or merged in A1.0.
+The item direction is explicit: `ThreadItem` and `ResponseItem` are separate
+public variants. Missing A1.1 alternatives are not invented or merged in A1.0.
 
-BackendCore uses the grouped facade and routes typed-but-A2-unmodeled events
-through one production preservation helper into the existing bounded
+BackendCore uses the direct client domains and routes typed but
+backend-unmodeled events through one production preservation helper into the existing bounded
 `CodexExtensionReceived` path. Surface identity, raw payload, and structured
 classification survive that path; modeled reducers are unchanged. No
 BackendCommand, canonical domain state, Frontend Protocol field, remotely
@@ -417,11 +413,11 @@ An archive-level source-package test verifies the retained reproducibility
 inputs. The staged installed-consumer test verifies that none of those private
 inputs or generated reports enters an installed or binary package.
 
-A1 is one deliberate in-progress rebuild boundary for public typed variant
-changes. `AppServerClient` remains a one-`Impl`-pointer installed object.
-SOVERSION remains `1` in A1.0 and is bumped once at A1 closure in A1.4. This
-document does not claim binary compatibility for public types changed during
-A1.
+A1 was one deliberate rebuild boundary for public typed variant changes.
+`AppServerClient` remains a one-`Impl`-pointer installed object. SOVERSION was
+1 in A1.0; Final A1b established the still-unreleased SOVERSION-2 boundary,
+and A1.5 completes its public façade without another bump. This document does
+not claim binary compatibility for public types changed during A1.
 
 ## Slice roadmap
 
@@ -430,8 +426,10 @@ A1.
 - A1.2 completed accounts, models, and configuration.
 - A1.3 completed all 68 commands, filesystem, reviews, approvals, guardian,
   permission-profile, and stable fuzzy-search identities.
-- A1.4 completes the remaining stable domains, verifies full-depth union
-  coverage, and closes the A1 rebuild/SOVERSION decision.
+- A1.4 completed the remaining stable domains and full-depth union coverage.
+- Final A1a completed the remaining Common identities; Final A1b established
+  SOVERSION 2; A1.5 completes the direct application façade on that
+  still-unreleased ABI boundary.
 
-A2 BackendCore/canonical-state modeling, A3 frontend exposure, and Qt work are
-not part of A1.0.
+A1.6 backend redesign, A1.7 frontend-protocol redesign, and A2
+provider-neutral architecture remain separate work.

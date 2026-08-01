@@ -478,7 +478,7 @@ namespace ai::openai::codex::detail {
             error.clear();
             typed::FsWatchResponse result;
             if (!requireObject(value, "FsWatchResponse", error) ||
-                !decodeRequired(value, "path", result.path, decodeStrongString<typed::AbsolutePathBuf>, error, "FsWatchResponse")) {
+                !decodeRequired(value, "path", result.path, decodeStrongString<typed::AbsolutePath>, error, "FsWatchResponse")) {
                 return std::nullopt;
             }
             result.raw = value;
@@ -525,7 +525,7 @@ namespace ai::openai::codex::detail {
             if (changedPaths == nullptr || !decodeArray(
                                                *changedPaths,
                                                result.changedPaths,
-                                               [](const Json& item, typed::AbsolutePathBuf& decoded, const std::string&) {
+                                               [](const Json& item, typed::AbsolutePath& decoded, const std::string&) {
                                                    return decodeStrongString(item, decoded);
                                                },
                                                error,

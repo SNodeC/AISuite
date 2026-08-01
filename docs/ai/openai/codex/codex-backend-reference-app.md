@@ -91,8 +91,8 @@ cmake --install build --component apps
 ```
 
 Ordinary library builds may set `-DSNODEC_BUILD_APPS=OFF`; the exported
-`snodec::ai-openai-codex-backend` and
-`snodec::ai-openai-codex-frontend` components remain independently reusable.
+`AISuite::OpenAICodexBackend` and `AISuite::OpenAICodexFrontend` components
+remain independently reusable.
 The executable also requires the `codex` command expected by the existing
 stdio client. Authentication and quota are properties of that local Codex
 installation, not of the frontend protocol.

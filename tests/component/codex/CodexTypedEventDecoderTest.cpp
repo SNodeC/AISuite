@@ -26,12 +26,12 @@ namespace {
     using ai::openai::codex::typed::FileChangeUpdated;
     using ai::openai::codex::typed::ItemCompleted;
     using ai::openai::codex::typed::ItemStarted;
-    using ai::openai::codex::typed::LocalImageUserInput;
+    using ai::openai::codex::typed::LocalImageInput;
     using ai::openai::codex::typed::ModelRerouted;
     using ai::openai::codex::typed::ReasoningDelta;
+    using ai::openai::codex::typed::TextInput;
     using ai::openai::codex::typed::ThreadStarted;
     using ai::openai::codex::typed::ThreadStatusChanged;
-    using ai::openai::codex::typed::TextUserInput;
     using ai::openai::codex::typed::TokenUsageUpdated;
     using ai::openai::codex::typed::TurnCompleted;
     using ai::openai::codex::typed::TurnErrorEvent;
@@ -39,8 +39,8 @@ namespace {
     using ai::openai::codex::typed::TurnStarted;
     using ai::openai::codex::typed::UnknownEvent;
     using ai::openai::codex::typed::UnknownItem;
-    using ai::openai::codex::typed::UnknownUserInput;
-    using ai::openai::codex::typed::UserMessageItem;
+    using ai::openai::codex::typed::UnknownTurnInput;
+    using ai::openai::codex::typed::UserMessageThreadItem;
 
     Notification makeNotification(std::string method, Json params, Json envelopeExtension = Json::object()) {
         Json raw = {
@@ -181,7 +181,7 @@ namespace {
         testResult.expectTrue(started && started->startedAtMs == std::numeric_limits<std::int64_t>::min() &&
                                   started->raw == startedNotification.raw,
                               "item/started preserves the full signed int64 timestamp range and complete event raw");
-        const auto* startedAgent = started ? std::get_if<ai::openai::codex::typed::AgentMessageItem>(&started->item) : nullptr;
+        const auto* startedAgent = started ? std::get_if<ai::openai::codex::typed::AgentMessageThreadItem>(&started->item) : nullptr;
         testResult.expectTrue(startedAgent && startedAgent->metadata.threadId && startedAgent->metadata.threadId->value == "thread-event" &&
                                   startedAgent->metadata.turnId && startedAgent->metadata.turnId->value == "turn-event" &&
                                   startedAgent->metadata.raw == startedItem,
@@ -235,11 +235,11 @@ namespace {
                                                                        {"startedAtMs", 1784637396096}});
         const Event startedEvent = decodeEvent(startedNotification);
         const ItemStarted* started = as<ItemStarted>(startedEvent);
-        const UserMessageItem* startedUser = started ? std::get_if<UserMessageItem>(&started->item) : nullptr;
-        const TextUserInput* startedText =
-            startedUser && startedUser->content.size() == 2 ? std::get_if<TextUserInput>(&startedUser->content[0]) : nullptr;
-        const UnknownUserInput* startedFuture =
-            startedUser && startedUser->content.size() == 2 ? std::get_if<UnknownUserInput>(&startedUser->content[1]) : nullptr;
+        const UserMessageThreadItem* startedUser = started ? std::get_if<UserMessageThreadItem>(&started->item) : nullptr;
+        const TextInput* startedText =
+            startedUser && startedUser->content.size() == 2 ? std::get_if<TextInput>(&startedUser->content[0]) : nullptr;
+        const UnknownTurnInput* startedFuture =
+            startedUser && startedUser->content.size() == 2 ? std::get_if<UnknownTurnInput>(&startedUser->content[1]) : nullptr;
         testResult.expectTrue(started && started->startedAtMs == 1784637396096 && started->raw == startedNotification.raw,
                               "userMessage item/started preserves its lifecycle timestamp and complete event raw");
         testResult.expectTrue(startedUser && startedUser->metadata.id.value == "user-message-shared" && startedUser->metadata.threadId &&
@@ -269,13 +269,13 @@ namespace {
                                                                          {"completedAtMs", 1784637396123}});
         const Event completedEvent = decodeEvent(completedNotification);
         const ItemCompleted* completed = as<ItemCompleted>(completedEvent);
-        const UserMessageItem* completedUser = completed ? std::get_if<UserMessageItem>(&completed->item) : nullptr;
-        const TextUserInput* completedText =
-            completedUser && completedUser->content.size() == 3 ? std::get_if<TextUserInput>(&completedUser->content[0]) : nullptr;
-        const UnknownUserInput* completedFuture =
-            completedUser && completedUser->content.size() == 3 ? std::get_if<UnknownUserInput>(&completedUser->content[1]) : nullptr;
-        const LocalImageUserInput* completedImage =
-            completedUser && completedUser->content.size() == 3 ? std::get_if<LocalImageUserInput>(&completedUser->content[2]) : nullptr;
+        const UserMessageThreadItem* completedUser = completed ? std::get_if<UserMessageThreadItem>(&completed->item) : nullptr;
+        const TextInput* completedText =
+            completedUser && completedUser->content.size() == 3 ? std::get_if<TextInput>(&completedUser->content[0]) : nullptr;
+        const UnknownTurnInput* completedFuture =
+            completedUser && completedUser->content.size() == 3 ? std::get_if<UnknownTurnInput>(&completedUser->content[1]) : nullptr;
+        const LocalImageInput* completedImage =
+            completedUser && completedUser->content.size() == 3 ? std::get_if<LocalImageInput>(&completedUser->content[2]) : nullptr;
         testResult.expectTrue(completed && completed->completedAtMs == 1784637396123 && completed->raw == completedNotification.raw,
                               "userMessage item/completed preserves its lifecycle timestamp and complete event raw");
         testResult.expectTrue(completedUser && completedUser->metadata.id.value == "user-message-shared" &&

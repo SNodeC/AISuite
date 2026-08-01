@@ -58,6 +58,7 @@ list(GET roots 0 root)
 foreach(required
     CMakeLists.txt
     src/ai/openai/codex/AppServerClient.cpp
+    src/ai/openai/codex/Api.h
     src/ai/openai/codex/typed/Apps.h
     src/ai/openai/codex/typed/ExternalAgents.h
     src/ai/openai/codex/typed/Feedback.h
@@ -88,8 +89,9 @@ foreach(required
     tests/policy/security/CodexSyntheticSecretLeakGuardTest.py
     tests/component/codex/CodexA14RuntimePlatformCurrentStateTest.py
     tests/installed/codex/CMakeLists.txt
-    tests/installed/codex/CodexRetainedCompatibilityConsumer.cpp
-    tests/installed/codex/CodexTypedConsumer.cpp
+    tests/installed/codex/CodexApiConsumer.cpp
+    tests/installed/codex/CodexApiExample.cpp
+    tests/installed/codex/CodexApplicationProjectionConsumer.cpp
     tests/installed/codex/SNodeInstalledCoreConsumer.cpp
     docs/ai/openai/codex/a1-4-user-facing-integrations.md
     docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md

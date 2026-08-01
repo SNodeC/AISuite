@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -36,7 +36,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 7;
     constexpr std::size_t NotificationCount = 3;
 
@@ -306,7 +306,7 @@ namespace {
                 return;
             }
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 std::string method;
                 if (std::holds_alternative<typed::HookCompletedNotification>(event)) {
                     method = "hook/completed";
@@ -417,18 +417,18 @@ namespace {
             writeParams.enabled = false;
             writeParams.name = typed::OptionalNullable<std::string>::explicitNull();
             writeParams.path =
-                typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/skills/synthetic-skill"});
+                typed::OptionalNullable<typed::AbsolutePath>::withValue(typed::AbsolutePath{"/synthetic/skills/synthetic-skill"});
 
             typed::SkillsExtraRootsSetParams rootsParams{};
-            rootsParams.extraRoots = {typed::AbsolutePathBuf{"/synthetic/skills/one"}};
+            rootsParams.extraRoots = {typed::AbsolutePath{"/synthetic/skills/one"}};
 
             typed::SkillsListParams listParams{};
             listParams.cwds = std::vector<std::string>{};
             listParams.forceReload = false;
 
-            auto& hooks = client->typed().hooks();
-            auto& marketplace = client->typed().marketplace();
-            auto& skills = client->typed().skills();
+            auto& hooks = client->hooks();
+            auto& marketplace = client->marketplace();
+            auto& skills = client->skills();
 
             cases.push_back(makeConcreteOperation<typed::HooksListResponse>("hooks/list",
                                                                             std::move(hooksParams),
@@ -592,7 +592,7 @@ namespace {
             typed::SkillsListParams params{};
             insideSubmission = true;
             const Submission submission =
-                client->typed().skills().list(std::move(params), [this](const typed::Skills::ListResult& operation) {
+                client->skills().list(std::move(params), [this](const typed::OperationResult<typed::SkillsListResponse>& operation) {
                     expect(!insideSubmission, "reentrant skills/list completion remains asynchronous");
                     expect(operation && operation.raw == skillsListResult(),
                            "reentrant skills/list shares the same result decoder and RawProtocol");
@@ -647,15 +647,16 @@ namespace {
             state->replyMode = UnixTransportState::ReplyMode::RemoteError;
             typed::MarketplaceUpgradeParams params{};
             insideSubmission = true;
-            const Submission submission =
-                client->typed().marketplace().upgrade(std::move(params), [this](const typed::Marketplace::UpgradeResult& operation) {
+            const Submission submission = client->marketplace().upgrade(
+                std::move(params), [this](const typed::OperationResult<typed::MarketplaceUpgradeResponse>& operation) {
                     const codex::Json expectedError{
                         {"code", -32'500},
                         {"message", "synthetic user-integration remote failure"},
                         {"data", {{"operation", "marketplace/upgrade"}}},
                         {"futureErrorField", true},
                     };
-                    expect(!insideSubmission && operation.kind == typed::Marketplace::UpgradeResult::Kind::RemoteError &&
+                    expect(!insideSubmission &&
+                               operation.kind == typed::OperationResult<typed::MarketplaceUpgradeResponse>::Kind::RemoteError &&
                                !operation.value && operation.remoteError && operation.remoteError->raw == expectedError &&
                                operation.raw.is_null(),
                            "marketplace/upgrade retains its exact remote error asynchronously");
@@ -674,9 +675,10 @@ namespace {
             typed::SkillsListParams params{};
             insideSubmission = true;
             const Submission submission =
-                client->typed().skills().list(std::move(params), [this](const typed::Skills::ListResult& operation) {
-                    expect(!insideSubmission && operation.kind == typed::Skills::ListResult::Kind::Cancelled && !operation.value &&
-                               operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
+                client->skills().list(std::move(params), [this](const typed::OperationResult<typed::SkillsListResponse>& operation) {
+                    expect(!insideSubmission && operation.kind == typed::OperationResult<typed::SkillsListResponse>::Kind::Cancelled &&
+                               !operation.value && operation.localError &&
+                               operation.localError->category == codex::Error::Category::Cancelled,
                            "held skills/list is cancelled once by an intentional stop");
                     ++cancellationCallbacks;
                     maybeRestart();
@@ -702,9 +704,10 @@ namespace {
             typed::HooksListParams params{};
             insideSubmission = true;
             const Submission submission =
-                client->typed().hooks().list(std::move(params), [this](const typed::Hooks::ListResult& operation) {
-                    expect(!insideSubmission && operation.kind == typed::Hooks::ListResult::Kind::Cancelled && !operation.value &&
-                               operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
+                client->hooks().list(std::move(params), [this](const typed::OperationResult<typed::HooksListResponse>& operation) {
+                    expect(!insideSubmission && operation.kind == typed::OperationResult<typed::HooksListResponse>::Kind::Cancelled &&
+                               !operation.value && operation.localError &&
+                               operation.localError->category == codex::Error::Category::Cancelled,
                            "unexpected process disconnect cancels the held hooks/list exactly once");
                     ++disconnectCallbacks;
                     maybeFinishDisconnect();

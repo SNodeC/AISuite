@@ -22,7 +22,7 @@ the complete schema pass `typed::InitializeParams` to the corresponding
 
 The initialize response retains all four required values:
 
-- strong `AbsolutePathBuf`-compatible `codexHome`;
+- strong `AbsolutePath` `codexHome`;
 - `platformFamily`;
 - `platformOs`;
 - `userAgent`.

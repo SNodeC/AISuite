@@ -7,7 +7,6 @@
 
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/typed/Apps.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/ExternalAgents.h"
 #include "ai/openai/codex/typed/Feedback.h"
@@ -35,7 +34,6 @@ int main() {
     namespace typed = ai::openai::codex::typed;
 
     printLayout<ai::openai::codex::AppServerClient>("AppServerClient");
-    AISUITE_PRINT_LAYOUT(Client);
     AISUITE_PRINT_LAYOUT(CanonicalServerNotification);
     AISUITE_PRINT_LAYOUT(Event);
     AISUITE_PRINT_LAYOUT(PluginSource);

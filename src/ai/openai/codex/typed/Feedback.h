@@ -43,11 +43,12 @@ namespace ai::openai::codex::typed {
 
     class Feedback {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using UploadResult = OperationResult<FeedbackUploadResponse>;
-        using UploadResultHandler = std::function<void(const UploadResult&)>;
+        Feedback(const Feedback&) = delete;
+        Feedback(Feedback&&) = delete;
+        Feedback& operator=(const Feedback&) = delete;
+        Feedback& operator=(Feedback&&) = delete;
 
-        Submission upload(FeedbackUploadParams params, UploadResultHandler handler);
+        Submission upload(FeedbackUploadParams params, CompletionHandler<FeedbackUploadResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

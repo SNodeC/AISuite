@@ -269,7 +269,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "installedRoot",
                     result.installedRoot,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -304,15 +304,15 @@ namespace ai::openai::codex::detail {
             }
             const Json* installedRoot = member(value, "installedRoot");
             if (installedRoot == nullptr) {
-                result.installedRoot = typed::OptionalNullable<typed::AbsolutePathBuf>::omitted();
+                result.installedRoot = typed::OptionalNullable<typed::AbsolutePath>::omitted();
             } else if (installedRoot->is_null()) {
-                result.installedRoot = typed::OptionalNullable<typed::AbsolutePathBuf>::explicitNull();
+                result.installedRoot = typed::OptionalNullable<typed::AbsolutePath>::explicitNull();
             } else {
-                typed::AbsolutePathBuf decoded;
+                typed::AbsolutePath decoded;
                 if (!decodeStrongStringAt(*installedRoot, decoded, error, Context, "$.installedRoot")) {
                     return std::nullopt;
                 }
-                result.installedRoot = typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(std::move(decoded));
+                result.installedRoot = typed::OptionalNullable<typed::AbsolutePath>::withValue(std::move(decoded));
             }
             if (!decodeRequired(
                     value,
@@ -382,7 +382,7 @@ namespace ai::openai::codex::detail {
             if (!decodeArrayAt(
                     *upgradedRoots,
                     result.upgradedRoots,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, const std::string& itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, const std::string& itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,

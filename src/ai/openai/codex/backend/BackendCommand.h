@@ -9,6 +9,8 @@
 #define AI_OPENAI_CODEX_BACKEND_BACKENDCOMMAND_H
 
 #include "ai/openai/codex/backend/Snapshot.h"
+#include "ai/openai/codex/typed/Threads.h"
+#include "ai/openai/codex/typed/Turns.h"
 
 #include <optional>
 #include <string>
@@ -117,8 +119,14 @@ namespace ai::openai::codex::backend {
         SequenceNumber after;
     };
 
-    using CommandValue =
-        std::variant<std::monostate, Snapshot, ControllerResult, ReplayResult, typed::Thread, typed::ThreadPage, typed::Turn, typed::Unit>;
+    using CommandValue = std::variant<std::monostate,
+                                      Snapshot,
+                                      ControllerResult,
+                                      ReplayResult,
+                                      typed::Thread,
+                                      typed::ThreadListResponse,
+                                      typed::Turn,
+                                      typed::Unit>;
 
     struct CommandResult {
         CommandValue value;

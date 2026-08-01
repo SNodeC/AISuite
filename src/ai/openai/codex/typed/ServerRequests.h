@@ -423,7 +423,7 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> approvalId;
         OptionalNullable<std::string> command;
         OptionalNullable<std::vector<CommandAction>> commandActions;
-        OptionalNullable<LegacyAppPathString> cwd;
+        OptionalNullable<PathString> cwd;
         OptionalNullable<std::string> environmentId;
         ItemId itemId;
         OptionalNullable<NetworkApprovalContext> networkApprovalContext;
@@ -457,7 +457,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct PermissionsRequestApprovalParams {
-        AbsolutePathBuf cwd;
+        AbsolutePath cwd;
         OptionalNullable<std::string> environmentId;
         ItemId itemId;
         RequestPermissionProfile permissions;
@@ -929,8 +929,6 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
-    using ChatgptAuthTokensRefreshRequest = AuthenticationRequest;
-
     struct UnknownServerRequest {
         ServerRequestId requestId;
         ServerRequestToken requestToken;
@@ -988,8 +986,6 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
-    using PermissionsRequestApprovalRequest = PermissionsApprovalRequest;
-
     // Existing alternatives retain their indices. A1.4b request alternatives
     // append after all earlier alternatives.
     using TypedServerRequest = std::variant<CommandApprovalRequest,
@@ -1028,8 +1024,12 @@ namespace ai::openai::codex::typed {
 
     class Requests {
     public:
-        using SendResult = AppServerClient::RawProtocol::SendResult;
         using RequestHandler = std::function<void(const TypedServerRequest&)>;
+
+        Requests(const Requests&) = delete;
+        Requests(Requests&&) = delete;
+        Requests& operator=(const Requests&) = delete;
+        Requests& operator=(Requests&&) = delete;
 
         void setOnRequest(RequestHandler handler);
 
@@ -1045,7 +1045,7 @@ namespace ai::openai::codex::typed {
         SendResult respond(const UserInputRequest& request, ToolRequestUserInputResponse response);
         SendResult respond(const UserInputRequest& request, std::vector<UserInputAnswer> answers);
         SendResult respond(const McpServerElicitationRequest& request, McpServerElicitationRequestResponse response);
-        SendResult respondRefresh(const ChatgptAuthTokensRefreshRequest& request, ChatgptAuthTokensRefreshResponse response);
+        SendResult respond(const AuthenticationRequest& request, ChatgptAuthTokensRefreshResponse response);
         SendResult respond(const AuthenticationRequest& request, AuthenticationResponse response);
         SendResult reject(const AttestationGenerateRequest& request, ProtocolError error);
         SendResult reject(const DynamicToolCallRequest& request, ProtocolError error);

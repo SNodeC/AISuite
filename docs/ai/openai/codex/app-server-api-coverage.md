@@ -90,6 +90,7 @@ TypeScript representation.
 
 ## Phase boundary
 
-A0 establishes the census, registry, guards, and owner worksheet. A1 adds the
-frozen typed surface; A2 adds commands and canonical state; A3 exposes only
-owner-approved Frontend Protocol operations. Full Phase A is not complete.
+A0 established the census, registry, guards, and owner worksheet. Final A1 and
+A1.5 complete the typed protocol and application façade; A1.6 adds commands
+and canonical state; A1.7 exposes only owner-approved Frontend Protocol
+operations. Provider-neutral architecture remains separate A2 work.

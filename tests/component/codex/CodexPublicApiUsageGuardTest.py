@@ -12,9 +12,11 @@ import pathlib
 import re
 
 
-DIRECT_ACCESSOR = re.compile(
-    r"(?:\.|->)\s*"
-    r"(accounts|models|configuration|threads|turns|events|requests)\s*\("
+TYPED_ACCESS = re.compile(r"(?:\.|->)\s*typed\s*\(")
+TYPED_CLIENT = re.compile(r"\btyped\s*::\s*Client\b")
+TYPED_CLIENT_HEADER = re.compile(
+    r"^\s*#\s*include\s*[<\"]ai/openai/codex/typed/Client\.h[>\"]",
+    re.MULTILINE,
 )
 
 
@@ -78,44 +80,44 @@ def mask_comments_and_literals(source: str) -> str:
     return "".join(masked)
 
 
-def direct_accessor_violations(source: str, display_path: pathlib.Path) -> list[str]:
+def public_api_violations(source: str, display_path: pathlib.Path) -> list[str]:
     masked = mask_comments_and_literals(source)
     violations: list[str] = []
-    for match in DIRECT_ACCESSOR.finditer(masked):
-        prefix = masked[: match.start()].rstrip()
-        if prefix.endswith("typed()"):
-            continue
+    for pattern, label in (
+        (TYPED_ACCESS, "removed typed() access"),
+        (TYPED_CLIENT, "removed typed::Client type"),
+    ):
+        for match in pattern.finditer(masked):
+            line = masked.count("\n", 0, match.start()) + 1
+            violations.append(f"{display_path}:{line}: {label}")
 
-        line = masked.count("\n", 0, match.start()) + 1
-        violations.append(
-            f"{display_path}:{line}: direct {match.group(1)}() accessor"
-        )
+    for match in TYPED_CLIENT_HEADER.finditer(source):
+        line = source.count("\n", 0, match.start()) + 1
+        violations.append(f"{display_path}:{line}: removed typed/Client.h include")
+
     return violations
 
 
 def self_test() -> None:
-    synthetic = """
+    synthetic = '''
         client.typed().threads();
-        client
-            .turns();
-        const auto value = 32'001;
+        client->typed().models();
+        typed::Client* grouped = nullptr;
+        #include "ai/openai/codex/typed/Client.h"
         client.events();
-        client.accounts();
-        client.configuration();
-        // ignored.requests();
-        const char* text = "ignored.requests()";
-        /* ignored->threads(); */
-    """
+        // ignored.typed();
+        const char* text = "ignored typed::Client";
+    '''
     expected = [
-        "synthetic.cpp:4: direct turns() accessor",
-        "synthetic.cpp:6: direct events() accessor",
-        "synthetic.cpp:7: direct accounts() accessor",
-        "synthetic.cpp:8: direct configuration() accessor",
+        "synthetic.cpp:2: removed typed() access",
+        "synthetic.cpp:3: removed typed() access",
+        "synthetic.cpp:4: removed typed::Client type",
+        "synthetic.cpp:5: removed typed/Client.h include",
     ]
-    actual = direct_accessor_violations(synthetic, pathlib.Path("synthetic.cpp"))
+    actual = public_api_violations(synthetic, pathlib.Path("synthetic.cpp"))
     if actual != expected:
         raise SystemExit(
-            "grouped-facade usage guard self-test failed:\n"
+            "public-API usage guard self-test failed:\n"
             f"expected={expected!r}\nactual={actual!r}"
         )
 
@@ -134,15 +136,15 @@ def main() -> int:
 
         source = path.read_text(encoding="utf-8")
         relative = path.relative_to(arguments.source_root)
-        violations.extend(direct_accessor_violations(source, relative))
+        violations.extend(public_api_violations(source, relative))
 
     if violations:
         raise SystemExit(
-            "production Codex code must use client.typed() grouped facades:\n"
+            "production Codex code must use direct domain access:\n"
             + "\n".join(violations)
         )
 
-    print("production Codex grouped-facade usage: PASS")
+    print("production Codex direct-domain API usage: PASS")
     return 0
 
 

@@ -71,7 +71,7 @@ namespace ai::openai::codex::detail {
 
     // Retained application-projection codec entrypoints.
     std::optional<typed::Thread> decodeThreadOperationResult(const Json& value, std::string& error);
-    std::optional<typed::ThreadPage> decodeThreadListResult(const Json& value, std::string& error);
+    std::optional<typed::ThreadListResponse> decodeThreadListResult(const Json& value, std::string& error);
     std::optional<typed::Thread> decodeThreadReadResult(const Json& value, std::string& error);
 
 } // namespace ai::openai::codex::detail

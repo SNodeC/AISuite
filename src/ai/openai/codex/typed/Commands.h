@@ -116,15 +116,15 @@ namespace ai::openai::codex::typed {
 
     class Commands {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using UnitResultHandler = std::function<void(const OperationResult<Unit>&)>;
-        using ExecResult = OperationResult<CommandExecResponse>;
-        using ExecResultHandler = std::function<void(const ExecResult&)>;
+        Commands(const Commands&) = delete;
+        Commands(Commands&&) = delete;
+        Commands& operator=(const Commands&) = delete;
+        Commands& operator=(Commands&&) = delete;
 
-        Submission exec(CommandExecParams params, ExecResultHandler handler);
-        Submission resize(CommandExecResizeParams params, UnitResultHandler handler);
-        Submission terminate(CommandExecTerminateParams params, UnitResultHandler handler);
-        Submission write(CommandExecWriteParams params, UnitResultHandler handler);
+        Submission exec(CommandExecParams params, CompletionHandler<CommandExecResponse> handler);
+        Submission resize(CommandExecResizeParams params, DoneHandler handler);
+        Submission terminate(CommandExecTerminateParams params, DoneHandler handler);
+        Submission write(CommandExecWriteParams params, DoneHandler handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

@@ -7,21 +7,22 @@ Codex App Server. Its public center is the transport-independent
 communicates over standard input and standard output.
 
 The client implements process and transport lifecycle, the Codex initialization
-handshake, a generic raw protocol engine, and typed facades over that engine.
-Callers can submit arbitrary raw App Server messages or use the grouped
-accounts, models, configuration, command, filesystem, review, thread, turn,
-event, approval, and user-input API after the client reaches `Ready`. See
-[Typed Codex App Server API](typed-api.md) for the public model and
+handshake, a generic raw protocol engine, and typed domain façades over that
+engine. Callers normally use direct domains such as `client.threads()`,
+`client.events()`, and `client.models()` after the client reaches `Ready`.
+Arbitrary raw App Server messages remain available through the explicit
+`client.raw()` escape hatch. See the
+[Codex application API](api.md) for the public model and
 forward-compatibility rules, and the
 [A1.3 commands, filesystem, reviews, and approvals report](a1-3-commands-filesystem-reviews-approvals.md)
 for the latest slice's exact scope and compatibility evidence.
 
 ## Public interface
 
-Include the local client with:
+Include the complete application API with:
 
 ```cpp
-#include "ai/openai/codex/stdio/Client.h"
+#include <ai/openai/codex/Api.h>
 ```
 
 Raw protocol values and strong request-ID types are available from:
@@ -43,33 +44,40 @@ void setOnStateChanged(ai::openai::codex::Callbacks::StateChanged callback);
 void setOnDiagnostic(ai::openai::codex::Callbacks::DiagnosticReceived callback);
 
 ai::openai::codex::AppServerClient::RawProtocol& raw() noexcept;
-ai::openai::codex::typed::Client& typed() noexcept;
 std::optional<ai::openai::codex::typed::InitializeResponse> getInitializeResponse() const;
 ```
 
-Const overloads are available for both `raw()` and `typed()`. Include
-`ai/openai/codex/typed/Client.h` when calling grouped typed accessors:
+The 20 non-const direct domain accessors are:
 
 ```cpp
-client.typed().threads();
-client.typed().turns();
-client.typed().events();
-client.typed().requests();
-client.typed().accounts();
-client.typed().models();
-client.typed().configuration();
-client.typed().commands();
-client.typed().filesystem();
-client.typed().permissionProfiles();
-client.typed().reviews();
+client.accounts();
+client.apps();
+client.commands();
+client.configuration();
+client.events();
+client.externalAgents();
+client.feedback();
+client.filesystem();
+client.hooks();
+client.marketplace();
+client.mcp();
+client.models();
+client.permissionProfiles();
+client.plugins();
+client.requests();
+client.reviews();
+client.skills();
+client.threads();
+client.turns();
+client.windowsSandbox();
 ```
 
-`typed::Client` delegates to all eleven facade objects attached to the same
-raw protocol engine. The legacy direct `threads()`, `turns()`, `events()`, and
-`requests()` accessors remain deprecated source-compatible forwarders. All
-newer domain facades were introduced only in grouped form, so
-`AppServerClient` has no direct account/model/configuration/command/filesystem/
-permission-profile/review accessors.
+`AppServerClient::Impl` owns exactly one stable object for each domain. Every
+façade is noncopyable and nonmovable and delegates to the client's one raw
+protocol engine. The four direct conversation accessors existed before the
+grouped access path and were temporarily deprecated while the final shape was
+undecided. Final A1b retained both paths. A1.5 resolves that deferred decision
+in favor of direct domain access and removes the redundant grouped client.
 
 The A1.2 local typed operations are:
 
@@ -111,13 +119,13 @@ apply guardian policy. The A1.3 notification payloads use the existing Events
 observer, and its five reverse approval/permission requests use the existing
 Requests occurrence/response path.
 
-The authentication-refresh server request remains under
-`client.typed().requests()`. Its canonical request and response types preserve
+The authentication-refresh server request remains under `client.requests()`.
+Its canonical request and response types preserve
 omitted, explicit-null, and value states for the previous account/workspace ID
 and plan type. The existing `AuthenticationRequest`,
 `AuthenticationResponse`, and `Requests::respond(...)` source form remains
-available, while `respondRefresh(...)` carries the schema-complete tri-state
-response.
+available. The overload accepting `ChatgptAuthTokensRefreshResponse` carries
+the schema-complete tri-state response.
 
 The default constructor runs:
 
@@ -151,11 +159,9 @@ capabilities.requestAttestation = true;
 typed::InitializeParams params{typed::InitializeClientInfo{
     "my_client",
     "1.0",
-    typed::OptionalNullable<std::string>::withValue("My Client"),
+    std::string{"My Client"},
 }};
-params.capabilities =
-    typed::OptionalNullable<typed::InitializeCapabilities>::withValue(
-        std::move(capabilities));
+params.capabilities = std::move(capabilities);
 
 ai::openai::codex::stdio::Client client(std::move(params));
 ```
@@ -166,8 +172,8 @@ client, and future transports can preserve this public lifecycle API.
 ## Example
 
 ```cpp
-#include "ai/openai/codex/stdio/Client.h"
-#include "core/SNodeC.h"
+#include <ai/openai/codex/Api.h>
+#include <core/SNodeC.h>
 
 #include <memory>
 
@@ -269,14 +275,23 @@ they are explained by an expected shutdown or child exit.
 
 ## Build integration
 
-The installed CMake target is:
+The example above uses the installed Codex target and calls the SNode.C core
+event-loop API directly, so it links both targets:
 
 ```cmake
-target_link_libraries(my_target PRIVATE snodec::ai-openai-codex)
+find_package(AISuite CONFIG REQUIRED)
+
+target_link_libraries(my_target PRIVATE
+    AISuite::OpenAICodex
+    snodec::core
+)
 ```
 
 The target exports a C++20 compile-feature requirement. The public
 `Protocol.h` uses `nlohmann::json`, so the module also exposes the include path
 provided by `nlohmann_json >= 3.11` to build-tree and installed consumers. A
 regular build and test run does not require a Codex installation or
-authentication; the real App Server integration test is optional.
+authentication; the real App Server integration test is optional. All three
+Codex shared libraries remain on the still-unreleased SOVERSION-2 Final-A1/A1.5
+boundary. Backend redesign, frontend-protocol redesign, and provider-neutral
+architecture remain separate A1.6, A1.7, and A2 work.

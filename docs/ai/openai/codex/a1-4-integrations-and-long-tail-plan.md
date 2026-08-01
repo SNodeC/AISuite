@@ -51,20 +51,20 @@ windowsSandbox/setupCompleted
 ```
 
 The two requests are exposed through the cross-platform
-`client.typed().windowsSandbox()` facade:
+`client.windowsSandbox()` façade:
 
 ```cpp
-client.typed().windowsSandbox().checkReadiness(readinessHandler);
+client.windowsSandbox().checkReadiness(readinessHandler);
 
 ai::openai::codex::typed::WindowsSandboxSetupStartParams params;
 params.mode =
     ai::openai::codex::typed::WindowsSandboxSetupMode::unelevated();
-client.typed().windowsSandbox().startSetup(std::move(params), setupHandler);
+client.windowsSandbox().startSetup(std::move(params), setupHandler);
 ```
 
 `checkReadiness` constructs the wire-level `Unit` parameter internally.
 `startSetup` accepts the complete `WindowsSandboxSetupStartParams`. Both return
-`RawProtocol::Submission` immediately and complete asynchronously through
+`Submission` immediately and complete asynchronously through
 `OperationResult<T>` on the existing event-loop path.
 
 AISuite does not implement a readiness probe, setup installer, elevation,
@@ -83,7 +83,7 @@ for complete field, lifecycle, variant, and security details.
 
 ## MCP and reverse requests
 
-The `client.typed().mcp()` facade provides typed asynchronous OAuth login,
+The `client.mcp()` façade provides typed asynchronous OAuth login,
 resource read, tool call, and server-status list operations. Four incoming
 requests use the established occurrence lifecycle:
 
@@ -172,9 +172,9 @@ canonical indices 59 through 66 and `Event` indices 61 through 68:
 
 The installed Codex header inventory is 29 main-library headers, seven backend
 headers, and seven frontend headers, 43 total. `typed/WindowsSandbox.h` is the
-one runtime/platform addition. `typed::Client` remains one-pointer PIMPL-backed,
-and `AppServerClient` retains its existing PIMPL. Final A1b subsequently moves
-all three Codex libraries from SOVERSION 1 to SOVERSION 2.
+one runtime/platform addition. `AppServerClient` retains its PIMPL and owns the
+direct façade objects. Final A1b subsequently moves all three Codex libraries
+from SOVERSION 1 to SOVERSION 2.
 
 ## Current registry state
 

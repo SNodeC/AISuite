@@ -21,10 +21,17 @@ target_link_libraries(
     AISuiteInstalledCodexConsumer PRIVATE AISuite::OpenAICodex
 )
 
-add_executable(AISuiteInstalledCodexTypedConsumer CodexTypedConsumer.cpp)
-target_compile_features(AISuiteInstalledCodexTypedConsumer PRIVATE cxx_std_20)
+add_executable(AISuiteInstalledCodexApiConsumer CodexApiConsumer.cpp)
+target_compile_features(AISuiteInstalledCodexApiConsumer PRIVATE cxx_std_20)
 target_link_libraries(
-    AISuiteInstalledCodexTypedConsumer PRIVATE AISuite::OpenAICodex
+    AISuiteInstalledCodexApiConsumer PRIVATE AISuite::OpenAICodex
+)
+
+add_executable(AISuiteInstalledCodexApiExample CodexApiExample.cpp)
+target_compile_features(AISuiteInstalledCodexApiExample PRIVATE cxx_std_20)
+target_link_libraries(
+    AISuiteInstalledCodexApiExample
+    PRIVATE AISuite::OpenAICodex snodec::core
 )
 
 foreach(
@@ -46,18 +53,14 @@ foreach(
 endforeach()
 
 add_executable(
-    AISuiteInstalledCodexRetainedCompatibilityConsumer
-    CodexRetainedCompatibilityConsumer.cpp
+    AISuiteInstalledCodexApplicationProjectionConsumer
+    CodexApplicationProjectionConsumer.cpp
 )
 target_compile_features(
-    AISuiteInstalledCodexRetainedCompatibilityConsumer PRIVATE cxx_std_20
-)
-target_compile_options(
-    AISuiteInstalledCodexRetainedCompatibilityConsumer
-    PRIVATE -Werror -Wno-deprecated-declarations
+    AISuiteInstalledCodexApplicationProjectionConsumer PRIVATE cxx_std_20
 )
 target_link_libraries(
-    AISuiteInstalledCodexRetainedCompatibilityConsumer
+    AISuiteInstalledCodexApplicationProjectionConsumer
     PRIVATE AISuite::OpenAICodex
 )
 

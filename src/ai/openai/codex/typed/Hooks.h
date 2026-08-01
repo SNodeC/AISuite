@@ -294,7 +294,7 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> matcher;
         OptionalNullable<std::string> pluginId;
         HookSource source;
-        AbsolutePathBuf sourcePath;
+        AbsolutePath sourcePath;
         OptionalNullable<std::string> statusMessage;
         std::uint64_t timeoutSec = 0;
         HookTrustStatus trustStatus;
@@ -337,7 +337,7 @@ namespace ai::openai::codex::typed {
         // This field has a schema default, but remains optional so an omitted
         // value is not materialized during decoding.
         std::optional<HookSource> source;
-        AbsolutePathBuf sourcePath;
+        AbsolutePath sourcePath;
         std::int64_t startedAt = 0;
         HookRunStatus status;
         OptionalNullable<std::string> statusMessage;
@@ -385,11 +385,13 @@ namespace ai::openai::codex::typed {
 
     class Hooks {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using ListResult = OperationResult<HooksListResponse>;
-        using ListResultHandler = std::function<void(const ListResult&)>;
+        Hooks(const Hooks&) = delete;
+        Hooks(Hooks&&) = delete;
+        Hooks& operator=(const Hooks&) = delete;
+        Hooks& operator=(Hooks&&) = delete;
 
-        Submission list(HooksListParams params, ListResultHandler handler);
+        Submission list(HooksListParams params, CompletionHandler<HooksListResponse> handler);
+        Submission list(CompletionHandler<HooksListResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

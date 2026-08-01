@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/detail/ClientOperationCodec.h"
 #include "ai/openai/codex/detail/McpCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Mcp.h"
 #include "support/TestResult.h"
 
@@ -223,22 +223,20 @@ namespace {
     }
 
     void testRegistryAndFacade(tests::support::TestResult& result) {
-        using McpAccessor = typed::Mcp& (typed::Client::*) () noexcept;
-        using ConstMcpAccessor = const typed::Mcp& (typed::Client::*) () const noexcept;
-        static_assert(std::is_same_v<decltype(static_cast<McpAccessor>(&typed::Client::mcp)), McpAccessor>);
-        static_assert(std::is_same_v<decltype(static_cast<ConstMcpAccessor>(&typed::Client::mcp)), ConstMcpAccessor>);
+        using McpAccessor = typed::Mcp& (codex::AppServerClient::*) () noexcept;
+        static_assert(std::is_same_v<decltype(static_cast<McpAccessor>(&codex::AppServerClient::mcp)), McpAccessor>);
         static_assert(std::is_same_v<decltype(&typed::Mcp::startOauthLogin),
-                                     typed::Mcp::Submission (typed::Mcp::*)(typed::McpServerOauthLoginParams,
-                                                                            typed::Mcp::StartOauthLoginResultHandler)>);
-        static_assert(
-            std::is_same_v<decltype(&typed::Mcp::readResource),
-                           typed::Mcp::Submission (typed::Mcp::*)(typed::McpResourceReadParams, typed::Mcp::ReadResourceResultHandler)>);
-        static_assert(
-            std::is_same_v<decltype(&typed::Mcp::callTool),
-                           typed::Mcp::Submission (typed::Mcp::*)(typed::McpServerToolCallParams, typed::Mcp::CallToolResultHandler)>);
-        static_assert(
-            std::is_same_v<decltype(&typed::Mcp::listServers),
-                           typed::Mcp::Submission (typed::Mcp::*)(typed::ListMcpServerStatusParams, typed::Mcp::ListServersResultHandler)>);
+                                     codex::Submission (typed::Mcp::*)(typed::McpServerOauthLoginParams,
+                                                                       typed::CompletionHandler<typed::McpServerOauthLoginResponse>)>);
+        static_assert(std::is_same_v<decltype(&typed::Mcp::readResource),
+                                     codex::Submission (typed::Mcp::*)(typed::McpResourceReadParams,
+                                                                       typed::CompletionHandler<typed::McpResourceReadResponse>)>);
+        static_assert(std::is_same_v<decltype(&typed::Mcp::callTool),
+                                     codex::Submission (typed::Mcp::*)(typed::McpServerToolCallParams,
+                                                                       typed::CompletionHandler<typed::McpServerToolCallResponse>)>);
+        using ListServersMember = codex::Submission (typed::Mcp::*)(typed::ListMcpServerStatusParams,
+                                                                    typed::CompletionHandler<typed::ListMcpServerStatusResponse>);
+        static_assert(std::is_same_v<decltype(static_cast<ListServersMember>(&typed::Mcp::listServers)), ListServersMember>);
 
         const detail::ProtocolSurfaceEntry& oauth = detail::entryFor(detail::ClientRequestTarget::McpServerOauthLogin);
         const detail::ProtocolSurfaceEntry& read = detail::entryFor(detail::ClientRequestTarget::McpResourceRead);

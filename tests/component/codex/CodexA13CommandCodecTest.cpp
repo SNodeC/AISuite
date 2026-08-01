@@ -74,9 +74,9 @@ namespace {
 
         const typed::WorkspaceWriteSandboxPolicy workspaceWrite{
             .writableRoots =
-                std::vector<typed::AbsolutePathBuf>{
-                    typed::AbsolutePathBuf{"/synthetic/root-a"},
-                    typed::AbsolutePathBuf{"/synthetic/root-b"},
+                std::vector<typed::AbsolutePath>{
+                    typed::AbsolutePath{"/synthetic/root-a"},
+                    typed::AbsolutePath{"/synthetic/root-b"},
                 },
             .networkAccess = false,
             .excludeTmpdirEnvVar = true,

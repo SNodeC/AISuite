@@ -640,28 +640,23 @@ namespace ai::openai::codex::typed {
 
     class Accounts {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using UnitResultHandler = std::function<void(const OperationResult<Unit>&)>;
-        using CancelLoginResultHandler = std::function<void(const OperationResult<CancelLoginAccountResponse>&)>;
-        using StartLoginResultHandler = std::function<void(const OperationResult<LoginAccountResponse>&)>;
-        using ConsumeRateLimitResetCreditResultHandler =
-            std::function<void(const OperationResult<ConsumeAccountRateLimitResetCreditResponse>&)>;
-        using ReadRateLimitsResultHandler = std::function<void(const OperationResult<GetAccountRateLimitsResponse>&)>;
-        using ReadResultHandler = std::function<void(const OperationResult<GetAccountResponse>&)>;
-        using SendAddCreditsNudgeEmailResultHandler = std::function<void(const OperationResult<SendAddCreditsNudgeEmailResponse>&)>;
-        using ReadUsageResultHandler = std::function<void(const OperationResult<GetAccountTokenUsageResponse>&)>;
-        using ReadWorkspaceMessagesResultHandler = std::function<void(const OperationResult<GetWorkspaceMessagesResponse>&)>;
+        Accounts(const Accounts&) = delete;
+        Accounts(Accounts&&) = delete;
+        Accounts& operator=(const Accounts&) = delete;
+        Accounts& operator=(Accounts&&) = delete;
 
-        Submission cancelLogin(CancelLoginAccountParams params, CancelLoginResultHandler handler);
-        Submission startLogin(LoginAccountParams params, StartLoginResultHandler handler);
-        Submission logout(Unit params, UnitResultHandler handler);
+        Submission cancelLogin(CancelLoginAccountParams params, CompletionHandler<CancelLoginAccountResponse> handler);
+        Submission startLogin(LoginAccountParams params, CompletionHandler<LoginAccountResponse> handler);
+        Submission logout(DoneHandler handler);
         Submission consumeRateLimitResetCredit(ConsumeAccountRateLimitResetCreditParams params,
-                                               ConsumeRateLimitResetCreditResultHandler handler);
-        Submission readRateLimits(Unit params, ReadRateLimitsResultHandler handler);
-        Submission read(GetAccountParams params, ReadResultHandler handler);
-        Submission sendAddCreditsNudgeEmail(SendAddCreditsNudgeEmailParams params, SendAddCreditsNudgeEmailResultHandler handler);
-        Submission readUsage(Unit params, ReadUsageResultHandler handler);
-        Submission readWorkspaceMessages(Unit params, ReadWorkspaceMessagesResultHandler handler);
+                                               CompletionHandler<ConsumeAccountRateLimitResetCreditResponse> handler);
+        Submission readRateLimits(CompletionHandler<GetAccountRateLimitsResponse> handler);
+        Submission read(GetAccountParams params, CompletionHandler<GetAccountResponse> handler);
+        Submission read(CompletionHandler<GetAccountResponse> handler);
+        Submission sendAddCreditsNudgeEmail(SendAddCreditsNudgeEmailParams params,
+                                            CompletionHandler<SendAddCreditsNudgeEmailResponse> handler);
+        Submission readUsage(CompletionHandler<GetAccountTokenUsageResponse> handler);
+        Submission readWorkspaceMessages(CompletionHandler<GetWorkspaceMessagesResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

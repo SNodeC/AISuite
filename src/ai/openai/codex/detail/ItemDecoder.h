@@ -21,7 +21,7 @@ namespace ai::openai::codex::typed {
 
 namespace ai::openai::codex::detail {
 
-    std::optional<typed::Item>
+    std::optional<typed::ThreadItem>
     decodeItem(const Json& value, std::optional<typed::ThreadId> threadId, std::optional<typed::TurnId> turnId, std::string& error);
 
     std::optional<typed::ResponseItem> decodeResponseItem(const Json& value, std::string& error);

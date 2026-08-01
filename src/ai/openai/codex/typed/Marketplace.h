@@ -30,7 +30,7 @@ namespace ai::openai::codex::typed {
 
     struct MarketplaceAddResponse {
         bool alreadyAdded = false;
-        AbsolutePathBuf installedRoot;
+        AbsolutePath installedRoot;
         std::string marketplaceName;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -47,7 +47,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct MarketplaceRemoveResponse {
-        OptionalNullable<AbsolutePathBuf> installedRoot;
+        OptionalNullable<AbsolutePath> installedRoot;
         std::string marketplaceName;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -75,7 +75,7 @@ namespace ai::openai::codex::typed {
     struct MarketplaceUpgradeResponse {
         std::vector<MarketplaceUpgradeErrorInfo> errors;
         std::vector<std::string> selectedMarketplaces;
-        std::vector<AbsolutePathBuf> upgradedRoots;
+        std::vector<AbsolutePath> upgradedRoots;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -84,17 +84,15 @@ namespace ai::openai::codex::typed {
 
     class Marketplace {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using AddResult = OperationResult<MarketplaceAddResponse>;
-        using AddResultHandler = std::function<void(const AddResult&)>;
-        using RemoveResult = OperationResult<MarketplaceRemoveResponse>;
-        using RemoveResultHandler = std::function<void(const RemoveResult&)>;
-        using UpgradeResult = OperationResult<MarketplaceUpgradeResponse>;
-        using UpgradeResultHandler = std::function<void(const UpgradeResult&)>;
+        Marketplace(const Marketplace&) = delete;
+        Marketplace(Marketplace&&) = delete;
+        Marketplace& operator=(const Marketplace&) = delete;
+        Marketplace& operator=(Marketplace&&) = delete;
 
-        Submission add(MarketplaceAddParams params, AddResultHandler handler);
-        Submission remove(MarketplaceRemoveParams params, RemoveResultHandler handler);
-        Submission upgrade(MarketplaceUpgradeParams params, UpgradeResultHandler handler);
+        Submission add(MarketplaceAddParams params, CompletionHandler<MarketplaceAddResponse> handler);
+        Submission remove(MarketplaceRemoveParams params, CompletionHandler<MarketplaceRemoveResponse> handler);
+        Submission upgrade(MarketplaceUpgradeParams params, CompletionHandler<MarketplaceUpgradeResponse> handler);
+        Submission upgrade(CompletionHandler<MarketplaceUpgradeResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

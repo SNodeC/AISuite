@@ -29,14 +29,14 @@ namespace {
     using ai::openai::codex::Json;
 
     template <typename T>
-    bool holdsExactAlternative(const typed::Item& item) {
+    bool holdsExactAlternative(const typed::ThreadItem& item) {
         return std::holds_alternative<T>(item);
     }
 
     struct ItemCase {
         const char* discriminator;
         const char* fixture;
-        bool (*holdsExact)(const typed::Item&);
+        bool (*holdsExact)(const typed::ThreadItem&);
     };
 
     constexpr std::array<ItemCase, 10> NewlyTypedItems{{
@@ -68,7 +68,7 @@ namespace {
         }
     }
 
-    const typed::ItemMetadata* knownMetadata(const typed::Item& item) {
+    const typed::ItemMetadata* knownMetadata(const typed::ThreadItem& item) {
         return std::visit(
             [](const auto& value) -> const typed::ItemMetadata* {
                 using Value = std::decay_t<decltype(value)>;
@@ -81,7 +81,7 @@ namespace {
             item);
     }
 
-    bool replaceKnownMetadata(typed::Item& item, typed::ItemMetadata metadata) {
+    bool replaceKnownMetadata(typed::ThreadItem& item, typed::ItemMetadata metadata) {
         return std::visit(
             [&metadata](auto& value) {
                 using Value = std::decay_t<decltype(value)>;
@@ -154,7 +154,7 @@ namespace {
             }
 
             std::string decodingError = "stale";
-            const std::optional<typed::Item> decoded = detail::decodeItem(*fixture, threadId, turnId, decodingError);
+            const std::optional<typed::ThreadItem> decoded = detail::decodeItem(*fixture, threadId, turnId, decodingError);
             result.expectTrue(decoded && decodingError.empty() && itemCase.holdsExact(*decoded),
                               description + " selects its exact new public alternative");
             if (!decoded || !itemCase.holdsExact(*decoded)) {
@@ -182,13 +182,14 @@ namespace {
                                                         StartedAt,
                                                         result,
                                                         description + " typed start");
-            const bool legacyStarted = translateAndApply(reducer,
-                                                         legacyState,
-                                                         typed::Event{typed::ItemStarted{typed::Item{legacy}, StartedAt, startedEnvelope}},
-                                                         backend::ItemLifecycle::Started,
-                                                         StartedAt,
-                                                         result,
-                                                         description + " legacy start");
+            const bool legacyStarted =
+                translateAndApply(reducer,
+                                  legacyState,
+                                  typed::Event{typed::ItemStarted{typed::ThreadItem{legacy}, StartedAt, startedEnvelope}},
+                                  backend::ItemLifecycle::Started,
+                                  StartedAt,
+                                  result,
+                                  description + " legacy start");
             const bool typedCompleted = translateAndApply(reducer,
                                                           typedState,
                                                           typed::Event{typed::ItemCompleted{*decoded, CompletedAt, completedEnvelope}},
@@ -199,7 +200,7 @@ namespace {
             const bool legacyCompleted =
                 translateAndApply(reducer,
                                   legacyState,
-                                  typed::Event{typed::ItemCompleted{typed::Item{legacy}, CompletedAt, completedEnvelope}},
+                                  typed::Event{typed::ItemCompleted{typed::ThreadItem{legacy}, CompletedAt, completedEnvelope}},
                                   backend::ItemLifecycle::Completed,
                                   CompletedAt,
                                   result,
@@ -251,7 +252,7 @@ namespace {
             }
 
             std::string decodingError;
-            std::optional<typed::Item> decoded = detail::decodeItem(*fixture, threadId, turnId, decodingError);
+            std::optional<typed::ThreadItem> decoded = detail::decodeItem(*fixture, threadId, turnId, decodingError);
             if (!decoded || !itemCase.holdsExact(*decoded)) {
                 result.expectTrue(false, description + " starts from the exact typed alternative");
                 continue;
@@ -273,9 +274,9 @@ namespace {
             reducer.apply(sensitiveState,
                           backend::ItemUpserted{threadId, turnId, *decoded, backend::ItemLifecycle::Started, std::int64_t{303}});
             typed::UnknownItem sensitiveLegacy = legacyUnknown(itemCase, sensitiveRaw, threadId, turnId);
-            reducer.apply(
-                legacySensitiveState,
-                backend::ItemUpserted{threadId, turnId, typed::Item{sensitiveLegacy}, backend::ItemLifecycle::Started, std::int64_t{303}});
+            reducer.apply(legacySensitiveState,
+                          backend::ItemUpserted{
+                              threadId, turnId, typed::ThreadItem{sensitiveLegacy}, backend::ItemLifecycle::Started, std::int64_t{303}});
             const backend::ExtensionRecord* retained =
                 sensitiveState.recentExtensions.size() == 1 ? &sensitiveState.recentExtensions.front() : nullptr;
             const backend::Snapshot sensitiveSnapshot = backend::makeSnapshot(sensitiveState);
@@ -301,7 +302,7 @@ namespace {
             typed::UnknownItem oversizedLegacy = legacyUnknown(itemCase, oversizedRaw, threadId, turnId);
             reducer.apply(legacyOversizedState,
                           backend::ItemUpserted{
-                              threadId, turnId, typed::Item{oversizedLegacy}, backend::ItemLifecycle::Completed, std::int64_t{404}});
+                              threadId, turnId, typed::ThreadItem{oversizedLegacy}, backend::ItemLifecycle::Completed, std::int64_t{404}});
             const backend::ExtensionRecord* oversizedRetained =
                 oversizedState.recentExtensions.size() == 1 ? &oversizedState.recentExtensions.front() : nullptr;
             const backend::Snapshot oversizedSnapshot = backend::makeSnapshot(oversizedState);

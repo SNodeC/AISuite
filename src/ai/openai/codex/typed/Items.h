@@ -296,19 +296,18 @@ namespace ai::openai::codex::typed {
         auto operator<=>(const SubAgentActivityKind&) const = default;
     };
 
-    struct LegacyAppPathString {
+    struct PathString {
         std::string value;
 
-        LegacyAppPathString() = default;
+        PathString() = default;
 
-        // The stable wire type is a direction-specific path string. Keep the
-        // former string-based item construction source-compatible where the
-        // conversion is unambiguous.
-        LegacyAppPathString(std::string input)
+        // Intentional implicit application conversion for a direction-specific
+        // protocol path string.
+        PathString(std::string input)
             : value(std::move(input)) {
         }
 
-        auto operator<=>(const LegacyAppPathString&) const = default;
+        auto operator<=>(const PathString&) const = default;
     };
 
     struct CollabAgentState {
@@ -633,7 +632,7 @@ namespace ai::openai::codex::typed {
         ItemMetadata metadata;
         std::string command;
         std::vector<CommandAction> commandActions;
-        LegacyAppPathString cwd;
+        PathString cwd;
         CommandExecutionStatus status;
         OptionalNullable<std::string> aggregatedOutput;
         OptionalNullable<std::int64_t> durationMs;
@@ -708,7 +707,7 @@ namespace ai::openai::codex::typed {
         std::string result;
         std::string status;
         OptionalNullable<std::string> revisedPrompt;
-        OptionalNullable<AbsolutePathBuf> savedPath;
+        OptionalNullable<AbsolutePath> savedPath;
         std::vector<DecodeDiagnostic> diagnostics;
 
         bool operator==(const ImageGenerationThreadItem&) const = default;
@@ -716,7 +715,7 @@ namespace ai::openai::codex::typed {
 
     struct ImageViewThreadItem {
         ItemMetadata metadata;
-        LegacyAppPathString path;
+        PathString path;
         std::vector<DecodeDiagnostic> diagnostics;
 
         bool operator==(const ImageViewThreadItem&) const = default;
@@ -786,7 +785,7 @@ namespace ai::openai::codex::typed {
 
     struct UserMessageThreadItem {
         ItemMetadata metadata;
-        std::vector<UserInput> content;
+        std::vector<TurnInput> content;
         OptionalNullable<ClientUserMessageId> clientId;
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -838,16 +837,6 @@ namespace ai::openai::codex::typed {
                                     UserMessageThreadItem,
                                     WebSearchThreadItem,
                                     UnknownItem>;
-
-    // Transitional source compatibility for the A0/A1.0 item vocabulary.
-    using AgentMessageItem = AgentMessageThreadItem;
-    using CommandExecutionItem = CommandExecutionThreadItem;
-    using FileChangeItem = FileChangeThreadItem;
-    using ToolCallItem = McpToolCallThreadItem;
-    using ReasoningItem = ReasoningThreadItem;
-    using UserMessageItem = UserMessageThreadItem;
-    using WebSearchItem = WebSearchThreadItem;
-    using Item = ThreadItem;
 
     struct MessageResponseItem {
         std::vector<ContentItem> content;

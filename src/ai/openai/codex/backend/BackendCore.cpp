@@ -13,7 +13,6 @@
 #include "ai/openai/codex/backend/BackendEvent.h"
 #include "ai/openai/codex/backend/BackendState.h"
 #include "ai/openai/codex/backend/Snapshot.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/Items.h"
 #include "ai/openai/codex/typed/Results.h"
@@ -76,7 +75,7 @@ namespace ai::openai::codex::backend {
             }
         }
 
-        const Json& itemRaw(const typed::Item& item) {
+        const Json& itemRaw(const typed::ThreadItem& item) {
             return std::visit(
                 [](const auto& value) -> const Json& {
                     using Value = std::decay_t<decltype(value)>;
@@ -227,7 +226,7 @@ namespace ai::openai::codex::backend {
                                                                  [](const typed::Thread& value) {
                                                                      return jsonBytes(value.raw);
                                                                  },
-                                                                 [](const typed::ThreadPage& value) {
+                                                                 [](const typed::ThreadListResponse& value) {
                                                                      return jsonBytes(value.raw);
                                                                  },
                                                                  [](const typed::Turn& value) {
@@ -253,7 +252,7 @@ namespace ai::openai::codex::backend {
                    std::holds_alternative<TurnStart>(command) || std::holds_alternative<TurnInterrupt>(command);
         }
 
-        CommandResult submissionFailure(const AppServerClient::RawProtocol::Submission& submission) {
+        CommandResult submissionFailure(const Submission& submission) {
             const std::string message =
                 submission.error ? submission.error->message : "The typed App Server operation could not be enqueued.";
             return CommandResult::failed(CommandErrorCode::LocalSubmissionFailure, message);
@@ -330,14 +329,14 @@ namespace ai::openai::codex::backend {
                     self->publish(DiagnosticReceived{diagnostic.message});
                 }
             });
-            client.typed().events().setOnEvent([weak](const typed::Event& event) {
+            client.events().setOnEvent([weak](const typed::Event& event) {
                 if (const std::shared_ptr<Impl> self = weak.lock()) {
                     for (BackendEvent translated : self->reducer.translate(event)) {
                         self->publish(std::move(translated));
                     }
                 }
             });
-            client.typed().requests().setOnRequest([weak](const typed::TypedServerRequest& request) {
+            client.requests().setOnRequest([weak](const typed::TypedServerRequest& request) {
                 if (const std::shared_ptr<Impl> self = weak.lock()) {
                     self->onServerRequest(request);
                 }
@@ -354,8 +353,8 @@ namespace ai::openai::codex::backend {
             observers.clear();
             activeOperations.clear();
             try {
-                client.typed().events().setOnEvent({});
-                client.typed().requests().setOnRequest({});
+                client.events().setOnEvent({});
+                client.requests().setOnRequest({});
                 client.setOnStateChanged({});
                 client.setOnDiagnostic({});
                 client.stop();
@@ -922,17 +921,16 @@ namespace ai::openai::codex::backend {
             const std::uint64_t operationGeneration = generation;
             markOperation(id, requestId, operationGeneration);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.typed().threads().start(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
-                        if (result && result.value) {
-                            self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
-                            self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
+            const auto submission = client.threads().start(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
+                if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
+                    if (result && result.value) {
+                        self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
+                        self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
+                    } else {
+                        self->complete(id, requestId, operationFailure(result));
                     }
-                });
+                }
+            });
             if (!submission) {
                 complete(id, requestId, submissionFailure(submission));
             }
@@ -942,17 +940,16 @@ namespace ai::openai::codex::backend {
             const std::uint64_t operationGeneration = generation;
             markOperation(id, requestId, operationGeneration);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.typed().threads().resume(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
-                        if (result && result.value) {
-                            self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
-                            self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
+            const auto submission = client.threads().resume(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
+                if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
+                    if (result && result.value) {
+                        self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
+                        self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
+                    } else {
+                        self->complete(id, requestId, operationFailure(result));
                     }
-                });
+                }
+            });
             if (!submission) {
                 complete(id, requestId, submissionFailure(submission));
             }
@@ -964,8 +961,8 @@ namespace ai::openai::codex::backend {
                 command.params.cursor.hasValue() ? std::optional<std::string>{*command.params.cursor} : std::nullopt;
             markOperation(id, requestId, operationGeneration);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.typed().threads().list(
-                command.params, [weak, id, requestId, operationGeneration, requestedCursor](const auto& result) {
+            const auto submission =
+                client.threads().list(command.params, [weak, id, requestId, operationGeneration, requestedCursor](const auto& result) {
                     if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
                         if (result && result.value) {
                             self->publish(ThreadListUpdated{*result.value, requestedCursor, false});
@@ -985,7 +982,7 @@ namespace ai::openai::codex::backend {
             markOperation(id, requestId, operationGeneration);
             const std::weak_ptr<Impl> weak = weak_from_this();
             const auto submission =
-                client.typed().threads().read(command.params, [weak, id, requestId, operationGeneration, command](const auto& result) {
+                client.threads().read(command.params, [weak, id, requestId, operationGeneration, command](const auto& result) {
                     if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
                         if (result && result.value) {
                             const EntityLoad load = command.params.includeTurns.value_or(false) ? EntityLoad::Full : EntityLoad::Summary;
@@ -1005,17 +1002,16 @@ namespace ai::openai::codex::backend {
             const std::uint64_t operationGeneration = generation;
             markOperation(id, requestId, operationGeneration);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.typed().turns().start(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
-                        if (result && result.value) {
-                            self->publish(TurnUpserted{result.value->turn});
-                            self->complete(id, requestId, CommandResult::succeeded(result.value->turn));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
+            const auto submission = client.turns().start(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
+                if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
+                    if (result && result.value) {
+                        self->publish(TurnUpserted{result.value->turn});
+                        self->complete(id, requestId, CommandResult::succeeded(result.value->turn));
+                    } else {
+                        self->complete(id, requestId, operationFailure(result));
                     }
-                });
+                }
+            });
             if (!submission) {
                 complete(id, requestId, submissionFailure(submission));
             }
@@ -1026,7 +1022,7 @@ namespace ai::openai::codex::backend {
             markOperation(id, requestId, operationGeneration);
             const std::weak_ptr<Impl> weak = weak_from_this();
             const auto submission =
-                client.typed().turns().interrupt(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
+                client.turns().interrupt(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
                     if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
                         if (result && result.value) {
                             self->complete(id, requestId, CommandResult::succeeded(*result.value));
@@ -1078,7 +1074,7 @@ namespace ai::openai::codex::backend {
                     requestId,
                     command.requestId,
                     [this, &command](const auto& request) {
-                        return client.typed().requests().respond(request, command.decision);
+                        return client.requests().respond(request, command.decision);
                     },
                     "command approval");
             } else {
@@ -1087,7 +1083,7 @@ namespace ai::openai::codex::backend {
                     requestId,
                     command.requestId,
                     [this, &command](const auto& request) {
-                        return client.typed().requests().respond(request, command.decision);
+                        return client.requests().respond(request, command.decision);
                     },
                     "file-change approval");
             }
@@ -1099,7 +1095,7 @@ namespace ai::openai::codex::backend {
                 requestId,
                 command.requestId,
                 [this, &command](const auto& request) {
-                    return client.typed().requests().respond(request, command.answers);
+                    return client.requests().respond(request, command.answers);
                 },
                 "user-input");
         }
@@ -1110,7 +1106,7 @@ namespace ai::openai::codex::backend {
                 requestId,
                 command.requestId,
                 [this, &command](const auto& request) {
-                    return client.typed().requests().respond(request, command.response);
+                    return client.requests().respond(request, command.response);
                 },
                 "authentication");
         }
@@ -1121,7 +1117,7 @@ namespace ai::openai::codex::backend {
                 requestId,
                 command.requestId,
                 [this, &command](const auto& request) {
-                    return client.typed().requests().respondRaw(request, command.result);
+                    return client.requests().respondRaw(request, command.result);
                 },
                 "unknown extension");
         }
@@ -1132,7 +1128,7 @@ namespace ai::openai::codex::backend {
                 requestId,
                 command.requestId,
                 [this, &command](const auto& request) {
-                    return client.typed().requests().reject(request, command.error);
+                    return client.requests().reject(request, command.error);
                 },
                 "unknown extension");
         }
@@ -1167,7 +1163,7 @@ namespace ai::openai::codex::backend {
             listParams.limit = options.initialThreadListLimit;
             const std::uint64_t operationGeneration = generation;
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.typed().threads().list(std::move(listParams), [weak, operationGeneration](const auto& result) {
+            const auto submission = client.threads().list(std::move(listParams), [weak, operationGeneration](const auto& result) {
                 if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
                     if (result && result.value) {
                         self->publish(ThreadListUpdated{*result.value, std::nullopt, true});

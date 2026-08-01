@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Plugins.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -37,7 +37,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 7;
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -356,7 +356,7 @@ namespace {
         void buildCases() {
             typed::PluginInstallParams install{};
             install.marketplacePath =
-                typed::OptionalNullable<typed::AbsolutePathBuf>::withValue(typed::AbsolutePathBuf{"/synthetic/marketplace"});
+                typed::OptionalNullable<typed::AbsolutePath>::withValue(typed::AbsolutePath{"/synthetic/marketplace"});
             install.pluginName = "synthetic-plugin";
             install.remoteMarketplaceName = typed::OptionalNullable<std::string>::explicitNull();
 
@@ -373,7 +373,7 @@ namespace {
 
             typed::PluginShareSaveParams save{};
             save.discoverability = typed::OptionalNullable<typed::PluginShareDiscoverability>::explicitNull();
-            save.pluginPath = typed::AbsolutePathBuf{"/synthetic/plugins/synthetic-plugin"};
+            save.pluginPath = typed::AbsolutePath{"/synthetic/plugins/synthetic-plugin"};
             save.remotePluginId = typed::OptionalNullable<std::string>::withValue("synthetic-remote-plugin");
             save.shareTargets = typed::OptionalNullable<std::vector<typed::PluginShareTarget>>::withValue({shareTarget});
 
@@ -390,7 +390,7 @@ namespace {
             typed::PluginUninstallParams uninstall{};
             uninstall.pluginId = "synthetic-plugin";
 
-            auto& plugins = client->typed().plugins();
+            auto& plugins = client->plugins();
             cases.push_back(makeConcreteOperation<typed::PluginInstallResponse>("plugin/install",
                                                                                 std::move(install),
                                                                                 {
@@ -537,8 +537,8 @@ namespace {
             params.remotePluginId = "synthetic-remote-plugin";
             params.skillName = "synthetic-skill";
             insideSubmission = true;
-            const Submission submission =
-                client->typed().plugins().readSkill(std::move(params), [this](const typed::Plugins::ReadSkillResult& operation) {
+            const Submission submission = client->plugins().readSkill(
+                std::move(params), [this](const typed::OperationResult<typed::PluginSkillReadResponse>& operation) {
                     expect(!insideSubmission, "reentrant plugin/skill/read completion remains asynchronous");
                     expect(operation && operation.raw == readSkillResult(),
                            "reentrant plugin/skill/read shares the same decoder and RawProtocol");
@@ -588,15 +588,16 @@ namespace {
             params.pluginName = "synthetic-plugin";
             insideSubmission = true;
             const Submission submission =
-                client->typed().plugins().install(std::move(params), [this](const typed::Plugins::InstallResult& operation) {
+                client->plugins().install(std::move(params), [this](const typed::OperationResult<typed::PluginInstallResponse>& operation) {
                     const codex::Json expectedError{
                         {"code", -32'500},
                         {"message", "synthetic plugin remote failure"},
                         {"data", {{"operation", "plugin/install"}}},
                         {"futureErrorField", true},
                     };
-                    expect(!insideSubmission && operation.kind == typed::Plugins::InstallResult::Kind::RemoteError && !operation.value &&
-                               operation.remoteError && operation.remoteError->raw == expectedError && operation.raw.is_null(),
+                    expect(!insideSubmission && operation.kind == typed::OperationResult<typed::PluginInstallResponse>::Kind::RemoteError &&
+                               !operation.value && operation.remoteError && operation.remoteError->raw == expectedError &&
+                               operation.raw.is_null(),
                            "plugin/install preserves its exact remote error asynchronously");
                     ++remoteCallbacks;
                     core::EventReceiver::atNextTick([this]() {
@@ -610,12 +611,13 @@ namespace {
         void beginCancellation() {
             state->replyMode = UnixTransportState::ReplyMode::Hold;
             typed::PluginShareSaveParams params{};
-            params.pluginPath = typed::AbsolutePathBuf{"/synthetic/plugins/synthetic-plugin"};
+            params.pluginPath = typed::AbsolutePath{"/synthetic/plugins/synthetic-plugin"};
             insideSubmission = true;
-            const Submission submission =
-                client->typed().plugins().shareSave(std::move(params), [this](const typed::Plugins::ShareSaveResult& operation) {
-                    expect(!insideSubmission && operation.kind == typed::Plugins::ShareSaveResult::Kind::Cancelled && !operation.value &&
-                               operation.localError && operation.localError->category == codex::Error::Category::Cancelled,
+            const Submission submission = client->plugins().shareSave(
+                std::move(params), [this](const typed::OperationResult<typed::PluginShareSaveResponse>& operation) {
+                    expect(!insideSubmission && operation.kind == typed::OperationResult<typed::PluginShareSaveResponse>::Kind::Cancelled &&
+                               !operation.value && operation.localError &&
+                               operation.localError->category == codex::Error::Category::Cancelled,
                            "held plugin/share/save is cancelled once by an intentional stop");
                     ++cancellationCallbacks;
                     maybeRestart();
@@ -641,9 +643,10 @@ namespace {
             typed::PluginShareCheckoutParams params{};
             params.remotePluginId = "synthetic-remote-plugin";
             insideSubmission = true;
-            const Submission submission =
-                client->typed().plugins().shareCheckout(std::move(params), [this](const typed::Plugins::ShareCheckoutResult& operation) {
-                    expect(!insideSubmission && operation.kind == typed::Plugins::ShareCheckoutResult::Kind::Cancelled &&
+            const Submission submission = client->plugins().shareCheckout(
+                std::move(params), [this](const typed::OperationResult<typed::PluginShareCheckoutResponse>& operation) {
+                    expect(!insideSubmission &&
+                               operation.kind == typed::OperationResult<typed::PluginShareCheckoutResponse>::Kind::Cancelled &&
                                !operation.value && operation.localError &&
                                operation.localError->category == codex::Error::Category::Cancelled,
                            "unexpected process disconnect cancels held plugin/share/checkout exactly once");

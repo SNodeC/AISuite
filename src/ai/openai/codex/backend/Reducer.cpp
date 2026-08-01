@@ -161,12 +161,12 @@ namespace ai::openai::codex::backend {
         }
 
         void initializeVisibleContent(ItemState& state, bool authoritative, std::size_t limit) {
-            std::visit(Overloaded{[&state, authoritative, limit](const typed::AgentMessageItem& item) {
+            std::visit(Overloaded{[&state, authoritative, limit](const typed::AgentMessageThreadItem& item) {
                                       if ((!item.text.empty() && authoritative) || state.agentText.empty()) {
                                           assignBounded(state.agentText, item.text, limit, state.droppedContentBytes);
                                       }
                                   },
-                                  [&state, authoritative, limit](const typed::ReasoningItem& item) {
+                                  [&state, authoritative, limit](const typed::ReasoningThreadItem& item) {
                                       const std::vector<std::string>& content = item.contentOrDefault();
                                       const bool hasContent = std::any_of(content.begin(), content.end(), [](const std::string& value) {
                                           return !value.empty();
@@ -188,7 +188,7 @@ namespace ai::openai::codex::backend {
                                           }
                                       }
                                   },
-                                  [&state, authoritative, limit](const typed::CommandExecutionItem& item) {
+                                  [&state, authoritative, limit](const typed::CommandExecutionThreadItem& item) {
                                       if (item.aggregatedOutput &&
                                           ((!item.aggregatedOutput->empty() && authoritative) || state.commandOutput.empty())) {
                                           assignBounded(state.commandOutput, *item.aggregatedOutput, limit, state.droppedContentBytes);
@@ -199,7 +199,7 @@ namespace ai::openai::codex::backend {
                        state.item);
         }
 
-        std::optional<std::pair<typed::ThreadId, typed::TurnId>> itemLocation(const typed::Item& item) {
+        std::optional<std::pair<typed::ThreadId, typed::TurnId>> itemLocation(const typed::ThreadItem& item) {
             return std::visit(
                 [](const auto& value) -> std::optional<std::pair<typed::ThreadId, typed::TurnId>> {
                     using Value = std::decay_t<decltype(value)>;
@@ -222,7 +222,7 @@ namespace ai::openai::codex::backend {
         bool upsertItem(BackendState& state,
                         const typed::ThreadId& threadId,
                         const typed::TurnId& turnId,
-                        const typed::Item& item,
+                        const typed::ThreadItem& item,
                         ItemLifecycle lifecycle,
                         std::optional<std::int64_t> occurredAtMs,
                         std::size_t contentLimit) {
@@ -280,7 +280,7 @@ namespace ai::openai::codex::backend {
                 }
             }
 
-            for (const typed::Item& item : value.items) {
+            for (const typed::ThreadItem& item : value.items) {
                 upsertItem(state,
                            value.threadId,
                            value.id,
@@ -529,7 +529,7 @@ namespace ai::openai::codex::backend {
                         upsertItem(state,
                                    value.threadId,
                                    value.turnId,
-                                   typed::Item{std::move(placeholder)},
+                                   typed::ThreadItem{std::move(placeholder)},
                                    ItemLifecycle::Started,
                                    std::nullopt,
                                    options.maxAccumulatedItemBytes);
@@ -562,14 +562,14 @@ namespace ai::openai::codex::backend {
                         upsertItem(state,
                                    value.threadId,
                                    value.turnId,
-                                   typed::Item{std::move(placeholder)},
+                                   typed::ThreadItem{std::move(placeholder)},
                                    ItemLifecycle::Started,
                                    std::nullopt,
                                    options.maxAccumulatedItemBytes);
                         item = findItem(state, value.threadId, value.turnId, value.itemId);
                     }
                     if (item) {
-                        if (auto* fileChange = std::get_if<typed::FileChangeItem>(&item->item)) {
+                        if (auto* fileChange = std::get_if<typed::FileChangeThreadItem>(&item->item)) {
                             fileChange->metadata.raw["changes"] = value.changes;
                             if (std::optional<std::vector<typed::FileUpdateChange>> changes = decodeFileUpdateChanges(value.changes)) {
                                 fileChange->changes = std::move(*changes);

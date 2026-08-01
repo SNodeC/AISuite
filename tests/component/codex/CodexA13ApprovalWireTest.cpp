@@ -5,9 +5,9 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/PermissionProfiles.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
 #include "core/EventReceiver.h"
@@ -337,7 +337,7 @@ namespace {
             }
 
             const auto localRejection =
-                client->typed().permissionProfiles().list({}, [this](const typed::OperationResult<typed::PermissionProfileListResponse>&) {
+                client->permissionProfiles().list({}, [this](const typed::OperationResult<typed::PermissionProfileListResponse>&) {
                     ++unexpectedProfileCallbacks;
                 });
             expect(!localRejection && !localRejection.id && localRejection.error &&
@@ -345,7 +345,7 @@ namespace {
                        state->outbound.empty(),
                    "permissionProfile/list rejects synchronously before RawProtocol is ready");
 
-            client->typed().requests().setOnRequest([this](const typed::TypedServerRequest& request) {
+            client->requests().setOnRequest([this](const typed::TypedServerRequest& request) {
                 insideTypedCallback = true;
                 handleRequest(request);
                 insideTypedCallback = false;
@@ -371,29 +371,29 @@ namespace {
             result.expectTrue(condition, std::move(message));
         }
 
-        typed::Requests::SendResult respondForLifecycle(const typed::ApplyPatchApprovalRequest& request) {
-            return client->typed().requests().respond(request, typed::ApplyPatchApprovalResponse{typed::DeniedReviewDecision{}});
+        codex::SendResult respondForLifecycle(const typed::ApplyPatchApprovalRequest& request) {
+            return client->requests().respond(request, typed::ApplyPatchApprovalResponse{typed::DeniedReviewDecision{}});
         }
 
-        typed::Requests::SendResult respondForLifecycle(const typed::ExecCommandApprovalRequest& request) {
-            return client->typed().requests().respond(request, typed::ExecCommandApprovalResponse{typed::TimedOutReviewDecision{}});
+        codex::SendResult respondForLifecycle(const typed::ExecCommandApprovalRequest& request) {
+            return client->requests().respond(request, typed::ExecCommandApprovalResponse{typed::TimedOutReviewDecision{}});
         }
 
-        typed::Requests::SendResult respondForLifecycle(const typed::CommandApprovalRequest& request) {
-            return client->typed().requests().respond(
+        codex::SendResult respondForLifecycle(const typed::CommandApprovalRequest& request) {
+            return client->requests().respond(
                 request, typed::CommandExecutionRequestApprovalResponse{typed::DeclineCommandExecutionApprovalDecision{}});
         }
 
-        typed::Requests::SendResult respondForLifecycle(const typed::FileChangeApprovalRequest& request) {
-            return client->typed().requests().respond(
-                request, typed::FileChangeRequestApprovalResponse{typed::FileChangeApprovalDecision::cancel()});
+        codex::SendResult respondForLifecycle(const typed::FileChangeApprovalRequest& request) {
+            return client->requests().respond(request,
+                                              typed::FileChangeRequestApprovalResponse{typed::FileChangeApprovalDecision::cancel()});
         }
 
-        typed::Requests::SendResult respondForLifecycle(const typed::PermissionsApprovalRequest& request) {
-            return client->typed().requests().respond(request, permissionResponse());
+        codex::SendResult respondForLifecycle(const typed::PermissionsApprovalRequest& request) {
+            return client->requests().respond(request, permissionResponse());
         }
 
-        typed::Requests::SendResult respondForLifecycle(const typed::TypedServerRequest& request) {
+        codex::SendResult respondForLifecycle(const typed::TypedServerRequest& request) {
             if (const auto* typedRequest = std::get_if<typed::ApplyPatchApprovalRequest>(&request)) {
                 return respondForLifecycle(*typedRequest);
             }
@@ -462,7 +462,7 @@ namespace {
                 typed::OptionalNullable<std::string>::explicitNull(),
                 typed::OptionalNullable<std::string>::withValue("./synthetic/../profile-cwd"),
                 typed::OptionalNullable<std::uint32_t>::withValue(std::numeric_limits<std::uint32_t>::max())};
-            const auto submission = client->typed().permissionProfiles().list(
+            const auto submission = client->permissionProfiles().list(
                 params, [this](const typed::OperationResult<typed::PermissionProfileListResponse>& operation) {
                     expect(operation && operation.value->data.size() == 2 && operation.value->data[0].allowed &&
                                operation.value->data[0].description.isNull() && !operation.value->data[1].allowed &&
@@ -631,7 +631,7 @@ namespace {
                    "a stale occurrence token cannot consume any of the five pending request types");
 
             const std::size_t beforeInvalid = state->outbound.size();
-            const auto invalid = client->typed().requests().respond(
+            const auto invalid = client->requests().respond(
                 *commandRequest,
                 typed::CommandExecutionRequestApprovalResponse{
                     typed::UnrecognizedCommandExecutionApprovalDecision{"future-decision", codex::Json{{"future", true}}, {}}});
@@ -641,21 +641,20 @@ namespace {
 
             const std::size_t before = state->outbound.size();
             responseInsideCallback = insideTypedCallback;
-            const auto permissions = client->typed().requests().respond(*permissionsRequest, permissionResponse());
-            const auto file = client->typed().requests().respond(
+            const auto permissions = client->requests().respond(*permissionsRequest, permissionResponse());
+            const auto file = client->requests().respond(
                 *fileRequest, typed::FileChangeRequestApprovalResponse{typed::FileChangeApprovalDecision::acceptForSession()});
-            const auto command = client->typed().requests().respond(
+            const auto command = client->requests().respond(
                 *commandRequest,
                 typed::CommandExecutionRequestApprovalResponse{
                     typed::AcceptWithExecpolicyAmendmentCommandExecutionApprovalDecision{{"synthetic-command-policy"}}});
-            const auto exec =
-                client->typed().requests().respond(*execRequest,
-                                                   typed::ExecCommandApprovalResponse{typed::NetworkPolicyAmendmentReviewDecision{
-                                                       {.action = typed::NetworkPolicyRuleAction::deny(),
-                                                        .host = "synthetic.invalid",
-                                                        .raw = codex::Json::object(),
-                                                        .diagnostics = {}}}});
-            const auto patch = client->typed().requests().respond(
+            const auto exec = client->requests().respond(*execRequest,
+                                                         typed::ExecCommandApprovalResponse{typed::NetworkPolicyAmendmentReviewDecision{
+                                                             {.action = typed::NetworkPolicyRuleAction::deny(),
+                                                              .host = "synthetic.invalid",
+                                                              .raw = codex::Json::object(),
+                                                              .diagnostics = {}}}});
+            const auto patch = client->requests().respond(
                 *patchRequest,
                 typed::ApplyPatchApprovalResponse{typed::ApprovedExecpolicyAmendmentReviewDecision{{"synthetic-patch-policy"}}});
             expect(permissions && file && command && exec && patch && responseInsideCallback,

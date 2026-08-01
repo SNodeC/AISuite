@@ -214,7 +214,7 @@ namespace ai::openai::codex::typed {
 
     struct CommandGuardianApprovalReviewAction {
         std::string command;
-        AbsolutePathBuf cwd;
+        AbsolutePath cwd;
         GuardianCommandSource source;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -222,7 +222,7 @@ namespace ai::openai::codex::typed {
 
     struct ExecveGuardianApprovalReviewAction {
         std::vector<std::string> argv;
-        AbsolutePathBuf cwd;
+        AbsolutePath cwd;
         std::string program;
         GuardianCommandSource source;
         Json raw = Json::object();
@@ -230,8 +230,8 @@ namespace ai::openai::codex::typed {
     };
 
     struct ApplyPatchGuardianApprovalReviewAction {
-        AbsolutePathBuf cwd;
-        std::vector<AbsolutePathBuf> files;
+        AbsolutePath cwd;
+        std::vector<AbsolutePath> files;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
     };
@@ -320,10 +320,12 @@ namespace ai::openai::codex::typed {
 
     class Reviews {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using ReviewStartResultHandler = std::function<void(const OperationResult<ReviewStartResponse>&)>;
+        Reviews(const Reviews&) = delete;
+        Reviews(Reviews&&) = delete;
+        Reviews& operator=(const Reviews&) = delete;
+        Reviews& operator=(Reviews&&) = delete;
 
-        Submission start(ReviewStartParams params, ReviewStartResultHandler handler);
+        Submission start(ReviewStartParams params, CompletionHandler<ReviewStartResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

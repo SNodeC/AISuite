@@ -6,7 +6,6 @@
  */
 
 #include "ai/openai/codex/AppServerClient.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
 
@@ -21,7 +20,6 @@ int main() {
         std::cout << name << '=' << size << '\n';
     };
     printSize("AppServerClient", sizeof(AppServerClient));
-    printSize("Client", sizeof(typed::Client));
     printSize("Event", sizeof(typed::Event));
     printSize("CanonicalServerNotification", sizeof(typed::CanonicalServerNotification));
     printSize("TypedServerRequest", sizeof(typed::TypedServerRequest));

@@ -80,8 +80,8 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> brandColor;
         OptionalNullable<std::string> defaultPrompt;
         OptionalNullable<std::string> displayName;
-        OptionalNullable<AbsolutePathBuf> iconLarge;
-        OptionalNullable<AbsolutePathBuf> iconSmall;
+        OptionalNullable<AbsolutePath> iconLarge;
+        OptionalNullable<AbsolutePath> iconSmall;
         OptionalNullable<std::string> shortDescription;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -95,7 +95,7 @@ namespace ai::openai::codex::typed {
         bool enabled = false;
         OptionalNullable<SkillInterface> interface;
         std::string name;
-        AbsolutePathBuf path;
+        AbsolutePath path;
         SkillScope scope;
         OptionalNullable<std::string> shortDescription;
         Json raw = Json::object();
@@ -117,7 +117,7 @@ namespace ai::openai::codex::typed {
     struct SkillsConfigWriteParams {
         bool enabled = false;
         OptionalNullable<std::string> name;
-        OptionalNullable<AbsolutePathBuf> path;
+        OptionalNullable<AbsolutePath> path;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -133,7 +133,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct SkillsExtraRootsSetParams {
-        std::vector<AbsolutePathBuf> extraRoots;
+        std::vector<AbsolutePath> extraRoots;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -166,17 +166,15 @@ namespace ai::openai::codex::typed {
 
     class Skills {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using WriteConfigResult = OperationResult<SkillsConfigWriteResponse>;
-        using WriteConfigResultHandler = std::function<void(const WriteConfigResult&)>;
-        using SetExtraRootsResult = OperationResult<Unit>;
-        using SetExtraRootsResultHandler = std::function<void(const SetExtraRootsResult&)>;
-        using ListResult = OperationResult<SkillsListResponse>;
-        using ListResultHandler = std::function<void(const ListResult&)>;
+        Skills(const Skills&) = delete;
+        Skills(Skills&&) = delete;
+        Skills& operator=(const Skills&) = delete;
+        Skills& operator=(Skills&&) = delete;
 
-        Submission writeConfig(SkillsConfigWriteParams params, WriteConfigResultHandler handler);
-        Submission setExtraRoots(SkillsExtraRootsSetParams params, SetExtraRootsResultHandler handler);
-        Submission list(SkillsListParams params, ListResultHandler handler);
+        Submission writeConfig(SkillsConfigWriteParams params, CompletionHandler<SkillsConfigWriteResponse> handler);
+        Submission setExtraRoots(SkillsExtraRootsSetParams params, DoneHandler handler);
+        Submission list(SkillsListParams params, CompletionHandler<SkillsListResponse> handler);
+        Submission list(CompletionHandler<SkillsListResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

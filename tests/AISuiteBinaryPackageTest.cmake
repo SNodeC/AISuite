@@ -96,6 +96,7 @@ if(NOT codex_main_header_count EQUAL 29 OR
 endif()
 
 foreach(required
+    "include/aisuite/ai/openai/codex/Api.h"
     "include/aisuite/ai/openai/codex/AppServerClient.h"
     "include/aisuite/ai/openai/codex/typed/Apps.h"
     "include/aisuite/ai/openai/codex/typed/ExternalAgents.h"
@@ -119,6 +120,7 @@ foreach(required
     endif()
 endforeach()
 foreach(forbidden
+    "include/aisuite/ai/openai/codex/typed/Client.h"
     "lib/libaisuite-openai-codex.so.1"
     "lib/libaisuite-openai-codex-backend.so.1"
     "lib/libaisuite-openai-codex-frontend.so.1"

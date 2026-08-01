@@ -622,7 +622,7 @@ namespace ai::openai::codex::detail {
                             value,
                             "file",
                             result.file,
-                            [&](const Json& nested, typed::AbsolutePathBuf& decoded, const std::string& nestedPath) {
+                            [&](const Json& nested, typed::AbsolutePath& decoded, const std::string& nestedPath) {
                                 return decodeStrongStringAt(nested, decoded, error, Surface, nestedPath);
                             },
                             error,
@@ -669,7 +669,7 @@ namespace ai::openai::codex::detail {
                             value,
                             "file",
                             result.file,
-                            [&](const Json& nested, typed::AbsolutePathBuf& decoded, const std::string& nestedPath) {
+                            [&](const Json& nested, typed::AbsolutePath& decoded, const std::string& nestedPath) {
                                 return decodeStrongStringAt(nested, decoded, error, Surface, nestedPath);
                             },
                             error,
@@ -698,7 +698,7 @@ namespace ai::openai::codex::detail {
                             value,
                             "dotCodexFolder",
                             result.dotCodexFolder,
-                            [&](const Json& nested, typed::AbsolutePathBuf& decoded, const std::string& nestedPath) {
+                            [&](const Json& nested, typed::AbsolutePath& decoded, const std::string& nestedPath) {
                                 return decodeStrongStringAt(nested, decoded, error, Surface, nestedPath);
                             },
                             error,
@@ -720,7 +720,7 @@ namespace ai::openai::codex::detail {
                             value,
                             "file",
                             result.file,
-                            [&](const Json& nested, typed::AbsolutePathBuf& decoded, const std::string& nestedPath) {
+                            [&](const Json& nested, typed::AbsolutePath& decoded, const std::string& nestedPath) {
                                 return decodeStrongStringAt(nested, decoded, error, Surface, nestedPath);
                             },
                             error,
@@ -1646,7 +1646,7 @@ namespace ai::openai::codex::detail {
             encodeOptionalNullable(result, "expectedVersion", params.expectedVersion, [](const std::string& value) {
                 return value;
             });
-            encodeOptionalNullable(result, "filePath", params.filePath, [](const typed::AbsolutePathBuf& value) {
+            encodeOptionalNullable(result, "filePath", params.filePath, [](const typed::AbsolutePath& value) {
                 return value.value;
             });
             if (params.reloadUserConfig.has_value()) {
@@ -1696,7 +1696,7 @@ namespace ai::openai::codex::detail {
             encodeOptionalNullable(result, "expectedVersion", params.expectedVersion, [](const std::string& value) {
                 return value;
             });
-            encodeOptionalNullable(result, "filePath", params.filePath, [](const typed::AbsolutePathBuf& value) {
+            encodeOptionalNullable(result, "filePath", params.filePath, [](const typed::AbsolutePath& value) {
                 return value.value;
             });
             error.clear();
@@ -1839,7 +1839,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "filePath",
                     result.filePath,
-                    [&](const Json& nested, typed::AbsolutePathBuf& decoded, const std::string& nestedPath) {
+                    [&](const Json& nested, typed::AbsolutePath& decoded, const std::string& nestedPath) {
                         return decodeStrongStringAt(nested, decoded, error, Context, nestedPath);
                     },
                     error,
@@ -1984,7 +1984,7 @@ namespace ai::openai::codex::detail {
                     notification.params,
                     "path",
                     result.path,
-                    [&](const Json& nested, typed::AbsolutePathBuf& decoded, const std::string& nestedPath) {
+                    [&](const Json& nested, typed::AbsolutePath& decoded, const std::string& nestedPath) {
                         return decodeStrongStringAt(nested, decoded, error, Context, nestedPath);
                     },
                     error,

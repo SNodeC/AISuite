@@ -554,7 +554,7 @@ namespace ai::openai::codex::detail {
                     !requiredString(value, "path", path, Surface, diagnostic)) {
                     return {std::nullopt, std::move(diagnostic)};
                 }
-                result.path = typed::AbsolutePathBuf{std::move(path)};
+                result.path = typed::AbsolutePath{std::move(path)};
                 result.raw = value;
                 return decoded<typed::CommandAction>(std::move(result));
             }
@@ -937,7 +937,7 @@ namespace ai::openai::codex::detail {
                 return decoded<typed::SandboxPolicy>(std::move(result));
             }
             if (target == ConversationUnionTarget::SandboxPolicyExternalSandbox) {
-                typed::ExternalSandboxSandboxPolicy result;
+                typed::ExternalSandboxPolicy result;
                 const Json* networkAccess = member(value, "networkAccess");
                 if (networkAccess != nullptr) {
                     if (!networkAccess->is_string()) {
@@ -959,14 +959,14 @@ namespace ai::openai::codex::detail {
                     if (!writableRoots->is_array()) {
                         return malformed<typed::SandboxPolicy>(Surface, "$.writableRoots");
                     }
-                    std::vector<typed::AbsolutePathBuf> roots;
+                    std::vector<typed::AbsolutePath> roots;
                     roots.reserve(writableRoots->size());
                     for (std::size_t index = 0; index < writableRoots->size(); ++index) {
                         const Json& root = (*writableRoots)[index];
                         if (!root.is_string()) {
                             return malformed<typed::SandboxPolicy>(Surface, "$.writableRoots[" + std::to_string(index) + "]");
                         }
-                        roots.push_back(typed::AbsolutePathBuf{root.get<std::string>()});
+                        roots.push_back(typed::AbsolutePath{root.get<std::string>()});
                     }
                     result.writableRoots = std::move(roots);
                 }
@@ -986,7 +986,7 @@ namespace ai::openai::codex::detail {
         }
     }
 
-    ConversationDecodeResult<typed::UserInput> decodeUserInput(const Json& value) noexcept {
+    ConversationDecodeResult<typed::TurnInput> decodeUserInput(const Json& value) noexcept {
         constexpr std::string_view Surface = "UserInput";
         try {
             ResolvedDiscriminator resolved = resolveInternal(value, Surface);
@@ -994,21 +994,21 @@ namespace ai::openai::codex::detail {
                 return {std::nullopt, std::move(resolved.diagnostic)};
             }
             if (resolved.unknown()) {
-                return unknown<typed::UserInput, typed::UnknownUserInput>(value, resolved.discriminator, Surface, "$.type");
+                return unknown<typed::TurnInput, typed::UnknownTurnInput>(value, resolved.discriminator, Surface, "$.type");
             }
             std::optional<typed::DecodeDiagnostic> diagnostic;
             const ConversationUnionTarget target = resolved.descriptor->target;
             if (target == ConversationUnionTarget::UserInputText) {
-                typed::TextUserInput result;
+                typed::TextInput result;
                 if (!requiredString(value, "text", result.text, Surface, diagnostic) ||
                     !decodeOptionalTextElements(value, result.textElements, diagnostic)) {
                     return {std::nullopt, std::move(diagnostic)};
                 }
                 result.raw = value;
-                return decoded<typed::UserInput>(std::move(result));
+                return decoded<typed::TurnInput>(std::move(result));
             }
             if (target == ConversationUnionTarget::UserInputImage) {
-                typed::ImageUserInput result;
+                typed::ImageUrlInput result;
                 if (!requiredString(value, "url", result.url, Surface, diagnostic) ||
                     !optionalNullable(
                         value, "detail", result.detail, Surface, diagnostic, [](const Json& detail, typed::ImageDetail& decodedDetail) {
@@ -1025,10 +1025,10 @@ namespace ai::openai::codex::detail {
                     result.diagnostics.push_back(*diagnostic);
                 }
                 result.raw = value;
-                return decoded<typed::UserInput>(std::move(result), std::move(diagnostic));
+                return decoded<typed::TurnInput>(std::move(result), std::move(diagnostic));
             }
             if (target == ConversationUnionTarget::UserInputLocalImage) {
-                typed::LocalImageUserInput result;
+                typed::LocalImageInput result;
                 if (!requiredString(value, "path", result.path, Surface, diagnostic) ||
                     !optionalNullable(
                         value, "detail", result.detail, Surface, diagnostic, [](const Json& detail, typed::ImageDetail& decodedDetail) {
@@ -1045,31 +1045,31 @@ namespace ai::openai::codex::detail {
                     result.diagnostics.push_back(*diagnostic);
                 }
                 result.raw = value;
-                return decoded<typed::UserInput>(std::move(result), std::move(diagnostic));
+                return decoded<typed::TurnInput>(std::move(result), std::move(diagnostic));
             }
             if (target == ConversationUnionTarget::UserInputSkill) {
-                typed::SkillUserInput result;
+                typed::SkillInput result;
                 if (!requiredString(value, "name", result.name, Surface, diagnostic) ||
                     !requiredString(value, "path", result.path, Surface, diagnostic)) {
                     return {std::nullopt, std::move(diagnostic)};
                 }
                 result.raw = value;
-                return decoded<typed::UserInput>(std::move(result));
+                return decoded<typed::TurnInput>(std::move(result));
             }
             if (target == ConversationUnionTarget::UserInputMention) {
-                typed::MentionUserInput result;
+                typed::MentionInput result;
                 if (!requiredString(value, "name", result.name, Surface, diagnostic) ||
                     !requiredString(value, "path", result.path, Surface, diagnostic)) {
                     return {std::nullopt, std::move(diagnostic)};
                 }
                 result.raw = value;
-                return decoded<typed::UserInput>(std::move(result));
+                return decoded<typed::TurnInput>(std::move(result));
             }
-            return malformed<typed::UserInput>(Surface, "$.type");
+            return malformed<typed::TurnInput>(Surface, "$.type");
         } catch (const std::exception&) {
-            return malformed<typed::UserInput>(Surface, "$");
+            return malformed<typed::TurnInput>(Surface, "$");
         } catch (...) {
-            return malformed<typed::UserInput>(Surface, "$");
+            return malformed<typed::TurnInput>(Surface, "$");
         }
     }
 
@@ -1197,7 +1197,7 @@ namespace ai::openai::codex::detail {
                         target = ConversationUnionTarget::SandboxPolicyDangerFullAccess;
                     } else if constexpr (std::is_same_v<Alternative, typed::ReadOnlySandboxPolicy>) {
                         target = ConversationUnionTarget::SandboxPolicyReadOnly;
-                    } else if constexpr (std::is_same_v<Alternative, typed::ExternalSandboxSandboxPolicy>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::ExternalSandboxPolicy>) {
                         target = ConversationUnionTarget::SandboxPolicyExternalSandbox;
                     } else if constexpr (std::is_same_v<Alternative, typed::WorkspaceWriteSandboxPolicy>) {
                         target = ConversationUnionTarget::SandboxPolicyWorkspaceWrite;
@@ -1215,14 +1215,14 @@ namespace ai::openai::codex::detail {
                         if (alternative.networkAccess) {
                             encoded->emplace("networkAccess", *alternative.networkAccess);
                         }
-                    } else if constexpr (std::is_same_v<Alternative, typed::ExternalSandboxSandboxPolicy>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::ExternalSandboxPolicy>) {
                         if (alternative.networkAccess) {
                             encoded->emplace("networkAccess", alternative.networkAccess->value);
                         }
                     } else if constexpr (std::is_same_v<Alternative, typed::WorkspaceWriteSandboxPolicy>) {
                         if (alternative.writableRoots) {
                             Json roots = Json::array();
-                            for (const typed::AbsolutePathBuf& root : *alternative.writableRoots) {
+                            for (const typed::AbsolutePath& root : *alternative.writableRoots) {
                                 roots.emplace_back(root.value);
                             }
                             encoded->emplace("writableRoots", std::move(roots));
@@ -1248,22 +1248,22 @@ namespace ai::openai::codex::detail {
         return std::nullopt;
     }
 
-    std::optional<Json> encodeUserInput(const typed::UserInput& value, std::string& error) noexcept {
+    std::optional<Json> encodeUserInput(const typed::TurnInput& value, std::string& error) noexcept {
         try {
             error.clear();
             return std::visit(
                 [&](const auto& alternative) -> std::optional<Json> {
                     using Alternative = std::decay_t<decltype(alternative)>;
                     ConversationUnionTarget target = ConversationUnionTarget::Count;
-                    if constexpr (std::is_same_v<Alternative, typed::TextUserInput>) {
+                    if constexpr (std::is_same_v<Alternative, typed::TextInput>) {
                         target = ConversationUnionTarget::UserInputText;
-                    } else if constexpr (std::is_same_v<Alternative, typed::ImageUserInput>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::ImageUrlInput>) {
                         target = ConversationUnionTarget::UserInputImage;
-                    } else if constexpr (std::is_same_v<Alternative, typed::LocalImageUserInput>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::LocalImageInput>) {
                         target = ConversationUnionTarget::UserInputLocalImage;
-                    } else if constexpr (std::is_same_v<Alternative, typed::SkillUserInput>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::SkillInput>) {
                         target = ConversationUnionTarget::UserInputSkill;
-                    } else if constexpr (std::is_same_v<Alternative, typed::MentionUserInput>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::MentionInput>) {
                         target = ConversationUnionTarget::UserInputMention;
                     } else {
                         error = "unknown UserInput alternative cannot be encoded; use the raw protocol API";
@@ -1275,7 +1275,7 @@ namespace ai::openai::codex::detail {
                     if (!encoded) {
                         return std::nullopt;
                     }
-                    if constexpr (std::is_same_v<Alternative, typed::TextUserInput>) {
+                    if constexpr (std::is_same_v<Alternative, typed::TextInput>) {
                         encoded->emplace("text", alternative.text);
                         if (alternative.textElements) {
                             Json elements = Json::array();
@@ -1288,7 +1288,7 @@ namespace ai::openai::codex::detail {
                             }
                             encoded->emplace("text_elements", std::move(elements));
                         }
-                    } else if constexpr (std::is_same_v<Alternative, typed::ImageUserInput>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::ImageUrlInput>) {
                         encoded->emplace("url", alternative.url);
                         if (!encodeOptionalNullable(
                                 *encoded, "detail", alternative.detail, error, [](const typed::ImageDetail& detail) -> std::optional<Json> {
@@ -1296,7 +1296,7 @@ namespace ai::openai::codex::detail {
                                 })) {
                             return std::nullopt;
                         }
-                    } else if constexpr (std::is_same_v<Alternative, typed::LocalImageUserInput>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::LocalImageInput>) {
                         encoded->emplace("path", alternative.path);
                         if (!encodeOptionalNullable(
                                 *encoded, "detail", alternative.detail, error, [](const typed::ImageDetail& detail) -> std::optional<Json> {
@@ -1304,8 +1304,8 @@ namespace ai::openai::codex::detail {
                                 })) {
                             return std::nullopt;
                         }
-                    } else if constexpr (std::is_same_v<Alternative, typed::SkillUserInput> ||
-                                         std::is_same_v<Alternative, typed::MentionUserInput>) {
+                    } else if constexpr (std::is_same_v<Alternative, typed::SkillInput> ||
+                                         std::is_same_v<Alternative, typed::MentionInput>) {
                         encoded->emplace("name", alternative.name);
                         encoded->emplace("path", alternative.path);
                     }

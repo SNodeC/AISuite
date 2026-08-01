@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/backend/Reducer.h"
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/detail/AppCodec.h"
@@ -13,7 +14,6 @@
 #include "ai/openai/codex/detail/ExternalAgentCodec.h"
 #include "ai/openai/codex/detail/FeedbackCodec.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "support/TestResult.h"
 
 #include <array>
@@ -504,12 +504,9 @@ namespace {
 } // namespace
 
 int main() {
-    using AppsAccessor = typed::Apps& (typed::Client::*) () noexcept;
-    using ConstAppsAccessor = const typed::Apps& (typed::Client::*) () const noexcept;
-    using ExternalAgentsAccessor = typed::ExternalAgents& (typed::Client::*) () noexcept;
-    using ConstExternalAgentsAccessor = const typed::ExternalAgents& (typed::Client::*) () const noexcept;
-    using FeedbackAccessor = typed::Feedback& (typed::Client::*) () noexcept;
-    using ConstFeedbackAccessor = const typed::Feedback& (typed::Client::*) () const noexcept;
+    using AppsAccessor = typed::Apps& (codex::AppServerClient::*) () noexcept;
+    using ExternalAgentsAccessor = typed::ExternalAgents& (codex::AppServerClient::*) () noexcept;
+    using FeedbackAccessor = typed::Feedback& (codex::AppServerClient::*) () noexcept;
 
     static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
     static_assert(std::variant_size_v<typed::Event> == 69);
@@ -522,27 +519,26 @@ int main() {
     static_assert(std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
 
-    static_assert(std::is_same_v<decltype(&typed::Apps::list),
-                                 typed::Apps::Submission (typed::Apps::*)(typed::AppsListParams, typed::Apps::ListResultHandler)>);
-    static_assert(std::is_same_v<decltype(&typed::ExternalAgents::detect),
-                                 typed::ExternalAgents::Submission (typed::ExternalAgents::*)(typed::ExternalAgentConfigDetectParams,
-                                                                                              typed::ExternalAgents::DetectResultHandler)>);
-    static_assert(std::is_same_v<decltype(&typed::ExternalAgents::importConfiguration),
-                                 typed::ExternalAgents::Submission (typed::ExternalAgents::*)(
-                                     typed::ExternalAgentConfigImportParams, typed::ExternalAgents::ImportConfigurationResultHandler)>);
-    static_assert(std::is_same_v<decltype(&typed::ExternalAgents::readImportHistories),
-                                 typed::ExternalAgents::Submission (typed::ExternalAgents::*)(
-                                     typed::Unit, typed::ExternalAgents::ReadImportHistoriesResultHandler)>);
-    static_assert(std::is_same_v<decltype(&typed::Feedback::upload),
-                                 typed::Feedback::Submission (typed::Feedback::*)(typed::FeedbackUploadParams,
-                                                                                  typed::Feedback::UploadResultHandler)>);
-    static_assert(std::is_same_v<decltype(static_cast<AppsAccessor>(&typed::Client::apps)), AppsAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<ConstAppsAccessor>(&typed::Client::apps)), ConstAppsAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<ExternalAgentsAccessor>(&typed::Client::externalAgents)), ExternalAgentsAccessor>);
+    using AppsListMember = codex::Submission (typed::Apps::*)(typed::AppsListParams, typed::CompletionHandler<typed::AppsListResponse>);
+    using ExternalAgentsDetectMember = codex::Submission (typed::ExternalAgents::*)(
+        typed::ExternalAgentConfigDetectParams, typed::CompletionHandler<typed::ExternalAgentConfigDetectResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<AppsListMember>(&typed::Apps::list)), AppsListMember>);
     static_assert(
-        std::is_same_v<decltype(static_cast<ConstExternalAgentsAccessor>(&typed::Client::externalAgents)), ConstExternalAgentsAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<FeedbackAccessor>(&typed::Client::feedback)), FeedbackAccessor>);
-    static_assert(std::is_same_v<decltype(static_cast<ConstFeedbackAccessor>(&typed::Client::feedback)), ConstFeedbackAccessor>);
+        std::is_same_v<decltype(static_cast<ExternalAgentsDetectMember>(&typed::ExternalAgents::detect)), ExternalAgentsDetectMember>);
+    static_assert(
+        std::is_same_v<decltype(&typed::ExternalAgents::importConfiguration),
+                       codex::Submission (typed::ExternalAgents::*)(typed::ExternalAgentConfigImportParams,
+                                                                    typed::CompletionHandler<typed::ExternalAgentConfigImportResponse>)>);
+    static_assert(std::is_same_v<decltype(&typed::ExternalAgents::readImportHistories),
+                                 codex::Submission (typed::ExternalAgents::*)(
+                                     typed::CompletionHandler<typed::ExternalAgentConfigImportHistoriesReadResponse>)>);
+    static_assert(std::is_same_v<decltype(&typed::Feedback::upload),
+                                 codex::Submission (typed::Feedback::*)(typed::FeedbackUploadParams,
+                                                                        typed::CompletionHandler<typed::FeedbackUploadResponse>)>);
+    static_assert(std::is_same_v<decltype(static_cast<AppsAccessor>(&codex::AppServerClient::apps)), AppsAccessor>);
+    static_assert(
+        std::is_same_v<decltype(static_cast<ExternalAgentsAccessor>(&codex::AppServerClient::externalAgents)), ExternalAgentsAccessor>);
+    static_assert(std::is_same_v<decltype(static_cast<FeedbackAccessor>(&codex::AppServerClient::feedback)), FeedbackAccessor>);
 
     tests::support::TestResult result;
     testRequestEncoding(result);

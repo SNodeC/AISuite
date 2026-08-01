@@ -32,19 +32,19 @@ set(AI_OPENAI_CODEX_CPP
     stdio/Client.cpp
     stdio/StdioTransport.cpp
     typed/Accounts.cpp
-    typed/Client.cpp
     typed/Configuration.cpp
+    typed/Facades.cpp
     typed/Models.cpp
     typed/Types.cpp
 )
 
 set(AI_OPENAI_CODEX_PUBLIC_H
+    Api.h
     AppServerClient.h
     Protocol.h
     stdio/Client.h
     typed/Accounts.h
     typed/Apps.h
-    typed/Client.h
     typed/CodexErrorInfo.h
     typed/Commands.h
     typed/Configuration.h
@@ -72,7 +72,6 @@ set(AI_OPENAI_CODEX_PUBLIC_H
 
 add_library(ai-openai-codex SHARED ${AI_OPENAI_CODEX_CPP})
 add_library(AISuite::OpenAICodex ALIAS ai-openai-codex)
-add_library(snodec::ai-openai-codex ALIAS ai-openai-codex)
 set_target_properties(ai-openai-codex PROPERTIES EXPORT_NAME OpenAICodex)
 
 target_include_directories(
@@ -101,7 +100,7 @@ install(
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 install(
-    FILES AppServerClient.h Protocol.h
+    FILES Api.h AppServerClient.h Protocol.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex
 )
 install(
@@ -112,7 +111,6 @@ install(
     FILES
         typed/Accounts.h
         typed/Apps.h
-        typed/Client.h
         typed/CodexErrorInfo.h
         typed/Commands.h
         typed/Configuration.h

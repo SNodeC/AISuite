@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Configuration.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -37,7 +37,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 2;
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -284,7 +284,7 @@ namespace {
                 return;
             }
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 const auto* warning = std::get_if<typed::ConfigWarningNotification>(&event);
                 if (!warning || !warning->raw.contains("params")) {
                     return;
@@ -429,7 +429,7 @@ namespace {
         }
 
         void buildCases() {
-            auto& configuration = client->typed().configuration();
+            auto& configuration = client->configuration();
             cases.push_back(makeOperation<typed::ConfigReadResponse>("config/read",
                                                                      detail::ClientRequestTarget::ConfigRead,
                                                                      typed::ConfigReadParams{
@@ -447,9 +447,9 @@ namespace {
                                                                                  typed::Unit{},
                                                                                  nullptr,
                                                                                  configRequirementsReadResult(),
-                                                                                 [&configuration](auto params, auto resultHandler) {
+                                                                                 [&configuration](auto, auto resultHandler) {
                                                                                      return configuration.readRequirements(
-                                                                                         std::move(params), std::move(resultHandler));
+                                                                                         std::move(resultHandler));
                                                                                  }));
         }
 

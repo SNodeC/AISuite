@@ -10,9 +10,10 @@
 #include <variant>
 
 int main() {
+    namespace codex = ai::openai::codex;
     namespace typed = ai::openai::codex::typed;
 
-    using Start = typed::Reviews::Submission (typed::Reviews::*)(typed::ReviewStartParams, typed::Reviews::ReviewStartResultHandler);
+    using Start = codex::Submission (typed::Reviews::*)(typed::ReviewStartParams, typed::CompletionHandler<typed::ReviewStartResponse>);
     static_assert(std::is_same_v<decltype(&typed::Reviews::start), Start>);
     static_assert(std::variant_size_v<typed::ReviewTarget> == 5);
     static_assert(std::variant_size_v<typed::GuardianApprovalReviewAction> == 7);

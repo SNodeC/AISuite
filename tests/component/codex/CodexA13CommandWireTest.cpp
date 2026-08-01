@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "ai/openai/codex/Api.h"
 #include "ai/openai/codex/AppServerClient.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Commands.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "core/EventReceiver.h"
@@ -40,7 +40,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    using Submission = codex::AppServerClient::RawProtocol::Submission;
+    using Submission = codex::Submission;
     constexpr std::size_t OperationCount = 4;
 
     bool writeFully(int descriptor, std::string_view bytes) {
@@ -299,7 +299,7 @@ namespace {
                 return;
             }
 
-            client->typed().events().setOnEvent([this](const typed::Event& event) {
+            client->events().setOnEvent([this](const typed::Event& event) {
                 if (const auto* output = std::get_if<typed::CommandExecOutputDeltaNotification>(&event)) {
                     const bool isStdout = output->processId.value == "process-wire" &&
                                           output->stream == typed::CommandExecOutputStream::stdoutStream() &&
@@ -318,7 +318,7 @@ namespace {
                            "one-off output is not conflated with A1.1 item output");
                     if (isStdout && !reentrantSubmitted) {
                         reentrantSubmitted = true;
-                        const Submission submission = client->typed().commands().write(
+                        const Submission submission = client->commands().write(
                             {
                                 .processId = typed::CommandExecProcessId{"process-wire"},
                                 .deltaBase64 = typed::OptionalNullable<std::string>::withValue("cmVlbnRyYW50LWlucHV0"),
@@ -526,7 +526,7 @@ namespace {
         }
 
         void buildCases() {
-            auto& commands = client->typed().commands();
+            auto& commands = client->commands();
             cases.push_back(makeOperation<typed::CommandExecResponse>(
                 "command/exec",
                 detail::ClientRequestTarget::CommandExec,

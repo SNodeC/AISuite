@@ -56,8 +56,9 @@ statuses claims full upstream method exposure.
 The generated [owner-review worksheet](app-server-security-decisions.md)
 preserves every existing reviewed v1 exposure and marks every new exposure
 decision `UNRESOLVED`. A0 selects no new approval, sandbox, or security-boundary
-policy. A3 may add only the operations approved after the owner freezes those
-decisions, following the A1 typed-layer and A2 BackendCore work.
+policy. A1.7 may add only the operations approved after the owner freezes those
+decisions, following the A1.5 application façade and A1.6 BackendCore work.
+Provider-neutral architecture remains separate A2 work.
 
 ## Common envelope and compatibility
 

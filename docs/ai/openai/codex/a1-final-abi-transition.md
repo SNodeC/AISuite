@@ -17,25 +17,26 @@ Final A1b removes only the approved deferred compatibility layer:
   `ThreadReadOptions`, their four conversion helpers, `ThreadResultHandler`,
   and the five deprecated Threads overloads; use `ThreadStartParams`,
   `ThreadResumeParams`, `ThreadListParams`, and `ThreadReadParams` with their
-  operation-specific result handlers;
+  canonical parameter objects (A1.5 subsequently unifies completion callbacks
+  under `CompletionHandler<T>`);
 - `TurnInterruptResult`, `TurnStartOptions`, the two conversion helpers,
   `TurnResultHandler`, `InterruptResultHandler`, and the two deprecated Turns
   overloads; use `TurnStartParams`, `TurnInterruptParams`,
-  `TurnStartResultHandler`, and `UnitResultHandler`;
+  `CompletionHandler<TurnStartResponse>`, and `DoneHandler`;
 - `WorkspaceWriteSandboxPolicy::fromLegacy(...)`; construct
-  `WorkspaceWriteSandboxPolicy` directly with `AbsolutePathBuf` roots;
+  `WorkspaceWriteSandboxPolicy` directly with `AbsolutePath` roots;
 - the inconsistent `OptionalNullable(bool, std::optional<T>)` constructor; use
   `omitted()`, `explicitNull()`, or `withValue(...)`; and
 - the four optional string `decodingError` fields on `UnknownItem`,
   `UnknownResponseItem`, `UnknownEvent`, and `UnknownServerRequest`; use their
   structured `DecodeDiagnostic` and preserved raw JSON.
 
-Nothing outside that frozen list is removed. In particular, the grouped
-`client.typed()` path and deprecated direct Threads, Turns, Events, and Requests
-accessors remain available. `ClientInfo` construction, item and turn-input alias
-families, reverse-request projections, application Event projections, context
-fields, implicit path conversions, raw protocol access, unknown alternatives,
-and stable protocol-deprecated identities remain for the separate A1.5 review.
+Nothing outside that frozen list was removed. Final A1b deliberately retained
+both the grouped path and the then-deprecated direct Threads, Turns, Events,
+and Requests accessors for the separate A1.5 decision. A1.5 resolves that
+decision in favor of direct domain access. Reverse-request projections,
+application Event projections, enriched context, raw protocol access, unknown
+alternatives, and stable protocol-deprecated identities remain supported.
 
 ## SOVERSION 2
 

@@ -40,12 +40,12 @@ namespace ai::openai::codex::detail {
     ConversationDecodeResult<typed::ReasoningItemReasoningSummary> decodeReasoningItemReasoningSummary(const Json& value) noexcept;
     ConversationDecodeResult<typed::ResponsesApiWebSearchAction> decodeResponsesApiWebSearchAction(const Json& value) noexcept;
     ConversationDecodeResult<typed::SandboxPolicy> decodeSandboxPolicy(const Json& value) noexcept;
-    ConversationDecodeResult<typed::UserInput> decodeUserInput(const Json& value) noexcept;
+    ConversationDecodeResult<typed::TurnInput> decodeUserInput(const Json& value) noexcept;
     ConversationDecodeResult<typed::WebSearchAction> decodeWebSearchAction(const Json& value) noexcept;
 
     std::optional<Json> encodeAskForApproval(const typed::AskForApproval& value, std::string& error) noexcept;
     std::optional<Json> encodeSandboxPolicy(const typed::SandboxPolicy& value, std::string& error) noexcept;
-    std::optional<Json> encodeUserInput(const typed::UserInput& value, std::string& error) noexcept;
+    std::optional<Json> encodeUserInput(const typed::TurnInput& value, std::string& error) noexcept;
 
 } // namespace ai::openai::codex::detail
 
