@@ -341,27 +341,6 @@ namespace ai::openai::codex::typed {
             return excludeSlashTmp.value_or(false);
         }
 
-        [[deprecated("construct WorkspaceWriteSandboxPolicy with "
-                     "optional<vector<AbsolutePathBuf>>")]] [[nodiscard]] static WorkspaceWriteSandboxPolicy
-        fromLegacy(std::vector<std::string> roots,
-                   std::optional<bool> allowNetwork = std::nullopt,
-                   std::optional<bool> excludeTmpdir = std::nullopt,
-                   std::optional<bool> excludeSlash = std::nullopt) {
-            WorkspaceWriteSandboxPolicy result;
-            if (!roots.empty()) {
-                std::vector<AbsolutePathBuf> typedRoots;
-                typedRoots.reserve(roots.size());
-                for (std::string& root : roots) {
-                    typedRoots.push_back(AbsolutePathBuf{std::move(root)});
-                }
-                result.writableRoots = std::move(typedRoots);
-            }
-            result.networkAccess = allowNetwork;
-            result.excludeTmpdirEnvVar = excludeTmpdir;
-            result.excludeSlashTmp = excludeSlash;
-            return result;
-        }
-
         bool operator==(const WorkspaceWriteSandboxPolicy&) const = default;
     };
 

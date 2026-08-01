@@ -106,9 +106,9 @@ foreach(required
     "include/aisuite/ai/openai/codex/typed/WindowsSandbox.h"
     "include/aisuite/ai/openai/codex/typed/Plugins.h"
     "include/aisuite/ai/openai/codex/typed/Skills.h"
-    "lib/libaisuite-openai-codex.so.1"
-    "lib/libaisuite-openai-codex-backend.so.1"
-    "lib/libaisuite-openai-codex-frontend.so.1"
+    "lib/libaisuite-openai-codex.so.2"
+    "lib/libaisuite-openai-codex-backend.so.2"
+    "lib/libaisuite-openai-codex-frontend.so.2"
     "bin/codex-backend"
     "bin/codex-backend-client"
     "lib/cmake/AISuite/AISuiteConfig.cmake"
@@ -119,6 +119,9 @@ foreach(required
     endif()
 endforeach()
 foreach(forbidden
+    "lib/libaisuite-openai-codex.so.1"
+    "lib/libaisuite-openai-codex-backend.so.1"
+    "lib/libaisuite-openai-codex-frontend.so.1"
     "tools/codex/"
     "tools/extraction/"
     "tests/component/codex/"

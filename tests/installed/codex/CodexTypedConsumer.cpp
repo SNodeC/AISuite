@@ -112,7 +112,6 @@ int main() {
     static_assert(std::is_same_v<typed::Item, typed::ThreadItem>);
     static_assert(!std::is_same_v<typed::ThreadItem, typed::ResponseItem>);
     static_assert(std::is_same_v<typed::TurnInput, typed::UserInput>);
-    static_assert(std::is_same_v<typed::TurnInterruptResult, typed::Unit>);
     static_assert(std::is_same_v<typed::ChatgptAuthTokensRefreshRequest, typed::AuthenticationRequest>);
     static_assert(!std::is_same_v<typed::SessionId, typed::ThreadId>);
     static_assert(!std::is_same_v<typed::AccountId, std::string>);
@@ -247,6 +246,14 @@ int main() {
         .method = "thread/future",
         .params = ai::openai::codex::Json::object(),
         .raw = {{"method", "thread/future"}},
+        .diagnostic = diagnostic,
+    };
+    [[maybe_unused]] typed::UnknownServerRequest futureServerRequest{
+        .requestId = ai::openai::codex::ServerRequestId(std::string{"installed-request"}),
+        .requestToken = ai::openai::codex::ServerRequestToken{1},
+        .method = "future/request",
+        .params = ai::openai::codex::Json::object(),
+        .raw = {{"method", "future/request"}},
         .diagnostic = diagnostic,
     };
     [[maybe_unused]] typed::LoginAccountParams apiKeyLogin = typed::ApiKeyLoginAccountParams{.apiKey = "installed-test-api-key"};
@@ -676,6 +683,17 @@ int main() {
                 });
             }
         });
+    (void) client.typed().threads().resume(typed::ThreadResumeParams{.threadId = installedThread.id},
+                                           [](const typed::OperationResult<typed::ThreadResumeResponse>&) {
+                                           });
+    (void) client.typed().threads().list(typed::ThreadListParams{}, [](const typed::OperationResult<typed::ThreadListResponse>&) {
+    });
+    (void) client.typed().threads().read(typed::ThreadReadParams{.threadId = installedThread.id},
+                                         [](const typed::OperationResult<typed::ThreadReadResponse>&) {
+                                         });
+    (void) client.typed().turns().interrupt(typed::TurnInterruptParams{.threadId = installedThread.id, .turnId = installedTurn.id},
+                                            [](const typed::OperationResult<typed::Unit>&) {
+                                            });
 
     return 0;
 }

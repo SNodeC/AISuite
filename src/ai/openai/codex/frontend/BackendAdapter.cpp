@@ -415,66 +415,73 @@ namespace ai::openai::codex::frontend {
                         return backend::ReplayAfter{backend::SequenceNumber(value.after.value())};
                     },
                     [](const ThreadStart& value) -> BackendCommandMapping {
-                        typed::ThreadStartOptions options;
-                        options.cwd = value.cwd;
+                        typed::ThreadStartParams params;
+                        params.cwd = value.cwd;
                         if (value.model.has_value()) {
-                            options.model = typed::ModelId{*value.model};
+                            params.model = typed::ModelId{*value.model};
                         }
-                        options.modelProvider = value.modelProvider;
+                        params.modelProvider = value.modelProvider;
                         if (value.approvalPolicy.has_value()) {
-                            options.approvalPolicy = typed::ApprovalPolicy{*value.approvalPolicy};
+                            params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
                         }
                         if (value.sandboxMode.has_value()) {
-                            options.sandboxMode = typed::SandboxMode{*value.sandboxMode};
+                            params.sandbox = typed::SandboxMode{*value.sandboxMode};
                         }
-                        options.ephemeral = value.ephemeral;
-                        return backend::ThreadStart{std::move(options)};
+                        params.ephemeral = value.ephemeral;
+                        return backend::ThreadStart{std::move(params)};
                     },
                     [](const ThreadResume& value) -> BackendCommandMapping {
-                        typed::ThreadResumeOptions options;
-                        options.cwd = value.cwd;
+                        typed::ThreadResumeParams params;
+                        params.threadId = typed::ThreadId{value.threadId};
+                        params.cwd = value.cwd;
                         if (value.model.has_value()) {
-                            options.model = typed::ModelId{*value.model};
+                            params.model = typed::ModelId{*value.model};
                         }
-                        options.modelProvider = value.modelProvider;
+                        params.modelProvider = value.modelProvider;
                         if (value.approvalPolicy.has_value()) {
-                            options.approvalPolicy = typed::ApprovalPolicy{*value.approvalPolicy};
+                            params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
                         }
                         if (value.sandboxMode.has_value()) {
-                            options.sandboxMode = typed::SandboxMode{*value.sandboxMode};
+                            params.sandbox = typed::SandboxMode{*value.sandboxMode};
                         }
-                        return backend::ThreadResume{typed::ThreadId{value.threadId}, std::move(options)};
+                        return backend::ThreadResume{std::move(params)};
                     },
                     [](const ThreadList& value) -> BackendCommandMapping {
-                        return backend::ThreadList{typed::ThreadListOptions{value.cursor, value.limit, value.archived, value.searchTerm}};
+                        typed::ThreadListParams params;
+                        params.cursor = value.cursor;
+                        params.limit = value.limit;
+                        params.archived = value.archived;
+                        params.searchTerm = value.searchTerm;
+                        return backend::ThreadList{std::move(params)};
                     },
                     [](const ThreadRead& value) -> BackendCommandMapping {
-                        return backend::ThreadRead{typed::ThreadId{value.threadId}, typed::ThreadReadOptions{value.includeTurns}};
+                        return backend::ThreadRead{typed::ThreadReadParams{typed::ThreadId{value.threadId}, value.includeTurns}};
                     },
                     [](const TurnStart& value) -> BackendCommandMapping {
                         backend::TurnStart start;
-                        start.threadId = typed::ThreadId{value.threadId};
-                        start.input.reserve(value.input.size());
+                        start.params.threadId = typed::ThreadId{value.threadId};
+                        start.params.input.reserve(value.input.size());
                         for (const TurnInput& input : value.input) {
-                            start.input.push_back(typedTurnInput(input));
+                            start.params.input.push_back(typedTurnInput(input));
                         }
-                        start.options.cwd = value.cwd;
+                        start.params.cwd = value.cwd;
                         if (value.model.has_value()) {
-                            start.options.model = typed::ModelId{*value.model};
+                            start.params.model = typed::ModelId{*value.model};
                         }
                         if (value.reasoningEffort.has_value()) {
-                            start.options.reasoningEffort = typed::ReasoningEffort{*value.reasoningEffort};
+                            start.params.effort = typed::ReasoningEffort{*value.reasoningEffort};
                         }
                         if (value.approvalPolicy.has_value()) {
-                            start.options.approvalPolicy = typed::ApprovalPolicy{*value.approvalPolicy};
+                            start.params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
                         }
                         if (value.sandboxPolicy.has_value()) {
-                            start.options.sandboxPolicy = typedSandboxPolicy(*value.sandboxPolicy);
+                            start.params.sandboxPolicy = typedSandboxPolicy(*value.sandboxPolicy);
                         }
                         return start;
                     },
                     [](const TurnInterrupt& value) -> BackendCommandMapping {
-                        return backend::TurnInterrupt{typed::ThreadId{value.threadId}, typed::TurnId{value.turnId}};
+                        return backend::TurnInterrupt{
+                            typed::TurnInterruptParams{typed::ThreadId{value.threadId}, typed::TurnId{value.turnId}}};
                     },
                     [](const ApprovalRespond& value) -> BackendCommandMapping {
                         const auto requestId = parsePendingRequestId(value.pendingRequestId);
@@ -1053,7 +1060,7 @@ namespace ai::openai::codex::frontend {
                                const backend::TurnSnapshot* found = findTurn(currentSnapshot, turn.threadId.value, turn.id.value);
                                return found != nullptr ? Json{{"turn", turnSnapshotJson(*found)}} : Json{{"turnId", turn.id.value}};
                            },
-                           [](const typed::TurnInterruptResult&) {
+                           [](const typed::Unit&) {
                                return Json::object();
                            }},
                 value);

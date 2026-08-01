@@ -21,7 +21,6 @@
 
 namespace {
     using ai::openai::codex::ClientInfo;
-    using ai::openai::codex::InitializeResult;
     using ai::openai::codex::Json;
     using ai::openai::codex::ProtocolError;
     using ai::openai::codex::detail::ProtocolCodec;
@@ -468,7 +467,7 @@ namespace {
         testResult.expectTrue(!Json::parse(initialized).contains("params"),
                               "initialized wire envelope contains the method and no params member");
 
-        const Json rawInitializeResult = {
+        const Json rawInitializeResponse = {
             {"codexHome", "/tmp/fake-codex"},
             {"platformFamily", "unix"},
             {"platformOs", "linux"},
@@ -476,30 +475,22 @@ namespace {
             {"futureField", {{"nested", Json::array({1, 2, 3})}}},
         };
         errorMessage = "stale";
-        const std::optional<InitializeResult> initializeResult =
-            ai::openai::codex::detail::decodeInitializeResult(rawInitializeResult, errorMessage);
         const std::optional<InitializeResponse> initializeResponse =
-            ai::openai::codex::detail::decodeInitializeResponse(rawInitializeResult, errorMessage);
-        testResult.expectTrue(initializeResult && initializeResult->codexHome == "/tmp/fake-codex" &&
-                                  initializeResult->platformFamily == "unix" && initializeResult->platformOs == "linux" &&
-                                  initializeResult->userAgent == "snodec-codec-test",
-                              "separate initialization decoder caches all typed fields");
-        testResult.expectTrue(initializeResult && initializeResult->raw == rawInitializeResult,
-                              "separate initialization decoder preserves complete raw result and future fields");
+            ai::openai::codex::detail::decodeInitializeResponse(rawInitializeResponse, errorMessage);
         testResult.expectTrue(initializeResponse && initializeResponse->codexHome.value == "/tmp/fake-codex" &&
                                   initializeResponse->platformFamily == "unix" && initializeResponse->platformOs == "linux" &&
-                                  initializeResponse->userAgent == "snodec-codec-test" && initializeResponse->raw == rawInitializeResult,
-                              "one decoder exposes the strong canonical initialize response and complete raw object");
+                                  initializeResponse->userAgent == "snodec-codec-test" && initializeResponse->raw == rawInitializeResponse,
+                              "the initialization decoder exposes the strong canonical response and complete raw object");
         testResult.expectTrue(errorMessage.empty(), "successful initialization decoding clears a previous error");
 
         errorMessage.clear();
-        const std::optional<InitializeResult> scalarInitializeResult =
-            ai::openai::codex::detail::decodeInitializeResult(Json::array(), errorMessage);
-        testResult.expectTrue(!scalarInitializeResult && !errorMessage.empty(),
+        const std::optional<InitializeResponse> scalarInitializeResponse =
+            ai::openai::codex::detail::decodeInitializeResponse(Json::array(), errorMessage);
+        testResult.expectTrue(!scalarInitializeResponse && !errorMessage.empty(),
                               "initialization decoder rejects a non-object result with a reason");
 
         for (const char* field : {"codexHome", "platformFamily", "platformOs", "userAgent"}) {
-            Json missingFieldResult = rawInitializeResult;
+            Json missingFieldResult = rawInitializeResponse;
             missingFieldResult.erase(field);
             errorMessage.clear();
             const std::optional<InitializeResponse> missingFieldInitializeResult =
@@ -507,7 +498,7 @@ namespace {
             testResult.expectTrue(!missingFieldInitializeResult && !errorMessage.empty(),
                                   std::string("initialization decoder rejects missing required field ") + field);
 
-            Json invalidFieldResult = rawInitializeResult;
+            Json invalidFieldResult = rawInitializeResponse;
             invalidFieldResult[field] = Json::array();
             errorMessage.clear();
             const std::optional<InitializeResponse> invalidFieldInitializeResult =

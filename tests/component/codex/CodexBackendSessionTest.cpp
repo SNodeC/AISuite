@@ -148,7 +148,7 @@ namespace {
         result.expectTrue(static_cast<bool>(sameIdOtherSession), "request ids are independent between frontend sessions");
 
         backend::ThreadStart observerMutation;
-        observerMutation.options.cwd = "/observer";
+        observerMutation.params.cwd = std::string{"/observer"};
         result.expectTrue(static_cast<bool>(second.submit("observer-mutation", observerMutation)),
                           "permission failure for an accepted observer command is delivered as a correlated response");
         result.expectTrue(second.submit("observer-snapshot", backend::SnapshotGet{}) &&
@@ -156,7 +156,7 @@ namespace {
                           "observers can submit read-only snapshot and replay commands");
 
         backend::ThreadStart unavailableMutation;
-        unavailableMutation.options.cwd = "/not-ready";
+        unavailableMutation.params.cwd = std::string{"/not-ready"};
         result.expectTrue(static_cast<bool>(first.submit("controller-not-ready", unavailableMutation)),
                           "controller mutation is accepted for asynchronous backend-availability completion");
 

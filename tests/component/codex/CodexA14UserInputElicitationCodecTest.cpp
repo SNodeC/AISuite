@@ -251,9 +251,9 @@ namespace {
             request(codex::ServerRequestId{std::string{"malformed-user"}}, "item/tool/requestUserInput", malformed));
         const auto* unknown = std::get_if<typed::UnknownServerRequest>(&invalid);
         result.expectTrue(unknown && invalid.index() == 4 && unknown->diagnostic &&
-                              unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload && unknown->params == malformed &&
-                              unknown->decodingError && unknown->decodingError->find("$.questions[*].options") != std::string::npos &&
-                              unknown->decodingError->find("private wrong value") == std::string::npos,
+                              unknown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
+                              unknown->diagnostic->fieldPath == "$.params" && unknown->params == malformed &&
+                              unknown->diagnostic->message.find("private wrong value") == std::string::npos,
                           "malformed user-input remains a malformed-known raw request with a content-safe structural diagnostic");
 
         codex::Json negativeAuto = params;
@@ -422,9 +422,8 @@ namespace {
         const auto* malformedKnown = std::get_if<typed::UnknownServerRequest>(&malformedRequest);
         result.expectTrue(malformedKnown && malformedRequest.index() == 4 && malformedKnown->diagnostic &&
                               malformedKnown->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
-                              malformedKnown->params == malformed && malformedKnown->decodingError &&
-                              malformedKnown->decodingError->find("$.requestedSchema") != std::string::npos &&
-                              malformedKnown->decodingError->find("private elicitation message") == std::string::npos,
+                              malformedKnown->diagnostic->fieldPath == "$.params" && malformedKnown->params == malformed &&
+                              malformedKnown->diagnostic->message.find("private elicitation message") == std::string::npos,
                           "a known mode with a missing required field is malformed-known, raw-preserving, and content-safe");
 
         malformed = formParams();

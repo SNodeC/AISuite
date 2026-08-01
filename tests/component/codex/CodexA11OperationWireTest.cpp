@@ -58,7 +58,7 @@ namespace {
 
     static_assert(requires(typed::Threads& threads,
                            typed::Threads::ThreadListResultHandler listHandler,
-                           typed::Threads::ThreadResultHandler threadHandler) {
+                           typed::Threads::ThreadStartResultHandler threadHandler) {
         threads.list({}, std::move(listHandler));
         threads.start({}, std::move(threadHandler));
     });
@@ -1625,19 +1625,19 @@ namespace {
                                                                                      return threads.start(std::move(params),
                                                                                                           std::move(handler));
                                                                                  }));
-            typed::ThreadStartOptions compatibilityStart;
-            compatibilityStart.cwd = "/compatibility-start";
-            compatibilityStart.sandboxMode = typed::SandboxMode::workspaceWrite();
-            compatibilityStart.ephemeral = true;
-            encodingCases.push_back(
-                makeEncodingCase<typed::Thread>("thread/start:compatibility-options",
-                                                "thread/start",
-                                                "thread-start",
-                                                std::move(compatibilityStart),
-                                                {{"cwd", "/compatibility-start"}, {"ephemeral", true}, {"sandbox", "workspace-write"}},
-                                                [&threads](auto options, auto handler) {
-                                                    return threads.start(std::move(options), std::move(handler));
-                                                }));
+            typed::ThreadStartParams configuredStart;
+            configuredStart.cwd = typed::OptionalNullable<std::string>::withValue("/compatibility-start");
+            configuredStart.sandbox = typed::SandboxMode::workspaceWrite();
+            configuredStart.ephemeral = true;
+            encodingCases.push_back(makeEncodingCase<typed::ThreadStartResponse>(
+                "thread/start:configured",
+                "thread/start",
+                "thread-start",
+                std::move(configuredStart),
+                {{"cwd", "/compatibility-start"}, {"ephemeral", true}, {"sandbox", "workspace-write"}},
+                [&threads](auto params, auto handler) {
+                    return threads.start(std::move(params), std::move(handler));
+                }));
             typed::ThreadStartParams startNull;
             startNull.sessionStartSource = decltype(startNull.sessionStartSource)::explicitNull();
             startNull.approvalPolicy = decltype(startNull.approvalPolicy)::explicitNull();

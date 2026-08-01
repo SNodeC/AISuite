@@ -924,45 +924,6 @@ namespace ai::openai::codex::typed {
         : protocol(&protocol) {
     }
 
-    ThreadStartParams toThreadStartParams(ThreadStartOptions options) {
-        ThreadStartParams params;
-        params.cwd = std::move(options.cwd);
-        params.model = std::move(options.model);
-        params.modelProvider = std::move(options.modelProvider);
-        if (options.approvalPolicy) {
-            params.approvalPolicy = AskForApproval{std::move(*options.approvalPolicy)};
-        }
-        params.sandbox = std::move(options.sandboxMode);
-        params.ephemeral = std::move(options.ephemeral);
-        return params;
-    }
-
-    ThreadResumeParams toThreadResumeParams(ThreadId threadId, ThreadResumeOptions options) {
-        ThreadResumeParams params;
-        params.threadId = std::move(threadId);
-        params.cwd = std::move(options.cwd);
-        params.model = std::move(options.model);
-        params.modelProvider = std::move(options.modelProvider);
-        if (options.approvalPolicy) {
-            params.approvalPolicy = AskForApproval{std::move(*options.approvalPolicy)};
-        }
-        params.sandbox = std::move(options.sandboxMode);
-        return params;
-    }
-
-    ThreadListParams toThreadListParams(ThreadListOptions options) {
-        ThreadListParams params;
-        params.cursor = std::move(options.cursor);
-        params.limit = std::move(options.limit);
-        params.archived = std::move(options.archived);
-        params.searchTerm = std::move(options.searchTerm);
-        return params;
-    }
-
-    ThreadReadParams toThreadReadParams(ThreadId threadId, ThreadReadOptions options) {
-        return {std::move(threadId), options.includeTurns};
-    }
-
     Threads::Submission Threads::archive(ThreadArchiveParams params, UnitResultHandler handler) {
         return submitTypedRequest<Unit>(
             protocol,
@@ -1043,7 +1004,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadInjectItemsParams);
     }
 
-    Threads::Submission Threads::submitList(ThreadListParams params, ThreadListResultHandler handler) {
+    Threads::Submission Threads::list(ThreadListParams params, ThreadListResultHandler handler) {
         return submitTypedRequest<ThreadListResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadList,
@@ -1081,7 +1042,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadSetNameParams);
     }
 
-    Threads::Submission Threads::submitRead(ThreadReadParams params, ThreadReadResultHandler handler) {
+    Threads::Submission Threads::read(ThreadReadParams params, ThreadReadResultHandler handler) {
         return submitTypedRequest<ThreadReadResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadRead,
@@ -1121,7 +1082,7 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadShellCommandParams);
     }
 
-    Threads::Submission Threads::submitStart(ThreadStartParams params, ThreadStartResultHandler handler) {
+    Threads::Submission Threads::start(ThreadStartParams params, ThreadStartResultHandler handler) {
         return submitTypedRequest<ThreadStartResponse>(
             protocol,
             detail::ClientRequestTarget::ThreadStart,
@@ -1150,80 +1111,8 @@ namespace ai::openai::codex::typed {
             detail::encodeThreadUnsubscribeParams);
     }
 
-    Threads::Submission Threads::start(ThreadStartOptions options, ThreadResultHandler handler) {
-        if (!handler) {
-            return submissionFailure("typed thread/start requires a result handler");
-        }
-
-        return submitStart(toThreadStartParams(std::move(options)),
-                           [handler = std::move(handler)](const OperationResult<ThreadStartResponse>& result) {
-            handler(mapOperationResult<Thread>(result, [](const ThreadStartResponse& response) {
-                return response.thread;
-            }));
-        });
-    }
-
-    Threads::Submission Threads::resume(ThreadId threadId, ThreadResumeOptions options, ThreadResultHandler handler) {
-        if (!handler) {
-            return submissionFailure("typed thread/resume requires a result handler");
-        }
-
-        return resume(toThreadResumeParams(std::move(threadId), std::move(options)),
-                      [handler = std::move(handler)](const OperationResult<ThreadResumeResponse>& result) {
-            handler(mapOperationResult<Thread>(result, [](const ThreadResumeResponse& response) {
-                return response.thread;
-            }));
-        });
-    }
-
-    Threads::Submission Threads::list(ThreadListOptions options, ThreadListResultHandler handler) {
-        return submitList(toThreadListParams(std::move(options)), std::move(handler));
-    }
-
-    Threads::Submission Threads::read(ThreadId threadId, ThreadResultHandler handler) {
-        if (!handler) {
-            return submissionFailure("typed thread/read requires a result handler");
-        }
-        return submitRead(toThreadReadParams(std::move(threadId)),
-                          [handler = std::move(handler)](const OperationResult<ThreadReadResponse>& result) {
-            handler(mapOperationResult<Thread>(result, [](const ThreadReadResponse& response) {
-                return response.thread;
-            }));
-        });
-    }
-
-    Threads::Submission Threads::read(ThreadId threadId, ThreadReadOptions options, ThreadResultHandler handler) {
-        if (!handler) {
-            return submissionFailure("typed thread/read requires a result handler");
-        }
-        return submitRead(toThreadReadParams(std::move(threadId), std::move(options)),
-                          [handler = std::move(handler)](const OperationResult<ThreadReadResponse>& result) {
-            handler(mapOperationResult<Thread>(result, [](const ThreadReadResponse& response) {
-                return response.thread;
-            }));
-        });
-    }
-
     Turns::Turns(AppServerClient::RawProtocol& protocol) noexcept
         : protocol(&protocol) {
-    }
-
-    TurnStartParams toTurnStartParams(ThreadId threadId, std::vector<TurnInput> input, TurnStartOptions options) {
-        TurnStartParams params;
-        params.threadId = std::move(threadId);
-        params.input = std::move(input);
-        params.cwd = std::move(options.cwd);
-        params.model = std::move(options.model);
-        params.effort = std::move(options.reasoningEffort);
-        if (options.approvalPolicy) {
-            params.approvalPolicy = AskForApproval{std::move(*options.approvalPolicy)};
-        }
-        params.sandboxPolicy = std::move(options.sandboxPolicy);
-        return params;
-    }
-
-    TurnInterruptParams toTurnInterruptParams(ThreadId threadId, TurnId turnId) {
-        return {std::move(threadId), std::move(turnId)};
     }
 
     Turns::Submission Turns::interrupt(TurnInterruptParams params, UnitResultHandler handler) {
@@ -1257,23 +1146,6 @@ namespace ai::openai::codex::typed {
             params,
             std::move(handler),
             detail::encodeTurnSteerParams);
-    }
-
-    Turns::Submission Turns::start(ThreadId threadId, std::vector<TurnInput> input, TurnStartOptions options, TurnResultHandler handler) {
-        if (!handler) {
-            return submissionFailure("typed turn/start requires a result handler");
-        }
-
-        return start(toTurnStartParams(std::move(threadId), std::move(input), std::move(options)),
-                     [handler = std::move(handler)](const OperationResult<TurnStartResponse>& result) {
-            handler(mapOperationResult<Turn>(result, [](const TurnStartResponse& response) {
-                return response.turn;
-            }));
-        });
-    }
-
-    Turns::Submission Turns::interrupt(ThreadId threadId, TurnId turnId, InterruptResultHandler handler) {
-        return interrupt(toTurnInterruptParams(std::move(threadId), std::move(turnId)), std::move(handler));
     }
 
     Events::Events(AppServerClient::RawProtocol& protocol) noexcept

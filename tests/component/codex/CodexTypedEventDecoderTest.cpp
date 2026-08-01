@@ -209,7 +209,8 @@ namespace {
                                   unknownItem->metadata.id && unknownItem->metadata.id->value == "future-item" &&
                                   unknownItem->metadata.threadId && unknownItem->metadata.threadId->value == "thread-event" &&
                                   unknownItem->metadata.turnId && unknownItem->metadata.turnId->value == "turn-event" &&
-                                  !unknownItem->decodingError,
+                                  unknownItem->diagnostic &&
+                                  unknownItem->diagnostic->severity == typed::DecodeIssueSeverity::ForwardCompatibility,
                               "unknown item discriminator retains all common metadata inside a typed lifecycle event");
 
         const Json missingIdItem = {{"type", "futureItem"}, {"future", true}};
@@ -221,7 +222,7 @@ namespace {
         testResult.expectTrue(missingId && !missingId->metadata.id && missingId->metadata.threadId &&
                                   missingId->metadata.threadId->value == "thread-event" && missingId->metadata.turnId &&
                                   missingId->metadata.turnId->value == "turn-event" && missingId->raw == missingIdItem &&
-                                  missingId->decodingError,
+                                  missingId->diagnostic && missingId->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning,
                               "item lifecycle events retain envelope location when the item has no stable ID");
     }
 
@@ -366,15 +367,13 @@ namespace {
                                   {"changes", legacyPartialChanges}});
         const Event malformedFileEvent = decodeEvent(malformedFileNotification);
         const UnknownEvent* malformedFile = as<UnknownEvent>(malformedFileEvent);
-        testResult.expectTrue(
-            malformedFile && malformedFile->params == malformedFileNotification.params &&
-                malformedFile->raw == malformedFileNotification.raw && malformedFile->decodingError &&
-                malformedFile->diagnostic &&
-                malformedFile->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
-                malformedFile->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
-                malformedFile->diagnostic->surface == "item/fileChange/patchUpdated" &&
-                malformedFile->diagnostic->fieldPath == "$.params",
-            "the former partial file-change shape is retained but now classified by exact malformed-known diagnostics");
+        testResult.expectTrue(malformedFile && malformedFile->params == malformedFileNotification.params &&
+                                  malformedFile->raw == malformedFileNotification.raw && malformedFile->diagnostic &&
+                                  malformedFile->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
+                                  malformedFile->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
+                                  malformedFile->diagnostic->surface == "item/fileChange/patchUpdated" &&
+                                  malformedFile->diagnostic->fieldPath == "$.params",
+                              "the former partial file-change shape is retained but now classified by exact malformed-known diagnostics");
 
         const Json usage = {
             {"last",
@@ -424,15 +423,13 @@ namespace {
             Json{{"threadId", "thread-event"}, {"turnId", "turn-event"}, {"tokenUsage", legacyPartialUsage}});
         const Event malformedUsageEvent = decodeEvent(malformedUsageNotification);
         const UnknownEvent* malformedUsage = as<UnknownEvent>(malformedUsageEvent);
-        testResult.expectTrue(
-            malformedUsage && malformedUsage->params == malformedUsageNotification.params &&
-                malformedUsage->raw == malformedUsageNotification.raw && malformedUsage->decodingError &&
-                malformedUsage->diagnostic &&
-                malformedUsage->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
-                malformedUsage->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
-                malformedUsage->diagnostic->surface == "thread/tokenUsage/updated" &&
-                malformedUsage->diagnostic->fieldPath == "$.params",
-            "the former partial token-usage shape is retained but now classified by exact malformed-known diagnostics");
+        testResult.expectTrue(malformedUsage && malformedUsage->params == malformedUsageNotification.params &&
+                                  malformedUsage->raw == malformedUsageNotification.raw && malformedUsage->diagnostic &&
+                                  malformedUsage->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
+                                  malformedUsage->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning &&
+                                  malformedUsage->diagnostic->surface == "thread/tokenUsage/updated" &&
+                                  malformedUsage->diagnostic->fieldPath == "$.params",
+                              "the former partial token-usage shape is retained but now classified by exact malformed-known diagnostics");
 
         const Notification rerouteNotification = makeNotification("model/rerouted",
                                                                   Json{{"threadId", "thread-event"},
@@ -461,8 +458,9 @@ namespace {
         const Event unknownDecoded = decodeEvent(unknownNotification);
         const UnknownEvent* unknown = as<UnknownEvent>(unknownDecoded);
         testResult.expectTrue(unknown && unknown->method == "future/notification" && unknown->params == unknownParams &&
-                                  unknown->raw == unknownNotification.raw && !unknown->decodingError,
-                              "unknown notification becomes UnknownEvent with exact params/raw and no decoding error");
+                                  unknown->raw == unknownNotification.raw && unknown->diagnostic &&
+                                  unknown->diagnostic->severity == typed::DecodeIssueSeverity::ForwardCompatibility,
+                              "unknown notification becomes UnknownEvent with exact params/raw and a forward-compatibility diagnostic");
 
         const Json futureKnownParams = {
             {"threadId", "thread-event"},
@@ -473,8 +471,9 @@ namespace {
         const Notification futureKnownNotification = makeNotification("item/agentMessage/delta", futureKnownParams, "future-shape");
         const Event futureKnownEvent = decodeEvent(futureKnownNotification);
         const UnknownEvent* futureKnown = as<UnknownEvent>(futureKnownEvent);
-        testResult.expectTrue(futureKnown && futureKnown->decodingError && !futureKnown->decodingError->empty(),
-                              "known method with an unrecognized future payload becomes UnknownEvent with a decode reason");
+        testResult.expectTrue(futureKnown && futureKnown->diagnostic &&
+                                  futureKnown->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning,
+                              "known method with an unrecognized future payload becomes UnknownEvent with a structured diagnostic");
         testResult.expectTrue(futureKnown && futureKnown->params == futureKnownParams && futureKnown->raw == futureKnownNotification.raw,
                               "malformed/future known payload preserves exact params and complete notification envelope");
 
@@ -493,7 +492,7 @@ namespace {
                                   malformedTypedItem->metadata.id->value == "bad-item" && malformedTypedItem->metadata.threadId &&
                                   malformedTypedItem->metadata.threadId->value == "thread-event" && malformedTypedItem->metadata.turnId &&
                                   malformedTypedItem->metadata.turnId->value == "turn-event" &&
-                                  malformedTypedItem->raw == malformedItemParams["item"] && malformedTypedItem->decodingError,
+                                  malformedTypedItem->raw == malformedItemParams["item"] && malformedTypedItem->diagnostic,
                               "known malformed item detail remains a located typed lifecycle event with an item-local diagnostic");
 
         const Json scalarItemParams = {
@@ -505,14 +504,14 @@ namespace {
         const Notification scalarItemNotification = makeNotification("item/completed", scalarItemParams);
         const Event scalarItemEvent = decodeEvent(scalarItemNotification);
         const UnknownEvent* scalarItem = as<UnknownEvent>(scalarItemEvent);
-        testResult.expectTrue(scalarItem && scalarItem->decodingError && scalarItem->params == scalarItemParams &&
+        testResult.expectTrue(scalarItem && scalarItem->diagnostic && scalarItem->params == scalarItemParams &&
                                   scalarItem->raw == scalarItemNotification.raw,
                               "structurally unusable non-object item remains a diagnosable UnknownEvent");
 
         const Notification scalarParamsNotification = makeNotification("turn/started", Json::array({1, 2}));
         const Event scalarParamsEvent = decodeEvent(scalarParamsNotification);
         const UnknownEvent* scalarParams = as<UnknownEvent>(scalarParamsEvent);
-        testResult.expectTrue(scalarParams && scalarParams->decodingError && scalarParams->raw == scalarParamsNotification.raw,
+        testResult.expectTrue(scalarParams && scalarParams->diagnostic && scalarParams->raw == scalarParamsNotification.raw,
                               "known event with non-object params becomes UnknownEvent without throwing");
 
         const Notification timestampOverflowNotification =
@@ -523,7 +522,7 @@ namespace {
                                   {"startedAtMs", std::numeric_limits<std::uint64_t>::max()}});
         const Event timestampOverflowEvent = decodeEvent(timestampOverflowNotification);
         const UnknownEvent* timestampOverflow = as<UnknownEvent>(timestampOverflowEvent);
-        testResult.expectTrue(timestampOverflow && timestampOverflow->decodingError &&
+        testResult.expectTrue(timestampOverflow && timestampOverflow->diagnostic &&
                                   timestampOverflow->raw == timestampOverflowNotification.raw,
                               "event decoder rejects an unsigned timestamp outside int64 without crashing or losing raw JSON");
     }

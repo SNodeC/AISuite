@@ -96,8 +96,8 @@ namespace {
         const typed::TypedServerRequest invalid =
             detail::decodeServerRequest(request(codex::ServerRequestId{94}, "item/tool/call", malformed));
         const auto* unknown = std::get_if<typed::UnknownServerRequest>(&invalid);
-        result.expectTrue(unknown && unknown->decodingError && unknown->decodingError->find("$.tool") != std::string::npos &&
-                              unknown->decodingError->find("must-not-appear") == std::string::npos && unknown->params == malformed,
+        result.expectTrue(unknown && unknown->diagnostic && unknown->diagnostic->fieldPath == "$.params" &&
+                              unknown->diagnostic->message.find("must-not-appear") == std::string::npos && unknown->params == malformed,
                           "malformed dynamic-tool fields produce a safe structural diagnostic and preserve the raw params");
     }
 

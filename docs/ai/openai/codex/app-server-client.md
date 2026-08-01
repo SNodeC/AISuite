@@ -44,7 +44,6 @@ void setOnDiagnostic(ai::openai::codex::Callbacks::DiagnosticReceived callback);
 
 ai::openai::codex::AppServerClient::RawProtocol& raw() noexcept;
 ai::openai::codex::typed::Client& typed() noexcept;
-std::optional<ai::openai::codex::InitializeResult> getInitializeResult() const;
 std::optional<ai::openai::codex::typed::InitializeResponse> getInitializeResponse() const;
 ```
 
@@ -248,9 +247,9 @@ After the process and parent descriptors are ready, the client:
 Initialization uses the same monotonically increasing request-ID allocator as
 caller requests but remains internally owned. Raw callers cannot send the
 reserved `initialize` or `initialized` operations. The typed initialization
-fields and complete raw result are cached for the source-compatible
-`getInitializeResult()` projection and the strong canonical
-`getInitializeResponse()` value.
+fields and complete raw result are cached for the strong canonical
+`getInitializeResponse()` value. The Final A1b ABI transition removed the
+legacy `InitializeResult` projection and its duplicate accessor.
 Structurally valid non-initialization messages received during the handshake are
 held in a bounded queue and dispatched in wire order after `Ready`.
 

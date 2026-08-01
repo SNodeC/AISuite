@@ -642,21 +642,18 @@ namespace ai::openai::codex::detail {
                                            std::optional<std::string> type,
                                            const std::optional<typed::ThreadId>& threadId,
                                            const std::optional<typed::TurnId>& turnId,
-                                           std::optional<std::string> decodingError,
                                            std::optional<typed::DecodeDiagnostic> diagnostic) {
-            typed::UnknownItem item{std::move(type), value, std::move(decodingError), {}, std::move(diagnostic)};
+            typed::UnknownItem item{std::move(type), value, {}, std::move(diagnostic)};
             item.metadata.threadId = threadId;
             item.metadata.turnId = turnId;
 
             const Json* id = member(value, "id");
             if (id == nullptr) {
-                if (!item.decodingError) {
-                    item.decodingError = "ThreadItem payload does not match its typed contract at $.id";
+                if (!item.diagnostic) {
                     item.diagnostic = malformedKnownDiagnostic(std::string(ThreadItemSurface), "$.id");
                 }
             } else if (!id->is_string() || id->get_ref<const std::string&>().empty()) {
-                if (!item.decodingError) {
-                    item.decodingError = "ThreadItem payload does not match its typed contract at $.id";
+                if (!item.diagnostic) {
                     item.diagnostic = malformedKnownDiagnostic(std::string(ThreadItemSurface), "$.id");
                 }
             } else {
@@ -669,15 +666,12 @@ namespace ai::openai::codex::detail {
             return item;
         }
 
-        typed::UnknownResponseItem makeUnknownResponseItem(const Json& value,
-                                                           std::optional<std::string> type,
-                                                           std::optional<std::string> decodingError,
-                                                           std::optional<typed::DecodeDiagnostic> diagnostic) {
-            typed::UnknownResponseItem item{std::move(type), value, std::move(decodingError), {}, std::move(diagnostic)};
+        typed::UnknownResponseItem
+        makeUnknownResponseItem(const Json& value, std::optional<std::string> type, std::optional<typed::DecodeDiagnostic> diagnostic) {
+            typed::UnknownResponseItem item{std::move(type), value, {}, std::move(diagnostic)};
             if (const Json* id = member(value, "id"); id != nullptr && !id->is_null()) {
                 if (!id->is_string()) {
-                    if (!item.decodingError) {
-                        item.decodingError = "ResponseItem payload does not match its typed contract at $.id";
+                    if (!item.diagnostic) {
                         item.diagnostic = malformedKnownDiagnostic(std::string(ResponseItemSurface), "$.id");
                     }
                 } else {
@@ -1449,21 +1443,20 @@ namespace ai::openai::codex::detail {
             if (discriminator == nullptr || !discriminator->is_string() || discriminator->get_ref<const std::string&>().empty()) {
                 DecodeState state{ThreadItemSurface};
                 state.fail("$.type");
-                return typed::Item{
-                    makeUnknownItem(value, std::nullopt, threadId, turnId, std::move(state.error), std::move(state.diagnostic))};
+                return typed::Item{makeUnknownItem(value, std::nullopt, threadId, turnId, std::move(state.diagnostic))};
             }
 
             const std::string type = discriminator->get<std::string>();
             const ProtocolSurfaceEntry* entry = findSurface(SurfaceCategory::ItemDiscriminator, ThreadItemSurface, TypeField, type);
             if (entry == nullptr) {
-                return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::nullopt, std::nullopt)};
+                return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::nullopt)};
             }
 
             const ThreadItemCodecDescriptor* descriptor = descriptorForThreadItem(*entry);
             if (descriptor == nullptr) {
                 DecodeState state{ThreadItemSurface};
                 state.fail("$.type");
-                return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::move(state.error), std::move(state.diagnostic))};
+                return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::move(state.diagnostic))};
             }
 
             DecodeState state{ThreadItemSurface};
@@ -1535,7 +1528,7 @@ namespace ai::openai::codex::detail {
                 state.fail("$");
             }
             error.clear();
-            return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::move(state.error), std::move(state.diagnostic))};
+            return typed::Item{makeUnknownItem(value, type, threadId, turnId, std::move(state.diagnostic))};
         } catch (const std::exception&) {
             error = "ThreadItem decoding failed without exposing payload data";
         } catch (...) {
@@ -1556,21 +1549,20 @@ namespace ai::openai::codex::detail {
             if (discriminator == nullptr || !discriminator->is_string() || discriminator->get_ref<const std::string&>().empty()) {
                 DecodeState state{ResponseItemSurface};
                 state.fail("$.type");
-                return typed::ResponseItem{
-                    makeUnknownResponseItem(value, std::nullopt, std::move(state.error), std::move(state.diagnostic))};
+                return typed::ResponseItem{makeUnknownResponseItem(value, std::nullopt, std::move(state.diagnostic))};
             }
 
             const std::string type = discriminator->get<std::string>();
             const ProtocolSurfaceEntry* entry = findSurface(SurfaceCategory::ItemDiscriminator, ResponseItemSurface, TypeField, type);
             if (entry == nullptr) {
-                return typed::ResponseItem{makeUnknownResponseItem(value, type, std::nullopt, std::nullopt)};
+                return typed::ResponseItem{makeUnknownResponseItem(value, type, std::nullopt)};
             }
 
             const ResponseItemCodecDescriptor* descriptor = descriptorForResponseItem(*entry);
             if (descriptor == nullptr) {
                 DecodeState state{ResponseItemSurface};
                 state.fail("$.type");
-                return typed::ResponseItem{makeUnknownResponseItem(value, type, std::move(state.error), std::move(state.diagnostic))};
+                return typed::ResponseItem{makeUnknownResponseItem(value, type, std::move(state.diagnostic))};
             }
 
             DecodeState state{ResponseItemSurface};
@@ -1636,7 +1628,7 @@ namespace ai::openai::codex::detail {
                 state.fail("$");
             }
             error.clear();
-            return typed::ResponseItem{makeUnknownResponseItem(value, type, std::move(state.error), std::move(state.diagnostic))};
+            return typed::ResponseItem{makeUnknownResponseItem(value, type, std::move(state.diagnostic))};
         } catch (const std::exception&) {
             error = "ResponseItem decoding failed without exposing payload data";
         } catch (...) {

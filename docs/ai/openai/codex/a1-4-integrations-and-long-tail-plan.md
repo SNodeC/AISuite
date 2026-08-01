@@ -173,8 +173,8 @@ unconsumed for the Common `error` completion.
 The installed Codex header inventory is 29 main-library headers, seven backend
 headers, and seven frontend headers, 43 total. `typed/WindowsSandbox.h` is the
 one runtime/platform addition. `typed::Client` remains one-pointer PIMPL-backed,
-and `AppServerClient` retains its existing PIMPL. Codex SOVERSION remains 1;
-the final SOVERSION decision remains deferred to final-A1 completion.
+and `AppServerClient` retains its existing PIMPL. Final A1b subsequently moves
+all three Codex libraries from SOVERSION 1 to SOVERSION 2.
 
 ## Current registry state
 

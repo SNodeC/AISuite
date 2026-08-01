@@ -181,15 +181,6 @@ namespace ai::openai::codex::detail {
         return std::nullopt;
     }
 
-    std::optional<InitializeResult> decodeInitializeResult(const Json& result, std::string& errorMessage) {
-        std::optional<typed::InitializeResponse> response = decodeInitializeResponse(result, errorMessage);
-        if (!response) {
-            return std::nullopt;
-        }
-        return InitializeResult{
-            response->codexHome.value, response->platformFamily, response->platformOs, response->userAgent, response->raw};
-    }
-
     std::optional<std::string>
     ProtocolCodec::encodeRequest(std::int64_t id, std::string_view method, const Json& params, std::string& errorMessage) {
         return encode({{"method", method}, {"id", id}, {"params", params}}, "protocol request", errorMessage);

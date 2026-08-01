@@ -9,6 +9,7 @@
 
 #include "ai/openai/codex/backend/detail/PreserveUnmodeledTypedEvent.h"
 #include "ai/openai/codex/detail/ConversationCodec.h"
+#include "ai/openai/codex/detail/DecodeDiagnostic.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "log/LogScopeOwner.h"
 #include "log/Logger.h"
@@ -807,7 +808,10 @@ namespace ai::openai::codex::backend {
                     return {TurnErrorUpdated{value.threadId, value.turnId, value.error, value.willRetry}};
                 },
                 [](const typed::UnknownEvent& value) -> std::vector<BackendEvent> {
-                    return {detail::preserveUnmodeledTypedEvent({value.method, value.params, value.decodingError, value.diagnostic})};
+                    return {detail::preserveUnmodeledTypedEvent({value.method,
+                                                                 value.params,
+                                                                 ::ai::openai::codex::detail::safeDecodeDiagnosticText(value.diagnostic),
+                                                                 value.diagnostic})};
                 },
                 [](const typed::CommandExecOutputDeltaNotification& value) -> std::vector<BackendEvent> {
                     return preserveTypedNotification(value, ServerNotificationTarget::CommandExecOutputDelta);

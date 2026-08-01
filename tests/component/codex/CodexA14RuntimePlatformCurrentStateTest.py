@@ -276,7 +276,116 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
             self.assertIsNotNone(block)
             self.assertEqual(7, len(block.group(1).split()))
         root_cmake = (self.repo_root / "CMakeLists.txt").read_text(encoding="utf-8")
-        self.assertRegex(root_cmake, r"set\(AISUITE_CODEX_SOVERSION\s+1\)")
+        self.assertRegex(root_cmake, r"set\(AISUITE_CODEX_SOVERSION\s+2\)")
+
+    def test_final_a1b_public_compatibility_boundary(self) -> None:
+        def source(relative: str) -> str:
+            return (self.repo_root / relative).read_text(encoding="utf-8")
+
+        forbidden_by_file = {
+            "src/ai/openai/codex/Protocol.h": ("struct InitializeResult",),
+            "src/ai/openai/codex/AppServerClient.h": ("getInitializeResult(",),
+            "src/ai/openai/codex/detail/ProtocolCodec.h": ("decodeInitializeResult(",),
+            "src/ai/openai/codex/typed/Threads.h": (
+                "ThreadStartOptions",
+                "ThreadResumeOptions",
+                "ThreadListOptions",
+                "ThreadReadOptions",
+                "toThreadStartParams",
+                "toThreadResumeParams",
+                "toThreadListParams",
+                "toThreadReadParams",
+                "ThreadResultHandler",
+            ),
+            "src/ai/openai/codex/typed/Turns.h": (
+                "TurnInterruptResult",
+                "TurnStartOptions",
+                "toTurnStartParams",
+                "toTurnInterruptParams",
+                "TurnResultHandler",
+                "InterruptResultHandler",
+            ),
+            "src/ai/openai/codex/typed/Conversation.h": ("fromLegacy(",),
+            "src/ai/openai/codex/typed/Items.h": ("decodingError",),
+            "src/ai/openai/codex/typed/Events.h": ("decodingError",),
+            "src/ai/openai/codex/typed/ServerRequests.h": ("decodingError",),
+        }
+        for relative, forbidden_names in forbidden_by_file.items():
+            contents = source(relative)
+            for forbidden_name in forbidden_names:
+                self.assertNotIn(forbidden_name, contents, f"{forbidden_name} remains in {relative}")
+
+        optional_nullable = source("src/ai/openai/codex/typed/Types.h")
+        self.assertNotRegex(
+            optional_nullable,
+            r"OptionalNullable\s*\(\s*bool\s+isPresent\s*,\s*std::optional<T>",
+        )
+        for retained in (
+            "OptionalNullable()",
+            "OptionalNullable(std::nullopt_t)",
+            "OptionalNullable(const T&",
+            "OptionalNullable(T&&",
+            "OptionalNullable(const std::optional<T>&",
+            "OptionalNullable(std::optional<T>&&",
+            "OptionalNullable omitted()",
+            "OptionalNullable explicitNull()",
+            "OptionalNullable withValue(",
+        ):
+            self.assertIn(retained, optional_nullable)
+
+        retained_by_file = {
+            "src/ai/openai/codex/AppServerClient.h": (
+                "struct ClientInfo",
+                "RawProtocol& raw() noexcept",
+                "typed::Client& typed() noexcept",
+                "typed::Threads& threads() noexcept",
+                "typed::Turns& turns() noexcept",
+                "typed::Events& events() noexcept",
+                "typed::Requests& requests() noexcept",
+                "getInitializeResponse() const",
+            ),
+            "src/ai/openai/codex/typed/Types.h": (
+                "struct InitializeParams",
+                "InitializeParams(const ai::openai::codex::ClientInfo&",
+            ),
+            "src/ai/openai/codex/typed/Threads.h": (
+                "using ThreadPage = ThreadListResponse",
+                "Submission start(ThreadStartParams",
+                "Submission resume(ThreadResumeParams",
+                "Submission list(ThreadListParams",
+                "Submission read(ThreadReadParams",
+            ),
+            "src/ai/openai/codex/typed/Turns.h": (
+                "Submission start(TurnStartParams",
+                "Submission interrupt(TurnInterruptParams",
+            ),
+            "src/ai/openai/codex/typed/Conversation.h": (
+                "using ExternalSandboxPolicy = ExternalSandboxSandboxPolicy",
+                "using TurnInput = UserInput",
+            ),
+            "src/ai/openai/codex/typed/Items.h": (
+                "using AgentMessageItem = AgentMessageThreadItem",
+                "using Item = ThreadItem",
+                "struct UnknownItem",
+                "struct UnknownResponseItem",
+                "std::optional<DecodeDiagnostic> diagnostic",
+            ),
+            "src/ai/openai/codex/typed/Events.h": (
+                "struct TurnErrorEvent",
+                "struct UnknownEvent",
+                "std::optional<DecodeDiagnostic> diagnostic",
+            ),
+            "src/ai/openai/codex/typed/ServerRequests.h": (
+                "using ChatgptAuthTokensRefreshRequest = AuthenticationRequest",
+                "using PermissionsRequestApprovalRequest = PermissionsApprovalRequest",
+                "struct UnknownServerRequest",
+                "std::optional<DecodeDiagnostic> diagnostic",
+            ),
+        }
+        for relative, retained_names in retained_by_file.items():
+            contents = source(relative)
+            for retained_name in retained_names:
+                self.assertIn(retained_name, contents, f"{retained_name} is missing from {relative}")
 
 
 def main() -> int:

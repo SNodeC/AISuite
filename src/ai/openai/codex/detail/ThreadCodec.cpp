@@ -1313,24 +1313,6 @@ namespace ai::openai::codex::detail {
         return result;
     }
 
-    std::optional<Json> encodeThreadStartParams(const typed::ThreadStartOptions& options, std::string& error) {
-        return encodeThreadStartParams(typed::toThreadStartParams(options), error);
-    }
-
-    std::optional<Json>
-    encodeThreadResumeParams(const typed::ThreadId& threadId, const typed::ThreadResumeOptions& options, std::string& error) {
-        return encodeThreadResumeParams(typed::toThreadResumeParams(threadId, options), error);
-    }
-
-    std::optional<Json> encodeThreadListParams(const typed::ThreadListOptions& options, std::string& error) {
-        return encodeThreadListParams(typed::toThreadListParams(options), error);
-    }
-
-    std::optional<Json>
-    encodeThreadReadParams(const typed::ThreadId& threadId, const typed::ThreadReadOptions& options, std::string& error) {
-        return encodeThreadReadParams(typed::toThreadReadParams(threadId, options), error);
-    }
-
     std::optional<typed::Thread> decodeThreadOperationResult(const Json& value, std::string& error) {
         auto response = decodeThreadStartResponse(value, error);
         if (!response) {

@@ -46,7 +46,6 @@ namespace {
     using ai::openai::codex::typed::TurnId;
     using ai::openai::codex::typed::TurnInput;
     using ai::openai::codex::typed::TurnStartParams;
-    using ai::openai::codex::typed::TurnStartOptions;
     using ai::openai::codex::typed::UnknownTurnInput;
     using ai::openai::codex::typed::WorkspaceWriteSandboxPolicy;
 
@@ -279,20 +278,22 @@ namespace {
             std::move(skillInput),
             std::move(mentionInput),
         };
-        TurnStartOptions options;
-        options.cwd = "/tmp/project";
-        options.model = ModelId{"gpt-5.4"};
-        options.reasoningEffort = ReasoningEffort{"xhigh"};
-        options.approvalPolicy = ApprovalPolicy{"future-policy"};
+        TurnStartParams params;
+        params.threadId = ThreadId{"thread-1"};
+        params.input = inputs;
+        params.cwd = std::string{"/tmp/project"};
+        params.model = ModelId{"gpt-5.4"};
+        params.effort = ReasoningEffort{"xhigh"};
+        params.approvalPolicy = AskForApproval{ApprovalPolicy{"future-policy"}};
         WorkspaceWriteSandboxPolicy workspacePolicy;
         workspacePolicy.writableRoots = std::vector<AbsolutePathBuf>{{"/tmp/project"}};
         workspacePolicy.networkAccess = true;
         workspacePolicy.excludeTmpdirEnvVar = true;
         workspacePolicy.excludeSlashTmp = false;
-        options.sandboxPolicy = std::move(workspacePolicy);
+        params.sandboxPolicy = ai::openai::codex::typed::SandboxPolicy{std::move(workspacePolicy)};
 
         std::string error;
-        const std::optional<Json> encoded = encodeTurnStartParams(ThreadId{"thread-1"}, inputs, options, error);
+        const std::optional<Json> encoded = encodeTurnStartParams(params, error);
         const Json expectedInput = Json::array({
             Json{{"type", "text"}, {"text", "first"}, {"text_elements", Json::array()}},
             Json{{"type", "image"}, {"url", "https://example.test/image.png"}, {"detail", "original"}},
@@ -315,9 +316,11 @@ namespace {
               {"excludeSlashTmp", false}}},
         };
         testResult.expectTrue(encoded && *encoded == expected && error.empty(),
-                              "deprecated turn/start preserves future approval values while encoding every supported setting");
+                              "canonical turn/start preserves future approval values while encoding every supported setting");
 
-        const std::optional<Json> minimum = encodeTurnStartParams(ThreadId{"thread-minimum"}, {}, {}, error);
+        TurnStartParams minimumParams;
+        minimumParams.threadId = ThreadId{"thread-minimum"};
+        const std::optional<Json> minimum = encodeTurnStartParams(minimumParams, error);
         testResult.expectTrue(minimum && *minimum == Json{{"threadId", "thread-minimum"}, {"input", Json::array()}},
                               "turn/start omits absent settings and accepts the schema's empty input array");
 
@@ -333,14 +336,16 @@ namespace {
                                   error.empty(),
                               "canonical turn/start preserves the same open non-empty approval scalar");
 
-        TurnStartOptions invalidApproval;
-        invalidApproval.approvalPolicy = ApprovalPolicy{""};
-        testResult.expectTrue(!encodeTurnStartParams(ThreadId{"thread-1"}, {}, invalidApproval, error) && !error.empty(),
+        TurnStartParams invalidApproval;
+        invalidApproval.threadId = ThreadId{"thread-1"};
+        invalidApproval.approvalPolicy = AskForApproval{ApprovalPolicy{""}};
+        testResult.expectTrue(!encodeTurnStartParams(invalidApproval, error) && !error.empty(),
                               "turn/start rejects an empty approval scalar prohibited by the open value contract");
 
-        TurnStartOptions invalidEffort;
-        invalidEffort.reasoningEffort = ReasoningEffort{""};
-        testResult.expectTrue(!encodeTurnStartParams(ThreadId{"thread-1"}, {}, invalidEffort, error) && !error.empty(),
+        TurnStartParams invalidEffort;
+        invalidEffort.threadId = ThreadId{"thread-1"};
+        invalidEffort.effort = ReasoningEffort{""};
+        testResult.expectTrue(!encodeTurnStartParams(invalidEffort, error) && !error.empty(),
                               "turn/start rejects an empty reasoning effort prohibited by the current schema");
 
         TextInput beforeInput{};
@@ -349,30 +354,36 @@ namespace {
         futureUnknownInput.type = "future";
         futureUnknownInput.raw = Json{{"type", "future"}};
         const std::vector<TurnInput> unknownInputs = {std::move(beforeInput), std::move(futureUnknownInput)};
-        testResult.expectTrue(!encodeTurnStartParams(ThreadId{"thread-1"}, unknownInputs, {}, error) && !error.empty(),
+        TurnStartParams unknownInputParams;
+        unknownInputParams.threadId = ThreadId{"thread-1"};
+        unknownInputParams.input = unknownInputs;
+        testResult.expectTrue(!encodeTurnStartParams(unknownInputParams, error) && !error.empty(),
                               "turn/start rejects a mixed input list containing an unknown outgoing variant");
 
-        TurnStartOptions readOnly;
+        TurnStartParams readOnly;
+        readOnly.threadId = ThreadId{"thread-1"};
         ReadOnlySandboxPolicy readOnlyPolicy{};
         readOnlyPolicy.networkAccess = false;
-        readOnly.sandboxPolicy = std::move(readOnlyPolicy);
-        const auto encodedReadOnly = encodeTurnStartParams(ThreadId{"thread-1"}, {}, readOnly, error);
+        readOnly.sandboxPolicy = ai::openai::codex::typed::SandboxPolicy{std::move(readOnlyPolicy)};
+        const auto encodedReadOnly = encodeTurnStartParams(readOnly, error);
         testResult.expectTrue(encodedReadOnly &&
                                   (*encodedReadOnly)["sandboxPolicy"] == Json{{"type", "readOnly"}, {"networkAccess", false}},
                               "turn/start encodes the current read-only sandbox policy shape");
 
-        TurnStartOptions external;
+        TurnStartParams external;
+        external.threadId = ThreadId{"thread-1"};
         ExternalSandboxPolicy externalPolicy{};
         externalPolicy.networkAccess = NetworkAccess::enabled();
-        external.sandboxPolicy = std::move(externalPolicy);
-        const auto encodedExternal = encodeTurnStartParams(ThreadId{"thread-1"}, {}, external, error);
+        external.sandboxPolicy = ai::openai::codex::typed::SandboxPolicy{std::move(externalPolicy)};
+        const auto encodedExternal = encodeTurnStartParams(external, error);
         testResult.expectTrue(encodedExternal &&
                                   (*encodedExternal)["sandboxPolicy"] == Json{{"type", "externalSandbox"}, {"networkAccess", "enabled"}},
                               "turn/start encodes the current external sandbox policy shape");
 
-        TurnStartOptions fullAccess;
-        fullAccess.sandboxPolicy = DangerFullAccessSandboxPolicy{};
-        const auto encodedFullAccess = encodeTurnStartParams(ThreadId{"thread-1"}, {}, fullAccess, error);
+        TurnStartParams fullAccess;
+        fullAccess.threadId = ThreadId{"thread-1"};
+        fullAccess.sandboxPolicy = ai::openai::codex::typed::SandboxPolicy{DangerFullAccessSandboxPolicy{}};
+        const auto encodedFullAccess = encodeTurnStartParams(fullAccess, error);
         testResult.expectTrue(encodedFullAccess && (*encodedFullAccess)["sandboxPolicy"] == Json{{"type", "dangerFullAccess"}},
                               "turn/start encodes the current danger-full-access sandbox policy shape");
     }

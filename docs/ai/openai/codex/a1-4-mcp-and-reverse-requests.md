@@ -218,8 +218,8 @@ The subsequent runtime/platform group completes:
 Final A1a subsequently completes the three Common identities. The current
 global registry is therefore 339 Complete / 0 Partial / 0 NotImplemented / 48
 NotApplicable, and native A1.4 remains 56 Complete / 0 Partial / 0
-NotImplemented. Codex SOVERSION remains 1; the compatibility transition is
-reserved for Final A1b.
+NotImplemented. Final A1b subsequently completes the frozen compatibility
+transition and moves all three Codex libraries to SOVERSION 2.
 
 Three bounded exhaustive-visitor adaptations preserve backend compile
 compatibility without adding product behavior: `BackendCore` leaves the three

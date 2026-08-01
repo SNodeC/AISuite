@@ -92,8 +92,8 @@ initialize request
 
 Initialization uses the ordinary encoder, decoder, and client request-ID
 allocator, but it is never exposed as a caller request and does not invoke a raw
-response handler. `getInitializeResult()` returns the cached typed platform
-fields together with the complete raw initialization result.
+response handler. `getInitializeResponse()` returns the cached canonical typed
+platform metadata together with the complete raw initialization result.
 
 Structurally valid non-initialization messages received during the handshake are
 retained in a 1,024-message pre-ready queue. After the transition to `Ready`,

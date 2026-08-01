@@ -102,15 +102,6 @@ namespace ai::openai::codex {
         Json raw = nullptr;
     };
 
-    struct InitializeResult {
-        std::string codexHome;
-        std::string platformFamily;
-        std::string platformOs;
-        std::string userAgent;
-
-        Json raw;
-    };
-
     struct Response {
         enum class Kind { Result, RemoteError, Cancelled };
 

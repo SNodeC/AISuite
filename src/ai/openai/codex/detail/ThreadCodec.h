@@ -69,13 +69,7 @@ namespace ai::openai::codex::detail {
     std::optional<typed::ThreadUnarchiveResponse> decodeThreadUnarchiveResponse(const Json& value, std::string& error);
     std::optional<typed::ThreadUnsubscribeResponse> decodeThreadUnsubscribeResponse(const Json& value, std::string& error);
 
-    // A1.0 compatibility codec entrypoints.
-    std::optional<Json> encodeThreadStartParams(const typed::ThreadStartOptions& options, std::string& error);
-    std::optional<Json>
-    encodeThreadResumeParams(const typed::ThreadId& threadId, const typed::ThreadResumeOptions& options, std::string& error);
-    std::optional<Json> encodeThreadListParams(const typed::ThreadListOptions& options, std::string& error);
-    std::optional<Json>
-    encodeThreadReadParams(const typed::ThreadId& threadId, const typed::ThreadReadOptions& options, std::string& error);
+    // Retained application-projection codec entrypoints.
     std::optional<typed::Thread> decodeThreadOperationResult(const Json& value, std::string& error);
     std::optional<typed::ThreadPage> decodeThreadListResult(const Json& value, std::string& error);
     std::optional<typed::Thread> decodeThreadReadResult(const Json& value, std::string& error);

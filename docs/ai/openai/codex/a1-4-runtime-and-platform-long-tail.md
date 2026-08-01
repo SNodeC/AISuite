@@ -223,8 +223,8 @@ The final production registry is:
 
 Native A1.4 is complete. The remaining Partial identities are `initialize`,
 `initialized`, and `error`, owned by Common/A1.0 and deferred to final-A1
-completion. All 48 InventoryOnly identities remain NotApplicable. Codex
-SOVERSION remains 1.
+completion. All 48 InventoryOnly identities remain NotApplicable. Final A1b
+subsequently moves all three Codex libraries to SOVERSION 2.
 
 The installed Codex public-header inventory is 29 main-library headers, seven
 backend headers, and seven frontend headers: 43 total. The only added header in

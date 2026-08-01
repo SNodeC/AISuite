@@ -270,10 +270,8 @@ namespace {
                           "plugin/share/list preserves its open empty-parameter object exactly");
 
         typed::PluginListParams invalid{};
-        invalid.cwds = {
-            false,
-            std::optional<std::vector<typed::AbsolutePathBuf>>{{typed::AbsolutePathBuf{"/synthetic/sensitive-path"}}},
-        };
+        invalid.cwds = typed::OptionalNullable<std::vector<typed::AbsolutePathBuf>>::omitted();
+        invalid.cwds.value = std::vector<typed::AbsolutePathBuf>{typed::AbsolutePathBuf{"/synthetic/sensitive-path"}};
         result.expectTrue(!detail::encodePluginListParams(invalid, error) && error.find("$.cwds") != std::string::npos &&
                               error.find("/synthetic/sensitive-path") == std::string::npos,
                           "C5 encoders reject inconsistent nullable state without exposing sensitive values");

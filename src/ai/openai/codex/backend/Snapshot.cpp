@@ -7,6 +7,7 @@
 
 #include "ai/openai/codex/backend/Snapshot.h"
 
+#include "ai/openai/codex/detail/DecodeDiagnostic.h"
 #include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Items.h"
 #include "ai/openai/codex/typed/Types.h"
@@ -444,8 +445,9 @@ namespace ai::openai::codex::backend {
                                if (value.type) {
                                    snapshot.data["codexType"] = *value.type;
                                }
-                               if (value.decodingError) {
-                                   snapshot.data["decodingError"] = *value.decodingError;
+                               if (const std::optional<std::string> decodingError =
+                                       ::ai::openai::codex::detail::safeDecodeDiagnosticText(value.diagnostic)) {
+                                   snapshot.data["decodingError"] = *decodingError;
                                }
                            },
                            [&snapshot](const auto&) {
@@ -622,7 +624,10 @@ namespace ai::openai::codex::backend {
                                       }
                                   },
                                   [&snapshot](const typed::UnknownServerRequest& value) {
-                                      snapshotGenericRequest(snapshot, value.method, value.params, value.decodingError);
+                                      snapshotGenericRequest(snapshot,
+                                                             value.method,
+                                                             value.params,
+                                                             ::ai::openai::codex::detail::safeDecodeDiagnosticText(value.diagnostic));
                                   },
                                   [&snapshot](const typed::ApplyPatchApprovalRequest& value) {
                                       snapshotGenericRequest(snapshot, "applyPatchApproval", value.params.raw);

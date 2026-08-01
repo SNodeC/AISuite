@@ -173,7 +173,6 @@ namespace {
         const std::optional<Item> decodedInvalidContent = decode(invalidContent, error);
         const UnknownItem* invalidContentItem = as<UnknownItem>(decodedInvalidContent);
         testResult.expectTrue(invalidContentItem && invalidContentItem->type == "userMessage" &&
-                                  invalidContentItem->decodingError &&
                                   isMalformedKnown(invalidContentItem->diagnostic, "$.content") && error.empty(),
                               "malformed userMessage content degrades locally with the exact malformed-known diagnostic");
         if (invalidContentItem) {
@@ -189,8 +188,7 @@ namespace {
         invalidClientId["clientId"] = Json::array({"not", "a", "string"});
         const std::optional<Item> decodedInvalidClientId = decode(invalidClientId, error);
         const UnknownItem* invalidClientItem = as<UnknownItem>(decodedInvalidClientId);
-        testResult.expectTrue(invalidClientItem && invalidClientItem->decodingError &&
-                                  isMalformedKnown(invalidClientItem->diagnostic, "$.clientId") && error.empty(),
+        testResult.expectTrue(invalidClientItem && isMalformedKnown(invalidClientItem->diagnostic, "$.clientId") && error.empty(),
                               "malformed userMessage clientId retains metadata and the exact malformed-known diagnostic");
         if (invalidClientItem) {
             expectUnknownMetadata(testResult,
@@ -308,8 +306,7 @@ namespace {
         exitOverflow["exitCode"] = static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) + 1;
         const std::optional<Item> decodedExitOverflow = decode(exitOverflow, error);
         const UnknownItem* exitOverflowItem = as<UnknownItem>(decodedExitOverflow);
-        testResult.expectTrue(exitOverflowItem && exitOverflowItem->decodingError &&
-                                  isMalformedKnown(exitOverflowItem->diagnostic, "$.exitCode") && error.empty(),
+        testResult.expectTrue(exitOverflowItem && isMalformedKnown(exitOverflowItem->diagnostic, "$.exitCode") && error.empty(),
                               "commandExecution with exitCode outside int32 degrades with the exact malformed-known diagnostic");
         if (exitOverflowItem) {
             expectUnknownMetadata(
@@ -320,8 +317,7 @@ namespace {
         durationOverflow["durationMs"] = std::numeric_limits<std::uint64_t>::max();
         const std::optional<Item> decodedDurationOverflow = decode(durationOverflow, error);
         const UnknownItem* durationOverflowItem = as<UnknownItem>(decodedDurationOverflow);
-        testResult.expectTrue(durationOverflowItem && durationOverflowItem->decodingError &&
-                                  isMalformedKnown(durationOverflowItem->diagnostic, "$.durationMs") && error.empty(),
+        testResult.expectTrue(durationOverflowItem && isMalformedKnown(durationOverflowItem->diagnostic, "$.durationMs") && error.empty(),
                               "commandExecution with durationMs outside int64 degrades with the exact malformed-known diagnostic");
         if (durationOverflowItem) {
             expectUnknownMetadata(testResult,
@@ -470,7 +466,7 @@ namespace {
         std::string error = "stale";
         const std::optional<Item> decodedFuture = decode(futureRaw, error);
         const UnknownItem* future = as<UnknownItem>(decodedFuture);
-        testResult.expectTrue(future && future->type == "futureItem" && !future->decodingError &&
+        testResult.expectTrue(future && future->type == "futureItem" &&
                                   isForwardCompatibility(future->diagnostic, DecodeIssueKind::UnknownDiscriminator, "$.type") &&
                                   error.empty(),
                               "unknown item discriminator becomes a nonfatal UnknownItem with the exact forward diagnostic");
@@ -481,7 +477,7 @@ namespace {
         const Json missingText = {{"type", "agentMessage"}, {"id", "bad-agent"}};
         const std::optional<Item> decodedMissingText = decode(missingText, error);
         const UnknownItem* missingTextItem = as<UnknownItem>(decodedMissingText);
-        testResult.expectTrue(missingTextItem && missingTextItem->type == "agentMessage" && missingTextItem->decodingError &&
+        testResult.expectTrue(missingTextItem && missingTextItem->type == "agentMessage" &&
                                   isMalformedKnown(missingTextItem->diagnostic, "$.text") && error.empty(),
                               "known item missing a detail field degrades with the exact malformed-known diagnostic");
         if (missingTextItem) {
@@ -491,8 +487,8 @@ namespace {
         const Json invalidId = {{"type", "reasoning"}, {"id", 7}};
         const std::optional<Item> decodedInvalidId = decode(invalidId, error);
         const UnknownItem* invalidIdItem = as<UnknownItem>(decodedInvalidId);
-        testResult.expectTrue(invalidIdItem && invalidIdItem->type == "reasoning" && invalidIdItem->decodingError &&
-                                  isMalformedKnown(invalidIdItem->diagnostic, "$.id") && error.empty(),
+        testResult.expectTrue(invalidIdItem && invalidIdItem->type == "reasoning" && isMalformedKnown(invalidIdItem->diagnostic, "$.id") &&
+                                  error.empty(),
                               "known item with non-string ID retains raw data and the exact malformed-known diagnostic");
         if (invalidIdItem) {
             expectUnknownMetadata(testResult, *invalidIdItem, std::nullopt, invalidId, "item with a non-string ID");
@@ -501,8 +497,7 @@ namespace {
         const Json missingId = {{"type", "futureItem"}, {"futurePayload", true}};
         const std::optional<Item> decodedMissingId = decode(missingId, error);
         const UnknownItem* missingIdItem = as<UnknownItem>(decodedMissingId);
-        testResult.expectTrue(missingIdItem && missingIdItem->decodingError &&
-                                  isMalformedKnown(missingIdItem->diagnostic, "$.id") && error.empty(),
+        testResult.expectTrue(missingIdItem && isMalformedKnown(missingIdItem->diagnostic, "$.id") && error.empty(),
                               "unknown item missing its ID retains the exact bounded malformed-known diagnostic");
         if (missingIdItem) {
             expectUnknownMetadata(testResult, *missingIdItem, std::nullopt, missingId, "unknown item missing its ID");
@@ -511,8 +506,8 @@ namespace {
         const Json emptyId = {{"type", "futureItem"}, {"id", ""}, {"futurePayload", false}};
         const std::optional<Item> decodedEmptyId = decode(emptyId, error);
         const UnknownItem* emptyIdItem = as<UnknownItem>(decodedEmptyId);
-        testResult.expectTrue(emptyIdItem && !emptyIdItem->metadata.id && emptyIdItem->decodingError &&
-                                  isMalformedKnown(emptyIdItem->diagnostic, "$.id") && error.empty(),
+        testResult.expectTrue(emptyIdItem && !emptyIdItem->metadata.id && isMalformedKnown(emptyIdItem->diagnostic, "$.id") &&
+                                  error.empty(),
                               "unknown item with an empty ID does not fabricate an identifier and reports its exact path");
         if (emptyIdItem) {
             expectUnknownMetadata(testResult, *emptyIdItem, std::nullopt, emptyId, "unknown item with an empty ID");
@@ -521,8 +516,8 @@ namespace {
         const Json missingType = {{"id", "missing-type"}};
         const std::optional<Item> decodedMissingType = decode(missingType, error);
         const UnknownItem* missingTypeItem = as<UnknownItem>(decodedMissingType);
-        testResult.expectTrue(missingTypeItem && !missingTypeItem->type && missingTypeItem->decodingError &&
-                                  isMalformedKnown(missingTypeItem->diagnostic, "$.type") && error.empty(),
+        testResult.expectTrue(missingTypeItem && !missingTypeItem->type && isMalformedKnown(missingTypeItem->diagnostic, "$.type") &&
+                                  error.empty(),
                               "item missing its discriminator retains metadata with the exact malformed-known diagnostic");
         if (missingTypeItem) {
             expectUnknownMetadata(testResult, *missingTypeItem, std::string("missing-type"), missingType, "item missing its discriminator");

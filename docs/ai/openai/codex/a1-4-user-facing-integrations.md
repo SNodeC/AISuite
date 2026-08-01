@@ -69,7 +69,8 @@ and Event indices 53–55. No predecessor alternative moves.
 Hooks, marketplace, skills, and plugins are completed by the following
 functional groups. MCP/reverse and runtime/platform behavior is documented in
 their respective current-state reports.
-Codex SOVERSION remains 1 under the frozen milestone policy.
+Codex SOVERSION remained 1 for this implementation slice; Final A1b
+subsequently moves all three Codex libraries to SOVERSION 2.
 
 The second production batch completes:
 
@@ -160,9 +161,9 @@ catalog scan, installation, sharing, or source retrieval itself.
 milestone adds no Node.js or npm build/runtime dependency and executes neither.
 This group leaves the canonical and Event variants at 57 and 59 alternatives;
 the later A1.4 groups append to the current sizes of 67 and 69 without moving
-these predecessors. Codex SOVERSION remains 1; the public aggregate and variant
-additions have real ABI impact even though the SOVERSION decision is deferred
-to final-A1 completion.
+these predecessors. Codex SOVERSION remained 1 for this implementation slice;
+Final A1b subsequently moves all three Codex libraries to SOVERSION 2 after the
+public aggregate and variant additions established the rebuild boundary.
 
 The current registry has since completed the MCP/reverse, runtime/platform,
 and Common Final A1a groups: global status is 339 Complete / 0 Partial / 0

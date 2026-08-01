@@ -55,10 +55,13 @@ is:
 - 48 NotApplicable
 
 Native A1.4 remains 56 Complete / 0 Partial / 0 NotImplemented. All 48
-InventoryOnly identities remain NotApplicable, and Codex SOVERSION remains 1;
-the compatibility transition is reserved for Final A1b. See the
+InventoryOnly identities remain NotApplicable. Final A1b removes the frozen
+deferred compatibility layer and moves all three Codex libraries to SOVERSION
+2. See the
 [Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
-for initialization and canonical error behavior.
+for initialization and canonical error behavior and the
+[Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
+for the exact source-compatibility boundary.
 
 AISuite validates current build and runtime compatibility with the installed
 SNode.C package. CI builds the current SNode.C `master` branch once, installs

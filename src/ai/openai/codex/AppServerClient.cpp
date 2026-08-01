@@ -146,7 +146,6 @@ namespace ai::openai::codex {
                 return;
             }
             const std::uint64_t generation = *allocatedGeneration;
-            initializeResult.reset();
             initializeResponse.reset();
             protocolSessionStarted = false;
             lifetime->callbackGeneration = generation;
@@ -208,10 +207,6 @@ namespace ai::openai::codex {
 
         const typed::Client& typed() const noexcept {
             return *typedClient;
-        }
-
-        std::optional<InitializeResult> getInitializeResult() const {
-            return initializeResult;
         }
 
         std::optional<typed::InitializeResponse> getInitializeResponse() const {
@@ -712,11 +707,6 @@ namespace ai::openai::codex {
                 return;
             }
 
-            initializeResult = InitializeResult{decodedInitializeResponse->codexHome.value,
-                                                decodedInitializeResponse->platformFamily,
-                                                decodedInitializeResponse->platformOs,
-                                                decodedInitializeResponse->userAgent,
-                                                decodedInitializeResponse->raw};
             initializeResponse = std::move(decodedInitializeResponse);
             transition(State::Ready);
             protocolSessionStarted = true;
@@ -1112,7 +1102,6 @@ namespace ai::openai::codex {
         std::size_t transportSendDepth = 0;
         bool flushingDeferredIncoming = false;
 
-        std::optional<InitializeResult> initializeResult;
         std::optional<typed::InitializeResponse> initializeResponse;
         RawProtocol::NotificationHandler onNotification;
         RawProtocol::ServerRequestHandler onServerRequest;
@@ -1295,10 +1284,6 @@ namespace ai::openai::codex {
 
     const typed::Requests& AppServerClient::requests() const noexcept {
         return typed().requests();
-    }
-
-    std::optional<InitializeResult> AppServerClient::getInitializeResult() const {
-        return impl->getInitializeResult();
     }
 
     std::optional<typed::InitializeResponse> AppServerClient::getInitializeResponse() const {
