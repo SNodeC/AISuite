@@ -170,5 +170,5 @@ not interpret method-specific parameters or results, classify server requests
 as approvals, choose models, persist backend state, or own a UI controller.
 The typed Codex API builds on this facade without duplicating its transport,
 framing, initialization, or request-ownership machinery. See
-[`typed-api.md`](typed-api.md) for the current typed operation, event, item, and
+[`api.md`](api.md) for the current typed operation, event, item, and
 server-request contract.

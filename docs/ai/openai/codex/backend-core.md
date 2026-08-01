@@ -35,14 +35,15 @@ entry or a raw-preservation disposition is not BackendCore command or state
 support.
 
 A0 changes no BackendCore commands, canonical state, or reducer semantics
-merely to improve those metrics. A2 will add the owner-frozen transport-neutral
-commands and state transitions after A1 completes the typed App Server layer.
+merely to improve those metrics. A1.6 remains the separate phase for
+owner-frozen transport-neutral commands and state transitions after A1.5
+completes the application façade.
 Unknown and future input continues through the existing bounded extension
 records in the meantime.
 
-A1.0 migrates BackendCore to the grouped `client.typed()` accessors and adds no
+A1.5 uses the final direct client domain accessors and adds no
 domain command or canonical-state meaning. A single production preservation
-helper converts typed-but-A2-unmodeled events into the existing
+helper converts typed but backend-unmodeled events into the existing
 `CodexExtensionReceived` path. It retains the surface identity, bounded raw
 payload, legacy optional decode error, and structured unknown-versus-malformed
 classification. Modeled events continue through their existing reducer cases.
@@ -166,7 +167,7 @@ bounded suffix for complete output. These bounds are configurable through
 `ReducerOptions`; ordinary 1,000-delta test bursts remain below the defaults
 and reconstruct exactly.
 
-The typed `UserMessageItem` separately retains its complete opaque content
+The typed `UserMessageThreadItem` separately retains its complete opaque content
 array. Its normalized snapshot/event `data` object has a dedicated 65,536-byte
 compact-serialization bound: `content` remains an array containing an ordered
 prefix of complete, unmodified entries, and the adjacent

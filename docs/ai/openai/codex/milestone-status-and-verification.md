@@ -1,7 +1,7 @@
 # Codex App Server protocol-core status and verification
 
 > This document records the Task 2 raw-protocol milestone. The current typed
-> layer built above it is documented in [`typed-api.md`](typed-api.md).
+> layer built above it is documented in [`api.md`](api.md).
 
 ## Milestone status
 

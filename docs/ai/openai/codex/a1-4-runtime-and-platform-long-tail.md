@@ -25,11 +25,11 @@ tests.
 ## Windows sandbox client API
 
 Include `<ai/openai/codex/typed/WindowsSandbox.h>` and use the PIMPL-backed
-facade returned by `client.typed().windowsSandbox()`:
+façade returned by `client.windowsSandbox()`:
 
 ```cpp
 #include <ai/openai/codex/AppServerClient.h>
-#include <ai/openai/codex/typed/Client.h>
+#include <ai/openai/codex/Api.h>
 #include <ai/openai/codex/typed/WindowsSandbox.h>
 
 #include <utility>
@@ -37,17 +37,18 @@ facade returned by `client.typed().windowsSandbox()`:
 void inspectAndConfigure(ai::openai::codex::AppServerClient& client) {
     namespace typed = ai::openai::codex::typed;
 
-    client.typed().windowsSandbox().checkReadiness(
-        [](const typed::WindowsSandbox::CheckReadinessResult& result) {
+    client.windowsSandbox().checkReadiness(
+        [](const typed::OperationResult<
+               typed::WindowsSandboxReadinessResponse>& result) {
             // Handle the typed asynchronous readiness result.
             (void)result;
         });
 
     typed::WindowsSandboxSetupStartParams params;
     params.mode = typed::WindowsSandboxSetupMode::unelevated();
-    client.typed().windowsSandbox().startSetup(
+    client.windowsSandbox().startSetup(
         std::move(params),
-        [](const typed::WindowsSandbox::StartSetupResult& result) {
+        [](const typed::OperationResult<typed::WindowsSandboxSetupStartResponse>& result) {
             // Handle the typed asynchronous setup-start result.
             (void)result;
         });
@@ -61,7 +62,7 @@ The methods and contracts are:
 | `checkReadiness(handler)` | `windowsSandbox/readiness` | `Unit` internally | `WindowsSandboxReadinessResponse` |
 | `startSetup(params, handler)` | `windowsSandbox/setupStart` | `WindowsSandboxSetupStartParams` | `WindowsSandboxSetupStartResponse` |
 
-Both methods return `RawProtocol::Submission` immediately and complete through
+Both methods return the shared `Submission` immediately and complete through
 an asynchronous `OperationResult<T>` callback on the existing SNode.C event
 loop. `checkReadiness` hides the protocol's `Unit` parameter from application
 code. `startSetup` preserves the required `WindowsSandboxSetupMode` and the
@@ -92,14 +93,14 @@ Applications observe them without inspecting raw JSON:
 
 ```cpp
 #include <ai/openai/codex/AppServerClient.h>
-#include <ai/openai/codex/typed/Client.h>
+#include <ai/openai/codex/Api.h>
 #include <ai/openai/codex/typed/Events.h>
 
 #include <variant>
 
 void observeProcessExit(ai::openai::codex::AppServerClient& client) {
     namespace typed = ai::openai::codex::typed;
-    client.typed().events().setOnEvent(
+    client.events().setOnEvent(
         [](const typed::Event& event) {
             if (const auto* exited =
                     std::get_if<typed::ProcessExitedNotification>(&event)) {

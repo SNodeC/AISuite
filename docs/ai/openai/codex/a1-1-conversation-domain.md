@@ -130,12 +130,11 @@ The eight expected residual partial identities are `initialize`,
 `item/fileChange/requestApproval`, and `item/tool/requestUserInput`. A1.1 does
 not claim them complete.
 
-## Client operations and grouped API
+## Client operations and direct API
 
-All 19 thread operations belong to `client.typed().threads()`. All three turn
-operations belong to `client.typed().turns()`. A1.1 does not add a
-`sessions()` facade. The old direct grouped accessors remain deprecated
-forwarders, and no operation is added directly to `AppServerClient`.
+All 19 thread operations belong to `client.threads()`. All three turn
+operations belong to `client.turns()`. There is no `sessions()` façade.
+A1.5 makes direct domain access the final application path.
 
 The reviewed semantic names and authoritative contracts are:
 
@@ -175,8 +174,7 @@ methods are:
 - `thread/shellCommand`; and
 - `turn/interrupt`.
 
-One explicit `Unit` type is used for all seven contracts.
-`TurnInterruptResult` can remain as a source-compatible alias. A Unit decoder
+One explicit `Unit` type is used for all seven contracts. A Unit decoder
 accepts only the pinned empty-object response contract; it does not interpret
 arbitrary missing or empty JSON as success.
 
@@ -263,7 +261,7 @@ known alternatives:
 - `userMessage`; and
 - `webSearch`.
 
-`using Item = ThreadItem;` remains as the transitional compatibility alias.
+The public application vocabulary uses `ThreadItem` directly.
 
 `ResponseItem` is a distinct public variant with these 16 known alternatives:
 
@@ -291,6 +289,10 @@ separate direction-specific alternatives.
 ## Nested tagged unions
 
 The exact 58 alternatives are split across 17 families:
+
+Names in this inventory are the vendored Codex schema definitions. The final
+C++ application vocabulary exposes schema `UserInput` as `TurnInput` and
+schema `AbsolutePathBuf` as `AbsolutePath`.
 
 | Family | Discriminator | Known alternatives | Count | Batch |
 |---|---|---|---:|---|
@@ -624,50 +626,33 @@ worker thread, completion timer, or second pending-request system.
 
 A1 is one documented consumer-rebuild boundary. A1.1 exposes unavoidable
 public variant corrections instead of preserving incomplete field models.
-Practical compatibility includes:
-
-- `Item = ThreadItem`;
-- `ToolCallItem = McpToolCallThreadItem` for the pre-A1.1 MCP-only
-  compatibility name;
-- a compatible `TurnInterruptResult` alias to the common `Unit`;
-- deprecated direct grouped accessors forwarding to `client.typed()`;
-- reviewed overloads and conversions for the six previously typed A1.1
-  operations;
-- a canonical complete `UserInput` model with an explicit compatibility path
-  from the old `TurnInput`;
-- complete `AskForApproval`, `SandboxPolicy`, and tagged `ThreadStatus`
-  models; and
-- distinct `ThreadItem` and `ResponseItem` variants with distinct unknown
-  alternatives.
+The final A1.5 vocabulary uses `ThreadItem` and `ResponseItem` as distinct
+direction-specific variants, `TurnInput` for turn content, direct domain
+accessors, complete canonical params, and the common `Unit` result. Complete
+`AskForApproval`, `SandboxPolicy`, and tagged `ThreadStatus` models remain.
 
 Ambiguous compatibility encodings are rejected, including requests that set
 old and new representations of the same protocol field simultaneously.
 
-The compatibility aliases retain the familiar item names, but the following
-public member-contract corrections are unavoidable source changes:
+The following public member-contract corrections are unavoidable source
+changes:
 
 | Public item | A1.1 source change |
 |---|---|
-| `Thread` | The previously optional partial snapshot fields are replaced by the required upstream aggregate: `cwd` is `AbsolutePathBuf`, `sessionId` is the strong `SessionId`, `status` is the tagged `ThreadStatus`, timestamps and core metadata are required, and source/name/goal/agent metadata plus raw diagnostics are represented. Aggregate initialization and callers that treated required fields as absent must be updated. |
-| `ThreadPage` | The old page model is now the compatibility alias for the complete `ThreadListResponse`; its complete response fields and raw retention are therefore visible to consumers. |
+| `Thread` | The previously optional partial snapshot fields are replaced by the required upstream aggregate: `cwd` is `AbsolutePath`, `sessionId` is the strong `SessionId`, `status` is the tagged `ThreadStatus`, timestamps and core metadata are required, and source/name/goal/agent metadata plus raw diagnostics are represented. Aggregate initialization and callers that treated required fields as absent must be updated. |
+| `ThreadListResponse` | The complete page response retains its response fields and raw input. |
 | `Turn` | `items` is the complete `ThreadItem` variant vector, `itemsView` is an open protocol value, `error` changes from `optional<Json>` to `OptionalNullable<TurnError>`, and temporal fields use explicit tri-state semantics. Raw retention and diagnostics are added, so aggregate order and field types change. |
 | `ThreadItem` | The variant expands from eight to nineteen alternatives and changes its alternative order; exhaustive visitors and index-based code must be updated. `ResponseItem` is now a separate seventeen-alternative variant. |
-| `AgentMessageItem` | `phase` changes from `optional<string>` to tri-state `MessagePhase`; `memoryCitation` and structured diagnostics are added. |
-| `UserMessageItem` | `content` changes from untyped `Json` to `vector<UserInput>`; `clientId` becomes tri-state `ClientUserMessageId` and follows `content` in aggregate order. The exact incoming content remains in `metadata.raw`. |
-| `ReasoningItem` | `summary` and `content` become optional vectors to represent omitted fields; `summaryOrDefault()` and `contentOrDefault()` provide read-only empty fallbacks. |
-| `CommandExecutionItem` | `cwd`, `status`, and `commandActions` become protocol types; nullable fields become tri-state; `output` is renamed to the canonical `aggregatedOutput`; `source` and diagnostics are added and aggregate order changes. |
-| `FileChangeItem` | `changes` becomes `vector<FileUpdateChange>` and `status` becomes `PatchApplyStatus`; the exact incoming changes remain in `metadata.raw`. |
-| `ToolCallItem` | The name now aliases only `McpToolCallThreadItem`; MCP status/result/error fields become typed or tri-state, `server` is required, and dynamic-tool-only fields move to `DynamicToolCallThreadItem`. |
-| `WebSearchItem` | `action` changes from untyped `Json` to tri-state `WebSearchAction`. |
+| `AgentMessageThreadItem` | `phase` changes from `optional<string>` to tri-state `MessagePhase`; `memoryCitation` and structured diagnostics are added. |
+| `UserMessageThreadItem` | `content` changes from untyped `Json` to `vector<TurnInput>`; `clientId` becomes tri-state `ClientUserMessageId` and follows `content` in aggregate order. The exact incoming content remains in `metadata.raw`. |
+| `ReasoningThreadItem` | `summary` and `content` become optional vectors to represent omitted fields; `summaryOrDefault()` and `contentOrDefault()` provide read-only empty fallbacks. |
+| `CommandExecutionThreadItem` | `cwd`, `status`, and `commandActions` become protocol types; nullable fields become tri-state; `output` is renamed to the canonical `aggregatedOutput`; `source` and diagnostics are added and aggregate order changes. |
+| `FileChangeThreadItem` | `changes` becomes `vector<FileUpdateChange>` and `status` becomes `PatchApplyStatus`; the exact incoming changes remain in `metadata.raw`. |
+| `McpToolCallThreadItem` | MCP status/result/error fields are typed or tri-state, `server` is required, and dynamic-tool-only fields belong to `DynamicToolCallThreadItem`. |
+| `WebSearchThreadItem` | `action` changes from untyped `Json` to tri-state `WebSearchAction`. |
 
-The old `ToolCallItem` name cannot also denote the newly distinct
-`DynamicToolCallThreadItem`: visitors that previously used `ToolCallItem` as a
-catch-all for tool activity must add an explicit dynamic-tool alternative.
-This is an intentional source change at the A1 consumer-rebuild boundary; the
-MCP spelling remains available through the alias above.
-
-`AppServerClient` keeps its PIMPL-only object layout.
-`typed::Client` remains a one-pointer PIMPL. Public variants may change under
+`McpToolCallThreadItem` and `DynamicToolCallThreadItem` remain distinct
+alternatives. `AppServerClient` keeps its PIMPL-only object layout. Public variants may change under
 the documented rebuild boundary. A1.1 does not bump `SOVERSION`.
 
 ## Backend and frontend non-change
@@ -705,7 +690,7 @@ set, and snapshot fields remain unchanged. `codex-backend-client` receives no
 functional change. `codex-backend` receives no production diff. The only
 production diff under `src/ai/openai/codex/frontend/` is the reviewed
 `BackendAdapter.cpp` mechanical construction/conversion update required by
-the completed `UserInput` and `SandboxPolicy` types; its command mapping and
+the completed turn-input and `SandboxPolicy` types; its command mapping and
 wire behavior are unchanged. Delete and shell operations are not exposed
 remotely and are exercised only with deterministic fake/socket transcripts in
 ordinary tests. Exact source-tree fingerprints guard all three application
@@ -742,14 +727,14 @@ identities. Their final split is seven Unit and fifteen Concrete, and all 22
 are bound to the exact request descriptor, complete result decoder, indexed
 fixture records, and raw-result retention path.
 
-The installed-consumer audit pins the exact 27 public Codex headers, exercises
-the completed typed and compatibility APIs, and retains the two-pointer
-`AppServerClient` and one-pointer `typed::Client` layouts. The source package
-retains all 3,715 fixture files, 13 evidence files, and seven offline tools.
-Three independently generated Codex component TGZ archives contain only the
-same public header inventory and the three SOVERSION-1 libraries; schemas,
-fixtures, evidence, generators, tests, documentation, private descriptors,
-and implementation sources are rejected from those binary packages.
+At the A1.1 milestone, the installed-consumer audit pinned 27 public Codex
+headers, exercised the then-current typed and compatibility APIs, and retained
+the `AppServerClient` PIMPL layout. The source package retained all 3,715
+fixture files, 13 evidence files, and seven offline tools. Its three component
+archives contained the then-current public header inventory and SOVERSION-1
+libraries while rejecting private implementation material. The current A1.5
+installed inventory is 29 main, seven backend, and seven frontend headers, and
+all three libraries remain on SOVERSION 2.
 
 Unknown future methods, discriminators, and open-enum values remain
 `ForwardCompatibility`; malformed known payloads remain

@@ -86,10 +86,10 @@ The exact residual Partial identities after B5 are `initialize`,
 `initialized`, `error`, `item/commandExecution/requestApproval`,
 `item/fileChange/requestApproval`, and `item/tool/requestUserInput`.
 
-## Client operations and grouped API
+## Client operations and direct API
 
-The three new facades are `client.typed().accounts()`,
-`client.typed().models()`, and `client.typed().configuration()`. They share
+The three façades are `client.accounts()`, `client.models()`, and
+`client.configuration()`. They share
 the existing `AppServerClient::RawProtocol`. No direct `AppServerClient`
 forwarder, generic string request facade, MCP facade, feature facade, session
 facade, protocol engine, pending map, request-ID allocator, connection
@@ -286,7 +286,7 @@ snapshot field, response shape, remote operation, or exposure decision is
 created. Frontend Protocol v1, its machine-readable schema, and
 `codex-backend-client` behavior remain byte- and semantics-identical.
 
-The three facades and `typed::Client` preserve one-pointer PIMPL ownership.
+The three façades are stable objects owned by the `AppServerClient` PIMPL.
 `AppServerClient` retains its PIMPL-only layout. A1.2 does not change
 SOVERSION, add public data members, or add/reorder virtual functions.
 
