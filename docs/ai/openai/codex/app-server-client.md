@@ -275,10 +275,16 @@ they are explained by an expected shutdown or child exit.
 
 ## Build integration
 
-The installed CMake target is:
+The example above uses the installed Codex target and calls the SNode.C core
+event-loop API directly, so it links both targets:
 
 ```cmake
-target_link_libraries(my_target PRIVATE AISuite::OpenAICodex)
+find_package(AISuite CONFIG REQUIRED)
+
+target_link_libraries(my_target PRIVATE
+    AISuite::OpenAICodex
+    snodec::core
+)
 ```
 
 The target exports a C++20 compile-feature requirement. The public

@@ -13,11 +13,16 @@ The umbrella header exposes the complete ordinary application API:
 #include <core/SNodeC.h>
 ```
 
-Link the provider library through its installed CMake target:
+Link the provider library and the SNode.C core API used by the lifecycle
+example through their installed CMake targets:
 
 ```cmake
 find_package(AISuite CONFIG REQUIRED)
-target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
+
+target_link_libraries(my_app PRIVATE
+    AISuite::OpenAICodex
+    snodec::core
+)
 ```
 
 Narrow consumers may continue to include individual public headers. The normal
