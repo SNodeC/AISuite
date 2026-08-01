@@ -217,12 +217,21 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
 
         self.assertEqual(387, len(rows))
         self.assertEqual(
-            Counter({"Complete": 336, "Partial": 3, "NotApplicable": 48}),
+            Counter({"Complete": 339, "NotApplicable": 48}),
             Counter(row["schema"] for row in rows),
         )
         self.assertEqual(
-            {"initialize", "initialized", "error"},
+            set(),
             {row["name"] for row in rows if row["schema"] == "Partial"},
+        )
+        self.assertEqual(
+            {"initialize", "initialized", "error"},
+            {
+                row["name"]
+                for row in rows
+                if row["name"] in {"initialize", "initialized", "error"}
+                and row["schema"] == "Complete"
+            },
         )
         native = [row for row in rows if row["slice"] == "A1_4"]
         self.assertEqual(Counter({"Complete": 56}), Counter(row["schema"] for row in native))

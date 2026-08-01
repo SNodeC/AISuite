@@ -5,8 +5,9 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/CodexErrorInfoCodec.h"
+
+#include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/detail/EventDecoder.h"
 #include "ai/openai/codex/detail/ItemDecoder.h"
 #include "ai/openai/codex/detail/ServerRequestDecoder.h"
@@ -32,6 +33,20 @@ namespace {
     using namespace ai::openai::codex::typed;
 
     constexpr std::string_view FixtureRoot = CODEX_A1_FIXTURE_ROOT;
+
+    static_assert(std::variant_size_v<CanonicalServerNotification> == 68);
+    static_assert(std::is_same_v<std::variant_alternative_t<59, CanonicalServerNotification>, DeprecationNoticeNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<60, CanonicalServerNotification>, ProcessExitedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<61, CanonicalServerNotification>, ProcessOutputDeltaNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<62, CanonicalServerNotification>, RemoteControlStatusChangedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<63, CanonicalServerNotification>, ServerRequestResolvedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<64, CanonicalServerNotification>, WarningNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<65, CanonicalServerNotification>, WindowsWorldWritableWarningNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<66, CanonicalServerNotification>, WindowsSandboxSetupCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<67, CanonicalServerNotification>, ErrorNotification>);
+    static_assert(std::variant_size_v<Event> == 69);
+    static_assert(std::is_same_v<std::variant_alternative_t<44, Event>, TurnErrorEvent>);
+    static_assert(std::is_same_v<std::variant_alternative_t<45, Event>, UnknownEvent>);
 
     Json fixture(std::string_view file) {
         std::ifstream input(std::filesystem::path(FixtureRoot) / "cases/unions/codexerrorinfo" / file);
@@ -82,12 +97,15 @@ namespace {
     }
 
     const Json& retainedRaw(const CodexErrorInfo& value) {
-        return std::visit([](const auto& alternative) -> const Json& { return alternative.raw; }, value);
+        return std::visit(
+            [](const auto& alternative) -> const Json& {
+                return alternative.raw;
+            },
+            value);
     }
 
     bool isForwardCompatible(const std::optional<DecodeDiagnostic>& diagnostic, DecodeIssueKind kind) {
-        return diagnostic && diagnostic->kind == kind &&
-               diagnostic->severity == DecodeIssueSeverity::ForwardCompatibility;
+        return diagnostic && diagnostic->kind == kind && diagnostic->severity == DecodeIssueSeverity::ForwardCompatibility;
     }
 
     bool isProtocolWarning(const std::optional<DecodeDiagnostic>& diagnostic) {
@@ -96,8 +114,7 @@ namespace {
     }
 
     bool omitsSensitiveValue(const DecodeDiagnostic& diagnostic, std::string_view sensitive) {
-        return diagnostic.surface.find(sensitive) == std::string::npos &&
-               diagnostic.fieldPath.find(sensitive) == std::string::npos &&
+        return diagnostic.surface.find(sensitive) == std::string::npos && diagnostic.fieldPath.find(sensitive) == std::string::npos &&
                diagnostic.message.find(sensitive) == std::string::npos;
     }
 
@@ -106,8 +123,8 @@ namespace {
         const Json withValue = fixture(std::string(stem) + ".json");
         const auto decodedValue = ai::openai::codex::detail::decodeCodexErrorInfo(withValue);
         const T* value = decodedValue.value ? std::get_if<T>(&*decodedValue.value) : nullptr;
-        result.expectTrue(value && value->httpStatusCode.present && value->httpStatusCode.value == 0 &&
-                              value->raw == withValue && !decodedValue.diagnostic,
+        result.expectTrue(value && value->httpStatusCode.present && value->httpStatusCode.value == 0 && value->raw == withValue &&
+                              !decodedValue.diagnostic,
                           std::string(stem) + " preserves the generated integer status and raw union");
 
         const Json withNull = fixture(std::string(stem) + "-http-status-null.json");
@@ -164,26 +181,20 @@ int main() {
     checkHttpTriState<ResponseStreamDisconnectedCodexErrorInfo>(result, "responsestreamdisconnected");
     checkHttpTriState<ResponseTooManyFailedAttemptsCodexErrorInfo>(result, "responsetoomanyfailedattempts");
 
-    const auto review =
-        ai::openai::codex::detail::decodeCodexErrorInfo(fixture("activeturnnotsteerable.json"));
-    const auto* reviewValue =
-        review.value ? std::get_if<ActiveTurnNotSteerableCodexErrorInfo>(&*review.value) : nullptr;
+    const auto review = ai::openai::codex::detail::decodeCodexErrorInfo(fixture("activeturnnotsteerable.json"));
+    const auto* reviewValue = review.value ? std::get_if<ActiveTurnNotSteerableCodexErrorInfo>(&*review.value) : nullptr;
     result.expectTrue(reviewValue && reviewValue->turnKind == NonSteerableTurnKind::review() && !review.diagnostic,
                       "review is a known open NonSteerableTurnKind value");
 
-    const auto compact =
-        ai::openai::codex::detail::decodeCodexErrorInfo(fixture("activeturnnotsteerable-turn-kind-compact.json"));
-    const auto* compactValue =
-        compact.value ? std::get_if<ActiveTurnNotSteerableCodexErrorInfo>(&*compact.value) : nullptr;
+    const auto compact = ai::openai::codex::detail::decodeCodexErrorInfo(fixture("activeturnnotsteerable-turn-kind-compact.json"));
+    const auto* compactValue = compact.value ? std::get_if<ActiveTurnNotSteerableCodexErrorInfo>(&*compact.value) : nullptr;
     result.expectTrue(compactValue && compactValue->turnKind == NonSteerableTurnKind::compact() && !compact.diagnostic,
                       "compact is a known open NonSteerableTurnKind value");
 
     const Json futureEnumRaw = fixture("activeturnnotsteerable-future-turn-kind.json");
     const auto futureEnum = ai::openai::codex::detail::decodeCodexErrorInfo(futureEnumRaw);
-    const auto* futureEnumValue =
-        futureEnum.value ? std::get_if<ActiveTurnNotSteerableCodexErrorInfo>(&*futureEnum.value) : nullptr;
-    result.expectTrue(futureEnumValue && futureEnumValue->turnKind.value == "futureTurnKind" &&
-                          futureEnumValue->raw == futureEnumRaw &&
+    const auto* futureEnumValue = futureEnum.value ? std::get_if<ActiveTurnNotSteerableCodexErrorInfo>(&*futureEnum.value) : nullptr;
+    result.expectTrue(futureEnumValue && futureEnumValue->turnKind.value == "futureTurnKind" && futureEnumValue->raw == futureEnumRaw &&
                           isForwardCompatible(futureEnum.diagnostic, DecodeIssueKind::UnknownEnumValue) &&
                           futureEnum.diagnostic->surface == "CodexErrorInfo" &&
                           futureEnum.diagnostic->fieldPath == "$.activeTurnNotSteerable.turnKind",
@@ -193,24 +204,20 @@ int main() {
     const auto future = ai::openai::codex::detail::decodeCodexErrorInfo(futureRaw);
     const auto* futureValue = future.value ? std::get_if<UnknownCodexErrorInfo>(&*future.value) : nullptr;
     result.expectTrue(futureValue && futureValue->discriminator == std::optional<std::string>{"futureCodexErrorInfo"} &&
-                          futureValue->raw == futureRaw &&
-                          isForwardCompatible(future.diagnostic, DecodeIssueKind::UnknownDiscriminator) &&
+                          futureValue->raw == futureRaw && isForwardCompatible(future.diagnostic, DecodeIssueKind::UnknownDiscriminator) &&
                           futureValue->diagnostic == *future.diagnostic,
                       "future CodexErrorInfo discriminators retain raw JSON as a low-severity unknown alternative");
 
-    const auto missingRequired =
-        ai::openai::codex::detail::decodeCodexErrorInfo(fixture("malformed-known.json"));
+    const auto missingRequired = ai::openai::codex::detail::decodeCodexErrorInfo(fixture("malformed-known.json"));
     result.expectTrue(!missingRequired.value && isProtocolWarning(missingRequired.diagnostic) &&
                           missingRequired.diagnostic->fieldPath == "$.activeTurnNotSteerable.turnKind",
                       "known alternatives missing a required nested field are protocol warnings");
 
     const auto wrongRootType = ai::openai::codex::detail::decodeCodexErrorInfo(Json::array({1, 2}));
-    result.expectTrue(!wrongRootType.value && isProtocolWarning(wrongRootType.diagnostic) &&
-                          wrongRootType.diagnostic->fieldPath == "$",
+    result.expectTrue(!wrongRootType.value && isProtocolWarning(wrongRootType.diagnostic) && wrongRootType.diagnostic->fieldPath == "$",
                       "a known union presented with the wrong root type is a protocol warning");
 
-    const auto nestedWrongType =
-        ai::openai::codex::detail::decodeCodexErrorInfo(fixture("nested-wrong-type.json"));
+    const auto nestedWrongType = ai::openai::codex::detail::decodeCodexErrorInfo(fixture("nested-wrong-type.json"));
     result.expectTrue(!nestedWrongType.value && isProtocolWarning(nestedWrongType.diagnostic) &&
                           nestedWrongType.diagnostic->fieldPath == "$.activeTurnNotSteerable.turnKind",
                       "a nested known-union field with the wrong type is a protocol warning");
@@ -242,11 +249,7 @@ int main() {
 
     const Json eventRaw = {
         {"method", "error"},
-        {"params",
-         {{"threadId", "thread-error"},
-          {"turnId", "turn-error"},
-          {"error", turnErrorRaw},
-          {"willRetry", false}}},
+        {"params", {{"threadId", "thread-error"}, {"turnId", "turn-error"}, {"error", turnErrorRaw}, {"willRetry", false}}},
     };
     const ai::openai::codex::Notification notification{
         "error",
@@ -255,11 +258,44 @@ int main() {
     };
     const Event decodedEvent = ai::openai::codex::detail::decodeEvent(notification);
     const auto* typedEvent = std::get_if<TurnErrorEvent>(&decodedEvent);
-    result.expectTrue(typedEvent && typedEvent->threadId.value == "thread-error" &&
-                          typedEvent->turnId.value == "turn-error" && typedEvent->error == turnErrorRaw &&
-                          typedEvent->raw == eventRaw && typedEvent->typedError &&
+    result.expectTrue(typedEvent && typedEvent->threadId.value == "thread-error" && typedEvent->turnId.value == "turn-error" &&
+                          typedEvent->error == turnErrorRaw && typedEvent->raw == eventRaw && typedEvent->typedError &&
                           typedEvent->typedError->codexErrorInfo.value,
                       "the production error-notification decoder integrates structured TurnError without changing raw fields");
+    result.expectTrue(typedEvent && typedEvent->canonical && typedEvent->canonical->threadId.value == "thread-error" &&
+                          typedEvent->canonical->turnId.value == "turn-error" && !typedEvent->canonical->willRetry &&
+                          typedEvent->canonical->error.message == "request failed" &&
+                          typedEvent->canonical->error.additionalDetails.isNull() &&
+                          typedEvent->canonical->error.codexErrorInfo.hasValue() && typedEvent->canonical->raw == eventRaw &&
+                          typedEvent->canonical->diagnostics.empty(),
+                      "TurnErrorEvent projects the complete canonical ErrorNotification without changing its Event alternative");
+
+    const std::array<Json, 3> presenceCases{{
+        Json{{"message", "omitted optionals"}, {"futureTurnError", true}},
+        Json{{"message", "explicit nulls"}, {"additionalDetails", nullptr}, {"codexErrorInfo", nullptr}},
+        Json{{"message", "present values"}, {"additionalDetails", "details"}, {"codexErrorInfo", "serverOverloaded"}},
+    }};
+    for (std::size_t index = 0; index < presenceCases.size(); ++index) {
+        Json raw = {{"method", "error"},
+                    {"params",
+                     {{"threadId", "thread-presence"},
+                      {"turnId", "turn-presence"},
+                      {"error", presenceCases[index]},
+                      {"willRetry", index != 0},
+                      {"futureNotification", index}}}};
+        const Event event = ai::openai::codex::detail::decodeEvent({"error", raw.at("params"), raw});
+        const auto* projection = std::get_if<TurnErrorEvent>(&event);
+        result.expectTrue(projection && projection->canonical && projection->canonical->raw == raw &&
+                              projection->canonical->error.raw == presenceCases[index] && projection->canonical->willRetry == (index != 0),
+                          "canonical error notification preserves required values, future fields, and both retry states");
+        if (projection && projection->canonical) {
+            const TurnError& value = projection->canonical->error;
+            result.expectTrue(index == 0   ? value.additionalDetails.isOmitted() && value.codexErrorInfo.isOmitted()
+                              : index == 1 ? value.additionalDetails.isNull() && value.codexErrorInfo.isNull()
+                                           : value.additionalDetails.hasValue() && value.codexErrorInfo.hasValue(),
+                              "TurnError preserves omitted, explicit-null, and populated optional fields");
+        }
+    }
 
     const Json malformedInfoTurnError = {
         {"message", "request failed"},
@@ -267,20 +303,34 @@ int main() {
     };
     const Json malformedEventRaw = {
         {"method", "error"},
-        {"params",
-         {{"threadId", "thread-error"},
-          {"turnId", "turn-error"},
-          {"error", malformedInfoTurnError},
-          {"willRetry", true}}},
+        {"params", {{"threadId", "thread-error"}, {"turnId", "turn-error"}, {"error", malformedInfoTurnError}, {"willRetry", true}}},
     };
-    const Event malformedInfoEvent = ai::openai::codex::detail::decodeEvent(
-        {"error", malformedEventRaw.at("params"), malformedEventRaw});
+    const Event malformedInfoEvent = ai::openai::codex::detail::decodeEvent({"error", malformedEventRaw.at("params"), malformedEventRaw});
     const auto* malformedTypedEvent = std::get_if<TurnErrorEvent>(&malformedInfoEvent);
-    result.expectTrue(malformedTypedEvent && malformedTypedEvent->typedError &&
-                          !malformedTypedEvent->typedError->codexErrorInfo.value &&
+    result.expectTrue(malformedTypedEvent && malformedTypedEvent->typedError && !malformedTypedEvent->typedError->codexErrorInfo.value &&
                           isProtocolWarning(malformedTypedEvent->typedError->codexErrorDiagnostic) &&
-                          malformedTypedEvent->error == malformedInfoTurnError,
+                          malformedTypedEvent->error == malformedInfoTurnError && malformedTypedEvent->canonical &&
+                          malformedTypedEvent->canonical->diagnostics.size() == 1 &&
+                          malformedTypedEvent->canonical->diagnostics.front().fieldPath ==
+                              "$.params.error.codexErrorInfo.activeTurnNotSteerable.turnKind",
                       "malformed known nested info remains a nonfatal typed error event with raw preservation");
+
+    for (const char* field : {"threadId", "turnId", "error", "willRetry"}) {
+        Json malformedOuter = eventRaw;
+        malformedOuter["params"].erase(field);
+        const Event malformed = ai::openai::codex::detail::decodeEvent({"error", malformedOuter.at("params"), malformedOuter});
+        const auto* unknown = std::get_if<UnknownEvent>(&malformed);
+        result.expectTrue(unknown && unknown->raw == malformedOuter && isProtocolWarning(unknown->diagnostic),
+                          std::string("missing required ErrorNotification field remains raw-observable: ") + field);
+    }
+
+    Json missingMessage = eventRaw;
+    missingMessage["params"]["error"].erase("message");
+    const Event missingMessageEvent = ai::openai::codex::detail::decodeEvent({"error", missingMessage.at("params"), missingMessage});
+    const auto* missingMessageUnknown = std::get_if<UnknownEvent>(&missingMessageEvent);
+    result.expectTrue(missingMessageUnknown && missingMessageUnknown->raw == missingMessage &&
+                          isProtocolWarning(missingMessageUnknown->diagnostic),
+                      "missing nested TurnError message is a nonfatal malformed-known event with raw preservation");
 
     const ai::openai::codex::ProtocolError protocolError{
         -32'001,
@@ -300,8 +350,7 @@ int main() {
         {"method", "future/event"},
         {"params", {{"retained", true}}},
     };
-    const Event futureEvent =
-        ai::openai::codex::detail::decodeEvent({"future/event", futureEventRaw.at("params"), futureEventRaw});
+    const Event futureEvent = ai::openai::codex::detail::decodeEvent({"future/event", futureEventRaw.at("params"), futureEventRaw});
     const auto* unknownEvent = std::get_if<UnknownEvent>(&futureEvent);
     result.expectTrue(unknownEvent && unknownEvent->raw == futureEventRaw &&
                           isForwardCompatible(unknownEvent->diagnostic, DecodeIssueKind::UnknownMethod) &&
@@ -312,11 +361,10 @@ int main() {
         {"method", "thread/started"},
         {"params", Json::array()},
     };
-    const Event malformedKnownEvent = ai::openai::codex::detail::decodeEvent(
-        {"thread/started", malformedKnownEventRaw.at("params"), malformedKnownEventRaw});
+    const Event malformedKnownEvent =
+        ai::openai::codex::detail::decodeEvent({"thread/started", malformedKnownEventRaw.at("params"), malformedKnownEventRaw});
     const auto* malformedEvent = std::get_if<UnknownEvent>(&malformedKnownEvent);
-    result.expectTrue(malformedEvent && malformedEvent->raw == malformedKnownEventRaw &&
-                          isProtocolWarning(malformedEvent->diagnostic) &&
+    result.expectTrue(malformedEvent && malformedEvent->raw == malformedKnownEventRaw && isProtocolWarning(malformedEvent->diagnostic) &&
                           malformedEvent->diagnostic->surface == "thread/started",
                       "known malformed notification payloads retain raw JSON with ProtocolWarning classification");
 
@@ -326,8 +374,7 @@ int main() {
         {"retained", true},
     };
     std::string itemError;
-    const auto futureItem = ai::openai::codex::detail::decodeItem(
-        futureItemRaw, ThreadId{"thread-item"}, TurnId{"turn-item"}, itemError);
+    const auto futureItem = ai::openai::codex::detail::decodeItem(futureItemRaw, ThreadId{"thread-item"}, TurnId{"turn-item"}, itemError);
     const auto* unknownItem = futureItem ? std::get_if<UnknownItem>(&*futureItem) : nullptr;
     result.expectTrue(unknownItem && itemError.empty() && unknownItem->raw == futureItemRaw &&
                           isForwardCompatible(unknownItem->diagnostic, DecodeIssueKind::UnknownDiscriminator),
@@ -337,8 +384,8 @@ int main() {
         {"id", "item-malformed"},
         {"type", "agentMessage"},
     };
-    const auto malformedItem = ai::openai::codex::detail::decodeItem(
-        malformedItemRaw, ThreadId{"thread-item"}, TurnId{"turn-item"}, itemError);
+    const auto malformedItem =
+        ai::openai::codex::detail::decodeItem(malformedItemRaw, ThreadId{"thread-item"}, TurnId{"turn-item"}, itemError);
     const auto* malformedUnknownItem = malformedItem ? std::get_if<UnknownItem>(&*malformedItem) : nullptr;
     result.expectTrue(malformedUnknownItem && itemError.empty() && malformedUnknownItem->raw == malformedItemRaw &&
                           isProtocolWarning(malformedUnknownItem->diagnostic),
@@ -356,8 +403,7 @@ int main() {
         futureRequestRaw,
         ai::openai::codex::ServerRequestToken{7},
     };
-    const auto futureRequest =
-        ai::openai::codex::detail::decodeServerRequest(futureServerRequest);
+    const auto futureRequest = ai::openai::codex::detail::decodeServerRequest(futureServerRequest);
     const auto* unknownRequest = std::get_if<UnknownServerRequest>(&futureRequest);
     result.expectTrue(unknownRequest && unknownRequest->raw == futureRequestRaw &&
                           isForwardCompatible(unknownRequest->diagnostic, DecodeIssueKind::UnknownMethod) &&
@@ -376,8 +422,7 @@ int main() {
         malformedRequestRaw,
         ai::openai::codex::ServerRequestToken{8},
     };
-    const auto malformedRequest =
-        ai::openai::codex::detail::decodeServerRequest(malformedServerRequest);
+    const auto malformedRequest = ai::openai::codex::detail::decodeServerRequest(malformedServerRequest);
     const auto* malformedUnknownRequest = std::get_if<UnknownServerRequest>(&malformedRequest);
     result.expectTrue(malformedUnknownRequest && malformedUnknownRequest->raw == malformedRequestRaw &&
                           isProtocolWarning(malformedUnknownRequest->diagnostic) &&
@@ -389,9 +434,8 @@ int main() {
     connectionIndependent.remoteError = protocolError;
     connectionIndependent.codexErrorInfo = remoteInfo;
     connectionIndependent.codexErrorDiagnostic = remoteDiagnostic;
-    result.expectTrue(connectionIndependent.kind == OperationResult<Json>::Kind::RemoteError &&
-                          connectionIndependent.remoteError && connectionIndependent.codexErrorInfo &&
-                          !connectionIndependent.codexErrorDiagnostic,
+    result.expectTrue(connectionIndependent.kind == OperationResult<Json>::Kind::RemoteError && connectionIndependent.remoteError &&
+                          connectionIndependent.codexErrorInfo && !connectionIndependent.codexErrorDiagnostic,
                       "structured decoding augments OperationResult without converting the remote failure classification");
 
     return result.processResult();

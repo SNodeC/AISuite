@@ -164,11 +164,10 @@ these predecessors. Codex SOVERSION remains 1; the public aggregate and variant
 additions have real ABI impact even though the SOVERSION decision is deferred
 to final-A1 completion.
 
-The current registry has since completed the MCP/reverse and runtime/platform
-groups: global status is 336 Complete / 3 Partial / 0 NotImplemented / 48
-NotApplicable, and native A1.4 is 56 Complete / 0 Partial / 0 NotImplemented.
-The remaining Partials are exactly `initialize`, `initialized`, and `error`,
-owned by Common/A1.0 and deferred to final-A1 completion.
+The current registry has since completed the MCP/reverse, runtime/platform,
+and Common Final A1a groups: global status is 339 Complete / 0 Partial / 0
+NotImplemented / 48 NotApplicable, and native A1.4 remains 56 Complete / 0
+Partial / 0 NotImplemented.
 
 ## Packaging and integrity
 

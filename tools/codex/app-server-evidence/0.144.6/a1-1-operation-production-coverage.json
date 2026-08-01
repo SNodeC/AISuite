@@ -110,8 +110,8 @@
     },
     {
       "path": "src/ai/openai/codex/typed/Types.h",
-      "bytes": 15505,
-      "sha256": "0d12bd885e6aab8d32159192daf4e734da81f961ec4b7d94da1903d5cda74636"
+      "bytes": 16640,
+      "sha256": "b1bdc8ba25ec86ab83d7a8a89e9b80dff8dce5a27ea8d125064525cfa9cd8cc5"
     },
     {
       "path": "tests/component/codex/CMakeLists.txt",

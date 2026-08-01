@@ -203,11 +203,8 @@ namespace ai::openai::codex::detail {
         }
 
         template <typename T, typename Decoder>
-        bool decodeOptionalNullable(const Json& object,
-                                    const char* name,
-                                    typed::OptionalNullable<T>& output,
-                                    Decoder&& decoder,
-                                    std::string& error) {
+        bool decodeOptionalNullable(
+            const Json& object, const char* name, typed::OptionalNullable<T>& output, Decoder&& decoder, std::string& error) {
             const Json* value = findMember(object, name);
             if (value == nullptr) {
                 output = typed::OptionalNullable<T>::omitted();
@@ -279,8 +276,7 @@ namespace ai::openai::codex::detail {
             }
             std::string threadId;
             std::string status;
-            if (!requireInt64(value, "createdAt", output.createdAt, error) ||
-                !requireString(value, "objective", output.objective, error) ||
+            if (!requireInt64(value, "createdAt", output.createdAt, error) || !requireString(value, "objective", output.objective, error) ||
                 !requireString(value, "status", status, error) || !requireString(value, "threadId", threadId, error) ||
                 !requireInt64(value, "timeUsedSeconds", output.timeUsedSeconds, error) ||
                 !decodeOptionalNullable(value, "tokenBudget", output.tokenBudget, decodeInt64Value, error) ||
@@ -323,10 +319,8 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
-        bool decodeTokenUsageBreakdownValue(const Json& value,
-                                            typed::TokenUsageBreakdown& output,
-                                            std::string& error,
-                                            std::string_view field) {
+        bool
+        decodeTokenUsageBreakdownValue(const Json& value, typed::TokenUsageBreakdown& output, std::string& error, std::string_view field) {
             if (!value.is_object()) {
                 error = std::string("notification param '") + std::string(field) + "' must be an object";
                 return false;
@@ -450,9 +444,8 @@ namespace ai::openai::codex::detail {
                 return false;
             }
             if (!requireString(value, "approvalsReviewer", reviewer, error) ||
-                !requireObject(value, "collaborationMode", collaborationMode, error) ||
-                !requireString(value, "cwd", cwd, error) || !requireString(value, "model", model, error) ||
-                !requireString(value, "modelProvider", output.modelProvider, error) ||
+                !requireObject(value, "collaborationMode", collaborationMode, error) || !requireString(value, "cwd", cwd, error) ||
+                !requireString(value, "model", model, error) || !requireString(value, "modelProvider", output.modelProvider, error) ||
                 !decodeOptionalNullable(
                     value, "activePermissionProfile", output.activePermissionProfile, decodeActivePermissionProfileValue, error) ||
                 !decodeCollaborationModeValue(*collaborationMode, output.collaborationMode, error) ||
@@ -509,11 +502,10 @@ namespace ai::openai::codex::detail {
                 !decodeOptionalNullable(value, "itemId", output.itemId, decodeStrongId<typed::ItemId>, error) ||
                 !decodeUnsignedValue(*numChannels, output.numChannels, error) ||
                 !decodeUnsignedValue(*sampleRate, output.sampleRate, error) ||
-                !decodeOptionalNullable(
-                    value, "samplesPerChannel", output.samplesPerChannel, decodeUnsignedValue<std::uint32_t>, error)) {
+                !decodeOptionalNullable(value, "samplesPerChannel", output.samplesPerChannel, decodeUnsignedValue<std::uint32_t>, error)) {
                 if (error.empty()) {
                     error = numChannels == nullptr ? "notification params are missing required 'numChannels' field"
-                                                  : "notification params are missing required 'sampleRate' field";
+                                                   : "notification params are missing required 'sampleRate' field";
                 }
                 return false;
             }
@@ -536,8 +528,7 @@ namespace ai::openai::codex::detail {
             }
             output.status.value = std::move(status);
             if (!output.status.isKnown()) {
-                auto diagnostic = unknownEnumDiagnostic(
-                    "TurnPlanStepStatus", "$.params.plan[" + std::to_string(index) + "].status");
+                auto diagnostic = unknownEnumDiagnostic("TurnPlanStepStatus", "$.params.plan[" + std::to_string(index) + "].status");
                 output.diagnostics.emplace_back(diagnostic);
                 diagnostics.emplace_back(std::move(diagnostic));
             }
@@ -552,10 +543,8 @@ namespace ai::openai::codex::detail {
                 notification.params,
                 notification.raw,
                 std::move(decodingError),
-                malformed ? std::optional<typed::DecodeDiagnostic>{
-                                malformedKnownDiagnostic(notification.method, "$.params")}
-                          : std::optional<typed::DecodeDiagnostic>{
-                                unknownMethodDiagnostic(notification.method)}}};
+                malformed ? std::optional<typed::DecodeDiagnostic>{malformedKnownDiagnostic(notification.method, "$.params")}
+                          : std::optional<typed::DecodeDiagnostic>{unknownMethodDiagnostic(notification.method)}}};
         }
 
         typed::Event malformedEvent(const Notification& notification, std::string error) {
@@ -1253,8 +1242,7 @@ namespace ai::openai::codex::detail {
             const Json* audio = nullptr;
             typed::ThreadRealtimeOutputAudioDeltaNotification event;
             if (!requireParamsObject(notification, error) || !requireObject(notification.params, "audio", audio, error) ||
-                !requireString(notification.params, "threadId", threadId, error) ||
-                !decodeAudioChunkValue(*audio, event.audio, error)) {
+                !requireString(notification.params, "threadId", threadId, error) || !decodeAudioChunkValue(*audio, event.audio, error)) {
                 return malformedEvent(notification, std::move(error));
             }
             event.threadId.value = std::move(threadId);
@@ -1281,8 +1269,7 @@ namespace ai::openai::codex::detail {
             std::string version;
             typed::ThreadRealtimeStartedNotification event;
             if (!requireParamsObject(notification, error) ||
-                !decodeOptionalNullable(
-                    notification.params, "realtimeSessionId", event.realtimeSessionId, decodeStringValue, error) ||
+                !decodeOptionalNullable(notification.params, "realtimeSessionId", event.realtimeSessionId, decodeStringValue, error) ||
                 !requireString(notification.params, "threadId", threadId, error) ||
                 !requireString(notification.params, "version", version, error)) {
                 return malformedEvent(notification, std::move(error));
@@ -1290,8 +1277,7 @@ namespace ai::openai::codex::detail {
             event.threadId.value = std::move(threadId);
             event.version.value = std::move(version);
             if (!event.version.isKnown()) {
-                event.diagnostics.emplace_back(
-                    unknownEnumDiagnostic("RealtimeConversationVersion", "$.params.version"));
+                event.diagnostics.emplace_back(unknownEnumDiagnostic("RealtimeConversationVersion", "$.params.version"));
             }
             event.raw = notification.raw;
             return typed::Event{std::move(event)};
@@ -1477,13 +1463,19 @@ namespace ai::openai::codex::detail {
                                                         notification.method + ": error payload could not be decoded",
                                                         std::move(turnDiagnostic)}};
             }
-            return typed::Event{typed::TurnErrorEvent{
-                typed::ThreadId{std::move(threadId)},
-                typed::TurnId{std::move(turnId)},
-                *turnError,
-                willRetry,
-                notification.raw,
-                std::move(typedError)}};
+            typed::ErrorNotification canonical{
+                *typedError, typed::ThreadId{std::move(threadId)}, typed::TurnId{std::move(turnId)}, willRetry, notification.raw, {}};
+            if (canonical.error.codexErrorDiagnostic) {
+                canonical.diagnostics.emplace_back(
+                    prefixedDiagnostic(*canonical.error.codexErrorDiagnostic, "$.params.error.codexErrorInfo"));
+            }
+            return typed::Event{typed::TurnErrorEvent{canonical.threadId,
+                                                      canonical.turnId,
+                                                      canonical.error.raw,
+                                                      canonical.willRetry,
+                                                      canonical.raw,
+                                                      canonical.error,
+                                                      std::move(canonical)}};
         }
 
     } // namespace
@@ -1499,8 +1491,8 @@ namespace ai::openai::codex::detail {
                 return unknownEvent(notification);
             }
             const auto descriptors = serverNotificationCodecDescriptors();
-            const auto descriptor = std::find_if(
-                descriptors.begin(), descriptors.end(), [&](const ServerNotificationCodecDescriptor& candidate) {
+            const auto descriptor =
+                std::find_if(descriptors.begin(), descriptors.end(), [&](const ServerNotificationCodecDescriptor& candidate) {
                     return candidate.target == *target;
                 });
             if (descriptor == descriptors.end() || descriptor->key != entry->key) {

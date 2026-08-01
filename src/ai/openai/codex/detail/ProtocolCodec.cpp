@@ -35,6 +35,27 @@ namespace ai::openai::codex::detail {
             return true;
         }
 
+        std::optional<Json> openObject(const Json& raw, std::string_view typeName, std::string& errorMessage) {
+            if (!raw.is_object()) {
+                errorMessage = std::string(typeName) + " raw value must be an object";
+                return std::nullopt;
+            }
+            return std::optional<Json>{std::in_place, raw};
+        }
+
+        template <typename T>
+        void encodeOptionalNullable(Json& object, const char* field, const typed::OptionalNullable<T>& value) {
+            object.erase(field);
+            if (!value.present) {
+                return;
+            }
+            if (value.value) {
+                object[field] = *value.value;
+            } else {
+                object[field] = nullptr;
+            }
+        }
+
         std::optional<ProtocolId> decodeProtocolId(const Json& id, std::string_view context, std::string& errorMessage) {
             if (id.is_string()) {
                 return ProtocolId{id.get<std::string>()};
@@ -132,7 +153,7 @@ namespace ai::openai::codex::detail {
         }
     } // namespace
 
-    std::optional<InitializeResult> decodeInitializeResult(const Json& result, std::string& errorMessage) {
+    std::optional<typed::InitializeResponse> decodeInitializeResponse(const Json& result, std::string& errorMessage) {
         errorMessage.clear();
 
         try {
@@ -141,16 +162,16 @@ namespace ai::openai::codex::detail {
                 return std::nullopt;
             }
 
-            InitializeResult initializeResult;
-            if (!readRequiredString(result, "codexHome", initializeResult.codexHome, errorMessage) ||
-                !readRequiredString(result, "platformFamily", initializeResult.platformFamily, errorMessage) ||
-                !readRequiredString(result, "platformOs", initializeResult.platformOs, errorMessage) ||
-                !readRequiredString(result, "userAgent", initializeResult.userAgent, errorMessage)) {
+            typed::InitializeResponse initializeResponse;
+            if (!readRequiredString(result, "codexHome", initializeResponse.codexHome.value, errorMessage) ||
+                !readRequiredString(result, "platformFamily", initializeResponse.platformFamily, errorMessage) ||
+                !readRequiredString(result, "platformOs", initializeResponse.platformOs, errorMessage) ||
+                !readRequiredString(result, "userAgent", initializeResponse.userAgent, errorMessage)) {
                 return std::nullopt;
             }
 
-            initializeResult.raw = result;
-            return initializeResult;
+            initializeResponse.raw = result;
+            return initializeResponse;
         } catch (const Json::exception& exception) {
             errorMessage = std::string("unable to decode initialize result: ") + exception.what();
         } catch (const std::exception& exception) {
@@ -160,6 +181,15 @@ namespace ai::openai::codex::detail {
         return std::nullopt;
     }
 
+    std::optional<InitializeResult> decodeInitializeResult(const Json& result, std::string& errorMessage) {
+        std::optional<typed::InitializeResponse> response = decodeInitializeResponse(result, errorMessage);
+        if (!response) {
+            return std::nullopt;
+        }
+        return InitializeResult{
+            response->codexHome.value, response->platformFamily, response->platformOs, response->userAgent, response->raw};
+    }
+
     std::optional<std::string>
     ProtocolCodec::encodeRequest(std::int64_t id, std::string_view method, const Json& params, std::string& errorMessage) {
         return encode({{"method", method}, {"id", id}, {"params", params}}, "protocol request", errorMessage);
@@ -167,6 +197,10 @@ namespace ai::openai::codex::detail {
 
     std::optional<std::string> ProtocolCodec::encodeNotification(std::string_view method, const Json& params, std::string& errorMessage) {
         return encode({{"method", method}, {"params", params}}, "protocol notification", errorMessage);
+    }
+
+    std::optional<std::string> ProtocolCodec::encodeNotification(std::string_view method, std::string& errorMessage) {
+        return encode({{"method", method}}, "protocol notification", errorMessage);
     }
 
     std::optional<std::string> ProtocolCodec::encodeSuccessResponse(const ProtocolId& id, const Json& result, std::string& errorMessage) {
@@ -183,10 +217,61 @@ namespace ai::openai::codex::detail {
         return encode({{"id", encodeProtocolId(id)}, {"error", std::move(encodedError)}}, "protocol error response", errorMessage);
     }
 
+    std::optional<Json> ProtocolCodec::encodeInitializeParams(const typed::InitializeParams& params, std::string& errorMessage) {
+        errorMessage.clear();
+        std::optional<Json> encoded = openObject(params.raw, "InitializeParams", errorMessage);
+        if (!encoded) {
+            return std::nullopt;
+        }
+
+        std::optional<Json> clientInfo = openObject(params.clientInfo.raw, "InitializeClientInfo", errorMessage);
+        if (!clientInfo) {
+            return std::nullopt;
+        }
+        (*clientInfo)["name"] = params.clientInfo.name;
+        (*clientInfo)["version"] = params.clientInfo.version;
+        encodeOptionalNullable(*clientInfo, "title", params.clientInfo.title);
+        (*encoded)["clientInfo"] = std::move(*clientInfo);
+
+        encoded->erase("capabilities");
+        if (!params.capabilities.present) {
+            return encoded;
+        }
+        if (!params.capabilities.value) {
+            (*encoded)["capabilities"] = nullptr;
+            return encoded;
+        }
+
+        const typed::InitializeCapabilities& input = *params.capabilities.value;
+        std::optional<Json> capabilities = openObject(input.raw, "InitializeCapabilities", errorMessage);
+        if (!capabilities) {
+            return std::nullopt;
+        }
+        const auto encodeOptionalBoolean = [&](const char* field, const std::optional<bool>& value) {
+            capabilities->erase(field);
+            if (value) {
+                (*capabilities)[field] = *value;
+            }
+        };
+        encodeOptionalBoolean("experimentalApi", input.experimentalApi);
+        encodeOptionalBoolean("mcpServerOpenaiFormElicitation", input.mcpServerOpenaiFormElicitation);
+        encodeOptionalNullable(*capabilities, "optOutNotificationMethods", input.optOutNotificationMethods);
+        encodeOptionalBoolean("requestAttestation", input.requestAttestation);
+        (*encoded)["capabilities"] = std::move(*capabilities);
+        return encoded;
+    }
+
     std::string ProtocolCodec::initializeRequest(std::int64_t id, const ClientInfo& clientInfo) {
-        const Json params = {{"clientInfo", {{"name", clientInfo.name}, {"title", clientInfo.title}, {"version", clientInfo.version}}}};
+        return initializeRequest(id, typed::InitializeParams{clientInfo});
+    }
+
+    std::string ProtocolCodec::initializeRequest(std::int64_t id, const typed::InitializeParams& input) {
         std::string errorMessage;
-        std::optional<std::string> message = encodeRequest(id, entryFor(ClientRequestTarget::Initialize).key.name, params, errorMessage);
+        std::optional<Json> params = encodeInitializeParams(input, errorMessage);
+        if (!params) {
+            throw std::runtime_error(errorMessage);
+        }
+        std::optional<std::string> message = encodeRequest(id, entryFor(ClientRequestTarget::Initialize).key.name, *params, errorMessage);
         if (!message) {
             throw std::runtime_error(errorMessage);
         }
@@ -196,8 +281,7 @@ namespace ai::openai::codex::detail {
 
     std::string ProtocolCodec::initializedNotification() {
         std::string errorMessage;
-        std::optional<std::string> message =
-            encodeNotification(entryFor(ClientNotificationTarget::Initialized).key.name, Json::object(), errorMessage);
+        std::optional<std::string> message = encodeNotification(entryFor(ClientNotificationTarget::Initialized).key.name, errorMessage);
         if (!message) {
             throw std::runtime_error(errorMessage);
         }

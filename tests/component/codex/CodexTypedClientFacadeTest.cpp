@@ -294,7 +294,7 @@ int main() {
     static_assert(!HasDirectReviewsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectSkillsAccessor<codex::AppServerClient>);
     static_assert(!HasDirectConfigurationAccessor<codex::AppServerClient>);
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 67);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
     static_assert(std::is_same_v<std::variant_alternative_t<47, typed::CanonicalServerNotification>,
                                  typed::FuzzyFileSearchSessionUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<48, typed::CanonicalServerNotification>, typed::GuardianWarningNotification>);

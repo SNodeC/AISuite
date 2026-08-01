@@ -570,6 +570,15 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
+    struct ErrorNotification {
+        TurnError error;
+        ThreadId threadId;
+        TurnId turnId;
+        bool willRetry = false;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+    };
+
     using CanonicalServerNotification = std::variant<AccountLoginCompletedNotification,
                                                      AccountRateLimitsUpdatedNotification,
                                                      AccountUpdatedNotification,
@@ -636,7 +645,8 @@ namespace ai::openai::codex::typed {
                                                      ServerRequestResolvedNotification,
                                                      WarningNotification,
                                                      WindowsWorldWritableWarningNotification,
-                                                     WindowsSandboxSetupCompletedNotification>;
+                                                     WindowsSandboxSetupCompletedNotification,
+                                                     ErrorNotification>;
 
     struct ThreadStarted {
         Thread thread;
@@ -703,8 +713,7 @@ namespace ai::openai::codex::typed {
         Kind kind = Kind::Text;
         std::int64_t index = 0;
         Json raw;
-        std::variant<std::monostate, ReasoningTextDeltaNotification, ReasoningSummaryTextDeltaNotification> canonical =
-            std::monostate{};
+        std::variant<std::monostate, ReasoningTextDeltaNotification, ReasoningSummaryTextDeltaNotification> canonical = std::monostate{};
     };
 
     struct CommandOutputDelta {
@@ -750,6 +759,7 @@ namespace ai::openai::codex::typed {
         bool willRetry = false;
         Json raw;
         std::optional<TurnError> typedError;
+        std::optional<ErrorNotification> canonical = std::nullopt;
     };
 
     struct UnknownEvent {

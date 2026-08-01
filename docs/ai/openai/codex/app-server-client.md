@@ -45,6 +45,7 @@ void setOnDiagnostic(ai::openai::codex::Callbacks::DiagnosticReceived callback);
 ai::openai::codex::AppServerClient::RawProtocol& raw() noexcept;
 ai::openai::codex::typed::Client& typed() noexcept;
 std::optional<ai::openai::codex::InitializeResult> getInitializeResult() const;
+std::optional<ai::openai::codex::typed::InitializeResponse> getInitializeResponse() const;
 ```
 
 Const overloads are available for both `raw()` and `typed()`. Include
@@ -134,6 +135,32 @@ ai::openai::codex::stdio::Client client(
     {.name = "my_client", .title = "My Client", .version = "1.0"});
 ```
 
+The source-compatible `ClientInfo` constructors continue to send the same
+identity. A canonical initialization configuration expresses the complete
+stable presence semantics:
+
+```cpp
+namespace typed = ai::openai::codex::typed;
+
+typed::InitializeCapabilities capabilities;
+capabilities.experimentalApi = false; // explicit false; nullopt omits it
+capabilities.mcpServerOpenaiFormElicitation = true;
+capabilities.optOutNotificationMethods =
+    typed::OptionalNullable<std::vector<std::string>>::explicitNull();
+capabilities.requestAttestation = true;
+
+typed::InitializeParams params{typed::InitializeClientInfo{
+    "my_client",
+    "1.0",
+    typed::OptionalNullable<std::string>::withValue("My Client"),
+}};
+params.capabilities =
+    typed::OptionalNullable<typed::InitializeCapabilities>::withValue(
+        std::move(capabilities));
+
+ai::openai::codex::stdio::Client client(std::move(params));
+```
+
 `AppServerClient` owns its transport through composition. It is not a socket
 client, and future transports can preserve this public lifecycle API.
 
@@ -210,16 +237,20 @@ distinct from all of these local errors.
 
 After the process and parent descriptors are ready, the client:
 
-1. sends one `initialize` request with the configured `ClientInfo`;
+1. sends one `initialize` request with the configured canonical client
+   information and capabilities;
 2. correlates the response by integer request ID;
-3. validates the minimal initialization result;
-4. sends the `initialized` notification; and
+3. validates all four required response fields (`codexHome`,
+   `platformFamily`, `platformOs`, and `userAgent`);
+4. enqueues the exact parameterless `{"method":"initialized"}` notification;
 5. transitions to `Ready`.
 
 Initialization uses the same monotonically increasing request-ID allocator as
 caller requests but remains internally owned. Raw callers cannot send the
 reserved `initialize` or `initialized` operations. The typed initialization
-fields and complete raw result are cached for `getInitializeResult()`.
+fields and complete raw result are cached for the source-compatible
+`getInitializeResult()` projection and the strong canonical
+`getInitializeResponse()` value.
 Structurally valid non-initialization messages received during the handshake are
 held in a bounded queue and dispatched in wire order after `Ready`.
 

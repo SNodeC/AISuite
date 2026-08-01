@@ -45,21 +45,20 @@ Windows protocol uses `WindowsSandbox`.
 
 ## Current protocol status
 
-Native A1.4 is complete. Its final runtime/platform slice adds exactly ten
-identities: two Windows sandbox client requests and eight server notifications.
-The live registry is:
+The stable Codex A1 typed protocol surface is complete. Final A1a completes
+the Common handshake and error identities after native A1.4. The live registry
+is:
 
-- 336 Complete
-- 3 Partial
+- 339 Complete
+- 0 Partial
 - 0 NotImplemented
 - 48 NotApplicable
 
-Native A1.4 is 56 Complete / 0 Partial / 0 NotImplemented. The remaining
-Partial identities are `initialize`, `initialized`, and `error`, owned by
-Common/A1.0 and deferred to final-A1 completion. All 48 InventoryOnly
-identities remain NotApplicable, and Codex SOVERSION remains 1. See the
-[runtime and platform report](docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md)
-for the exact surface and lifecycle behavior.
+Native A1.4 remains 56 Complete / 0 Partial / 0 NotImplemented. All 48
+InventoryOnly identities remain NotApplicable, and Codex SOVERSION remains 1;
+the compatibility transition is reserved for Final A1b. See the
+[Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
+for initialization and canonical error behavior.
 
 AISuite validates current build and runtime compatibility with the installed
 SNode.C package. CI builds the current SNode.C `master` branch once, installs

@@ -42,6 +42,10 @@ namespace {
     using ai::openai::codex::detail::ProcessExit;
     using ai::openai::codex::detail::Transport;
     using ai::openai::codex::detail::TransportCallbacks;
+    using ai::openai::codex::typed::InitializeCapabilities;
+    using ai::openai::codex::typed::InitializeClientInfo;
+    using ai::openai::codex::typed::InitializeParams;
+    using ai::openai::codex::typed::OptionalNullable;
 
     struct FakeTransportState {
         TransportCallbacks callbacks;
@@ -144,6 +148,10 @@ namespace {
     public:
         explicit TestClient(const std::shared_ptr<FakeTransportState>& state)
             : AppServerClient(std::make_unique<FakeTransport>(state), {"protocol_engine_test", "Protocol Engine Test", "1"}) {
+        }
+
+        TestClient(const std::shared_ptr<FakeTransportState>& state, InitializeParams initializeParams)
+            : AppServerClient(std::make_unique<FakeTransport>(state), std::move(initializeParams)) {
         }
     };
 
@@ -254,7 +262,17 @@ namespace {
         void beginFunctionalScenario() {
             state = std::make_shared<FakeTransportState>();
             installStandardSendHook(true);
-            client = std::make_unique<TestClient>(state);
+            InitializeCapabilities capabilities;
+            capabilities.experimentalApi = false;
+            capabilities.mcpServerOpenaiFormElicitation = true;
+            capabilities.optOutNotificationMethods = OptionalNullable<std::vector<std::string>>::withValue({"warning"});
+            capabilities.requestAttestation = true;
+            capabilities.raw = Json{{"futureCapability", true}};
+            InitializeParams initializeParams{InitializeClientInfo{
+                "protocol_engine_test", "1", OptionalNullable<std::string>::explicitNull(), Json{{"futureClientInfo", true}}}};
+            initializeParams.capabilities = OptionalNullable<InitializeCapabilities>::withValue(std::move(capabilities));
+            initializeParams.raw = Json{{"futureInitialize", true}};
+            client = std::make_unique<TestClient>(state, std::move(initializeParams));
 
             client->raw().setOnNotification([this](const Notification& notification) {
                 functionalNotification(notification);
@@ -384,6 +402,17 @@ namespace {
             expect(state->outgoing.size() >= 2 && state->outgoing[0]["method"] == "initialize" &&
                        state->outgoing[1]["method"] == "initialized",
                    "initialize request and initialized notification remain internally owned and wire ordered");
+            expect(!state->outgoing[1].contains("params"),
+                   "the automatic initialized notification uses the exact parameterless stable envelope");
+            expect(state->outgoing[0]["params"]["clientInfo"]["title"].is_null() &&
+                       state->outgoing[0]["params"]["clientInfo"]["futureClientInfo"] == true &&
+                       state->outgoing[0]["params"]["capabilities"]["experimentalApi"] == false &&
+                       state->outgoing[0]["params"]["capabilities"]["mcpServerOpenaiFormElicitation"] == true &&
+                       state->outgoing[0]["params"]["capabilities"]["optOutNotificationMethods"] == Json::array({"warning"}) &&
+                       state->outgoing[0]["params"]["capabilities"]["requestAttestation"] == true &&
+                       state->outgoing[0]["params"]["capabilities"]["futureCapability"] == true &&
+                       state->outgoing[0]["params"]["futureInitialize"] == true,
+                   "the automatic initialize request uses the complete canonical presence-state configuration");
 
             const std::optional<ai::openai::codex::InitializeResult> initializeResult = client->getInitializeResult();
             expect(initializeResult && initializeResult->codexHome == "/tmp/codex-home" && initializeResult->platformFamily == "unix" &&
@@ -391,6 +420,11 @@ namespace {
                    "typed initialization fields are cached after the internal handshake");
             expect(initializeResult && initializeResult->raw["future"]["kept"] == true,
                    "the complete raw initialization result retains future fields");
+            const auto initializeResponse = client->getInitializeResponse();
+            expect(initializeResponse && initializeResponse->codexHome.value == "/tmp/codex-home" &&
+                       initializeResponse->platformFamily == "unix" && initializeResponse->platformOs == "linux" &&
+                       initializeResponse->userAgent == "codex-test/1" && initializeResponse->raw["future"]["kept"] == true,
+                   "the same handshake decoder publishes the complete strong canonical initialize response");
 
             const auto emptyMethod = client->raw().request("", Json::object(), [](const Response&) {
             });
@@ -523,13 +557,12 @@ namespace {
                 expect(!failedResponse && failedResponse.error && failedResponse.error->category == Error::Category::Enqueue,
                        "failed response enqueue remains observable and retains server-request ownership");
 
-                const auto rejection =
-                    client->raw().reject(request.id,
-                                         ProtocolError{
-                                             -32001,
-                                             "Request rejected",
-                                             std::optional<Json>{Json{{"reason", "test rejection"}}},
-                                         });
+                const auto rejection = client->raw().reject(request.id,
+                                                            ProtocolError{
+                                                                -32001,
+                                                                "Request rejected",
+                                                                std::optional<Json>{Json{{"reason", "test rejection"}}},
+                                                            });
                 expect(rejection && state->outgoing.back()["id"] == "approval-123" && state->outgoing.back()["error"]["code"] == -32001 &&
                            state->outgoing.back()["error"]["message"] == "Request rejected" &&
                            state->outgoing.back()["error"]["data"] == Json{{"reason", "test rejection"}},
@@ -713,6 +746,35 @@ namespace {
                            "synchronous failure during initialized send cannot resurrect initialization into Ready");
                     expect(!client->getInitializeResult(),
                            "failed initialized notification send does not publish an initialization result");
+                    client->stop();
+                } else if (change.current == State::Stopped) {
+                    defer([this]() {
+                        client.reset();
+                        beginMalformedInitializeScenario();
+                    });
+                }
+            });
+            client->start();
+        }
+
+        void beginMalformedInitializeScenario() {
+            state = std::make_shared<FakeTransportState>();
+            state->sendHook = [](const Json& message, const TransportCallbacks& callbacks) {
+                if (message.value("method", "") == "initialize") {
+                    inject(callbacks,
+                           {{"id", message.at("id")},
+                            {"result", {{"platformFamily", "unix"}, {"platformOs", "linux"}, {"userAgent", "codex-test/1"}}}});
+                }
+            };
+            client = std::make_unique<TestClient>(state);
+            client->setOnStateChanged([this](const StateChange& change) {
+                if (change.current == State::Ready) {
+                    malformedInitializeReachedReady = true;
+                } else if (change.current == State::Failed) {
+                    expect(!malformedInitializeReachedReady && change.error && change.error->category == Error::Category::Initialization,
+                           "a malformed initialize response fails initialization without transitioning to Ready");
+                    expect(!client->getInitializeResult() && !client->getInitializeResponse(),
+                           "a malformed initialize response publishes neither legacy nor canonical result state");
                     client->stop();
                 } else if (change.current == State::Stopped) {
                     defer([this]() {
@@ -1077,6 +1139,7 @@ namespace {
         bool responseCallbackDestroyedClient = false;
         bool serverRequestCallbackDestroyedClient = false;
         bool initializedSendFailureReachedReady = false;
+        bool malformedInitializeReachedReady = false;
         bool notifyInvalidationReturnedFailure = false;
         std::size_t transportFailureCancellationCount = 0;
         std::vector<std::string> answeredRequestFollowOnOrder;

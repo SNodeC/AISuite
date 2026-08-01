@@ -50,8 +50,10 @@ int main() {
     static_assert(std::variant_size_v<typed::WebSearchAction> == 5);
     static_assert(std::variant_size_v<typed::ThreadItem> == 19);
     static_assert(std::variant_size_v<typed::ResponseItem> == 17);
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 67);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
     static_assert(std::variant_size_v<typed::Event> == 69);
+    static_assert(std::is_same_v<std::variant_alternative_t<44, typed::Event>, typed::TurnErrorEvent>);
+    static_assert(std::is_same_v<std::variant_alternative_t<45, typed::Event>, typed::UnknownEvent>);
     static_assert(std::is_same_v<std::variant_alternative_t<51, typed::CanonicalServerNotification>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<52, typed::CanonicalServerNotification>,
                                  typed::ExternalAgentConfigImportCompletedNotification>);
@@ -69,6 +71,7 @@ int main() {
         std::is_same_v<std::variant_alternative_t<63, typed::CanonicalServerNotification>, typed::ServerRequestResolvedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<66, typed::CanonicalServerNotification>,
                                  typed::WindowsSandboxSetupCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<67, typed::CanonicalServerNotification>, typed::ErrorNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<53, typed::Event>, typed::AppListUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<54, typed::Event>, typed::ExternalAgentConfigImportCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<55, typed::Event>, typed::ExternalAgentConfigImportProgressNotification>);
@@ -418,6 +421,49 @@ int main() {
     installedStartParams.clientUserMessageId = typed::ClientUserMessageId{"client-message"};
 
     ai::openai::codex::stdio::Client client;
+    [[maybe_unused]] ai::openai::codex::stdio::Client legacyClientInfoClient(
+        ai::openai::codex::ClientInfo{"installed-legacy-client", "Installed legacy client", "1.0"});
+    typed::InitializeCapabilities installedInitializeCapabilities;
+    installedInitializeCapabilities.experimentalApi = false;
+    installedInitializeCapabilities.mcpServerOpenaiFormElicitation = true;
+    installedInitializeCapabilities.optOutNotificationMethods = typed::OptionalNullable<std::vector<std::string>>::explicitNull();
+    installedInitializeCapabilities.requestAttestation = true;
+    typed::InitializeParams installedInitializeParams{typed::InitializeClientInfo{
+        "installed-client",
+        "1.0",
+        typed::OptionalNullable<std::string>::withValue("Installed client"),
+        {{"futureClientInfo", true}},
+    }};
+    installedInitializeParams.capabilities =
+        typed::OptionalNullable<typed::InitializeCapabilities>::withValue(std::move(installedInitializeCapabilities));
+    ai::openai::codex::stdio::Client canonicalInitializeClient(std::move(installedInitializeParams));
+    [[maybe_unused]] ai::openai::codex::stdio::Client canonicalExecutableClient(
+        "codex", {}, typed::InitializeParams{typed::InitializeClientInfo{"installed-executable-client", "1.0"}});
+    [[maybe_unused]] const std::optional<typed::InitializeResponse> installedInitializeResponse =
+        canonicalInitializeClient.getInitializeResponse();
+
+    typed::TurnError installedTurnError;
+    installedTurnError.message = "Synthetic installed error";
+    installedTurnError.additionalDetails = typed::OptionalNullable<std::string>::explicitNull();
+    installedTurnError.codexErrorInfo = typed::OptionalNullable<typed::CodexErrorInfo>::omitted();
+    installedTurnError.raw = {{"message", "Synthetic installed error"}, {"additionalDetails", nullptr}};
+    typed::ErrorNotification installedCanonicalError{
+        installedTurnError,
+        {"thread-installed-error"},
+        {"turn-installed-error"},
+        false,
+        {{"method", "error"}},
+        {},
+    };
+    [[maybe_unused]] typed::TurnErrorEvent installedTurnErrorProjection{
+        installedCanonicalError.threadId,
+        installedCanonicalError.turnId,
+        installedCanonicalError.error.raw,
+        installedCanonicalError.willRetry,
+        installedCanonicalError.raw,
+        installedCanonicalError.error,
+        installedCanonicalError,
+    };
     typed::ListMcpServerStatusParams installedMcpStatusParams;
     const auto mcpStatusSubmission = client.typed().mcp().listServers(
         std::move(installedMcpStatusParams), [](const typed::OperationResult<typed::ListMcpServerStatusResponse>&) {

@@ -504,6 +504,13 @@ A14_RUNTIME_PLATFORM_NOTIFICATIONS = frozenset(
         )
     }
 )
+FINAL_A1_COMMON_PROTOCOL_COMPLETION = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "initialize"),
+        ("client_notification", "ClientNotification", "method", "initialized"),
+        ("server_notification", "ServerNotification", "method", "error"),
+    }
+)
 # SHA-256 over the sorted stable tagged-union key -> reaching-root-id mapping,
 # using _reachability_membership_sha256(). The deterministic schema generator
 # independently regenerates the full report; this reviewed pin prevents a
@@ -3113,7 +3120,7 @@ SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD = {
     "command/exec/outputDelta": "typed::CommandExecOutputDeltaNotification",
     "configWarning": "typed::ConfigWarningNotification",
     "deprecationNotice": "typed::DeprecationNoticeNotification",
-    "error": "typed::TurnErrorEvent",
+    "error": "typed::ErrorNotification",
     "externalAgentConfig/import/completed": (
         "typed::ExternalAgentConfigImportCompletedNotification"
     ),
@@ -3203,6 +3210,7 @@ SERVER_NOTIFICATION_EVENT_ALTERNATIVES_BY_METHOD = {
 }
 SERVER_NOTIFICATION_EVENT_ALTERNATIVES_BY_METHOD.update(
     {
+        "error": "TurnErrorEvent",
         "item/agentMessage/delta": "AgentMessageDelta",
         "item/commandExecution/outputDelta": "CommandOutputDelta",
         "item/completed": "ItemCompleted",
@@ -6484,6 +6492,13 @@ def registry_statuses(
         # tests cover complete, omitted, null, future-open, and malformed data.
         for field in COMPLETENESS_EVIDENCE_FIELDS:
             evidence[field] = True
+    if identity in FINAL_A1_COMMON_PROTOCOL_COMPLETION and target is not None:
+        # The three Common lifecycle identities are schema-complete through the
+        # automatic initialize/initialized handshake and the canonical error
+        # notification decoder. Focused codec, lifecycle, projection, fixture,
+        # and current-state tests cover every stable field and presence state.
+        for field in COMPLETENESS_EVIDENCE_FIELDS:
+            evidence[field] = True
     if identity in A14_ATTESTATION_AND_DYNAMIC_TOOL and target is not None:
         # The A1.4b attestation/dynamic-tool group contains attestation generation and dynamic-tool
         # calls. Canonical open-object models, exact decode/encode coverage,
@@ -7770,6 +7785,14 @@ def generate_server_notification_descriptor_data(
         and assignments[key].get("module") == "IntegrationsAndLongTail"
     }
     residual_keys -= a14_runtime_platform_keys
+    common_error_keys = {
+        key
+        for key in residual_keys
+        if key in FINAL_A1_COMMON_PROTOCOL_COMPLETION
+        and assignments[key].get("slice") == "A1.0"
+        and assignments[key].get("module") == "Common"
+    }
+    residual_keys -= common_error_keys
     if (
         len(a11_keys) != 37
         or len(a12_b2_keys) != 3
@@ -7781,7 +7804,8 @@ def generate_server_notification_descriptor_data(
         or len(a14_user_integration_keys) != 6
         or len(a14_mcp_reverse_keys) != 2
         or len(a14_runtime_platform_keys) != 8
-        or {key[3] for key in residual_keys} != {"error"}
+        or len(common_error_keys) != 1
+        or residual_keys
     ):
         raise SurfaceError(
             "ServerNotificationDescriptorSliceMismatch: "
@@ -7789,8 +7813,7 @@ def generate_server_notification_descriptor_data(
             "3 A1.2 B3, 1 A1.2 B4, 1 A1.3 command, and 3 A1.3 "
             "filesystem/fuzzy, 3 A1.3 review/guardian, 6 A1.4 "
             "user-integration, 2 A1.4 MCP, and 8 A1.4 runtime/platform rows "
-            "from the "
-            "residual partial error row"
+            "plus the completed Common error row"
         )
 
     lines = [
