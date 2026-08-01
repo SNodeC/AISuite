@@ -173,11 +173,13 @@ namespace ai::openai::codex::typed {
 
     class Apps {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using ListResult = OperationResult<AppsListResponse>;
-        using ListResultHandler = std::function<void(const ListResult&)>;
+        Apps(const Apps&) = delete;
+        Apps(Apps&&) = delete;
+        Apps& operator=(const Apps&) = delete;
+        Apps& operator=(Apps&&) = delete;
 
-        Submission list(AppsListParams params, ListResultHandler handler);
+        Submission list(AppsListParams params, CompletionHandler<AppsListResponse> handler);
+        Submission list(CompletionHandler<AppsListResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

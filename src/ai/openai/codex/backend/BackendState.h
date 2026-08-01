@@ -9,7 +9,11 @@
 #define AI_OPENAI_CODEX_BACKEND_BACKENDSTATE_H
 
 #include "ai/openai/codex/AppServerClient.h"
-#include "ai/openai/codex/typed/Client.h"
+#include "ai/openai/codex/typed/Conversation.h"
+#include "ai/openai/codex/typed/Items.h"
+#include "ai/openai/codex/typed/ServerRequests.h"
+#include "ai/openai/codex/typed/Threads.h"
+#include "ai/openai/codex/typed/Turns.h"
 
 #include <compare>
 #include <cstddef>
@@ -96,7 +100,7 @@ namespace ai::openai::codex::backend {
     };
 
     struct ItemState {
-        typed::Item item;
+        typed::ThreadItem item;
         ItemLifecycle lifecycle = ItemLifecycle::Unknown;
         std::string agentText;
         std::string reasoningText;
@@ -175,8 +179,8 @@ namespace ai::openai::codex::backend {
 
     BackendLifecycle toBackendLifecycle(State state) noexcept;
     bool isTerminal(const typed::TurnStatus& status) noexcept;
-    std::optional<typed::ItemId> itemId(const typed::Item& item);
-    std::string itemType(const typed::Item& item);
+    std::optional<typed::ItemId> itemId(const typed::ThreadItem& item);
+    std::string itemType(const typed::ThreadItem& item);
 
     ThreadState* findThread(BackendState& state, const typed::ThreadId& threadId) noexcept;
     const ThreadState* findThread(const BackendState& state, const typed::ThreadId& threadId) noexcept;

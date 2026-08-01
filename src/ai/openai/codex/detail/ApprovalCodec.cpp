@@ -1410,7 +1410,7 @@ namespace ai::openai::codex::detail {
                         return success;
                     },
                     invalidPath) ||
-                !decodeOptionalNullable(value, "cwd", result->cwd, decodeStrongString<typed::LegacyAppPathString>, invalidPath) ||
+                !decodeOptionalNullable(value, "cwd", result->cwd, decodeStrongString<typed::PathString>, invalidPath) ||
                 !decodeOptionalNullable(value, "environmentId", result->environmentId, decodeString, invalidPath) ||
                 !decodeRequired(value, "itemId", result->itemId, decodeStrongString<typed::ItemId>, invalidPath) ||
                 !decodeOptionalNullable(
@@ -1497,7 +1497,7 @@ namespace ai::openai::codex::detail {
                 return std::nullopt;
             }
             std::string invalidPath;
-            if (!decodeRequired(value, "cwd", result->cwd, decodeStrongString<typed::AbsolutePathBuf>, invalidPath) ||
+            if (!decodeRequired(value, "cwd", result->cwd, decodeStrongString<typed::AbsolutePath>, invalidPath) ||
                 !decodeOptionalNullable(value, "environmentId", result->environmentId, decodeString, invalidPath) ||
                 !decodeRequired(value, "itemId", result->itemId, decodeStrongString<typed::ItemId>, invalidPath)) {
                 fail(error, "PermissionsRequestApprovalParams field '" + invalidPath + "' has the wrong type or is missing");

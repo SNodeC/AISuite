@@ -49,10 +49,13 @@ namespace ai::openai::codex::typed {
 
     class PermissionProfiles {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using ListResultHandler = std::function<void(const OperationResult<PermissionProfileListResponse>&)>;
+        PermissionProfiles(const PermissionProfiles&) = delete;
+        PermissionProfiles(PermissionProfiles&&) = delete;
+        PermissionProfiles& operator=(const PermissionProfiles&) = delete;
+        PermissionProfiles& operator=(PermissionProfiles&&) = delete;
 
-        Submission list(PermissionProfileListParams params, ListResultHandler handler);
+        Submission list(PermissionProfileListParams params, CompletionHandler<PermissionProfileListResponse> handler);
+        Submission list(CompletionHandler<PermissionProfileListResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

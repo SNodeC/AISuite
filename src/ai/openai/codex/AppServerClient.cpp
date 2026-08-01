@@ -12,7 +12,26 @@
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "ai/openai/codex/detail/RuntimePlatformCodec.h"
 #include "ai/openai/codex/detail/Transport.h"
-#include "ai/openai/codex/typed/Client.h"
+#include "ai/openai/codex/typed/Accounts.h"
+#include "ai/openai/codex/typed/Apps.h"
+#include "ai/openai/codex/typed/Commands.h"
+#include "ai/openai/codex/typed/Configuration.h"
+#include "ai/openai/codex/typed/Events.h"
+#include "ai/openai/codex/typed/ExternalAgents.h"
+#include "ai/openai/codex/typed/Feedback.h"
+#include "ai/openai/codex/typed/Filesystem.h"
+#include "ai/openai/codex/typed/Hooks.h"
+#include "ai/openai/codex/typed/Marketplace.h"
+#include "ai/openai/codex/typed/Mcp.h"
+#include "ai/openai/codex/typed/Models.h"
+#include "ai/openai/codex/typed/PermissionProfiles.h"
+#include "ai/openai/codex/typed/Plugins.h"
+#include "ai/openai/codex/typed/Reviews.h"
+#include "ai/openai/codex/typed/ServerRequests.h"
+#include "ai/openai/codex/typed/Skills.h"
+#include "ai/openai/codex/typed/Threads.h"
+#include "ai/openai/codex/typed/Turns.h"
+#include "ai/openai/codex/typed/WindowsSandbox.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "log/LogScopeOwner.h"
@@ -193,20 +212,126 @@ namespace ai::openai::codex {
             return rawProtocol;
         }
 
-        const RawProtocol& raw() const noexcept {
-            return rawProtocol;
+        void installFacades(std::unique_ptr<typed::Accounts> accounts,
+                            std::unique_ptr<typed::Apps> apps,
+                            std::unique_ptr<typed::Commands> commands,
+                            std::unique_ptr<typed::Configuration> configuration,
+                            std::unique_ptr<typed::Events> events,
+                            std::unique_ptr<typed::ExternalAgents> externalAgents,
+                            std::unique_ptr<typed::Feedback> feedback,
+                            std::unique_ptr<typed::Filesystem> filesystem,
+                            std::unique_ptr<typed::Hooks> hooks,
+                            std::unique_ptr<typed::Marketplace> marketplace,
+                            std::unique_ptr<typed::Mcp> mcp,
+                            std::unique_ptr<typed::Models> models,
+                            std::unique_ptr<typed::PermissionProfiles> permissionProfiles,
+                            std::unique_ptr<typed::Plugins> plugins,
+                            std::unique_ptr<typed::Requests> requests,
+                            std::unique_ptr<typed::Reviews> reviews,
+                            std::unique_ptr<typed::Skills> skills,
+                            std::unique_ptr<typed::Threads> threads,
+                            std::unique_ptr<typed::Turns> turns,
+                            std::unique_ptr<typed::WindowsSandbox> windowsSandbox) {
+            this->accounts = std::move(accounts);
+            this->apps = std::move(apps);
+            this->commands = std::move(commands);
+            this->configuration = std::move(configuration);
+            this->events = std::move(events);
+            this->externalAgents = std::move(externalAgents);
+            this->feedback = std::move(feedback);
+            this->filesystem = std::move(filesystem);
+            this->hooks = std::move(hooks);
+            this->marketplace = std::move(marketplace);
+            this->mcp = std::move(mcp);
+            this->models = std::move(models);
+            this->permissionProfiles = std::move(permissionProfiles);
+            this->plugins = std::move(plugins);
+            this->requests = std::move(requests);
+            this->reviews = std::move(reviews);
+            this->skills = std::move(skills);
+            this->threads = std::move(threads);
+            this->turns = std::move(turns);
+            this->windowsSandbox = std::move(windowsSandbox);
         }
 
-        void installTypedClient(std::unique_ptr<typed::Client> client) {
-            typedClient = std::move(client);
+        typed::Accounts& accountsFacade() noexcept {
+            return *accounts;
         }
 
-        typed::Client& typed() noexcept {
-            return *typedClient;
+        typed::Apps& appsFacade() noexcept {
+            return *apps;
         }
 
-        const typed::Client& typed() const noexcept {
-            return *typedClient;
+        typed::Commands& commandsFacade() noexcept {
+            return *commands;
+        }
+
+        typed::Configuration& configurationFacade() noexcept {
+            return *configuration;
+        }
+
+        typed::Events& eventsFacade() noexcept {
+            return *events;
+        }
+
+        typed::ExternalAgents& externalAgentsFacade() noexcept {
+            return *externalAgents;
+        }
+
+        typed::Feedback& feedbackFacade() noexcept {
+            return *feedback;
+        }
+
+        typed::Filesystem& filesystemFacade() noexcept {
+            return *filesystem;
+        }
+
+        typed::Hooks& hooksFacade() noexcept {
+            return *hooks;
+        }
+
+        typed::Marketplace& marketplaceFacade() noexcept {
+            return *marketplace;
+        }
+
+        typed::Mcp& mcpFacade() noexcept {
+            return *mcp;
+        }
+
+        typed::Models& modelsFacade() noexcept {
+            return *models;
+        }
+
+        typed::PermissionProfiles& permissionProfilesFacade() noexcept {
+            return *permissionProfiles;
+        }
+
+        typed::Plugins& pluginsFacade() noexcept {
+            return *plugins;
+        }
+
+        typed::Requests& requestsFacade() noexcept {
+            return *requests;
+        }
+
+        typed::Reviews& reviewsFacade() noexcept {
+            return *reviews;
+        }
+
+        typed::Skills& skillsFacade() noexcept {
+            return *skills;
+        }
+
+        typed::Threads& threadsFacade() noexcept {
+            return *threads;
+        }
+
+        typed::Turns& turnsFacade() noexcept {
+            return *turns;
+        }
+
+        typed::WindowsSandbox& windowsSandboxFacade() noexcept {
+            return *windowsSandbox;
         }
 
         std::optional<typed::InitializeResponse> getInitializeResponse() const {
@@ -221,7 +346,7 @@ namespace ai::openai::codex {
             callbacks.onDiagnostic = std::move(callback);
         }
 
-        RawProtocol::Submission request(std::string method, Json params, RawProtocol::ResponseHandler handler) {
+        Submission request(std::string method, Json params, RawProtocol::ResponseHandler handler) {
             if (state != State::Ready || !lifetime->protocolActive) {
                 return submissionFailure(Error::Category::InvalidState, EINVAL, "raw request requires a ready app-server connection");
             }
@@ -287,7 +412,7 @@ namespace ai::openai::codex {
             return {{ClientRequestId(id)}, std::nullopt};
         }
 
-        RawProtocol::SendResult notify(std::string method, Json params) {
+        SendResult notify(std::string method, Json params) {
             if (state != State::Ready || !lifetime->protocolActive) {
                 return sendFailure(Error::Category::InvalidState, EINVAL, "raw notification requires a ready app-server connection");
             }
@@ -321,29 +446,27 @@ namespace ai::openai::codex {
             return {true, std::nullopt};
         }
 
-        RawProtocol::SendResult respond(const ServerRequestId& id, Json result) {
+        SendResult respond(const ServerRequestId& id, Json result) {
             return answerServerRequest(id, std::nullopt, std::nullopt, std::move(result), std::nullopt);
         }
 
-        RawProtocol::SendResult reject(const ServerRequestId& id, ProtocolError error) {
+        SendResult reject(const ServerRequestId& id, ProtocolError error) {
             return answerServerRequest(id, std::nullopt, std::nullopt, nullptr, std::move(error));
         }
 
-        RawProtocol::SendResult respondOwned(const ServerRequestId& id, ServerRequestToken token, Json result) {
+        SendResult respondOwned(const ServerRequestId& id, ServerRequestToken token, Json result) {
             return answerServerRequest(id, token, std::nullopt, std::move(result), std::nullopt);
         }
 
-        RawProtocol::SendResult
-        respondOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, Json result) {
+        SendResult respondOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, Json result) {
             return answerServerRequest(id, token, expectedMethod, std::move(result), std::nullopt);
         }
 
-        RawProtocol::SendResult rejectOwned(const ServerRequestId& id, ServerRequestToken token, ProtocolError error) {
+        SendResult rejectOwned(const ServerRequestId& id, ServerRequestToken token, ProtocolError error) {
             return answerServerRequest(id, token, std::nullopt, nullptr, std::move(error));
         }
 
-        RawProtocol::SendResult
-        rejectOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, ProtocolError error) {
+        SendResult rejectOwned(const ServerRequestId& id, ServerRequestToken token, std::string_view expectedMethod, ProtocolError error) {
             return answerServerRequest(id, token, expectedMethod, nullptr, std::move(error));
         }
 
@@ -906,11 +1029,11 @@ namespace ai::openai::codex {
             });
         }
 
-        RawProtocol::SendResult answerServerRequest(const ServerRequestId& id,
-                                                    std::optional<ServerRequestToken> token,
-                                                    std::optional<std::string_view> expectedMethod,
-                                                    Json result,
-                                                    std::optional<ProtocolError> protocolError) {
+        SendResult answerServerRequest(const ServerRequestId& id,
+                                       std::optional<ServerRequestToken> token,
+                                       std::optional<std::string_view> expectedMethod,
+                                       Json result,
+                                       std::optional<ProtocolError> protocolError) {
             if (state != State::Ready || !lifetime->protocolActive) {
                 return sendFailure(Error::Category::InvalidState, EINVAL, "answering a server request requires a ready connection");
             }
@@ -960,11 +1083,11 @@ namespace ai::openai::codex {
             return {true, std::nullopt};
         }
 
-        static RawProtocol::Submission submissionFailure(Error::Category category, int code, std::string message) {
+        static Submission submissionFailure(Error::Category category, int code, std::string message) {
             return {std::nullopt, Error{category, code, std::move(message)}};
         }
 
-        static RawProtocol::SendResult sendFailure(Error::Category category, int code, std::string message) {
+        static SendResult sendFailure(Error::Category category, int code, std::string message) {
             return {false, Error{category, code, std::move(message)}};
         }
 
@@ -1113,7 +1236,26 @@ namespace ai::openai::codex {
         bool stateDispatchScheduled = false;
         std::shared_ptr<Lifetime> lifetime;
         RawProtocol rawProtocol;
-        std::unique_ptr<typed::Client> typedClient;
+        std::unique_ptr<typed::Accounts> accounts;
+        std::unique_ptr<typed::Apps> apps;
+        std::unique_ptr<typed::Commands> commands;
+        std::unique_ptr<typed::Configuration> configuration;
+        std::unique_ptr<typed::Events> events;
+        std::unique_ptr<typed::ExternalAgents> externalAgents;
+        std::unique_ptr<typed::Feedback> feedback;
+        std::unique_ptr<typed::Filesystem> filesystem;
+        std::unique_ptr<typed::Hooks> hooks;
+        std::unique_ptr<typed::Marketplace> marketplace;
+        std::unique_ptr<typed::Mcp> mcp;
+        std::unique_ptr<typed::Models> models;
+        std::unique_ptr<typed::PermissionProfiles> permissionProfiles;
+        std::unique_ptr<typed::Plugins> plugins;
+        std::unique_ptr<typed::Requests> requests;
+        std::unique_ptr<typed::Reviews> reviews;
+        std::unique_ptr<typed::Skills> skills;
+        std::unique_ptr<typed::Threads> threads;
+        std::unique_ptr<typed::Turns> turns;
+        std::unique_ptr<typed::WindowsSandbox> windowsSandbox;
 
         logger::LogScopeOwner logScope;
     };
@@ -1122,28 +1264,27 @@ namespace ai::openai::codex {
         : impl(&impl) {
     }
 
-    AppServerClient::RawProtocol::Submission::operator bool() const noexcept {
+    Submission::operator bool() const noexcept {
         return id.has_value() && !error.has_value();
     }
 
-    AppServerClient::RawProtocol::SendResult::operator bool() const noexcept {
+    SendResult::operator bool() const noexcept {
         return accepted && !error.has_value();
     }
 
-    AppServerClient::RawProtocol::Submission
-    AppServerClient::RawProtocol::request(std::string method, Json params, ResponseHandler handler) {
+    Submission AppServerClient::RawProtocol::request(std::string method, Json params, ResponseHandler handler) {
         return impl->request(std::move(method), std::move(params), std::move(handler));
     }
 
-    AppServerClient::RawProtocol::SendResult AppServerClient::RawProtocol::notify(std::string method, Json params) {
+    SendResult AppServerClient::RawProtocol::notify(std::string method, Json params) {
         return impl->notify(std::move(method), std::move(params));
     }
 
-    AppServerClient::RawProtocol::SendResult AppServerClient::RawProtocol::respond(const ServerRequestId& id, Json result) {
+    SendResult AppServerClient::RawProtocol::respond(const ServerRequestId& id, Json result) {
         return impl->respond(id, std::move(result));
     }
 
-    AppServerClient::RawProtocol::SendResult AppServerClient::RawProtocol::reject(const ServerRequestId& id, ProtocolError error) {
+    SendResult AppServerClient::RawProtocol::reject(const ServerRequestId& id, ProtocolError error) {
         return impl->reject(id, std::move(error));
     }
 
@@ -1167,27 +1308,25 @@ namespace ai::openai::codex {
         impl->setTypedServerRequestDispatcher(std::move(handler));
     }
 
-    AppServerClient::RawProtocol::SendResult
-    AppServerClient::RawProtocol::respondOwned(const ServerRequestId& id, ServerRequestToken token, Json result) {
+    SendResult AppServerClient::RawProtocol::respondOwned(const ServerRequestId& id, ServerRequestToken token, Json result) {
         return impl->respondOwned(id, token, std::move(result));
     }
 
-    AppServerClient::RawProtocol::SendResult AppServerClient::RawProtocol::respondOwned(const ServerRequestId& id,
-                                                                                        ServerRequestToken token,
-                                                                                        std::string_view expectedMethod,
-                                                                                        Json result) {
+    SendResult AppServerClient::RawProtocol::respondOwned(const ServerRequestId& id,
+                                                          ServerRequestToken token,
+                                                          std::string_view expectedMethod,
+                                                          Json result) {
         return impl->respondOwned(id, token, expectedMethod, std::move(result));
     }
 
-    AppServerClient::RawProtocol::SendResult
-    AppServerClient::RawProtocol::rejectOwned(const ServerRequestId& id, ServerRequestToken token, ProtocolError error) {
+    SendResult AppServerClient::RawProtocol::rejectOwned(const ServerRequestId& id, ServerRequestToken token, ProtocolError error) {
         return impl->rejectOwned(id, token, std::move(error));
     }
 
-    AppServerClient::RawProtocol::SendResult AppServerClient::RawProtocol::rejectOwned(const ServerRequestId& id,
-                                                                                       ServerRequestToken token,
-                                                                                       std::string_view expectedMethod,
-                                                                                       ProtocolError error) {
+    SendResult AppServerClient::RawProtocol::rejectOwned(const ServerRequestId& id,
+                                                         ServerRequestToken token,
+                                                         std::string_view expectedMethod,
+                                                         ProtocolError error) {
         return impl->rejectOwned(id, token, expectedMethod, std::move(error));
     }
 
@@ -1197,27 +1336,26 @@ namespace ai::openai::codex {
 
     AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport, typed::InitializeParams initializeParams)
         : impl(std::make_unique<Impl>(std::move(transport), std::move(initializeParams))) {
-        impl->installTypedClient(std::unique_ptr<typed::Client>(
-            new typed::Client(std::unique_ptr<typed::Accounts>(new typed::Accounts(impl->raw())),
-                              std::unique_ptr<typed::Apps>(new typed::Apps(impl->raw())),
-                              std::unique_ptr<typed::Commands>(new typed::Commands(impl->raw())),
-                              std::unique_ptr<typed::Filesystem>(new typed::Filesystem(impl->raw())),
-                              std::unique_ptr<typed::Configuration>(new typed::Configuration(impl->raw())),
-                              std::unique_ptr<typed::ExternalAgents>(new typed::ExternalAgents(impl->raw())),
-                              std::unique_ptr<typed::Feedback>(new typed::Feedback(impl->raw())),
-                              std::unique_ptr<typed::Hooks>(new typed::Hooks(impl->raw())),
-                              std::unique_ptr<typed::Marketplace>(new typed::Marketplace(impl->raw())),
-                              std::unique_ptr<typed::Mcp>(new typed::Mcp(impl->raw())),
-                              std::unique_ptr<typed::Models>(new typed::Models(impl->raw())),
-                              std::unique_ptr<typed::PermissionProfiles>(new typed::PermissionProfiles(impl->raw())),
-                              std::unique_ptr<typed::Plugins>(new typed::Plugins(impl->raw())),
-                              std::unique_ptr<typed::Reviews>(new typed::Reviews(impl->raw())),
-                              std::unique_ptr<typed::Skills>(new typed::Skills(impl->raw())),
-                              std::unique_ptr<typed::Threads>(new typed::Threads(impl->raw())),
-                              std::unique_ptr<typed::Turns>(new typed::Turns(impl->raw())),
-                              std::unique_ptr<typed::WindowsSandbox>(new typed::WindowsSandbox(impl->raw())),
-                              std::unique_ptr<typed::Events>(new typed::Events(impl->raw())),
-                              std::unique_ptr<typed::Requests>(new typed::Requests(impl->raw())))));
+        impl->installFacades(std::unique_ptr<typed::Accounts>(new typed::Accounts(impl->raw())),
+                             std::unique_ptr<typed::Apps>(new typed::Apps(impl->raw())),
+                             std::unique_ptr<typed::Commands>(new typed::Commands(impl->raw())),
+                             std::unique_ptr<typed::Configuration>(new typed::Configuration(impl->raw())),
+                             std::unique_ptr<typed::Events>(new typed::Events(impl->raw())),
+                             std::unique_ptr<typed::ExternalAgents>(new typed::ExternalAgents(impl->raw())),
+                             std::unique_ptr<typed::Feedback>(new typed::Feedback(impl->raw())),
+                             std::unique_ptr<typed::Filesystem>(new typed::Filesystem(impl->raw())),
+                             std::unique_ptr<typed::Hooks>(new typed::Hooks(impl->raw())),
+                             std::unique_ptr<typed::Marketplace>(new typed::Marketplace(impl->raw())),
+                             std::unique_ptr<typed::Mcp>(new typed::Mcp(impl->raw())),
+                             std::unique_ptr<typed::Models>(new typed::Models(impl->raw())),
+                             std::unique_ptr<typed::PermissionProfiles>(new typed::PermissionProfiles(impl->raw())),
+                             std::unique_ptr<typed::Plugins>(new typed::Plugins(impl->raw())),
+                             std::unique_ptr<typed::Requests>(new typed::Requests(impl->raw())),
+                             std::unique_ptr<typed::Reviews>(new typed::Reviews(impl->raw())),
+                             std::unique_ptr<typed::Skills>(new typed::Skills(impl->raw())),
+                             std::unique_ptr<typed::Threads>(new typed::Threads(impl->raw())),
+                             std::unique_ptr<typed::Turns>(new typed::Turns(impl->raw())),
+                             std::unique_ptr<typed::WindowsSandbox>(new typed::WindowsSandbox(impl->raw())));
     }
 
     AppServerClient::~AppServerClient() = default;
@@ -1242,48 +1380,84 @@ namespace ai::openai::codex {
         return impl->raw();
     }
 
-    const AppServerClient::RawProtocol& AppServerClient::raw() const noexcept {
-        return impl->raw();
+    typed::Accounts& AppServerClient::accounts() noexcept {
+        return impl->accountsFacade();
     }
 
-    typed::Client& AppServerClient::typed() noexcept {
-        return impl->typed();
+    typed::Apps& AppServerClient::apps() noexcept {
+        return impl->appsFacade();
     }
 
-    const typed::Client& AppServerClient::typed() const noexcept {
-        return impl->typed();
+    typed::Commands& AppServerClient::commands() noexcept {
+        return impl->commandsFacade();
     }
 
-    typed::Threads& AppServerClient::threads() noexcept {
-        return typed().threads();
-    }
-
-    const typed::Threads& AppServerClient::threads() const noexcept {
-        return typed().threads();
-    }
-
-    typed::Turns& AppServerClient::turns() noexcept {
-        return typed().turns();
-    }
-
-    const typed::Turns& AppServerClient::turns() const noexcept {
-        return typed().turns();
+    typed::Configuration& AppServerClient::configuration() noexcept {
+        return impl->configurationFacade();
     }
 
     typed::Events& AppServerClient::events() noexcept {
-        return typed().events();
+        return impl->eventsFacade();
     }
 
-    const typed::Events& AppServerClient::events() const noexcept {
-        return typed().events();
+    typed::ExternalAgents& AppServerClient::externalAgents() noexcept {
+        return impl->externalAgentsFacade();
+    }
+
+    typed::Feedback& AppServerClient::feedback() noexcept {
+        return impl->feedbackFacade();
+    }
+
+    typed::Filesystem& AppServerClient::filesystem() noexcept {
+        return impl->filesystemFacade();
+    }
+
+    typed::Hooks& AppServerClient::hooks() noexcept {
+        return impl->hooksFacade();
+    }
+
+    typed::Marketplace& AppServerClient::marketplace() noexcept {
+        return impl->marketplaceFacade();
+    }
+
+    typed::Mcp& AppServerClient::mcp() noexcept {
+        return impl->mcpFacade();
+    }
+
+    typed::Models& AppServerClient::models() noexcept {
+        return impl->modelsFacade();
+    }
+
+    typed::PermissionProfiles& AppServerClient::permissionProfiles() noexcept {
+        return impl->permissionProfilesFacade();
+    }
+
+    typed::Plugins& AppServerClient::plugins() noexcept {
+        return impl->pluginsFacade();
     }
 
     typed::Requests& AppServerClient::requests() noexcept {
-        return typed().requests();
+        return impl->requestsFacade();
     }
 
-    const typed::Requests& AppServerClient::requests() const noexcept {
-        return typed().requests();
+    typed::Reviews& AppServerClient::reviews() noexcept {
+        return impl->reviewsFacade();
+    }
+
+    typed::Skills& AppServerClient::skills() noexcept {
+        return impl->skillsFacade();
+    }
+
+    typed::Threads& AppServerClient::threads() noexcept {
+        return impl->threadsFacade();
+    }
+
+    typed::Turns& AppServerClient::turns() noexcept {
+        return impl->turnsFacade();
+    }
+
+    typed::WindowsSandbox& AppServerClient::windowsSandbox() noexcept {
+        return impl->windowsSandboxFacade();
     }
 
     std::optional<typed::InitializeResponse> AppServerClient::getInitializeResponse() const {

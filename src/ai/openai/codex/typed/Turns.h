@@ -24,9 +24,8 @@ namespace ai::openai::codex::typed {
 
     struct Turn {
         TurnId id;
-        // The wire Turn aggregate is nested under a thread. Retain that
-        // contextual identity for compatibility without treating it as a wire
-        // property.
+        // Application context populated by operation and event projections.
+        // The wire Turn aggregate remains nested under its owning thread.
         ThreadId threadId;
         TurnStatus status;
         std::vector<ThreadItem> items;
@@ -48,7 +47,7 @@ namespace ai::openai::codex::typed {
 
     struct TurnStartParams {
         ThreadId threadId;
-        std::vector<UserInput> input;
+        std::vector<TurnInput> input;
         OptionalNullable<Personality> personality;
         OptionalNullable<AskForApproval> approvalPolicy;
         OptionalNullable<ApprovalsReviewer> approvalsReviewer;
@@ -67,7 +66,7 @@ namespace ai::openai::codex::typed {
     struct TurnSteerParams {
         ThreadId threadId;
         TurnId expectedTurnId;
-        std::vector<UserInput> input;
+        std::vector<TurnInput> input;
         OptionalNullable<ClientUserMessageId> clientUserMessageId;
     };
 
@@ -85,14 +84,17 @@ namespace ai::openai::codex::typed {
 
     class Turns {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using UnitResultHandler = std::function<void(const OperationResult<Unit>&)>;
-        using TurnStartResultHandler = std::function<void(const OperationResult<TurnStartResponse>&)>;
-        using TurnSteerResultHandler = std::function<void(const OperationResult<TurnSteerResponse>&)>;
+        Turns(const Turns&) = delete;
+        Turns(Turns&&) = delete;
+        Turns& operator=(const Turns&) = delete;
+        Turns& operator=(Turns&&) = delete;
 
-        Submission interrupt(TurnInterruptParams params, UnitResultHandler handler);
-        Submission start(TurnStartParams params, TurnStartResultHandler handler);
-        Submission steer(TurnSteerParams params, TurnSteerResultHandler handler);
+        Submission interrupt(TurnInterruptParams params, DoneHandler handler);
+        Submission interrupt(ThreadId threadId, TurnId turnId, DoneHandler handler);
+        Submission start(TurnStartParams params, CompletionHandler<TurnStartResponse> handler);
+        Submission start(ThreadId threadId, std::vector<TurnInput> input, CompletionHandler<TurnStartResponse> handler);
+        Submission start(ThreadId threadId, std::string text, CompletionHandler<TurnStartResponse> handler);
+        Submission steer(TurnSteerParams params, CompletionHandler<TurnSteerResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

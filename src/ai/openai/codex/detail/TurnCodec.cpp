@@ -137,7 +137,7 @@ namespace ai::openai::codex::detail {
             return std::optional<Json>{std::in_place, value.value};
         }
 
-        std::optional<Json> encodeInputArray(const std::vector<typed::UserInput>& input, std::string& error) {
+        std::optional<Json> encodeInputArray(const std::vector<typed::TurnInput>& input, std::string& error) {
             Json result = Json::array();
             for (std::size_t index = 0; index < input.size(); ++index) {
                 std::string nestedError;

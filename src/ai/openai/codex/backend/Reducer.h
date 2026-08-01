@@ -9,6 +9,7 @@
 #define AI_OPENAI_CODEX_BACKEND_REDUCER_H
 
 #include "ai/openai/codex/backend/BackendEvent.h"
+#include "ai/openai/codex/typed/Events.h"
 
 #include <cstddef>
 #include <vector>

@@ -9,6 +9,8 @@
 #define AI_OPENAI_CODEX_BACKEND_BACKENDEVENT_H
 
 #include "ai/openai/codex/backend/BackendState.h"
+#include "ai/openai/codex/typed/Threads.h"
+#include "ai/openai/codex/typed/Turns.h"
 
 #include <optional>
 #include <string>
@@ -35,7 +37,7 @@ namespace ai::openai::codex::backend {
     };
 
     struct ThreadListUpdated {
-        typed::ThreadPage page;
+        typed::ThreadListResponse page;
         std::optional<std::string> requestedCursor;
         bool initialRefresh = false;
     };
@@ -68,7 +70,7 @@ namespace ai::openai::codex::backend {
     struct ItemUpserted {
         typed::ThreadId threadId;
         typed::TurnId turnId;
-        typed::Item item;
+        typed::ThreadItem item;
         ItemLifecycle lifecycle = ItemLifecycle::Unknown;
         std::optional<std::int64_t> occurredAtMs;
     };

@@ -299,21 +299,16 @@ namespace ai::openai::codex::typed {
 
     class Mcp {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
+        Mcp(const Mcp&) = delete;
+        Mcp(Mcp&&) = delete;
+        Mcp& operator=(const Mcp&) = delete;
+        Mcp& operator=(Mcp&&) = delete;
 
-        using StartOauthLoginResult = OperationResult<McpServerOauthLoginResponse>;
-        using StartOauthLoginResultHandler = std::function<void(const StartOauthLoginResult&)>;
-        using ReadResourceResult = OperationResult<McpResourceReadResponse>;
-        using ReadResourceResultHandler = std::function<void(const ReadResourceResult&)>;
-        using CallToolResult = OperationResult<McpServerToolCallResponse>;
-        using CallToolResultHandler = std::function<void(const CallToolResult&)>;
-        using ListServersResult = OperationResult<ListMcpServerStatusResponse>;
-        using ListServersResultHandler = std::function<void(const ListServersResult&)>;
-
-        Submission startOauthLogin(McpServerOauthLoginParams params, StartOauthLoginResultHandler handler);
-        Submission readResource(McpResourceReadParams params, ReadResourceResultHandler handler);
-        Submission callTool(McpServerToolCallParams params, CallToolResultHandler handler);
-        Submission listServers(ListMcpServerStatusParams params, ListServersResultHandler handler);
+        Submission startOauthLogin(McpServerOauthLoginParams params, CompletionHandler<McpServerOauthLoginResponse> handler);
+        Submission readResource(McpResourceReadParams params, CompletionHandler<McpResourceReadResponse> handler);
+        Submission callTool(McpServerToolCallParams params, CompletionHandler<McpServerToolCallResponse> handler);
+        Submission listServers(ListMcpServerStatusParams params, CompletionHandler<ListMcpServerStatusResponse> handler);
+        Submission listServers(CompletionHandler<ListMcpServerStatusResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

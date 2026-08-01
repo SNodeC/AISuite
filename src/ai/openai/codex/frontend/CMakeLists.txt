@@ -9,7 +9,6 @@ set(AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
 
 add_library(ai-openai-codex-frontend SHARED ${AI_OPENAI_CODEX_FRONTEND_CPP})
 add_library(AISuite::OpenAICodexFrontend ALIAS ai-openai-codex-frontend)
-add_library(snodec::ai-openai-codex-frontend ALIAS ai-openai-codex-frontend)
 set_target_properties(
     ai-openai-codex-frontend PROPERTIES EXPORT_NAME OpenAICodexFrontend
 )

@@ -39,7 +39,7 @@ namespace ai::openai::codex::typed {
         std::int64_t updatedAt = 0;
         ThreadStatus status;
         OptionalNullable<std::string> path;
-        AbsolutePathBuf cwd;
+        AbsolutePath cwd;
         std::string cliVersion;
         SessionSource source;
         OptionalNullable<std::string> agentRole;
@@ -52,9 +52,9 @@ namespace ai::openai::codex::typed {
         SessionId sessionId;
         OptionalNullable<std::int64_t> recencyAt;
         OptionalNullable<ThreadSource> threadSource;
-        // Deprecated source-compatibility context. `title` mirrors a valued
-        // wire `name`; `model` is populated only by launch-result wrappers,
-        // because neither member is an independent Thread schema field.
+        // Application context: `title` mirrors a valued wire `name`; `model`
+        // is populated by operation and event projections. Neither member is
+        // an independent Thread schema field.
         std::optional<std::string> title;
         std::optional<ModelId> model;
         Json raw = Json::object();
@@ -225,10 +225,10 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> serviceTier;
         AskForApproval approvalPolicy;
         ApprovalsReviewer approvalsReviewer;
-        AbsolutePathBuf cwd;
+        AbsolutePath cwd;
         // The schema default is the empty array; `raw` retains whether the
         // field was physically omitted on the wire.
-        std::vector<LegacyAppPathString> instructionSources;
+        std::vector<PathString> instructionSources;
         ModelId model;
         std::string modelProvider;
         SandboxPolicy sandbox;
@@ -264,8 +264,6 @@ namespace ai::openai::codex::typed {
         std::vector<DecodeDiagnostic> diagnostics;
     };
 
-    using ThreadPage = ThreadListResponse;
-
     struct ThreadLoadedListResponse {
         // The wire schema describes these strings semantically as thread ids.
         std::vector<ThreadId> data;
@@ -290,9 +288,9 @@ namespace ai::openai::codex::typed {
         SandboxPolicy sandbox;
         AskForApproval approvalPolicy;
         ApprovalsReviewer approvalsReviewer;
-        AbsolutePathBuf cwd;
+        AbsolutePath cwd;
         OptionalNullable<std::string> serviceTier;
-        std::vector<LegacyAppPathString> instructionSources;
+        std::vector<PathString> instructionSources;
         ModelId model;
         std::string modelProvider;
         Thread thread;
@@ -311,8 +309,8 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> serviceTier;
         AskForApproval approvalPolicy;
         ApprovalsReviewer approvalsReviewer;
-        AbsolutePathBuf cwd;
-        std::vector<LegacyAppPathString> instructionSources;
+        AbsolutePath cwd;
+        std::vector<PathString> instructionSources;
         ModelId model;
         std::string modelProvider;
         SandboxPolicy sandbox;
@@ -336,43 +334,38 @@ namespace ai::openai::codex::typed {
 
     class Threads {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using UnitResultHandler = std::function<void(const OperationResult<Unit>&)>;
-        using ThreadForkResultHandler = std::function<void(const OperationResult<ThreadForkResponse>&)>;
-        using ThreadGoalClearResultHandler = std::function<void(const OperationResult<ThreadGoalClearResponse>&)>;
-        using ThreadGoalGetResultHandler = std::function<void(const OperationResult<ThreadGoalGetResponse>&)>;
-        using ThreadGoalSetResultHandler = std::function<void(const OperationResult<ThreadGoalSetResponse>&)>;
-        using ThreadListResultHandler = std::function<void(const OperationResult<ThreadListResponse>&)>;
-        using ThreadLoadedListResultHandler = std::function<void(const OperationResult<ThreadLoadedListResponse>&)>;
-        using ThreadMetadataUpdateResultHandler = std::function<void(const OperationResult<ThreadMetadataUpdateResponse>&)>;
-        using ThreadReadResultHandler = std::function<void(const OperationResult<ThreadReadResponse>&)>;
-        using ThreadResumeResultHandler = std::function<void(const OperationResult<ThreadResumeResponse>&)>;
-        using ThreadRollbackResultHandler = std::function<void(const OperationResult<ThreadRollbackResponse>&)>;
-        using ThreadStartResultHandler = std::function<void(const OperationResult<ThreadStartResponse>&)>;
-        using ThreadUnarchiveResultHandler = std::function<void(const OperationResult<ThreadUnarchiveResponse>&)>;
-        using ThreadUnsubscribeResultHandler = std::function<void(const OperationResult<ThreadUnsubscribeResponse>&)>;
+        Threads(const Threads&) = delete;
+        Threads(Threads&&) = delete;
+        Threads& operator=(const Threads&) = delete;
+        Threads& operator=(Threads&&) = delete;
 
-        Submission archive(ThreadArchiveParams params, UnitResultHandler handler);
-        Submission approveGuardianDeniedAction(ThreadApproveGuardianDeniedActionParams params, UnitResultHandler handler);
-        Submission startCompaction(ThreadCompactStartParams params, UnitResultHandler handler);
-        Submission remove(ThreadDeleteParams params, UnitResultHandler handler);
-        Submission fork(ThreadForkParams params, ThreadForkResultHandler handler);
-        Submission clearGoal(ThreadGoalClearParams params, ThreadGoalClearResultHandler handler);
-        Submission getGoal(ThreadGoalGetParams params, ThreadGoalGetResultHandler handler);
-        Submission setGoal(ThreadGoalSetParams params, ThreadGoalSetResultHandler handler);
-        Submission injectItems(ThreadInjectItemsParams params, UnitResultHandler handler);
-        Submission list(ThreadListParams params, ThreadListResultHandler handler);
-        Submission listLoaded(ThreadLoadedListParams params, ThreadLoadedListResultHandler handler);
-        Submission updateMetadata(ThreadMetadataUpdateParams params, ThreadMetadataUpdateResultHandler handler);
-        Submission setName(ThreadSetNameParams params, UnitResultHandler handler);
-        Submission read(ThreadReadParams params, ThreadReadResultHandler handler);
-        Submission resume(ThreadResumeParams params, ThreadResumeResultHandler handler);
+        Submission archive(ThreadArchiveParams params, DoneHandler handler);
+        Submission approveGuardianDeniedAction(ThreadApproveGuardianDeniedActionParams params, DoneHandler handler);
+        Submission startCompaction(ThreadCompactStartParams params, DoneHandler handler);
+        Submission remove(ThreadDeleteParams params, DoneHandler handler);
+        Submission fork(ThreadForkParams params, CompletionHandler<ThreadForkResponse> handler);
+        Submission clearGoal(ThreadGoalClearParams params, CompletionHandler<ThreadGoalClearResponse> handler);
+        Submission getGoal(ThreadGoalGetParams params, CompletionHandler<ThreadGoalGetResponse> handler);
+        Submission setGoal(ThreadGoalSetParams params, CompletionHandler<ThreadGoalSetResponse> handler);
+        Submission injectItems(ThreadInjectItemsParams params, DoneHandler handler);
+        Submission list(ThreadListParams params, CompletionHandler<ThreadListResponse> handler);
+        Submission list(CompletionHandler<ThreadListResponse> handler);
+        Submission listLoaded(ThreadLoadedListParams params, CompletionHandler<ThreadLoadedListResponse> handler);
+        Submission listLoaded(CompletionHandler<ThreadLoadedListResponse> handler);
+        Submission updateMetadata(ThreadMetadataUpdateParams params, CompletionHandler<ThreadMetadataUpdateResponse> handler);
+        Submission setName(ThreadSetNameParams params, DoneHandler handler);
+        Submission read(ThreadReadParams params, CompletionHandler<ThreadReadResponse> handler);
+        Submission read(ThreadId threadId, CompletionHandler<ThreadReadResponse> handler);
+        Submission resume(ThreadResumeParams params, CompletionHandler<ThreadResumeResponse> handler);
+        Submission resume(ThreadId threadId, CompletionHandler<ThreadResumeResponse> handler);
         [[deprecated("thread/rollback is deprecated by the stable App Server protocol")]]
-        Submission rollback(ThreadRollbackParams params, ThreadRollbackResultHandler handler);
-        Submission shellCommand(ThreadShellCommandParams params, UnitResultHandler handler);
-        Submission start(ThreadStartParams params, ThreadStartResultHandler handler);
-        Submission unarchive(ThreadUnarchiveParams params, ThreadUnarchiveResultHandler handler);
-        Submission unsubscribe(ThreadUnsubscribeParams params, ThreadUnsubscribeResultHandler handler);
+        Submission rollback(ThreadRollbackParams params, CompletionHandler<ThreadRollbackResponse> handler);
+        Submission shellCommand(ThreadShellCommandParams params, DoneHandler handler);
+        Submission start(ThreadStartParams params, CompletionHandler<ThreadStartResponse> handler);
+        Submission start(CompletionHandler<ThreadStartResponse> handler);
+        Submission start(AbsolutePath cwd, CompletionHandler<ThreadStartResponse> handler);
+        Submission unarchive(ThreadUnarchiveParams params, CompletionHandler<ThreadUnarchiveResponse> handler);
+        Submission unsubscribe(ThreadUnsubscribeParams params, CompletionHandler<ThreadUnsubscribeResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

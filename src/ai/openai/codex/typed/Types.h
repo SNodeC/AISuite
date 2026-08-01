@@ -165,19 +165,18 @@ namespace ai::openai::codex::typed {
         auto operator<=>(const OptionalNullable&) const = default;
     };
 
-    struct AbsolutePathBuf {
+    struct AbsolutePath {
         std::string value;
 
-        AbsolutePathBuf() = default;
+        AbsolutePath() = default;
 
-        // Intentional implicit compatibility conversion: the earlier public
-        // sandbox aggregate accepted vector<string> roots, while the canonical
-        // protocol type is now strong.
-        AbsolutePathBuf(std::string input)
+        // Intentional implicit application conversion for the strong protocol
+        // path type.
+        AbsolutePath(std::string input)
             : value(std::move(input)) {
         }
 
-        auto operator<=>(const AbsolutePathBuf&) const = default;
+        auto operator<=>(const AbsolutePath&) const = default;
     };
 
     struct InitializeClientInfo {
@@ -205,7 +204,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct InitializeResponse {
-        AbsolutePathBuf codexHome;
+        AbsolutePath codexHome;
         std::string platformFamily;
         std::string platformOs;
         std::string userAgent;

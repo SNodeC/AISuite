@@ -53,7 +53,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct WindowsSandboxSetupStartParams {
-        OptionalNullable<AbsolutePathBuf> cwd;
+        OptionalNullable<AbsolutePath> cwd;
         WindowsSandboxSetupMode mode;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -71,15 +71,13 @@ namespace ai::openai::codex::typed {
 
     class WindowsSandbox {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
+        WindowsSandbox(const WindowsSandbox&) = delete;
+        WindowsSandbox(WindowsSandbox&&) = delete;
+        WindowsSandbox& operator=(const WindowsSandbox&) = delete;
+        WindowsSandbox& operator=(WindowsSandbox&&) = delete;
 
-        using CheckReadinessResult = OperationResult<WindowsSandboxReadinessResponse>;
-        using CheckReadinessResultHandler = std::function<void(const CheckReadinessResult&)>;
-        using StartSetupResult = OperationResult<WindowsSandboxSetupStartResponse>;
-        using StartSetupResultHandler = std::function<void(const StartSetupResult&)>;
-
-        Submission checkReadiness(CheckReadinessResultHandler handler);
-        Submission startSetup(WindowsSandboxSetupStartParams params, StartSetupResultHandler handler);
+        Submission checkReadiness(CompletionHandler<WindowsSandboxReadinessResponse> handler);
+        Submission startSetup(WindowsSandboxSetupStartParams params, CompletionHandler<WindowsSandboxSetupStartResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

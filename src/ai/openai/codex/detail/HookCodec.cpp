@@ -356,7 +356,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "sourcePath",
                     result.sourcePath,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -577,7 +577,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "sourcePath",
                     result.sourcePath,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,

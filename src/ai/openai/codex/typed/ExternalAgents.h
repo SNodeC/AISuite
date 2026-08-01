@@ -261,17 +261,16 @@ namespace ai::openai::codex::typed {
 
     class ExternalAgents {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using DetectResult = OperationResult<ExternalAgentConfigDetectResponse>;
-        using DetectResultHandler = std::function<void(const DetectResult&)>;
-        using ImportConfigurationResult = OperationResult<ExternalAgentConfigImportResponse>;
-        using ImportConfigurationResultHandler = std::function<void(const ImportConfigurationResult&)>;
-        using ReadImportHistoriesResult = OperationResult<ExternalAgentConfigImportHistoriesReadResponse>;
-        using ReadImportHistoriesResultHandler = std::function<void(const ReadImportHistoriesResult&)>;
+        ExternalAgents(const ExternalAgents&) = delete;
+        ExternalAgents(ExternalAgents&&) = delete;
+        ExternalAgents& operator=(const ExternalAgents&) = delete;
+        ExternalAgents& operator=(ExternalAgents&&) = delete;
 
-        Submission detect(ExternalAgentConfigDetectParams params, DetectResultHandler handler);
-        Submission importConfiguration(ExternalAgentConfigImportParams params, ImportConfigurationResultHandler handler);
-        Submission readImportHistories(Unit params, ReadImportHistoriesResultHandler handler);
+        Submission detect(ExternalAgentConfigDetectParams params, CompletionHandler<ExternalAgentConfigDetectResponse> handler);
+        Submission detect(CompletionHandler<ExternalAgentConfigDetectResponse> handler);
+        Submission importConfiguration(ExternalAgentConfigImportParams params,
+                                       CompletionHandler<ExternalAgentConfigImportResponse> handler);
+        Submission readImportHistories(CompletionHandler<ExternalAgentConfigImportHistoriesReadResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

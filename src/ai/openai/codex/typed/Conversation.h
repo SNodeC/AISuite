@@ -180,7 +180,7 @@ namespace ai::openai::codex::typed {
     struct ReadCommandAction {
         std::string command;
         std::string name;
-        AbsolutePathBuf path;
+        AbsolutePath path;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -306,7 +306,7 @@ namespace ai::openai::codex::typed {
         bool operator==(const ReadOnlySandboxPolicy&) const = default;
     };
 
-    struct ExternalSandboxSandboxPolicy {
+    struct ExternalSandboxPolicy {
         std::optional<NetworkAccess> networkAccess;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -315,14 +315,11 @@ namespace ai::openai::codex::typed {
             return networkAccess.value_or(NetworkAccess::restricted());
         }
 
-        bool operator==(const ExternalSandboxSandboxPolicy&) const = default;
+        bool operator==(const ExternalSandboxPolicy&) const = default;
     };
 
-    // Transitional source compatibility for the shorter A0/A1.0 name.
-    using ExternalSandboxPolicy = ExternalSandboxSandboxPolicy;
-
     struct WorkspaceWriteSandboxPolicy {
-        std::optional<std::vector<AbsolutePathBuf>> writableRoots;
+        std::optional<std::vector<AbsolutePath>> writableRoots;
         std::optional<bool> networkAccess;
         std::optional<bool> excludeTmpdirEnvVar;
         std::optional<bool> excludeSlashTmp;
@@ -354,76 +351,66 @@ namespace ai::openai::codex::typed {
 
     using SandboxPolicy = std::variant<DangerFullAccessSandboxPolicy,
                                        ReadOnlySandboxPolicy,
-                                       ExternalSandboxSandboxPolicy,
+                                       ExternalSandboxPolicy,
                                        WorkspaceWriteSandboxPolicy,
                                        UnknownSandboxPolicy>;
 
-    struct TextUserInput {
+    struct TextInput {
         std::string text;
-        // Preserve the A0/A1.0 TextInput{"..."} wire behavior, which emitted
-        // the protocol default empty array. Callers can still assign
+        // Preserve the protocol default empty array. Callers can still assign
         // std::nullopt to exercise an omitted field explicitly.
         std::optional<std::vector<TextElement>> textElements = std::vector<TextElement>{};
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
-        bool operator==(const TextUserInput&) const = default;
+        bool operator==(const TextInput&) const = default;
     };
 
-    struct ImageUserInput {
+    struct ImageUrlInput {
         std::string url;
         OptionalNullable<ImageDetail> detail;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
-        bool operator==(const ImageUserInput&) const = default;
+        bool operator==(const ImageUrlInput&) const = default;
     };
 
-    struct LocalImageUserInput {
+    struct LocalImageInput {
         std::string path;
         OptionalNullable<ImageDetail> detail;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
-        bool operator==(const LocalImageUserInput&) const = default;
+        bool operator==(const LocalImageInput&) const = default;
     };
 
-    struct SkillUserInput {
+    struct SkillInput {
         std::string name;
         std::string path;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
-        bool operator==(const SkillUserInput&) const = default;
+        bool operator==(const SkillInput&) const = default;
     };
 
-    struct MentionUserInput {
+    struct MentionInput {
         std::string name;
         std::string path;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
-        bool operator==(const MentionUserInput&) const = default;
+        bool operator==(const MentionInput&) const = default;
     };
 
-    struct UnknownUserInput {
+    struct UnknownTurnInput {
         std::optional<std::string> type;
         Json raw = Json::object();
         std::optional<DecodeDiagnostic> diagnostic;
 
-        bool operator==(const UnknownUserInput&) const = default;
+        bool operator==(const UnknownTurnInput&) const = default;
     };
 
-    using UserInput = std::variant<TextUserInput, ImageUserInput, LocalImageUserInput, SkillUserInput, MentionUserInput, UnknownUserInput>;
-
-    // Transitional source compatibility for the A0/A1.0 input vocabulary.
-    using TextInput = TextUserInput;
-    using ImageUrlInput = ImageUserInput;
-    using LocalImageInput = LocalImageUserInput;
-    using SkillInput = SkillUserInput;
-    using MentionInput = MentionUserInput;
-    using UnknownTurnInput = UnknownUserInput;
-    using TurnInput = UserInput;
+    using TurnInput = std::variant<TextInput, ImageUrlInput, LocalImageInput, SkillInput, MentionInput, UnknownTurnInput>;
 
     struct SearchWebSearchAction {
         OptionalNullable<std::vector<std::string>> queries;

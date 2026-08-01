@@ -25,11 +25,25 @@ namespace ai::openai::codex::detail {
 
 namespace ai::openai::codex::typed {
     class Accounts;
-    class Client;
+    class Apps;
+    class Commands;
+    class Configuration;
     class Events;
+    class ExternalAgents;
+    class Feedback;
+    class Filesystem;
+    class Hooks;
+    class Marketplace;
+    class Mcp;
+    class Models;
+    class PermissionProfiles;
+    class Plugins;
     class Requests;
+    class Reviews;
+    class Skills;
     class Threads;
     class Turns;
+    class WindowsSandbox;
 } // namespace ai::openai::codex::typed
 
 namespace ai::openai::codex {
@@ -37,9 +51,9 @@ namespace ai::openai::codex {
     enum class State { Stopped, Starting, Initializing, Ready, Stopping, Failed };
 
     struct ClientInfo {
-        std::string name = "snode_c";
-        std::string title = "SNode.C";
-        std::string version = "1.0.1";
+        std::string name = "aisuite";
+        std::string title = "AISuite";
+        std::string version = "0.1.0";
     };
 
     struct StateChange {
@@ -58,6 +72,20 @@ namespace ai::openai::codex {
 
         StateChanged onStateChanged;
         DiagnosticReceived onDiagnostic;
+    };
+
+    struct Submission {
+        std::optional<ClientRequestId> id;
+        std::optional<Error> error;
+
+        explicit operator bool() const noexcept;
+    };
+
+    struct SendResult {
+        bool accepted = false;
+        std::optional<Error> error;
+
+        explicit operator bool() const noexcept;
     };
 
     class AppServerClient {
@@ -79,30 +107,27 @@ namespace ai::openai::codex {
         bool isReady() const noexcept;
 
         RawProtocol& raw() noexcept;
-        const RawProtocol& raw() const noexcept;
 
-        typed::Client& typed() noexcept;
-        const typed::Client& typed() const noexcept;
-
-        [[deprecated("use typed().threads()")]]
-        typed::Threads& threads() noexcept;
-        [[deprecated("use typed().threads()")]]
-        const typed::Threads& threads() const noexcept;
-
-        [[deprecated("use typed().turns()")]]
-        typed::Turns& turns() noexcept;
-        [[deprecated("use typed().turns()")]]
-        const typed::Turns& turns() const noexcept;
-
-        [[deprecated("use typed().events()")]]
+        typed::Accounts& accounts() noexcept;
+        typed::Apps& apps() noexcept;
+        typed::Commands& commands() noexcept;
+        typed::Configuration& configuration() noexcept;
         typed::Events& events() noexcept;
-        [[deprecated("use typed().events()")]]
-        const typed::Events& events() const noexcept;
-
-        [[deprecated("use typed().requests()")]]
+        typed::ExternalAgents& externalAgents() noexcept;
+        typed::Feedback& feedback() noexcept;
+        typed::Filesystem& filesystem() noexcept;
+        typed::Hooks& hooks() noexcept;
+        typed::Marketplace& marketplace() noexcept;
+        typed::Mcp& mcp() noexcept;
+        typed::Models& models() noexcept;
+        typed::PermissionProfiles& permissionProfiles() noexcept;
+        typed::Plugins& plugins() noexcept;
         typed::Requests& requests() noexcept;
-        [[deprecated("use typed().requests()")]]
-        const typed::Requests& requests() const noexcept;
+        typed::Reviews& reviews() noexcept;
+        typed::Skills& skills() noexcept;
+        typed::Threads& threads() noexcept;
+        typed::Turns& turns() noexcept;
+        typed::WindowsSandbox& windowsSandbox() noexcept;
 
         std::optional<typed::InitializeResponse> getInitializeResponse() const;
 
@@ -129,20 +154,6 @@ namespace ai::openai::codex {
         using NotificationHandler = std::function<void(const Notification&)>;
         using ServerRequestHandler = std::function<void(const ServerRequest&)>;
         using UnknownMessageHandler = std::function<void(const UnknownMessage&)>;
-
-        struct Submission {
-            std::optional<ClientRequestId> id;
-            std::optional<Error> error;
-
-            explicit operator bool() const noexcept;
-        };
-
-        struct SendResult {
-            bool accepted = false;
-            std::optional<Error> error;
-
-            explicit operator bool() const noexcept;
-        };
 
         Submission request(std::string method, Json params, ResponseHandler handler);
         SendResult notify(std::string method, Json params = Json::object());

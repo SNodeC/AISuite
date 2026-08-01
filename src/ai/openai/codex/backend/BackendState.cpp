@@ -35,7 +35,7 @@ namespace ai::openai::codex::backend {
         return status.value == "completed" || status.value == "interrupted" || status.value == "failed" || status.value == "cancelled";
     }
 
-    std::optional<typed::ItemId> itemId(const typed::Item& item) {
+    std::optional<typed::ItemId> itemId(const typed::ThreadItem& item) {
         return std::visit(
             [](const auto& value) -> std::optional<typed::ItemId> {
                 using Value = std::decay_t<decltype(value)>;
@@ -61,25 +61,25 @@ namespace ai::openai::codex::backend {
             item);
     }
 
-    std::string itemType(const typed::Item& item) {
+    std::string itemType(const typed::ThreadItem& item) {
         return std::visit(
             [](const auto& value) -> std::string {
                 using Value = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<Value, typed::AgentMessageItem>) {
+                if constexpr (std::is_same_v<Value, typed::AgentMessageThreadItem>) {
                     return "agent_message";
-                } else if constexpr (std::is_same_v<Value, typed::UserMessageItem>) {
+                } else if constexpr (std::is_same_v<Value, typed::UserMessageThreadItem>) {
                     return "user_message";
-                } else if constexpr (std::is_same_v<Value, typed::ReasoningItem>) {
+                } else if constexpr (std::is_same_v<Value, typed::ReasoningThreadItem>) {
                     return "reasoning";
-                } else if constexpr (std::is_same_v<Value, typed::CommandExecutionItem>) {
+                } else if constexpr (std::is_same_v<Value, typed::CommandExecutionThreadItem>) {
                     return "command_execution";
-                } else if constexpr (std::is_same_v<Value, typed::FileChangeItem>) {
+                } else if constexpr (std::is_same_v<Value, typed::FileChangeThreadItem>) {
                     return "file_change";
                 } else if constexpr (std::is_same_v<Value, typed::DynamicToolCallThreadItem>) {
                     return "tool_call";
-                } else if constexpr (std::is_same_v<Value, typed::ToolCallItem>) {
+                } else if constexpr (std::is_same_v<Value, typed::McpToolCallThreadItem>) {
                     return "tool_call";
-                } else if constexpr (std::is_same_v<Value, typed::WebSearchItem>) {
+                } else if constexpr (std::is_same_v<Value, typed::WebSearchThreadItem>) {
                     return "web_search";
                 } else if constexpr (std::is_same_v<Value, typed::CollabAgentToolCallThreadItem>) {
                     return "collabAgentToolCall";

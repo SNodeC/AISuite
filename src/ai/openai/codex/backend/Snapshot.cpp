@@ -8,7 +8,6 @@
 #include "ai/openai/codex/backend/Snapshot.h"
 
 #include "ai/openai/codex/detail/DecodeDiagnostic.h"
-#include "ai/openai/codex/typed/Client.h"
 #include "ai/openai/codex/typed/Items.h"
 #include "ai/openai/codex/typed/Types.h"
 
@@ -52,7 +51,7 @@ namespace ai::openai::codex::backend {
             }
         }
 
-        Json userMessageData(const typed::UserMessageItem& item) {
+        Json userMessageData(const typed::UserMessageThreadItem& item) {
             const auto rawContent = item.metadata.raw.find("content");
             const Json content = rawContent != item.metadata.raw.end() && rawContent->is_array() ? *rawContent : Json::array();
             const std::size_t originalContentBytes = content.dump().size();
@@ -394,18 +393,18 @@ namespace ai::openai::codex::backend {
             snapshot.extensions = boundedJson(state.extensions);
 
             std::visit(
-                Overloaded{[&snapshot](const typed::AgentMessageItem& value) {
+                Overloaded{[&snapshot](const typed::AgentMessageThreadItem& value) {
                                if (value.phase) {
                                    snapshot.data["phase"] = value.phase->value;
                                }
                            },
-                           [&snapshot](const typed::UserMessageItem& value) {
+                           [&snapshot](const typed::UserMessageThreadItem& value) {
                                snapshot.data = userMessageData(value);
                            },
-                           [&snapshot](const typed::ReasoningItem&) {
+                           [&snapshot](const typed::ReasoningThreadItem&) {
                                snapshot.data["hasSummary"] = !snapshot.reasoningSummary.empty();
                            },
-                           [&snapshot](const typed::CommandExecutionItem& value) {
+                           [&snapshot](const typed::CommandExecutionThreadItem& value) {
                                snapshot.data =
                                    Json::object({{"command", value.command}, {"cwd", value.cwd.value}, {"status", value.status.value}});
                                if (value.processId) {
@@ -418,14 +417,14 @@ namespace ai::openai::codex::backend {
                                    snapshot.data["durationMs"] = *value.durationMs;
                                }
                            },
-                           [&snapshot](const typed::FileChangeItem& value) {
+                           [&snapshot](const typed::FileChangeThreadItem& value) {
                                const auto changes = value.metadata.raw.find("changes");
                                snapshot.data = Json::object(
                                    {{"status", value.status.value},
                                     {"changes",
                                      changes != value.metadata.raw.end() && changes->is_array() ? boundedJson(*changes) : Json::array()}});
                            },
-                           [&snapshot](const typed::ToolCallItem& value) {
+                           [&snapshot](const typed::McpToolCallThreadItem& value) {
                                snapshot.data = Json::object(
                                    {{"tool", value.tool}, {"status", value.status.value}, {"hasResult", value.result.hasValue()}});
                                snapshot.data["server"] = value.server;
@@ -437,7 +436,7 @@ namespace ai::openai::codex::backend {
                                    snapshot.data["namespace"] = *value.nameSpace;
                                }
                            },
-                           [&snapshot](const typed::WebSearchItem& value) {
+                           [&snapshot](const typed::WebSearchThreadItem& value) {
                                snapshot.data = Json::object({{"query", value.query}});
                            },
                            [&snapshot](const typed::UnknownItem& value) {

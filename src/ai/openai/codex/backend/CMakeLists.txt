@@ -8,7 +8,6 @@ set(AI_OPENAI_CODEX_BACKEND_PUBLIC_H
 
 add_library(ai-openai-codex-backend SHARED ${AI_OPENAI_CODEX_BACKEND_CPP})
 add_library(AISuite::OpenAICodexBackend ALIAS ai-openai-codex-backend)
-add_library(snodec::ai-openai-codex-backend ALIAS ai-openai-codex-backend)
 set_target_properties(
     ai-openai-codex-backend PROPERTIES EXPORT_NAME OpenAICodexBackend
 )

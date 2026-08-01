@@ -264,7 +264,7 @@ namespace ai::openai::codex::detail {
             const auto stringDecoder = [&](const Json& item, std::string& decoded, std::string_view itemPath) {
                 return decodeStringAt(item, decoded, error, Context, itemPath);
             };
-            const auto pathDecoder = [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+            const auto pathDecoder = [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                 return decodeStrongStringAt(item, decoded, error, Context, itemPath);
             };
             if (!requireObject(value, Context, error, path) ||
@@ -322,7 +322,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "path",
                     result.path,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -433,7 +433,7 @@ namespace ai::openai::codex::detail {
             encodeOptionalNullable(result, "name", value.name, [](const std::string& item) {
                 return Json(item);
             });
-            encodeOptionalNullable(result, "path", value.path, [](const typed::AbsolutePathBuf& item) {
+            encodeOptionalNullable(result, "path", value.path, [](const typed::AbsolutePath& item) {
                 return Json(item.value);
             });
             return std::optional<Json>{std::move(result)};
@@ -451,7 +451,7 @@ namespace ai::openai::codex::detail {
                 return std::nullopt;
             }
             Json roots = Json::array();
-            for (const typed::AbsolutePathBuf& root : value.extraRoots) {
+            for (const typed::AbsolutePath& root : value.extraRoots) {
                 roots.push_back(root.value);
             }
             result["extraRoots"] = std::move(roots);

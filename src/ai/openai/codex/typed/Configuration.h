@@ -234,7 +234,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct SystemConfigLayerSource {
-        AbsolutePathBuf file;
+        AbsolutePath file;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -251,7 +251,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct UserConfigLayerSource {
-        AbsolutePathBuf file;
+        AbsolutePath file;
         OptionalNullable<std::string> profile;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -260,7 +260,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct ProjectConfigLayerSource {
-        AbsolutePathBuf dotCodexFolder;
+        AbsolutePath dotCodexFolder;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -275,7 +275,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct LegacyManagedConfigTomlFromFileConfigLayerSource {
-        AbsolutePathBuf file;
+        AbsolutePath file;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -342,7 +342,7 @@ namespace ai::openai::codex::typed {
     struct ConfigBatchWriteParams {
         std::vector<ConfigEdit> edits;
         OptionalNullable<std::string> expectedVersion;
-        OptionalNullable<AbsolutePathBuf> filePath;
+        OptionalNullable<AbsolutePath> filePath;
         std::optional<bool> reloadUserConfig;
 
         bool operator==(const ConfigBatchWriteParams&) const = default;
@@ -350,7 +350,7 @@ namespace ai::openai::codex::typed {
 
     struct ConfigValueWriteParams {
         OptionalNullable<std::string> expectedVersion;
-        OptionalNullable<AbsolutePathBuf> filePath;
+        OptionalNullable<AbsolutePath> filePath;
         ConfigKeyPath keyPath;
         MergeStrategy mergeStrategy;
         // The pinned schema deliberately accepts any JSON value, including
@@ -373,7 +373,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct ConfigWriteResponse {
-        AbsolutePathBuf filePath;
+        AbsolutePath filePath;
         OptionalNullable<OverriddenMetadata> overriddenMetadata;
         WriteStatus status;
         std::string version;
@@ -553,7 +553,7 @@ namespace ai::openai::codex::typed {
     // Incoming notification aggregates retain the complete JSON-RPC envelope.
     struct ConfigWarningNotification {
         OptionalNullable<std::string> details;
-        OptionalNullable<AbsolutePathBuf> path;
+        OptionalNullable<AbsolutePath> path;
         OptionalNullable<TextRange> range;
         std::string summary;
         Json raw = Json::object();
@@ -564,24 +564,22 @@ namespace ai::openai::codex::typed {
 
     class Configuration {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using BatchWriteResultHandler = std::function<void(const OperationResult<ConfigWriteResponse>&)>;
-        using UnitResultHandler = std::function<void(const OperationResult<Unit>&)>;
-        using ReadResultHandler = std::function<void(const OperationResult<ConfigReadResponse>&)>;
-        using ReadRequirementsResultHandler = std::function<void(const OperationResult<ConfigRequirementsReadResponse>&)>;
-        using WriteValueResultHandler = std::function<void(const OperationResult<ConfigWriteResponse>&)>;
-        using SetExperimentalFeatureEnablementResultHandler =
-            std::function<void(const OperationResult<ExperimentalFeatureEnablementSetResponse>&)>;
-        using ListExperimentalFeaturesResultHandler = std::function<void(const OperationResult<ExperimentalFeatureListResponse>&)>;
+        Configuration(const Configuration&) = delete;
+        Configuration(Configuration&&) = delete;
+        Configuration& operator=(const Configuration&) = delete;
+        Configuration& operator=(Configuration&&) = delete;
 
-        Submission batchWrite(ConfigBatchWriteParams params, BatchWriteResultHandler handler);
-        Submission reloadMcpServers(Unit params, UnitResultHandler handler);
-        Submission read(ConfigReadParams params, ReadResultHandler handler);
-        Submission readRequirements(Unit params, ReadRequirementsResultHandler handler);
-        Submission writeValue(ConfigValueWriteParams params, WriteValueResultHandler handler);
+        Submission batchWrite(ConfigBatchWriteParams params, CompletionHandler<ConfigWriteResponse> handler);
+        Submission reloadMcpServers(DoneHandler handler);
+        Submission read(ConfigReadParams params, CompletionHandler<ConfigReadResponse> handler);
+        Submission read(CompletionHandler<ConfigReadResponse> handler);
+        Submission readRequirements(CompletionHandler<ConfigRequirementsReadResponse> handler);
+        Submission writeValue(ConfigValueWriteParams params, CompletionHandler<ConfigWriteResponse> handler);
         Submission setExperimentalFeatureEnablement(ExperimentalFeatureEnablementSetParams params,
-                                                    SetExperimentalFeatureEnablementResultHandler handler);
-        Submission listExperimentalFeatures(ExperimentalFeatureListParams params, ListExperimentalFeaturesResultHandler handler);
+                                                    CompletionHandler<ExperimentalFeatureEnablementSetResponse> handler);
+        Submission listExperimentalFeatures(ExperimentalFeatureListParams params,
+                                            CompletionHandler<ExperimentalFeatureListResponse> handler);
+        Submission listExperimentalFeatures(CompletionHandler<ExperimentalFeatureListResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;

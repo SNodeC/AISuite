@@ -11,6 +11,7 @@
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/typed/CodexErrorInfo.h"
 
+#include <functional>
 #include <optional>
 
 namespace ai::openai::codex::typed {
@@ -37,7 +38,44 @@ namespace ai::openai::codex::typed {
         explicit operator bool() const noexcept {
             return kind == Kind::Success && value.has_value();
         }
+
+        bool isSuccess() const noexcept {
+            return kind == Kind::Success;
+        }
+
+        bool isRemoteError() const noexcept {
+            return kind == Kind::RemoteError;
+        }
+
+        bool isCancelled() const noexcept {
+            return kind == Kind::Cancelled;
+        }
+
+        bool isLocalError() const noexcept {
+            return kind == Kind::LocalError;
+        }
+
+        T& operator*() & {
+            return *value;
+        }
+
+        const T& operator*() const& {
+            return *value;
+        }
+
+        T* operator->() {
+            return value.operator->();
+        }
+
+        const T* operator->() const {
+            return value.operator->();
+        }
     };
+
+    template <typename T>
+    using CompletionHandler = std::function<void(const OperationResult<T>&)>;
+
+    using DoneHandler = CompletionHandler<Unit>;
 
 } // namespace ai::openai::codex::typed
 

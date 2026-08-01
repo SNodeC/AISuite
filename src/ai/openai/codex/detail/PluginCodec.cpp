@@ -382,14 +382,14 @@ namespace ai::openai::codex::detail {
         }
 
         bool decodePathVectorAt(const Json& value,
-                                std::vector<typed::AbsolutePathBuf>& result,
+                                std::vector<typed::AbsolutePath>& result,
                                 std::string& error,
                                 std::string_view context,
                                 std::string_view path) {
             return decodeArrayAt(
                 value,
                 result,
-                [&](const Json& item, typed::AbsolutePathBuf& decoded, const std::string& itemPath) {
+                [&](const Json& item, typed::AbsolutePath& decoded, const std::string& itemPath) {
                     return decodeStrongStringAt(item, decoded, error, context, itemPath);
                 },
                 error,
@@ -486,7 +486,7 @@ namespace ai::openai::codex::detail {
                         value,
                         "path",
                         decoded.path,
-                        [&](const Json& item, typed::AbsolutePathBuf& output, std::string_view itemPath) {
+                        [&](const Json& item, typed::AbsolutePath& output, std::string_view itemPath) {
                             return decodeStrongStringAt(item, output, decodeError, "PluginSource", itemPath);
                         },
                         decodeError,
@@ -598,7 +598,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "marketplacePath",
                     result.marketplacePath,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -657,7 +657,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "composerIcon",
                     result.composerIcon,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -707,7 +707,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "logo",
                     result.logo,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -717,7 +717,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "logoDark",
                     result.logoDark,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -777,7 +777,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "screenshots",
                     result.screenshots,
-                    [&](const Json& item, std::vector<typed::AbsolutePathBuf>& decoded, std::string_view itemPath) {
+                    [&](const Json& item, std::vector<typed::AbsolutePath>& decoded, std::string_view itemPath) {
                         return decodePathVectorAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1107,7 +1107,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "path",
                     result.path,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1280,7 +1280,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "iconLarge",
                     result.iconLarge,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1290,7 +1290,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "iconSmall",
                     result.iconSmall,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1388,7 +1388,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "path",
                     result.path,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1494,7 +1494,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "marketplacePath",
                     result.marketplacePath,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1574,7 +1574,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "localPluginPath",
                     result.localPluginPath,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1616,7 +1616,7 @@ namespace ai::openai::codex::detail {
                 !validateOptionalNullable(value.remoteMarketplaceName, error, Context, "$.remoteMarketplaceName")) {
                 return std::nullopt;
             }
-            encodeOptionalNullable(result, "marketplacePath", value.marketplacePath, [](const typed::AbsolutePathBuf& item) {
+            encodeOptionalNullable(result, "marketplacePath", value.marketplacePath, [](const typed::AbsolutePath& item) {
                 return Json(item.value);
             });
             result["pluginName"] = value.pluginName;
@@ -1825,7 +1825,7 @@ namespace ai::openai::codex::detail {
                 !validateOptionalNullable(value.remoteMarketplaceName, error, Context, "$.remoteMarketplaceName")) {
                 return std::nullopt;
             }
-            encodeOptionalNullable(result, "marketplacePath", value.marketplacePath, [](const typed::AbsolutePathBuf& item) {
+            encodeOptionalNullable(result, "marketplacePath", value.marketplacePath, [](const typed::AbsolutePath& item) {
                 return Json(item.value);
             });
             result["pluginName"] = value.pluginName;
@@ -1914,7 +1914,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "marketplacePath",
                     result.marketplacePath,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,
@@ -1941,7 +1941,7 @@ namespace ai::openai::codex::detail {
                     value,
                     "pluginPath",
                     result.pluginPath,
-                    [&](const Json& item, typed::AbsolutePathBuf& decoded, std::string_view itemPath) {
+                    [&](const Json& item, typed::AbsolutePath& decoded, std::string_view itemPath) {
                         return decodeStrongStringAt(item, decoded, error, Context, itemPath);
                     },
                     error,

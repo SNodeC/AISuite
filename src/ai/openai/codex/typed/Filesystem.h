@@ -47,22 +47,22 @@ namespace ai::openai::codex::typed {
     };
 
     struct FsCopyParams {
-        AbsolutePathBuf destinationPath;
+        AbsolutePath destinationPath;
         std::optional<bool> recursive;
-        AbsolutePathBuf sourcePath;
+        AbsolutePath sourcePath;
 
         bool operator==(const FsCopyParams&) const = default;
     };
 
     struct FsCreateDirectoryParams {
-        AbsolutePathBuf path;
+        AbsolutePath path;
         OptionalNullable<bool> recursive;
 
         bool operator==(const FsCreateDirectoryParams&) const = default;
     };
 
     struct FsGetMetadataParams {
-        AbsolutePathBuf path;
+        AbsolutePath path;
 
         auto operator<=>(const FsGetMetadataParams&) const = default;
     };
@@ -80,7 +80,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct FsReadDirectoryParams {
-        AbsolutePathBuf path;
+        AbsolutePath path;
 
         auto operator<=>(const FsReadDirectoryParams&) const = default;
     };
@@ -104,7 +104,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct FsReadFileParams {
-        AbsolutePathBuf path;
+        AbsolutePath path;
 
         auto operator<=>(const FsReadFileParams&) const = default;
     };
@@ -119,7 +119,7 @@ namespace ai::openai::codex::typed {
 
     struct FsRemoveParams {
         OptionalNullable<bool> force;
-        AbsolutePathBuf path;
+        AbsolutePath path;
         OptionalNullable<bool> recursive;
 
         bool operator==(const FsRemoveParams&) const = default;
@@ -132,14 +132,14 @@ namespace ai::openai::codex::typed {
     };
 
     struct FsWatchParams {
-        AbsolutePathBuf path;
+        AbsolutePath path;
         FsWatchId watchId;
 
         auto operator<=>(const FsWatchParams&) const = default;
     };
 
     struct FsWatchResponse {
-        AbsolutePathBuf path;
+        AbsolutePath path;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
 
@@ -148,7 +148,7 @@ namespace ai::openai::codex::typed {
 
     struct FsWriteFileParams {
         std::string dataBase64;
-        AbsolutePathBuf path;
+        AbsolutePath path;
 
         auto operator<=>(const FsWriteFileParams&) const = default;
     };
@@ -183,7 +183,7 @@ namespace ai::openai::codex::typed {
     };
 
     struct FsChangedNotification {
-        std::vector<AbsolutePathBuf> changedPaths;
+        std::vector<AbsolutePath> changedPaths;
         FsWatchId watchId;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
@@ -211,24 +211,21 @@ namespace ai::openai::codex::typed {
 
     class Filesystem {
     public:
-        using Submission = AppServerClient::RawProtocol::Submission;
-        using UnitResultHandler = std::function<void(const OperationResult<Unit>&)>;
-        using GetMetadataResultHandler = std::function<void(const OperationResult<FsGetMetadataResponse>&)>;
-        using ReadDirectoryResultHandler = std::function<void(const OperationResult<FsReadDirectoryResponse>&)>;
-        using ReadFileResultHandler = std::function<void(const OperationResult<FsReadFileResponse>&)>;
-        using WatchResultHandler = std::function<void(const OperationResult<FsWatchResponse>&)>;
-        using FuzzyFileSearchResultHandler = std::function<void(const OperationResult<FuzzyFileSearchResponse>&)>;
+        Filesystem(const Filesystem&) = delete;
+        Filesystem(Filesystem&&) = delete;
+        Filesystem& operator=(const Filesystem&) = delete;
+        Filesystem& operator=(Filesystem&&) = delete;
 
-        Submission copy(FsCopyParams params, UnitResultHandler handler);
-        Submission createDirectory(FsCreateDirectoryParams params, UnitResultHandler handler);
-        Submission getMetadata(FsGetMetadataParams params, GetMetadataResultHandler handler);
-        Submission readDirectory(FsReadDirectoryParams params, ReadDirectoryResultHandler handler);
-        Submission readFile(FsReadFileParams params, ReadFileResultHandler handler);
-        Submission remove(FsRemoveParams params, UnitResultHandler handler);
-        Submission watch(FsWatchParams params, WatchResultHandler handler);
-        Submission unwatch(FsUnwatchParams params, UnitResultHandler handler);
-        Submission writeFile(FsWriteFileParams params, UnitResultHandler handler);
-        Submission fuzzyFileSearch(FuzzyFileSearchParams params, FuzzyFileSearchResultHandler handler);
+        Submission copy(FsCopyParams params, DoneHandler handler);
+        Submission createDirectory(FsCreateDirectoryParams params, DoneHandler handler);
+        Submission getMetadata(FsGetMetadataParams params, CompletionHandler<FsGetMetadataResponse> handler);
+        Submission readDirectory(FsReadDirectoryParams params, CompletionHandler<FsReadDirectoryResponse> handler);
+        Submission readFile(FsReadFileParams params, CompletionHandler<FsReadFileResponse> handler);
+        Submission remove(FsRemoveParams params, DoneHandler handler);
+        Submission watch(FsWatchParams params, CompletionHandler<FsWatchResponse> handler);
+        Submission unwatch(FsUnwatchParams params, DoneHandler handler);
+        Submission writeFile(FsWriteFileParams params, DoneHandler handler);
+        Submission fuzzyFileSearch(FuzzyFileSearchParams params, CompletionHandler<FuzzyFileSearchResponse> handler);
 
     private:
         friend class ::ai::openai::codex::AppServerClient;
