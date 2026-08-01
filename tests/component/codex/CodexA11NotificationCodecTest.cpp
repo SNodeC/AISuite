@@ -630,14 +630,15 @@ int main() {
             return descriptor.a11ConversationDomain;
         }));
     result.expectTrue(a11Descriptors == 37, "exactly 37 descriptor rows belong to the A1.1 conversation-domain slice");
-    const std::size_t residualPartialDescriptors =
+    const std::size_t completedCommonDescriptors =
         static_cast<std::size_t>(std::count_if(descriptors.begin(), descriptors.end(), [](const auto& descriptor) {
             const auto& row = detail::entryFor(descriptor.target);
-            return !descriptor.a11ConversationDomain && row.typedSchemaStatus == detail::TypedSchemaStatus::Partial &&
-                   descriptor.key.name == "error";
+            return !descriptor.a11ConversationDomain && row.a1Slice == detail::A1Slice::A1_0 &&
+                   row.typedSchemaStatus == detail::TypedSchemaStatus::Complete && descriptor.key.name == "error" &&
+                   descriptor.payloadTypeIdentity == "typed::ErrorNotification";
         }));
-    result.expectTrue(residualPartialDescriptors == 1,
-                      "error remains the exact residual partial descriptor row while B4 completes configWarning");
+    result.expectTrue(completedCommonDescriptors == 1,
+                      "error is the exact completed Common descriptor row with its canonical payload identity");
 
     std::map<std::string, std::size_t> roles;
     std::set<detail::ServerNotificationTarget> baseTargets;

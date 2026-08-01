@@ -458,8 +458,8 @@ namespace {
             }
         }
 
-        result.expectTrue(complete == 336 && partial == 3 && notImplemented == 0 && notApplicable == 48,
-                          "the current global registry arithmetic is exactly 336/3/0/48");
+        result.expectTrue(complete == 339 && partial == 0 && notImplemented == 0 && notApplicable == 48,
+                          "the current global registry arithmetic is exactly 339/0/0/48");
         result.expectTrue(nativeComplete == 56 && nativePartial == 0 && nativeNotImplemented == 0,
                           "the current native A1.4 registry arithmetic is exactly 56/0/0");
         result.expectEqual(std::size_t{56}, completedA14.size(), "all fifty-six native A1.4 identities are Complete");

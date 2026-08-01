@@ -361,10 +361,14 @@ with helpers for `review` and `compact`; a future value remains typed and
 receives an `UnknownEnumValue` diagnostic. Every alternative retains its
 complete raw JSON.
 
-The `error` notification preserves its legacy raw `TurnError` JSON and adds a
-structured `TurnError` view. That view distinguishes omitted, null, and value
-semantics for `additionalDetails` and `codexErrorInfo`. Malformed known error
-payloads degrade to the raw-preserving compatibility path.
+The `error` notification has the canonical `ErrorNotification` payload:
+`TurnError error`, `ThreadId threadId`, `TurnId turnId`, and `bool willRetry`.
+It is canonical-notification alternative 67. The existing application-facing
+`TurnErrorEvent` remains Event alternative 44 and exposes the canonical value
+through its `canonical` member while preserving every legacy field. `TurnError`
+distinguishes omitted, null, and value semantics for `additionalDetails` and
+`codexErrorInfo`. Malformed known error payloads degrade to the raw-preserving
+compatibility path.
 
 ## Server requests
 
@@ -492,9 +496,9 @@ Public `std::variant` and aggregate layouts changed where the typed model
 required it, and this documentation does not claim binary compatibility for
 already-built consumers.
 
-SOVERSION remains 1 through native A1.4 completion. The added facades and
-public aggregates are part of the documented A1 consumer-rebuild boundary;
-the SOVERSION decision remains deferred to the distinct final-A1 closure.
+SOVERSION remains 1 through Final A1a protocol completion. The added facades
+and public aggregates are part of the documented A1 consumer-rebuild boundary;
+the compatibility decision remains deferred to Final A1b.
 
 A1.3 preserves the existing alternative order and appends new `Event` and
 `TypedServerRequest` alternatives, but both public variants change
@@ -515,9 +519,8 @@ authoritative. Raw JSON on results, threads, turns, items, events, server
 requests, and Codex error alternatives remains the escape hatch for protocol
 growth.
 
-Native A1.4 is complete: the global registry is
-336 Complete / 3 Partial / 0 NotImplemented / 48 NotApplicable, while native
-A1.4 is 56 Complete / 0 Partial / 0 NotImplemented. The remaining Partials are
-exactly `initialize`, `initialized`, and `error`, owned by Common/A1.0 and
-deferred to final-A1 completion. All 48 InventoryOnly identities remain
-NotApplicable, and Codex SOVERSION remains 1.
+The stable Codex A1 typed protocol surface is complete: the global registry is
+339 Complete / 0 Partial / 0 NotImplemented / 48 NotApplicable, while native
+A1.4 remains 56 Complete / 0 Partial / 0 NotImplemented. All 48 InventoryOnly
+identities remain NotApplicable, and Codex SOVERSION remains 1 pending Final
+A1b.

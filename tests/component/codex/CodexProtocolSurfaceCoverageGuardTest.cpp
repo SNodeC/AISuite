@@ -484,8 +484,8 @@ int main() {
                       "the final A1.2 B5 slice is exactly Complete 45, Partial 0, NotImplemented 0, NotApplicable 0");
     result.expectTrue(schemaStatusCountsForSlice(baseline, detail::A1Slice::A1_3) == SchemaStatusCounts{68, 0, 0, 0},
                       "the final A1.3 slice is exactly Complete 68, Partial 0, NotImplemented 0, NotApplicable 0");
-    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{336, 3, 0, 48},
-                      "the current registry is exactly Complete 336, Partial 3, NotImplemented 0, NotApplicable 48");
+    result.expectTrue(schemaStatusCounts(baseline) == SchemaStatusCounts{339, 0, 0, 48},
+                      "the current registry is exactly Complete 339, Partial 0, NotImplemented 0, NotApplicable 48");
     result.expectTrue(exactA13Descriptors && exactA13FixtureBijection && a13Rows == 68 && a13DescriptorKeys.size() == 68 &&
                           a13ClientDescriptors == 17 && a13NotificationDescriptors == 7 && a13ServerRequestDescriptors == 5 &&
                           a13UnionDescriptors == 39,

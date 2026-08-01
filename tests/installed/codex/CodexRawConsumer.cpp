@@ -36,6 +36,7 @@ int main() {
         protocol.reject(stringId, ProtocolError{.code = -32000, .message = "Request rejected", .data = std::nullopt});
 
     const std::optional<InitializeResult> initializeResult = client.getInitializeResult();
+    const std::optional<typed::InitializeResponse> initializeResponse = client.getInitializeResponse();
 
-    return request || notification || response || rejection || initializeResult ? 1 : 0;
+    return request || notification || response || rejection || initializeResult || initializeResponse ? 1 : 0;
 }

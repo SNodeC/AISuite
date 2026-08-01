@@ -26,8 +26,17 @@ namespace ai::openai::codex::stdio {
         : Client("codex", {"app-server"}, std::move(clientInfo)) {
     }
 
+    Client::Client(typed::InitializeParams initializeParams)
+        : Client("codex", {"app-server"}, std::move(initializeParams)) {
+    }
+
     Client::Client(std::string executable, std::vector<std::string> arguments, ClientInfo clientInfo)
         : AppServerClient(std::make_unique<detail::StdioTransport>(std::move(executable), std::move(arguments)), std::move(clientInfo)) {
+    }
+
+    Client::Client(std::string executable, std::vector<std::string> arguments, typed::InitializeParams initializeParams)
+        : AppServerClient(std::make_unique<detail::StdioTransport>(std::move(executable), std::move(arguments)),
+                          std::move(initializeParams)) {
     }
 
     Client::~Client() = default;

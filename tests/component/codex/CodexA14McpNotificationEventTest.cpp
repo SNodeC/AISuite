@@ -24,7 +24,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 67);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
     static_assert(std::is_same_v<std::variant_alternative_t<56, typed::CanonicalServerNotification>, typed::SkillsChangedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<57, typed::CanonicalServerNotification>,
                                  typed::McpServerOauthLoginCompletedNotification>);

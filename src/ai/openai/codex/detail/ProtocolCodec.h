@@ -10,6 +10,7 @@
 #define AI_OPENAI_CODEX_DETAIL_PROTOCOLCODEC_H
 
 #include "ai/openai/codex/Protocol.h"
+#include "ai/openai/codex/typed/Types.h"
 
 #include <cstdint>
 #include <nlohmann/json.hpp>
@@ -38,6 +39,7 @@ namespace ai::openai::codex::detail {
         Json raw;
     };
 
+    std::optional<typed::InitializeResponse> decodeInitializeResponse(const Json& result, std::string& errorMessage);
     std::optional<InitializeResult> decodeInitializeResult(const Json& result, std::string& errorMessage);
 
     class ProtocolCodec {
@@ -47,10 +49,13 @@ namespace ai::openai::codex::detail {
         static std::optional<std::string>
         encodeRequest(std::int64_t id, std::string_view method, const Json& params, std::string& errorMessage);
         static std::optional<std::string> encodeNotification(std::string_view method, const Json& params, std::string& errorMessage);
+        static std::optional<std::string> encodeNotification(std::string_view method, std::string& errorMessage);
         static std::optional<std::string> encodeSuccessResponse(const ProtocolId& id, const Json& result, std::string& errorMessage);
         static std::optional<std::string> encodeErrorResponse(const ProtocolId& id, const ProtocolError& error, std::string& errorMessage);
 
+        static std::optional<Json> encodeInitializeParams(const typed::InitializeParams& params, std::string& errorMessage);
         static std::string initializeRequest(std::int64_t id, const ClientInfo& clientInfo);
+        static std::string initializeRequest(std::int64_t id, const typed::InitializeParams& params);
         static std::string initializedNotification();
 
         static std::optional<ProtocolMessage> decode(std::string_view wireMessage, std::string& errorMessage);

@@ -42,6 +42,14 @@
 
 namespace ai::openai::codex {
 
+    typed::InitializeParams::InitializeParams(InitializeClientInfo clientInfo)
+        : clientInfo(std::move(clientInfo)) {
+    }
+
+    typed::InitializeParams::InitializeParams(const ai::openai::codex::ClientInfo& clientInfo)
+        : clientInfo{clientInfo.name, clientInfo.version, OptionalNullable<std::string>::withValue(clientInfo.title), Json::object()} {
+    }
+
     namespace {
         constexpr std::size_t MAX_PENDING_CLIENT_REQUESTS = 4096;
         constexpr std::size_t MAX_PENDING_SERVER_REQUESTS = 1024;
@@ -113,9 +121,9 @@ namespace ai::openai::codex {
 
     class AppServerClient::Impl {
     public:
-        Impl(std::unique_ptr<detail::Transport> transport, ClientInfo clientInfo)
+        Impl(std::unique_ptr<detail::Transport> transport, typed::InitializeParams initializeParams)
             : transport(std::move(transport))
-            , clientInfo(std::move(clientInfo))
+            , initializeParams(std::move(initializeParams))
             , lifetime(std::make_shared<Lifetime>())
             , rawProtocol(*this)
             , logScope(logger::LogOrigin::Framework, logger::LogBoundary::Connection, "ai.openai.codex") {
@@ -139,6 +147,7 @@ namespace ai::openai::codex {
             }
             const std::uint64_t generation = *allocatedGeneration;
             initializeResult.reset();
+            initializeResponse.reset();
             protocolSessionStarted = false;
             lifetime->callbackGeneration = generation;
             lifetime->protocolActive = true;
@@ -203,6 +212,10 @@ namespace ai::openai::codex {
 
         std::optional<InitializeResult> getInitializeResult() const {
             return initializeResult;
+        }
+
+        std::optional<typed::InitializeResponse> getInitializeResponse() const {
+            return initializeResponse;
         }
 
         void setOnStateChanged(Callbacks::StateChanged callback) {
@@ -567,8 +580,12 @@ namespace ai::openai::codex {
 
             pendingInitializeId = *requestId;
             std::string encodeError;
-            std::optional<std::string> wireMessage = detail::ProtocolCodec::encodeRequest(
-                *requestId, detail::entryFor(detail::ClientRequestTarget::Initialize).key.name, initializeParams(), encodeError);
+            std::optional<Json> params = detail::ProtocolCodec::encodeInitializeParams(initializeParams, encodeError);
+            std::optional<std::string> wireMessage;
+            if (params) {
+                wireMessage = detail::ProtocolCodec::encodeRequest(
+                    *requestId, detail::entryFor(detail::ClientRequestTarget::Initialize).key.name, *params, encodeError);
+            }
             if (!wireMessage) {
                 pendingInitializeId.reset();
                 fail({Error::Category::Initialization, EINVAL, std::move(encodeError)});
@@ -586,10 +603,6 @@ namespace ai::openai::codex {
                 return;
             }
             flushDeferredIncoming();
-        }
-
-        Json initializeParams() const {
-            return {{"clientInfo", {{"name", clientInfo.name}, {"title", clientInfo.title}, {"version", clientInfo.version}}}};
         }
 
         void messageReceived(std::uint64_t generation, std::string wireMessage) {
@@ -669,15 +682,16 @@ namespace ai::openai::codex {
             }
 
             std::string resultError;
-            std::optional<InitializeResult> decodedInitializeResult = detail::decodeInitializeResult(message.result, resultError);
-            if (!decodedInitializeResult) {
+            std::optional<typed::InitializeResponse> decodedInitializeResponse =
+                detail::decodeInitializeResponse(message.result, resultError);
+            if (!decodedInitializeResponse) {
                 fail({Error::Category::Initialization, 0, std::move(resultError)});
                 return;
             }
 
             std::string encodeError;
             std::optional<std::string> initialized = detail::ProtocolCodec::encodeNotification(
-                detail::entryFor(detail::ClientNotificationTarget::Initialized).key.name, Json::object(), encodeError);
+                detail::entryFor(detail::ClientNotificationTarget::Initialized).key.name, encodeError);
             if (!initialized) {
                 fail({Error::Category::Initialization, EINVAL, std::move(encodeError)});
                 return;
@@ -698,7 +712,12 @@ namespace ai::openai::codex {
                 return;
             }
 
-            initializeResult = std::move(decodedInitializeResult);
+            initializeResult = InitializeResult{decodedInitializeResponse->codexHome.value,
+                                                decodedInitializeResponse->platformFamily,
+                                                decodedInitializeResponse->platformOs,
+                                                decodedInitializeResponse->userAgent,
+                                                decodedInitializeResponse->raw};
+            initializeResponse = std::move(decodedInitializeResponse);
             transition(State::Ready);
             protocolSessionStarted = true;
             logScope.logger(logger::Logger::semanticSink()).info("app-server session started");
@@ -1072,7 +1091,7 @@ namespace ai::openai::codex {
         };
 
         std::unique_ptr<detail::Transport> transport;
-        ClientInfo clientInfo;
+        typed::InitializeParams initializeParams;
         Callbacks callbacks;
 
         State state = State::Stopped;
@@ -1094,6 +1113,7 @@ namespace ai::openai::codex {
         bool flushingDeferredIncoming = false;
 
         std::optional<InitializeResult> initializeResult;
+        std::optional<typed::InitializeResponse> initializeResponse;
         RawProtocol::NotificationHandler onNotification;
         RawProtocol::ServerRequestHandler onServerRequest;
         RawProtocol::UnknownMessageHandler onUnknownMessage;
@@ -1183,7 +1203,11 @@ namespace ai::openai::codex {
     }
 
     AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport, ClientInfo clientInfo)
-        : impl(std::make_unique<Impl>(std::move(transport), std::move(clientInfo))) {
+        : AppServerClient(std::move(transport), typed::InitializeParams{clientInfo}) {
+    }
+
+    AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport, typed::InitializeParams initializeParams)
+        : impl(std::make_unique<Impl>(std::move(transport), std::move(initializeParams))) {
         impl->installTypedClient(std::unique_ptr<typed::Client>(
             new typed::Client(std::unique_ptr<typed::Accounts>(new typed::Accounts(impl->raw())),
                               std::unique_ptr<typed::Apps>(new typed::Apps(impl->raw())),
@@ -1275,6 +1299,10 @@ namespace ai::openai::codex {
 
     std::optional<InitializeResult> AppServerClient::getInitializeResult() const {
         return impl->getInitializeResult();
+    }
+
+    std::optional<typed::InitializeResponse> AppServerClient::getInitializeResponse() const {
+        return impl->getInitializeResponse();
     }
 
     void AppServerClient::setOnStateChanged(Callbacks::StateChanged callback) {

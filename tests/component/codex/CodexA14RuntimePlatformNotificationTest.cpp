@@ -27,7 +27,7 @@ namespace {
     namespace detail = ai::openai::codex::detail;
     namespace typed = ai::openai::codex::typed;
 
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 67);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
     static_assert(
         std::is_same_v<std::variant_alternative_t<58, typed::CanonicalServerNotification>, typed::McpServerStatusUpdatedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<59, typed::CanonicalServerNotification>, typed::DeprecationNoticeNotification>);
@@ -43,6 +43,7 @@ namespace {
         std::is_same_v<std::variant_alternative_t<65, typed::CanonicalServerNotification>, typed::WindowsWorldWritableWarningNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<66, typed::CanonicalServerNotification>,
                                  typed::WindowsSandboxSetupCompletedNotification>);
+    static_assert(std::is_same_v<std::variant_alternative_t<67, typed::CanonicalServerNotification>, typed::ErrorNotification>);
 
     static_assert(std::variant_size_v<typed::Event> == 69);
     static_assert(std::is_same_v<std::variant_alternative_t<60, typed::Event>, typed::McpServerStatusUpdatedNotification>);

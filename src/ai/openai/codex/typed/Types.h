@@ -21,6 +21,10 @@
 #include <variant>
 #include <vector>
 
+namespace ai::openai::codex {
+    struct ClientInfo;
+}
+
 namespace ai::openai::codex::typed {
 
     enum class DecodeIssueKind { UnknownMethod, UnknownDiscriminator, UnknownEnumValue, MalformedKnownPayload };
@@ -181,6 +185,38 @@ namespace ai::openai::codex::typed {
         }
 
         auto operator<=>(const AbsolutePathBuf&) const = default;
+    };
+
+    struct InitializeClientInfo {
+        std::string name;
+        std::string version;
+        OptionalNullable<std::string> title;
+        Json raw = Json::object();
+    };
+
+    struct InitializeCapabilities {
+        std::optional<bool> experimentalApi;
+        std::optional<bool> mcpServerOpenaiFormElicitation;
+        OptionalNullable<std::vector<std::string>> optOutNotificationMethods;
+        std::optional<bool> requestAttestation;
+        Json raw = Json::object();
+    };
+
+    struct InitializeParams {
+        InitializeClientInfo clientInfo;
+        OptionalNullable<InitializeCapabilities> capabilities;
+        Json raw = Json::object();
+
+        explicit InitializeParams(InitializeClientInfo clientInfo);
+        explicit InitializeParams(const ai::openai::codex::ClientInfo& clientInfo);
+    };
+
+    struct InitializeResponse {
+        AbsolutePathBuf codexHome;
+        std::string platformFamily;
+        std::string platformOs;
+        std::string userAgent;
+        Json raw = Json::object();
     };
 
     struct ByteRange {
@@ -479,7 +515,11 @@ namespace ai::openai::codex::typed {
     }
 
     [[nodiscard]] inline const Json& threadStatusRaw(const ThreadStatus& status) noexcept {
-        return std::visit([](const auto& alternative) -> const Json& { return alternative.raw; }, status);
+        return std::visit(
+            [](const auto& alternative) -> const Json& {
+                return alternative.raw;
+            },
+            status);
     }
 
     struct TurnStatus {

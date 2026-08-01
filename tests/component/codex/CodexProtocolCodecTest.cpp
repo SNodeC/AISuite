@@ -10,6 +10,7 @@
 #include "ai/openai/codex/detail/ProtocolCodec.h"
 #include "support/TestResult.h"
 
+#include <array>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -26,6 +27,11 @@ namespace {
     using ai::openai::codex::detail::ProtocolCodec;
     using ai::openai::codex::detail::ProtocolId;
     using ai::openai::codex::detail::ProtocolMessage;
+    using ai::openai::codex::typed::InitializeCapabilities;
+    using ai::openai::codex::typed::InitializeClientInfo;
+    using ai::openai::codex::typed::InitializeParams;
+    using ai::openai::codex::typed::InitializeResponse;
+    using ai::openai::codex::typed::OptionalNullable;
 
     bool hasIntegerId(const std::optional<ProtocolId>& id, std::int64_t expected) {
         return id && std::holds_alternative<std::int64_t>(*id) && std::get<std::int64_t>(*id) == expected;
@@ -185,8 +191,7 @@ namespace {
         testResult.expectTrue(decodedWithData && decodedWithData->error && decodedWithData->error->data &&
                                   *decodedWithData->error->data == Json{{"reason", "example"}},
                               "remote error object data is preserved");
-        testResult.expectTrue(decodedWithData && decodedWithData->error &&
-                                  decodedWithData->error->raw == errorWithData["error"] &&
+        testResult.expectTrue(decodedWithData && decodedWithData->error && decodedWithData->error->raw == errorWithData["error"] &&
                                   decodedWithData->raw == errorWithData,
                               "remote error retains exact unknown error-object and envelope fields in raw");
 
@@ -378,7 +383,79 @@ namespace {
         testResult.expectTrue(initializeMessage && initializeMessage->params["clientInfo"]["name"] == "codec_test" &&
                                   initializeMessage->params["clientInfo"]["title"] == "Codec Test" &&
                                   initializeMessage->params["clientInfo"]["version"] == "9.8.7",
-                              "initialize wrapper preserves all configured client information");
+                              "legacy ClientInfo maps to the complete canonical client information");
+        testResult.expectTrue(initializeMessage && !initializeMessage->params.contains("capabilities"),
+                              "legacy ClientInfo preserves the existing omitted-capabilities behavior");
+
+        const std::array<std::pair<OptionalNullable<std::string>, Json>, 3> titleCases{{
+            {OptionalNullable<std::string>::omitted(), Json()},
+            {OptionalNullable<std::string>::explicitNull(), Json(nullptr)},
+            {OptionalNullable<std::string>::withValue("Canonical Title"), Json("Canonical Title")},
+        }};
+        std::int64_t canonicalId = 410;
+        for (const auto& [title, expected] : titleCases) {
+            InitializeParams params{
+                InitializeClientInfo{"canonical-client", "2.0", title, Json{{"futureClientInfo", true}, {"title", "raw must not win"}}}};
+            params.raw = Json{{"futureInitialize", Json{{"retained", true}}}, {"capabilities", Json{{"stale", true}}}};
+            const Json encoded = Json::parse(ProtocolCodec::initializeRequest(canonicalId++, params));
+            const Json& encodedInfo = encoded.at("params").at("clientInfo");
+            testResult.expectTrue(encodedInfo.at("name") == "canonical-client" && encodedInfo.at("version") == "2.0" &&
+                                      encodedInfo.at("futureClientInfo") == true,
+                                  "canonical client information overlays known fields while preserving future fields");
+            testResult.expectTrue(title.isOmitted() ? !encodedInfo.contains("title") : encodedInfo.at("title") == expected,
+                                  "client title preserves omitted, explicit-null, and string states");
+            testResult.expectTrue(encoded.at("params").at("futureInitialize").at("retained") == true &&
+                                      !encoded.at("params").contains("capabilities"),
+                                  "open InitializeParams raw fields survive while omitted capabilities override stale raw data");
+        }
+
+        InitializeParams nullCapabilities{
+            InitializeClientInfo{"canonical-client", "2.0", OptionalNullable<std::string>::omitted(), Json::object()}};
+        nullCapabilities.capabilities = OptionalNullable<InitializeCapabilities>::explicitNull();
+        const Json nullCapabilitiesWire = Json::parse(ProtocolCodec::initializeRequest(420, nullCapabilities));
+        testResult.expectTrue(nullCapabilitiesWire.at("params").contains("capabilities") &&
+                                  nullCapabilitiesWire.at("params").at("capabilities").is_null(),
+                              "root capabilities preserve explicit null separately from omission");
+
+        const std::array<std::optional<bool>, 3> booleanStates{{std::nullopt, false, true}};
+        for (const std::optional<bool> state : booleanStates) {
+            InitializeCapabilities capabilities;
+            capabilities.experimentalApi = state;
+            capabilities.mcpServerOpenaiFormElicitation = state;
+            capabilities.requestAttestation = state;
+            capabilities.raw = Json{{"futureCapability", 7}, {"experimentalApi", "stale"}};
+            InitializeParams params{
+                InitializeClientInfo{"canonical-client", "2.0", OptionalNullable<std::string>::omitted(), Json::object()}};
+            params.capabilities = OptionalNullable<InitializeCapabilities>::withValue(std::move(capabilities));
+            const Json encodedCapabilities =
+                Json::parse(ProtocolCodec::initializeRequest(canonicalId++, params)).at("params").at("capabilities");
+            for (const char* field : {"experimentalApi", "mcpServerOpenaiFormElicitation", "requestAttestation"}) {
+                testResult.expectTrue(state ? encodedCapabilities.at(field) == *state : !encodedCapabilities.contains(field),
+                                      std::string(field) + " preserves omitted, false, and true states");
+            }
+            testResult.expectTrue(encodedCapabilities.at("futureCapability") == 7,
+                                  "open InitializeCapabilities future fields are preserved");
+        }
+
+        const std::array<std::pair<OptionalNullable<std::vector<std::string>>, Json>, 4> optOutCases{{
+            {OptionalNullable<std::vector<std::string>>::omitted(), Json()},
+            {OptionalNullable<std::vector<std::string>>::explicitNull(), Json(nullptr)},
+            {OptionalNullable<std::vector<std::string>>::withValue({}), Json::array()},
+            {OptionalNullable<std::vector<std::string>>::withValue({"thread/started", "warning"}),
+             Json::array({"thread/started", "warning"})},
+        }};
+        for (const auto& [methods, expected] : optOutCases) {
+            InitializeCapabilities capabilities;
+            capabilities.optOutNotificationMethods = methods;
+            InitializeParams params{
+                InitializeClientInfo{"canonical-client", "2.0", OptionalNullable<std::string>::omitted(), Json::object()}};
+            params.capabilities = OptionalNullable<InitializeCapabilities>::withValue(std::move(capabilities));
+            const Json encodedCapabilities =
+                Json::parse(ProtocolCodec::initializeRequest(canonicalId++, params)).at("params").at("capabilities");
+            testResult.expectTrue(methods.isOmitted() ? !encodedCapabilities.contains("optOutNotificationMethods")
+                                                      : encodedCapabilities.at("optOutNotificationMethods") == expected,
+                                  "notification opt-out methods preserve omitted, null, empty, and populated states");
+        }
 
         const std::string initialized = ProtocolCodec::initializedNotification();
         testResult.expectTrue(!initialized.empty(), "initialized encoding produces a JSON document");
@@ -386,8 +463,10 @@ namespace {
                               "initialized encoding contains no stdio line delimiter");
         const std::optional<ProtocolMessage> initializedMessage = ProtocolCodec::decode(initialized, errorMessage);
         testResult.expectTrue(initializedMessage && initializedMessage->kind == ProtocolMessage::Kind::Notification &&
-                                  initializedMessage->method == "initialized" && initializedMessage->params == Json::object(),
-                              "initialized wrapper uses the generic notification encoder");
+                                  initializedMessage->method == "initialized" && initializedMessage->params.is_null(),
+                              "initialized wrapper decodes as the parameterless stable notification");
+        testResult.expectTrue(!Json::parse(initialized).contains("params"),
+                              "initialized wire envelope contains the method and no params member");
 
         const Json rawInitializeResult = {
             {"codexHome", "/tmp/fake-codex"},
@@ -399,12 +478,18 @@ namespace {
         errorMessage = "stale";
         const std::optional<InitializeResult> initializeResult =
             ai::openai::codex::detail::decodeInitializeResult(rawInitializeResult, errorMessage);
+        const std::optional<InitializeResponse> initializeResponse =
+            ai::openai::codex::detail::decodeInitializeResponse(rawInitializeResult, errorMessage);
         testResult.expectTrue(initializeResult && initializeResult->codexHome == "/tmp/fake-codex" &&
                                   initializeResult->platformFamily == "unix" && initializeResult->platformOs == "linux" &&
                                   initializeResult->userAgent == "snodec-codec-test",
                               "separate initialization decoder caches all typed fields");
         testResult.expectTrue(initializeResult && initializeResult->raw == rawInitializeResult,
                               "separate initialization decoder preserves complete raw result and future fields");
+        testResult.expectTrue(initializeResponse && initializeResponse->codexHome.value == "/tmp/fake-codex" &&
+                                  initializeResponse->platformFamily == "unix" && initializeResponse->platformOs == "linux" &&
+                                  initializeResponse->userAgent == "snodec-codec-test" && initializeResponse->raw == rawInitializeResult,
+                              "one decoder exposes the strong canonical initialize response and complete raw object");
         testResult.expectTrue(errorMessage.empty(), "successful initialization decoding clears a previous error");
 
         errorMessage.clear();
@@ -413,21 +498,23 @@ namespace {
         testResult.expectTrue(!scalarInitializeResult && !errorMessage.empty(),
                               "initialization decoder rejects a non-object result with a reason");
 
-        Json missingFieldResult = rawInitializeResult;
-        missingFieldResult.erase("userAgent");
-        errorMessage.clear();
-        const std::optional<InitializeResult> missingFieldInitializeResult =
-            ai::openai::codex::detail::decodeInitializeResult(missingFieldResult, errorMessage);
-        testResult.expectTrue(!missingFieldInitializeResult && !errorMessage.empty(),
-                              "initialization decoder rejects a missing required typed field");
+        for (const char* field : {"codexHome", "platformFamily", "platformOs", "userAgent"}) {
+            Json missingFieldResult = rawInitializeResult;
+            missingFieldResult.erase(field);
+            errorMessage.clear();
+            const std::optional<InitializeResponse> missingFieldInitializeResult =
+                ai::openai::codex::detail::decodeInitializeResponse(missingFieldResult, errorMessage);
+            testResult.expectTrue(!missingFieldInitializeResult && !errorMessage.empty(),
+                                  std::string("initialization decoder rejects missing required field ") + field);
 
-        Json invalidFieldResult = rawInitializeResult;
-        invalidFieldResult["platformOs"] = Json::array();
-        errorMessage.clear();
-        const std::optional<InitializeResult> invalidFieldInitializeResult =
-            ai::openai::codex::detail::decodeInitializeResult(invalidFieldResult, errorMessage);
-        testResult.expectTrue(!invalidFieldInitializeResult && !errorMessage.empty(),
-                              "initialization decoder rejects a required field with the wrong type");
+            Json invalidFieldResult = rawInitializeResult;
+            invalidFieldResult[field] = Json::array();
+            errorMessage.clear();
+            const std::optional<InitializeResponse> invalidFieldInitializeResult =
+                ai::openai::codex::detail::decodeInitializeResponse(invalidFieldResult, errorMessage);
+            testResult.expectTrue(!invalidFieldInitializeResult && !errorMessage.empty(),
+                                  std::string("initialization decoder rejects wrong-typed required field ") + field);
+        }
     }
 } // namespace
 

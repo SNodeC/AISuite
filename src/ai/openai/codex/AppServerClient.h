@@ -10,6 +10,7 @@
 #define AI_OPENAI_CODEX_APPSERVERCLIENT_H
 
 #include "ai/openai/codex/Protocol.h"
+#include "ai/openai/codex/typed/Types.h"
 
 #include <functional>
 #include <memory>
@@ -104,12 +105,14 @@ namespace ai::openai::codex {
         const typed::Requests& requests() const noexcept;
 
         std::optional<InitializeResult> getInitializeResult() const;
+        std::optional<typed::InitializeResponse> getInitializeResponse() const;
 
         void setOnStateChanged(Callbacks::StateChanged callback);
         void setOnDiagnostic(Callbacks::DiagnosticReceived callback);
 
     protected:
         AppServerClient(std::unique_ptr<detail::Transport> transport, ClientInfo clientInfo);
+        AppServerClient(std::unique_ptr<detail::Transport> transport, typed::InitializeParams initializeParams);
 
     private:
         friend class typed::Events;

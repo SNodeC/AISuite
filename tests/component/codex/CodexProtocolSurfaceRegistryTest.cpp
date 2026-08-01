@@ -192,8 +192,8 @@ int main() {
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
-    result.expectTrue(schemaComplete == 336 && schemaPartial == 3 && schemaNotImplemented == 0 && schemaNotApplicable == 48,
-                      "the current registry reaches the exact 336/3/0/48 global completeness metrics");
+    result.expectTrue(schemaComplete == 339 && schemaPartial == 0 && schemaNotImplemented == 0 && schemaNotApplicable == 48,
+                      "the current registry reaches the exact 339/0/0/48 global completeness metrics");
     result.expectTrue(slices == std::array<std::size_t, 6>{19, 151, 45, 68, 56, 48} && codexErrorInfoA1_0 == 16 &&
                           stableUnreachableInventory == 12,
                       "registry preserves the frozen A1 slice assignment, CodexErrorInfo exception, and 12 stable unreachable rows");
@@ -1111,7 +1111,7 @@ int main() {
         notificationDescriptors =
             detail::serverNotificationCodecDescriptors();
     std::size_t a11NotificationDescriptors = 0;
-    std::size_t residualPartialNotificationDescriptors = 0;
+    std::size_t commonErrorNotificationDescriptors = 0;
     bool exactNotificationDescriptors = true;
     bool exactResidualNotificationDescriptors = true;
     for (const detail::ServerNotificationCodecDescriptor& descriptor :
@@ -1132,20 +1132,17 @@ int main() {
             descriptor.a11ConversationDomain ==
                 (entry.a1Slice == detail::A1Slice::A1_1);
         a11NotificationDescriptors += descriptor.a11ConversationDomain;
-        if (!descriptor.a11ConversationDomain &&
-            entry.typedSchemaStatus == detail::TypedSchemaStatus::Partial) {
-            ++residualPartialNotificationDescriptors;
-            exactResidualNotificationDescriptors =
-                exactResidualNotificationDescriptors &&
-                descriptor.key.name == "error";
+        if (!descriptor.a11ConversationDomain && entry.a1Slice == detail::A1Slice::A1_0 &&
+            entry.typedSchemaStatus == detail::TypedSchemaStatus::Complete) {
+            ++commonErrorNotificationDescriptors;
+            exactResidualNotificationDescriptors = exactResidualNotificationDescriptors && descriptor.key.name == "error" &&
+                                                   descriptor.payloadTypeIdentity == "typed::ErrorNotification";
         }
     }
-    result.expectTrue(
-        exactNotificationDescriptors && a11NotificationDescriptors == 37 &&
-            residualPartialNotificationDescriptors == 1 &&
-            exactResidualNotificationDescriptors,
-        "generated notification descriptors preserve the exact 37-row A1.1 "
-        "registry/payload bijection and one residual partial row independent of later slices");
+    result.expectTrue(exactNotificationDescriptors && a11NotificationDescriptors == 37 && commonErrorNotificationDescriptors == 1 &&
+                          exactResidualNotificationDescriptors,
+                      "generated notification descriptors preserve the exact 37-row A1.1 "
+                      "registry/payload bijection and the completed Common error payload independent of later slices");
 
     constexpr std::array<std::pair<std::string_view, std::string_view>, 3>
         expectedAccountNotifications{{
@@ -2828,7 +2825,7 @@ int main() {
 
     std::vector<detail::ProtocolSurfaceEntry> understatedCompleteness(registry.begin(), registry.end());
     const auto understated = findEntry(understatedCompleteness, detail::SurfaceCategory::ClientRequest, "initialize");
-    understated->schemaCompleteness = completeSchemaEvidence();
+    understated->typedSchemaStatus = detail::TypedSchemaStatus::Partial;
     result.expectTrue(hasExactCodes(detail::validateProtocolSurface(understatedCompleteness),
                                     {detail::ProtocolSurfaceErrorCode::TypedSchemaStatusMismatch}),
                       "a registry enum cannot keep a mechanically complete evidence row classified as Partial");

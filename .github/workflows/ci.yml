@@ -15,57 +15,6 @@ env:
   LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib
 
 jobs:
-  gcc-debug:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ ninja-build python3 pkg-config libssl-dev nlohmann-json3-dev
-
-      - name: Prepare current SNode.C master
-        run: |
-          git clone --depth 1 --branch master \
-            https://github.com/SNodeC/snode.c.git ../snodec
-
-      - name: Build and install current SNode.C dependency
-        run: |
-          cmake -S ../snodec -B ../snodec-build \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_INSTALL_PREFIX="$PWD/../snodec-stage" \
-            -DSNODEC_BUILD_TESTS=OFF \
-            -DSNODEC_BUILD_APPS=OFF
-          cmake --build ../snodec-build \
-            --target net-un-stream-legacy \
-            --parallel 2
-          for component in \
-            logger utils mux-epoll core core-socket core-socket-stream \
-            core-socket-stream-legacy net net-un net-un-phy \
-            net-un-phy-stream net-un-sphy-tream net-un-stream \
-            net-un-stream-legacy
-          do
-            cmake --install ../snodec-build --component "${component}"
-          done
-
-      - name: Configure
-        run: |
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
-            -DAISUITE_BUILD_TESTS=ON \
-            -DAISUITE_BUILD_APPS=ON
-
-      - name: Build
-        run: cmake --build build --parallel 2
-
-      - name: Test
-        run: |
-          ctest --test-dir build \
-            --output-on-failure \
-            --parallel 2
-
   gcc-15-debug:
     runs-on: ubuntu-24.04
     container: gcc:15.3.0-trixie

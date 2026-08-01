@@ -215,10 +215,11 @@ The subsequent runtime/platform group completes:
 `deprecationNotice`, `process/exited`, `process/outputDelta`,
 `remoteControl/status/changed`, `serverRequest/resolved`, `warning`,
 `windows/worldWritableWarning`, and `windowsSandbox/setupCompleted`.
-The current global registry is therefore 336 Complete / 3 Partial / 0
-NotImplemented / 48 NotApplicable, and native A1.4 is 56 Complete / 0 Partial
-/ 0 NotImplemented. Codex SOVERSION remains 1 and its final decision remains
-deferred to separate final-A1 completion.
+Final A1a subsequently completes the three Common identities. The current
+global registry is therefore 339 Complete / 0 Partial / 0 NotImplemented / 48
+NotApplicable, and native A1.4 remains 56 Complete / 0 Partial / 0
+NotImplemented. Codex SOVERSION remains 1; the compatibility transition is
+reserved for Final A1b.
 
 Three bounded exhaustive-visitor adaptations preserve backend compile
 compatibility without adding product behavior: `BackendCore` leaves the three

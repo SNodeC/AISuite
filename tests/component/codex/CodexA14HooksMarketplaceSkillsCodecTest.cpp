@@ -585,7 +585,7 @@ int main() {
     using SkillsAccessor = typed::Skills& (typed::Client::*) () noexcept;
     using ConstSkillsAccessor = const typed::Skills& (typed::Client::*) () const noexcept;
 
-    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 67);
+    static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
     static_assert(std::variant_size_v<typed::Event> == 69);
     static_assert(std::is_same_v<std::variant_alternative_t<54, typed::CanonicalServerNotification>, typed::HookCompletedNotification>);
     static_assert(std::is_same_v<std::variant_alternative_t<55, typed::CanonicalServerNotification>, typed::HookStartedNotification>);

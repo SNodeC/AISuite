@@ -20,7 +20,9 @@ namespace ai::openai::codex::stdio {
     public:
         Client();
         explicit Client(ClientInfo clientInfo);
+        explicit Client(typed::InitializeParams initializeParams);
         Client(std::string executable, std::vector<std::string> arguments, ClientInfo clientInfo = {});
+        Client(std::string executable, std::vector<std::string> arguments, typed::InitializeParams initializeParams);
 
         ~Client() override;
     };
