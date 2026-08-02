@@ -561,8 +561,11 @@ LOCAL_DISPOSITION_FIELDS = frozenset(
         "typed_implementation",
         "backend_status",
         "backend_core",
+        "backend_reason",
+        "backend_core_reason",
         "canonical_state_status",
         "canonical_state",
+        "canonical_state_reason",
         "frontend_exposure",
         "frontend_protocol",
         "frontend_security",
@@ -3372,6 +3375,12 @@ CANONICAL_STATE_IMPLEMENTED_IDENTITIES = frozenset(
     }
 )
 
+ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITIES = frozenset(
+    {
+        ("client_request", "ClientRequest", "method", "turn/interrupt"),
+    }
+)
+
 
 class SurfaceError(RuntimeError):
     """An authoritative artifact is missing, ambiguous, or unrecognized."""
@@ -6175,23 +6184,55 @@ def registry_statuses(
         ("client_notification", "ClientNotification", "method", "initialized"),
     }:
         layer_applicable = False
+    backend_applicable = layer_applicable
+    canonical_state_applicable = layer_applicable
+    if category == "item_discriminator" and entry["domain"] == "ResponseItem":
+        canonical_state_applicable = False
+    if identity in ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITIES:
+        canonical_state_applicable = False
     backend_status = (
         "LayerStatus::Implemented"
         if backend_implemented
         else (
             "LayerStatus::NotImplemented"
-            if layer_applicable
+            if backend_applicable
             else "LayerStatus::NotApplicable"
         )
     )
     canonical_state_status = (
         "LayerStatus::Implemented"
-        if state_implemented
+        if state_implemented and canonical_state_applicable
         else (
             "LayerStatus::NotImplemented"
-            if layer_applicable
+            if canonical_state_applicable
             else "LayerStatus::NotApplicable"
         )
+    )
+
+    def disposition_reason(status: str, *, canonical_state: bool) -> str:
+        if status != "LayerStatus::NotApplicable":
+            return "LayerDispositionReason::None"
+        if identity in {
+            ("client_request", "ClientRequest", "method", "initialize"),
+            ("client_notification", "ClientNotification", "method", "initialized"),
+        }:
+            return "LayerDispositionReason::InternalProtocolLifecycle"
+        if canonical_state and category == "item_discriminator" and entry["domain"] == "ResponseItem":
+            return "LayerDispositionReason::NoRuntimeBackendStatePath"
+        if (
+            assignment["slice"] == "InventoryOnly"
+            and entry["stability"] == "experimental_only"
+        ):
+            return "LayerDispositionReason::ExperimentalInventory"
+        if category in {"tagged_union_discriminator", "delta_progress_discriminator"}:
+            return "LayerDispositionReason::TypeModelOnly"
+        if canonical_state and identity in ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITIES:
+            return "LayerDispositionReason::ActionOnlyNoPersistentState"
+        raise SurfaceError(f"NotApplicable layer disposition lacks a reason: {identity}")
+
+    backend_reason = disposition_reason(backend_status, canonical_state=False)
+    canonical_state_reason = disposition_reason(
+        canonical_state_status, canonical_state=True
     )
 
     if is_existing_frontend:
@@ -6582,6 +6623,8 @@ def registry_statuses(
         "schemaCompletenessEvidence("
         + ", ".join("true" if evidence[field] else "false" for field in COMPLETENESS_EVIDENCE_FIELDS)
         + ")",
+        backend_reason,
+        canonical_state_reason,
     )
 
 
@@ -9827,9 +9870,9 @@ def parse_registry_data_text(
         if not line.endswith(")"):
             raise SurfaceError(f"malformed registry macro at {source}:{line_number}")
         arguments = split_cpp_arguments(line[len(prefix) : -1])
-        if len(arguments) != 22:
+        if len(arguments) != 24:
             raise SurfaceError(
-                f"registry macro at {source}:{line_number} has {len(arguments)} arguments, expected 22"
+                f"registry macro at {source}:{line_number} has {len(arguments)} arguments, expected 24"
             )
         try:
             category = reverse_categories[arguments[0]]
@@ -9875,6 +9918,12 @@ def parse_registry_data_text(
                 ),
                 "schema_completeness": parse_schema_completeness_argument(
                     arguments[21], Path(source), line_number
+                ),
+                "backend_reason": arguments[22].removeprefix(
+                    "LayerDispositionReason::"
+                ),
+                "canonical_state_reason": arguments[23].removeprefix(
+                    "LayerDispositionReason::"
                 ),
             }
         )
@@ -10026,7 +10075,7 @@ def coverage_metrics(
             "Stable item discriminators plus delta/progress notification methods.",
         ),
         (
-            "BackendCore command coverage",
+            "BackendCore stable operation commands",
             implemented(stable_backend_commands, "backend_status", "Implemented"),
             len(stable_backend_commands),
             "Stable application client requests; initialize is internal lifecycle and excluded.",
@@ -10111,12 +10160,66 @@ def coverage_metrics(
     ]
 
 
+def backend_state_disposition_metrics(
+    registry_entries: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    operation_statuses: list[str] = []
+    denominator: list[tuple[str, str]] = []
+    for entry in registry_entries:
+        if entry["stability"] != "stable":
+            continue
+        if entry["category"] == "client_request" and entry["name"] != "initialize":
+            operation_statuses.append(entry["backend_status"])
+            denominator.append((entry["backend_status"], entry["backend_reason"]))
+        elif entry["category"] in {"server_notification", "server_request"}:
+            denominator.append((entry["backend_status"], entry["backend_reason"]))
+        elif entry["category"] == "item_discriminator" and entry["domain"] in {
+            "ThreadItem",
+            "ResponseItem",
+        }:
+            denominator.append(
+                (
+                    entry["canonical_state_status"],
+                    entry["canonical_state_reason"],
+                )
+            )
+
+    statuses = {
+        status: sum(candidate == status for candidate, _ in denominator)
+        for status in ("Implemented", "NotApplicable", "NotImplemented")
+    }
+    reasons = {
+        reason: sum(
+            status == "NotApplicable" and candidate == reason
+            for status, candidate in denominator
+        )
+        for reason in sorted(
+            {
+                reason
+                for status, reason in denominator
+                if status == "NotApplicable"
+            }
+        )
+    }
+    return {
+        "operation_implemented": operation_statuses.count("Implemented"),
+        "operation_total": len(operation_statuses),
+        "implemented": statuses["Implemented"],
+        "not_applicable": statuses["NotApplicable"],
+        "not_implemented": statuses["NotImplemented"],
+        "resolved": statuses["Implemented"] + statuses["NotApplicable"],
+        "total": len(denominator),
+        "not_applicable_reasons": reasons,
+    }
+
+
 def render_coverage_document(
     manifest: dict[str, Any],
     registry_entries: Sequence[dict[str, Any]],
     provenance: dict[str, Any],
 ) -> str:
     metrics = coverage_metrics(manifest, registry_entries)
+    backend_state = backend_state_disposition_metrics(registry_entries)
     counts = manifest["counts"]
     category_names = sorted(
         key for key in counts["experimental_inclusive"] if key != "total"
@@ -10169,6 +10272,28 @@ def render_coverage_document(
             f"| {metric['metric']} | {metric['numerator']}/{metric['denominator']} | "
             f"{metric['percentage']} | {metric['scope']} |"
         )
+    lines.extend(
+        [
+            "",
+            "## Backend/state disposition",
+            "",
+            "BackendCore stable operation commands: "
+            f"**{backend_state['operation_implemented']} / {backend_state['operation_total']} Implemented**.",
+            "",
+            "| Disposition | Count |",
+            "|---|---:|",
+            f"| Implemented | {backend_state['implemented']} |",
+            f"| NotApplicable | {backend_state['not_applicable']} |",
+            f"| NotImplemented | {backend_state['not_implemented']} |",
+            f"| Resolved | {backend_state['resolved']} |",
+            f"| Total | {backend_state['total']} |",
+            "",
+            "| NotApplicable reason | Count |",
+            "|---|---:|",
+        ]
+    )
+    for reason, count in backend_state["not_applicable_reasons"].items():
+        lines.append(f"| `{reason}` | {count} |")
     event_denominator = next(
         metric["denominator"]
         for metric in metrics
@@ -10231,8 +10356,9 @@ def render_coverage_document(
             "## Phase boundary",
             "",
             "A0 established the census, registry, guards, and owner worksheet. Final A1 and",
-            "A1.5 complete the typed protocol and application façade; A1.6 adds commands",
-            "and canonical state; A1.7 exposes only owner-approved Frontend Protocol",
+            "A1.5 complete the typed protocol and application façade. A1.6a hardens the",
+            "backend foundation without expanding provider-command coverage; A1.6b owns",
+            "backend completeness. A1.7 exposes only owner-approved Frontend Protocol",
             "operations. Provider-neutral architecture remains separate A2 work.",
             "",
         ]

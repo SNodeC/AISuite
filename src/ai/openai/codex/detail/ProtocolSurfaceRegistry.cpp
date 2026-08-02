@@ -71,14 +71,18 @@ namespace ai::openai::codex::detail {
                                      typedModule,                                                                                          \
                                      a1Slice,                                                                                              \
                                      typedSchemaStatus,                                                                                    \
-                                     schemaCompleteness)                                                                                   \
+                                     schemaCompleteness,                                                                                   \
+                                     backendCoreReason,                                                                                    \
+                                     canonicalStateReason)                                                                                 \
     {{category, domain, field, name},                                                                                                      \
      stability,                                                                                                                            \
      deprecated,                                                                                                                           \
      runtimeDisposition,                                                                                                                   \
      typedImplementation,                                                                                                                  \
      backendCore,                                                                                                                          \
+     backendCoreReason,                                                                                                                    \
      canonicalState,                                                                                                                       \
+     canonicalStateReason,                                                                                                                 \
      frontendProtocol,                                                                                                                     \
      frontendSecurity,                                                                                                                     \
      RuntimeTarget{runtimeTarget},                                                                                                         \
@@ -335,6 +339,87 @@ namespace ai::openai::codex::detail {
             return !contract.parameterTypeIdentity.empty() || !contract.resultTypeIdentity.empty() ||
                    contract.resultKind != ResultContractKind::NotApplicable ||
                    contract.evidenceKind != AssociationEvidenceKind::NotApplicable || !contract.evidenceKey.empty();
+        }
+
+        bool isInternalProtocolLifecycle(const ProtocolSurfaceEntry& entry) noexcept {
+            return (entry.key.category == SurfaceCategory::ClientRequest && entry.key.name == "initialize") ||
+                   (entry.key.category == SurfaceCategory::ClientNotification && entry.key.name == "initialized");
+        }
+
+        bool isResponseItem(const ProtocolSurfaceEntry& entry) noexcept {
+            return std::holds_alternative<ResponseItemTarget>(entry.runtimeTarget) ||
+                   (entry.key.category == SurfaceCategory::ItemDiscriminator && entry.key.domain == "ResponseItem");
+        }
+
+        bool isThreadItem(const ProtocolSurfaceEntry& entry) noexcept {
+            return std::holds_alternative<ItemDiscriminatorTarget>(entry.runtimeTarget) ||
+                   (entry.key.category == SurfaceCategory::ItemDiscriminator && entry.key.domain == "ThreadItem");
+        }
+
+        bool isTypeModelOnly(const ProtocolSurfaceEntry& entry) noexcept {
+            return std::holds_alternative<CodexErrorInfoTarget>(entry.runtimeTarget) ||
+                   std::holds_alternative<ConversationUnionTarget>(entry.runtimeTarget) ||
+                   std::holds_alternative<AccountsModelsConfigurationUnionTarget>(entry.runtimeTarget) ||
+                   std::holds_alternative<CommandsFilesystemReviewsApprovalsUnionTarget>(entry.runtimeTarget) ||
+                   std::holds_alternative<IntegrationsAndLongTailUnionTarget>(entry.runtimeTarget) ||
+                   entry.key.category == SurfaceCategory::TaggedUnionDiscriminator ||
+                   entry.key.category == SurfaceCategory::DeltaProgressDiscriminator;
+        }
+
+        bool isTurnInterrupt(const ProtocolSurfaceEntry& entry) noexcept {
+            const ClientRequestTarget* target = std::get_if<ClientRequestTarget>(&entry.runtimeTarget);
+            return (target != nullptr && *target == ClientRequestTarget::TurnInterrupt) ||
+                   (entry.key.category == SurfaceCategory::ClientRequest && entry.key.name == "turn/interrupt");
+        }
+
+        std::optional<LayerDispositionReason> expectedNotApplicableReason(const ProtocolSurfaceEntry& entry, bool canonicalState) noexcept {
+            if (isInternalProtocolLifecycle(entry)) {
+                return LayerDispositionReason::InternalProtocolLifecycle;
+            }
+            if (canonicalState && isResponseItem(entry)) {
+                return LayerDispositionReason::NoRuntimeBackendStatePath;
+            }
+            if (entry.a1Slice == A1Slice::InventoryOnly && entry.stability == Stability::ExperimentalOnly) {
+                return LayerDispositionReason::ExperimentalInventory;
+            }
+            if (isTypeModelOnly(entry)) {
+                return LayerDispositionReason::TypeModelOnly;
+            }
+            if (canonicalState && isTurnInterrupt(entry)) {
+                return LayerDispositionReason::ActionOnlyNoPersistentState;
+            }
+            return std::nullopt;
+        }
+
+        void validateLayerDisposition(const ProtocolSurfaceEntry& entry,
+                                      LayerStatus status,
+                                      LayerDispositionReason reason,
+                                      bool canonicalState,
+                                      ProtocolSurfaceValidation& result) {
+            const std::string layer = canonicalState ? " canonical-state" : " BackendCore";
+            if (status != LayerStatus::NotApplicable) {
+                if (reason != LayerDispositionReason::None) {
+                    result.errors.push_back({ProtocolSurfaceErrorCode::UnexpectedLayerDispositionReason,
+                                             keyName(entry.key) + layer + " disposition has a reason while applicable"});
+                }
+                return;
+            }
+
+            if (reason == LayerDispositionReason::None) {
+                result.errors.push_back({ProtocolSurfaceErrorCode::MissingLayerDispositionReason,
+                                         keyName(entry.key) + layer + " NotApplicable disposition has no reason"});
+                return;
+            }
+
+            const std::optional<LayerDispositionReason> expected = expectedNotApplicableReason(entry, canonicalState);
+            if (entry.a1Slice == A1Slice::InventoryOnly && entry.stability == Stability::ExperimentalOnly &&
+                reason != LayerDispositionReason::ExperimentalInventory) {
+                result.errors.push_back({ProtocolSurfaceErrorCode::InventoryOnlyDispositionReasonMismatch,
+                                         keyName(entry.key) + layer + " inventory disposition lacks ExperimentalInventory reason"});
+            } else if (!expected || reason != *expected) {
+                result.errors.push_back({ProtocolSurfaceErrorCode::InvalidLayerDispositionReason,
+                                         keyName(entry.key) + layer + " uses a reason that does not match its current-state role"});
+            }
         }
 
         template <typename Target, typename Descriptor>
@@ -947,6 +1032,36 @@ namespace ai::openai::codex::detail {
                 entry.runtimeDisposition != RuntimeDisposition::Typed) {
                 result.errors.push_back({ProtocolSurfaceErrorCode::ImplementedWithoutTypedDisposition,
                                          keyName(entry.key) + " claims typed implementation without typed runtime disposition"});
+            }
+
+            validateLayerDisposition(entry, entry.backendCore, entry.backendCoreReason, false, result);
+            validateLayerDisposition(entry, entry.canonicalState, entry.canonicalStateReason, true, result);
+
+            const bool stable = entry.stability == Stability::Stable;
+            if (stable && entry.key.category == SurfaceCategory::ClientRequest && entry.key.name != "initialize" &&
+                entry.backendCore == LayerStatus::NotApplicable) {
+                result.errors.push_back({ProtocolSurfaceErrorCode::StableClientRequestBackendNotApplicable,
+                                         keyName(entry.key) + " stable application operation cannot be BackendCore NotApplicable"});
+            }
+            if (stable && entry.key.category == SurfaceCategory::ServerNotification && entry.backendCore == LayerStatus::NotApplicable) {
+                result.errors.push_back({ProtocolSurfaceErrorCode::StableServerNotificationBackendNotApplicable,
+                                         keyName(entry.key) + " stable notification cannot be BackendCore NotApplicable"});
+            }
+            if (stable && isThreadItem(entry) && entry.canonicalState == LayerStatus::NotApplicable) {
+                result.errors.push_back({ProtocolSurfaceErrorCode::ThreadItemCanonicalStateNotApplicable,
+                                         keyName(entry.key) + " stable ThreadItem cannot be canonical-state NotApplicable"});
+            }
+            if (stable && isResponseItem(entry) &&
+                (entry.canonicalState != LayerStatus::NotApplicable ||
+                 entry.canonicalStateReason != LayerDispositionReason::NoRuntimeBackendStatePath)) {
+                result.errors.push_back(
+                    {ProtocolSurfaceErrorCode::ResponseItemCanonicalStateDispositionMismatch,
+                     keyName(entry.key) + " stable ResponseItem requires NoRuntimeBackendStatePath canonical disposition"});
+            }
+            if (stable && entry.key.category == SurfaceCategory::ServerRequest &&
+                (entry.backendCore == LayerStatus::NotApplicable || entry.canonicalState == LayerStatus::NotApplicable)) {
+                result.errors.push_back({ProtocolSurfaceErrorCode::StableServerRequestLayerNotApplicable,
+                                         keyName(entry.key) + " stable server request cannot be layer NotApplicable"});
             }
 
             const bool requestCategory = isRequestCategory(entry.key.category);

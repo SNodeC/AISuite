@@ -44,6 +44,15 @@ namespace ai::openai::codex::detail {
 
     enum class LayerStatus { Implemented, NotImplemented, NotApplicable };
 
+    enum class LayerDispositionReason {
+        None,
+        InternalProtocolLifecycle,
+        TypeModelOnly,
+        ActionOnlyNoPersistentState,
+        NoRuntimeBackendStatePath,
+        ExperimentalInventory
+    };
+
     enum class FrontendExposure {
         ExistingOperationSubset,
         GenericUnknownRequest,
@@ -650,7 +659,9 @@ namespace ai::openai::codex::detail {
         RuntimeDisposition runtimeDisposition = RuntimeDisposition::Deferred;
         TypedImplementationStatus typedImplementation = TypedImplementationStatus::NotImplemented;
         LayerStatus backendCore = LayerStatus::NotImplemented;
+        LayerDispositionReason backendCoreReason = LayerDispositionReason::None;
         LayerStatus canonicalState = LayerStatus::NotImplemented;
+        LayerDispositionReason canonicalStateReason = LayerDispositionReason::None;
         FrontendExposure frontendProtocol = FrontendExposure::NotExposed;
         FrontendSecurityDecision frontendSecurity = FrontendSecurityDecision::Unresolved;
         RuntimeTarget runtimeTarget;
@@ -670,6 +681,15 @@ namespace ai::openai::codex::detail {
         RuntimeTargetWithoutTypedImplementation,
         TypedDispositionWithoutImplementation,
         ImplementedWithoutTypedDisposition,
+        MissingLayerDispositionReason,
+        UnexpectedLayerDispositionReason,
+        InvalidLayerDispositionReason,
+        StableClientRequestBackendNotApplicable,
+        StableServerNotificationBackendNotApplicable,
+        ThreadItemCanonicalStateNotApplicable,
+        ResponseItemCanonicalStateDispositionMismatch,
+        StableServerRequestLayerNotApplicable,
+        InventoryOnlyDispositionReasonMismatch,
         FrontendSecurityMismatch,
         UnsortedRegistry,
         DuplicateRegistryEntry,

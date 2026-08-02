@@ -35,14 +35,30 @@ rows. `ThreadItem` contributes 18 item discriminators and `ResponseItem` 16.
 | Typed wire request/result coverage | 87/87 | 100.0% | Stable client requests; includes typed initialization lifecycle support. |
 | Typed notification/server-request coverage | 78/78 | 100.0% | Stable server notifications and server-initiated requests. |
 | Typed item/delta coverage | 46/46 | 100.0% | Stable item discriminators plus delta/progress notification methods. |
-| BackendCore command coverage | 6/86 | 7.0% | Stable application client requests; initialize is internal lifecycle and excluded. |
-| Canonical-state/reducer coverage | 32/198 | 16.2% | Stable registry entries whose canonical-state status is applicable. |
+| BackendCore stable operation commands | 6/86 | 7.0% | Stable application client requests; initialize is internal lifecycle and excluded. |
+| Canonical-state/reducer coverage | 31/181 | 17.1% | Stable registry entries whose canonical-state status is applicable. |
 | Frontend Protocol existing-subset exposure coverage | 10/96 | 10.4% | Stable operations with an existing reviewed normalized v1 subset; not full upstream-method exposure. |
 | Frontend Protocol normalized event/state subset coverage | 22/102 | 21.6% | Stable notifications/items with existing typed normalized v1 snapshot or event semantics. |
 | Frontend Protocol bounded generic extension coverage | 54/102 | 52.9% | Stable notifications retained with bounded, redacted payloads through the v1 codex.extension contract. |
 | Frontend Protocol unknown-item metadata subset coverage | 10/102 | 9.8% | Stable untyped ThreadItem discriminators exposed only as codexType and decodingError metadata; raw item payloads are not exposed. |
 | Generic unknown server-request preservation exposure | 6/10 | 60.0% | Stable server requests currently visible only through the bounded/redacted v1 unknown-request contract. |
 | Owner-approved frontend-security subset disposition coverage | 10/96 | 10.4% | Existing v1 subsets count; every new or expanded dedicated exposure remains UNRESOLVED. |
+
+## Backend/state disposition
+
+BackendCore stable operation commands: **6 / 86 Implemented**.
+
+| Disposition | Count |
+|---|---:|
+| Implemented | 32 |
+| NotApplicable | 16 |
+| NotImplemented | 150 |
+| Resolved | 48 |
+| Total | 198 |
+
+| NotApplicable reason | Count |
+|---|---:|
+| `NoRuntimeBackendStatePath` | 16 |
 
 The three frontend event/item metrics deliberately share the same 102-entry
 stable server-notification/item denominator. Their registry pairings are exact:
@@ -91,6 +107,7 @@ TypeScript representation.
 ## Phase boundary
 
 A0 established the census, registry, guards, and owner worksheet. Final A1 and
-A1.5 complete the typed protocol and application façade; A1.6 adds commands
-and canonical state; A1.7 exposes only owner-approved Frontend Protocol
+A1.5 complete the typed protocol and application façade. A1.6a hardens the
+backend foundation without expanding provider-command coverage; A1.6b owns
+backend completeness. A1.7 exposes only owner-approved Frontend Protocol
 operations. Provider-neutral architecture remains separate A2 work.
