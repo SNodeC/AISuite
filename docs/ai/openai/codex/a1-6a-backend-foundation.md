@@ -71,7 +71,9 @@ Failed -> stop() -> Stopping -> Stopped -> start()
 
 - `start()` records desired-running intent and starts only an underlying
   Stopped client. It is idempotent in other lifecycle states and never performs
-  `Failed -> start()`.
+  `Failed -> start()`. If the shared SNode.C loop is already stopping, startup
+  is rejected before generation, lifecycle, callback, refresh, or recovery
+  state changes; the provider remains coherently Stopped.
 - `stop()` clears desired-running intent, cancels recovery, invalidates current
   operation callbacks and provider-scoped state, cancels attached commands
   exactly once, and requests provider stop. Sessions and controller survive.
@@ -132,7 +134,10 @@ struct SourceStamp {
 ```
 
 A current-generation operation result or typed event marks only the confirmed
-entity Current. Provider connection invalidation passes through
+entity Current. In particular, an item update confirms only that item; a turn
+update confirms the turn without promoting its parent thread. Missing parents
+created to locate a child are explicitly marked backend placeholders rather
+than copies of stale metadata. Provider connection invalidation passes through
 `ProviderConnectionInvalidated` and the reducer: retained conversation cache
 becomes Stale, active turns and items become `connectionInvalidated` without a
 fabricated terminal state, pending server requests are cleared, and
@@ -140,9 +145,13 @@ provider-scoped handles become invalid. Sessions, controller, revision, and
 bounded diagnostics/extensions remain.
 
 On Ready, at most one bounded initial thread-list request runs for that
-generation when initial hydration is enabled. Only returned entities become
-Current. Unconfirmed cached entities remain Stale, and the backend does not
-follow pagination cursors or claim complete history automatically.
+generation when initial hydration is enabled. It consumes the same global
+provider-operation capacity as a frontend-submitted command. At zero or
+exhausted capacity, hydration is skipped with one rejection and bounded
+diagnostic while the provider remains Ready and list freshness remains
+Unknown or Stale. Only returned entities become Current. Unconfirmed cached
+entities remain Stale, and the backend does not follow pagination cursors or
+claim complete history automatically.
 
 ## Capacity and bounded snapshots
 
@@ -167,13 +176,17 @@ provider-request overflows; evicted threads, turns, and items; dropped content;
 and snapshot omissions. Accounting saturates rather than wrapping and changes
 through reducer-visible capacity events.
 
-Session and observer exhaustion rejects only the new handle. Active-operation
-exhaustion completes the accepted command asynchronously with the existing
-`local_submission_failure` response and never submits it to the provider.
-Pending server requests are never silently discarded or evicted: overflow
-fails closed by recording capacity failure, invalidating and stopping the
-provider, and retaining frontend sessions/controller. No request is approved,
-rejected, or moved outside canonical bounded state.
+Session and observer exhaustion rejects only the new handle. The active-
+operation limit is global across session-attached provider commands and
+internal initial hydration. Exhaustion completes an accepted frontend command
+asynchronously with the existing `local_submission_failure` response; denied
+hydration is not submitted. Every typed server-request occurrence consumes a
+pending slot, including the attestation, dynamic-tool, and MCP-elicitation
+requests whose response commands remain reserved for A1.6b. Pending requests
+are never silently discarded or evicted: overflow fails closed by recording
+capacity failure, invalidating and stopping the provider, and retaining
+frontend sessions/controller. No request is approved, rejected, or moved
+outside canonical bounded state.
 
 Conversation limits use deterministic oldest-first order. Active/nonterminal
 entities and entities referenced by pending requests are protected. If no
@@ -182,6 +195,13 @@ changing the exact provider command result or corrupting order vectors. Global
 presentation content is trimmed from the oldest inactive terminal items first,
 then from remaining oldest content only when necessary. The canonical typed
 item value remains unchanged and newest content is preferred.
+
+Retained thread, turn, item, and visible-content counts are canonical,
+incremental state. Ordinary under-limit events perform four constant-time
+limit comparisons and return without rebuilding pending-reference indexes or
+walking retention order. Reference indexes and deterministic eviction walks
+are constructed only when a corresponding structural limit is exceeded;
+content traversal occurs only when the global content limit is exceeded.
 
 Snapshot creation remains deterministic, redacted, exception-contained, and by
 value. It omits oldest inactive projections before active entities, pending

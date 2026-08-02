@@ -22,6 +22,7 @@
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
 #include "core/EventReceiver.h"
+#include "core/SNodeC.h"
 #include "core/timer/Timer.h"
 #include "utils/Timeval.h"
 
@@ -375,6 +376,7 @@ namespace ai::openai::codex::backend {
             sessions.clear();
             observers.clear();
             activeOperations.clear();
+            activeInternalProviderOperation.reset();
             try {
                 client.events().setOnEvent({});
                 client.requests().setOnRequest({});
@@ -444,7 +446,10 @@ namespace ai::openai::codex::backend {
             if (client.getState() == State::Stopped && providerStopObserved) {
                 provider.lifecycle = ProviderLifecycle::Stopped;
                 publish(ProviderLifecycleChanged{provider});
-                beginProviderStart();
+                if (!beginProviderStart()) {
+                    restartPending = false;
+                    restartStartGeneration.reset();
+                }
                 return;
             }
             operationCallbacksEnabled = false;
@@ -454,9 +459,9 @@ namespace ai::openai::codex::backend {
             client.stop();
         }
 
-        void beginProviderStart() {
-            if (!alive || !providerStopObserved || client.getState() != State::Stopped) {
-                return;
+        bool beginProviderStart() {
+            if (!alive || !providerStopObserved || client.getState() != State::Stopped || core::SNodeC::state() == core::State::STOPPING) {
+                return false;
             }
             ProviderState provider = state.provider;
             if (provider.generation == std::numeric_limits<std::uint64_t>::max()) {
@@ -467,7 +472,7 @@ namespace ai::openai::codex::backend {
                 restartPending = false;
                 restartStartGeneration.reset();
                 publish(ProviderLifecycleChanged{provider});
-                return;
+                return false;
             }
             ++provider.generation;
             provider.lifecycle = ProviderLifecycle::Starting;
@@ -476,7 +481,7 @@ namespace ai::openai::codex::backend {
             if (!publish(ProviderLifecycleChanged{provider})) {
                 restartPending = false;
                 restartStartGeneration.reset();
-                return;
+                return false;
             }
             if (restartPending) {
                 restartStartGeneration = provider.generation;
@@ -487,6 +492,37 @@ namespace ai::openai::codex::backend {
             initialRefreshGeneration.reset();
             invalidatedGeneration.reset();
             client.start();
+            return true;
+        }
+
+        std::size_t activeProviderOperationCount() const noexcept {
+            if (activeInternalProviderOperation && activeOperations.size() != std::numeric_limits<std::size_t>::max()) {
+                return activeOperations.size() + 1;
+            }
+            return activeOperations.size();
+        }
+
+        bool admitInitialRefresh(std::uint64_t providerGeneration, std::uint64_t operationEpoch) {
+            if (activeProviderOperationCount() >= options.capacity.maxActiveOperations) {
+                publish(CapacityChanged{CapacityMetric::RejectedOperations, 1});
+                publish(DiagnosticReceived{"Initial thread hydration was skipped because provider-operation capacity is exhausted."});
+                return false;
+            }
+            activeInternalProviderOperation = InternalProviderOperation{providerGeneration, operationEpoch};
+            return true;
+        }
+
+        bool completeInitialRefresh(std::uint64_t providerGeneration, std::uint64_t operationEpoch) noexcept {
+            if (!activeInternalProviderOperation || activeInternalProviderOperation->providerGeneration != providerGeneration ||
+                activeInternalProviderOperation->operationEpoch != operationEpoch) {
+                return false;
+            }
+            activeInternalProviderOperation.reset();
+            return true;
+        }
+
+        void cancelInternalProviderOperations() noexcept {
+            activeInternalProviderOperation.reset();
         }
 
         void invalidateProvider(std::string reason) {
@@ -590,7 +626,7 @@ namespace ai::openai::codex::backend {
         void onRecoveryTimer(const std::shared_ptr<RecoveryTimerGate>& gate) {
             if (!alive || !gate || !gate->active || recoveryTimerGate != gate || !state.provider.desiredRunning ||
                 state.provider.lifecycle != ProviderLifecycle::Recovering || state.provider.recovery.status != RecoveryStatus::Waiting ||
-                client.getState() != State::Stopped) {
+                client.getState() != State::Stopped || core::SNodeC::state() == core::State::STOPPING) {
                 return;
             }
             gate->active = false;
@@ -754,6 +790,11 @@ namespace ai::openai::codex::backend {
         struct ActiveOperation {
             std::uint64_t providerGeneration = 0;
             std::uint64_t callbackEpoch = 0;
+        };
+
+        struct InternalProviderOperation {
+            std::uint64_t providerGeneration = 0;
+            std::uint64_t operationEpoch = 0;
         };
 
         template <typename Callback>
@@ -1098,7 +1139,7 @@ namespace ai::openai::codex::backend {
                 complete(id, requestId, CommandResult::failed(CommandErrorCode::BackendUnavailable, "The Codex App Server is not ready."));
                 return {true, SubmissionError::None, {}};
             }
-            if (requiresReadyBackend(command) && activeOperations.size() >= options.capacity.maxActiveOperations) {
+            if (requiresReadyBackend(command) && activeProviderOperationCount() >= options.capacity.maxActiveOperations) {
                 publish(CapacityChanged{CapacityMetric::RejectedOperations, 1});
                 schedule([weak = weak_from_this(), id, requestId]() {
                     if (const std::shared_ptr<Impl> self = weak.lock()) {
@@ -1514,7 +1555,10 @@ namespace ai::openai::codex::backend {
                     publish(ProviderLifecycleChanged{provider});
                     automaticRecoveryPending = false;
                     failurePendingStop = false;
-                    beginProviderStart();
+                    if (!beginProviderStart()) {
+                        restartPending = false;
+                        restartStartGeneration.reset();
+                    }
                     return;
                 }
                 if (automaticRecoveryPending) {
@@ -1553,15 +1597,19 @@ namespace ai::openai::codex::backend {
             if (options.initialThreadListLimit == 0 || initialRefreshGeneration == providerGeneration) {
                 return;
             }
+            const std::uint64_t operationEpoch = callbackEpoch;
+            if (!admitInitialRefresh(providerGeneration, operationEpoch)) {
+                return;
+            }
             initialRefreshGeneration = providerGeneration;
             typed::ThreadListParams listParams;
             listParams.limit = options.initialThreadListLimit;
-            const std::uint64_t operationEpoch = callbackEpoch;
             const std::weak_ptr<Impl> weak = weak_from_this();
             const auto submission =
                 client.threads().list(std::move(listParams), [weak, providerGeneration, operationEpoch](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock();
-                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
+                    if (const std::shared_ptr<Impl> self = weak.lock(); self &&
+                                                                        self->completeInitialRefresh(providerGeneration, operationEpoch) &&
+                                                                        self->acceptsCompletion(providerGeneration, operationEpoch)) {
                         if (result && result.value) {
                             self->publish(ThreadListUpdated{*result.value, std::nullopt, true});
                         } else {
@@ -1572,6 +1620,7 @@ namespace ai::openai::codex::backend {
                     }
                 });
             if (!submission) {
+                completeInitialRefresh(providerGeneration, operationEpoch);
                 publish(DiagnosticReceived{submission.error ? submission.error->message
                                                             : "Initial bounded thread refresh could not be submitted."});
             }
@@ -1581,15 +1630,6 @@ namespace ai::openai::codex::backend {
             if (state.pendingRequests.size() >= options.capacity.maxPendingRequests) {
                 failProviderForPendingRequestCapacity(
                     ENOBUFS, "Pending server-request capacity exhausted.", "pending_server_request_capacity_exhausted");
-                return;
-            }
-            // A1.4b exposes these requests through the reusable typed Requests
-            // component only. The backend deliberately adds no product state
-            // or frontend behavior for attestation, dynamic tools, or MCP
-            // elicitation.
-            if (std::holds_alternative<typed::AttestationGenerateRequest>(request) ||
-                std::holds_alternative<typed::DynamicToolCallRequest>(request) ||
-                std::holds_alternative<typed::McpServerElicitationRequest>(request)) {
                 return;
             }
             if (nextPendingRequestId == 0) {
@@ -1629,6 +1669,7 @@ namespace ai::openai::codex::backend {
                 keys.push_back(key);
             }
             activeOperations.clear();
+            cancelInternalProviderOperations();
             for (const auto& [sessionId, requestId] : keys) {
                 complete(sessionId, requestId, CommandResult::failed(CommandErrorCode::Cancelled, reason));
             }
@@ -1658,6 +1699,7 @@ namespace ai::openai::codex::backend {
         std::map<SessionId, std::shared_ptr<SessionRecord>> sessions;
         std::map<std::uint64_t, std::shared_ptr<ObserverRecord>> observers;
         std::map<OperationKey, ActiveOperation> activeOperations;
+        std::optional<InternalProviderOperation> activeInternalProviderOperation;
     };
 
     FrontendSession::FrontendSession() noexcept = default;

@@ -129,6 +129,10 @@ namespace ai::openai::codex::backend {
     };
 
     struct CapacityState {
+        std::size_t retainedThreads = 0;
+        std::size_t retainedTurns = 0;
+        std::size_t retainedItems = 0;
+        std::size_t accumulatedContentBytes = 0;
         std::uint64_t rejectedSessions = 0;
         std::uint64_t rejectedObservers = 0;
         std::uint64_t rejectedOperations = 0;

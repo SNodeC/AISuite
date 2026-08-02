@@ -1,6 +1,7 @@
 #include "CodexBackendTestSupport.h"
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/backend/internal/RecoveryPolicy.h"
+#include "ai/openai/codex/backend/internal/RetentionCapacityInstrumentation.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -75,6 +76,38 @@ namespace {
         return thread;
     }
 
+    struct RecomputedRetention {
+        std::size_t threads = 0;
+        std::size_t turns = 0;
+        std::size_t items = 0;
+        std::size_t contentBytes = 0;
+    };
+
+    RecomputedRetention recomputeRetention(const backend::BackendState& state) {
+        RecomputedRetention result;
+        result.threads = state.threads.size();
+        for (const auto& [threadId, thread] : state.threads) {
+            (void) threadId;
+            result.turns += thread.turns.size();
+            for (const auto& [turnId, turn] : thread.turns) {
+                (void) turnId;
+                result.items += turn.items.size();
+                for (const auto& [itemId, item] : turn.items) {
+                    (void) itemId;
+                    result.contentBytes +=
+                        item.agentText.size() + item.reasoningText.size() + item.reasoningSummary.size() + item.commandOutput.size();
+                }
+            }
+        }
+        return result;
+    }
+
+    bool retentionCountersMatch(const backend::BackendState& state) {
+        const RecomputedRetention recomputed = recomputeRetention(state);
+        return state.capacity.retainedThreads == recomputed.threads && state.capacity.retainedTurns == recomputed.turns &&
+               state.capacity.retainedItems == recomputed.items && state.capacity.accumulatedContentBytes == recomputed.contentBytes;
+    }
+
     void testReducerCapacityAndFreshness(tests::support::TestResult& result) {
         backend::BackendState state;
         backend::Reducer reducer;
@@ -98,7 +131,7 @@ namespace {
             state,
             backend::ThreadUpserted{retainedThread("optional", "terminal", false, "terminal-item", "drop"), backend::EntityLoad::Full});
         result.expectTrue(state.threads.size() == 1 && state.threads.contains("protected") && state.capacity.evictedThreads == 0 &&
-                              state.capacity.snapshotOmissions == 1,
+                              state.capacity.snapshotOmissions == 1 && retentionCountersMatch(state),
                           "oldest-first thread capacity retains protected active state and omits the optional insertion");
         result.expectTrue(
             std::ranges::find(retention.capacityChanges, backend::CapacityChanged{backend::CapacityMetric::SnapshotOmissions, 1}) !=
@@ -124,6 +157,7 @@ namespace {
         result.expectTrue(
             evictionState.threads.size() == 1 && evictionState.threads.contains("newest") && evictionState.capacity.evictedThreads == 1 &&
                 evictionState.threadOrder.size() == 1 && evictionState.threadOrder.front().value == "newest" &&
+                retentionCountersMatch(evictionState) &&
                 std::ranges::find(eviction.capacityChanges, backend::CapacityChanged{backend::CapacityMetric::EvictedThreads, 1}) !=
                     eviction.capacityChanges.end(),
             "thread capacity evicts the oldest inactive thread without diverging its map and explicit order vector");
@@ -186,7 +220,7 @@ namespace {
         const backend::ItemState& oldItem = contentState.threads.at("old").turns.at("old-turn").items.at("old-item");
         const backend::ItemState& newItem = contentState.threads.at("new").turns.at("new-turn").items.at("new-item");
         result.expectTrue(oldItem.agentText.empty() && newItem.agentText == "efgh" && oldItem.droppedContentBytes == 4 &&
-                              contentState.capacity.droppedContentBytes == 4,
+                              contentState.capacity.droppedContentBytes == 4 && retentionCountersMatch(contentState),
                           "global content capacity trims the oldest inactive terminal item and preserves newest content");
 
         backend::BackendState turnState;
@@ -205,7 +239,7 @@ namespace {
         result.expectTrue(turnState.threads.at("first").turns.empty() && turnState.threads.at("second").turns.contains("second-turn") &&
                               turnState.threads.at("first").turnOrder.empty() &&
                               turnState.threads.at("second").turnOrder == std::vector<typed::TurnId>{typed::TurnId{"second-turn"}} &&
-                              turnState.capacity.evictedTurns == 1,
+                              turnState.capacity.evictedTurns == 1 && retentionCountersMatch(turnState),
                           "global turn capacity evicts deterministically without diverging maps and order vectors");
 
         backend::BackendState itemState;
@@ -243,7 +277,8 @@ namespace {
                                             std::nullopt});
         const backend::TurnState& retainedItems = itemState.threads.at("items").turns.at("items-turn");
         result.expectTrue(retainedItems.items.contains("protected-item") && !retainedItems.items.contains("optional-item") &&
-                              itemState.capacity.evictedItems == 0 && itemState.capacity.snapshotOmissions == 1,
+                              itemState.capacity.evictedItems == 0 && itemState.capacity.snapshotOmissions == 1 &&
+                              retentionCountersMatch(itemState),
                           "item capacity protects pending-request referenced state and omits the new optional alternative");
 
         reducer.apply(itemState, backend::PendingRequestRemoved{backend::PendingRequestId{1}, "test transition"});
@@ -302,7 +337,7 @@ namespace {
         result.expectTrue(activeTurn.active && !activeTurn.terminal && !activeTurn.items.contains("old-complete") &&
                               activeTurn.items.contains("new-complete") &&
                               activeTurn.itemOrder == std::vector<typed::ItemId>{typed::ItemId{"new-complete"}} &&
-                              activeTurnItems.capacity.evictedItems == 1,
+                              activeTurnItems.capacity.evictedItems == 1 && retentionCountersMatch(activeTurnItems),
                           "global item capacity evicts from an active turn without diverging its map and order vector");
 
         const backend::Snapshot pendingSnapshot = backend::makeSnapshot(itemState);
@@ -441,8 +476,174 @@ namespace {
         const backend::Snapshot malformedSnapshot = backend::makeSnapshot(malformedSnapshotState);
         result.expectTrue(malformedSnapshot.threads.size() == 1 && malformedSnapshot.threads.front().turns.size() == 1 &&
                               malformedSnapshot.threads.front().turns.front().items.size() == 1 &&
-                              malformedSnapshot.threads.front().turns.front().items.front().data.value("omitted", false),
+                              malformedSnapshot.threads.front().turns.front().items.front().data.value("omitted", false) &&
+                              retentionCountersMatch(malformedSnapshotState),
                           "snapshot projection contains malformed serialized content without throwing or exposing its value");
+    }
+
+    void testIncrementalRetentionAndFreshness(tests::support::TestResult& result) {
+        backend::ReducerOptions reducerOptions;
+        reducerOptions.maxAccumulatedItemBytes = 4;
+        backend::Reducer reducer(reducerOptions);
+        backend::BackendState state;
+        backend::ProviderState generationOne;
+        generationOne.lifecycle = backend::ProviderLifecycle::Ready;
+        generationOne.generation = 1;
+        generationOne.desiredRunning = true;
+        reducer.apply(state, backend::ProviderLifecycleChanged{generationOne});
+
+        backend::BackendCapacityOptions limits;
+        limits.maxRetainedThreads = 64;
+        limits.maxRetainedTurns = 64;
+        limits.maxRetainedItems = 64;
+        limits.maxAccumulatedContentBytes = 4096;
+        reducer.apply(state, backend::CapacityConfigured{limits});
+        reducer.apply(state,
+                      backend::ThreadUpserted{retainedThread("counter-thread", "counter-turn", true, "counter-item", "abcdef"),
+                                              backend::EntityLoad::Full});
+        result.expectTrue(retentionCountersMatch(state) && state.capacity.retainedThreads == 1 && state.capacity.retainedTurns == 1 &&
+                              state.capacity.retainedItems == 1 && state.capacity.accumulatedContentBytes == 4,
+                          "first insertion and per-item newest-suffix truncation update canonical retained-state counters");
+
+        typed::AgentMessageThreadItem replacement;
+        replacement.metadata = {
+            typed::ItemId{"counter-item"}, typed::ThreadId{"counter-thread"}, typed::TurnId{"counter-turn"}, Json::object()};
+        replacement.text = "xy";
+        reducer.apply(state,
+                      backend::ItemUpserted{typed::ThreadId{"counter-thread"},
+                                            typed::TurnId{"counter-turn"},
+                                            typed::ThreadItem{std::move(replacement)},
+                                            backend::ItemLifecycle::Completed,
+                                            std::nullopt});
+        result.expectTrue(retentionCountersMatch(state) && state.capacity.retainedItems == 1 && state.capacity.accumulatedContentBytes == 2,
+                          "replacement of an existing item adjusts content without double-counting retained entities");
+
+        reducer.apply(state,
+                      backend::ItemContentChanged{typed::ThreadId{"counter-thread"},
+                                                  typed::TurnId{"counter-turn"},
+                                                  typed::ItemId{"counter-item"},
+                                                  backend::ItemContentChanged::Kind::AgentText,
+                                                  "12345",
+                                                  std::nullopt});
+        result.expectTrue(retentionCountersMatch(state) && state.capacity.accumulatedContentBytes == 4 &&
+                              state.threads.at("counter-thread").turns.at("counter-turn").items.at("counter-item").agentText == "2345",
+                          "item delta append and newest-suffix replacement preserve exact content accounting");
+
+        const backend::CapacityState beforeTransientChanges = state.capacity;
+        typed::UnknownServerRequest request{ai::openai::codex::ServerRequestId{std::int64_t{10}},
+                                            ai::openai::codex::ServerRequestToken{10},
+                                            "future/counter-request",
+                                            Json::object(),
+                                            Json::object(),
+                                            std::nullopt};
+        reducer.apply(state,
+                      backend::PendingRequestAdded{
+                          backend::PendingRequestState{backend::PendingRequestId{10}, typed::TypedServerRequest{std::move(request)}, 1}});
+        reducer.apply(state, backend::PendingRequestRemoved{backend::PendingRequestId{10}, "counter test"});
+        const backend::Snapshot snapshot = backend::makeSnapshot(state);
+        (void) snapshot;
+        result.expectTrue(retentionCountersMatch(state) && state.capacity.retainedThreads == beforeTransientChanges.retainedThreads &&
+                              state.capacity.retainedTurns == beforeTransientChanges.retainedTurns &&
+                              state.capacity.retainedItems == beforeTransientChanges.retainedItems &&
+                              state.capacity.accumulatedContentBytes == beforeTransientChanges.accumulatedContentBytes,
+                          "pending-request changes and snapshot construction do not mutate retained-state counters");
+
+        backend::BackendState deferredRequestState;
+        reducer.apply(deferredRequestState, backend::ProviderLifecycleChanged{generationOne});
+        typed::AttestationGenerateRequest deferredRequest{ai::openai::codex::ServerRequestId{std::string{"deferred"}},
+                                                          ai::openai::codex::ServerRequestToken{11},
+                                                          typed::AttestationGenerateParams{},
+                                                          Json::object(),
+                                                          {}};
+        reducer.apply(deferredRequestState,
+                      backend::PendingRequestAdded{backend::PendingRequestState{
+                          backend::PendingRequestId{11}, typed::TypedServerRequest{std::move(deferredRequest)}, 1}});
+        const backend::Reduction deferredInvalidation =
+            reducer.apply(deferredRequestState, backend::ProviderConnectionInvalidated{1, "deferred occurrence invalidated"});
+        result.expectTrue(deferredRequestState.pendingRequests.empty() && deferredInvalidation.pendingRequestRemovals.size() == 1 &&
+                              deferredInvalidation.pendingRequestRemovals.front().id == backend::PendingRequestId{11},
+                          "provider invalidation removes one retained A1.6b-deferred occurrence exactly once");
+
+        backend::BackendState freshness;
+        reducer.apply(freshness, backend::ProviderLifecycleChanged{generationOne});
+        reducer.apply(freshness, backend::CapacityConfigured{limits});
+        reducer.apply(
+            freshness,
+            backend::ThreadUpserted{retainedThread("fresh-thread", "fresh-turn", true, "fresh-item", "one"), backend::EntityLoad::Full});
+        reducer.apply(freshness, backend::ProviderConnectionInvalidated{1, "generation boundary"});
+        const RecomputedRetention invalidatedCounts = recomputeRetention(freshness);
+        backend::ProviderState generationTwo = generationOne;
+        generationTwo.generation = 2;
+        reducer.apply(freshness, backend::ProviderLifecycleChanged{generationTwo});
+        reducer.apply(freshness,
+                      backend::ItemContentChanged{typed::ThreadId{"fresh-thread"},
+                                                  typed::TurnId{"fresh-turn"},
+                                                  typed::ItemId{"fresh-item"},
+                                                  backend::ItemContentChanged::Kind::AgentText,
+                                                  "two",
+                                                  std::nullopt});
+        const backend::ThreadState& afterItem = freshness.threads.at("fresh-thread");
+        const backend::TurnState& afterItemTurn = afterItem.turns.at("fresh-turn");
+        const backend::ItemState& afterItemState = afterItemTurn.items.at("fresh-item");
+        result.expectTrue(afterItemState.stamp == backend::SourceStamp{2, backend::Freshness::Current} &&
+                              !afterItemState.connectionInvalidated &&
+                              afterItemTurn.stamp == backend::SourceStamp{1, backend::Freshness::Stale} &&
+                              afterItemTurn.connectionInvalidated && afterItem.stamp == backend::SourceStamp{1, backend::Freshness::Stale},
+                          "a generation-two item delta confirms only the item and preserves stale parent thread and turn metadata");
+
+        reducer.apply(
+            freshness,
+            backend::TokenUsageUpdated{typed::ThreadId{"fresh-thread"}, typed::TurnId{"fresh-turn"}, Json::object({{"used", 1}})});
+        const backend::ThreadState& afterTurn = freshness.threads.at("fresh-thread");
+        result.expectTrue(afterTurn.turns.at("fresh-turn").stamp == backend::SourceStamp{2, backend::Freshness::Current} &&
+                              !afterTurn.turns.at("fresh-turn").connectionInvalidated &&
+                              afterTurn.stamp == backend::SourceStamp{1, backend::Freshness::Stale},
+                          "an authoritative turn event confirms the turn without promoting stale parent thread metadata");
+        reducer.apply(freshness,
+                      backend::ThreadStatusUpdated{typed::ThreadId{"fresh-thread"}, typed::ThreadStatus{typed::IdleThreadStatus{}}});
+        result.expectTrue(freshness.threads.at("fresh-thread").stamp == backend::SourceStamp{2, backend::Freshness::Current},
+                          "an authoritative thread event independently confirms the parent thread");
+
+        reducer.apply(freshness,
+                      backend::ItemContentChanged{typed::ThreadId{"placeholder-thread"},
+                                                  typed::TurnId{"placeholder-turn"},
+                                                  typed::ItemId{"placeholder-item"},
+                                                  backend::ItemContentChanged::Kind::AgentText,
+                                                  "x",
+                                                  std::nullopt});
+        const backend::ThreadState& placeholder = freshness.threads.at("placeholder-thread");
+        result.expectTrue(placeholder.stamp == backend::SourceStamp{2, backend::Freshness::Current} &&
+                              placeholder.thread.raw.value("backendPlaceholder", false) &&
+                              placeholder.turns.at("placeholder-turn").stamp == backend::SourceStamp{2, backend::Freshness::Current} &&
+                              placeholder.turns.at("placeholder-turn").turn.raw.value("backendPlaceholder", false),
+                          "a child event creates explicitly marked current-generation parent placeholders without stale metadata");
+        result.expectTrue(retentionCountersMatch(freshness) && recomputeRetention(freshness).threads == invalidatedCounts.threads + 1,
+                          "invalidation and entity-level reconfirmation preserve exact incremental retained-state counts");
+
+        backend::BackendState fastPath;
+        reducer.apply(fastPath, backend::ProviderLifecycleChanged{generationTwo});
+        reducer.apply(fastPath, backend::CapacityConfigured{limits});
+        for (std::size_t index = 0; index < 32; ++index) {
+            const std::string suffix = std::to_string(index);
+            reducer.apply(
+                fastPath,
+                backend::ThreadUpserted{retainedThread("fast-thread-" + suffix, "fast-turn-" + suffix, false, "fast-item-" + suffix, "x"),
+                                        backend::EntityLoad::Full});
+        }
+        backend::detail::resetRetentionCapacityInstrumentation();
+        for (std::size_t index = 0; index < 128; ++index) {
+            reducer.apply(fastPath,
+                          backend::ItemContentChanged{typed::ThreadId{"fast-thread-0"},
+                                                      typed::TurnId{"fast-turn-0"},
+                                                      typed::ItemId{"fast-item-0"},
+                                                      backend::ItemContentChanged::Kind::AgentText,
+                                                      "x",
+                                                      std::nullopt});
+        }
+        const backend::detail::RetentionCapacityInstrumentation instrumentation = backend::detail::retentionCapacityInstrumentation();
+        result.expectTrue(instrumentation.slowPathEntries == 0 && instrumentation.pendingReferenceBuilds == 0 &&
+                              retentionCountersMatch(fastPath),
+                          "under-limit item deltas use the O(1) retention fast path without eviction or pending-reference scans");
     }
 
     void testZeroHandleCapacities(tests::support::TestResult& result) {
@@ -463,6 +664,39 @@ namespace {
         backendCore.stop();
         result.expectTrue(backendCore.state().sequence == stoppedSequence,
                           "repeated stop calls on an already stopped provider are canonical-state no-ops");
+    }
+
+    void testProviderStartRejectedDuringShutdown(tests::support::TestResult& result) {
+        result.expectTrue(core::SNodeC::state() == core::State::STOPPING,
+                          "provider shutdown-admission regression uses the real SNode.C STOPPING state");
+        auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::FakeAppServerClient* client = nullptr;
+        std::size_t recoverySchedules = 0;
+        backend::BackendCoreOptions options;
+        options.initialThreadListLimit = 1;
+        options.recovery.enabled = true;
+        options.recoveryTimerScheduler = [&recoverySchedules](std::uint64_t, std::function<void()>) {
+            ++recoverySchedules;
+            return backend::RecoveryTimerCancellation{};
+        };
+        FakeBackendCore backendCore(std::move(options), transport, &client);
+        backendCore.start();
+        const backend::Snapshot rejected = backendCore.snapshot();
+        result.expectTrue(client != nullptr && client->getState() == ai::openai::codex::State::Stopped && transport->startCount == 0 &&
+                              transport->callbackGenerations.empty(),
+                          "SNode.C shutdown rejects provider transport startup before callbacks or process admission");
+        result.expectTrue(rejected.provider.generation == 0 && rejected.provider.lifecycle == backend::ProviderLifecycle::Stopped &&
+                              rejected.provider.desiredRunning && rejected.provider.recovery.status == backend::RecoveryStatus::Idle &&
+                              recoverySchedules == 0,
+                          "a shutdown-rejected provider start changes only requested running intent, not generation or lifecycle state");
+        backendCore.stop();
+        const backend::Snapshot stopped = backendCore.snapshot();
+        const backend::SequenceNumber stoppedSequence = stopped.sequence;
+        backendCore.stop();
+        const backend::Snapshot stoppedAgain = backendCore.snapshot();
+        result.expectTrue(stopped.provider.generation == 0 && stopped.provider.lifecycle == backend::ProviderLifecycle::Stopped &&
+                              !stopped.provider.desiredRunning && stoppedAgain.sequence == stoppedSequence && recoverySchedules == 0,
+                          "stop remains coherent and idempotent after shutdown rejected the provider start");
     }
 
     class ManualRecoveryScheduler {
@@ -510,7 +744,7 @@ namespace {
             options.recovery = {true, 2, 10, 15, 2};
             options.capacity.maxSessions = 1;
             options.capacity.maxObservers = 1;
-            options.capacity.maxActiveOperations = 0;
+            options.capacity.maxActiveOperations = 1;
             options.capacity.maxPendingRequests = 1;
             options.recoveryTimerScheduler = [this](std::uint64_t delayMs, std::function<void()> callback) {
                 return scheduler.schedule(delayMs, std::move(callback));
@@ -520,6 +754,8 @@ namespace {
             callbacks.onCommandCompleted = [this](const backend::CommandCompletion& completion) {
                 if (completion.requestId == "capacity-operation") {
                     capacityOperation = completion;
+                } else if (completion.requestId == "post-hydration-operation") {
+                    postHydrationOperation = completion;
                 }
             };
             session = backendCore->openSession(std::move(callbacks));
@@ -534,11 +770,10 @@ namespace {
             backendCore->restart();
             backendCore->restart();
             waitUntil(
-                "the replacement provider generation becomes Ready and completes bounded hydration",
+                "the replacement provider generation becomes Ready with one bounded hydration request pending",
                 [this]() {
                     const backend::Snapshot snapshot = backendCore->snapshot();
-                    return backendCore->isReady() && snapshot.threadList.pagesLoaded == 1 &&
-                           snapshot.threadList.stamp == backend::SourceStamp{snapshot.provider.generation, backend::Freshness::Current};
+                    return backendCore->isReady() && pendingHydrationId.has_value() && snapshot.threadList.pagesLoaded == 0;
                 },
                 [this]() {
                     verifyInitialGeneration();
@@ -569,6 +804,11 @@ namespace {
                     return;
                 }
                 if (method != message.end() && method->is_string() && *method == "thread/list" && id != message.end()) {
+                    if (holdHydration && !pendingHydrationId) {
+                        pendingHydrationId = *id;
+                        pendingHydrationCallbacks = callbacks;
+                        return;
+                    }
                     tests::codex::inject(
                         callbacks,
                         Json{{"id", *id}, {"result", {{"data", Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
@@ -618,9 +858,9 @@ namespace {
 
         void verifyInitialGeneration() {
             const backend::Snapshot snapshot = backendCore->snapshot();
-            expect(snapshot.provider.generation == 2 && transport->startCount == 1 &&
+            expect(snapshot.provider.generation == 2 && transport->startCount == 1 && snapshot.threadList.pagesLoaded == 0 &&
                        snapshot.provider.recovery.status == backend::RecoveryStatus::Idle,
-                   "restart from Starting waits for Stopped and creates exactly one replacement provider start");
+                   "restart from Starting waits for Stopped and admits exactly one bounded hydration operation");
             expect(session.isOpen() && session.role() == backend::SessionRole::Controller,
                    "the frontend session owns the controller independently of provider startup");
             const backend::FrontendSession rejectedSession = backendCore->openSession({});
@@ -650,9 +890,44 @@ namespace {
                            "capacity rejection emits no provider request");
                     const backend::CapacityState capacity = backendCore->snapshot().capacity.state;
                     expect(capacity.rejectedSessions == 1 && capacity.rejectedObservers == 1 && capacity.rejectedOperations == 1,
-                           "session, observer, and operation rejections are reducer-visible and counted");
-                    verifyRestartFromReady();
+                           "session, observer, and global provider-operation rejections are reducer-visible and counted");
+                    expect(pendingHydrationId.has_value(),
+                           "the admitted hydration retains the sole global provider-operation slot while pending");
+                    releaseHydration();
+                    waitUntil(
+                        "hydration completion releases the global provider-operation slot",
+                        [this]() {
+                            return backendCore->snapshot().threadList.pagesLoaded == 1;
+                        },
+                        [this]() {
+                            backend::ThreadList command;
+                            expect(static_cast<bool>(session.submit("post-hydration-operation", std::move(command))),
+                                   "a later frontend operation enters the command lifecycle after hydration releases capacity");
+                            waitUntil(
+                                "the later frontend operation is admitted after hydration",
+                                [this]() {
+                                    return postHydrationOperation.has_value();
+                                },
+                                [this]() {
+                                    expect(static_cast<bool>(postHydrationOperation->result),
+                                           "a released hydration slot admits and completes the later provider operation");
+                                    verifyRestartFromReady();
+                                });
+                        });
                 });
+        }
+
+        void releaseHydration() {
+            if (!pendingHydrationId) {
+                return;
+            }
+            const Json id = *pendingHydrationId;
+            const TransportCallbacks callbacks = pendingHydrationCallbacks;
+            pendingHydrationId.reset();
+            pendingHydrationCallbacks = {};
+            holdHydration = false;
+            tests::codex::inject(
+                callbacks, Json{{"id", id}, {"result", {{"data", Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
         }
 
         void verifyRestartFromReady() {
@@ -1048,25 +1323,65 @@ namespace {
         void verifyPendingRequestOverflow() {
             transport->inject({{"method", "future/request-one"}, {"id", "one"}, {"params", Json::object()}});
             waitUntil(
-                "first pending request occupies the configured capacity",
+                "an unknown future request occupies the global pending capacity",
                 [this]() {
                     return backendCore->snapshot().pendingRequests.size() == 1;
                 },
                 [this]() {
-                    transport->inject({{"method", "attestation/generate"}, {"id", "two"}, {"params", Json::object()}});
+                    backendCore->restart();
                     waitUntil(
-                        "pending-request overflow fails closed at provider scope",
+                        "provider invalidation retires the retained unknown occurrence before restart",
+                        [this]() {
+                            const backend::Snapshot snapshot = backendCore->snapshot();
+                            return backendCore->isReady() && snapshot.pendingRequests.empty();
+                        },
+                        [this]() {
+                            verifyDeferredPendingRequestOverflow();
+                        });
+                });
+        }
+
+        void verifyDeferredPendingRequestOverflow() {
+            const std::size_t recoveryTimers = scheduler.entries.size();
+            transport->inject({{"method", "attestation/generate"}, {"id", "attestation-one"}, {"params", Json::object()}});
+            waitUntil(
+                "an A1.6b-deferred attestation request occupies one pending slot",
+                [this]() {
+                    return backendCore->snapshot().pendingRequests.size() == 1;
+                },
+                [this, recoveryTimers]() {
+                    const backend::Snapshot retained = backendCore->snapshot();
+                    expect(retained.pendingRequests.front().type == "unknown" && retained.pendingRequests.front().details.empty(),
+                           "a deferred attestation occurrence has a bounded safe projection without provider request identifiers");
+                    transport->inject({{"method", "item/tool/call"},
+                                       {"id", "dynamic-two"},
+                                       {"params",
+                                        {{"arguments", {{"safe", true}}},
+                                         {"callId", "call"},
+                                         {"threadId", "thread"},
+                                         {"tool", "tool"},
+                                         {"turnId", "turn"}}}});
+                    waitUntil(
+                        "a second deferred typed request fails closed at provider scope",
                         [this]() {
                             const backend::Snapshot snapshot = backendCore->snapshot();
                             return snapshot.provider.lifecycle == backend::ProviderLifecycle::Failed && snapshot.pendingRequests.empty();
                         },
-                        [this]() {
-                            afterTicks(4, [this]() {
+                        [this, recoveryTimers]() {
+                            afterTicks(4, [this, recoveryTimers]() {
                                 const backend::Snapshot failed = backendCore->snapshot();
+                                const bool automaticResponse =
+                                    std::any_of(transport->outgoing.begin(), transport->outgoing.end(), [](const Json& message) {
+                                        return message.contains("id") &&
+                                               (message.at("id") == "attestation-one" || message.at("id") == "dynamic-two") &&
+                                               (message.contains("result") || message.contains("error"));
+                                    });
                                 expect(failed.provider.lifecycle == backend::ProviderLifecycle::Failed && !transport->running &&
                                            failed.capacity.state.providerRequestOverflows == 1 && failed.provider.lastError &&
-                                           failed.provider.lastError->category == "capacity",
-                                       "an otherwise A1.6b-deferred typed request still fails closed when pending capacity is exhausted");
+                                           failed.provider.lastError->category == "capacity" &&
+                                           scheduler.entries.size() == recoveryTimers && !automaticResponse,
+                                       "deferred request overflow retains no occurrence, emits no automatic answer, and schedules no "
+                                       "recovery");
                                 expect(session.isOpen() && session.role() == backend::SessionRole::Controller,
                                        "pending-request overflow retains service sessions and controller ownership");
                                 beginUnlimitedRecoveryScenario();
@@ -1133,7 +1448,7 @@ namespace {
                                 expect(ready.provider.recovery.status == backend::RecoveryStatus::Idle &&
                                            ready.provider.recovery.attempts == 0,
                                        "maximumAttempts zero permits repeated retries and Ready resets their state");
-                                finish();
+                                beginZeroCapacityHydrationScenario();
                             });
                     } else {
                         waitUntil(
@@ -1149,6 +1464,127 @@ namespace {
                 });
         }
 
+        void beginZeroCapacityHydrationScenario() {
+            backendCore->stop();
+            backendCore.reset();
+            scheduler.entries.clear();
+            respondToInitialize = true;
+            holdHydration = true;
+            pendingHydrationId.reset();
+            pendingHydrationCallbacks = {};
+            configureTransport();
+
+            backend::BackendCoreOptions options;
+            options.initialThreadListLimit = 1;
+            options.capacity.maxActiveOperations = 0;
+            options.recoveryTimerScheduler = [this](std::uint64_t delayMs, std::function<void()> callback) {
+                return scheduler.schedule(delayMs, std::move(callback));
+            };
+            backendCore = std::make_unique<FakeBackendCore>(std::move(options), transport);
+            backendCore->start();
+            waitUntil(
+                "zero-capacity provider reaches Ready without starting hydration",
+                [this]() {
+                    return backendCore->isReady() && backendCore->snapshot().diagnostics.received == 1;
+                },
+                [this]() {
+                    const backend::Snapshot ready = backendCore->snapshot();
+                    const std::size_t hydrationRequests =
+                        std::count_if(transport->outgoing.begin(), transport->outgoing.end(), [](const Json& message) {
+                            return message.value("method", "") == "thread/list";
+                        });
+                    expect(hydrationRequests == 0 && ready.capacity.state.rejectedOperations == 1 && ready.threadList.pagesLoaded == 0 &&
+                               ready.threadList.stamp.freshness == backend::Freshness::Unknown &&
+                               ready.provider.lifecycle == backend::ProviderLifecycle::Ready && scheduler.entries.empty() &&
+                               !ready.diagnostics.recent.empty() &&
+                               ready.diagnostics.recent.back().find("provider-operation capacity") != std::string::npos,
+                           "zero global operation capacity skips hydration once, records rejection and diagnostic, and keeps Ready");
+                    beginStaleHydrationScenario();
+                });
+        }
+
+        void beginStaleHydrationScenario() {
+            backendCore->stop();
+            backendCore.reset();
+            holdHydration = true;
+            pendingHydrationId.reset();
+            pendingHydrationCallbacks = {};
+            staleHydrationId.reset();
+            staleHydrationCallbacks = {};
+            staleCapacityOperation.reset();
+            configureTransport();
+
+            backend::BackendCoreOptions options;
+            options.initialThreadListLimit = 1;
+            options.capacity.maxActiveOperations = 1;
+            backendCore = std::make_unique<FakeBackendCore>(std::move(options), transport);
+            backend::FrontendSessionCallbacks callbacks;
+            callbacks.onCommandCompleted = [this](const backend::CommandCompletion& completion) {
+                if (completion.requestId == "stale-capacity-operation") {
+                    staleCapacityOperation = completion;
+                }
+            };
+            session = backendCore->openSession(std::move(callbacks));
+            session.submit("stale-controller", backend::ControllerAcquire{});
+            backendCore->start();
+            waitUntil(
+                "generation one holds its internal hydration slot",
+                [this]() {
+                    return backendCore->isReady() && pendingHydrationId.has_value();
+                },
+                [this]() {
+                    staleHydrationId = std::move(pendingHydrationId);
+                    staleHydrationCallbacks = std::move(pendingHydrationCallbacks);
+                    pendingHydrationId.reset();
+                    pendingHydrationCallbacks = {};
+                    const std::uint64_t generation = backendCore->snapshot().provider.generation;
+                    backendCore->restart();
+                    waitUntil(
+                        "provider invalidation clears old hydration accounting and admits one new-generation hydration",
+                        [this, generation]() {
+                            return backendCore->isReady() && backendCore->snapshot().provider.generation == generation + 1 &&
+                                   pendingHydrationId.has_value();
+                        },
+                        [this]() {
+                            injectStaleHydrationCompletion();
+                        });
+                });
+        }
+
+        void injectStaleHydrationCompletion() {
+            if (staleHydrationId) {
+                tests::codex::inject(staleHydrationCallbacks,
+                                     Json{{"id", *staleHydrationId},
+                                          {"result", {{"data", Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
+            }
+            backend::ThreadList command;
+            session.submit("stale-capacity-operation", std::move(command));
+            waitUntil(
+                "stale hydration completion cannot release the current generation slot",
+                [this]() {
+                    return staleCapacityOperation.has_value();
+                },
+                [this]() {
+                    const backend::Snapshot beforeCurrentCompletion = backendCore->snapshot();
+                    expect(staleCapacityOperation->result.error &&
+                               staleCapacityOperation->result.error->code == backend::CommandErrorCode::LocalSubmissionFailure &&
+                               beforeCurrentCompletion.threadList.pagesLoaded == 0 && pendingHydrationId.has_value(),
+                           "an old-generation hydration callback neither mutates freshness nor releases newer accounting");
+                    releaseHydration();
+                    waitUntil(
+                        "current-generation hydration completes after stale callback isolation",
+                        [this]() {
+                            const backend::Snapshot snapshot = backendCore->snapshot();
+                            return snapshot.threadList.pagesLoaded == 1 &&
+                                   snapshot.threadList.stamp ==
+                                       backend::SourceStamp{snapshot.provider.generation, backend::Freshness::Current};
+                        },
+                        [this]() {
+                            finish();
+                        });
+                });
+        }
+
         void finish() {
             if (isFinished) {
                 return;
@@ -1158,6 +1594,7 @@ namespace {
                 backendCore->stop();
             }
             core::SNodeC::stop();
+            testProviderStartRejectedDuringShutdown(result);
         }
 
         tests::support::TestResult& result;
@@ -1167,6 +1604,13 @@ namespace {
         backend::FrontendSession session;
         backend::BackendObserverSubscription observer;
         std::optional<backend::CommandCompletion> capacityOperation;
+        std::optional<backend::CommandCompletion> postHydrationOperation;
+        std::optional<Json> pendingHydrationId;
+        TransportCallbacks pendingHydrationCallbacks;
+        std::optional<Json> staleHydrationId;
+        TransportCallbacks staleHydrationCallbacks;
+        std::optional<backend::CommandCompletion> staleCapacityOperation;
+        bool holdHydration = true;
         bool respondToInitialize = true;
         bool duplicateRestartDuringReplacementInitialization = true;
         std::uint64_t eligibleBaseGeneration = 0;
@@ -1184,6 +1628,7 @@ int main(int argc, char* argv[]) {
         core::SNodeC::init(argc, argv);
         testRecoveryPolicyEligibility(result);
         testReducerCapacityAndFreshness(result);
+        testIncrementalRetentionAndFreshness(result);
         testZeroHandleCapacities(result);
         bool timedOut = false;
         FoundationRunner runner(result);

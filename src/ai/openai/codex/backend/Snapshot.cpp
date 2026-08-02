@@ -1234,6 +1234,10 @@ namespace ai::openai::codex::backend {
                                                                           state.provider.initialization->userAgent};
         }
         snapshot.capacity.state = state.capacity;
+        snapshot.capacity.retainedThreads = state.capacity.retainedThreads;
+        snapshot.capacity.retainedTurns = state.capacity.retainedTurns;
+        snapshot.capacity.retainedItems = state.capacity.retainedItems;
+        snapshot.capacity.accumulatedContentBytes = state.capacity.accumulatedContentBytes;
         snapshot.capacity.sourcePendingRequestCount = state.pendingRequests.size();
         snapshot.capacity.sourceSessionCount = state.sessions.size();
         snapshot.diagnostics = state.diagnostics;
@@ -1251,37 +1255,11 @@ namespace ai::openai::codex::backend {
             const auto iterator = state.threads.find(threadId.value);
             if (iterator != state.threads.end() && visited.insert(iterator->first).second) {
                 snapshot.threads.push_back(snapshotThread(threadId, iterator->second));
-                saturatingAddSize(snapshot.capacity.retainedThreads);
-                saturatingAddSize(snapshot.capacity.retainedTurns, iterator->second.turns.size());
-                for (const auto& [turnId, turn] : iterator->second.turns) {
-                    (void) turnId;
-                    saturatingAddSize(snapshot.capacity.retainedItems, turn.items.size());
-                    for (const auto& [itemIdValue, item] : turn.items) {
-                        (void) itemIdValue;
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.agentText.size());
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.reasoningText.size());
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.reasoningSummary.size());
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.commandOutput.size());
-                    }
-                }
             }
         }
         for (const auto& [threadId, thread] : state.threads) {
             if (visited.insert(threadId).second) {
                 snapshot.threads.push_back(snapshotThread(typed::ThreadId{threadId}, thread));
-                saturatingAddSize(snapshot.capacity.retainedThreads);
-                saturatingAddSize(snapshot.capacity.retainedTurns, thread.turns.size());
-                for (const auto& [turnId, turn] : thread.turns) {
-                    (void) turnId;
-                    saturatingAddSize(snapshot.capacity.retainedItems, turn.items.size());
-                    for (const auto& [itemIdValue, item] : turn.items) {
-                        (void) itemIdValue;
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.agentText.size());
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.reasoningText.size());
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.reasoningSummary.size());
-                        saturatingAddSize(snapshot.capacity.accumulatedContentBytes, item.commandOutput.size());
-                    }
-                }
             }
         }
         for (const auto& [id, pending] : state.pendingRequests) {

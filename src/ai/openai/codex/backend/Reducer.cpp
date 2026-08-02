@@ -8,6 +8,7 @@
 #include "ai/openai/codex/backend/Reducer.h"
 
 #include "ai/openai/codex/backend/detail/PreserveUnmodeledTypedEvent.h"
+#include "ai/openai/codex/backend/internal/RetentionCapacityInstrumentation.h"
 #include "ai/openai/codex/detail/ConversationCodec.h"
 #include "ai/openai/codex/detail/DecodeDiagnostic.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
@@ -25,6 +26,32 @@
 #include <utility>
 
 namespace ai::openai::codex::backend {
+
+    namespace detail {
+        namespace {
+            thread_local RetentionCapacityInstrumentation retentionInstrumentation;
+        }
+
+        void resetRetentionCapacityInstrumentation() noexcept {
+            retentionInstrumentation = {};
+        }
+
+        RetentionCapacityInstrumentation retentionCapacityInstrumentation() noexcept {
+            return retentionInstrumentation;
+        }
+
+        void recordRetentionCapacitySlowPath() noexcept {
+            if (retentionInstrumentation.slowPathEntries != std::numeric_limits<std::size_t>::max()) {
+                ++retentionInstrumentation.slowPathEntries;
+            }
+        }
+
+        void recordPendingReferenceBuild() noexcept {
+            if (retentionInstrumentation.pendingReferenceBuilds != std::numeric_limits<std::size_t>::max()) {
+                ++retentionInstrumentation.pendingReferenceBuilds;
+            }
+        }
+    } // namespace detail
 
     namespace {
         template <typename... Visitors>
@@ -52,6 +79,18 @@ namespace ai::openai::codex::backend {
 
         void saturatingAddSize(std::size_t& value, std::size_t amount) noexcept {
             value = amount > std::numeric_limits<std::size_t>::max() - value ? std::numeric_limits<std::size_t>::max() : value + amount;
+        }
+
+        void guardedSubtractSize(std::size_t& value, std::size_t amount) noexcept {
+            value = amount > value ? 0 : value - amount;
+        }
+
+        void replaceAccumulatedContent(CapacityState& capacity, std::size_t before, std::size_t after) noexcept {
+            if (after >= before) {
+                saturatingAddSize(capacity.accumulatedContentBytes, after - before);
+            } else {
+                guardedSubtractSize(capacity.accumulatedContentBytes, before - after);
+            }
         }
 
         bool sameError(const std::optional<Error>& left, const std::optional<Error>& right) noexcept {
@@ -135,11 +174,11 @@ namespace ai::openai::codex::backend {
             auto [iterator, inserted] = state.threads.try_emplace(id.value, std::move(initial));
             if (inserted) {
                 state.threadOrder.push_back(id);
+                saturatingAddSize(state.capacity.retainedThreads, 1);
                 if (insertions != nullptr) {
                     insertions->threads.push_back(id.value);
                 }
             }
-            iterator->second.stamp = currentStamp(state);
             return iterator->second;
         }
 
@@ -154,12 +193,11 @@ namespace ai::openai::codex::backend {
             auto [iterator, inserted] = thread.turns.try_emplace(turnId.value, std::move(initial));
             if (inserted) {
                 thread.turnOrder.push_back(turnId);
+                saturatingAddSize(state.capacity.retainedTurns, 1);
                 if (insertions != nullptr) {
                     insertions->turns.emplace_back(threadId.value, turnId.value);
                 }
             }
-            iterator->second.stamp = currentStamp(state);
-            iterator->second.connectionInvalidated = false;
             return iterator->second;
         }
 
@@ -267,6 +305,15 @@ namespace ai::openai::codex::backend {
                        state.item);
         }
 
+        std::size_t itemContentBytes(const ItemState& item) noexcept {
+            std::size_t bytes = 0;
+            saturatingAddSize(bytes, item.agentText.size());
+            saturatingAddSize(bytes, item.reasoningText.size());
+            saturatingAddSize(bytes, item.reasoningSummary.size());
+            saturatingAddSize(bytes, item.commandOutput.size());
+            return bytes;
+        }
+
         std::optional<std::pair<typed::ThreadId, typed::TurnId>> itemLocation(const typed::ThreadItem& item) {
             return std::visit(
                 [](const auto& value) -> std::optional<std::pair<typed::ThreadId, typed::TurnId>> {
@@ -314,13 +361,17 @@ namespace ai::openai::codex::backend {
                     itemState.completedAtMs = occurredAtMs;
                 }
                 initializeVisibleContent(itemState, true, contentLimit);
+                const std::size_t contentBytes = itemContentBytes(itemState);
                 turn.items.emplace(id->value, std::move(itemState));
                 turn.itemOrder.push_back(*id);
+                saturatingAddSize(state.capacity.retainedItems, 1);
+                saturatingAddSize(state.capacity.accumulatedContentBytes, contentBytes);
                 if (insertions != nullptr) {
                     insertions->items.emplace_back(threadId.value, turnId.value, id->value);
                 }
             } else {
                 ItemState& itemState = iterator->second;
+                const std::size_t previousContentBytes = itemContentBytes(itemState);
                 itemState.item = item;
                 itemState.stamp = currentStamp(state);
                 itemState.connectionInvalidated = false;
@@ -333,6 +384,7 @@ namespace ai::openai::codex::backend {
                     itemState.completedAtMs = occurredAtMs;
                 }
                 initializeVisibleContent(itemState, lifecycle == ItemLifecycle::Completed, contentLimit);
+                replaceAccumulatedContent(state.capacity, previousContentBytes, itemContentBytes(itemState));
             }
             return true;
         }
@@ -355,6 +407,7 @@ namespace ai::openai::codex::backend {
                 turn.terminal = isTerminal(value.status);
                 iterator = thread.turns.emplace(value.id.value, std::move(turn)).first;
                 thread.turnOrder.push_back(value.id);
+                saturatingAddSize(state.capacity.retainedTurns, 1);
                 if (insertions != nullptr) {
                     insertions->turns.emplace_back(value.threadId.value, value.id.value);
                 }
@@ -400,6 +453,7 @@ namespace ai::openai::codex::backend {
                 thread.stamp = currentStamp(state);
                 iterator = state.threads.emplace(value.id.value, std::move(thread)).first;
                 state.threadOrder.push_back(value.id);
+                saturatingAddSize(state.capacity.retainedThreads, 1);
                 if (insertions != nullptr) {
                     insertions->threads.push_back(value.id.value);
                 }
@@ -460,51 +514,6 @@ namespace ai::openai::codex::backend {
                     pending.request);
             }
             return references;
-        }
-
-        std::size_t itemContentBytes(const ItemState& item) noexcept {
-            std::size_t bytes = 0;
-            saturatingAddSize(bytes, item.agentText.size());
-            saturatingAddSize(bytes, item.reasoningText.size());
-            saturatingAddSize(bytes, item.reasoningSummary.size());
-            saturatingAddSize(bytes, item.commandOutput.size());
-            return bytes;
-        }
-
-        std::size_t retainedTurnCount(const BackendState& state) noexcept {
-            std::size_t count = 0;
-            for (const auto& [id, thread] : state.threads) {
-                (void) id;
-                saturatingAddSize(count, thread.turns.size());
-            }
-            return count;
-        }
-
-        std::size_t retainedItemCount(const BackendState& state) noexcept {
-            std::size_t count = 0;
-            for (const auto& [threadId, thread] : state.threads) {
-                (void) threadId;
-                for (const auto& [turnId, turn] : thread.turns) {
-                    (void) turnId;
-                    saturatingAddSize(count, turn.items.size());
-                }
-            }
-            return count;
-        }
-
-        std::size_t retainedContentBytes(const BackendState& state) noexcept {
-            std::size_t count = 0;
-            for (const auto& [threadId, thread] : state.threads) {
-                (void) threadId;
-                for (const auto& [turnId, turn] : thread.turns) {
-                    (void) turnId;
-                    for (const auto& [itemIdValue, item] : turn.items) {
-                        (void) itemIdValue;
-                        saturatingAddSize(count, itemContentBytes(item));
-                    }
-                }
-            }
-            return count;
         }
 
         bool turnHasActiveItem(const TurnState& turn) noexcept {
@@ -573,22 +582,52 @@ namespace ai::openai::codex::backend {
             saturatingAdd(capacity.evictedItems, saturatingUint64(itemCount));
         }
 
-        void eraseItem(TurnState& turn, const std::string& id) {
-            turn.items.erase(id);
+        void eraseItem(BackendState& state, TurnState& turn, const std::string& id) {
+            const auto item = turn.items.find(id);
+            if (item == turn.items.end()) {
+                return;
+            }
+            guardedSubtractSize(state.capacity.retainedItems, 1);
+            guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item->second));
+            turn.items.erase(item);
             std::erase_if(turn.itemOrder, [&id](const typed::ItemId& value) {
                 return value.value == id;
             });
         }
 
-        void eraseTurn(ThreadState& thread, const std::string& id) {
-            thread.turns.erase(id);
+        void eraseTurn(BackendState& state, ThreadState& thread, const std::string& id) {
+            const auto turn = thread.turns.find(id);
+            if (turn == thread.turns.end()) {
+                return;
+            }
+            guardedSubtractSize(state.capacity.retainedTurns, 1);
+            guardedSubtractSize(state.capacity.retainedItems, turn->second.items.size());
+            for (const auto& [itemIdValue, item] : turn->second.items) {
+                (void) itemIdValue;
+                guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item));
+            }
+            thread.turns.erase(turn);
             std::erase_if(thread.turnOrder, [&id](const typed::TurnId& value) {
                 return value.value == id;
             });
         }
 
         void eraseThread(BackendState& state, const std::string& id) {
-            state.threads.erase(id);
+            const auto thread = state.threads.find(id);
+            if (thread == state.threads.end()) {
+                return;
+            }
+            guardedSubtractSize(state.capacity.retainedThreads, 1);
+            guardedSubtractSize(state.capacity.retainedTurns, thread->second.turns.size());
+            for (const auto& [turnId, turn] : thread->second.turns) {
+                (void) turnId;
+                guardedSubtractSize(state.capacity.retainedItems, turn.items.size());
+                for (const auto& [itemIdValue, item] : turn.items) {
+                    (void) itemIdValue;
+                    guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item));
+                }
+            }
+            state.threads.erase(thread);
             std::erase_if(state.threadOrder, [&id](const typed::ThreadId& value) {
                 return value.value == id;
             });
@@ -596,12 +635,24 @@ namespace ai::openai::codex::backend {
 
         void enforceRetentionCapacity(BackendState& state, const RetentionInsertions& insertions) {
             const BackendCapacityOptions& limits = state.capacity.limits;
-            PendingReferences referenced = pendingReferences(state);
+            if (state.capacity.retainedThreads <= limits.maxRetainedThreads && state.capacity.retainedTurns <= limits.maxRetainedTurns &&
+                state.capacity.retainedItems <= limits.maxRetainedItems &&
+                state.capacity.accumulatedContentBytes <= limits.maxAccumulatedContentBytes) {
+                return;
+            }
+            detail::recordRetentionCapacitySlowPath();
+            const bool structuralCapacityExceeded = state.capacity.retainedThreads > limits.maxRetainedThreads ||
+                                                    state.capacity.retainedTurns > limits.maxRetainedTurns ||
+                                                    state.capacity.retainedItems > limits.maxRetainedItems;
+            if (structuralCapacityExceeded) {
+                detail::recordPendingReferenceBuild();
+            }
+            const PendingReferences referenced = structuralCapacityExceeded ? pendingReferences(state) : PendingReferences{};
             const std::set<std::string> insertedThreads(insertions.threads.begin(), insertions.threads.end());
             const std::set<TurnKey> insertedTurns(insertions.turns.begin(), insertions.turns.end());
             const std::set<ItemKey> insertedItems(insertions.items.begin(), insertions.items.end());
 
-            while (state.threads.size() > limits.maxRetainedThreads) {
+            while (state.capacity.retainedThreads > limits.maxRetainedThreads) {
                 auto candidate = state.threadOrder.end();
                 for (auto iterator = state.threadOrder.begin(); iterator != state.threadOrder.end(); ++iterator) {
                     const auto thread = state.threads.find(iterator->value);
@@ -632,7 +683,7 @@ namespace ai::openai::codex::backend {
                 eraseThread(state, id);
             }
 
-            while (retainedTurnCount(state) > limits.maxRetainedTurns) {
+            while (state.capacity.retainedTurns > limits.maxRetainedTurns) {
                 bool evicted = false;
                 for (const typed::ThreadId& threadId : state.threadOrder) {
                     auto thread = state.threads.find(threadId.value);
@@ -646,7 +697,7 @@ namespace ai::openai::codex::backend {
                             !turnIsReferenced(turn->second, threadId.value, turnId.value, referenced)) {
                             accountTurnRemoval(state.capacity, turn->second, true);
                             const std::string id = turnId.value;
-                            eraseTurn(thread->second, id);
+                            eraseTurn(state, thread->second, id);
                             evicted = true;
                             break;
                         }
@@ -665,7 +716,7 @@ namespace ai::openai::codex::backend {
                         const auto turn = thread->second.turns.find(turnId);
                         if (turn != thread->second.turns.end()) {
                             accountTurnRemoval(state.capacity, turn->second, false);
-                            eraseTurn(thread->second, turnId);
+                            eraseTurn(state, thread->second, turnId);
                             evicted = true;
                         }
                     }
@@ -676,7 +727,7 @@ namespace ai::openai::codex::backend {
                 }
             }
 
-            while (retainedItemCount(state) > limits.maxRetainedItems) {
+            while (state.capacity.retainedItems > limits.maxRetainedItems) {
                 bool evicted = false;
                 for (const typed::ThreadId& threadId : state.threadOrder) {
                     auto thread = state.threads.find(threadId.value);
@@ -696,7 +747,7 @@ namespace ai::openai::codex::backend {
                                 !item->second.connectionInvalidated &&
                                 !referenced.items.contains(ItemKey{threadId.value, turnId.value, itemIdValue.value})) {
                                 const std::string id = itemIdValue.value;
-                                eraseItem(turn->second, id);
+                                eraseItem(state, turn->second, id);
                                 saturatingAdd(state.capacity.evictedItems);
                                 evicted = true;
                                 break;
@@ -719,7 +770,7 @@ namespace ai::openai::codex::backend {
                         }
                         auto turn = thread->second.turns.find(turnId);
                         if (turn != thread->second.turns.end() && turn->second.items.contains(itemIdValue)) {
-                            eraseItem(turn->second, itemIdValue);
+                            eraseItem(state, turn->second, itemIdValue);
                             saturatingAdd(state.capacity.snapshotOmissions);
                             evicted = true;
                         }
@@ -731,8 +782,9 @@ namespace ai::openai::codex::backend {
                 }
             }
 
-            const std::size_t contentBytes = retainedContentBytes(state);
-            std::size_t excess = contentBytes > limits.maxAccumulatedContentBytes ? contentBytes - limits.maxAccumulatedContentBytes : 0;
+            std::size_t excess = state.capacity.accumulatedContentBytes > limits.maxAccumulatedContentBytes
+                                     ? state.capacity.accumulatedContentBytes - limits.maxAccumulatedContentBytes
+                                     : 0;
             const auto trimPass = [&state, &excess](bool inactiveTerminalOnly) {
                 for (const typed::ThreadId& threadId : state.threadOrder) {
                     auto thread = state.threads.find(threadId.value);
@@ -757,6 +809,7 @@ namespace ai::openai::codex::backend {
                                 }
                                 content.erase(0, removed);
                                 excess -= removed;
+                                guardedSubtractSize(state.capacity.accumulatedContentBytes, removed);
                                 saturatingAdd(item->second.droppedContentBytes, saturatingUint64(removed));
                                 saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
                             };
@@ -1076,8 +1129,7 @@ namespace ai::openai::codex::backend {
                         iterator = turn.items.find(value.itemId.value);
                     }
                     ItemState& item = iterator->second;
-                    turn.stamp = currentStamp(state);
-                    turn.connectionInvalidated = false;
+                    const std::size_t previousContentBytes = itemContentBytes(item);
                     item.stamp = currentStamp(state);
                     item.connectionInvalidated = false;
                     switch (value.kind) {
@@ -1094,6 +1146,7 @@ namespace ai::openai::codex::backend {
                             appendBounded(item.commandOutput, value.delta, options.maxAccumulatedItemBytes, item.droppedContentBytes);
                             break;
                     }
+                    replaceAccumulatedContent(state.capacity, previousContentBytes, itemContentBytes(item));
                     return Reduction{true, false};
                 },
                 [this, &state, &insertions](const FileChangeUpdated& value) {

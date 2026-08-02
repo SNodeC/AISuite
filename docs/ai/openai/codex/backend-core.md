@@ -272,7 +272,10 @@ Failed -> stop() -> Stopping -> Stopped -> start()
 
 `start()` sets the desired-running intent and starts only an already stopped
 provider. It is idempotent in every active, stopping, failed, or recovering
-state and never attempts a direct `Failed -> start()` transition. `stop()`
+state and never attempts a direct `Failed -> start()` transition. When SNode.C
+is already stopping, admission fails before generation, lifecycle, callback,
+refresh, or recovery bookkeeping changes, so the already-stopped provider
+cannot become stranded in `Starting`. `stop()`
 clears desired-running intent, cancels recovery, invalidates provider-scoped
 callbacks and handles, completes attached commands as cancelled once, and
 requests provider stop without closing sessions or releasing the controller.
@@ -316,11 +319,18 @@ On each `Ready` generation, the backend submits at most one initial thread-list
 request. Its default limit is 50 threads. It never walks subsequent cursors
 automatically, so startup cannot load unbounded history. Set
 `initialThreadListLimit` to zero to disable this refresh or to another bounded
-value for an application-specific policy.
+value for an application-specific policy. Initial hydration uses the same
+global active-provider-operation capacity as frontend commands. If capacity is
+zero or exhausted, the request is not submitted, one rejection and bounded
+diagnostic are retained, list freshness remains Unknown or Stale, and the
+provider stays Ready.
 
 Provider-derived thread, turn, item, and list state carries a `SourceStamp`.
-Only a result or typed event from the current generation marks an entity
-`Current`. Connection invalidation retains durable cache as `Stale`, marks
+Only a result or typed event from the current generation marks the entity it
+actually confirms `Current`. Item events do not promote stale parent turn or
+thread metadata, and turn events do not promote a stale parent thread. Missing
+parents created by a child event are identifiable current-generation backend
+placeholders. Connection invalidation retains durable cache as `Stale`, marks
 active turns and items `connectionInvalidated` without inventing a terminal
 completed, failed, or cancelled state, clears pending server requests, and
 invalidates provider-scoped handles. A reconnect alone does not make cached
@@ -342,13 +352,17 @@ per-session, observer-queue, extension, diagnostic, and per-item content
 bounds.
 
 Session or observer exhaustion rejects only the new handle. Active-operation
-exhaustion completes the accepted backend command asynchronously with
-`local_submission_failure` and does not submit it to the provider. Pending
-typed server requests are never evicted or silently dropped: overflow records a
-capacity event, invalidates and stops the provider connection, clears
-provider-scoped occurrence ownership, and retains sessions and controller
-ownership. The capacity error requires operator correction and an explicit
-restart.
+capacity is global across session-attached commands and internal initial
+hydration. Exhaustion completes an accepted backend command asynchronously
+with `local_submission_failure`; denied hydration records a rejection and
+diagnostic without provider submission. Every typed server-request occurrence
+uses one pending slot, including A1.6b-deferred attestation, dynamic-tool, and
+MCP-elicitation requests. Those occurrences are retained safely but still have
+no A1.6a response commands. Pending typed server requests are never evicted or
+silently dropped: overflow records a capacity event, invalidates and stops the
+provider connection, clears provider-scoped occurrence ownership, and retains
+sessions and controller ownership. The capacity error requires operator
+correction and an explicit restart.
 
 Conversation retention uses deterministic oldest-first scans over the explicit
 thread, turn, and item order vectors. Active/nonterminal entities and entities
@@ -360,6 +374,13 @@ oldest content only when necessary, while preserving the typed item value and
 preferring newest content. All rejection, eviction, dropped-byte, overflow,
 and snapshot-omission counters saturate rather than wrap and change only
 through reducer-visible capacity events.
+
+Canonical retained thread, turn, item, and accumulated-content counts are
+updated incrementally at mutation points. The ordinary reducer path first
+performs four O(1) comparisons and returns immediately while all limits are
+satisfied. Pending-reference indexes and the relevant deterministic order walk
+are used only after a structural limit is exceeded; content is traversed only
+when accumulated content exceeds its limit.
 
 Snapshot construction first creates the bounded, redacted projection and then
 enforces `maxSnapshotBytes` deterministically. It omits oldest inactive state
