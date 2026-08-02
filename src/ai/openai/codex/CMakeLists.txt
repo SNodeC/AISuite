@@ -84,7 +84,7 @@ target_compile_features(ai-openai-codex PUBLIC cxx_std_20)
 target_link_libraries(
     ai-openai-codex
     PUBLIC nlohmann_json::nlohmann_json
-    PRIVATE core
+    PRIVATE snodec::core
 )
 set_target_properties(
     ai-openai-codex

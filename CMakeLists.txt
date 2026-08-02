@@ -76,14 +76,11 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
                    "${AISUITE_NLOHMANN_JSON_INCLUDE_DIR}"
     )
 endif()
-find_package(snodec CONFIG REQUIRED COMPONENTS core net-un-stream-legacy)
-
-# Compatibility wrappers keep the extracted source and tests byte-stable while
-# linking only through installed SNode.C imported targets.
-add_library(core INTERFACE)
-target_link_libraries(core INTERFACE snodec::core)
-add_library(net-un-stream-legacy INTERFACE)
-target_link_libraries(net-un-stream-legacy INTERFACE snodec::net-un-stream-legacy)
+set(AISUITE_SNODEC_COMPONENTS core)
+if(AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS)
+    list(APPEND AISUITE_SNODEC_COMPONENTS net-un-stream-legacy)
+endif()
+find_package(snodec CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS})
 
 add_subdirectory(src/ai/openai/codex)
 
