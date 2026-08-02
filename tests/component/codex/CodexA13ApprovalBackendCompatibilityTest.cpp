@@ -320,7 +320,7 @@ namespace {
 } // namespace
 
 int main() {
-    static_assert(std::variant_size_v<backend::BackendCommand> == 15);
+    static_assert(std::variant_size_v<backend::BackendCommand> == 14);
     static_assert(!std::is_constructible_v<backend::BackendCommand, typed::ApplyPatchApprovalRequest>);
     static_assert(!std::is_constructible_v<backend::BackendCommand, typed::ExecCommandApprovalRequest>);
     static_assert(!std::is_constructible_v<backend::BackendCommand, typed::PermissionsApprovalRequest>);

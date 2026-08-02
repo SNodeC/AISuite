@@ -21,10 +21,36 @@ namespace ai::openai::codex::backend {
 
     enum class EntityLoad { Summary, Full };
 
-    struct LifecycleChanged {
-        BackendLifecycle lifecycle = BackendLifecycle::Stopped;
-        std::optional<Error> error;
-        std::uint64_t connectionGeneration = 0;
+    struct ProviderLifecycleChanged {
+        ProviderState provider;
+    };
+
+    struct ProviderConnectionInvalidated {
+        std::uint64_t generation = 0;
+        std::string reason;
+    };
+
+    enum class CapacityMetric {
+        RejectedSessions,
+        RejectedObservers,
+        RejectedOperations,
+        ProviderRequestOverflows,
+        EvictedThreads,
+        EvictedTurns,
+        EvictedItems,
+        DroppedContentBytes,
+        SnapshotOmissions
+    };
+
+    struct CapacityConfigured {
+        BackendCapacityOptions limits;
+    };
+
+    struct CapacityChanged {
+        CapacityMetric metric = CapacityMetric::RejectedSessions;
+        std::uint64_t amount = 1;
+
+        bool operator==(const CapacityChanged&) const = default;
     };
 
     struct DiagnosticReceived {
@@ -133,7 +159,10 @@ namespace ai::openai::codex::backend {
         std::optional<typed::DecodeDiagnostic> diagnostic = std::nullopt;
     };
 
-    using BackendEvent = std::variant<LifecycleChanged,
+    using BackendEvent = std::variant<ProviderLifecycleChanged,
+                                      ProviderConnectionInvalidated,
+                                      CapacityConfigured,
+                                      CapacityChanged,
                                       DiagnosticReceived,
                                       ThreadUpserted,
                                       ThreadListUpdated,

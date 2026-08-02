@@ -56,6 +56,8 @@ namespace ai::openai::codex::backend {
         std::optional<std::int64_t> completedAtMs;
         Json data = Json::object();
         Json extensions = Json::object();
+        SourceStamp stamp;
+        bool connectionInvalidated = false;
 
         bool operator==(const ItemSnapshot&) const = default;
     };
@@ -70,6 +72,8 @@ namespace ai::openai::codex::backend {
         std::optional<Json> tokenUsage;
         std::vector<ItemSnapshot> items;
         Json extensions = Json::object();
+        SourceStamp stamp;
+        bool connectionInvalidated = false;
 
         bool operator==(const TurnSnapshot&) const = default;
     };
@@ -87,6 +91,7 @@ namespace ai::openai::codex::backend {
         bool fullyLoaded = false;
         std::vector<TurnSnapshot> turns;
         Json extensions = Json::object();
+        SourceStamp stamp;
 
         bool operator==(const ThreadSnapshot&) const = default;
     };
@@ -115,15 +120,9 @@ namespace ai::openai::codex::backend {
         std::optional<std::string> nextCursor;
         std::optional<std::string> backwardsCursor;
         std::size_t pagesLoaded = 0;
+        SourceStamp stamp;
 
         bool operator==(const ThreadListSnapshot&) const = default;
-    };
-
-    struct ReplayRangeSnapshot {
-        SequenceNumber oldest;
-        SequenceNumber newest;
-
-        bool operator==(const ReplayRangeSnapshot&) const = default;
     };
 
     struct ExtensionSnapshot {
@@ -141,17 +140,53 @@ namespace ai::openai::codex::backend {
         bool operator==(const ExtensionSnapshot&) const = default;
     };
 
+    struct InitializeResponseSnapshot {
+        std::string codexHome;
+        std::string platformFamily;
+        std::string platformOs;
+        std::string userAgent;
+
+        bool operator==(const InitializeResponseSnapshot&) const = default;
+    };
+
+    struct ProviderSnapshot {
+        ProviderLifecycle lifecycle = ProviderLifecycle::Stopped;
+        std::uint64_t generation = 0;
+        bool desiredRunning = false;
+        std::optional<ErrorSnapshot> lastError;
+        RecoveryState recovery;
+        std::optional<InitializeResponseSnapshot> initialization;
+
+        bool operator==(const ProviderSnapshot&) const = default;
+    };
+
+    struct CapacitySnapshot {
+        CapacityState state;
+        std::size_t retainedThreads = 0;
+        std::size_t retainedTurns = 0;
+        std::size_t retainedItems = 0;
+        std::size_t accumulatedContentBytes = 0;
+        std::size_t omittedThreads = 0;
+        std::size_t omittedTurns = 0;
+        std::size_t omittedItems = 0;
+        std::size_t sourceSessionCount = 0;
+        std::size_t sourcePendingRequestCount = 0;
+        bool truncated = false;
+        bool mandatoryCoreExceedsLimit = false;
+
+        bool operator==(const CapacitySnapshot&) const = default;
+    };
+
     struct Snapshot {
         SequenceNumber sequence;
-        BackendLifecycle lifecycle = BackendLifecycle::Stopped;
-        std::optional<ErrorSnapshot> lastLifecycleError;
+        ProviderSnapshot provider;
+        CapacitySnapshot capacity;
         DiagnosticSummary diagnostics;
         std::vector<ThreadSnapshot> threads;
         std::vector<PendingRequestSnapshot> pendingRequests;
         std::optional<SessionId> controller;
         std::vector<SessionSnapshot> sessions;
         ThreadListSnapshot threadList;
-        std::optional<ReplayRangeSnapshot> replayRange;
         std::vector<ExtensionSnapshot> recentExtensions;
         std::size_t omittedRecentExtensions = 0;
         bool sequenceExhausted = false;
@@ -161,6 +196,7 @@ namespace ai::openai::codex::backend {
     };
 
     Snapshot makeSnapshot(const BackendState& state);
+    std::size_t snapshotSizeBytes(const Snapshot& snapshot) noexcept;
     ExtensionSnapshot makeExtensionSnapshot(const ExtensionRecord& extension);
 
 } // namespace ai::openai::codex::backend

@@ -32,6 +32,7 @@ namespace tests::codex {
         std::vector<Json> outgoing;
         std::function<void(const Json&, const TransportCallbacks&)> sendHook;
         bool rejectNextSend = false;
+        bool deferStopCompletion = false;
         bool running = false;
         std::size_t startCount = 0;
         std::size_t stopCount = 0;
@@ -39,6 +40,12 @@ namespace tests::codex {
         void inject(const Json& message) const {
             if (callbacks.onMessage) {
                 callbacks.onMessage(message.dump());
+            }
+        }
+
+        void completeDeferredStop() {
+            if (callbacks.onExited) {
+                callbacks.onExited(ProcessExit{true, 0, false, 0});
             }
         }
     };
@@ -83,6 +90,9 @@ namespace tests::codex {
         void stop() override {
             ++state->stopCount;
             if (!std::exchange(state->running, false)) {
+                return;
+            }
+            if (state->deferStopCompletion) {
                 return;
             }
             if (state->callbacks.onExited) {

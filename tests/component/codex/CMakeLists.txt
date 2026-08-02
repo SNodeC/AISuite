@@ -1589,6 +1589,18 @@ target_link_libraries(
     CodexBackendCoreTest PRIVATE snodec-test-support
                                  AISuite::OpenAICodexBackend snodec::core
 )
+
+snodec_add_test(CodexBackendFoundationTest CodexBackendFoundationTest.cpp)
+target_link_libraries(
+    CodexBackendFoundationTest PRIVATE snodec-test-support
+                                       AISuite::OpenAICodexBackend snodec::core
+)
+target_compile_features(CodexBackendFoundationTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexBackendFoundationTest
+    PROPERTIES LABELS "component;ai;openai;codex;backend;foundation"
+               SKIP_RETURN_CODE 77 TIMEOUT 12
+)
 target_compile_features(CodexBackendCoreTest PRIVATE cxx_std_20)
 set_tests_properties(
     CodexBackendCoreTest

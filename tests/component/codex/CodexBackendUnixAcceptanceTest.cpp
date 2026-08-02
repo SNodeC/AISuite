@@ -648,7 +648,7 @@ namespace {
                     case Phase::WaitingADisconnect:
                         if (record(ClientKind::ControllerA).disconnected && !backendCore.snapshot().controller) {
                             result.expectTrue(backendCore.snapshot().pendingRequests.empty() &&
-                                                  backendCore.snapshot().lifecycle == backend::BackendLifecycle::Ready,
+                                                  backendCore.snapshot().provider.lifecycle == backend::ProviderLifecycle::Ready,
                                               "controller disconnect releases ownership without stopping the backend or "
                                               "synthesizing request answers");
                             phase = Phase::WaitingBAcquire;
@@ -865,7 +865,7 @@ namespace {
                 if (finished) {
                     return;
                 }
-                if (backendCore.snapshot().lifecycle == backend::BackendLifecycle::Stopped) {
+                if (backendCore.snapshot().provider.lifecycle == backend::ProviderLifecycle::Stopped) {
                     result.expectTrue(transport->stopCount != 0,
                                       "backend stop reaches the owned fake App Server transport while Unix clients are connected");
                     if (client(ClientKind::OldReconnect).context) {

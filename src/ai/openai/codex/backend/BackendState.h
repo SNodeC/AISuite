@@ -84,9 +84,64 @@ namespace ai::openai::codex::backend {
         std::uint64_t sequence = 0;
     };
 
-    enum class BackendLifecycle { Stopped, Starting, Initializing, Ready, Stopping, Failed };
+    enum class ProviderLifecycle { Stopped, Starting, Initializing, Ready, Stopping, Failed, Recovering };
+    enum class RecoveryStatus { Idle, Waiting, Exhausted };
+    enum class Freshness { Unknown, Current, Stale };
     enum class SessionRole { Observer, Controller };
     enum class ItemLifecycle { Unknown, Started, Completed, Failed };
+
+    struct RecoveryState {
+        RecoveryStatus status = RecoveryStatus::Idle;
+        std::uint32_t attempts = 0;
+        std::optional<std::uint64_t> delayMs;
+
+        bool operator==(const RecoveryState&) const = default;
+    };
+
+    struct ProviderState {
+        ProviderLifecycle lifecycle = ProviderLifecycle::Stopped;
+        std::uint64_t generation = 0;
+        bool desiredRunning = false;
+        std::optional<Error> lastError;
+        RecoveryState recovery;
+        std::optional<typed::InitializeResponse> initialization;
+    };
+
+    struct SourceStamp {
+        std::uint64_t generation = 0;
+        Freshness freshness = Freshness::Unknown;
+
+        bool operator==(const SourceStamp&) const = default;
+    };
+
+    struct BackendCapacityOptions {
+        std::size_t maxSessions = 128;
+        std::size_t maxObservers = 16;
+        std::size_t maxActiveOperations = 4096;
+        std::size_t maxPendingRequests = 1024;
+        std::size_t maxRetainedThreads = 2048;
+        std::size_t maxRetainedTurns = 16384;
+        std::size_t maxRetainedItems = 65536;
+        std::size_t maxAccumulatedContentBytes = 64U * 1024U * 1024U;
+        std::size_t maxSnapshotBytes = 8U * 1024U * 1024U;
+
+        bool operator==(const BackendCapacityOptions&) const = default;
+    };
+
+    struct CapacityState {
+        std::uint64_t rejectedSessions = 0;
+        std::uint64_t rejectedObservers = 0;
+        std::uint64_t rejectedOperations = 0;
+        std::uint64_t providerRequestOverflows = 0;
+        std::uint64_t evictedThreads = 0;
+        std::uint64_t evictedTurns = 0;
+        std::uint64_t evictedItems = 0;
+        std::uint64_t droppedContentBytes = 0;
+        std::uint64_t snapshotOmissions = 0;
+        BackendCapacityOptions limits;
+
+        bool operator==(const CapacityState&) const = default;
+    };
 
     struct DiagnosticSummary {
         std::uint64_t received = 0;
@@ -110,6 +165,8 @@ namespace ai::openai::codex::backend {
         std::optional<std::int64_t> startedAtMs;
         std::optional<std::int64_t> completedAtMs;
         Json extensions = Json::object();
+        SourceStamp stamp;
+        bool connectionInvalidated = false;
     };
 
     struct TurnState {
@@ -122,6 +179,8 @@ namespace ai::openai::codex::backend {
         std::optional<Json> tokenUsage;
         std::vector<ModelRerouteRecord> modelReroutes;
         Json extensions = Json::object();
+        SourceStamp stamp;
+        bool connectionInvalidated = false;
     };
 
     struct ThreadState {
@@ -130,6 +189,7 @@ namespace ai::openai::codex::backend {
         std::vector<typed::TurnId> turnOrder;
         bool fullyLoaded = false;
         Json extensions = Json::object();
+        SourceStamp stamp;
     };
 
     struct PendingRequestState {
@@ -149,6 +209,7 @@ namespace ai::openai::codex::backend {
         std::optional<std::string> nextCursor;
         std::optional<std::string> backwardsCursor;
         std::size_t pagesLoaded = 0;
+        SourceStamp stamp;
     };
 
     struct ExtensionRecord {
@@ -163,8 +224,8 @@ namespace ai::openai::codex::backend {
     };
 
     struct BackendState {
-        BackendLifecycle lifecycle = BackendLifecycle::Stopped;
-        std::optional<Error> lastLifecycleError;
+        ProviderState provider;
+        CapacityState capacity;
         DiagnosticSummary diagnostics;
         std::map<std::string, ThreadState> threads;
         std::vector<typed::ThreadId> threadOrder;
@@ -177,7 +238,7 @@ namespace ai::openai::codex::backend {
         std::vector<ExtensionRecord> recentExtensions;
     };
 
-    BackendLifecycle toBackendLifecycle(State state) noexcept;
+    ProviderLifecycle toProviderLifecycle(State state) noexcept;
     bool isTerminal(const typed::TurnStatus& status) noexcept;
     std::optional<typed::ItemId> itemId(const typed::ThreadItem& item);
     std::string itemType(const typed::ThreadItem& item);
