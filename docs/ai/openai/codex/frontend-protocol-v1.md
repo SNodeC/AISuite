@@ -57,8 +57,9 @@ The generated [owner-review worksheet](app-server-security-decisions.md)
 preserves every existing reviewed v1 exposure and marks every new exposure
 decision `UNRESOLVED`. A0 selects no new approval, sandbox, or security-boundary
 policy. A1.7 may add only the operations approved after the owner freezes those
-decisions, following the A1.5 application façade and A1.6 BackendCore work.
-Provider-neutral architecture remains separate A2 work.
+decisions, following the A1.5 application façade and A1.6a BackendCore
+foundation. A1.6b remains the backend-completeness phase. Provider-neutral
+architecture remains separate A2 work.
 
 ## Common envelope and compatibility
 
@@ -523,8 +524,9 @@ application uses compact newline-delimited JSON, documented in
 in-process consumer, future WebSocket adapter, or other transport can use the
 same `Codec` and `BackendAdapter` without inheriting JSONL.
 
-Task 4 does not implement Qt, WebSocket/TCP frontends, browser UI, TLS, remote
+The original Task 4 frontend slice did not implement provider recovery. A1.6a
+now adds event-loop-native provider recovery to the reference backend without
+changing Protocol v1. Qt, WebSocket/TCP frontends, browser UI, TLS, remote
 authentication, accounts, persistence, SQLite, systemd socket activation,
-automatic App Server restart, forced takeover, multiple controllers, or Task 5
-UI migration. Those concerns must preserve this abstraction and the bounded
-coalescing contract if introduced later.
+forced takeover, multiple controllers, and UI migration remain later concerns;
+they must preserve this abstraction and the bounded coalescing contract.

@@ -1,6 +1,7 @@
 # Codex backend reference application
 
-`codex-backend` is a small local reference composition for
+`codex-backend` is the first canonical AISuite-on-SNode.C server composition
+and a small local reference application for
 [Codex Frontend Protocol v1](frontend-protocol-v1.md). It owns one local Codex
 App Server client and accepts several frontend clients on a Unix-domain stream
 socket. It is an adapter and example, not a second backend implementation or a
@@ -24,10 +25,12 @@ net::un::stream::legacy::SocketServer
 ```
 
 Reusable `ai-openai-codex-backend` code has no socket dependency, and reusable
-`ai-openai-codex-frontend` code has no Unix or JSONL dependency. Only this
-application links `net-un-stream-legacy`. That boundary keeps future in-process,
-Qt, CLI, WebSocket, or other transports from depending on a Unix socket path or
-`SocketContext`.
+`ai-openai-codex-frontend` code has no Unix or JSONL dependency. Unix-domain
+applications and staged server compositions link the canonical
+`snodec::net-un-stream-legacy` target. Reusable libraries require
+`snodec::core`, while an installed library-only AISuite consumer does not
+require the Unix transport component. That boundary keeps future transports
+from depending on a Unix socket path or `SocketContext`.
 
 ## Composition and lifetime
 
@@ -66,31 +69,34 @@ This construction order prevents an accepted context from outliving the
 backend. Frontend callbacks additionally use weak lifetime gates. Disconnecting
 one frontend closes its transport-neutral `FrontendConnection` and backend
 `FrontendSession`; it does not call `BackendCore::stop()` and does not stop the
-Codex App Server. An explicit backend stop/start is the recovery boundary.
+Codex App Server. Provider failure or restart likewise retains frontend
+sessions and controller ownership. The explicit `start()`, `stop()`, and
+`restart()` API controls the provider independently of backend-service
+lifetime.
 
 ## Build and install
 
 The executable follows the repository's `src/apps` convention and is built
-only when `SNODEC_BUILD_APPS` is enabled:
+only when `AISUITE_BUILD_APPS` is enabled:
 
 ```sh
 cmake -S . -B build \
-  -DSNODEC_BUILD_APPS=ON \
-  -DSNODEC_BUILD_TESTS=ON
+  -DAISUITE_BUILD_APPS=ON \
+  -DAISUITE_BUILD_TESTS=ON \
+  -DCMAKE_PREFIX_PATH=/path/to/installed/snodec
 cmake --build build --parallel --target codex-backend codex-backend-client
 ```
 
 With a conventional single-configuration generator, run the in-tree binaries
 from `build/src/apps/codex-backend/codex-backend` and
-`build/src/apps/codex-backend-client/codex-backend-client`. Installing the
-`apps` component places both executables in the configured binary install
-directory:
+`build/src/apps/codex-backend-client/codex-backend-client`. An ordinary install
+places both executables in the configured binary install directory:
 
 ```sh
-cmake --install build --component apps
+cmake --install build
 ```
 
-Ordinary library builds may set `-DSNODEC_BUILD_APPS=OFF`; the exported
+Ordinary library builds may set `-DAISUITE_BUILD_APPS=OFF`; the exported
 `AISuite::OpenAICodexBackend` and `AISuite::OpenAICodexFrontend` components
 remain independently reusable.
 The executable also requires the `codex` command expected by the existing
@@ -105,6 +111,33 @@ commands as documented in its README:
 codex-backend
 codex-backend-client
 ```
+
+The staged module-consumer test separately finds SNode.C components `core` and
+`net-un-stream-legacy` plus AISuite, then builds a minimal Unix server with
+`BackendCore<stdio::Client>` and the public frontend adapter. It links only the
+three `AISuite::OpenAICodex*` targets plus `snodec::core` and
+`snodec::net-un-stream-legacy`, and uses no source-tree or private headers.
+
+## Provider recovery configuration
+
+Embedded `BackendCore` consumers keep automatic recovery disabled by default.
+This reference application opts in with deterministic defaults: recovery
+enabled, unlimited attempts, a 1,000 ms initial delay, a 30,000 ms maximum,
+and multiplier 2. The corresponding SNode.C/CLI configuration options are:
+
+```text
+--provider-recovery-enabled=<true|false>
+--provider-recovery-maximum-attempts <count>
+--provider-recovery-initial-delay-ms <milliseconds>
+--provider-recovery-maximum-delay-ms <milliseconds>
+--provider-recovery-multiplier <factor>
+```
+
+Only unexpected provider `Transport` and `Process` errors are retried.
+Recovery always stops the failed client, waits for `Stopped`, and schedules the
+next start through the SNode.C event-loop timer. Manual stop cancels a pending
+retry; manual restart supersedes it. Frontend sessions, controller ownership,
+and the shared frontend replay journal survive provider recovery.
 
 ## Reference client thread lifecycle
 
@@ -365,12 +398,12 @@ and lock nodes on clean shutdown, subject to inode-identity checks. BackendCore
 then stops the stdio App Server client, whose existing nonblocking lifecycle
 owns child termination and reaping.
 
-This application is deliberately local and minimal. It adds no daemon or
-production-service policy (even though generic framework-wide CLI options may
-appear in SNode.C help), frontend-user authentication, TLS, systemd socket
-activation, snapshot/replay persistence, or automatic App Server restart.
-Unix filesystem permissions and the runtime-directory policy are the local
-access boundary.
+This application is deliberately local and minimal. Apart from its explicit
+provider-recovery configuration, it adds no daemon or production-service policy
+(even though generic framework-wide CLI options may appear in SNode.C help),
+frontend-user authentication, TLS, systemd socket activation, or
+snapshot/replay persistence. Unix filesystem permissions and the
+runtime-directory policy are the local access boundary.
 
 No credentialed real-backend integration is registered in this milestone:
 `SNODEC_RUN_CODEX_BACKEND_INTEGRATION=1` is therefore documented as a proposed
@@ -378,8 +411,10 @@ gate, not an implemented test switch. The ordinary deterministic suite uses a
 fake App Server and requires no credentials, quota, network service, or real
 model turn.
 
-Task 5 behavior is explicitly deferred: no Qt event multiplexer, Qt UI,
-WebSocket/TCP adapter, browser frontend, UI-product migration, remote
-authentication, multi-controller policy, or forced controller takeover is
-implemented here. Any later adapter must retain Protocol v1's state reduction,
+A1.7 behavior is explicitly deferred: no IPv4, IPv6, RFCOMM, WebSocket, Qt UI,
+browser frontend, UI-product migration, remote authentication,
+multi-controller policy, or forced controller takeover is implemented here.
+The frozen A1.7 ownership is one `BackendCore`, one shared `BackendAdapter` and
+frontend journal, and multiple future transport factories. Those factories
+must share one replay sequence and retain Protocol v1's state reduction,
 coalescing, bounded batching, replay fallback, and slow-client isolation.

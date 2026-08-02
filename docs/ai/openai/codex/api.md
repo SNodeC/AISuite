@@ -303,6 +303,7 @@ retained both paths. A1.5 resolves that deferred decision in favor of direct
 domain access and removes the redundant public grouped client.
 
 All three Codex libraries remain at SOVERSION 2. This `.so.2` line is the
-completed, still-unreleased Final-A1/A1.5 API boundary. Backend redesign,
-Frontend Protocol redesign, and provider-neutral architecture remain separate
-A1.6, A1.7, and A2 work.
+completed, still-unreleased Final-A1/A1.5 API boundary. A1.6a hardens the
+backend foundation without expanding its six provider commands; A1.6b owns
+backend completeness. Frontend Protocol redesign and provider-neutral
+architecture remain separate A1.7 and A2 work.
