@@ -19,7 +19,9 @@ target_include_directories(
 )
 target_compile_features(ai-openai-codex-backend PUBLIC cxx_std_20)
 target_link_libraries(
-    ai-openai-codex-backend PUBLIC ai-openai-codex PRIVATE core
+    ai-openai-codex-backend
+    PUBLIC AISuite::OpenAICodex
+    PRIVATE snodec::core
 )
 set_target_properties(
     ai-openai-codex-backend

@@ -13,22 +13,22 @@
 
 namespace ai::openai::codex::backend {
 
-    BackendLifecycle toBackendLifecycle(State state) noexcept {
+    ProviderLifecycle toProviderLifecycle(State state) noexcept {
         switch (state) {
             case State::Stopped:
-                return BackendLifecycle::Stopped;
+                return ProviderLifecycle::Stopped;
             case State::Starting:
-                return BackendLifecycle::Starting;
+                return ProviderLifecycle::Starting;
             case State::Initializing:
-                return BackendLifecycle::Initializing;
+                return ProviderLifecycle::Initializing;
             case State::Ready:
-                return BackendLifecycle::Ready;
+                return ProviderLifecycle::Ready;
             case State::Stopping:
-                return BackendLifecycle::Stopping;
+                return ProviderLifecycle::Stopping;
             case State::Failed:
-                return BackendLifecycle::Failed;
+                return ProviderLifecycle::Failed;
         }
-        return BackendLifecycle::Failed;
+        return ProviderLifecycle::Failed;
     }
 
     bool isTerminal(const typed::TurnStatus& status) noexcept {

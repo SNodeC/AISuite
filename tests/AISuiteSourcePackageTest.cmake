@@ -93,8 +93,11 @@ foreach(required
     tests/installed/codex/CodexApiExample.cpp
     tests/installed/codex/CodexApplicationProjectionConsumer.cpp
     tests/installed/codex/SNodeInstalledCoreConsumer.cpp
+    tests/installed/codex-module-server/CMakeLists.txt
+    tests/installed/codex-module-server/CodexModuleServer.cpp
     docs/ai/openai/codex/a1-4-user-facing-integrations.md
     docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md
+    docs/ai/openai/codex/a1-6a-backend-foundation.md
     docs/ai/openai/codex/a1-final-abi-transition.md
 )
     if(NOT EXISTS "${root}/${required}")

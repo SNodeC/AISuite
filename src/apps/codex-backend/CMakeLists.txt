@@ -15,16 +15,20 @@ target_include_directories(
 target_compile_features(codex-backend-unix-adapter PUBLIC cxx_std_20)
 target_link_libraries(
     codex-backend-unix-adapter
-    PUBLIC ai-openai-codex-frontend net-un-stream-legacy
-    PRIVATE core
+    PUBLIC AISuite::OpenAICodexFrontend snodec::net-un-stream-legacy
+    PRIVATE snodec::core
 )
 
 add_executable(codex-backend main.cpp)
 target_compile_features(codex-backend PRIVATE cxx_std_20)
 target_link_libraries(
     codex-backend
-    PRIVATE codex-backend-unix-adapter ai-openai-codex
-            ai-openai-codex-backend ai-openai-codex-frontend
-            net-un-stream-legacy core
+    PRIVATE
+        codex-backend-unix-adapter
+        AISuite::OpenAICodex
+        AISuite::OpenAICodexBackend
+        AISuite::OpenAICodexFrontend
+        snodec::net-un-stream-legacy
+        snodec::core
 )
 install(TARGETS codex-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

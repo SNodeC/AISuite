@@ -48,26 +48,45 @@ namespace ai::openai::codex::frontend {
         template <typename... Visitors>
         Overloaded(Visitors...) -> Overloaded<Visitors...>;
 
-        std::string backendLifecycleName(backend::BackendLifecycle lifecycle) {
+        std::string backendLifecycleName(backend::ProviderLifecycle lifecycle) {
             switch (lifecycle) {
-                case backend::BackendLifecycle::Stopped:
+                case backend::ProviderLifecycle::Stopped:
                     return "stopped";
-                case backend::BackendLifecycle::Starting:
+                case backend::ProviderLifecycle::Starting:
                     return "starting";
-                case backend::BackendLifecycle::Initializing:
+                case backend::ProviderLifecycle::Initializing:
                     return "initializing";
-                case backend::BackendLifecycle::Ready:
+                case backend::ProviderLifecycle::Ready:
                     return "ready";
-                case backend::BackendLifecycle::Stopping:
+                case backend::ProviderLifecycle::Stopping:
                     return "stopping";
-                case backend::BackendLifecycle::Failed:
+                case backend::ProviderLifecycle::Failed:
                     return "failed";
+                case backend::ProviderLifecycle::Recovering:
+                    return "starting";
             }
             return "failed";
         }
 
         std::string backendRoleName(backend::SessionRole role) {
             return role == backend::SessionRole::Controller ? "controller" : "observer";
+        }
+
+        bool capacityMutationRequiresSnapshot(const backend::CapacityChanged& event) noexcept {
+            switch (event.metric) {
+                case backend::CapacityMetric::EvictedThreads:
+                case backend::CapacityMetric::EvictedTurns:
+                case backend::CapacityMetric::EvictedItems:
+                case backend::CapacityMetric::DroppedContentBytes:
+                    return true;
+                case backend::CapacityMetric::RejectedSessions:
+                case backend::CapacityMetric::RejectedObservers:
+                case backend::CapacityMetric::RejectedOperations:
+                case backend::CapacityMetric::ProviderRequestOverflows:
+                case backend::CapacityMetric::SnapshotOmissions:
+                    return false;
+            }
+            return false;
         }
 
         Json errorSnapshotJson(const backend::ErrorSnapshot& error) {
@@ -242,7 +261,7 @@ namespace ai::openai::codex::frontend {
                                  std::optional<SequenceNumber> newestRetained) {
             Json encoded{
                 {"backendRevision", snapshot.sequence.value()},
-                {"lifecycle", backendLifecycleName(snapshot.lifecycle)},
+                {"lifecycle", backendLifecycleName(snapshot.provider.lifecycle)},
                 {"diagnostics", {{"received", snapshot.diagnostics.received}, {"recent", snapshot.diagnostics.recent}}},
                 {"threads", Json::array()},
                 {"pendingRequests", Json::array()},
@@ -255,8 +274,8 @@ namespace ai::openai::codex::frontend {
                   {"pagesLoaded", snapshot.threadList.pagesLoaded}}},
                 {"journal", {{"oldestReplayableAfter", oldestReplayableAfter.value()}, {"currentSequence", frontendSequence.value()}}},
                 {"sequenceExhausted", snapshot.sequenceExhausted}};
-            if (snapshot.lastLifecycleError.has_value()) {
-                encoded["lastLifecycleError"] = errorSnapshotJson(*snapshot.lastLifecycleError);
+            if (snapshot.provider.lastError.has_value()) {
+                encoded["lastLifecycleError"] = errorSnapshotJson(*snapshot.provider.lastError);
             }
             for (const backend::ThreadSnapshot& thread : snapshot.threads) {
                 encoded["threads"].push_back(threadSnapshotJson(thread));
@@ -411,8 +430,8 @@ namespace ai::openai::codex::frontend {
                     [](const SnapshotGet&) -> BackendCommandMapping {
                         return backend::SnapshotGet{};
                     },
-                    [](const ReplayAfter& value) -> BackendCommandMapping {
-                        return backend::ReplayAfter{backend::SequenceNumber(value.after.value())};
+                    [](const ReplayAfter&) -> BackendCommandMapping {
+                        return CommandMappingError{"events.replay is owned by the frontend journal"};
                     },
                     [](const ThreadStart& value) -> BackendCommandMapping {
                         typed::ThreadStartParams params;
@@ -1034,9 +1053,6 @@ namespace ai::openai::codex::frontend {
                                }
                                return encoded;
                            },
-                           [](const backend::ReplayResult& result) {
-                               return Json{{"backendSequence", result.after.value()}};
-                           },
                            [&currentSnapshot](const typed::Thread& thread) {
                                const backend::ThreadSnapshot* found = findThread(currentSnapshot, thread.id.value);
                                return found != nullptr ? Json{{"thread", threadSnapshotJson(*found)}} : Json{{"threadId", thread.id.value}};
@@ -1100,9 +1116,9 @@ namespace ai::openai::codex::frontend {
         }
 
         Json lifecycleEventData(const backend::Snapshot& snapshot) const {
-            Json data{{"lifecycle", backendLifecycleName(snapshot.lifecycle)}};
-            if (snapshot.lastLifecycleError.has_value()) {
-                data["error"] = errorSnapshotJson(*snapshot.lastLifecycleError);
+            Json data{{"lifecycle", backendLifecycleName(snapshot.provider.lifecycle)}};
+            if (snapshot.provider.lastError.has_value()) {
+                data["error"] = errorSnapshotJson(*snapshot.provider.lastError);
             }
             return data;
         }
@@ -1200,11 +1216,20 @@ namespace ai::openai::codex::frontend {
             CoalescerMarkResult result;
             std::visit(
                 Overloaded{
-                    [&](const backend::LifecycleChanged&) {
+                    [&](const backend::ProviderLifecycleChanged&) {
                         result = markNormalized(CoalescingKey{DirtyEntityKind::BackendLifecycle, {}, {}, {}, {}},
                                                 "backend.lifecycle.changed",
                                                 lifecycleEventData(snapshot),
                                                 FlushUrgency::Immediate);
+                    },
+                    [&](const backend::ProviderConnectionInvalidated&) {
+                    },
+                    [&](const backend::CapacityConfigured&) {
+                    },
+                    [&](const backend::CapacityChanged& event) {
+                        if (capacityMutationRequiresSnapshot(event)) {
+                            result = coalescer.requireSnapshot(FlushUrgency::Immediate);
+                        }
                     },
                     [&](const backend::DiagnosticReceived&) {
                         result = markNormalized(CoalescingKey{DirtyEntityKind::Diagnostic, {}, {}, {}, {}},
@@ -1338,6 +1363,16 @@ namespace ai::openai::codex::frontend {
 
         void onBackendEvents(const std::vector<backend::SequencedBackendEvent>& events) noexcept {
             if (!open || events.empty()) {
+                return;
+            }
+            const bool requiresSnapshot = std::any_of(events.begin(), events.end(), [](const auto& event) {
+                if (const auto* capacity = std::get_if<backend::CapacityChanged>(&event.event)) {
+                    return capacityMutationRequiresSnapshot(*capacity);
+                }
+                return !std::holds_alternative<backend::ProviderConnectionInvalidated>(event.event) &&
+                       !std::holds_alternative<backend::CapacityConfigured>(event.event);
+            });
+            if (!requiresSnapshot) {
                 return;
             }
             try {

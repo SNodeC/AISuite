@@ -515,16 +515,27 @@ int main() {
     std::sort(wrongCategory.begin(), wrongCategory.end(), [](const auto& left, const auto& right) {
         return left.key < right.key;
     });
-    result.expectTrue(hasExactCoverageCodes(wrongCategory, manifest, {ErrorCode::WrongCategory, ErrorCode::MissingAssociation}),
-                      "coverage guard reports WrongCategory and the resulting missing client association");
+    result.expectTrue(hasExactCoverageCodes(wrongCategory,
+                                            manifest,
+                                            {ErrorCode::InvalidLayerDispositionReason,
+                                             ErrorCode::InvalidLayerDispositionReason,
+                                             ErrorCode::StableClientRequestBackendNotApplicable,
+                                             ErrorCode::WrongCategory,
+                                             ErrorCode::MissingAssociation}),
+                      "coverage guard reports WrongCategory, both invalidated type-model reasons, the invalid stable-operation layer "
+                      "disposition, and the resulting missing client association");
 
     std::vector<detail::ProtocolSurfaceEntry> wrongStability = baseline;
     const auto restabilized =
         findEntry(wrongStability, detail::SurfaceCategory::TaggedUnionDiscriminator, "CapabilityRootLocation", "type", "environment");
     restabilized->stability = detail::Stability::ExperimentalOnly;
     restabilized->operationContract = {};
-    result.expectTrue(hasExactCoverageCodes(wrongStability, manifest, {ErrorCode::WrongStability}),
-                      "coverage guard reports only WrongStability for wrong stable/experimental membership");
+    result.expectTrue(hasExactCoverageCodes(wrongStability,
+                                            manifest,
+                                            {ErrorCode::InventoryOnlyDispositionReasonMismatch,
+                                             ErrorCode::InventoryOnlyDispositionReasonMismatch,
+                                             ErrorCode::WrongStability}),
+                      "coverage guard reports WrongStability and both reasons invalidated by wrong stable/experimental membership");
 
     std::vector<detail::ProtocolSurfaceEntry> falseTyped = baseline;
     const auto unimplemented =
@@ -559,8 +570,11 @@ int main() {
     std::sort(wrongRuntimeTargetCategory.begin(), wrongRuntimeTargetCategory.end(), [](const auto& left, const auto& right) {
         return left.key < right.key;
     });
-    result.expectTrue(hasExactCodes(detail::validateProtocolSurface(wrongRuntimeTargetCategory), {ErrorCode::WrongRuntimeTargetCategory}),
-                      "registry validation reports only WrongRuntimeTargetCategory for a target attached to the wrong category");
+    result.expectTrue(
+        hasExactCodes(
+            detail::validateProtocolSurface(wrongRuntimeTargetCategory),
+            {ErrorCode::WrongRuntimeTargetCategory, ErrorCode::InvalidLayerDispositionReason, ErrorCode::InvalidLayerDispositionReason}),
+        "registry validation reports the wrong runtime-target category and both now-invalid internal-lifecycle reasons");
 
     std::vector<detail::ProtocolSurfaceEntry> sentinelRuntimeTarget = baseline;
     const auto sentinelTarget = findEntry(

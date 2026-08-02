@@ -8,6 +8,7 @@
 #include "ai/openai/codex/backend/Reducer.h"
 
 #include "ai/openai/codex/backend/detail/PreserveUnmodeledTypedEvent.h"
+#include "ai/openai/codex/backend/internal/RetentionCapacityInstrumentation.h"
 #include "ai/openai/codex/detail/ConversationCodec.h"
 #include "ai/openai/codex/detail/DecodeDiagnostic.h"
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
@@ -18,11 +19,39 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <set>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace ai::openai::codex::backend {
+
+    namespace detail {
+        namespace {
+            thread_local RetentionCapacityInstrumentation retentionInstrumentation;
+        }
+
+        void resetRetentionCapacityInstrumentation() noexcept {
+            retentionInstrumentation = {};
+        }
+
+        RetentionCapacityInstrumentation retentionCapacityInstrumentation() noexcept {
+            return retentionInstrumentation;
+        }
+
+        void recordRetentionCapacitySlowPath() noexcept {
+            if (retentionInstrumentation.slowPathEntries != std::numeric_limits<std::size_t>::max()) {
+                ++retentionInstrumentation.slowPathEntries;
+            }
+        }
+
+        void recordPendingReferenceBuild() noexcept {
+            if (retentionInstrumentation.pendingReferenceBuilds != std::numeric_limits<std::size_t>::max()) {
+                ++retentionInstrumentation.pendingReferenceBuilds;
+            }
+        }
+    } // namespace detail
 
     namespace {
         template <typename... Visitors>
@@ -43,6 +72,66 @@ namespace ai::openai::codex::backend {
             }
             return static_cast<std::uint64_t>(value);
         }
+
+        void saturatingAdd(std::uint64_t& value, std::uint64_t amount = 1) noexcept {
+            value = amount > std::numeric_limits<std::uint64_t>::max() - value ? std::numeric_limits<std::uint64_t>::max() : value + amount;
+        }
+
+        void saturatingAddSize(std::size_t& value, std::size_t amount) noexcept {
+            value = amount > std::numeric_limits<std::size_t>::max() - value ? std::numeric_limits<std::size_t>::max() : value + amount;
+        }
+
+        void guardedSubtractSize(std::size_t& value, std::size_t amount) noexcept {
+            value = amount > value ? 0 : value - amount;
+        }
+
+        void replaceAccumulatedContent(CapacityState& capacity, std::size_t before, std::size_t after) noexcept {
+            if (after >= before) {
+                saturatingAddSize(capacity.accumulatedContentBytes, after - before);
+            } else {
+                guardedSubtractSize(capacity.accumulatedContentBytes, before - after);
+            }
+        }
+
+        bool sameError(const std::optional<Error>& left, const std::optional<Error>& right) noexcept {
+            return left.has_value() == right.has_value() &&
+                   (!left || (left->category == right->category && left->code == right->code && left->message == right->message));
+        }
+
+        bool sameInitialization(const std::optional<typed::InitializeResponse>& left,
+                                const std::optional<typed::InitializeResponse>& right) noexcept {
+            if (left.has_value() != right.has_value()) {
+                return false;
+            }
+            if (!left) {
+                return true;
+            }
+            try {
+                return left->codexHome.value == right->codexHome.value && left->platformFamily == right->platformFamily &&
+                       left->platformOs == right->platformOs && left->userAgent == right->userAgent && left->raw == right->raw;
+            } catch (...) {
+                return false;
+            }
+        }
+
+        bool sameProvider(const ProviderState& left, const ProviderState& right) noexcept {
+            return left.lifecycle == right.lifecycle && left.generation == right.generation &&
+                   left.desiredRunning == right.desiredRunning && sameError(left.lastError, right.lastError) &&
+                   left.recovery == right.recovery && sameInitialization(left.initialization, right.initialization);
+        }
+
+        SourceStamp currentStamp(const BackendState& state) noexcept {
+            return {state.provider.generation, Freshness::Current};
+        }
+
+        using TurnKey = std::tuple<std::string, std::string>;
+        using ItemKey = std::tuple<std::string, std::string, std::string>;
+
+        struct RetentionInsertions {
+            std::vector<std::string> threads;
+            std::vector<TurnKey> turns;
+            std::vector<ItemKey> items;
+        };
 
         using ServerNotificationTarget = ::ai::openai::codex::detail::ServerNotificationTarget;
 
@@ -78,33 +167,46 @@ namespace ai::openai::codex::backend {
             return turn;
         }
 
-        ThreadState& ensureThread(BackendState& state, const typed::ThreadId& id) {
+        ThreadState& ensureThread(BackendState& state, const typed::ThreadId& id, RetentionInsertions* insertions = nullptr) {
             ThreadState initial;
             initial.thread = placeholderThread(id);
+            initial.stamp = currentStamp(state);
             auto [iterator, inserted] = state.threads.try_emplace(id.value, std::move(initial));
             if (inserted) {
                 state.threadOrder.push_back(id);
+                saturatingAddSize(state.capacity.retainedThreads, 1);
+                if (insertions != nullptr) {
+                    insertions->threads.push_back(id.value);
+                }
             }
             return iterator->second;
         }
 
-        TurnState& ensureTurn(BackendState& state, const typed::ThreadId& threadId, const typed::TurnId& turnId) {
-            ThreadState& thread = ensureThread(state, threadId);
+        TurnState& ensureTurn(BackendState& state,
+                              const typed::ThreadId& threadId,
+                              const typed::TurnId& turnId,
+                              RetentionInsertions* insertions = nullptr) {
+            ThreadState& thread = ensureThread(state, threadId, insertions);
             TurnState initial;
             initial.turn = placeholderTurn(threadId, turnId);
+            initial.stamp = currentStamp(state);
             auto [iterator, inserted] = thread.turns.try_emplace(turnId.value, std::move(initial));
             if (inserted) {
                 thread.turnOrder.push_back(turnId);
+                saturatingAddSize(state.capacity.retainedTurns, 1);
+                if (insertions != nullptr) {
+                    insertions->turns.emplace_back(threadId.value, turnId.value);
+                }
             }
             return iterator->second;
         }
 
         void assignBounded(std::string& target, const std::string& value, std::size_t limit, std::uint64_t& dropped) {
             if (limit == 0) {
-                dropped += value.size();
+                saturatingAdd(dropped, saturatingUint64(value.size()));
                 target.clear();
             } else if (value.size() > limit) {
-                dropped += value.size() - limit;
+                saturatingAdd(dropped, saturatingUint64(value.size() - limit));
                 target.assign(value.end() - static_cast<std::ptrdiff_t>(limit), value.end());
             } else {
                 target = value;
@@ -116,18 +218,22 @@ namespace ai::openai::codex::backend {
                 return;
             }
             if (limit == 0) {
-                dropped += target.size() + value.size();
+                const std::uint64_t targetBytes = saturatingUint64(target.size());
+                const std::uint64_t valueBytes = saturatingUint64(value.size());
+                saturatingAdd(dropped, targetBytes);
+                saturatingAdd(dropped, valueBytes);
                 target.clear();
                 return;
             }
             if (value.size() >= limit) {
-                dropped += target.size() + value.size() - limit;
+                saturatingAdd(dropped, saturatingUint64(target.size()));
+                saturatingAdd(dropped, saturatingUint64(value.size() - limit));
                 target.assign(value.end() - static_cast<std::ptrdiff_t>(limit), value.end());
                 return;
             }
             if (target.size() > limit - value.size()) {
                 const std::size_t remove = target.size() - (limit - value.size());
-                dropped += remove;
+                saturatingAdd(dropped, saturatingUint64(remove));
                 target.erase(0, remove);
             }
             target += value;
@@ -199,6 +305,15 @@ namespace ai::openai::codex::backend {
                        state.item);
         }
 
+        std::size_t itemContentBytes(const ItemState& item) noexcept {
+            std::size_t bytes = 0;
+            saturatingAddSize(bytes, item.agentText.size());
+            saturatingAddSize(bytes, item.reasoningText.size());
+            saturatingAddSize(bytes, item.reasoningSummary.size());
+            saturatingAddSize(bytes, item.commandOutput.size());
+            return bytes;
+        }
+
         std::optional<std::pair<typed::ThreadId, typed::TurnId>> itemLocation(const typed::ThreadItem& item) {
             return std::visit(
                 [](const auto& value) -> std::optional<std::pair<typed::ThreadId, typed::TurnId>> {
@@ -225,29 +340,41 @@ namespace ai::openai::codex::backend {
                         const typed::ThreadItem& item,
                         ItemLifecycle lifecycle,
                         std::optional<std::int64_t> occurredAtMs,
-                        std::size_t contentLimit) {
+                        std::size_t contentLimit,
+                        RetentionInsertions* insertions = nullptr) {
             const std::optional<typed::ItemId> id = itemId(item);
             if (!id) {
                 return false;
             }
 
-            TurnState& turn = ensureTurn(state, threadId, turnId);
+            TurnState& turn = ensureTurn(state, threadId, turnId, insertions);
             auto iterator = turn.items.find(id->value);
             if (iterator == turn.items.end()) {
                 ItemState itemState;
                 itemState.item = item;
                 itemState.lifecycle = lifecycle;
+                itemState.stamp = currentStamp(state);
+                itemState.connectionInvalidated = false;
                 if (lifecycle == ItemLifecycle::Started) {
                     itemState.startedAtMs = occurredAtMs;
                 } else if (lifecycle == ItemLifecycle::Completed) {
                     itemState.completedAtMs = occurredAtMs;
                 }
                 initializeVisibleContent(itemState, true, contentLimit);
+                const std::size_t contentBytes = itemContentBytes(itemState);
                 turn.items.emplace(id->value, std::move(itemState));
                 turn.itemOrder.push_back(*id);
+                saturatingAddSize(state.capacity.retainedItems, 1);
+                saturatingAddSize(state.capacity.accumulatedContentBytes, contentBytes);
+                if (insertions != nullptr) {
+                    insertions->items.emplace_back(threadId.value, turnId.value, id->value);
+                }
             } else {
                 ItemState& itemState = iterator->second;
+                const std::size_t previousContentBytes = itemContentBytes(itemState);
                 itemState.item = item;
+                itemState.stamp = currentStamp(state);
+                itemState.connectionInvalidated = false;
                 if (lifecycle != ItemLifecycle::Unknown || itemState.lifecycle == ItemLifecycle::Unknown) {
                     itemState.lifecycle = lifecycle;
                 }
@@ -257,22 +384,37 @@ namespace ai::openai::codex::backend {
                     itemState.completedAtMs = occurredAtMs;
                 }
                 initializeVisibleContent(itemState, lifecycle == ItemLifecycle::Completed, contentLimit);
+                replaceAccumulatedContent(state.capacity, previousContentBytes, itemContentBytes(itemState));
             }
             return true;
         }
 
-        bool upsertTurn(BackendState& state, const typed::Turn& value, std::size_t contentLimit) {
-            ThreadState& thread = ensureThread(state, value.threadId);
+        bool
+        upsertTurn(BackendState& state, const typed::Turn& value, std::size_t contentLimit, RetentionInsertions* insertions = nullptr) {
+            typed::Turn normalized = value;
+            normalized.items.clear();
+            if (normalized.raw.is_object()) {
+                normalized.raw.erase("items");
+            }
+            ThreadState& thread = ensureThread(state, value.threadId, insertions);
             auto iterator = thread.turns.find(value.id.value);
             if (iterator == thread.turns.end()) {
                 TurnState turn;
-                turn.turn = value;
+                turn.turn = std::move(normalized);
+                turn.stamp = currentStamp(state);
+                turn.connectionInvalidated = false;
                 turn.active = !isTerminal(value.status);
                 turn.terminal = isTerminal(value.status);
                 iterator = thread.turns.emplace(value.id.value, std::move(turn)).first;
                 thread.turnOrder.push_back(value.id);
+                saturatingAddSize(state.capacity.retainedTurns, 1);
+                if (insertions != nullptr) {
+                    insertions->turns.emplace_back(value.threadId.value, value.id.value);
+                }
             } else {
-                iterator->second.turn = value;
+                iterator->second.turn = std::move(normalized);
+                iterator->second.stamp = currentStamp(state);
+                iterator->second.connectionInvalidated = false;
                 iterator->second.active = !isTerminal(value.status);
                 iterator->second.terminal = isTerminal(value.status);
                 if (value.error.hasValue()) {
@@ -287,28 +429,405 @@ namespace ai::openai::codex::backend {
                            item,
                            iterator->second.terminal ? ItemLifecycle::Completed : ItemLifecycle::Unknown,
                            std::nullopt,
-                           contentLimit);
+                           contentLimit,
+                           insertions);
             }
             return true;
         }
 
-        bool upsertThread(BackendState& state, const typed::Thread& value, EntityLoad load, std::size_t contentLimit) {
+        bool upsertThread(BackendState& state,
+                          const typed::Thread& value,
+                          EntityLoad load,
+                          std::size_t contentLimit,
+                          RetentionInsertions* insertions = nullptr) {
+            typed::Thread normalized = value;
+            normalized.turns.clear();
+            if (normalized.raw.is_object()) {
+                normalized.raw.erase("turns");
+            }
             auto iterator = state.threads.find(value.id.value);
             if (iterator == state.threads.end()) {
                 ThreadState thread;
-                thread.thread = value;
+                thread.thread = std::move(normalized);
                 thread.fullyLoaded = load == EntityLoad::Full;
+                thread.stamp = currentStamp(state);
                 iterator = state.threads.emplace(value.id.value, std::move(thread)).first;
                 state.threadOrder.push_back(value.id);
+                saturatingAddSize(state.capacity.retainedThreads, 1);
+                if (insertions != nullptr) {
+                    insertions->threads.push_back(value.id.value);
+                }
             } else {
-                iterator->second.thread = value;
-                iterator->second.fullyLoaded = iterator->second.fullyLoaded || load == EntityLoad::Full;
+                const bool currentGeneration = iterator->second.stamp.generation == state.provider.generation &&
+                                               iterator->second.stamp.freshness == Freshness::Current;
+                iterator->second.thread = std::move(normalized);
+                iterator->second.fullyLoaded =
+                    currentGeneration ? iterator->second.fullyLoaded || load == EntityLoad::Full : load == EntityLoad::Full;
+                iterator->second.stamp = currentStamp(state);
             }
 
             for (const typed::Turn& turn : value.turns) {
-                upsertTurn(state, turn, contentLimit);
+                upsertTurn(state, turn, contentLimit, insertions);
             }
             return true;
+        }
+
+        struct PendingReferences {
+            std::set<std::string> threads;
+            std::set<TurnKey> turns;
+            std::set<ItemKey> items;
+        };
+
+        PendingReferences pendingReferences(const BackendState& state) {
+            PendingReferences references;
+            for (const auto& [id, pending] : state.pendingRequests) {
+                (void) id;
+                std::visit(
+                    [&references](const auto& request) {
+                        using Request = std::remove_cvref_t<decltype(request)>;
+                        if constexpr (std::is_same_v<Request, typed::ApplyPatchApprovalRequest> ||
+                                      std::is_same_v<Request, typed::ExecCommandApprovalRequest>) {
+                            references.threads.insert(request.params.conversationId.value);
+                        } else if constexpr (std::is_same_v<Request, typed::PermissionsApprovalRequest>) {
+                            references.threads.insert(request.params.threadId.value);
+                            references.turns.emplace(request.params.threadId.value, request.params.turnId.value);
+                            references.items.emplace(
+                                request.params.threadId.value, request.params.turnId.value, request.params.itemId.value);
+                        } else if constexpr (std::is_same_v<Request, typed::DynamicToolCallRequest>) {
+                            references.threads.insert(request.params.threadId.value);
+                            references.turns.emplace(request.params.threadId.value, request.params.turnId.value);
+                        } else if constexpr (std::is_same_v<Request, typed::McpServerElicitationRequest>) {
+                            references.threads.insert(request.params.threadId.value);
+                            if (request.params.turnId.hasValue()) {
+                                references.turns.emplace(request.params.threadId.value, request.params.turnId.value->value);
+                            }
+                        } else if constexpr (requires { request.threadId.value; }) {
+                            references.threads.insert(request.threadId.value);
+                            if constexpr (requires { request.turnId.value; }) {
+                                references.turns.emplace(request.threadId.value, request.turnId.value);
+                                if constexpr (requires { request.itemId.value; }) {
+                                    references.items.emplace(request.threadId.value, request.turnId.value, request.itemId.value);
+                                }
+                            }
+                        }
+                    },
+                    pending.request);
+            }
+            return references;
+        }
+
+        bool turnHasActiveItem(const TurnState& turn) noexcept {
+            return std::any_of(turn.items.begin(), turn.items.end(), [](const auto& entry) {
+                return entry.second.lifecycle == ItemLifecycle::Started || entry.second.lifecycle == ItemLifecycle::Unknown;
+            });
+        }
+
+        bool threadHasActiveTurn(const ThreadState& thread) noexcept {
+            return std::any_of(thread.turns.begin(), thread.turns.end(), [](const auto& entry) {
+                return entry.second.active || !entry.second.terminal || turnHasActiveItem(entry.second);
+            });
+        }
+
+        bool threadIsReferenced(const ThreadState& thread, const std::string& threadId, const PendingReferences& referenced) {
+            if (referenced.threads.contains(threadId)) {
+                return true;
+            }
+            for (const auto& [turnId, turn] : thread.turns) {
+                if (referenced.turns.contains(TurnKey{threadId, turnId})) {
+                    return true;
+                }
+                for (const auto& [itemIdValue, item] : turn.items) {
+                    (void) item;
+                    if (referenced.items.contains(ItemKey{threadId, turnId, itemIdValue})) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool turnIsReferenced(const TurnState& turn,
+                              const std::string& threadId,
+                              const std::string& turnId,
+                              const PendingReferences& referenced) {
+            if (referenced.turns.contains(TurnKey{threadId, turnId})) {
+                return true;
+            }
+            return std::any_of(turn.items.begin(), turn.items.end(), [&](const auto& entry) {
+                return referenced.items.contains(ItemKey{threadId, turnId, entry.first});
+            });
+        }
+
+        void accountTurnRemoval(CapacityState& capacity, const TurnState& turn, bool eviction) noexcept {
+            if (eviction) {
+                saturatingAdd(capacity.evictedTurns);
+                saturatingAdd(capacity.evictedItems, saturatingUint64(turn.items.size()));
+            } else {
+                saturatingAdd(capacity.snapshotOmissions);
+            }
+        }
+
+        void accountThreadRemoval(CapacityState& capacity, const ThreadState& thread, bool eviction) noexcept {
+            if (!eviction) {
+                saturatingAdd(capacity.snapshotOmissions);
+                return;
+            }
+            saturatingAdd(capacity.evictedThreads);
+            saturatingAdd(capacity.evictedTurns, saturatingUint64(thread.turns.size()));
+            std::size_t itemCount = 0;
+            for (const auto& [turnId, turn] : thread.turns) {
+                (void) turnId;
+                saturatingAddSize(itemCount, turn.items.size());
+            }
+            saturatingAdd(capacity.evictedItems, saturatingUint64(itemCount));
+        }
+
+        void eraseItem(BackendState& state, TurnState& turn, const std::string& id) {
+            const auto item = turn.items.find(id);
+            if (item == turn.items.end()) {
+                return;
+            }
+            guardedSubtractSize(state.capacity.retainedItems, 1);
+            guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item->second));
+            turn.items.erase(item);
+            std::erase_if(turn.itemOrder, [&id](const typed::ItemId& value) {
+                return value.value == id;
+            });
+        }
+
+        void eraseTurn(BackendState& state, ThreadState& thread, const std::string& id) {
+            const auto turn = thread.turns.find(id);
+            if (turn == thread.turns.end()) {
+                return;
+            }
+            guardedSubtractSize(state.capacity.retainedTurns, 1);
+            guardedSubtractSize(state.capacity.retainedItems, turn->second.items.size());
+            for (const auto& [itemIdValue, item] : turn->second.items) {
+                (void) itemIdValue;
+                guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item));
+            }
+            thread.turns.erase(turn);
+            std::erase_if(thread.turnOrder, [&id](const typed::TurnId& value) {
+                return value.value == id;
+            });
+        }
+
+        void eraseThread(BackendState& state, const std::string& id) {
+            const auto thread = state.threads.find(id);
+            if (thread == state.threads.end()) {
+                return;
+            }
+            guardedSubtractSize(state.capacity.retainedThreads, 1);
+            guardedSubtractSize(state.capacity.retainedTurns, thread->second.turns.size());
+            for (const auto& [turnId, turn] : thread->second.turns) {
+                (void) turnId;
+                guardedSubtractSize(state.capacity.retainedItems, turn.items.size());
+                for (const auto& [itemIdValue, item] : turn.items) {
+                    (void) itemIdValue;
+                    guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item));
+                }
+            }
+            state.threads.erase(thread);
+            std::erase_if(state.threadOrder, [&id](const typed::ThreadId& value) {
+                return value.value == id;
+            });
+        }
+
+        void enforceRetentionCapacity(BackendState& state, const RetentionInsertions& insertions) {
+            const BackendCapacityOptions& limits = state.capacity.limits;
+            if (state.capacity.retainedThreads <= limits.maxRetainedThreads && state.capacity.retainedTurns <= limits.maxRetainedTurns &&
+                state.capacity.retainedItems <= limits.maxRetainedItems &&
+                state.capacity.accumulatedContentBytes <= limits.maxAccumulatedContentBytes) {
+                return;
+            }
+            detail::recordRetentionCapacitySlowPath();
+            const bool structuralCapacityExceeded = state.capacity.retainedThreads > limits.maxRetainedThreads ||
+                                                    state.capacity.retainedTurns > limits.maxRetainedTurns ||
+                                                    state.capacity.retainedItems > limits.maxRetainedItems;
+            if (structuralCapacityExceeded) {
+                detail::recordPendingReferenceBuild();
+            }
+            const PendingReferences referenced = structuralCapacityExceeded ? pendingReferences(state) : PendingReferences{};
+            const std::set<std::string> insertedThreads(insertions.threads.begin(), insertions.threads.end());
+            const std::set<TurnKey> insertedTurns(insertions.turns.begin(), insertions.turns.end());
+            const std::set<ItemKey> insertedItems(insertions.items.begin(), insertions.items.end());
+
+            while (state.capacity.retainedThreads > limits.maxRetainedThreads) {
+                auto candidate = state.threadOrder.end();
+                for (auto iterator = state.threadOrder.begin(); iterator != state.threadOrder.end(); ++iterator) {
+                    const auto thread = state.threads.find(iterator->value);
+                    if (!insertedThreads.contains(iterator->value) && thread != state.threads.end() &&
+                        !threadHasActiveTurn(thread->second) && !threadIsReferenced(thread->second, iterator->value, referenced)) {
+                        candidate = iterator;
+                        break;
+                    }
+                }
+                if (candidate == state.threadOrder.end()) {
+                    const auto inserted =
+                        std::find_if(insertions.threads.rbegin(), insertions.threads.rend(), [&](const std::string& value) {
+                            return state.threads.contains(value);
+                        });
+                    if (inserted != insertions.threads.rend()) {
+                        const std::string id = *inserted;
+                        const auto thread = state.threads.find(id);
+                        accountThreadRemoval(state.capacity, thread->second, false);
+                        eraseThread(state, id);
+                        continue;
+                    }
+                    saturatingAdd(state.capacity.snapshotOmissions);
+                    break;
+                }
+                const std::string id = candidate->value;
+                const auto thread = state.threads.find(id);
+                accountThreadRemoval(state.capacity, thread->second, true);
+                eraseThread(state, id);
+            }
+
+            while (state.capacity.retainedTurns > limits.maxRetainedTurns) {
+                bool evicted = false;
+                for (const typed::ThreadId& threadId : state.threadOrder) {
+                    auto thread = state.threads.find(threadId.value);
+                    if (thread == state.threads.end()) {
+                        continue;
+                    }
+                    for (const typed::TurnId& turnId : thread->second.turnOrder) {
+                        const auto turn = thread->second.turns.find(turnId.value);
+                        if (!insertedTurns.contains(TurnKey{threadId.value, turnId.value}) && turn != thread->second.turns.end() &&
+                            turn->second.terminal && !turn->second.active && !turnHasActiveItem(turn->second) &&
+                            !turnIsReferenced(turn->second, threadId.value, turnId.value, referenced)) {
+                            accountTurnRemoval(state.capacity, turn->second, true);
+                            const std::string id = turnId.value;
+                            eraseTurn(state, thread->second, id);
+                            evicted = true;
+                            break;
+                        }
+                    }
+                    if (evicted) {
+                        break;
+                    }
+                }
+                if (!evicted) {
+                    for (auto inserted = insertions.turns.rbegin(); inserted != insertions.turns.rend() && !evicted; ++inserted) {
+                        const auto& [threadId, turnId] = *inserted;
+                        auto thread = state.threads.find(threadId);
+                        if (thread == state.threads.end()) {
+                            continue;
+                        }
+                        const auto turn = thread->second.turns.find(turnId);
+                        if (turn != thread->second.turns.end()) {
+                            accountTurnRemoval(state.capacity, turn->second, false);
+                            eraseTurn(state, thread->second, turnId);
+                            evicted = true;
+                        }
+                    }
+                }
+                if (!evicted) {
+                    saturatingAdd(state.capacity.snapshotOmissions);
+                    break;
+                }
+            }
+
+            while (state.capacity.retainedItems > limits.maxRetainedItems) {
+                bool evicted = false;
+                for (const typed::ThreadId& threadId : state.threadOrder) {
+                    auto thread = state.threads.find(threadId.value);
+                    if (thread == state.threads.end()) {
+                        continue;
+                    }
+                    for (const typed::TurnId& turnId : thread->second.turnOrder) {
+                        auto turn = thread->second.turns.find(turnId.value);
+                        if (turn == thread->second.turns.end()) {
+                            continue;
+                        }
+                        for (const typed::ItemId& itemIdValue : turn->second.itemOrder) {
+                            const auto item = turn->second.items.find(itemIdValue.value);
+                            if (!insertedItems.contains(ItemKey{threadId.value, turnId.value, itemIdValue.value}) &&
+                                item != turn->second.items.end() &&
+                                (item->second.lifecycle == ItemLifecycle::Completed || item->second.lifecycle == ItemLifecycle::Failed) &&
+                                !item->second.connectionInvalidated &&
+                                !referenced.items.contains(ItemKey{threadId.value, turnId.value, itemIdValue.value})) {
+                                const std::string id = itemIdValue.value;
+                                eraseItem(state, turn->second, id);
+                                saturatingAdd(state.capacity.evictedItems);
+                                evicted = true;
+                                break;
+                            }
+                        }
+                        if (evicted) {
+                            break;
+                        }
+                    }
+                    if (evicted) {
+                        break;
+                    }
+                }
+                if (!evicted) {
+                    for (auto inserted = insertions.items.rbegin(); inserted != insertions.items.rend() && !evicted; ++inserted) {
+                        const auto& [threadId, turnId, itemIdValue] = *inserted;
+                        auto thread = state.threads.find(threadId);
+                        if (thread == state.threads.end()) {
+                            continue;
+                        }
+                        auto turn = thread->second.turns.find(turnId);
+                        if (turn != thread->second.turns.end() && turn->second.items.contains(itemIdValue)) {
+                            eraseItem(state, turn->second, itemIdValue);
+                            saturatingAdd(state.capacity.snapshotOmissions);
+                            evicted = true;
+                        }
+                    }
+                }
+                if (!evicted) {
+                    saturatingAdd(state.capacity.snapshotOmissions);
+                    break;
+                }
+            }
+
+            std::size_t excess = state.capacity.accumulatedContentBytes > limits.maxAccumulatedContentBytes
+                                     ? state.capacity.accumulatedContentBytes - limits.maxAccumulatedContentBytes
+                                     : 0;
+            const auto trimPass = [&state, &excess](bool inactiveTerminalOnly) {
+                for (const typed::ThreadId& threadId : state.threadOrder) {
+                    auto thread = state.threads.find(threadId.value);
+                    if (thread == state.threads.end()) {
+                        continue;
+                    }
+                    for (const typed::TurnId& turnId : thread->second.turnOrder) {
+                        auto turn = thread->second.turns.find(turnId.value);
+                        if (turn == thread->second.turns.end() ||
+                            (inactiveTerminalOnly && (turn->second.active || !turn->second.terminal))) {
+                            continue;
+                        }
+                        for (const typed::ItemId& itemIdValue : turn->second.itemOrder) {
+                            auto item = turn->second.items.find(itemIdValue.value);
+                            if (item == turn->second.items.end()) {
+                                continue;
+                            }
+                            auto trim = [&excess, &item, &state](std::string& content) {
+                                const std::size_t removed = std::min(excess, content.size());
+                                if (removed == 0) {
+                                    return;
+                                }
+                                content.erase(0, removed);
+                                excess -= removed;
+                                guardedSubtractSize(state.capacity.accumulatedContentBytes, removed);
+                                saturatingAdd(item->second.droppedContentBytes, saturatingUint64(removed));
+                                saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
+                            };
+                            trim(item->second.agentText);
+                            trim(item->second.reasoningText);
+                            trim(item->second.reasoningSummary);
+                            trim(item->second.commandOutput);
+                            if (excess == 0) {
+                                return;
+                            }
+                        }
+                    }
+                }
+            };
+            trimPass(true);
+            if (excess != 0) {
+                trimPass(false);
+            }
         }
 
         void retainExtension(BackendState& state,
@@ -389,21 +908,84 @@ namespace ai::openai::codex::backend {
     }
 
     Reduction Reducer::apply(BackendState& state, const BackendEvent& event) const {
-        return std::visit(
+        RetentionInsertions insertions;
+        Reduction reduction = std::visit(
             Overloaded{
-                [&state](const LifecycleChanged& value) {
-                    const bool changed =
-                        state.lifecycle != value.lifecycle || state.lastLifecycleError.has_value() != value.error.has_value() ||
-                        (value.error && (!state.lastLifecycleError || state.lastLifecycleError->category != value.error->category ||
-                                         state.lastLifecycleError->code != value.error->code ||
-                                         state.lastLifecycleError->message != value.error->message));
-                    state.lifecycle = value.lifecycle;
-                    if (value.error) {
-                        state.lastLifecycleError = value.error;
-                    } else if (value.lifecycle == BackendLifecycle::Ready) {
-                        state.lastLifecycleError.reset();
+                [&state](const ProviderLifecycleChanged& value) {
+                    const bool changed = !sameProvider(state.provider, value.provider);
+                    state.provider = value.provider;
+                    return Reduction{changed,
+                                     value.provider.lifecycle == ProviderLifecycle::Failed ||
+                                         value.provider.lifecycle == ProviderLifecycle::Stopping ||
+                                         value.provider.lifecycle == ProviderLifecycle::Recovering};
+                },
+                [&state](const ProviderConnectionInvalidated& value) {
+                    if (value.generation != state.provider.generation) {
+                        return Reduction{};
                     }
-                    return Reduction{changed, value.lifecycle == BackendLifecycle::Failed || value.lifecycle == BackendLifecycle::Stopping};
+                    Reduction reduction{true, true};
+                    reduction.pendingRequestRemovals.reserve(state.pendingRequests.size());
+                    for (const auto& [id, pending] : state.pendingRequests) {
+                        (void) pending;
+                        reduction.pendingRequestRemovals.push_back({id, value.reason});
+                    }
+                    for (auto& [threadId, thread] : state.threads) {
+                        (void) threadId;
+                        thread.stamp.freshness = Freshness::Stale;
+                        for (auto& [turnId, turn] : thread.turns) {
+                            (void) turnId;
+                            turn.stamp.freshness = Freshness::Stale;
+                            turn.connectionInvalidated = turn.active || !turn.terminal;
+                            for (auto& [itemIdValue, item] : turn.items) {
+                                (void) itemIdValue;
+                                item.stamp.freshness = Freshness::Stale;
+                                item.connectionInvalidated =
+                                    item.lifecycle == ItemLifecycle::Started || item.lifecycle == ItemLifecycle::Unknown;
+                            }
+                        }
+                    }
+                    state.threadList.stamp.freshness = Freshness::Stale;
+                    state.pendingRequests.clear();
+                    return reduction;
+                },
+                [&state](const CapacityConfigured& value) {
+                    const bool changed = state.capacity.limits != value.limits;
+                    state.capacity.limits = value.limits;
+                    return Reduction{changed, false};
+                },
+                [&state](const CapacityChanged& value) {
+                    std::uint64_t* counter = nullptr;
+                    switch (value.metric) {
+                        case CapacityMetric::RejectedSessions:
+                            counter = &state.capacity.rejectedSessions;
+                            break;
+                        case CapacityMetric::RejectedObservers:
+                            counter = &state.capacity.rejectedObservers;
+                            break;
+                        case CapacityMetric::RejectedOperations:
+                            counter = &state.capacity.rejectedOperations;
+                            break;
+                        case CapacityMetric::ProviderRequestOverflows:
+                            counter = &state.capacity.providerRequestOverflows;
+                            break;
+                        case CapacityMetric::EvictedThreads:
+                            counter = &state.capacity.evictedThreads;
+                            break;
+                        case CapacityMetric::EvictedTurns:
+                            counter = &state.capacity.evictedTurns;
+                            break;
+                        case CapacityMetric::EvictedItems:
+                            counter = &state.capacity.evictedItems;
+                            break;
+                        case CapacityMetric::DroppedContentBytes:
+                            counter = &state.capacity.droppedContentBytes;
+                            break;
+                        case CapacityMetric::SnapshotOmissions:
+                            counter = &state.capacity.snapshotOmissions;
+                            break;
+                    }
+                    saturatingAdd(*counter, value.amount);
+                    return Reduction{true, true};
                 },
                 [this, &state](const DiagnosticReceived& value) {
                     ++state.diagnostics.received;
@@ -422,38 +1004,45 @@ namespace ai::openai::codex::backend {
                     }
                     return Reduction{true, false};
                 },
-                [this, &state](const ThreadUpserted& value) {
-                    return Reduction{upsertThread(state, value.thread, value.load, options.maxAccumulatedItemBytes), false};
+                [this, &state, &insertions](const ThreadUpserted& value) {
+                    return Reduction{upsertThread(state, value.thread, value.load, options.maxAccumulatedItemBytes, &insertions), false};
                 },
-                [this, &state](const ThreadListUpdated& value) {
+                [this, &state, &insertions](const ThreadListUpdated& value) {
                     for (const typed::Thread& thread : value.page.data) {
-                        upsertThread(state, thread, EntityLoad::Summary, options.maxAccumulatedItemBytes);
+                        upsertThread(state, thread, EntityLoad::Summary, options.maxAccumulatedItemBytes, &insertions);
+                    }
+                    const bool firstPageForGeneration = state.threadList.stamp.generation != state.provider.generation ||
+                                                        state.threadList.stamp.freshness != Freshness::Current;
+                    if (value.initialRefresh || firstPageForGeneration) {
+                        state.threadList = {};
                     }
                     state.threadList.hasLoadedPage = true;
-                    ++state.threadList.pagesLoaded;
+                    saturatingAddSize(state.threadList.pagesLoaded, 1);
                     state.threadList.nextCursor = value.page.nextCursor.hasValue() ? value.page.nextCursor.value : std::nullopt;
                     state.threadList.backwardsCursor =
                         value.page.backwardsCursor.hasValue() ? value.page.backwardsCursor.value : std::nullopt;
                     state.threadList.complete = !value.page.nextCursor.hasValue();
+                    state.threadList.stamp = currentStamp(state);
                     return Reduction{true, false};
                 },
-                [&state](const ThreadStatusUpdated& value) {
-                    ThreadState& thread = ensureThread(state, value.threadId);
+                [&state, &insertions](const ThreadStatusUpdated& value) {
+                    ThreadState& thread = ensureThread(state, value.threadId, &insertions);
                     thread.thread.status = value.status;
+                    thread.stamp = currentStamp(state);
                     if (thread.thread.raw.is_object() && thread.thread.raw.size() == 1 &&
                         thread.thread.raw.value("backendPlaceholder", false)) {
                         thread.thread.raw["backendPlaceholderStatusKnown"] = true;
                     }
                     return Reduction{true, false};
                 },
-                [this, &state](const TurnUpserted& value) {
-                    return Reduction{upsertTurn(state, value.turn, options.maxAccumulatedItemBytes), false};
+                [this, &state, &insertions](const TurnUpserted& value) {
+                    return Reduction{upsertTurn(state, value.turn, options.maxAccumulatedItemBytes, &insertions), false};
                 },
-                [this, &state](const TurnCompleted& value) {
+                [this, &state, &insertions](const TurnCompleted& value) {
                     const TurnState* prior = findTurn(state, value.turn.threadId, value.turn.id);
                     const bool emitTerminal = prior != nullptr && !prior->terminal;
-                    upsertTurn(state, value.turn, options.maxAccumulatedItemBytes);
-                    TurnState& turn = ensureTurn(state, value.turn.threadId, value.turn.id);
+                    upsertTurn(state, value.turn, options.maxAccumulatedItemBytes, &insertions);
+                    TurnState& turn = ensureTurn(state, value.turn.threadId, value.turn.id, &insertions);
                     turn.active = false;
                     turn.terminal = true;
                     if (emitTerminal) {
@@ -463,11 +1052,11 @@ namespace ai::openai::codex::backend {
                     }
                     return Reduction{true, true};
                 },
-                [this, &state](const TurnFailed& value) {
+                [this, &state, &insertions](const TurnFailed& value) {
                     const TurnState* prior = findTurn(state, value.turn.threadId, value.turn.id);
                     const bool emitTerminal = prior != nullptr && !prior->terminal;
-                    upsertTurn(state, value.turn, options.maxAccumulatedItemBytes);
-                    TurnState& turn = ensureTurn(state, value.turn.threadId, value.turn.id);
+                    upsertTurn(state, value.turn, options.maxAccumulatedItemBytes, &insertions);
+                    TurnState& turn = ensureTurn(state, value.turn.threadId, value.turn.id, &insertions);
                     turn.active = false;
                     turn.terminal = true;
                     turn.failure = value.error;
@@ -476,22 +1065,25 @@ namespace ai::openai::codex::backend {
                     }
                     return Reduction{true, true};
                 },
-                [&state](const TurnErrorUpdated& value) {
-                    TurnState& turn = ensureTurn(state, value.threadId, value.turnId);
+                [&state, &insertions](const TurnErrorUpdated& value) {
+                    TurnState& turn = ensureTurn(state, value.threadId, value.turnId, &insertions);
                     turn.failure = value.error;
+                    turn.stamp = currentStamp(state);
+                    turn.connectionInvalidated = false;
                     if (!value.willRetry) {
                         turn.active = false;
                     }
                     return Reduction{true, !value.willRetry};
                 },
-                [this, &state](const ItemUpserted& value) {
+                [this, &state, &insertions](const ItemUpserted& value) {
                     if (upsertItem(state,
                                    value.threadId,
                                    value.turnId,
                                    value.item,
                                    value.lifecycle,
                                    value.occurredAtMs,
-                                   options.maxAccumulatedItemBytes)) {
+                                   options.maxAccumulatedItemBytes,
+                                   &insertions)) {
                         return Reduction{true, value.lifecycle == ItemLifecycle::Completed || value.lifecycle == ItemLifecycle::Failed};
                     }
                     retainExtension(state,
@@ -518,8 +1110,8 @@ namespace ai::openai::codex::backend {
                                     options.maxExtensionDecodingErrorBytes);
                     return Reduction{true, value.lifecycle == ItemLifecycle::Completed};
                 },
-                [this, &state](const ItemContentChanged& value) {
-                    TurnState& turn = ensureTurn(state, value.threadId, value.turnId);
+                [this, &state, &insertions](const ItemContentChanged& value) {
+                    TurnState& turn = ensureTurn(state, value.threadId, value.turnId, &insertions);
                     auto iterator = turn.items.find(value.itemId.value);
                     if (iterator == turn.items.end()) {
                         typed::UnknownItem placeholder;
@@ -532,10 +1124,14 @@ namespace ai::openai::codex::backend {
                                    typed::ThreadItem{std::move(placeholder)},
                                    ItemLifecycle::Started,
                                    std::nullopt,
-                                   options.maxAccumulatedItemBytes);
+                                   options.maxAccumulatedItemBytes,
+                                   &insertions);
                         iterator = turn.items.find(value.itemId.value);
                     }
                     ItemState& item = iterator->second;
+                    const std::size_t previousContentBytes = itemContentBytes(item);
+                    item.stamp = currentStamp(state);
+                    item.connectionInvalidated = false;
                     switch (value.kind) {
                         case ItemContentChanged::Kind::AgentText:
                             appendBounded(item.agentText, value.delta, options.maxAccumulatedItemBytes, item.droppedContentBytes);
@@ -550,9 +1146,10 @@ namespace ai::openai::codex::backend {
                             appendBounded(item.commandOutput, value.delta, options.maxAccumulatedItemBytes, item.droppedContentBytes);
                             break;
                     }
+                    replaceAccumulatedContent(state.capacity, previousContentBytes, itemContentBytes(item));
                     return Reduction{true, false};
                 },
-                [this, &state](const FileChangeUpdated& value) {
+                [this, &state, &insertions](const FileChangeUpdated& value) {
                     ItemState* item = findItem(state, value.threadId, value.turnId, value.itemId);
                     if (!item) {
                         typed::UnknownItem placeholder;
@@ -565,10 +1162,13 @@ namespace ai::openai::codex::backend {
                                    typed::ThreadItem{std::move(placeholder)},
                                    ItemLifecycle::Started,
                                    std::nullopt,
-                                   options.maxAccumulatedItemBytes);
+                                   options.maxAccumulatedItemBytes,
+                                   &insertions);
                         item = findItem(state, value.threadId, value.turnId, value.itemId);
                     }
                     if (item) {
+                        item->stamp = currentStamp(state);
+                        item->connectionInvalidated = false;
                         if (auto* fileChange = std::get_if<typed::FileChangeThreadItem>(&item->item)) {
                             fileChange->metadata.raw["changes"] = value.changes;
                             if (std::optional<std::vector<typed::FileUpdateChange>> changes = decodeFileUpdateChanges(value.changes)) {
@@ -579,12 +1179,17 @@ namespace ai::openai::codex::backend {
                     }
                     return Reduction{true, false};
                 },
-                [&state](const TokenUsageUpdated& value) {
-                    ensureTurn(state, value.threadId, value.turnId).tokenUsage = value.usage;
+                [&state, &insertions](const TokenUsageUpdated& value) {
+                    TurnState& turn = ensureTurn(state, value.threadId, value.turnId, &insertions);
+                    turn.tokenUsage = value.usage;
+                    turn.stamp = currentStamp(state);
+                    turn.connectionInvalidated = false;
                     return Reduction{true, false};
                 },
-                [this, &state](const ModelRerouted& value) {
-                    TurnState& turn = ensureTurn(state, value.threadId, value.turnId);
+                [this, &state, &insertions](const ModelRerouted& value) {
+                    TurnState& turn = ensureTurn(state, value.threadId, value.turnId, &insertions);
+                    turn.stamp = currentStamp(state);
+                    turn.connectionInvalidated = false;
                     if (options.maxModelReroutesPerTurn != 0) {
                         turn.modelReroutes.push_back({value.from, value.to, value.reason});
                         if (turn.modelReroutes.size() > options.maxModelReroutesPerTurn) {
@@ -648,6 +1253,20 @@ namespace ai::openai::codex::backend {
                     return Reduction{true, false};
                 }},
             event);
+        const CapacityState capacityBefore = state.capacity;
+        enforceRetentionCapacity(state, insertions);
+        reduction.changed = reduction.changed || state.capacity != capacityBefore;
+        const auto appendCapacityChange = [&reduction](CapacityMetric metric, std::uint64_t before, std::uint64_t after) {
+            if (after > before) {
+                reduction.capacityChanges.push_back({metric, after - before});
+            }
+        };
+        appendCapacityChange(CapacityMetric::EvictedThreads, capacityBefore.evictedThreads, state.capacity.evictedThreads);
+        appendCapacityChange(CapacityMetric::EvictedTurns, capacityBefore.evictedTurns, state.capacity.evictedTurns);
+        appendCapacityChange(CapacityMetric::EvictedItems, capacityBefore.evictedItems, state.capacity.evictedItems);
+        appendCapacityChange(CapacityMetric::DroppedContentBytes, capacityBefore.droppedContentBytes, state.capacity.droppedContentBytes);
+        appendCapacityChange(CapacityMetric::SnapshotOmissions, capacityBefore.snapshotOmissions, state.capacity.snapshotOmissions);
+        return reduction;
     }
 
     std::vector<BackendEvent> Reducer::translate(const typed::Event& event) const {

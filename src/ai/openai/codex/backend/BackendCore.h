@@ -29,6 +29,16 @@ namespace ai::openai::codex::frontend {
 namespace ai::openai::codex::backend {
 
     using Scheduler = std::function<void(std::function<void()>)>;
+    using RecoveryTimerCancellation = std::function<void()>;
+    using RecoveryTimerScheduler = std::function<RecoveryTimerCancellation(std::uint64_t, std::function<void()>)>;
+
+    struct RecoveryOptions {
+        bool enabled = false;
+        std::uint32_t maximumAttempts = 0;
+        std::uint64_t initialDelayMs = 1000;
+        std::uint64_t maximumDelayMs = 30000;
+        std::uint32_t multiplier = 2;
+    };
 
     struct BackendCoreOptions {
         std::uint32_t initialThreadListLimit = 50;
@@ -38,7 +48,10 @@ namespace ai::openai::codex::backend {
         std::size_t maxObserverQueueBytes = 8U * 1024U * 1024U;
         std::size_t maxEventsPerCallback = 512;
         ReducerOptions reducer;
+        RecoveryOptions recovery;
+        BackendCapacityOptions capacity;
         Scheduler scheduler;
+        RecoveryTimerScheduler recoveryTimerScheduler;
     };
 
     namespace detail {
@@ -58,6 +71,7 @@ namespace ai::openai::codex::backend {
 
             void start();
             void stop();
+            void restart();
 
             [[nodiscard]] BackendState state() const;
             [[nodiscard]] Snapshot snapshot() const;
@@ -118,6 +132,10 @@ namespace ai::openai::codex::backend {
 
         void stop() {
             runtime.stop();
+        }
+
+        void restart() {
+            runtime.restart();
         }
 
         [[nodiscard]] BackendState state() const {

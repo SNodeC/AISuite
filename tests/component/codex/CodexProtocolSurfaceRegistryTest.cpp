@@ -14,6 +14,8 @@
 #include <cstddef>
 #include <initializer_list>
 #include <iterator>
+#include <numeric>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -49,6 +51,12 @@ namespace {
         std::sort(actualCodes.begin(), actualCodes.end());
         std::sort(expectedCodes.begin(), expectedCodes.end());
         return actualCodes == expectedCodes;
+    }
+
+    bool hasCode(const detail::ProtocolSurfaceValidation& validation, detail::ProtocolSurfaceErrorCode expected) {
+        return std::any_of(validation.errors.begin(), validation.errors.end(), [&](const detail::ProtocolSurfaceDiagnostic& diagnostic) {
+            return diagnostic.code == expected;
+        });
     }
 
     detail::SchemaCompletenessEvidence completeSchemaEvidence() {
@@ -94,12 +102,42 @@ int main() {
     std::size_t stableUnreachableInventory = 0;
     std::size_t a11ModeledNotifications = 0;
     std::size_t a11PreservedNotifications = 0;
+    std::array<std::size_t, 3> backendOperationDispositions{};
+    std::array<std::size_t, 3> backendStateDispositions{};
+    std::array<std::size_t, 6> backendStateNotApplicableReasons{};
     std::array<std::size_t, 7> categories{};
     std::array<std::size_t, 6> slices{};
     for (const detail::ProtocolSurfaceEntry& entry : registry) {
+        const auto recordDisposition = [](detail::LayerStatus status, std::array<std::size_t, 3>& counts) {
+            ++counts[static_cast<std::size_t>(status)];
+        };
         entry.stability == detail::Stability::Stable ? ++stable : ++experimentalOnly;
         ++categories[static_cast<std::size_t>(entry.key.category)];
         if (entry.stability == detail::Stability::Stable) {
+            const bool applicationOperation =
+                entry.key.category == detail::SurfaceCategory::ClientRequest && entry.key.name != "initialize";
+            const bool notification = entry.key.category == detail::SurfaceCategory::ServerNotification;
+            const bool threadItem = entry.key.category == detail::SurfaceCategory::ItemDiscriminator && entry.key.domain == "ThreadItem";
+            const bool responseItem =
+                entry.key.category == detail::SurfaceCategory::ItemDiscriminator && entry.key.domain == "ResponseItem";
+            const bool serverRequest = entry.key.category == detail::SurfaceCategory::ServerRequest;
+            if (applicationOperation) {
+                recordDisposition(entry.backendCore, backendOperationDispositions);
+            }
+            const std::optional<std::pair<detail::LayerStatus, detail::LayerDispositionReason>> backendStateDisposition =
+                applicationOperation || notification || serverRequest
+                    ? std::optional<std::pair<detail::LayerStatus, detail::LayerDispositionReason>>{{entry.backendCore,
+                                                                                                     entry.backendCoreReason}}
+                : threadItem || responseItem
+                    ? std::optional<std::pair<detail::LayerStatus, detail::LayerDispositionReason>>{{entry.canonicalState,
+                                                                                                     entry.canonicalStateReason}}
+                    : std::nullopt;
+            if (backendStateDisposition) {
+                recordDisposition(backendStateDisposition->first, backendStateDispositions);
+                if (backendStateDisposition->first == detail::LayerStatus::NotApplicable) {
+                    ++backendStateNotApplicableReasons[static_cast<std::size_t>(backendStateDisposition->second)];
+                }
+            }
             normalizedFrontendEvents += entry.frontendProtocol == detail::FrontendExposure::ExistingEventSubset;
             genericFrontendExtensions += entry.frontendProtocol == detail::FrontendExposure::GenericExtension;
             unknownItemMetadataSubsets += entry.frontendProtocol == detail::FrontendExposure::ExistingUnknownItemSubset;
@@ -190,6 +228,14 @@ int main() {
         "while the 25 new methods use the bounded generic-extension contract");
     result.expectTrue(stableClientAssociations == 87 && stableServerAssociations == 10,
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
+    result.expectTrue(backendOperationDispositions == std::array<std::size_t, 3>{6, 80, 0},
+                      "BackendCore stable provider-operation coverage remains separately reported as 6 Implemented, 80 NotImplemented, "
+                      "and 0 NotApplicable out of 86");
+    result.expectTrue(
+        backendStateDispositions == std::array<std::size_t, 3>{32, 150, 16} &&
+            backendStateNotApplicableReasons[static_cast<std::size_t>(detail::LayerDispositionReason::NoRuntimeBackendStatePath)] == 16 &&
+            std::accumulate(backendStateNotApplicableReasons.begin(), backendStateNotApplicableReasons.end(), std::size_t{0}) == 16,
+        "the 198-entry backend/state denominator reports 32 Implemented, 16 reasoned NotApplicable, 150 NotImplemented, and 48 resolved");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
     result.expectTrue(schemaComplete == 339 && schemaPartial == 0 && schemaNotImplemented == 0 && schemaNotApplicable == 48,
@@ -2638,9 +2684,105 @@ int main() {
         detail::findSurface(detail::SurfaceCategory::ItemDiscriminator, "ResponseItem", "type", "message");
     result.expectTrue(responseItem && responseItem->runtimeDisposition == detail::RuntimeDisposition::Typed &&
                           responseItem->typedSchemaStatus == detail::TypedSchemaStatus::Complete &&
+                          responseItem->canonicalState == detail::LayerStatus::NotApplicable &&
+                          responseItem->canonicalStateReason == detail::LayerDispositionReason::NoRuntimeBackendStatePath &&
                           responseItem->frontendProtocol == detail::FrontendExposure::NotExposed &&
                           responseItem->frontendSecurity == detail::FrontendSecurityDecision::Unresolved,
-                      "typed ResponseItem rows remain distinct and do not claim a frontend payload path");
+                      "typed ResponseItem rows remain distinct with an explicit no-runtime-state disposition and no frontend payload path");
+
+    const detail::ProtocolSurfaceEntry* initialize =
+        detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "initialize");
+    const detail::ProtocolSurfaceEntry* actionOnly =
+        detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "turn/interrupt");
+    const detail::ProtocolSurfaceEntry* typeModel =
+        detail::findSurface(detail::SurfaceCategory::TaggedUnionDiscriminator, "SandboxPolicy", "type", "dangerFullAccess");
+    const detail::ProtocolSurfaceEntry* stableInventoryType =
+        detail::findSurface(detail::SurfaceCategory::TaggedUnionDiscriminator, "ConfiguredHookHandler", "type", "agent");
+    result.expectTrue(initialize && initialize->backendCoreReason == detail::LayerDispositionReason::InternalProtocolLifecycle &&
+                          initialize->canonicalStateReason == detail::LayerDispositionReason::InternalProtocolLifecycle && actionOnly &&
+                          actionOnly->backendCore == detail::LayerStatus::Implemented &&
+                          actionOnly->canonicalState == detail::LayerStatus::NotApplicable &&
+                          actionOnly->canonicalStateReason == detail::LayerDispositionReason::ActionOnlyNoPersistentState && typeModel &&
+                          typeModel->backendCoreReason == detail::LayerDispositionReason::TypeModelOnly &&
+                          typeModel->canonicalStateReason == detail::LayerDispositionReason::TypeModelOnly && stableInventoryType &&
+                          stableInventoryType->backendCoreReason == detail::LayerDispositionReason::TypeModelOnly &&
+                          stableInventoryType->canonicalStateReason == detail::LayerDispositionReason::TypeModelOnly,
+                      "layer reasons distinguish internal lifecycle, action-only, and type-model-only stable inventory dispositions");
+
+    const auto expectLayerMutation = [&](auto mutate, detail::ProtocolSurfaceErrorCode expected, const char* description) {
+        std::vector<detail::ProtocolSurfaceEntry> entries(registry.begin(), registry.end());
+        mutate(entries);
+        result.expectTrue(hasCode(detail::validateProtocolSurface(entries), expected), description);
+    };
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            findExactEntry(entries, {detail::SurfaceCategory::ItemDiscriminator, "ResponseItem", "type", "message"})->canonicalStateReason =
+                detail::LayerDispositionReason::None;
+        },
+        detail::ProtocolSurfaceErrorCode::MissingLayerDispositionReason,
+        "NotApplicable without a reason is rejected");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            findEntry(entries, detail::SurfaceCategory::ClientRequest, "thread/start")->backendCoreReason =
+                detail::LayerDispositionReason::TypeModelOnly;
+        },
+        detail::ProtocolSurfaceErrorCode::UnexpectedLayerDispositionReason,
+        "Implemented with a non-None reason is rejected");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            findEntry(entries, detail::SurfaceCategory::ClientRequest, "account/login/cancel")->backendCoreReason =
+                detail::LayerDispositionReason::TypeModelOnly;
+        },
+        detail::ProtocolSurfaceErrorCode::UnexpectedLayerDispositionReason,
+        "NotImplemented with a non-None reason is rejected");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto operation = findEntry(entries, detail::SurfaceCategory::ClientRequest, "account/login/cancel");
+            operation->backendCore = detail::LayerStatus::NotApplicable;
+            operation->backendCoreReason = detail::LayerDispositionReason::TypeModelOnly;
+        },
+        detail::ProtocolSurfaceErrorCode::StableClientRequestBackendNotApplicable,
+        "a stable application operation cannot be hidden as BackendCore NotApplicable");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto notification = findEntry(entries, detail::SurfaceCategory::ServerNotification, "account/login/completed");
+            notification->backendCore = detail::LayerStatus::NotApplicable;
+            notification->backendCoreReason = detail::LayerDispositionReason::TypeModelOnly;
+        },
+        detail::ProtocolSurfaceErrorCode::StableServerNotificationBackendNotApplicable,
+        "a stable server notification cannot be hidden as BackendCore NotApplicable");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto item = findExactEntry(entries, {detail::SurfaceCategory::ItemDiscriminator, "ThreadItem", "type", "plan"});
+            item->canonicalState = detail::LayerStatus::NotApplicable;
+            item->canonicalStateReason = detail::LayerDispositionReason::TypeModelOnly;
+        },
+        detail::ProtocolSurfaceErrorCode::ThreadItemCanonicalStateNotApplicable,
+        "a stable ThreadItem cannot be hidden as canonical-state NotApplicable");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto item = findExactEntry(entries, {detail::SurfaceCategory::ItemDiscriminator, "ResponseItem", "type", "message"});
+            item->canonicalState = detail::LayerStatus::NotImplemented;
+            item->canonicalStateReason = detail::LayerDispositionReason::None;
+        },
+        detail::ProtocolSurfaceErrorCode::ResponseItemCanonicalStateDispositionMismatch,
+        "every stable ResponseItem requires the NoRuntimeBackendStatePath disposition");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto request = findEntry(entries, detail::SurfaceCategory::ServerRequest, "attestation/generate");
+            request->backendCore = detail::LayerStatus::NotApplicable;
+            request->backendCoreReason = detail::LayerDispositionReason::TypeModelOnly;
+        },
+        detail::ProtocolSurfaceErrorCode::StableServerRequestLayerNotApplicable,
+        "a stable server request cannot be hidden as layer NotApplicable");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto inventory = findEntry(entries, detail::SurfaceCategory::ClientRequest, "process/kill");
+            inventory->backendCore = detail::LayerStatus::NotApplicable;
+            inventory->backendCoreReason = detail::LayerDispositionReason::TypeModelOnly;
+        },
+        detail::ProtocolSurfaceErrorCode::InventoryOnlyDispositionReasonMismatch,
+        "experimental InventoryOnly NotApplicable requires the ExperimentalInventory reason");
 
     std::vector<detail::ProtocolSurfaceEntry> wrongUnknownItemPair(registry.begin(), registry.end());
     const auto wrongUnknownItem =

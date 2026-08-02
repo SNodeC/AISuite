@@ -25,6 +25,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -35,6 +36,7 @@ namespace {
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
 
+    using ai::openai::codex::Error;
     using ai::openai::codex::Json;
     using ai::openai::codex::detail::TransportCallbacks;
 
@@ -298,7 +300,42 @@ namespace {
         result.expectTrue(connectionA.helloComplete() && connectionB.helloComplete() && connectionA.sessionId() != connectionB.sessionId(),
                           "successful hello exposes stable distinct backend session IDs");
 
+        const frontend::SequenceNumber journalSequenceBeforeReplay = adapter.currentSequence();
+        backend::FrontendSession replayMutationSession = core.openSession({});
+        scheduler.drain();
+        const frontend::SequenceNumber journalSequenceAfterMutation = adapter.currentSequence();
+        const backend::SequenceNumber backendSequenceBeforeReplay = core.snapshot().sequence;
+        const std::size_t messagesBeforeReplay = observerA.messages.size();
+        result.expectTrue(connectionA.receive(command("journal-replay", frontend::ReplayAfter{journalSequenceBeforeReplay})).accepted(),
+                          "events.replay is accepted as a frontend-journal command");
+        scheduler.drain();
+        const frontend::Response* journalReplayResponse = response(observerA, "journal-replay");
+        std::optional<std::size_t> replayResponseIndex;
+        std::optional<std::size_t> replayEventsIndex;
+        std::optional<std::size_t> replayCompleteIndex;
+        for (std::size_t index = messagesBeforeReplay; index < observerA.messages.size(); ++index) {
+            const frontend::ServerMessage& message = observerA.messages[index];
+            if (const auto* value = std::get_if<frontend::Response>(&message); value && value->requestId == "journal-replay") {
+                replayResponseIndex = index;
+            } else if (std::holds_alternative<frontend::EventBatch>(message)) {
+                replayEventsIndex = index;
+            } else if (const auto* complete = std::get_if<frontend::SyncComplete>(&message);
+                       complete && complete->sequence == journalSequenceAfterMutation) {
+                replayCompleteIndex = index;
+            }
+        }
+        result.expectTrue(journalReplayResponse && journalReplayResponse->ok && journalReplayResponse->result &&
+                              journalReplayResponse->result->value("syncMode", "") == "replay" &&
+                              journalReplayResponse->result->value("sequence", std::uint64_t{0}) == journalSequenceAfterMutation.value() &&
+                              replayResponseIndex && replayEventsIndex && replayCompleteIndex &&
+                              *replayResponseIndex < *replayEventsIndex && *replayEventsIndex < *replayCompleteIndex &&
+                              journalSequenceAfterMutation > journalSequenceBeforeReplay &&
+                              core.snapshot().sequence == backendSequenceBeforeReplay,
+                          "events.replay returns response, retained frontend events, then sync.complete without a BackendCore transition");
+
         const std::size_t messagesBeforeCommands = observerA.messages.size();
+        const std::size_t liveEventBaselineA = events(observerA).size();
+        const std::size_t liveEventBaselineB = events(observerB).size();
         result.expectTrue(connectionA.receive(command("acquire-a", frontend::ControllerAcquire{})).accepted(),
                           "observer A submits explicit controller acquisition");
         result.expectTrue(!connectionA.receive(command("acquire-a", frontend::ControllerAcquire{})).accepted(),
@@ -334,8 +371,12 @@ namespace {
         result.expectTrue(responseHasError(observerA, "auth-secret", frontend::ErrorCode::NotFound) && !secretLeaked,
                           "server output never serializes an authentication access token from a frontend command");
 
-        const std::vector<frontend::FrontendEvent> eventsA = events(observerA);
-        const std::vector<frontend::FrontendEvent> eventsB = events(observerB);
+        const std::vector<frontend::FrontendEvent> allEventsA = events(observerA);
+        const std::vector<frontend::FrontendEvent> allEventsB = events(observerB);
+        const std::vector<frontend::FrontendEvent> eventsA{allEventsA.begin() + static_cast<std::ptrdiff_t>(liveEventBaselineA),
+                                                           allEventsA.end()};
+        const std::vector<frontend::FrontendEvent> eventsB{allEventsB.begin() + static_cast<std::ptrdiff_t>(liveEventBaselineB),
+                                                           allEventsB.end()};
         bool ordered = true;
         for (std::size_t index = 1; index < eventsA.size(); ++index) {
             ordered = ordered && eventsA[index - 1].sequence < eventsA[index].sequence;
@@ -370,6 +411,53 @@ namespace {
                               "controller reacquisition command is accepted during eviction setup");
             scheduler.drain();
         }
+
+        const backend::SequenceNumber backendSequenceBeforeGapReplay = core.snapshot().sequence;
+        const std::size_t messagesBeforeGapReplay = observerB.messages.size();
+        result.expectTrue(connectionB.receive(command("gap-replay", frontend::ReplayAfter{frontend::SequenceNumber{0}})).accepted(),
+                          "events.replay accepts an evicted frontend sequence for snapshot fallback");
+        scheduler.drain();
+        const frontend::Response* gapReplayResponse = response(observerB, "gap-replay");
+        std::optional<std::size_t> gapResponseIndex;
+        std::optional<std::size_t> gapSnapshotIndex;
+        std::optional<std::size_t> gapCompleteIndex;
+        bool gapEmittedEvents = false;
+        for (std::size_t index = messagesBeforeGapReplay; index < observerB.messages.size(); ++index) {
+            const frontend::ServerMessage& message = observerB.messages[index];
+            if (const auto* value = std::get_if<frontend::Response>(&message); value && value->requestId == "gap-replay") {
+                gapResponseIndex = index;
+            } else if (std::holds_alternative<frontend::Snapshot>(message)) {
+                gapSnapshotIndex = index;
+            } else if (std::holds_alternative<frontend::EventBatch>(message)) {
+                gapEmittedEvents = true;
+            } else if (const auto* complete = std::get_if<frontend::SyncComplete>(&message);
+                       complete && complete->sequence == adapter.currentSequence()) {
+                gapCompleteIndex = index;
+            }
+        }
+        result.expectTrue(gapReplayResponse && gapReplayResponse->ok && gapReplayResponse->result &&
+                              gapReplayResponse->result->value("syncMode", "") == "snapshot" && gapResponseIndex && gapSnapshotIndex &&
+                              gapCompleteIndex && *gapResponseIndex < *gapSnapshotIndex && *gapSnapshotIndex < *gapCompleteIndex &&
+                              !gapEmittedEvents && core.snapshot().sequence == backendSequenceBeforeGapReplay,
+                          "events.replay gap returns response, one snapshot, then sync.complete without a BackendCore transition");
+
+        const backend::SequenceNumber backendSequenceBeforeFutureReplay = core.snapshot().sequence;
+        const std::size_t messagesBeforeFutureReplay = observerB.messages.size();
+        const frontend::SequenceNumber futureSequence{adapter.currentSequence().value() + 1};
+        result.expectTrue(connectionB.receive(command("future-replay", frontend::ReplayAfter{futureSequence})).status ==
+                              frontend::ConnectionReceiveStatus::Rejected,
+                          "events.replay rejects a future frontend sequence");
+        scheduler.drain();
+        const bool futureReplayPayload = std::any_of(observerB.messages.begin() + static_cast<std::ptrdiff_t>(messagesBeforeFutureReplay),
+                                                     observerB.messages.end(),
+                                                     [](const frontend::ServerMessage& message) {
+                                                         return std::holds_alternative<frontend::Snapshot>(message) ||
+                                                                std::holds_alternative<frontend::EventBatch>(message) ||
+                                                                std::holds_alternative<frontend::SyncComplete>(message);
+                                                     });
+        result.expectTrue(responseHasError(observerB, "future-replay", frontend::ErrorCode::InvalidCommand) && !futureReplayPayload &&
+                              connectionB.isOpen() && core.snapshot().sequence == backendSequenceBeforeFutureReplay,
+                          "future events.replay returns invalid_command without synchronization payload or BackendCore transition");
 
         Observations snapshotFallback;
         frontend::FrontendConnection oldReconnect = adapter.openConnection(callbacksFor(snapshotFallback));
@@ -432,6 +520,8 @@ namespace {
         result.expectTrue(!selfClosingConnection->isOpen() && connectionB.isOpen(),
                           "close during callback delivery is generation/lifetime safe and peer-isolated");
 
+        replayMutationSession.close();
+        scheduler.drain();
         adapter.close("adapter test complete");
         scheduler.drain();
         result.expectTrue(!adapter.isOpen() && !connectionB.isOpen() && !replayConnection.isOpen() && !oldReconnect.isOpen(),
@@ -500,6 +590,41 @@ namespace {
         scheduler.drain();
     }
 
+    void testCapacityOnlySnapshotFeedback(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        backendOptions.capacity.maxSnapshotBytes = 1;
+        FakeBackendCore core(std::move(backendOptions), transport);
+
+        frontend::BackendAdapterOptions adapterOptions;
+        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        frontend::BackendAdapter adapter(core, std::move(adapterOptions));
+
+        const backend::Snapshot first = core.snapshot();
+        scheduler.drain(64);
+        const backend::BackendState accounted = core.state();
+        result.expectTrue(first.capacity.truncated && first.capacity.mandatoryCoreExceedsLimit &&
+                              accounted.capacity.snapshotOmissions == 1 && scheduler.pending() == 0,
+                          "a capacity-only frontend batch cannot create a snapshot-omission feedback cycle");
+
+        const backend::SequenceNumber sequence = accounted.sequence;
+        const backend::Snapshot repeated = core.snapshot();
+        scheduler.drain(64);
+        const backend::BackendState stable = core.state();
+        result.expectTrue(repeated.capacity.state.snapshotOmissions == 1 && stable.sequence == sequence &&
+                              stable.capacity.snapshotOmissions == 1 && scheduler.pending() == 0,
+                          "repeated snapshots at one canonical revision account mandatory-envelope omission only once");
+
+        adapter.close("capacity feedback test complete");
+        scheduler.drain();
+    }
+
     class FrontendBurstRunner {
     public:
         explicit FrontendBurstRunner(tests::support::TestResult& result)
@@ -517,6 +642,7 @@ namespace {
             backendOptions.maxObserverQueueEntries = 2'048;
             backendOptions.maxObserverQueueBytes = 32U * 1024U * 1024U;
             backendOptions.maxEventsPerCallback = 2'048;
+            backendOptions.capacity.maxRetainedThreads = 1;
             backendCore = std::make_unique<FakeBackendCore>(std::move(backendOptions), transport);
 
             frontend::BackendAdapterOptions adapterOptions;
@@ -834,6 +960,16 @@ namespace {
             return {received.begin() + static_cast<std::ptrdiff_t>(baseline), received.end()};
         }
 
+        bool hasEventAfter(const Observations& observations, std::size_t baseline, std::string_view type) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            return baseline < received.size() && std::any_of(
+                                                     received.begin() + static_cast<std::ptrdiff_t>(baseline),
+                                                     received.end(),
+                                                     [type](const frontend::FrontendEvent& event) {
+                                                         return event.type == type;
+                                                     });
+        }
+
         void verifyBurst() {
             const std::vector<frontend::FrontendEvent> receivedA = burstEvents(observerA, baselineEventsA);
             const std::vector<frontend::FrontendEvent> receivedB = burstEvents(observerB, baselineEventsB);
@@ -936,15 +1072,81 @@ namespace {
             expect(!hasItemLifecycleExtension,
                    "valid userMessage and unknown item lifecycle events never become location-error codex.extension events");
 
-            adapter->close("burst test complete");
-            backendCore->stop();
+            verifyCapacityEvictionSnapshot();
+        }
+
+        void verifyCapacityEvictionSnapshot() {
+            const std::size_t snapshotBaselineA = countSnapshots(observerA);
+            const std::size_t snapshotBaselineB = countSnapshots(observerB);
+            const std::string replacementThreadId = "capacity-replacement";
+            transport->inject({{"method", "thread/started"}, {"params", {{"thread", tests::codex::threadValue(replacementThreadId)}}}});
             waitUntil(
-                "burst BackendCore reaches Stopped after adapter isolation checks",
+                "retention eviction produces a frontend snapshot barrier",
+                [this, snapshotBaselineA, snapshotBaselineB, replacementThreadId]() {
+                    const backend::Snapshot snapshot = backendCore->snapshot();
+                    return snapshot.threads.size() == 1 && snapshot.threads.front().id == replacementThreadId &&
+                           countSnapshots(observerA) > snapshotBaselineA && countSnapshots(observerB) > snapshotBaselineB;
+                },
+                [this, replacementThreadId]() {
+                    const frontend::Snapshot* snapshotA = latestSnapshot(observerA);
+                    const frontend::Snapshot* snapshotB = latestSnapshot(observerB);
+                    const auto reflectsReplacement = [&replacementThreadId](const frontend::Snapshot* snapshot) {
+                        return snapshot != nullptr && snapshot->state.contains("threads") && snapshot->state["threads"].is_array() &&
+                               snapshot->state["threads"].size() == 1 &&
+                               snapshot->state["threads"].front().value("id", "") == replacementThreadId;
+                    };
+                    expect(reflectsReplacement(snapshotA) && reflectsReplacement(snapshotB),
+                           "capacity-driven eviction invalidates replay and synchronizes every v1 client to canonical retained state");
+                    verifyPendingInvalidation();
+                });
+        }
+
+        void verifyPendingInvalidation() {
+            pendingBaselineA = events(observerA).size();
+            pendingBaselineB = events(observerB).size();
+            transport->inject({{"method", "future/pending-invalidation"}, {"id", "pending-invalidation"}, {"params", Json::object()}});
+            waitUntil(
+                "pending request reaches both frontend protocol sessions",
                 [this]() {
-                    return backendCore->snapshot().lifecycle == backend::BackendLifecycle::Stopped;
+                    return backendCore->snapshot().pendingRequests.size() == 1 &&
+                           hasEventAfter(observerA, pendingBaselineA, "request.pending") &&
+                           hasEventAfter(observerB, pendingBaselineB, "request.pending");
                 },
                 [this]() {
-                    finish();
+                    transport->callbacks.onError(Error{Error::Category::Transport, 101, "synthetic pending invalidation"});
+                    waitUntil(
+                        "provider invalidation resolves the pending request for both frontend sessions",
+                        [this]() {
+                            const backend::Snapshot snapshot = backendCore->snapshot();
+                            return snapshot.provider.lifecycle == backend::ProviderLifecycle::Failed && snapshot.pendingRequests.empty() &&
+                                   hasEventAfter(observerA, pendingBaselineA, "request.resolved") &&
+                                   hasEventAfter(observerB, pendingBaselineB, "request.resolved");
+                        },
+                        [this]() {
+                            const auto ordered = [this](const Observations& observations, std::size_t baseline) {
+                                const std::vector<frontend::FrontendEvent> received = events(observations);
+                                const auto begin = received.begin() + static_cast<std::ptrdiff_t>(baseline);
+                                const auto pending = std::find_if(begin, received.end(), [](const auto& event) {
+                                    return event.type == "request.pending";
+                                });
+                                const auto resolved = std::find_if(begin, received.end(), [](const auto& event) {
+                                    return event.type == "request.resolved";
+                                });
+                                return pending != received.end() && resolved != received.end() && pending < resolved;
+                            };
+                            expect(ordered(observerA, pendingBaselineA) && ordered(observerB, pendingBaselineB),
+                                   "Frontend Protocol v1 preserves request.pending then request.resolved across provider invalidation");
+                            adapter->close("burst test complete");
+                            backendCore->stop();
+                            waitUntil(
+                                "burst BackendCore reaches Stopped after adapter isolation checks",
+                                [this]() {
+                                    return backendCore->snapshot().provider.lifecycle == backend::ProviderLifecycle::Stopped;
+                                },
+                                [this]() {
+                                    finish();
+                                });
+                        });
                 });
         }
 
@@ -1009,6 +1211,8 @@ namespace {
         std::size_t baselineMessagesB = 0;
         std::size_t baselineEventsA = 0;
         std::size_t baselineEventsB = 0;
+        std::size_t pendingBaselineA = 0;
+        std::size_t pendingBaselineB = 0;
         bool finished = false;
     };
 
@@ -1025,6 +1229,7 @@ int main(int argc, char* argv[]) {
         testCoalescingAndBounds(result);
         testAdapterHandshakeRolesReplayAndIsolation(result);
         testSnapshotReplayBarrier(result);
+        testCapacityOnlySnapshotFeedback(result);
         bool timedOut = false;
         FrontendBurstRunner runner(result);
         [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(

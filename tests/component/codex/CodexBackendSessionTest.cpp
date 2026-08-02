@@ -151,9 +151,8 @@ namespace {
         observerMutation.params.cwd = std::string{"/observer"};
         result.expectTrue(static_cast<bool>(second.submit("observer-mutation", observerMutation)),
                           "permission failure for an accepted observer command is delivered as a correlated response");
-        result.expectTrue(second.submit("observer-snapshot", backend::SnapshotGet{}) &&
-                              second.submit("observer-replay", backend::ReplayAfter{backend::SequenceNumber{0}}),
-                          "observers can submit read-only snapshot and replay commands");
+        result.expectTrue(static_cast<bool>(second.submit("observer-snapshot", backend::SnapshotGet{})),
+                          "observers can submit the read-only snapshot command");
 
         backend::ThreadStart unavailableMutation;
         unavailableMutation.params.cwd = std::string{"/not-ready"};
@@ -167,12 +166,9 @@ namespace {
         result.expectTrue(hasError(secondObservations, "observer-mutation", backend::CommandErrorCode::PermissionDenied) &&
                               hasError(firstObservations, "controller-not-ready", backend::CommandErrorCode::BackendUnavailable),
                           "observer mutation and controller operation against a stopped backend use distinct stable errors");
-        result.expectTrue(
-            completion(secondObservations, "observer-snapshot") &&
-                std::holds_alternative<backend::Snapshot>(completion(secondObservations, "observer-snapshot")->result.value) &&
-                completion(secondObservations, "observer-replay") &&
-                std::holds_alternative<backend::ReplayResult>(completion(secondObservations, "observer-replay")->result.value),
-            "observer snapshot and replay commands complete successfully with typed values");
+        result.expectTrue(completion(secondObservations, "observer-snapshot") &&
+                              std::holds_alternative<backend::Snapshot>(completion(secondObservations, "observer-snapshot")->result.value),
+                          "the observer snapshot command completes successfully with a typed value");
 
         const backend::CommandSubmission reacquire = first.submit("reacquire", backend::ControllerAcquire{});
         scheduler.drain();
@@ -297,11 +293,62 @@ namespace {
         result.expectTrue(eventlessCompletions == 1,
                           "eventless command session receives its correlated response without subscribing to backend events");
     }
+
+    void testSnapshotQueueByteIsolation(tests::support::TestResult& result) {
+        constexpr std::string_view FirstRequestId = "bounded-snapshot-one";
+        backend::BackendState expectedState;
+        expectedState.sequence = backend::SequenceNumber{1};
+        expectedState.sessions.emplace(backend::SessionId{1},
+                                       backend::ConnectedSessionState{backend::SessionId{1}, backend::SessionRole::Observer});
+        const std::size_t oneCompletionBytes =
+            512 + FirstRequestId.size() + backend::snapshotSizeBytes(backend::makeSnapshot(expectedState));
+
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.maxSessionQueueEntries = 4;
+        options.maxSessionQueueBytes = oneCompletionBytes;
+
+        FakeBackendCore core(options, transport);
+        std::size_t completions = 0;
+        backend::FrontendSession bounded =
+            core.openSession(backend::FrontendSessionCallbacks{{},
+                                                               {},
+                                                               [&completions](const backend::CommandCompletion&) {
+                                                                   ++completions;
+                                                               },
+                                                               {}});
+        result.expectTrue(static_cast<bool>(bounded.submit(std::string{FirstRequestId}, backend::SnapshotGet{})),
+                          "one exactly accounted snapshot completion fits the configured session byte budget");
+        result.expectTrue(static_cast<bool>(bounded.submit("bounded-snapshot-two", backend::SnapshotGet{})) && !bounded.isOpen(),
+                          "a second queued snapshot closes only the over-capacity session using exact snapshot accounting");
+        scheduler.drain();
+        result.expectTrue(completions == 0,
+                          "closing the over-capacity session releases both queued snapshots without invoking stale callbacks");
+
+        std::size_t peerCompletions = 0;
+        backend::FrontendSession peer =
+            core.openSession(backend::FrontendSessionCallbacks{{},
+                                                               {},
+                                                               [&peerCompletions](const backend::CommandCompletion&) {
+                                                                   ++peerCompletions;
+                                                               },
+                                                               {}});
+        result.expectTrue(static_cast<bool>(peer.submit(std::string{FirstRequestId}, backend::SnapshotGet{})),
+                          "another frontend session remains usable after its peer exceeds snapshot queue capacity");
+        scheduler.drain();
+        result.expectTrue(peer.isOpen() && peerCompletions == 1,
+                          "snapshot queue backpressure remains isolated to the offending frontend session");
+    }
 } // namespace
 
 int main() {
     tests::support::TestResult result;
     testSessionPolicyAndSafety(result);
     testEventlessCommandSessionDoesNotMirrorBackendEvents(result);
+    testSnapshotQueueByteIsolation(result);
     return result.processResult();
 }

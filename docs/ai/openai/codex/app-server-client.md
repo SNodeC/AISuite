@@ -293,5 +293,6 @@ provided by `nlohmann_json >= 3.11` to build-tree and installed consumers. A
 regular build and test run does not require a Codex installation or
 authentication; the real App Server integration test is optional. All three
 Codex shared libraries remain on the still-unreleased SOVERSION-2 Final-A1/A1.5
-boundary. Backend redesign, frontend-protocol redesign, and provider-neutral
-architecture remain separate A1.6, A1.7, and A2 work.
+boundary. A1.6a provides the backend foundation without adding A1.6b's missing
+provider commands. Frontend-protocol redesign and provider-neutral architecture
+remain separate A1.7 and A2 work.

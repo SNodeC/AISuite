@@ -22,11 +22,14 @@ set(stage
 set(aisuite_install "${stage}/aisuite-install")
 set(consumer_source "${stage}/consumer-source")
 set(consumer_build "${stage}/consumer-build")
+set(module_consumer_source "${stage}/module-consumer-source")
+set(module_consumer_build "${stage}/module-consumer-build")
 set(runtime_directory "${stage}/runtime")
 
 file(REMOVE_RECURSE "${stage}")
 file(MAKE_DIRECTORY
-     "${stage}" "${consumer_source}" "${runtime_directory}"
+     "${stage}" "${consumer_source}" "${module_consumer_source}"
+     "${runtime_directory}"
 )
 
 function(fail_installed message_text)
@@ -204,6 +207,28 @@ require_success(
     "install from the one configured AISuite build"
 )
 
+set(installed_aisuite_config
+    "${aisuite_install}/lib/cmake/AISuite/AISuiteConfig.cmake"
+)
+if(NOT EXISTS "${installed_aisuite_config}")
+    fail_installed(
+        "installed AISuite package config is missing: ${installed_aisuite_config}"
+    )
+endif()
+file(READ "${installed_aisuite_config}" installed_aisuite_config_text)
+string(FIND "${installed_aisuite_config_text}" "COMPONENTS core"
+       required_core_component_index
+)
+string(FIND "${installed_aisuite_config_text}" "net-un-stream-legacy"
+       unwanted_unix_component_index
+)
+if(required_core_component_index EQUAL -1 OR
+   NOT unwanted_unix_component_index EQUAL -1)
+    fail_cross_repo(
+        "installed AISuite library package must require SNode.C core without requiring Unix-stream transport"
+    )
+endif()
+
 foreach(
     codex_library
     IN ITEMS
@@ -255,6 +280,10 @@ endforeach()
 file(
     COPY "${AISUITE_SOURCE_DIR}/tests/installed/codex/"
     DESTINATION "${consumer_source}"
+)
+file(
+    COPY "${AISUITE_SOURCE_DIR}/tests/installed/codex-module-server/"
+    DESTINATION "${module_consumer_source}"
 )
 execute_process(
     COMMAND
@@ -361,6 +390,63 @@ if(snodec_rpath_link_index EQUAL -1)
         "consumer linker did not resolve indirect dependencies from the installed SNode.C prefix"
     )
 endif()
+
+execute_process(
+    COMMAND
+        ${isolated_environment}
+        "${CMAKE_COMMAND}"
+        -G Ninja
+        -S "${module_consumer_source}"
+        -B "${module_consumer_build}"
+        -DCMAKE_BUILD_TYPE=Debug
+        "-DCMAKE_PREFIX_PATH=${aisuite_install};${snodec_install}"
+        "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-rpath-link,${snodec_install}/lib"
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        -DCMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE
+        -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=TRUE
+        -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=FALSE
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE output
+    ERROR_VARIABLE error
+)
+require_success(
+    "${result}" "${output}" "${error}"
+    "isolated installed AISuite/SNode.C module-server configure"
+)
+execute_process(
+    COMMAND
+        ${isolated_environment}
+        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 4
+        --verbose
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE module_consumer_build_output
+    ERROR_VARIABLE module_consumer_build_error
+)
+require_success(
+    "${result}" "${module_consumer_build_output}"
+    "${module_consumer_build_error}"
+    "isolated installed AISuite/SNode.C module-server build"
+)
+file(READ "${module_consumer_build}/compile_commands.json"
+     module_compile_commands
+)
+reject_forbidden_references(
+    "${module_compile_commands}" "module-server compile commands"
+)
+reject_forbidden_references(
+    "${module_consumer_build_output}\n${module_consumer_build_error}"
+    "module-server verbose build/link evidence"
+)
+foreach(required_prefix IN ITEMS "${aisuite_install}" "${snodec_install}")
+    string(FIND "${module_compile_commands}\n${module_consumer_build_output}"
+           "${required_prefix}" required_prefix_index
+    )
+    if(required_prefix_index EQUAL -1)
+        fail_cross_repo(
+            "module-server build does not use staged prefix: ${required_prefix}"
+        )
+    endif()
+endforeach()
 
 set(installed_consumers
     AISuiteInstalledSNodeCoreConsumer
@@ -509,6 +595,64 @@ foreach(consumer IN LISTS installed_consumers)
         "sanitized installed runtime for ${consumer}"
     )
 endforeach()
+
+set(module_consumer_executable
+    "${module_consumer_build}/AISuiteInstalledCodexModuleServer"
+)
+if(NOT EXISTS "${module_consumer_executable}")
+    fail_installed(
+        "module-server consumer executable is missing: ${module_consumer_executable}"
+    )
+endif()
+execute_process(
+    COMMAND
+        ${isolated_environment}
+        "LD_LIBRARY_PATH=${aisuite_install}/lib:${snodec_install}/lib"
+        "${ldd_executable}" "${module_consumer_executable}"
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE module_linked_libraries
+    ERROR_VARIABLE error
+)
+require_success(
+    "${result}" "${module_linked_libraries}" "${error}"
+    "linked-library inspection for installed module-server consumer"
+)
+reject_forbidden_references(
+    "${module_linked_libraries}"
+    "installed module-server linked-library evidence"
+)
+foreach(
+    required_library
+    IN ITEMS
+       libaisuite-openai-codex.so.2
+       libaisuite-openai-codex-backend.so.2
+       libaisuite-openai-codex-frontend.so.2
+       libsnodec-core
+       libsnodec-net-un-stream-legacy
+)
+    string(FIND "${module_linked_libraries}" "${required_library}"
+           required_library_index
+    )
+    if(required_library_index EQUAL -1)
+        fail_cross_repo(
+            "module-server runtime does not resolve required installed library: ${required_library}"
+        )
+    endif()
+endforeach()
+execute_process(
+    COMMAND
+        ${isolated_environment}
+        "LD_LIBRARY_PATH=${aisuite_install}/lib:${snodec_install}/lib"
+        "${module_consumer_executable}"
+    WORKING_DIRECTORY "${runtime_directory}"
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE output
+    ERROR_VARIABLE error
+)
+require_success(
+    "${result}" "${output}" "${error}"
+    "sanitized installed AISuite/SNode.C module-server runtime"
+)
 if(NOT saw_aisuite_main_runtime_library OR
    NOT saw_aisuite_backend_runtime_library OR
    NOT saw_aisuite_frontend_runtime_library OR
@@ -520,5 +664,5 @@ endif()
 
 message(
     STATUS
-        "Installed boundary passed: snodec_install=${snodec_install}; aisuite_install=${aisuite_install}; AISuite_DIR=${aisuite_dir}; snodec_DIR=${snodec_dir}; consumer_build=${consumer_build}"
+        "Installed boundary passed: snodec_install=${snodec_install}; aisuite_install=${aisuite_install}; AISuite_DIR=${aisuite_dir}; snodec_DIR=${snodec_dir}; consumer_build=${consumer_build}; module_consumer_build=${module_consumer_build}"
 )

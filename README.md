@@ -17,7 +17,10 @@ test.
 ## Build
 
 AISuite consumes an installed SNode.C package; it never includes a sibling
-SNode.C source checkout.
+SNode.C source checkout. Reusable AISuite libraries require the installed
+`snodec::core` target. Unix reference applications additionally require
+`snodec::net-un-stream-legacy`; that transport component is not imposed on a
+library-only consumer.
 
 ```sh
 cmake -S . -B build \
@@ -30,7 +33,7 @@ ctest --test-dir build --output-on-failure
 ## CMake consumption
 
 ```cmake
-find_package(snodec CONFIG REQUIRED COMPONENTS core net-un-stream-legacy)
+find_package(snodec CONFIG REQUIRED COMPONENTS core)
 find_package(AISuite CONFIG REQUIRED)
 
 target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
@@ -77,12 +80,19 @@ Native A1.4 remains 56 Complete / 0 Partial / 0 NotImplemented. All 48
 InventoryOnly identities remain NotApplicable. Final A1b removed the frozen
 deferred compatibility layer and moved all three Codex libraries to SOVERSION
 2. A1.5 completes the still-unreleased `.so.2` application façade with direct
-domain access; backend, frontend-protocol, and provider-neutral redesign remain
-separate A1.6, A1.7, and A2 work. See the
+domain access. A1.6a now hardens the reusable backend foundation: provider
+lifecycle and recovery are independent of frontend-session lifetime, cached
+state carries provider-generation freshness, capacity and snapshot bounds are
+explicit, and frontend replay remains owned by the frontend journal. Provider
+command coverage remains **6/86**; A1.6a adds none of the 80 missing commands
+and does not claim backend closure. A1.6b owns those commands and the final
+198-entry backend/state disposition. See the
+[A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the
 [Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
-for initialization and canonical error behavior and the
+for initialization and canonical error behavior, and the
 [Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
-for the exact source-compatibility boundary.
+for the exact source-compatibility boundary. A1.7 remains responsible for a
+multi-transport frontend service, and provider-neutral architecture remains A2.
 
 AISuite validates current build and runtime compatibility with the installed
 SNode.C package. CI builds the current SNode.C `master` branch once, installs

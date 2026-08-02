@@ -13,6 +13,7 @@
 #include "ai/openai/codex/backend/BackendEvent.h"
 #include "ai/openai/codex/backend/BackendState.h"
 #include "ai/openai/codex/backend/Snapshot.h"
+#include "ai/openai/codex/backend/internal/RecoveryPolicy.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/Items.h"
 #include "ai/openai/codex/typed/Results.h"
@@ -21,6 +22,9 @@
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
 #include "core/EventReceiver.h"
+#include "core/SNodeC.h"
+#include "core/timer/Timer.h"
+#include "utils/Timeval.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -99,8 +103,31 @@ namespace ai::openai::codex::backend {
         std::size_t eventBytes(const SequencedBackendEvent& sequenced) noexcept {
             constexpr std::size_t Base = 512;
             const std::size_t variable = std::visit(
-                Overloaded{[](const LifecycleChanged& value) {
-                               return value.error ? value.error->message.size() : std::size_t{0};
+                Overloaded{[](const ProviderLifecycleChanged& value) {
+                               std::size_t bytes = value.provider.lastError ? value.provider.lastError->message.size() : 0;
+                               if (value.provider.initialization) {
+                                   const typed::InitializeResponse& initialization = *value.provider.initialization;
+                                   const auto add = [&bytes](std::size_t amount) {
+                                       bytes = amount > std::numeric_limits<std::size_t>::max() - bytes
+                                                   ? std::numeric_limits<std::size_t>::max()
+                                                   : bytes + amount;
+                                   };
+                                   add(initialization.codexHome.value.size());
+                                   add(initialization.platformFamily.size());
+                                   add(initialization.platformOs.size());
+                                   add(initialization.userAgent.size());
+                                   add(jsonBytes(initialization.raw));
+                               }
+                               return bytes;
+                           },
+                           [](const ProviderConnectionInvalidated& value) {
+                               return value.reason.size();
+                           },
+                           [](const CapacityConfigured&) {
+                               return std::size_t{0};
+                           },
+                           [](const CapacityChanged&) {
+                               return std::size_t{0};
                            },
                            [](const DiagnosticReceived& value) {
                                return value.message.size();
@@ -178,28 +205,7 @@ namespace ai::openai::codex::backend {
         }
 
         std::size_t snapshotBytes(const Snapshot& snapshot) noexcept {
-            std::size_t size = 1024;
-            const auto add = [&size](std::size_t amount) {
-                size = amount > std::numeric_limits<std::size_t>::max() - size ? std::numeric_limits<std::size_t>::max() : size + amount;
-            };
-            for (const ThreadSnapshot& thread : snapshot.threads) {
-                add(thread.id.size() + (thread.title ? thread.title->size() : 0) + (thread.preview ? thread.preview->size() : 0));
-                for (const TurnSnapshot& turn : thread.turns) {
-                    add(turn.id.size() + (turn.failure ? jsonBytes(*turn.failure) : 0));
-                    for (const ItemSnapshot& item : turn.items) {
-                        add(item.id.size() + item.agentText.size() + item.reasoningText.size() + item.reasoningSummary.size() +
-                            item.commandOutput.size() + jsonBytes(item.data) + jsonBytes(item.extensions));
-                    }
-                }
-            }
-            for (const PendingRequestSnapshot& pending : snapshot.pendingRequests) {
-                add(pending.type.size() + jsonBytes(pending.details));
-            }
-            for (const ExtensionSnapshot& extension : snapshot.recentExtensions) {
-                add(128 + extension.method.size() + jsonBytes(extension.payload) +
-                    (extension.decodingError ? extension.decodingError->size() : 0));
-            }
-            return size;
+            return snapshotSizeBytes(snapshot);
         }
 
         std::size_t commandCompletionBytes(const CommandCompletion& completion) noexcept {
@@ -218,9 +224,6 @@ namespace ai::openai::codex::backend {
                                                                      return snapshotBytes(value);
                                                                  },
                                                                  [](const ControllerResult&) {
-                                                                     return std::size_t{32};
-                                                                 },
-                                                                 [](const ReplayResult&) {
                                                                      return std::size_t{32};
                                                                  },
                                                                  [](const typed::Thread& value) {
@@ -242,8 +245,8 @@ namespace ai::openai::codex::backend {
 
         bool requiresController(const BackendCommand& command) {
             return !std::holds_alternative<ControllerAcquire>(command) && !std::holds_alternative<ControllerRelease>(command) &&
-                   !std::holds_alternative<SnapshotGet>(command) && !std::holds_alternative<ReplayAfter>(command) &&
-                   !std::holds_alternative<ThreadList>(command) && !std::holds_alternative<ThreadRead>(command);
+                   !std::holds_alternative<SnapshotGet>(command) && !std::holds_alternative<ThreadList>(command) &&
+                   !std::holds_alternative<ThreadRead>(command);
         }
 
         bool requiresReadyBackend(const BackendCommand& command) {
@@ -299,6 +302,10 @@ namespace ai::openai::codex::backend {
             std::function<void()> close;
         };
 
+        struct RecoveryTimerGate {
+            bool active = true;
+        };
+
         Impl(AppServerClient& client, BackendCoreOptions options)
             : client(client)
             , options(std::move(options))
@@ -311,6 +318,21 @@ namespace ai::openai::codex::backend {
             if (this->options.maxEventsPerCallback == 0) {
                 this->options.maxEventsPerCallback = 1;
             }
+            this->options.recovery.multiplier = std::max<std::uint32_t>(1, this->options.recovery.multiplier);
+            this->options.recovery.initialDelayMs = std::min(this->options.recovery.initialDelayMs, this->options.recovery.maximumDelayMs);
+            if (!this->options.recoveryTimerScheduler) {
+                this->options.recoveryTimerScheduler = [](std::uint64_t delayMs, std::function<void()> callback) {
+                    auto timer = std::make_shared<std::optional<core::timer::Timer>>();
+                    timer->emplace(
+                        core::timer::Timer::singleshotTimer(std::move(callback), utils::Timeval(static_cast<double>(delayMs) / 1000.0)));
+                    return [timer]() mutable {
+                        if (timer && timer->has_value()) {
+                            timer->value().cancel();
+                            timer->reset();
+                        }
+                    };
+                };
+            }
         }
 
         ~Impl() {
@@ -318,6 +340,7 @@ namespace ai::openai::codex::backend {
         }
 
         void initialize() {
+            reducer.apply(state, CapacityConfigured{options.capacity});
             const std::weak_ptr<Impl> weak = weak_from_this();
             client.setOnStateChanged([weak](const StateChange& change) {
                 if (const std::shared_ptr<Impl> self = weak.lock()) {
@@ -348,10 +371,12 @@ namespace ai::openai::codex::backend {
                 return;
             }
             alive = false;
-            ++generation;
+            cancelRecoveryTimer();
+            ++callbackEpoch;
             sessions.clear();
             observers.clear();
             activeOperations.clear();
+            activeInternalProviderOperation.reset();
             try {
                 client.events().setOnEvent({});
                 client.requests().setOnRequest({});
@@ -363,34 +388,265 @@ namespace ai::openai::codex::backend {
         }
 
         void start() {
-            if (!alive || (state.lifecycle != BackendLifecycle::Stopped && state.lifecycle != BackendLifecycle::Failed)) {
+            if (!alive) {
                 return;
             }
-            if (generation == std::numeric_limits<std::uint64_t>::max()) {
-                state.lifecycle = BackendLifecycle::Failed;
-                state.lastLifecycleError = Error{Error::Category::Capacity, EOVERFLOW, "Backend connection generation exhausted."};
+            ProviderState provider = state.provider;
+            provider.desiredRunning = true;
+            publish(ProviderLifecycleChanged{provider});
+            if (provider.lifecycle != ProviderLifecycle::Stopped || !providerStopObserved || client.getState() != State::Stopped) {
                 return;
             }
-            ++generation;
-            operationCallbacksEnabled = true;
-            initialRefreshGeneration.reset();
-            client.start();
+            beginProviderStart();
         }
 
         void stop() {
             if (!alive) {
                 return;
             }
-            operationCallbacksEnabled = false;
-            if (generation != std::numeric_limits<std::uint64_t>::max()) {
-                ++generation;
+            const bool clientAlreadyStopped = client.getState() == State::Stopped && providerStopObserved;
+            restartPending = false;
+            restartStartGeneration.reset();
+            automaticRecoveryPending = false;
+            failurePendingStop = false;
+            cancelRecoveryTimer();
+            if (operationCallbacksEnabled) {
+                operationCallbacksEnabled = false;
+                ++callbackEpoch;
             }
+            ProviderState provider = state.provider;
+            provider.desiredRunning = false;
+            provider.recovery = {};
+            if (clientAlreadyStopped) {
+                provider.lifecycle = ProviderLifecycle::Stopped;
+            }
+            publish(ProviderLifecycleChanged{provider});
+            if (clientAlreadyStopped) {
+                cancelActiveOperations("The backend was stopped before the operation completed.");
+                return;
+            }
+            invalidateProvider("backend_stop_requested");
             cancelActiveOperations("The backend was stopped before the operation completed.");
             client.stop();
         }
 
+        void restart() {
+            if (!alive || restartPending) {
+                return;
+            }
+            restartPending = true;
+            restartStartGeneration.reset();
+            automaticRecoveryPending = false;
+            failurePendingStop = false;
+            cancelRecoveryTimer();
+            ProviderState provider = state.provider;
+            provider.desiredRunning = true;
+            provider.recovery = {};
+            publish(ProviderLifecycleChanged{provider});
+            if (client.getState() == State::Stopped && providerStopObserved) {
+                provider.lifecycle = ProviderLifecycle::Stopped;
+                publish(ProviderLifecycleChanged{provider});
+                if (!beginProviderStart()) {
+                    restartPending = false;
+                    restartStartGeneration.reset();
+                }
+                return;
+            }
+            operationCallbacksEnabled = false;
+            ++callbackEpoch;
+            invalidateProvider("manual_provider_restart");
+            cancelActiveOperations("The provider was restarted before the operation completed.");
+            client.stop();
+        }
+
+        bool beginProviderStart() {
+            if (!alive || !providerStopObserved || client.getState() != State::Stopped || core::SNodeC::state() == core::State::STOPPING) {
+                return false;
+            }
+            ProviderState provider = state.provider;
+            if (provider.generation == std::numeric_limits<std::uint64_t>::max()) {
+                provider.lifecycle = ProviderLifecycle::Failed;
+                provider.lastError = Error{Error::Category::Capacity, EOVERFLOW, "Provider generation exhausted."};
+                provider.recovery.status = RecoveryStatus::Exhausted;
+                provider.recovery.delayMs.reset();
+                restartPending = false;
+                restartStartGeneration.reset();
+                publish(ProviderLifecycleChanged{provider});
+                return false;
+            }
+            ++provider.generation;
+            provider.lifecycle = ProviderLifecycle::Starting;
+            provider.initialization.reset();
+            provider.recovery.delayMs.reset();
+            if (!publish(ProviderLifecycleChanged{provider})) {
+                restartPending = false;
+                restartStartGeneration.reset();
+                return false;
+            }
+            if (restartPending) {
+                restartStartGeneration = provider.generation;
+            }
+            providerStopObserved = false;
+            ++callbackEpoch;
+            operationCallbacksEnabled = true;
+            initialRefreshGeneration.reset();
+            invalidatedGeneration.reset();
+            client.start();
+            return true;
+        }
+
+        std::size_t activeProviderOperationCount() const noexcept {
+            if (activeInternalProviderOperation && activeOperations.size() != std::numeric_limits<std::size_t>::max()) {
+                return activeOperations.size() + 1;
+            }
+            return activeOperations.size();
+        }
+
+        bool admitInitialRefresh(std::uint64_t providerGeneration, std::uint64_t operationEpoch) {
+            if (activeProviderOperationCount() >= options.capacity.maxActiveOperations) {
+                publish(CapacityChanged{CapacityMetric::RejectedOperations, 1});
+                publish(DiagnosticReceived{"Initial thread hydration was skipped because provider-operation capacity is exhausted."});
+                return false;
+            }
+            activeInternalProviderOperation = InternalProviderOperation{providerGeneration, operationEpoch};
+            return true;
+        }
+
+        bool completeInitialRefresh(std::uint64_t providerGeneration, std::uint64_t operationEpoch) noexcept {
+            if (!activeInternalProviderOperation || activeInternalProviderOperation->providerGeneration != providerGeneration ||
+                activeInternalProviderOperation->operationEpoch != operationEpoch) {
+                return false;
+            }
+            activeInternalProviderOperation.reset();
+            return true;
+        }
+
+        void cancelInternalProviderOperations() noexcept {
+            activeInternalProviderOperation.reset();
+        }
+
+        void invalidateProvider(std::string reason) {
+            const std::uint64_t generation = state.provider.generation;
+            if (invalidatedGeneration == generation) {
+                return;
+            }
+            invalidatedGeneration = generation;
+            publish(ProviderConnectionInvalidated{generation, std::move(reason)});
+        }
+
+        bool automaticRecoveryEligible(const std::optional<Error>& error) const noexcept {
+            return detail::isAutomaticRecoveryEligible(state.provider, options.recovery, error);
+        }
+
+        std::uint64_t recoveryDelay(std::uint32_t attempt) const noexcept {
+            std::uint64_t delay = options.recovery.initialDelayMs;
+            if (attempt <= 1 || delay == 0 || options.recovery.maximumDelayMs == 0 || options.recovery.multiplier == 1) {
+                return std::min(delay, options.recovery.maximumDelayMs);
+            }
+            for (std::uint32_t index = 1; index < attempt; ++index) {
+                if (delay >= options.recovery.maximumDelayMs || delay > options.recovery.maximumDelayMs / options.recovery.multiplier) {
+                    return options.recovery.maximumDelayMs;
+                }
+                delay *= options.recovery.multiplier;
+            }
+            return std::min(delay, options.recovery.maximumDelayMs);
+        }
+
+        void cancelRecoveryTimer() noexcept {
+            std::shared_ptr<RecoveryTimerGate> gate = std::move(recoveryTimerGate);
+            if (gate) {
+                gate->active = false;
+            }
+            RecoveryTimerCancellation cancellation = std::move(recoveryTimerCancellation);
+            recoveryTimerCancellation = {};
+            if (cancellation) {
+                try {
+                    cancellation();
+                } catch (...) {
+                }
+            }
+        }
+
+        void scheduleRecovery() {
+            if (!alive || !automaticRecoveryPending || !state.provider.desiredRunning || client.getState() != State::Stopped) {
+                return;
+            }
+            automaticRecoveryPending = false;
+            ProviderState provider = state.provider;
+            if (options.recovery.maximumAttempts != 0 && provider.recovery.attempts >= options.recovery.maximumAttempts) {
+                provider.lifecycle = ProviderLifecycle::Failed;
+                provider.recovery.status = RecoveryStatus::Exhausted;
+                provider.recovery.delayMs.reset();
+                publish(ProviderLifecycleChanged{provider});
+                return;
+            }
+            const std::uint32_t attempt = provider.recovery.attempts == std::numeric_limits<std::uint32_t>::max()
+                                              ? provider.recovery.attempts
+                                              : provider.recovery.attempts + 1;
+            const std::uint64_t delay = recoveryDelay(attempt);
+            provider.lifecycle = ProviderLifecycle::Recovering;
+            provider.recovery.status = RecoveryStatus::Waiting;
+            provider.recovery.attempts = attempt;
+            provider.recovery.delayMs = delay;
+            if (!publish(ProviderLifecycleChanged{provider})) {
+                return;
+            }
+
+            cancelRecoveryTimer();
+            auto gate = std::make_shared<RecoveryTimerGate>();
+            recoveryTimerGate = gate;
+            const std::weak_ptr<Impl> weak = weak_from_this();
+            try {
+                recoveryTimerCancellation = options.recoveryTimerScheduler(delay, [weak, weakGate = std::weak_ptr{gate}]() {
+                    core::EventReceiver::atNextTick([weak, weakGate]() {
+                        const std::shared_ptr<RecoveryTimerGate> gate = weakGate.lock();
+                        if (const std::shared_ptr<Impl> self = weak.lock(); self && gate && gate->active) {
+                            self->onRecoveryTimer(gate);
+                        }
+                    });
+                });
+                if (!gate->active) {
+                    RecoveryTimerCancellation cancellation = std::move(recoveryTimerCancellation);
+                    recoveryTimerCancellation = {};
+                    if (cancellation) {
+                        cancellation();
+                    }
+                }
+            } catch (...) {
+                gate->active = false;
+                recoveryTimerGate.reset();
+                ProviderState failed = state.provider;
+                failed.lifecycle = ProviderLifecycle::Failed;
+                failed.recovery.status = RecoveryStatus::Exhausted;
+                failed.recovery.delayMs.reset();
+                publish(ProviderLifecycleChanged{failed});
+            }
+        }
+
+        void onRecoveryTimer(const std::shared_ptr<RecoveryTimerGate>& gate) {
+            if (!alive || !gate || !gate->active || recoveryTimerGate != gate || !state.provider.desiredRunning ||
+                state.provider.lifecycle != ProviderLifecycle::Recovering || state.provider.recovery.status != RecoveryStatus::Waiting ||
+                client.getState() != State::Stopped || core::SNodeC::state() == core::State::STOPPING) {
+                return;
+            }
+            gate->active = false;
+            recoveryTimerGate.reset();
+            recoveryTimerCancellation = {};
+            ProviderState provider = state.provider;
+            provider.recovery.status = RecoveryStatus::Idle;
+            provider.recovery.delayMs.reset();
+            if (!publish(ProviderLifecycleChanged{provider})) {
+                return;
+            }
+            beginProviderStart();
+        }
+
         SessionBinding createSession(FrontendSessionCallbacks callbacks) {
             if (!alive || nextSessionId == 0) {
+                return {};
+            }
+            if (sessions.size() >= options.capacity.maxSessions) {
+                publish(CapacityChanged{CapacityMetric::RejectedSessions, 1});
                 return {};
             }
             const SessionId id{nextSessionId};
@@ -436,6 +692,10 @@ namespace ai::openai::codex::backend {
             if (!alive || nextObserverId == 0) {
                 return {};
             }
+            if (observers.size() >= options.capacity.maxObservers) {
+                publish(CapacityChanged{CapacityMetric::RejectedObservers, 1});
+                return {};
+            }
             const std::uint64_t id = nextObserverId;
             if (nextObserverId == std::numeric_limits<std::uint64_t>::max()) {
                 nextObserverId = 0;
@@ -462,12 +722,38 @@ namespace ai::openai::codex::backend {
             return state;
         }
 
-        Snapshot makeCurrentSnapshot() const {
-            return makeSnapshot(state);
+        Snapshot makeCurrentSnapshot() {
+            const SequenceNumber sourceSequence = state.sequence;
+            Snapshot snapshot = makeSnapshot(state);
+            const std::uint64_t omissions = snapshot.capacity.state.snapshotOmissions > state.capacity.snapshotOmissions
+                                                ? snapshot.capacity.state.snapshotOmissions - state.capacity.snapshotOmissions
+                                                : 0;
+            const bool alreadyAccounted = snapshotOmissionsAccountedAtSequence && *snapshotOmissionsAccountedAtSequence == sourceSequence;
+            if (omissions != 0 && !alreadyAccounted && !accountingSnapshotOmissions) {
+                struct AccountingGuard {
+                    bool& active;
+
+                    ~AccountingGuard() {
+                        active = false;
+                    }
+                } guard{accountingSnapshotOmissions};
+                accountingSnapshotOmissions = true;
+                if (publish(CapacityChanged{CapacityMetric::SnapshotOmissions, omissions})) {
+                    snapshotOmissionsAccountedAtSequence = state.sequence;
+                    snapshot = makeSnapshot(state);
+                    snapshot.capacity.state.snapshotOmissions = state.capacity.snapshotOmissions;
+                    snapshot.sequence = state.sequence;
+                }
+            }
+            if (omissions != 0 && (alreadyAccounted || accountingSnapshotOmissions ||
+                                   snapshot.capacity.state.snapshotOmissions > state.capacity.snapshotOmissions)) {
+                snapshot.capacity.state.snapshotOmissions = state.capacity.snapshotOmissions;
+            }
+            return snapshot;
         }
 
         bool ready() const noexcept {
-            return state.lifecycle == BackendLifecycle::Ready;
+            return state.provider.lifecycle == ProviderLifecycle::Ready;
         }
 
     private:
@@ -500,6 +786,16 @@ namespace ai::openai::codex::backend {
         };
 
         using OperationKey = std::pair<SessionId, std::string>;
+
+        struct ActiveOperation {
+            std::uint64_t providerGeneration = 0;
+            std::uint64_t callbackEpoch = 0;
+        };
+
+        struct InternalProviderOperation {
+            std::uint64_t providerGeneration = 0;
+            std::uint64_t operationEpoch = 0;
+        };
 
         template <typename Callback>
         static void invokeBounded(Callback& callback) noexcept {
@@ -534,21 +830,16 @@ namespace ai::openai::codex::backend {
             }
         }
 
-        void publish(BackendEvent event) {
+        bool emitReducedEvent(BackendEvent event) {
             if (!alive) {
-                return;
+                return false;
             }
             if (state.sequence.value() == std::numeric_limits<std::uint64_t>::max()) {
                 state.sequenceExhausted = true;
-                state.lifecycle = BackendLifecycle::Failed;
-                state.lastLifecycleError = Error{Error::Category::Capacity, EOVERFLOW, "Backend sequence number exhausted."};
+                state.provider.lifecycle = ProviderLifecycle::Failed;
+                state.provider.lastError = Error{Error::Category::Capacity, EOVERFLOW, "Backend sequence number exhausted."};
                 client.stop();
-                return;
-            }
-
-            const Reduction reduction = reducer.apply(state, event);
-            if (!reduction.changed) {
-                return;
+                return false;
             }
             state.sequence = SequenceNumber{state.sequence.value() + 1};
             SequencedBackendEvent sequenced{state.sequence, std::move(event)};
@@ -578,6 +869,36 @@ namespace ai::openai::codex::backend {
             for (const std::uint64_t id : observerIds) {
                 enqueueObserverEvent(id, sequenced);
             }
+            return true;
+        }
+
+        bool publish(BackendEvent event) {
+            if (!alive) {
+                return false;
+            }
+            if (state.sequence.value() == std::numeric_limits<std::uint64_t>::max()) {
+                state.sequenceExhausted = true;
+                state.provider.lifecycle = ProviderLifecycle::Failed;
+                state.provider.lastError = Error{Error::Category::Capacity, EOVERFLOW, "Backend sequence number exhausted."};
+                client.stop();
+                return false;
+            }
+
+            const Reduction reduction = reducer.apply(state, event);
+            if (!reduction.changed || !emitReducedEvent(std::move(event))) {
+                return false;
+            }
+            for (const CapacityChanged& capacityChange : reduction.capacityChanges) {
+                if (!emitReducedEvent(capacityChange)) {
+                    return false;
+                }
+            }
+            for (const PendingRequestRemoved& pendingRequestRemoval : reduction.pendingRequestRemovals) {
+                if (!emitReducedEvent(pendingRequestRemoval)) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         void enqueueEvent(SessionId id, const SequencedBackendEvent& event) {
@@ -600,7 +921,7 @@ namespace ai::openai::codex::backend {
             if (iterator == sessions.end() || iterator->second->closed) {
                 return false;
             }
-            Snapshot snapshot = makeSnapshot(state);
+            Snapshot snapshot = makeCurrentSnapshot();
             const std::size_t bytes = snapshotBytes(snapshot);
             if (!queueFits(*iterator->second, bytes)) {
                 closeSession(id, "frontend session outbound queue capacity exceeded");
@@ -730,7 +1051,7 @@ namespace ai::openai::codex::backend {
             if (record->needsResynchronize) {
                 record->needsResynchronize = false;
                 auto callback = record->callbacks.onResynchronize;
-                const Snapshot snapshot = makeSnapshot(state);
+                const Snapshot snapshot = makeCurrentSnapshot();
                 invokeBounded(callback, snapshot);
             } else if (!record->events.empty()) {
                 std::vector<SequencedBackendEvent> events;
@@ -814,8 +1135,20 @@ namespace ai::openai::codex::backend {
                 complete(id, requestId, CommandResult::failed(CommandErrorCode::PermissionDenied, "The controller role is required."));
                 return {true, SubmissionError::None, {}};
             }
-            if (requiresReadyBackend(command) && state.lifecycle != BackendLifecycle::Ready) {
+            if (requiresReadyBackend(command) && state.provider.lifecycle != ProviderLifecycle::Ready) {
                 complete(id, requestId, CommandResult::failed(CommandErrorCode::BackendUnavailable, "The Codex App Server is not ready."));
+                return {true, SubmissionError::None, {}};
+            }
+            if (requiresReadyBackend(command) && activeProviderOperationCount() >= options.capacity.maxActiveOperations) {
+                publish(CapacityChanged{CapacityMetric::RejectedOperations, 1});
+                schedule([weak = weak_from_this(), id, requestId]() {
+                    if (const std::shared_ptr<Impl> self = weak.lock()) {
+                        self->complete(id,
+                                       requestId,
+                                       CommandResult::failed(CommandErrorCode::LocalSubmissionFailure,
+                                                             "The backend active-operation capacity is exhausted."));
+                    }
+                });
                 return {true, SubmissionError::None, {}};
             }
 
@@ -849,10 +1182,7 @@ namespace ai::openai::codex::backend {
                         complete(id, requestId, CommandResult::succeeded(ControllerResult{std::nullopt, SessionRole::Observer}));
                     },
                     [this, id, &requestId](const SnapshotGet&) {
-                        complete(id, requestId, CommandResult::succeeded(makeSnapshot(state)));
-                    },
-                    [this, id, &requestId](const ReplayAfter& value) {
-                        complete(id, requestId, CommandResult::succeeded(ReplayResult{value.sequence}));
+                        complete(id, requestId, CommandResult::succeeded(makeCurrentSnapshot()));
                     },
                     [this, id, &requestId](const ThreadStart& value) {
                         startThread(id, requestId, value);
@@ -909,61 +1239,69 @@ namespace ai::openai::codex::backend {
             scheduleSessionDrain(iterator->second);
         }
 
-        void markOperation(SessionId id, const std::string& requestId, std::uint64_t operationGeneration) {
-            activeOperations.insert_or_assign({id, requestId}, operationGeneration);
+        void markOperation(SessionId id, const std::string& requestId, std::uint64_t providerGeneration, std::uint64_t operationEpoch) {
+            activeOperations.insert_or_assign({id, requestId}, ActiveOperation{providerGeneration, operationEpoch});
         }
 
-        bool acceptsCompletion(std::uint64_t operationGeneration) const noexcept {
-            return alive && operationCallbacksEnabled && operationGeneration == generation;
+        bool acceptsCompletion(std::uint64_t providerGeneration, std::uint64_t operationEpoch) const noexcept {
+            return alive && operationCallbacksEnabled && providerGeneration == state.provider.generation && operationEpoch == callbackEpoch;
         }
 
         void startThread(SessionId id, const std::string& requestId, const ThreadStart& command) {
-            const std::uint64_t operationGeneration = generation;
-            markOperation(id, requestId, operationGeneration);
+            const std::uint64_t providerGeneration = state.provider.generation;
+            const std::uint64_t operationEpoch = callbackEpoch;
+            markOperation(id, requestId, providerGeneration, operationEpoch);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.threads().start(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
-                if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
-                    if (result && result.value) {
-                        self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
-                        self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
-                    } else {
-                        self->complete(id, requestId, operationFailure(result));
+            const auto submission =
+                client.threads().start(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
+                    if (const std::shared_ptr<Impl> self = weak.lock();
+                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
+                        if (result && result.value) {
+                            self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
+                            self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
+                        } else {
+                            self->complete(id, requestId, operationFailure(result));
+                        }
                     }
-                }
-            });
+                });
             if (!submission) {
                 complete(id, requestId, submissionFailure(submission));
             }
         }
 
         void resumeThread(SessionId id, const std::string& requestId, const ThreadResume& command) {
-            const std::uint64_t operationGeneration = generation;
-            markOperation(id, requestId, operationGeneration);
+            const std::uint64_t providerGeneration = state.provider.generation;
+            const std::uint64_t operationEpoch = callbackEpoch;
+            markOperation(id, requestId, providerGeneration, operationEpoch);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.threads().resume(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
-                if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
-                    if (result && result.value) {
-                        self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
-                        self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
-                    } else {
-                        self->complete(id, requestId, operationFailure(result));
+            const auto submission =
+                client.threads().resume(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
+                    if (const std::shared_ptr<Impl> self = weak.lock();
+                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
+                        if (result && result.value) {
+                            self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
+                            self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
+                        } else {
+                            self->complete(id, requestId, operationFailure(result));
+                        }
                     }
-                }
-            });
+                });
             if (!submission) {
                 complete(id, requestId, submissionFailure(submission));
             }
         }
 
         void listThreads(SessionId id, const std::string& requestId, const ThreadList& command) {
-            const std::uint64_t operationGeneration = generation;
+            const std::uint64_t providerGeneration = state.provider.generation;
+            const std::uint64_t operationEpoch = callbackEpoch;
             const std::optional<std::string> requestedCursor =
                 command.params.cursor.hasValue() ? std::optional<std::string>{*command.params.cursor} : std::nullopt;
-            markOperation(id, requestId, operationGeneration);
+            markOperation(id, requestId, providerGeneration, operationEpoch);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.threads().list(command.params, [weak, id, requestId, operationGeneration, requestedCursor](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
+            const auto submission = client.threads().list(
+                command.params, [weak, id, requestId, providerGeneration, operationEpoch, requestedCursor](const auto& result) {
+                    if (const std::shared_ptr<Impl> self = weak.lock();
+                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
                         if (result && result.value) {
                             self->publish(ThreadListUpdated{*result.value, requestedCursor, false});
                             self->complete(id, requestId, CommandResult::succeeded(*result.value));
@@ -978,12 +1316,14 @@ namespace ai::openai::codex::backend {
         }
 
         void readThread(SessionId id, const std::string& requestId, const ThreadRead& command) {
-            const std::uint64_t operationGeneration = generation;
-            markOperation(id, requestId, operationGeneration);
+            const std::uint64_t providerGeneration = state.provider.generation;
+            const std::uint64_t operationEpoch = callbackEpoch;
+            markOperation(id, requestId, providerGeneration, operationEpoch);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.threads().read(command.params, [weak, id, requestId, operationGeneration, command](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
+            const auto submission = client.threads().read(
+                command.params, [weak, id, requestId, providerGeneration, operationEpoch, command](const auto& result) {
+                    if (const std::shared_ptr<Impl> self = weak.lock();
+                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
                         if (result && result.value) {
                             const EntityLoad load = command.params.includeTurns.value_or(false) ? EntityLoad::Full : EntityLoad::Summary;
                             self->publish(ThreadUpserted{result.value->thread, load});
@@ -999,31 +1339,36 @@ namespace ai::openai::codex::backend {
         }
 
         void startTurn(SessionId id, const std::string& requestId, const TurnStart& command) {
-            const std::uint64_t operationGeneration = generation;
-            markOperation(id, requestId, operationGeneration);
+            const std::uint64_t providerGeneration = state.provider.generation;
+            const std::uint64_t operationEpoch = callbackEpoch;
+            markOperation(id, requestId, providerGeneration, operationEpoch);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.turns().start(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
-                if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
-                    if (result && result.value) {
-                        self->publish(TurnUpserted{result.value->turn});
-                        self->complete(id, requestId, CommandResult::succeeded(result.value->turn));
-                    } else {
-                        self->complete(id, requestId, operationFailure(result));
+            const auto submission =
+                client.turns().start(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
+                    if (const std::shared_ptr<Impl> self = weak.lock();
+                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
+                        if (result && result.value) {
+                            self->publish(TurnUpserted{result.value->turn});
+                            self->complete(id, requestId, CommandResult::succeeded(result.value->turn));
+                        } else {
+                            self->complete(id, requestId, operationFailure(result));
+                        }
                     }
-                }
-            });
+                });
             if (!submission) {
                 complete(id, requestId, submissionFailure(submission));
             }
         }
 
         void interruptTurn(SessionId id, const std::string& requestId, const TurnInterrupt& command) {
-            const std::uint64_t operationGeneration = generation;
-            markOperation(id, requestId, operationGeneration);
+            const std::uint64_t providerGeneration = state.provider.generation;
+            const std::uint64_t operationEpoch = callbackEpoch;
+            markOperation(id, requestId, providerGeneration, operationEpoch);
             const std::weak_ptr<Impl> weak = weak_from_this();
             const auto submission =
-                client.turns().interrupt(command.params, [weak, id, requestId, operationGeneration](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
+                client.turns().interrupt(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
+                    if (const std::shared_ptr<Impl> self = weak.lock();
+                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
                         if (result && result.value) {
                             self->complete(id, requestId, CommandResult::succeeded(*result.value));
                         } else {
@@ -1134,64 +1479,162 @@ namespace ai::openai::codex::backend {
         }
 
         void onStateChanged(const StateChange& change) {
-            const BackendLifecycle lifecycle = toBackendLifecycle(change.current);
-            const bool connectionInvalidated =
-                lifecycle == BackendLifecycle::Stopping || lifecycle == BackendLifecycle::Stopped || lifecycle == BackendLifecycle::Failed;
-            if (connectionInvalidated && operationCallbacksEnabled) {
-                operationCallbacksEnabled = false;
-                if (generation != std::numeric_limits<std::uint64_t>::max()) {
-                    ++generation;
+            const ProviderLifecycle lifecycle = toProviderLifecycle(change.current);
+            ProviderState provider = state.provider;
+
+            if ((lifecycle == ProviderLifecycle::Starting || lifecycle == ProviderLifecycle::Initializing ||
+                 lifecycle == ProviderLifecycle::Ready) &&
+                (!provider.desiredRunning || (restartPending && !restartStartGeneration))) {
+                return;
+            }
+
+            if (lifecycle == ProviderLifecycle::Failed) {
+                if (operationCallbacksEnabled) {
+                    operationCallbacksEnabled = false;
+                    ++callbackEpoch;
+                }
+                invalidateProvider("app_server_connection_failed");
+                cancelActiveOperations("The App Server connection failed before the operation completed.");
+                if (change.error) {
+                    provider.lastError = change.error;
+                }
+                if (!provider.desiredRunning) {
+                    automaticRecoveryPending = false;
+                    failurePendingStop = false;
+                    restartPending = false;
+                    restartStartGeneration.reset();
+                    provider.lifecycle = providerStopObserved && client.getState() == State::Stopped ? ProviderLifecycle::Stopped
+                                                                                                     : ProviderLifecycle::Stopping;
+                    provider.recovery = {};
+                    publish(ProviderLifecycleChanged{provider});
+                    client.stop();
+                    return;
+                }
+
+                const bool replacementFailed = restartStartGeneration && *restartStartGeneration == provider.generation;
+                if (replacementFailed) {
+                    restartPending = false;
+                    restartStartGeneration.reset();
+                }
+                automaticRecoveryPending = !restartPending && automaticRecoveryEligible(change.error);
+                const bool retryableCategory = change.error && (change.error->category == Error::Category::Transport ||
+                                                                change.error->category == Error::Category::Process);
+                if (!automaticRecoveryPending && provider.desiredRunning && options.recovery.enabled && retryableCategory &&
+                    options.recovery.maximumAttempts != 0 && provider.recovery.attempts >= options.recovery.maximumAttempts) {
+                    provider.recovery.status = RecoveryStatus::Exhausted;
+                    provider.recovery.delayMs.reset();
+                } else if (!automaticRecoveryPending) {
+                    provider.recovery.status = RecoveryStatus::Idle;
+                    provider.recovery.delayMs.reset();
+                }
+                provider.lifecycle = ProviderLifecycle::Failed;
+                publish(ProviderLifecycleChanged{provider});
+                failurePendingStop = true;
+                client.stop();
+                return;
+            }
+
+            if (lifecycle == ProviderLifecycle::Stopping || lifecycle == ProviderLifecycle::Stopped) {
+                if (lifecycle == ProviderLifecycle::Stopped) {
+                    providerStopObserved = true;
+                }
+                if (operationCallbacksEnabled) {
+                    operationCallbacksEnabled = false;
+                    ++callbackEpoch;
+                }
+                invalidateProvider("app_server_connection_invalidated");
+                cancelActiveOperations("The App Server connection stopped before the operation completed.");
+                if (lifecycle == ProviderLifecycle::Stopping) {
+                    provider.lifecycle = ProviderLifecycle::Stopping;
+                    publish(ProviderLifecycleChanged{provider});
+                    return;
+                }
+
+                if (restartPending) {
+                    provider.lifecycle = ProviderLifecycle::Stopped;
+                    publish(ProviderLifecycleChanged{provider});
+                    automaticRecoveryPending = false;
+                    failurePendingStop = false;
+                    if (!beginProviderStart()) {
+                        restartPending = false;
+                        restartStartGeneration.reset();
+                    }
+                    return;
+                }
+                if (automaticRecoveryPending) {
+                    provider.lifecycle = ProviderLifecycle::Stopped;
+                    publish(ProviderLifecycleChanged{provider});
+                    failurePendingStop = false;
+                    scheduleRecovery();
+                    return;
+                }
+                provider.lifecycle = failurePendingStop ? ProviderLifecycle::Failed : ProviderLifecycle::Stopped;
+                failurePendingStop = false;
+                publish(ProviderLifecycleChanged{provider});
+                return;
+            }
+
+            provider.lifecycle = lifecycle;
+            if (lifecycle == ProviderLifecycle::Ready) {
+                provider.initialization = client.getInitializeResponse();
+                provider.lastError.reset();
+                provider.recovery = {};
+                automaticRecoveryPending = false;
+                failurePendingStop = false;
+                if (restartStartGeneration && *restartStartGeneration == provider.generation) {
+                    restartPending = false;
+                    restartStartGeneration.reset();
                 }
             }
-            publish(LifecycleChanged{lifecycle, change.error, generation});
-            if (lifecycle == BackendLifecycle::Ready) {
+            publish(ProviderLifecycleChanged{provider});
+            if (lifecycle == ProviderLifecycle::Ready) {
                 initialRefresh();
-            } else if (connectionInvalidated) {
-                clearPendingRequests("app_server_connection_invalidated");
-                cancelActiveOperations(lifecycle == BackendLifecycle::Failed
-                                           ? "The App Server connection failed before the operation completed."
-                                           : "The App Server connection stopped before the operation completed.");
             }
         }
 
         void initialRefresh() {
-            if (options.initialThreadListLimit == 0 || initialRefreshGeneration == generation) {
+            const std::uint64_t providerGeneration = state.provider.generation;
+            if (options.initialThreadListLimit == 0 || initialRefreshGeneration == providerGeneration) {
                 return;
             }
-            initialRefreshGeneration = generation;
+            const std::uint64_t operationEpoch = callbackEpoch;
+            if (!admitInitialRefresh(providerGeneration, operationEpoch)) {
+                return;
+            }
+            initialRefreshGeneration = providerGeneration;
             typed::ThreadListParams listParams;
             listParams.limit = options.initialThreadListLimit;
-            const std::uint64_t operationGeneration = generation;
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.threads().list(std::move(listParams), [weak, operationGeneration](const auto& result) {
-                if (const std::shared_ptr<Impl> self = weak.lock(); self && self->acceptsCompletion(operationGeneration)) {
-                    if (result && result.value) {
-                        self->publish(ThreadListUpdated{*result.value, std::nullopt, true});
-                    } else {
-                        const CommandResult failure = operationFailure(result);
-                        self->publish(
-                            DiagnosticReceived{failure.error ? failure.error->message : "Initial bounded thread refresh failed."});
+            const auto submission =
+                client.threads().list(std::move(listParams), [weak, providerGeneration, operationEpoch](const auto& result) {
+                    if (const std::shared_ptr<Impl> self = weak.lock(); self &&
+                                                                        self->completeInitialRefresh(providerGeneration, operationEpoch) &&
+                                                                        self->acceptsCompletion(providerGeneration, operationEpoch)) {
+                        if (result && result.value) {
+                            self->publish(ThreadListUpdated{*result.value, std::nullopt, true});
+                        } else {
+                            const CommandResult failure = operationFailure(result);
+                            self->publish(
+                                DiagnosticReceived{failure.error ? failure.error->message : "Initial bounded thread refresh failed."});
+                        }
                     }
-                }
-            });
+                });
             if (!submission) {
+                completeInitialRefresh(providerGeneration, operationEpoch);
                 publish(DiagnosticReceived{submission.error ? submission.error->message
                                                             : "Initial bounded thread refresh could not be submitted."});
             }
         }
 
         void onServerRequest(const typed::TypedServerRequest& request) {
-            // A1.4b exposes these requests through the reusable typed Requests
-            // component only. The backend deliberately adds no product state
-            // or frontend behavior for attestation, dynamic tools, or MCP
-            // elicitation.
-            if (std::holds_alternative<typed::AttestationGenerateRequest>(request) ||
-                std::holds_alternative<typed::DynamicToolCallRequest>(request) ||
-                std::holds_alternative<typed::McpServerElicitationRequest>(request)) {
+            if (state.pendingRequests.size() >= options.capacity.maxPendingRequests) {
+                failProviderForPendingRequestCapacity(
+                    ENOBUFS, "Pending server-request capacity exhausted.", "pending_server_request_capacity_exhausted");
                 return;
             }
             if (nextPendingRequestId == 0) {
-                publish(DiagnosticReceived{"Pending-request id space exhausted; request remains owned by the typed protocol layer."});
+                failProviderForPendingRequestCapacity(
+                    EOVERFLOW, "Pending server-request identifier capacity exhausted.", "pending_server_request_id_exhausted");
                 return;
             }
             const PendingRequestId id{nextPendingRequestId};
@@ -1200,29 +1643,33 @@ namespace ai::openai::codex::backend {
             } else {
                 ++nextPendingRequestId;
             }
-            publish(PendingRequestAdded{PendingRequestState{id, request, generation}});
+            publish(PendingRequestAdded{PendingRequestState{id, request, state.provider.generation}});
         }
 
-        void clearPendingRequests(const std::string& reason) {
-            std::vector<PendingRequestId> ids;
-            ids.reserve(state.pendingRequests.size());
-            for (const auto& [id, pending] : state.pendingRequests) {
-                (void) pending;
-                ids.push_back(id);
-            }
-            for (const PendingRequestId id : ids) {
-                publish(PendingRequestRemoved{id, reason});
-            }
+        void failProviderForPendingRequestCapacity(int code, std::string message, std::string reason) {
+            publish(CapacityChanged{CapacityMetric::ProviderRequestOverflows, 1});
+            automaticRecoveryPending = false;
+            failurePendingStop = true;
+            operationCallbacksEnabled = false;
+            ++callbackEpoch;
+            invalidateProvider(std::move(reason));
+            cancelActiveOperations("The provider connection exceeded pending server-request capacity.");
+            ProviderState provider = state.provider;
+            provider.lifecycle = ProviderLifecycle::Failed;
+            provider.lastError = Error{Error::Category::Capacity, code, std::move(message)};
+            publish(ProviderLifecycleChanged{provider});
+            client.stop();
         }
 
         void cancelActiveOperations(const std::string& reason) {
             std::vector<OperationKey> keys;
             keys.reserve(activeOperations.size());
-            for (const auto& [key, operationGeneration] : activeOperations) {
-                (void) operationGeneration;
+            for (const auto& [key, operation] : activeOperations) {
+                (void) operation;
                 keys.push_back(key);
             }
             activeOperations.clear();
+            cancelInternalProviderOperations();
             for (const auto& [sessionId, requestId] : keys) {
                 complete(sessionId, requestId, CommandResult::failed(CommandErrorCode::Cancelled, reason));
             }
@@ -1233,15 +1680,26 @@ namespace ai::openai::codex::backend {
         Reducer reducer;
         BackendState state;
         bool alive = true;
-        std::uint64_t generation = 0;
+        std::uint64_t callbackEpoch = 0;
         bool operationCallbacksEnabled = false;
+        bool restartPending = false;
+        std::optional<std::uint64_t> restartStartGeneration;
+        bool automaticRecoveryPending = false;
+        bool failurePendingStop = false;
+        bool providerStopObserved = true;
         std::optional<std::uint64_t> initialRefreshGeneration;
+        std::optional<std::uint64_t> invalidatedGeneration;
+        std::optional<SequenceNumber> snapshotOmissionsAccountedAtSequence;
+        bool accountingSnapshotOmissions = false;
+        std::shared_ptr<RecoveryTimerGate> recoveryTimerGate;
+        RecoveryTimerCancellation recoveryTimerCancellation;
         std::uint64_t nextSessionId = 1;
         std::uint64_t nextObserverId = 1;
         std::uint64_t nextPendingRequestId = 1;
         std::map<SessionId, std::shared_ptr<SessionRecord>> sessions;
         std::map<std::uint64_t, std::shared_ptr<ObserverRecord>> observers;
-        std::map<OperationKey, std::uint64_t> activeOperations;
+        std::map<OperationKey, ActiveOperation> activeOperations;
+        std::optional<InternalProviderOperation> activeInternalProviderOperation;
     };
 
     FrontendSession::FrontendSession() noexcept = default;
@@ -1375,6 +1833,10 @@ namespace ai::openai::codex::backend {
 
     void detail::BackendCoreRuntime::stop() {
         impl->stop();
+    }
+
+    void detail::BackendCoreRuntime::restart() {
+        impl->restart();
     }
 
     BackendState detail::BackendCoreRuntime::state() const {

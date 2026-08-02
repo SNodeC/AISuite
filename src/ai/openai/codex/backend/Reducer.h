@@ -28,8 +28,15 @@ namespace ai::openai::codex::backend {
     };
 
     struct Reduction {
+        Reduction(bool changed = false, bool flushImmediately = false)
+            : changed(changed)
+            , flushImmediately(flushImmediately) {
+        }
+
         bool changed = false;
         bool flushImmediately = false;
+        std::vector<CapacityChanged> capacityChanges;
+        std::vector<PendingRequestRemoved> pendingRequestRemovals;
     };
 
     class Reducer {

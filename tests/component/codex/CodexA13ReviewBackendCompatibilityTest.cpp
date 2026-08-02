@@ -271,9 +271,9 @@ namespace {
 } // namespace
 
 int main() {
-    static_assert(std::variant_size_v<backend::BackendCommand> == 15);
+    static_assert(std::variant_size_v<backend::BackendCommand> == 14);
     static_assert(std::is_same_v<std::variant_alternative_t<0, backend::BackendCommand>, backend::ControllerAcquire>);
-    static_assert(std::is_same_v<std::variant_alternative_t<14, backend::BackendCommand>, backend::UnknownRequestReject>);
+    static_assert(std::is_same_v<std::variant_alternative_t<13, backend::BackendCommand>, backend::UnknownRequestReject>);
     static_assert(!HasGuardianReviewState<backend::BackendState>);
     static_assert(!HasReviewResultState<backend::BackendState>);
     static_assert(!HasGuardianPolicy<backend::BackendState>);

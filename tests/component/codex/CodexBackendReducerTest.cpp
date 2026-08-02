@@ -143,25 +143,38 @@ namespace {
         const backend::Snapshot first = backend::makeSnapshot(state);
         const backend::Snapshot second = backend::makeSnapshot(state);
         result.expectTrue(first == second, "unchanged empty state produces equal deterministic snapshots");
-        result.expectTrue(first.lifecycle == backend::BackendLifecycle::Stopped && first.threads.empty() && first.pendingRequests.empty() &&
-                              first.sessions.empty() && first.sequence.value() == 0,
+        result.expectTrue(first.provider.lifecycle == backend::ProviderLifecycle::Stopped && first.threads.empty() &&
+                              first.pendingRequests.empty() && first.sessions.empty() && first.sequence.value() == 0,
                           "initial snapshot is stopped and contains no domain entities");
 
-        const backend::Reduction starting =
-            reducer.apply(state, backend::LifecycleChanged{backend::BackendLifecycle::Starting, std::nullopt, 1});
-        result.expectTrue(starting.changed && !starting.flushImmediately && state.lifecycle == backend::BackendLifecycle::Starting,
+        const auto transition = [&reducer,
+                                 &state](backend::ProviderLifecycle lifecycle, std::optional<Error> error, std::uint64_t generation) {
+            backend::ProviderState provider = state.provider;
+            provider.lifecycle = lifecycle;
+            provider.generation = generation;
+            if (error.has_value()) {
+                provider.lastError = std::move(error);
+            } else if (lifecycle == backend::ProviderLifecycle::Ready) {
+                provider.lastError.reset();
+            }
+            return reducer.apply(state, backend::ProviderLifecycleChanged{std::move(provider)});
+        };
+
+        const backend::Reduction starting = transition(backend::ProviderLifecycle::Starting, std::nullopt, 1);
+        result.expectTrue(starting.changed && !starting.flushImmediately &&
+                              state.provider.lifecycle == backend::ProviderLifecycle::Starting,
                           "starting lifecycle transition changes canonical state");
 
         const Error error{Error::Category::Transport, 71, "connection failed"};
-        const backend::Reduction failed = reducer.apply(state, backend::LifecycleChanged{backend::BackendLifecycle::Failed, error, 1});
-        result.expectTrue(failed.changed && failed.flushImmediately && state.lastLifecycleError &&
-                              state.lastLifecycleError->message == "connection failed",
+        const backend::Reduction failed = transition(backend::ProviderLifecycle::Failed, error, 1);
+        result.expectTrue(failed.changed && failed.flushImmediately && state.provider.lastError &&
+                              state.provider.lastError->message == "connection failed",
                           "failure is retained and requests an immediate frontend flush");
 
-        reducer.apply(state, backend::LifecycleChanged{backend::BackendLifecycle::Starting, std::nullopt, 2});
-        result.expectTrue(state.lastLifecycleError.has_value(), "a prior lifecycle error remains visible while recovery is starting");
-        reducer.apply(state, backend::LifecycleChanged{backend::BackendLifecycle::Ready, std::nullopt, 2});
-        result.expectTrue(state.lifecycle == backend::BackendLifecycle::Ready && !state.lastLifecycleError,
+        transition(backend::ProviderLifecycle::Starting, std::nullopt, 2);
+        result.expectTrue(state.provider.lastError.has_value(), "a prior lifecycle error remains visible while recovery is starting");
+        transition(backend::ProviderLifecycle::Ready, std::nullopt, 2);
+        result.expectTrue(state.provider.lifecycle == backend::ProviderLifecycle::Ready && !state.provider.lastError,
                           "ready after restart clears the prior lifecycle error");
 
         backend::ReducerOptions options;
@@ -794,11 +807,11 @@ namespace {
                 retainedSynthetic->diagnostic->kind == typed::DecodeIssueKind::MalformedKnownPayload &&
                 retainedSynthetic->diagnostic->severity == typed::DecodeIssueSeverity::ProtocolWarning,
             "a private synthetic typed-but-unmodeled event uses the production preservation helper and retains malformed-known classification");
-        result.expectTrue(
-            syntheticState.lifecycle == backend::BackendLifecycle::Stopped && syntheticState.threads.empty() &&
-                syntheticState.threadOrder.empty() && syntheticState.pendingRequests.empty() && syntheticState.sessions.empty() &&
-                !syntheticState.controller && syntheticState.diagnostics.received == 0 && syntheticState.recentExtensions.size() == 1,
-            "typed-but-unmodeled preservation introduces no canonical domain state or reducer semantics");
+        result.expectTrue(syntheticState.provider.lifecycle == backend::ProviderLifecycle::Stopped && syntheticState.threads.empty() &&
+                              syntheticState.threadOrder.empty() && syntheticState.pendingRequests.empty() &&
+                              syntheticState.sessions.empty() && !syntheticState.controller && syntheticState.diagnostics.received == 0 &&
+                              syntheticState.recentExtensions.size() == 1,
+                          "typed-but-unmodeled preservation introduces no canonical domain state or reducer semantics");
 
         backend::ReducerOptions structuredBounds;
         structuredBounds.retainedExtensions = 1;

@@ -22,9 +22,6 @@ namespace ai::openai::codex::backend {
     struct ControllerAcquire {};
     struct ControllerRelease {};
     struct SnapshotGet {};
-    struct ReplayAfter {
-        SequenceNumber sequence;
-    };
 
     struct ThreadStart {
         typed::ThreadStartParams params;
@@ -78,7 +75,6 @@ namespace ai::openai::codex::backend {
     using BackendCommand = std::variant<ControllerAcquire,
                                         ControllerRelease,
                                         SnapshotGet,
-                                        ReplayAfter,
                                         ThreadStart,
                                         ThreadResume,
                                         ThreadList,
@@ -115,18 +111,8 @@ namespace ai::openai::codex::backend {
         SessionRole role = SessionRole::Observer;
     };
 
-    struct ReplayResult {
-        SequenceNumber after;
-    };
-
-    using CommandValue = std::variant<std::monostate,
-                                      Snapshot,
-                                      ControllerResult,
-                                      ReplayResult,
-                                      typed::Thread,
-                                      typed::ThreadListResponse,
-                                      typed::Turn,
-                                      typed::Unit>;
+    using CommandValue =
+        std::variant<std::monostate, Snapshot, ControllerResult, typed::Thread, typed::ThreadListResponse, typed::Turn, typed::Unit>;
 
     struct CommandResult {
         CommandValue value;

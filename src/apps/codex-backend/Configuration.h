@@ -8,11 +8,16 @@
 #ifndef APPS_CODEX_BACKEND_CONFIGURATION_H
 #define APPS_CODEX_BACKEND_CONFIGURATION_H
 
+#include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "apps/codex-backend/JsonLineFramer.h"
 
 #include <cstddef>
 #include <string>
+
+namespace CLI {
+    class Option;
+}
 
 namespace apps::codex_backend {
 
@@ -27,6 +32,20 @@ namespace apps::codex_backend {
     struct SocketFrontendOptions {
         std::size_t maximumFrameSize = DEFAULT_MAXIMUM_FRAME_SIZE;
         std::size_t maximumOutboundBytes = DEFAULT_MAXIMUM_OUTBOUND_BYTES;
+    };
+
+    class ProviderRecoveryConfiguration {
+    public:
+        ProviderRecoveryConfiguration();
+
+        [[nodiscard]] ai::openai::codex::backend::RecoveryOptions options() const;
+
+    private:
+        CLI::Option* enabledOption = nullptr;
+        CLI::Option* maximumAttemptsOption = nullptr;
+        CLI::Option* initialDelayOption = nullptr;
+        CLI::Option* maximumDelayOption = nullptr;
+        CLI::Option* multiplierOption = nullptr;
     };
 
     std::string defaultSocketPath();

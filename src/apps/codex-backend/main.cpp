@@ -13,13 +13,17 @@
 #include "net/un/stream/legacy/SocketServer.h"
 
 #include <iostream>
+#include <utility>
 
 int main(int argc, char* argv[]) {
+    apps::codex_backend::ProviderRecoveryConfiguration recoveryConfiguration;
     core::SNodeC::init(argc, argv);
 
     int result = 1;
     {
-        ai::openai::codex::backend::BackendCore<ai::openai::codex::stdio::Client> backend;
+        ai::openai::codex::backend::BackendCoreOptions backendOptions;
+        backendOptions.recovery = recoveryConfiguration.options();
+        ai::openai::codex::backend::BackendCore<ai::openai::codex::stdio::Client> backend(std::move(backendOptions));
 
         auto socketServer = net::un::stream::legacy::Server<apps::codex_backend::CodexFrontendSocketContextFactory>(
             "codex-backend",

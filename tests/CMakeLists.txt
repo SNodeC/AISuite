@@ -33,7 +33,7 @@ add_test(
 set_tests_properties(
     AISuiteInstalledConsumerTest
     PROPERTIES
-        LABELS "install;consumer;codex;current-state;user-integrations"
+        LABELS "install;consumer;module;snodec;codex;backend;current-state;user-integrations"
         RUN_SERIAL TRUE
         TIMEOUT 300
 )

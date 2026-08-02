@@ -15,7 +15,7 @@ frontend protocol or another in-process consumer
                     ↓
              ai-openai-codex
                     ↓
-                   core
+              snodec::core
 ```
 
 The backend library has no dependency on Unix sockets, `net/un`, socket
@@ -23,7 +23,7 @@ contexts, JSONL framing, Qt, WebSocket, or browser code. In particular, a Unix
 socket path is not backend state. Concrete listener and framing code belongs in
 `src/apps/codex-backend`.
 
-## Phase A0 census and A1 compatibility boundary
+## A1.6a foundation and coverage boundary
 
 Phase A0 pins the Codex CLI 0.144.6 stable and experimental App Server schemas
 and registers every mechanically discovered protocol entry in the private
@@ -34,22 +34,22 @@ Protocol exposure, and owner security decisions independently. A registered
 entry or a raw-preservation disposition is not BackendCore command or state
 support.
 
-A0 changes no BackendCore commands, canonical state, or reducer semantics
-merely to improve those metrics. A1.6 remains the separate phase for
-owner-frozen transport-neutral commands and state transitions after A1.5
-completes the application façade.
-Unknown and future input continues through the existing bounded extension
-records in the meantime.
+A1.6a hardens lifecycle, recovery, freshness, capacity, snapshot, replay, and
+module-consumer behavior without widening provider-operation coverage. The six
+existing provider commands remain the only implemented commands out of 86;
+none of the 80 missing commands is added here. The 198-entry backend/state
+denominator is reported as 32 Implemented, 16 reasoned NotApplicable, and 150
+NotImplemented (48 resolved). A1.6a does not claim closure.
 
-A1.5 uses the final direct client domain accessors and adds no
-domain command or canonical-state meaning. A single production preservation
-helper converts typed but backend-unmodeled events into the existing
-`CodexExtensionReceived` path. It retains the surface identity, bounded raw
-payload, legacy optional decode error, and structured unknown-versus-malformed
-classification. Modeled events continue through their existing reducer cases.
-The structured classification is internal compatibility metadata; Frontend
-Protocol v1, its schema, snapshots, and remotely callable operations are
-unchanged.
+`LayerDispositionReason` makes every NotApplicable state explicit. Internal
+handshake identities use `InternalProtocolLifecycle`, type-only rows use
+`TypeModelOnly`, action-only operations use `ActionOnlyNoPersistentState`, the
+16 `ResponseItem` alternatives use `NoRuntimeBackendStatePath`, and
+experimental inventory uses `ExperimentalInventory`. Stable application
+operations, notifications, `ThreadItem` alternatives, and server requests
+cannot be hidden as NotApplicable. A1.6b owns 86/86 commands and the final
+198-entry closure; A1.7 owns the multi-transport frontend service, while A2
+remains provider-neutral architecture.
 
 ## Ownership and construction
 
@@ -111,6 +111,7 @@ public:
 
     void start();
     void stop();
+    void restart();
 
     BackendState state() const;
     Snapshot snapshot() const;
@@ -134,7 +135,11 @@ invalid value. They increase monotonically and do not silently wrap.
 
 The state contains:
 
-- backend lifecycle and the last lifecycle error;
+- `ProviderState`, including provider lifecycle, desired-running intent,
+  generation, initialization metadata, recovery state, and last provider
+  error;
+- capacity limits, saturating rejection/eviction/drop counters, and retained
+  state accounting;
 - a bounded diagnostic summary;
 - threads in deterministic first-seen order;
 - each thread's typed summary and its known turns;
@@ -146,7 +151,10 @@ The state contains:
 - exact pending typed server requests, indexed by backend-generated
   `PendingRequestId`;
 - connected sessions and controller ownership;
-- thread-list pagination and completeness information; and
+- thread-list pagination and completeness information;
+- generation/freshness source stamps for provider-derived threads, turns,
+  items, and thread-list state, plus connection-invalidation markers for active
+  turns and items; and
 - the current backend revision plus bounded unknown-extension records.
 
 Maps provide ID-based upsert semantics while explicit order vectors preserve
@@ -184,7 +192,8 @@ All ordinary domain transitions pass through `Reducer::apply()`. Typed Codex
 events first pass through `Reducer::translate()` and become deliberately named
 backend events:
 
-- `LifecycleChanged` and `DiagnosticReceived`;
+- `ProviderLifecycleChanged`, `ProviderConnectionInvalidated`,
+  `CapacityConfigured`, `CapacityChanged`, and `DiagnosticReceived`;
 - `ThreadUpserted`, `ThreadListUpdated`, and `ThreadStatusUpdated`;
 - `TurnUpserted`, `TurnCompleted`, `TurnFailed`, and `TurnErrorUpdated`;
 - `ItemUpserted`, `ItemContentChanged`, and `FileChangeUpdated`;
@@ -225,8 +234,9 @@ immediate-flush transitions for the frontend normalization layer.
 
 `Snapshot` is an immutable-by-value view assembled deterministically from the
 canonical maps and explicit order vectors. Two snapshots of unchanged state
-compare equal. It contains the current backend revision, lifecycle and error,
-diagnostic summary, ordered threads, turns and items, accumulated bounded
+compare equal. It contains the current backend revision, safe provider state,
+recovery and initialization metadata, capacity/truncation accounting, source
+freshness, diagnostics, ordered threads, turns and items, accumulated bounded
 content, pending request summaries, controller, connected sessions,
 thread-list completeness, and sequence-exhaustion state.
 
@@ -240,11 +250,59 @@ The backend sequence starts at zero and increases once for each visible
 backend-domain transition. It is an in-process revision, not the Codex
 Frontend Protocol replay sequence. The frontend layer allocates its own
 sequence only after normalization and coalescing and owns the bounded replay
-journal. `Snapshot::replayRange` is therefore left unset by `BackendCore` and
-may be populated by a higher layer that owns such a journal. Exhaustion fails
-explicitly by marking the backend failed; the number never wraps.
+journal. Backend snapshots therefore contain no replay range and BackendCore
+accepts no replay command. Exhaustion fails explicitly through provider error
+state without destroying the backend service; the number never wraps.
 
-## Hydration and lifecycle recovery
+## Provider lifecycle and recovery
+
+Provider lifecycle is not backend-service lifetime. `BackendCore`, frontend
+sessions, controller ownership, observer subscriptions, the backend revision,
+and retained conversation cache remain alive while the owned App Server client
+stops, fails, or recovers. `ProviderState` exposes `Stopped`, `Starting`,
+`Initializing`, `Ready`, `Stopping`, `Failed`, and `Recovering` separately from
+the desired-running intent.
+
+A1.6a fixes the former Failed-state restart defect. The underlying
+`AppServerClient::start()` is now called only from its `Stopped` state:
+
+```text
+Failed -> stop() -> Stopping -> Stopped -> start()
+```
+
+`start()` sets the desired-running intent and starts only an already stopped
+provider. It is idempotent in every active, stopping, failed, or recovering
+state and never attempts a direct `Failed -> start()` transition. When SNode.C
+is already stopping, admission fails before generation, lifecycle, callback,
+refresh, or recovery bookkeeping changes, so the already-stopped provider
+cannot become stranded in `Starting`. `stop()`
+clears desired-running intent, cancels recovery, invalidates provider-scoped
+callbacks and handles, completes attached commands as cancelled once, and
+requests provider stop without closing sessions or releasing the controller.
+`restart()` sets desired-running intent, supersedes an automatic recovery wait,
+requests stop when necessary, and performs exactly one start after `Stopped`.
+
+`BackendCoreOptions::recovery` is disabled by default for embedded consumers.
+When enabled, only unexpected `Transport` and `Process` failures with a
+classified error are retried. Launch, protocol, initialization, invalid-state,
+capacity, cancellation, enqueue, and unclassified failures remain explicit
+operator errors. Attempt zero means unlimited retries. Delay N is the
+saturating, deterministic minimum of
+`initialDelayMs * multiplier^(N - 1)` and `maximumDelayMs`; multipliers below
+one normalize to one and the initial delay is capped by the maximum. Zero delay
+still schedules asynchronously through the ordinary SNode.C event-loop timer.
+Stop and destruction cancel the timer, manual restart supersedes it, and stale
+queued callbacks are harmless. Exhaustion is represented by
+`RecoveryStatus::Exhausted`; reaching Ready resets recovery and the last error.
+
+## Generation, freshness, and hydration
+
+The public provider generation starts at zero and increments exactly once
+immediately before each accepted underlying start attempt. Session activity,
+controller changes, failures, stops, and scheduling a retry do not increment
+it. Provider operations capture that generation and a private callback epoch,
+so a late completion from an invalidated connection cannot mutate a newer
+generation.
 
 Successful operations hydrate state before their command completion is
 delivered:
@@ -261,15 +319,77 @@ On each `Ready` generation, the backend submits at most one initial thread-list
 request. Its default limit is 50 threads. It never walks subsequent cursors
 automatically, so startup cannot load unbounded history. Set
 `initialThreadListLimit` to zero to disable this refresh or to another bounded
-value for an application-specific policy.
+value for an application-specific policy. Initial hydration uses the same
+global active-provider-operation capacity as frontend commands. If capacity is
+zero or exhausted, the request is not submitted, one rejection and bounded
+diagnostic are retained, list freshness remains Unknown or Stale, and the
+provider stays Ready.
 
-`stop()` is explicit; disconnecting a frontend does not call it. A later
-`start()` reuses the owned client for explicit recovery. Every accepted typed
-operation captures the current backend generation. Stop, connection failure,
-and restart invalidate that generation, complete still-attached operations as
-cancelled, and prevent late old-generation typed completions from mutating new
-state. Backend and session callbacks also use weak lifetime guards, so queued
-work cannot enter a destroyed backend.
+Provider-derived thread, turn, item, and list state carries a `SourceStamp`.
+Only a result or typed event from the current generation marks the entity it
+actually confirms `Current`. Item events do not promote stale parent turn or
+thread metadata, and turn events do not promote a stale parent thread. Missing
+parents created by a child event are identifiable current-generation backend
+placeholders. Connection invalidation retains durable cache as `Stale`, marks
+active turns and items `connectionInvalidated` without inventing a terminal
+completed, failed, or cancelled state, clears pending server requests, and
+invalidates provider-scoped handles. A reconnect alone does not make cached
+data current. The bounded initial list refresh marks only entities actually
+confirmed by that generation; unconfirmed cache remains stale and cursors are
+not followed automatically. Backend and session callbacks use weak lifetime
+guards so queued work cannot enter a destroyed backend.
+
+## Capacity and snapshot bounds
+
+`BackendCapacityOptions` has independent defaults of 128 sessions, 16
+observers, 4,096 active operations, 1,024 pending server requests, 2,048
+threads, 16,384 turns, 65,536 items, 64 MiB accumulated visible content, and an
+8 MiB final snapshot. Zero means zero capacity for deterministic boundary
+tests. For snapshots, zero permits no optional payload; the mandatory valid
+summary envelope is still returned and explicitly reports when it cannot fit.
+These global limits supplement, rather than replace, the existing
+per-session, observer-queue, extension, diagnostic, and per-item content
+bounds.
+
+Session or observer exhaustion rejects only the new handle. Active-operation
+capacity is global across session-attached commands and internal initial
+hydration. Exhaustion completes an accepted backend command asynchronously
+with `local_submission_failure`; denied hydration records a rejection and
+diagnostic without provider submission. Every typed server-request occurrence
+uses one pending slot, including A1.6b-deferred attestation, dynamic-tool, and
+MCP-elicitation requests. Those occurrences are retained safely but still have
+no A1.6a response commands. Pending typed server requests are never evicted or
+silently dropped: overflow records a capacity event, invalidates and stops the
+provider connection, clears provider-scoped occurrence ownership, and retains
+sessions and controller ownership. The capacity error requires operator
+correction and an explicit restart.
+
+Conversation retention uses deterministic oldest-first scans over the explicit
+thread, turn, and item order vectors. Active/nonterminal entities and entities
+referenced by a pending request are protected. If no candidate can be evicted,
+the exact provider operation may still complete while optional canonical
+retention is omitted and accounted. Global accumulated presentation content is
+trimmed from the oldest inactive terminal items first, then from remaining
+oldest content only when necessary, while preserving the typed item value and
+preferring newest content. All rejection, eviction, dropped-byte, overflow,
+and snapshot-omission counters saturate rather than wrap and change only
+through reducer-visible capacity events.
+
+Canonical retained thread, turn, item, and accumulated-content counts are
+updated incrementally at mutation points. The ordinary reducer path first
+performs four O(1) comparisons and returns immediately while all limits are
+satisfied. Pending-reference indexes and the relevant deterministic order walk
+are used only after a structural limit is exceeded; content is traversed only
+when accumulated content exceeds its limit.
+
+Snapshot construction first creates the bounded, redacted projection and then
+enforces `maxSnapshotBytes` deterministically. It omits oldest inactive state
+before active entities, pending-request summaries, provider/recovery state,
+controller/session summaries, error state, and capacity metadata. If that
+mandatory core alone is too large, the result is a minimal valid truncated
+snapshot rather than an exception. Its `mandatoryCoreExceedsLimit` flag makes
+that structurally unavoidable condition explicit; for every representable
+ceiling, the measured safe projection does not exceed `maxSnapshotBytes`.
 
 ## Sessions, observers, and callback ordering
 
@@ -309,7 +429,10 @@ state.
 
 The default per-session queue bound is 4,096 entries and 8 MiB. The observer
 queue has the same defaults. Both entry and approximate serialized-byte bounds
-are configurable. A session that exceeds either limit is closed and all its
+are configurable. These queue bounds are independent from the global defaults
+of 128 live sessions and 16 observer subscriptions; exceeding a global count
+returns only an invalid new handle and leaves existing consumers unchanged. A
+session that exceeds either queue limit is closed and all its
 queued data is released; its controller role is released if necessary. That
 does not stop `BackendCore`, the App Server, another observer, or the
 controller. Observer-subscription overflow uses snapshot resynchronization
@@ -322,17 +445,19 @@ retain event-loop scheduling rather than introduce threads or blocking waits.
 
 ## Controller policy and commands
 
-There is at most one controller and any number of observers. The backend
+There is at most one controller. Admitted sessions may act as observers within
+the configured session and observer-subscription limits. The 14 backend
 commands are C++ value variants independent of JSON:
 
-- `ControllerAcquire`, `ControllerRelease`, `SnapshotGet`, and `ReplayAfter`;
+- `ControllerAcquire`, `ControllerRelease`, and `SnapshotGet`;
 - `ThreadStart`, `ThreadResume`, `ThreadList`, and `ThreadRead`;
 - `TurnStart` and `TurnInterrupt`;
 - `ApprovalRespond`, `UserInputRespond`, and `AuthenticationRespond`; and
 - `UnknownRequestRespondRaw` and `UnknownRequestReject`.
 
-Observers may obtain snapshots/replay coordination and issue thread list/read
-operations. All other App Server operations require the controller. Acquisition
+Observers may obtain snapshots and issue thread list/read operations. Frontend
+replay is handled entirely by the frontend journal. All other App Server
+operations require the controller. Acquisition
 succeeds when there is no controller or idempotently for the same session. A
 different session receives `conflict`; release succeeds only for the current
 controller.
@@ -382,3 +507,36 @@ pending requests because their typed occurrence ownership is no longer valid.
 Controller disconnect is not connection invalidation. It does not remove,
 approve, decline, reject, or otherwise answer any request. BackendCore contains
 no automatic approval or rejection policy.
+
+## Installed module consumption
+
+AISuite consumes the installed SNode.C CMake package as a module. Reusable
+Codex libraries link the canonical `snodec::core` target directly; the removed
+generic `core` and `net-un-stream-legacy` forwarding wrappers are not part of
+the build. A library-only `find_package(AISuite CONFIG REQUIRED)` consumer does
+not inherit the Unix transport dependency.
+
+A staged Unix server composition explicitly finds both packages and links only
+public targets:
+
+```cmake
+find_package(snodec CONFIG REQUIRED COMPONENTS
+    core
+    net-un-stream-legacy
+)
+find_package(AISuite CONFIG REQUIRED)
+
+target_link_libraries(module_server PRIVATE
+    AISuite::OpenAICodex
+    AISuite::OpenAICodexBackend
+    AISuite::OpenAICodexFrontend
+    snodec::core
+    snodec::net-un-stream-legacy
+)
+```
+
+The installed module-consumer test instantiates
+`BackendCore<stdio::Client>`, the public frontend adapter, and a minimal
+Unix-domain SNode.C server using only staged headers and packages. It uses no
+AISuite source include path, private header, real Codex credential, or fixed
+dependency commit.

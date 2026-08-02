@@ -184,7 +184,9 @@ namespace {
     private:
         struct EventLog {
             std::vector<std::vector<std::uint64_t>> batches;
-            std::vector<backend::LifecycleChanged> lifecycles;
+            std::vector<backend::ProviderLifecycleChanged> lifecycles;
+            std::vector<std::uint64_t> invalidations;
+            std::vector<std::pair<std::uint64_t, backend::PendingRequestRemoved>> pendingRequestRemovals;
             std::size_t snapshots = 0;
         };
 
@@ -236,8 +238,12 @@ namespace {
                     sequences.reserve(events.size());
                     for (const backend::SequencedBackendEvent& event : events) {
                         sequences.push_back(event.sequence.value());
-                        if (const auto* lifecycle = std::get_if<backend::LifecycleChanged>(&event.event)) {
+                        if (const auto* lifecycle = std::get_if<backend::ProviderLifecycleChanged>(&event.event)) {
                             log.lifecycles.push_back(*lifecycle);
+                        } else if (std::holds_alternative<backend::ProviderConnectionInvalidated>(event.event)) {
+                            log.invalidations.push_back(event.sequence.value());
+                        } else if (const auto* removal = std::get_if<backend::PendingRequestRemoved>(&event.event)) {
+                            log.pendingRequestRemovals.emplace_back(event.sequence.value(), *removal);
                         }
                     }
                     expect(sequences.size() <= 32, "BackendCore event callback obeys maxEventsPerCallback");
@@ -374,7 +380,7 @@ namespace {
 
         void verifyInitialHydrationAndSubmitOperations() {
             const backend::Snapshot snapshot = backendCore->snapshot();
-            expect(snapshot.lifecycle == backend::BackendLifecycle::Ready && snapshot.threads.size() == 1 &&
+            expect(snapshot.provider.lifecycle == backend::ProviderLifecycle::Ready && snapshot.threads.size() == 1 &&
                        snapshot.threads[0].id == "thread-initial" && snapshot.threadList.nextCursor == "initial-next",
                    "Ready performs one bounded initial list-page hydration and retains its cursor");
             expect(threadListRequests == 1 && boundedInitialRefreshes == 1,
@@ -630,19 +636,19 @@ namespace {
             waitUntil(
                 "unsolicited App Server Stopping and Stopped cancel the accepted operation exactly once",
                 [this]() {
-                    const auto hasLifecycle = [](backend::BackendLifecycle expected) {
-                        return [expected](const backend::LifecycleChanged& value) {
-                            return value.lifecycle == expected;
+                    const auto hasLifecycle = [](backend::ProviderLifecycle expected) {
+                        return [expected](const backend::ProviderLifecycleChanged& value) {
+                            return value.provider.lifecycle == expected;
                         };
                     };
                     const auto stopping = std::find_if(observerEvents.lifecycles.begin(),
                                                        observerEvents.lifecycles.end(),
-                                                       hasLifecycle(backend::BackendLifecycle::Stopping));
+                                                       hasLifecycle(backend::ProviderLifecycle::Stopping));
                     const auto stopped =
                         stopping == observerEvents.lifecycles.end()
                             ? observerEvents.lifecycles.end()
-                            : std::find_if(stopping, observerEvents.lifecycles.end(), hasLifecycle(backend::BackendLifecycle::Stopped));
-                    return backendCore->snapshot().lifecycle == backend::BackendLifecycle::Stopped &&
+                            : std::find_if(stopping, observerEvents.lifecycles.end(), hasLifecycle(backend::ProviderLifecycle::Stopped));
+                    return backendCore->snapshot().provider.lifecycle == backend::ProviderLifecycle::Stopped &&
                            stopping != observerEvents.lifecycles.end() && stopped != observerEvents.lifecycles.end() &&
                            completionCount("unsolicited-stop-operation") == 1;
                 },
@@ -661,17 +667,18 @@ namespace {
                                         }),
                            "the invalidated scheduled typed completion does not mutate canonical state");
 
-                    const std::uint64_t invalidatedGeneration = observerEvents.lifecycles.back().connectionGeneration;
+                    const std::uint64_t invalidatedGeneration = observerEvents.lifecycles.back().provider.generation;
                     backendCore->start();
                     waitUntil(
                         "BackendCore restarts after the unsolicited Stopped lifecycle in a fresh generation",
                         [this, refreshesBeforeRestart, invalidatedGeneration]() {
-                            const bool observedFreshReady = std::any_of(observerEvents.lifecycles.begin(),
-                                                                        observerEvents.lifecycles.end(),
-                                                                        [invalidatedGeneration](const backend::LifecycleChanged& value) {
-                                                                            return value.lifecycle == backend::BackendLifecycle::Ready &&
-                                                                                   value.connectionGeneration > invalidatedGeneration;
-                                                                        });
+                            const bool observedFreshReady =
+                                std::any_of(observerEvents.lifecycles.begin(),
+                                            observerEvents.lifecycles.end(),
+                                            [invalidatedGeneration](const backend::ProviderLifecycleChanged& value) {
+                                                return value.provider.lifecycle == backend::ProviderLifecycle::Ready &&
+                                                       value.provider.generation > invalidatedGeneration;
+                                            });
                             return backendCore->isReady() && boundedInitialRefreshes == refreshesBeforeRestart + 1 && observedFreshReady;
                         },
                         [this]() {
@@ -681,8 +688,19 @@ namespace {
                                     restartedThreads.begin(), restartedThreads.end(), [](const backend::ThreadSnapshot& thread) {
                                         return thread.id == "thread-unsolicited-scheduled-completion";
                                     });
+                                const auto refreshed =
+                                    std::find_if(restartedThreads.begin(), restartedThreads.end(), [](const auto& thread) {
+                                        return thread.id == "thread-initial";
+                                    });
+                                const auto retained =
+                                    std::find_if(restartedThreads.begin(), restartedThreads.end(), [](const auto& thread) {
+                                        return thread.id == "thread-success";
+                                    });
                                 expect(!staleHydrated && completionCount("unsolicited-stop-operation") == 1,
                                        "restart generation suppresses the invalidated typed completion and duplicate response");
+                                expect(refreshed != restartedThreads.end() && refreshed->stamp.freshness == backend::Freshness::Current &&
+                                           retained != restartedThreads.end() && retained->stamp.freshness == backend::Freshness::Stale,
+                                       "bounded rehydration marks only current-generation confirmed entities Current");
                                 beginStopRestartGenerationScenario();
                             });
                         });
@@ -700,7 +718,7 @@ namespace {
             waitUntil(
                 "command callback stops backend and cancels active operation once",
                 [this]() {
-                    return backendCore->snapshot().lifecycle == backend::BackendLifecycle::Stopped &&
+                    return backendCore->snapshot().provider.lifecycle == backend::ProviderLifecycle::Stopped &&
                            hasError("old-generation-operation", backend::CommandErrorCode::Cancelled) &&
                            completionCount("old-generation-operation") == 1;
                 },
@@ -755,6 +773,9 @@ namespace {
                     return backendCore->snapshot().pendingRequests.size() == 1;
                 },
                 [this]() {
+                    pendingRemovalsBeforeInvalidation = observerEvents.pendingRequestRemovals.size();
+                    invalidationsBeforePendingFailure = observerEvents.invalidations.size();
+                    invalidatedPendingRequestId = backendCore->snapshot().pendingRequests.front().id;
                     if (transport->callbacks.onError) {
                         transport->callbacks.onError(Error{Error::Category::Transport, 91, "deterministic connection failure"});
                     }
@@ -762,31 +783,50 @@ namespace {
                         "connection failure clears pending ownership and exposes lifecycle failure",
                         [this]() {
                             const backend::Snapshot snapshot = backendCore->snapshot();
-                            return snapshot.lifecycle == backend::BackendLifecycle::Failed && snapshot.pendingRequests.empty() &&
-                                   snapshot.lastLifecycleError.has_value();
+                            return snapshot.provider.lifecycle == backend::ProviderLifecycle::Failed && snapshot.pendingRequests.empty() &&
+                                   snapshot.provider.lastError.has_value() &&
+                                   observerEvents.pendingRequestRemovals.size() == pendingRemovalsBeforeInvalidation + 1 &&
+                                   observerEvents.invalidations.size() == invalidationsBeforePendingFailure + 1;
                         },
                         [this]() {
                             const backend::Snapshot failed = backendCore->snapshot();
-                            expect(failed.lastLifecycleError->message == "deterministic connection failure",
+                            expect(failed.provider.lastError->message == "deterministic connection failure",
                                    "BackendCore retains lifecycle failure details while clearing invalid request ownership");
-                            backendCore->stop();
-                            waitUntil(
-                                "explicit stop leaves failed lifecycle ready for recovery",
-                                [this]() {
-                                    return backendCore->snapshot().lifecycle == backend::BackendLifecycle::Stopped;
-                                },
-                                [this]() {
-                                    backendCore->start();
-                                    waitUntil(
-                                        "explicit start recovers lifecycle failure and reruns bounded refresh",
-                                        [this]() {
-                                            const backend::Snapshot snapshot = backendCore->snapshot();
-                                            return backendCore->isReady() && !snapshot.lastLifecycleError && boundedInitialRefreshes >= 3;
-                                        },
-                                        [this]() {
-                                            stopCleanly();
-                                        });
-                                });
+                            const auto& [removalSequence, removal] = observerEvents.pendingRequestRemovals.back();
+                            expect(removal.id == invalidatedPendingRequestId && removalSequence > observerEvents.invalidations.back(),
+                                   "provider invalidation emits one ordered pending-request removal after canonical ownership clears");
+                            const std::size_t startsBeforeFailedStart = transport->startCount;
+                            const std::uint64_t generationBeforeRestart = failed.provider.generation;
+                            backendCore->start();
+                            afterTicks(4, [this, startsBeforeFailedStart, generationBeforeRestart]() {
+                                const backend::Snapshot stillFailed = backendCore->snapshot();
+                                expect(transport->startCount == startsBeforeFailedStart &&
+                                           stillFailed.provider.lifecycle == backend::ProviderLifecycle::Failed &&
+                                           stillFailed.provider.generation == generationBeforeRestart,
+                                       "start() never calls AppServerClient::start() directly from Failed");
+                                expect(observer.isOpen() && observer.role() == backend::SessionRole::Controller,
+                                       "provider failure retains the frontend session and controller");
+                                backendCore->restart();
+                                waitUntil(
+                                    "restart performs the stopped-to-start transition exactly once",
+                                    [this, startsBeforeFailedStart, generationBeforeRestart]() {
+                                        const backend::Snapshot snapshot = backendCore->snapshot();
+                                        return backendCore->isReady() && !snapshot.provider.lastError &&
+                                               snapshot.provider.generation == generationBeforeRestart + 1 &&
+                                               transport->startCount == startsBeforeFailedStart + 1 && boundedInitialRefreshes >= 3 &&
+                                               snapshot.threadList.pagesLoaded == 1 &&
+                                               snapshot.threadList.stamp.generation == snapshot.provider.generation &&
+                                               snapshot.threadList.stamp.freshness == backend::Freshness::Current;
+                                    },
+                                    [this]() {
+                                        const backend::Snapshot refreshed = backendCore->snapshot();
+                                        expect(refreshed.threadList.pagesLoaded == 1 &&
+                                                   refreshed.threadList.stamp ==
+                                                       backend::SourceStamp{refreshed.provider.generation, backend::Freshness::Current},
+                                               "restart hydration resets pagination metadata for the new provider generation");
+                                        stopCleanly();
+                                    });
+                            });
                         });
                 });
         }
@@ -796,7 +836,7 @@ namespace {
             waitUntil(
                 "final BackendCore stop reaches Stopped",
                 [this]() {
-                    return backendCore->snapshot().lifecycle == backend::BackendLifecycle::Stopped;
+                    return backendCore->snapshot().provider.lifecycle == backend::ProviderLifecycle::Stopped;
                 },
                 [this]() {
                     observer.close("test complete");
@@ -835,6 +875,9 @@ namespace {
         std::uint64_t streamStartSequence = 0;
         std::string streamedText;
         backend::PendingRequestId pendingApprovalId;
+        backend::PendingRequestId invalidatedPendingRequestId;
+        std::size_t pendingRemovalsBeforeInvalidation = 0;
+        std::size_t invalidationsBeforePendingFailure = 0;
         std::optional<TransportCallbacks> deferredClosedCallbacks;
         std::optional<Json> deferredClosedId;
         std::optional<TransportCallbacks> staleCallbacks;

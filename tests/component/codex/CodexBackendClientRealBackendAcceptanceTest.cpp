@@ -82,7 +82,7 @@ namespace {
     }
 
     bool isLargeSnapshotHydrated(const backend::Snapshot& snapshot) {
-        if (snapshot.lifecycle != backend::BackendLifecycle::Ready || snapshot.threads.size() != LargeThreadCount) {
+        if (snapshot.provider.lifecycle != backend::ProviderLifecycle::Ready || snapshot.threads.size() != LargeThreadCount) {
             return false;
         }
         for (std::size_t index = 0; index < LargeThreadCount; ++index) {
@@ -513,7 +513,7 @@ namespace {
             const auto startInputWhenReady = [&]() {
                 const backend::Snapshot snapshot = backendCore.snapshot();
                 const bool persistedThreadHydrated = snapshot.threads.size() == 1 && snapshot.threads.front().id == PersistedThreadId;
-                if (!serverListening || stdinReader != nullptr || snapshot.lifecycle != backend::BackendLifecycle::Ready ||
+                if (!serverListening || stdinReader != nullptr || snapshot.provider.lifecycle != backend::ProviderLifecycle::Ready ||
                     !persistedThreadHydrated) {
                     return;
                 }
@@ -888,7 +888,7 @@ int main(int argc, char* argv[]) {
                         }
                         if (std::holds_alternative<frontend::Welcome>(message)) {
                             ++welcomeCount;
-                            backendReadyForHandshake = backendCore.snapshot().lifecycle == backend::BackendLifecycle::Ready;
+                            backendReadyForHandshake = backendCore.snapshot().provider.lifecycle == backend::ProviderLifecycle::Ready;
                         } else if (snapshot != nullptr) {
                             ++snapshotCount;
                             if (!initialSnapshot.has_value()) {
