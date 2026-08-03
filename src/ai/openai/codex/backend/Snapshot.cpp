@@ -19,6 +19,7 @@
 #include <nlohmann/detail/iterators/iter_impl.hpp>
 #include <nlohmann/detail/iterators/iteration_proxy.hpp>
 #include <nlohmann/detail/json_ref.hpp>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -801,6 +802,11 @@ namespace ai::openai::codex::backend {
             return Json{{"generation", stamp.generation}, {"freshness", static_cast<unsigned>(stamp.freshness)}};
         }
 
+        template <typename T>
+        Json optionalSnapshotJson(const std::optional<T>& value) {
+            return value ? Json(*value) : Json(nullptr);
+        }
+
         Json itemSnapshotJson(const ItemSnapshot& item) {
             Json encoded{{"id", item.id},
                          {"type", item.type},
@@ -1096,12 +1102,12 @@ namespace ai::openai::codex::backend {
                 }
                 if (snapshot.accounts.rateLimits) {
                     encoded["domains"]["accounts"]["rateLimits"] = {
-                        {"primaryUsedPercent", snapshot.accounts.rateLimits->primaryUsedPercent},
-                        {"primaryResetsAt", snapshot.accounts.rateLimits->primaryResetsAt},
-                        {"secondaryUsedPercent", snapshot.accounts.rateLimits->secondaryUsedPercent},
-                        {"secondaryResetsAt", snapshot.accounts.rateLimits->secondaryResetsAt},
-                        {"hasCredits", snapshot.accounts.rateLimits->hasCredits},
-                        {"unlimitedCredits", snapshot.accounts.rateLimits->unlimitedCredits},
+                        {"primaryUsedPercent", optionalSnapshotJson(snapshot.accounts.rateLimits->primaryUsedPercent)},
+                        {"primaryResetsAt", optionalSnapshotJson(snapshot.accounts.rateLimits->primaryResetsAt)},
+                        {"secondaryUsedPercent", optionalSnapshotJson(snapshot.accounts.rateLimits->secondaryUsedPercent)},
+                        {"secondaryResetsAt", optionalSnapshotJson(snapshot.accounts.rateLimits->secondaryResetsAt)},
+                        {"hasCredits", optionalSnapshotJson(snapshot.accounts.rateLimits->hasCredits)},
+                        {"unlimitedCredits", optionalSnapshotJson(snapshot.accounts.rateLimits->unlimitedCredits)},
                         {"stamp", sourceStampJson(snapshot.accounts.rateLimits->stamp)}};
                 }
                 encoded["domains"]["accounts"]["loggedOut"] = snapshot.accounts.loggedOut;
@@ -1156,8 +1162,10 @@ namespace ai::openai::codex::backend {
                               {"stamp", sourceStampJson(snapshot.integrations.apps->stamp)},
                               {"entries", Json::array()}};
                     for (const AppCatalogEntryState& app : snapshot.integrations.apps->entries) {
-                        apps["entries"].push_back(
-                            {{"id", app.id}, {"name", app.name}, {"accessible", app.accessible}, {"enabled", app.enabled}});
+                        apps["entries"].push_back({{"id", app.id},
+                                                   {"name", app.name},
+                                                   {"accessible", optionalSnapshotJson(app.accessible)},
+                                                   {"enabled", optionalSnapshotJson(app.enabled)}});
                     }
                     encoded["domains"]["integrations"]["apps"] = std::move(apps);
                 }
@@ -1228,37 +1236,38 @@ namespace ai::openai::codex::backend {
                 if (snapshot.mcp.oauth) {
                     encoded["domains"]["mcp"]["oauth"] = {{"serverName", snapshot.mcp.oauth->serverName},
                                                           {"lifecycle", snapshot.mcp.oauth->lifecycle},
-                                                          {"success", snapshot.mcp.oauth->success},
-                                                          {"error", snapshot.mcp.oauth->error},
+                                                          {"success", optionalSnapshotJson(snapshot.mcp.oauth->success)},
+                                                          {"error", optionalSnapshotJson(snapshot.mcp.oauth->error)},
                                                           {"stamp", sourceStampJson(snapshot.mcp.oauth->stamp)}};
                 }
                 if (snapshot.mcp.startup) {
                     encoded["domains"]["mcp"]["startup"] = {{"serverName", snapshot.mcp.startup->serverName},
                                                             {"status", snapshot.mcp.startup->status},
-                                                            {"error", snapshot.mcp.startup->error},
-                                                            {"failureReason", snapshot.mcp.startup->failureReason},
+                                                            {"error", optionalSnapshotJson(snapshot.mcp.startup->error)},
+                                                            {"failureReason", optionalSnapshotJson(snapshot.mcp.startup->failureReason)},
                                                             {"stamp", sourceStampJson(snapshot.mcp.startup->stamp)}};
                 }
                 if (snapshot.mcp.statusList) {
                     encoded["domains"]["mcp"]["statusList"] = {{"serverCount", snapshot.mcp.statusList->serverCount},
-                                                               {"nextCursor", snapshot.mcp.statusList->nextCursor},
+                                                               {"nextCursor", optionalSnapshotJson(snapshot.mcp.statusList->nextCursor)},
                                                                {"complete", snapshot.mcp.statusList->complete},
                                                                {"stamp", sourceStampJson(snapshot.mcp.statusList->stamp)}};
                 }
                 if (snapshot.platform.remoteControl) {
-                    encoded["domains"]["platform"]["remoteControl"] = {{"status", snapshot.platform.remoteControl->status},
-                                                                       {"environmentId", snapshot.platform.remoteControl->environmentId},
-                                                                       {"installationId", snapshot.platform.remoteControl->installationId},
-                                                                       {"serverName", snapshot.platform.remoteControl->serverName},
-                                                                       {"stamp", sourceStampJson(snapshot.platform.remoteControl->stamp)}};
+                    encoded["domains"]["platform"]["remoteControl"] = {
+                        {"status", snapshot.platform.remoteControl->status},
+                        {"environmentId", optionalSnapshotJson(snapshot.platform.remoteControl->environmentId)},
+                        {"installationId", snapshot.platform.remoteControl->installationId},
+                        {"serverName", snapshot.platform.remoteControl->serverName},
+                        {"stamp", sourceStampJson(snapshot.platform.remoteControl->stamp)}};
                 }
                 if (snapshot.platform.windowsSandbox) {
                     encoded["domains"]["platform"]["windowsSandbox"] = {
                         {"lifecycle", snapshot.platform.windowsSandbox->lifecycle},
-                        {"readiness", snapshot.platform.windowsSandbox->readiness},
-                        {"mode", snapshot.platform.windowsSandbox->mode},
-                        {"success", snapshot.platform.windowsSandbox->success},
-                        {"error", snapshot.platform.windowsSandbox->error},
+                        {"readiness", optionalSnapshotJson(snapshot.platform.windowsSandbox->readiness)},
+                        {"mode", optionalSnapshotJson(snapshot.platform.windowsSandbox->mode)},
+                        {"success", optionalSnapshotJson(snapshot.platform.windowsSandbox->success)},
+                        {"error", optionalSnapshotJson(snapshot.platform.windowsSandbox->error)},
                         {"stamp", sourceStampJson(snapshot.platform.windowsSandbox->stamp)}};
                 }
                 for (const NoticeSnapshot& notice : snapshot.notices) {
