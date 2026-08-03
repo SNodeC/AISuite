@@ -3,8 +3,8 @@ set(AI_OPENAI_CODEX_FRONTEND_CPP
     Messages.cpp UpdateBatch.cpp
 )
 set(AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
-    BackendAdapter.h Codec.h EventCoalescer.h EventJournal.h Messages.h
-    Protocol.h UpdateBatch.h
+    BackendAdapter.h Codec.h EventCoalescer.h EventJournal.h GeneratedProtocol.h
+    Messages.h Protocol.h Security.h UpdateBatch.h
 )
 
 add_library(ai-openai-codex-frontend SHARED ${AI_OPENAI_CODEX_FRONTEND_CPP})

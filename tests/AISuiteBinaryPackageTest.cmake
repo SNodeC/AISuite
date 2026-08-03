@@ -87,11 +87,11 @@ endforeach()
 list(LENGTH codex_public_headers codex_public_header_count)
 if(NOT codex_main_header_count EQUAL 29 OR
    NOT codex_backend_header_count EQUAL 7 OR
-   NOT codex_frontend_header_count EQUAL 7 OR
-   NOT codex_public_header_count EQUAL 43)
+   NOT codex_frontend_header_count EQUAL 9 OR
+   NOT codex_public_header_count EQUAL 45)
     message(
         FATAL_ERROR
-            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, total=${codex_public_header_count}; expected 29/7/7/43"
+            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, total=${codex_public_header_count}; expected 29/7/9/45"
     )
 endif()
 

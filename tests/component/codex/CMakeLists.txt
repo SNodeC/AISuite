@@ -70,6 +70,26 @@ add_test(
         ${CODEX_PHASE_A0_PYTHON_ARGUMENTS}
 )
 add_test(
+    NAME CodexFrontendProtocolGeneratedArtifactsGuardTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendProtocolGeneratorTest.py
+        --app-tool
+        ${CODEX_PHASE_A0_SURFACE_TOOL}
+        --app-manifest
+        ${CODEX_PHASE_A0_SURFACE_MANIFEST}
+        --registry
+        ${CODEX_PHASE_A0_REGISTRY}
+        --source
+        ${PROJECT_SOURCE_DIR}/tools/frontend/frontend-registry-source.json
+        --generator
+        ${PROJECT_SOURCE_DIR}/tools/frontend/generate_frontend_protocol.py
+        --manifest
+        ${PROJECT_SOURCE_DIR}/docs/ai/openai/codex/frontend-protocol-v1.manifest.json
+        --header
+        ${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/GeneratedProtocol.h
+)
+add_test(
     NAME CodexSchemaTranscriptFixtureValidationTest
     COMMAND
         ${Python3_EXECUTABLE}
@@ -80,6 +100,7 @@ set_tests_properties(
     CodexVendoredAppServerSchemaTest
     CodexAppServerSurfaceExtractionTest
     CodexAppServerGeneratedArtifactsGuardTest
+    CodexFrontendProtocolGeneratedArtifactsGuardTest
     CodexSchemaTranscriptFixtureValidationTest
     PROPERTIES LABELS "component;ai;openai;codex;phase-a0;schema" TIMEOUT 30
 )

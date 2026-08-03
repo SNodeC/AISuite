@@ -10,6 +10,8 @@
 #include <ai/openai/codex/backend/BackendState.h>
 #include <ai/openai/codex/backend/Snapshot.h>
 #include <ai/openai/codex/frontend/BackendAdapter.h>
+#include <ai/openai/codex/frontend/GeneratedProtocol.h>
+#include <ai/openai/codex/frontend/Security.h>
 #include <ai/openai/codex/stdio/Client.h>
 #include <algorithm>
 #include <array>
@@ -33,6 +35,10 @@ namespace {
     static_assert(std::variant_size_v<codex::backend::ProviderOperationValue> == 65);
     static_assert(std::variant_size_v<codex::backend::CommandValue> == 68);
     static_assert(std::variant_size_v<codex::backend::BackendCommand> == 101);
+    static_assert(codex::frontend::generated::MethodCount == 105);
+    static_assert(codex::frontend::generated::FrontendNativeMethodCount == 7);
+    static_assert(codex::frontend::generated::NonNativeMethodCount == 98);
+    static_assert(codex::frontend::DefaultRemoteScopes.size() == 2);
 
     template <std::size_t... Index>
     bool exerciseInstalledCommandPolicies(std::index_sequence<Index...>) {

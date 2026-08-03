@@ -159,15 +159,15 @@ read_authority(
     "src/ai/openai/codex/frontend/CMakeLists.txt"
     AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
     frontend
-    7
+    9
     frontend_headers
     frontend_lines
 )
 set(expected_headers ${main_headers} ${backend_headers} ${frontend_headers})
 set(inventory_lines ${main_lines} ${backend_lines} ${frontend_lines})
 list(LENGTH expected_headers expected_count)
-if(NOT expected_count EQUAL 43)
-    fail_self_containment("derived total is ${expected_count}; expected 43")
+if(NOT expected_count EQUAL 45)
+    fail_self_containment("derived total is ${expected_count}; expected 45")
 endif()
 list(SORT expected_headers)
 set(previous "")
@@ -218,9 +218,9 @@ file(
 )
 list(SORT installed_headers)
 list(LENGTH installed_headers installed_count)
-if(NOT installed_count EQUAL 43)
+if(NOT installed_count EQUAL 45)
     fail_self_containment(
-        "installed Codex inventory has ${installed_count} headers; expected 43"
+        "installed Codex inventory has ${installed_count} headers; expected 45"
     )
 endif()
 set(previous "")
@@ -379,9 +379,9 @@ string(
           "${compile_commands}"
 )
 list(LENGTH compile_entries compile_count)
-if(NOT compile_count EQUAL 43)
+if(NOT compile_count EQUAL 45)
     fail_self_containment(
-        "compile_commands contains ${compile_count} translation units; expected 43"
+        "compile_commands contains ${compile_count} translation units; expected 45"
     )
 endif()
 foreach(translation_unit IN LISTS translation_units)
@@ -443,5 +443,5 @@ endif()
 file(REMOVE_RECURSE "${test_root}")
 message(
     STATUS
-        "Codex public-header self-containment verified: 29 main + 7 backend + 7 frontend = 43 isolated installed includes"
+        "Codex public-header self-containment verified: 29 main + 7 backend + 9 frontend = 45 isolated installed includes"
 )

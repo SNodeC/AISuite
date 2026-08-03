@@ -269,14 +269,14 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
         self.assertIn("Api.h", main_block.group(1))
         self.assertIn("typed/WindowsSandbox.h", main_block.group(1))
         self.assertNotIn("typed/Client.h", main_block.group(1))
-        for relative, variable in (
-            ("src/ai/openai/codex/backend/CMakeLists.txt", "AI_OPENAI_CODEX_BACKEND_PUBLIC_H"),
-            ("src/ai/openai/codex/frontend/CMakeLists.txt", "AI_OPENAI_CODEX_FRONTEND_PUBLIC_H"),
+        for relative, variable, expected in (
+            ("src/ai/openai/codex/backend/CMakeLists.txt", "AI_OPENAI_CODEX_BACKEND_PUBLIC_H", 7),
+            ("src/ai/openai/codex/frontend/CMakeLists.txt", "AI_OPENAI_CODEX_FRONTEND_PUBLIC_H", 9),
         ):
             source = (self.repo_root / relative).read_text(encoding="utf-8")
             block = re.search(rf"set\({variable}\s+(.*?)\n\)", source, re.S)
             self.assertIsNotNone(block)
-            self.assertEqual(7, len(block.group(1).split()))
+            self.assertEqual(expected, len(block.group(1).split()))
         root_cmake = (self.repo_root / "CMakeLists.txt").read_text(encoding="utf-8")
         self.assertRegex(root_cmake, r"set\(AISUITE_CODEX_SOVERSION\s+2\)")
 

@@ -10794,6 +10794,88 @@ def registry_by_key(entries: Sequence[dict[str, Any]]) -> dict[tuple[str, str, s
     return result
 
 
+def frontend_registry_source(
+    manifest: dict[str, Any], registry_entries: Sequence[dict[str, Any]]
+) -> dict[str, Any]:
+    """Build the committed downstream input without reparsing upstream sources."""
+
+    registry = registry_by_key(registry_entries)
+    ledger = frontend_contract_review_ledger(manifest)
+    rows: list[dict[str, Any]] = []
+    for entry in ledger["reviewed"]:
+        key = surface_key(entry)
+        local = registry.get(key)
+        if local is None:
+            raise SurfaceError(f"FrontendRegistryExportMissing: {key}")
+        policy = frontend_contract_policy(entry)
+        expected_exposure, expected_security = frontend_contract_decision(entry)
+        if (
+            local["frontend_exposure"]
+            != expected_exposure.removeprefix("FrontendExposure::")
+            or local["frontend_security"]
+            != expected_security.removeprefix("FrontendSecurityDecision::")
+        ):
+            raise SurfaceError(
+                f"FrontendRegistryExportDecisionMismatch: {key} disagrees with production registry"
+            )
+        prior_exposure, prior_security = legacy_frontend_contract_decision(entry)
+        if entry["stability"] == "experimental_only":
+            rationale = "Experimental inventory is not exposed by frontend security policy."
+        elif entry["category"] == "item_discriminator" and entry["domain"] == "ResponseItem":
+            rationale = "No runtime backend-state path exists; no synthetic frontend path is created."
+        elif prior_security in {
+            "ExistingEventSubsetContract",
+            "ExistingRedactedExtensionContract",
+            "ExistingUnknownItemMetadataContract",
+        }:
+            rationale = "The legacy v1 representation remains byte-compatible; expanded projection is capability-gated and duplicate-suppressed."
+        else:
+            rationale = "Owner-approved A1.7a frontend contract derived from the completed BackendCore surface."
+        rows.append(
+            {
+                "registryKey": {
+                    "category": entry["category"],
+                    "domain": entry["domain"],
+                    "field": entry["discriminator_field"],
+                    "name": entry["name"],
+                },
+                "stability": entry["stability"],
+                "runtimeTarget": local["runtime_target"],
+                "operationContract": {
+                    "parameterType": local["parameter_type_identity"],
+                    "resultType": local["result_type_identity"],
+                    "resultKind": local["result_contract_kind"],
+                    "evidenceKind": local["association_evidence_kind"],
+                    "evidenceKey": local["association_evidence_key"],
+                },
+                "priorCompatibilityExposure": prior_exposure,
+                "priorCompatibilitySecurity": prior_security,
+                **policy,
+                "rationale": rationale,
+            }
+        )
+
+    if len(rows) != FRONTEND_REVIEW_DENOMINATOR_TOTAL:
+        raise SurfaceError(
+            f"FrontendRegistryExportDenominatorMismatch: expected 234, got {len(rows)}"
+        )
+    return {
+        "formatVersion": 1,
+        "protocolIdentity": "snodec.codex-frontend",
+        "protocolVersion": 1,
+        "review": {
+            "unresolvedBaseline": FRONTEND_REVIEW_DENOMINATOR_UNRESOLVED,
+            "compatibilityContracts": FRONTEND_REVIEW_DENOMINATOR_COMPATIBILITY,
+            "total": FRONTEND_REVIEW_DENOMINATOR_TOTAL,
+            "finalUnresolved": 0,
+            "decomposition": ledger["decomposition"],
+        },
+        "scopeStrings": list(FRONTEND_SCOPE_STRINGS),
+        "defaultRemoteScopes": list(FRONTEND_DEFAULT_REMOTE_SCOPES),
+        "entries": rows,
+    }
+
+
 def percent(numerator: int, denominator: int) -> str:
     return "n/a" if denominator == 0 else f"{100.0 * numerator / denominator:.1f}%"
 
@@ -11424,6 +11506,20 @@ def command_registry(arguments: argparse.Namespace) -> None:
         arguments.output.write_text(generated, encoding="utf-8")
 
 
+def command_frontend_registry(arguments: argparse.Namespace) -> None:
+    manifest = load_json(arguments.manifest)
+    registry_entries = parse_registry_data(arguments.registry)
+    generated = frontend_registry_source(manifest, registry_entries)
+    if arguments.check:
+        committed = load_json(arguments.output)
+        if committed != generated:
+            raise SurfaceError(
+                f"committed frontend registry source is stale: {arguments.output}"
+            )
+    else:
+        write_json(arguments.output, generated)
+
+
 def command_conversation_descriptors(arguments: argparse.Namespace) -> None:
     manifest = load_json(arguments.manifest)
     evidence = load_a1_registry_evidence(arguments.evidence_root)
@@ -11787,6 +11883,16 @@ def parser() -> argparse.ArgumentParser:
     registry.add_argument("--output", type=Path, required=True)
     registry.add_argument("--check", action="store_true")
     registry.set_defaults(function=command_registry)
+
+    frontend_registry = subparsers.add_parser(
+        "frontend-registry",
+        help="export the committed downstream frontend contract input",
+    )
+    frontend_registry.add_argument("--manifest", type=Path, required=True)
+    frontend_registry.add_argument("--registry", type=Path, required=True)
+    frontend_registry.add_argument("--output", type=Path, required=True)
+    frontend_registry.add_argument("--check", action="store_true")
+    frontend_registry.set_defaults(function=command_frontend_registry)
 
     conversation_descriptors = subparsers.add_parser(
         "conversation-descriptors",
