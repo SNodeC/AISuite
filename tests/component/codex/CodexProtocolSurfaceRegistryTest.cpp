@@ -46,6 +46,19 @@ namespace {
                ActionOnlyNoPersistentStateNames.end();
     }
 
+    bool isFrontendReviewIdentity(const detail::ProtocolSurfaceEntry& entry) {
+        const bool stableReview = entry.stability == detail::Stability::Stable &&
+                                  ((entry.key.category == detail::SurfaceCategory::ClientRequest && entry.key.name != "initialize") ||
+                                   entry.key.category == detail::SurfaceCategory::ServerNotification ||
+                                   entry.key.category == detail::SurfaceCategory::ServerRequest ||
+                                   (entry.key.category == detail::SurfaceCategory::ItemDiscriminator &&
+                                    (entry.key.domain == "ThreadItem" || entry.key.domain == "ResponseItem")));
+        const bool experimentalReview =
+            entry.stability == detail::Stability::ExperimentalOnly &&
+            (entry.key.category == detail::SurfaceCategory::ClientRequest || entry.key.category == detail::SurfaceCategory::ServerRequest);
+        return stableReview || experimentalReview;
+    }
+
     std::pair<std::size_t, std::size_t> canonicalStateCoverage(std::span<const detail::ProtocolSurfaceEntry> entries) {
         std::size_t implemented = 0;
         std::size_t applicable = 0;
@@ -130,10 +143,13 @@ int main() {
 
     std::size_t stable = 0;
     std::size_t experimentalOnly = 0;
-    std::size_t normalizedFrontendEvents = 0;
-    std::size_t genericFrontendExtensions = 0;
-    std::size_t unknownItemMetadataSubsets = 0;
-    std::size_t responseItemsNotExposed = 0;
+    std::size_t frontendReviewedBaseline = 0;
+    std::size_t frontendCompatibilityReview = 0;
+    std::size_t frontendFinalUnresolved = 0;
+    std::size_t normalizedFrontendNotifications = 0;
+    std::size_t dedicatedFrontendNotifications = 0;
+    std::size_t normalizedFrontendItems = 0;
+    std::size_t dedicatedFrontendItems = 0;
     std::size_t stableClientAssociations = 0;
     std::size_t stableServerAssociations = 0;
     std::size_t concreteResultContracts = 0;
@@ -154,12 +170,27 @@ int main() {
     std::size_t canonicalStateImplemented = 0;
     std::array<std::size_t, 7> categories{};
     std::array<std::size_t, 6> slices{};
+    std::array<std::size_t, 15> frontendExposureCounts{};
+    std::array<std::size_t, 17> frontendSecurityCounts{};
     for (const detail::ProtocolSurfaceEntry& entry : registry) {
         const auto recordDisposition = [](detail::LayerStatus status, std::array<std::size_t, 3>& counts) {
             ++counts[static_cast<std::size_t>(status)];
         };
         entry.stability == detail::Stability::Stable ? ++stable : ++experimentalOnly;
         ++categories[static_cast<std::size_t>(entry.key.category)];
+        if (isFrontendReviewIdentity(entry)) {
+            ++frontendExposureCounts[static_cast<std::size_t>(entry.frontendProtocol)];
+            ++frontendSecurityCounts[static_cast<std::size_t>(entry.frontendSecurity)];
+            frontendFinalUnresolved +=
+                entry.frontendSecurity == detail::FrontendSecurityDecision::ExistingOperationSubsetExpansionUnresolved ||
+                entry.frontendSecurity == detail::FrontendSecurityDecision::ExistingGenericContractDedicatedUnresolved ||
+                entry.frontendSecurity == detail::FrontendSecurityDecision::Unresolved;
+            const bool compatibilityReview =
+                entry.stability == detail::Stability::Stable &&
+                (entry.key.category == detail::SurfaceCategory::ServerNotification ||
+                 (entry.key.category == detail::SurfaceCategory::ItemDiscriminator && entry.key.domain == "ThreadItem"));
+            compatibilityReview ? ++frontendCompatibilityReview : ++frontendReviewedBaseline;
+        }
         if (entry.stability == detail::Stability::Stable) {
             const bool applicationOperation =
                 entry.key.category == detail::SurfaceCategory::ClientRequest && entry.key.name != "initialize";
@@ -193,11 +224,13 @@ int main() {
                     ++backendStateNotApplicableReasons[static_cast<std::size_t>(backendStateDisposition->second)];
                 }
             }
-            normalizedFrontendEvents += entry.frontendProtocol == detail::FrontendExposure::ExistingEventSubset;
-            genericFrontendExtensions += entry.frontendProtocol == detail::FrontendExposure::GenericExtension;
-            unknownItemMetadataSubsets += entry.frontendProtocol == detail::FrontendExposure::ExistingUnknownItemSubset;
-            responseItemsNotExposed += entry.key.category == detail::SurfaceCategory::ItemDiscriminator &&
-                                       entry.key.domain == "ResponseItem" && entry.frontendProtocol == detail::FrontendExposure::NotExposed;
+            normalizedFrontendNotifications +=
+                notification && entry.frontendProtocol == detail::FrontendExposure::ExistingEventContractApproved;
+            dedicatedFrontendNotifications +=
+                notification && entry.frontendProtocol == detail::FrontendExposure::DedicatedEventWithLegacyExtensionCompatibility;
+            normalizedFrontendItems += threadItem && entry.frontendProtocol == detail::FrontendExposure::ExistingEventContractApproved;
+            dedicatedFrontendItems +=
+                threadItem && entry.frontendProtocol == detail::FrontendExposure::DedicatedItemWithLegacyMetadataCompatibility;
             stableClientAssociations += entry.key.category == detail::SurfaceCategory::ClientRequest &&
                                         entry.operationContract.evidenceKind == detail::AssociationEvidenceKind::VendoredRust;
             stableServerAssociations += entry.key.category == detail::SurfaceCategory::ServerRequest &&
@@ -250,18 +283,11 @@ int main() {
                                       entry.a1Slice == detail::A1Slice::InventoryOnly;
         if (entry.key.category == detail::SurfaceCategory::ServerNotification &&
             entry.a1Slice == detail::A1Slice::A1_1) {
-            a11ModeledNotifications +=
-                entry.frontendProtocol ==
-                    detail::FrontendExposure::ExistingEventSubset &&
-                entry.frontendSecurity ==
-                    detail::FrontendSecurityDecision::
-                        ExistingEventSubsetContract;
+            a11ModeledNotifications += entry.frontendProtocol == detail::FrontendExposure::ExistingEventContractApproved &&
+                                       entry.frontendSecurity == detail::FrontendSecurityDecision::ScopeProjectedStateEventApproved;
             a11PreservedNotifications +=
-                entry.frontendProtocol ==
-                    detail::FrontendExposure::GenericExtension &&
-                entry.frontendSecurity ==
-                    detail::FrontendSecurityDecision::
-                        ExistingRedactedExtensionContract;
+                entry.frontendProtocol == detail::FrontendExposure::DedicatedEventWithLegacyExtensionCompatibility &&
+                entry.frontendSecurity == detail::FrontendSecurityDecision::ScopeProjectedStateEventApproved;
         }
     }
     result.expectTrue(stable == 351 && experimentalOnly == 36, "registry keeps stable and experimental-only membership distinct");
@@ -273,10 +299,21 @@ int main() {
                           categories[static_cast<std::size_t>(detail::SurfaceCategory::ServerRequest)] == 11 &&
                           categories[static_cast<std::size_t>(detail::SurfaceCategory::TaggedUnionDiscriminator)] == 151,
                       "registry category counts match the pinned schema census");
-    result.expectTrue(normalizedFrontendEvents == 22 && genericFrontendExtensions == 54 && unknownItemMetadataSubsets == 10 &&
-                          responseItemsNotExposed == 16,
-                      "frontend event dispositions distinguish normalized subsets, raw extensions, metadata-only unknown items, and "
-                      "undispatched response items");
+    result.expectTrue(frontendReviewedBaseline == 148 && frontendCompatibilityReview == 86 &&
+                          frontendReviewedBaseline + frontendCompatibilityReview == 234 && frontendFinalUnresolved == 0,
+                      "the final frontend review ledger preserves the disjoint 148-row baseline and 86-row compatibility review, "
+                      "resolves all 234 identities, and leaves no unresolved decision");
+    result.expectTrue(frontendExposureCounts == std::array<std::size_t, 15>{0, 0, 0, 0, 0, 0, 16, 71, 15, 10, 22, 54, 10, 0, 36},
+                      "frontend exposure decisions are exactly 71 dedicated, 15 conditional, 10 pending-request, 22 existing-event, 54 "
+                      "dedicated-event, 10 dedicated-item, 36 policy-excluded, and 16 NotApplicable");
+    result.expectTrue(
+        frontendSecurityCounts == std::array<std::size_t, 17>{0, 0, 0, 0, 0, 0, 16, 0, 26, 22, 22, 1, 15, 96, 0, 0, 36},
+        "frontend security decisions are exactly 96 scope-projected, 36 not-exposed, 26 observer, 22 privileged, 22 controller, "
+        "16 NotApplicable, 15 conditional, and one parameter-sensitive");
+    result.expectTrue(normalizedFrontendNotifications == 14 && dedicatedFrontendNotifications == 54 && normalizedFrontendItems == 8 &&
+                          dedicatedFrontendItems == 10,
+                      "frontend compatibility is frozen as 14 normalized notifications, 54 dedicated events with legacy extension "
+                      "compatibility, eight normalized ThreadItems, and ten dedicated items with legacy metadata compatibility");
     result.expectTrue(
         a11ModeledNotifications == 12 && a11PreservedNotifications == 25,
         "the exact 12 existing A1.1 notification semantics stay normalized "
@@ -2735,9 +2772,9 @@ int main() {
         detail::findSurface(detail::SurfaceCategory::ItemDiscriminator, "ThreadItem", "type", "plan");
     result.expectTrue(unknownThreadItem && unknownThreadItem->runtimeDisposition == detail::RuntimeDisposition::Typed &&
                           unknownThreadItem->typedSchemaStatus == detail::TypedSchemaStatus::Complete &&
-                          unknownThreadItem->frontendProtocol == detail::FrontendExposure::ExistingUnknownItemSubset &&
-                          unknownThreadItem->frontendSecurity == detail::FrontendSecurityDecision::ExistingUnknownItemMetadataContract,
-                      "newly typed ThreadItem rows preserve only the existing metadata-only frontend subset");
+                          unknownThreadItem->frontendProtocol == detail::FrontendExposure::DedicatedItemWithLegacyMetadataCompatibility &&
+                          unknownThreadItem->frontendSecurity == detail::FrontendSecurityDecision::ScopeProjectedStateEventApproved,
+                      "newly typed ThreadItem rows gain a dedicated item contract while preserving legacy metadata compatibility");
 
     const detail::ProtocolSurfaceEntry* responseItem =
         detail::findSurface(detail::SurfaceCategory::ItemDiscriminator, "ResponseItem", "type", "message");
@@ -2745,9 +2782,9 @@ int main() {
                           responseItem->typedSchemaStatus == detail::TypedSchemaStatus::Complete &&
                           responseItem->canonicalState == detail::LayerStatus::NotApplicable &&
                           responseItem->canonicalStateReason == detail::LayerDispositionReason::NoRuntimeBackendStatePath &&
-                          responseItem->frontendProtocol == detail::FrontendExposure::NotExposed &&
-                          responseItem->frontendSecurity == detail::FrontendSecurityDecision::Unresolved,
-                      "typed ResponseItem rows remain distinct with an explicit no-runtime-state disposition and no frontend payload path");
+                          responseItem->frontendProtocol == detail::FrontendExposure::NotApplicable &&
+                          responseItem->frontendSecurity == detail::FrontendSecurityDecision::NotApplicable,
+                      "typed ResponseItem rows remain distinct with explicit no-runtime-state and no-frontend-path dispositions");
 
     const detail::ProtocolSurfaceEntry* initialize =
         detail::findSurface(detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "initialize");
@@ -2869,20 +2906,32 @@ int main() {
         detail::ProtocolSurfaceErrorCode::InventoryOnlyDispositionReasonMismatch,
         "experimental InventoryOnly NotApplicable requires the ExperimentalInventory reason");
 
-    std::vector<detail::ProtocolSurfaceEntry> wrongUnknownItemPair(registry.begin(), registry.end());
-    const auto wrongUnknownItem =
-        std::find_if(wrongUnknownItemPair.begin(), wrongUnknownItemPair.end(), [](const detail::ProtocolSurfaceEntry& entry) {
-            return entry.frontendProtocol == detail::FrontendExposure::ExistingUnknownItemSubset;
-        });
-    if (wrongUnknownItem == wrongUnknownItemPair.end()) {
-        result.expectTrue(false, "registry contains an unknown-item metadata subset for negative validation");
+    std::vector<detail::ProtocolSurfaceEntry> wrongItemPair(registry.begin(), registry.end());
+    const auto wrongItem = std::find_if(wrongItemPair.begin(), wrongItemPair.end(), [](const detail::ProtocolSurfaceEntry& entry) {
+        return entry.frontendProtocol == detail::FrontendExposure::DedicatedItemWithLegacyMetadataCompatibility;
+    });
+    if (wrongItem == wrongItemPair.end()) {
+        result.expectTrue(false, "registry contains a dedicated item compatibility contract for negative validation");
     } else {
-        wrongUnknownItem->frontendSecurity = detail::FrontendSecurityDecision::ExistingRedactedExtensionContract;
+        wrongItem->frontendSecurity = detail::FrontendSecurityDecision::ConditionalExplicitEnablementApproved;
         result.expectTrue(
-            hasExactCodes(detail::validateProtocolSurface(wrongUnknownItemPair),
-                          {detail::ProtocolSurfaceErrorCode::FrontendSecurityMismatch}),
-            "registry validation reports only FrontendSecurityMismatch for an unknown-item subset mislabeled as a raw extension contract");
+            hasExactCodes(detail::validateProtocolSurface(wrongItemPair), {detail::ProtocolSurfaceErrorCode::FrontendSecurityMismatch}),
+            "registry validation rejects a dedicated item compatibility contract paired with a non-scope-projected decision");
     }
+
+    std::vector<detail::ProtocolSurfaceEntry> unresolvedFrontendDecision(registry.begin(), registry.end());
+    const auto unresolvedDedicated = findEntry(unresolvedFrontendDecision, detail::SurfaceCategory::ClientRequest, "thread/start");
+    unresolvedDedicated->frontendSecurity = detail::FrontendSecurityDecision::Unresolved;
+    result.expectTrue(hasExactCodes(detail::validateProtocolSurface(unresolvedFrontendDecision),
+                                    {detail::ProtocolSurfaceErrorCode::FrontendSecurityMismatch}),
+                      "a final dedicated frontend method cannot regress to an unresolved security decision");
+
+    std::vector<detail::ProtocolSurfaceEntry> inapplicableDedicatedDecision(registry.begin(), registry.end());
+    const auto inapplicableDedicated = findEntry(inapplicableDedicatedDecision, detail::SurfaceCategory::ClientRequest, "thread/start");
+    inapplicableDedicated->frontendSecurity = detail::FrontendSecurityDecision::NotApplicable;
+    result.expectTrue(hasExactCodes(detail::validateProtocolSurface(inapplicableDedicatedDecision),
+                                    {detail::ProtocolSurfaceErrorCode::FrontendSecurityMismatch}),
+                      "a reviewed dedicated frontend method cannot regress to a NotApplicable security decision");
 
     std::vector<detail::ProtocolSurfaceEntry> missingAssociation(registry.begin(), registry.end());
     const auto missingContract = findEntry(missingAssociation, detail::SurfaceCategory::ClientRequest, "initialize");

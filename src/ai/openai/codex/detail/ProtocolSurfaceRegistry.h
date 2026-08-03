@@ -54,23 +54,41 @@ namespace ai::openai::codex::detail {
     };
 
     enum class FrontendExposure {
-        ExistingOperationSubset,
-        GenericUnknownRequest,
-        ExistingEventSubset,
-        GenericExtension,
-        ExistingUnknownItemSubset,
-        NotExposed,
-        NotApplicable
+        ExistingOperationSubset = 0,
+        GenericUnknownRequest = 1,
+        ExistingEventSubset = 2,
+        GenericExtension = 3,
+        ExistingUnknownItemSubset = 4,
+        NotExposed = 5,
+        NotApplicable = 6,
+        DedicatedFrontendMethod = 7,
+        ConditionallyExposedFrontendMethod = 8,
+        DedicatedPendingRequestContract = 9,
+        ExistingEventContractApproved = 10,
+        DedicatedEventWithLegacyExtensionCompatibility = 11,
+        DedicatedItemWithLegacyMetadataCompatibility = 12,
+        LocalInProcessOnly = 13,
+        NotExposedBySecurityPolicy = 14
     };
 
     enum class FrontendSecurityDecision {
-        ExistingOperationSubsetExpansionUnresolved,
-        ExistingGenericContractDedicatedUnresolved,
-        ExistingEventSubsetContract,
-        ExistingRedactedExtensionContract,
-        ExistingUnknownItemMetadataContract,
-        Unresolved,
-        NotApplicable
+        ExistingOperationSubsetExpansionUnresolved = 0,
+        ExistingGenericContractDedicatedUnresolved = 1,
+        ExistingEventSubsetContract = 2,
+        ExistingRedactedExtensionContract = 3,
+        ExistingUnknownItemMetadataContract = 4,
+        Unresolved = 5,
+        NotApplicable = 6,
+        PublicSynchronizationApproved = 7,
+        ObserverReadApproved = 8,
+        ControllerRequiredApproved = 9,
+        PrivilegedScopedApproved = 10,
+        ParameterSensitiveApproved = 11,
+        ConditionalExplicitEnablementApproved = 12,
+        ScopeProjectedStateEventApproved = 13,
+        ExistingGenericCompatibilityApproved = 14,
+        LocalOnlyApproved = 15,
+        NotExposedApproved = 16
     };
 
     enum class ClientRequestTarget {

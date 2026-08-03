@@ -3315,6 +3315,566 @@ EXISTING_FRONTEND_OPERATION_DETAILS = {
     ),
 }
 EXISTING_FRONTEND_OPERATIONS = frozenset(EXISTING_FRONTEND_OPERATION_DETAILS)
+
+# A1.7a owner-approved frontend contract.  These sets are the sole upstream
+# policy authority used to generate both the production C++ registry and the
+# committed frontend-registry export.  The downstream frontend generator must
+# consume that export rather than reparsing the vendored Codex inventory.
+FRONTEND_CONDITIONAL_FILESYSTEM_READ_METHODS = frozenset(
+    {
+        "fs/getMetadata",
+        "fs/readDirectory",
+        "fs/readFile",
+        "fuzzyFileSearch",
+        "fs/watch",
+        "fs/unwatch",
+    }
+)
+FRONTEND_CONDITIONAL_FILESYSTEM_WRITE_METHODS = frozenset(
+    {"fs/copy", "fs/createDirectory", "fs/remove", "fs/writeFile"}
+)
+FRONTEND_CONDITIONAL_COMMAND_EXECUTION_METHODS = frozenset(
+    {
+        "command/exec",
+        "command/exec/resize",
+        "command/exec/terminate",
+        "command/exec/write",
+        "thread/shellCommand",
+    }
+)
+FRONTEND_CONDITIONAL_METHODS = frozenset(
+    FRONTEND_CONDITIONAL_FILESYSTEM_READ_METHODS
+    | FRONTEND_CONDITIONAL_FILESYSTEM_WRITE_METHODS
+    | FRONTEND_CONDITIONAL_COMMAND_EXECUTION_METHODS
+)
+
+FRONTEND_OBSERVER_READ_METHODS = frozenset(
+    {
+        "account/rateLimits/read",
+        "account/read",
+        "account/usage/read",
+        "account/workspaceMessages/read",
+        "config/read",
+        "configRequirements/read",
+        "experimentalFeature/list",
+        "model/list",
+        "modelProvider/capabilities/read",
+        "thread/list",
+        "thread/loaded/list",
+        "thread/read",
+        "thread/goal/get",
+        "fs/getMetadata",
+        "fs/readDirectory",
+        "fs/readFile",
+        "fuzzyFileSearch",
+        "permissionProfile/list",
+        "app/list",
+        "externalAgentConfig/detect",
+        "externalAgentConfig/import/readHistories",
+        "hooks/list",
+        "plugin/installed",
+        "plugin/list",
+        "plugin/read",
+        "plugin/share/list",
+        "plugin/skill/read",
+        "skills/list",
+        "mcpServer/resource/read",
+        "mcpServerStatus/list",
+        "windowsSandbox/readiness",
+    }
+)
+
+FRONTEND_ACCOUNT_MANAGEMENT_METHODS = frozenset(
+    {
+        "account/login/cancel",
+        "account/login/start",
+        "account/logout",
+        "account/rateLimitResetCredit/consume",
+        "account/sendAddCreditsNudgeEmail",
+    }
+)
+FRONTEND_CONFIGURATION_WRITE_METHODS = frozenset(
+    {
+        "config/batchWrite",
+        "config/mcpServer/reload",
+        "config/value/write",
+        "experimentalFeature/enablement/set",
+    }
+)
+FRONTEND_EXTENSION_MANAGEMENT_METHODS = frozenset(
+    {
+        "marketplace/add",
+        "marketplace/remove",
+        "marketplace/upgrade",
+        "plugin/install",
+        "plugin/share/checkout",
+        "plugin/share/delete",
+        "plugin/share/save",
+        "plugin/share/updateTargets",
+        "plugin/uninstall",
+        "skills/config/write",
+        "skills/extraRoots/set",
+    }
+)
+FRONTEND_MCP_INVOKE_METHODS = frozenset(
+    {"mcpServer/oauth/login", "mcpServer/tool/call"}
+)
+FRONTEND_PRIVILEGED_METHODS = frozenset(
+    FRONTEND_ACCOUNT_MANAGEMENT_METHODS
+    | FRONTEND_CONFIGURATION_WRITE_METHODS
+    | FRONTEND_EXTENSION_MANAGEMENT_METHODS
+    | FRONTEND_MCP_INVOKE_METHODS
+)
+
+FRONTEND_REVIEW_DENOMINATOR_UNRESOLVED = 148
+FRONTEND_REVIEW_DENOMINATOR_COMPATIBILITY = 86
+FRONTEND_REVIEW_DENOMINATOR_TOTAL = 234
+
+FRONTEND_SCOPE_STRINGS = (
+    "observe",
+    "control",
+    "provider_lifecycle",
+    "account_management",
+    "configuration_write",
+    "command_execution",
+    "filesystem_read",
+    "filesystem_write",
+    "extension_management",
+    "mcp_invoke",
+    "sensitive_response",
+    "unknown_request_response",
+)
+FRONTEND_DEFAULT_REMOTE_SCOPES = ("observe", "control")
+
+FRONTEND_SERVER_REQUEST_RESPONSE_METHODS = {
+    "item/commandExecution/requestApproval": ("request.approval.respond",),
+    "item/fileChange/requestApproval": ("request.approval.respond",),
+    "item/tool/requestUserInput": (
+        "request.userInput.respond",
+        "request.known.reject",
+    ),
+    "account/chatgptAuthTokens/refresh": ("request.authentication.respond",),
+    "applyPatchApproval": ("request.applyPatchApproval.respond",),
+    "execCommandApproval": ("request.execCommandApproval.respond",),
+    "item/permissions/requestApproval": ("request.permissionsApproval.respond",),
+    "attestation/generate": (
+        "request.attestation.respond",
+        "request.known.reject",
+    ),
+    "item/tool/call": (
+        "request.dynamicTool.respond",
+        "request.known.reject",
+    ),
+    "mcpServer/elicitation/request": (
+        "request.mcpElicitation.respond",
+        "request.known.reject",
+    ),
+}
+
+
+def provider_frontend_method(provider_method: str) -> str:
+    if provider_method == "thread/inject_items":
+        return "thread.injectItems"
+    return provider_method.replace("/", ".")
+
+
+def notification_event_mapping(provider_method: str) -> tuple[str, ...]:
+    if provider_method == "error":
+        return ("diagnostics.updated",)
+    if provider_method.startswith("account/"):
+        return ("account.updated",)
+    if provider_method == "configWarning":
+        return ("configuration.updated", "notice.added")
+    if provider_method.startswith("model/"):
+        return ("models.updated",)
+    if provider_method.startswith("thread/"):
+        return ("thread.upserted",)
+    if provider_method.startswith("turn/"):
+        return ("turn.upserted",)
+    if provider_method.startswith("item/"):
+        if "ApprovalReview" in provider_method or provider_method == "guardianWarning":
+            return ("reviews.updated",)
+        return ("item.content.updated",)
+    if provider_method.startswith("command/") or provider_method.startswith("process/"):
+        return ("process.updated",)
+    if provider_method == "fs/changed":
+        return ("filesystemWatch.updated",)
+    if provider_method.startswith("fuzzyFileSearch/"):
+        return ("fuzzySearch.updated",)
+    if provider_method == "guardianWarning":
+        return ("reviews.updated", "notice.added")
+    if provider_method.startswith("app/") or provider_method.startswith("externalAgentConfig/") or provider_method.startswith("hook/"):
+        return ("integrations.updated",)
+    if provider_method == "skills/changed":
+        return ("skills.updated",)
+    if provider_method.startswith("mcpServer/"):
+        return ("mcp.updated",)
+    if provider_method == "serverRequest/resolved":
+        return ("pendingRequests.updated",)
+    if provider_method.startswith("remoteControl/") or provider_method.startswith("windowsSandbox/"):
+        return ("platform.updated",)
+    if provider_method in {"deprecationNotice", "warning", "windows/worldWritableWarning"}:
+        return ("notice.added",)
+    raise SurfaceError(f"FrontendNotificationMappingMissing: {provider_method}")
+
+
+def frontend_contract_policy(entry: dict[str, Any]) -> dict[str, Any]:
+    """Return frozen scopes, mapping, enablement and compatibility metadata."""
+
+    exposure, security = frontend_contract_decision(entry)
+    exposure_name = exposure.removeprefix("FrontendExposure::")
+    security_name = security.removeprefix("FrontendSecurityDecision::")
+    category = entry["category"]
+    name = entry["name"]
+    domain = entry["domain"]
+    scopes: tuple[str, ...] = ()
+    controller_required = False
+    default_enabled = exposure_name not in {
+        "ConditionallyExposedFrontendMethod",
+        "NotExposedBySecurityPolicy",
+        "NotApplicable",
+    }
+    mapping: tuple[str, ...] = ()
+    redaction = "none"
+    compatibility = "none"
+
+    if category == "client_request" and name != "initialize":
+        mapping = () if entry["stability"] == "experimental_only" else (provider_frontend_method(name),)
+        if name in FRONTEND_CONDITIONAL_FILESYSTEM_READ_METHODS:
+            scopes = ("observe", "filesystem_read")
+            controller_required = name in {"fs/watch", "fs/unwatch"}
+            if controller_required:
+                scopes = ("control", "filesystem_read")
+        elif name in FRONTEND_CONDITIONAL_FILESYSTEM_WRITE_METHODS:
+            scopes = ("control", "filesystem_write")
+            controller_required = True
+        elif name in FRONTEND_CONDITIONAL_COMMAND_EXECUTION_METHODS:
+            scopes = ("control", "command_execution")
+            controller_required = True
+        elif name == "account/read":
+            scopes = ("observe",)
+        elif name in FRONTEND_OBSERVER_READ_METHODS:
+            scopes = ("observe",)
+        else:
+            scopes = ("control",)
+            controller_required = True
+            if name in FRONTEND_ACCOUNT_MANAGEMENT_METHODS:
+                scopes += ("account_management",)
+            elif name in FRONTEND_CONFIGURATION_WRITE_METHODS:
+                scopes += ("configuration_write",)
+            elif name in FRONTEND_EXTENSION_MANAGEMENT_METHODS:
+                scopes += ("extension_management",)
+            elif name in FRONTEND_MCP_INVOKE_METHODS:
+                scopes += ("mcp_invoke",)
+        redaction = "safe_operation_result"
+    elif category == "server_request":
+        if entry["stability"] == "stable":
+            mapping = FRONTEND_SERVER_REQUEST_RESPONSE_METHODS[name]
+            scopes = ("observe",)
+            redaction = "safe_pending_request"
+            compatibility = "legacy_generic_or_existing_dedicated"
+    elif category == "server_notification":
+        mapping = notification_event_mapping(name)
+        scopes = ("observe",)
+        redaction = "bounded_domain_projection"
+        compatibility = (
+            "legacy_normalized"
+            if name in EXISTING_MODELED_SERVER_NOTIFICATION_METHODS
+            else "legacy_redacted_extension"
+        )
+    elif category == "item_discriminator" and domain == "ThreadItem":
+        mapping = ("item.upserted",)
+        scopes = ("observe",)
+        redaction = "bounded_safe_item"
+        compatibility = (
+            "legacy_normalized"
+            if name in EXISTING_MODELED_THREAD_ITEM_NAMES
+            else "legacy_metadata_only"
+        )
+
+    return {
+        "exposure": exposure_name,
+        "securityDecision": security_name,
+        "mappings": list(mapping),
+        "requiredScopes": list(scopes),
+        "controllerRequired": controller_required,
+        "defaultEnabled": default_enabled,
+        "redactionClass": redaction,
+        "compatibilityBehavior": compatibility,
+    }
+
+
+def frontend_contract_decision(entry: dict[str, Any]) -> tuple[str, str]:
+    """Return the final A1.7a exposure/security pair for a registry row."""
+
+    category = entry["category"]
+    domain = entry["domain"]
+    name = entry["name"]
+    stability = entry["stability"]
+
+    if category == "client_request":
+        if name == "initialize":
+            return (
+                "FrontendExposure::NotApplicable",
+                "FrontendSecurityDecision::NotApplicable",
+            )
+        if stability == "experimental_only":
+            return (
+                "FrontendExposure::NotExposedBySecurityPolicy",
+                "FrontendSecurityDecision::NotExposedApproved",
+            )
+        if name in FRONTEND_CONDITIONAL_METHODS:
+            return (
+                "FrontendExposure::ConditionallyExposedFrontendMethod",
+                "FrontendSecurityDecision::ConditionalExplicitEnablementApproved",
+            )
+        if name == "account/read":
+            return (
+                "FrontendExposure::DedicatedFrontendMethod",
+                "FrontendSecurityDecision::ParameterSensitiveApproved",
+            )
+        if name in FRONTEND_OBSERVER_READ_METHODS:
+            return (
+                "FrontendExposure::DedicatedFrontendMethod",
+                "FrontendSecurityDecision::ObserverReadApproved",
+            )
+        if name in FRONTEND_PRIVILEGED_METHODS:
+            return (
+                "FrontendExposure::DedicatedFrontendMethod",
+                "FrontendSecurityDecision::PrivilegedScopedApproved",
+            )
+        return (
+            "FrontendExposure::DedicatedFrontendMethod",
+            "FrontendSecurityDecision::ControllerRequiredApproved",
+        )
+
+    if category == "server_request":
+        if stability == "experimental_only":
+            return (
+                "FrontendExposure::NotExposedBySecurityPolicy",
+                "FrontendSecurityDecision::NotExposedApproved",
+            )
+        return (
+            "FrontendExposure::DedicatedPendingRequestContract",
+            "FrontendSecurityDecision::ScopeProjectedStateEventApproved",
+        )
+
+    if category == "server_notification":
+        if name in EXISTING_MODELED_SERVER_NOTIFICATION_METHODS:
+            return (
+                "FrontendExposure::ExistingEventContractApproved",
+                "FrontendSecurityDecision::ScopeProjectedStateEventApproved",
+            )
+        return (
+            "FrontendExposure::DedicatedEventWithLegacyExtensionCompatibility",
+            "FrontendSecurityDecision::ScopeProjectedStateEventApproved",
+        )
+
+    if category == "item_discriminator" and domain == "ThreadItem":
+        if name in EXISTING_MODELED_THREAD_ITEM_NAMES:
+            return (
+                "FrontendExposure::ExistingEventContractApproved",
+                "FrontendSecurityDecision::ScopeProjectedStateEventApproved",
+            )
+        return (
+            "FrontendExposure::DedicatedItemWithLegacyMetadataCompatibility",
+            "FrontendSecurityDecision::ScopeProjectedStateEventApproved",
+        )
+
+    return (
+        "FrontendExposure::NotApplicable",
+        "FrontendSecurityDecision::NotApplicable",
+    )
+
+
+def legacy_frontend_contract_decision(entry: dict[str, Any]) -> tuple[str, str]:
+    """Reconstruct the pre-A1.7 compatibility/review classification.
+
+    This is denominator evidence only.  Production registry rows are emitted
+    from :func:`frontend_contract_decision`.
+    """
+
+    category = entry["category"]
+    domain = entry["domain"]
+    name = entry["name"]
+    identity = (category, name)
+    if identity in EXISTING_FRONTEND_OPERATIONS:
+        return ("ExistingOperationSubset", "ExistingOperationSubsetExpansionUnresolved")
+    if category == "server_request":
+        return ("GenericUnknownRequest", "ExistingGenericContractDedicatedUnresolved")
+    if category == "server_notification":
+        if name in EXISTING_MODELED_SERVER_NOTIFICATION_METHODS:
+            return ("ExistingEventSubset", "ExistingEventSubsetContract")
+        return ("GenericExtension", "ExistingRedactedExtensionContract")
+    if category == "item_discriminator" and domain == "ThreadItem":
+        if name in EXISTING_MODELED_THREAD_ITEM_NAMES:
+            return ("ExistingEventSubset", "ExistingEventSubsetContract")
+        return ("ExistingUnknownItemSubset", "ExistingUnknownItemMetadataContract")
+    return ("NotExposed", "Unresolved")
+
+
+def frontend_contract_review_ledger(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Derive and freeze the complete A1.7a 234-identity review ledger."""
+
+    entries = manifest.get("entries")
+    if not isinstance(entries, list):
+        raise SurfaceError("FrontendReviewDenominatorMismatch: manifest has no entries")
+
+    reviewed: list[dict[str, Any]] = []
+    for entry in entries:
+        category = entry["category"]
+        domain = entry["domain"]
+        name = entry["name"]
+        stable_reviewed = entry["stability"] == "stable" and (
+            (category == "client_request" and name != "initialize")
+            or category in {"server_notification", "server_request"}
+            or (category == "item_discriminator" and domain in {"ThreadItem", "ResponseItem"})
+        )
+        experimental_reviewed = (
+            entry["stability"] == "experimental_only"
+            and category in {"client_request", "server_request"}
+        )
+        if stable_reviewed or experimental_reviewed:
+            reviewed.append(entry)
+
+    unresolved_security = {
+        "Unresolved",
+        "ExistingOperationSubsetExpansionUnresolved",
+        "ExistingGenericContractDedicatedUnresolved",
+    }
+    unresolved = [
+        entry
+        for entry in reviewed
+        if legacy_frontend_contract_decision(entry)[1] in unresolved_security
+    ]
+    compatibility = [entry for entry in reviewed if entry not in unresolved]
+
+    def count(category: str, *, stability: str | None = None, domain: str | None = None) -> int:
+        return sum(
+            entry["category"] == category
+            and (stability is None or entry["stability"] == stability)
+            and (domain is None or entry["domain"] == domain)
+            for entry in reviewed
+        )
+
+    decomposition = {
+        "stable_application_client_requests": count(
+            "client_request", stability="stable"
+        ),
+        "stable_server_notifications": count(
+            "server_notification", stability="stable"
+        ),
+        "stable_thread_items": count(
+            "item_discriminator", stability="stable", domain="ThreadItem"
+        ),
+        "stable_response_items": count(
+            "item_discriminator", stability="stable", domain="ResponseItem"
+        ),
+        "stable_server_requests": count("server_request", stability="stable"),
+        "experimental_client_requests": count(
+            "client_request", stability="experimental_only"
+        ),
+        "experimental_server_requests": count(
+            "server_request", stability="experimental_only"
+        ),
+    }
+    expected = {
+        "stable_application_client_requests": 86,
+        "stable_server_notifications": 68,
+        "stable_thread_items": 18,
+        "stable_response_items": 16,
+        "stable_server_requests": 10,
+        "experimental_client_requests": 35,
+        "experimental_server_requests": 1,
+    }
+    if decomposition != expected:
+        raise SurfaceError(
+            "FrontendReviewDenominatorMismatch: "
+            f"expected {expected}, got {decomposition}"
+        )
+    if (
+        len(unresolved) != FRONTEND_REVIEW_DENOMINATOR_UNRESOLVED
+        or len(compatibility) != FRONTEND_REVIEW_DENOMINATOR_COMPATIBILITY
+        or len(reviewed) != FRONTEND_REVIEW_DENOMINATOR_TOTAL
+        or set(map(id, unresolved)) & set(map(id, compatibility))
+    ):
+        raise SurfaceError(
+            "FrontendReviewDenominatorMismatch: expected disjoint 148 + 86 = 234, "
+            f"got {len(unresolved)} + {len(compatibility)} = {len(reviewed)}"
+        )
+
+    final_unresolved = [
+        entry
+        for entry in reviewed
+        if frontend_contract_decision(entry)[1].removeprefix(
+            "FrontendSecurityDecision::"
+        )
+        in unresolved_security
+    ]
+    if final_unresolved:
+        raise SurfaceError(
+            "FrontendReviewUnresolved: "
+            + ", ".join(entry["name"] for entry in final_unresolved)
+        )
+
+    response_item_not_applicable = [
+        entry
+        for entry in reviewed
+        if frontend_contract_decision(entry)[0]
+        == "FrontendExposure::NotApplicable"
+    ]
+    if len(response_item_not_applicable) != 16 or any(
+        entry["category"] != "item_discriminator"
+        or entry["domain"] != "ResponseItem"
+        for entry in response_item_not_applicable
+    ):
+        raise SurfaceError(
+            "FrontendReviewNotApplicableMismatch: only 16 ResponseItem rows may be NotApplicable"
+        )
+
+    policies = [(entry, frontend_contract_policy(entry)) for entry in reviewed]
+    conditional = [
+        (entry, policy)
+        for entry, policy in policies
+        if policy["exposure"] == "ConditionallyExposedFrontendMethod"
+    ]
+    experimental_denied = [
+        (entry, policy)
+        for entry, policy in policies
+        if entry["stability"] == "experimental_only"
+    ]
+    if len(conditional) != 15 or any(
+        policy["defaultEnabled"] for _, policy in conditional
+    ):
+        raise SurfaceError(
+            "FrontendConditionalPolicyMismatch: exactly 15 methods must be default-disabled"
+        )
+    if len(experimental_denied) != 36 or any(
+        policy["exposure"] != "NotExposedBySecurityPolicy"
+        or policy["mappings"]
+        for _, policy in experimental_denied
+    ):
+        raise SurfaceError(
+            "FrontendExperimentalExposureMismatch: exactly 36 experimental requests must have no mapping"
+        )
+    if any(
+        scope not in FRONTEND_SCOPE_STRINGS
+        for _, policy in policies
+        for scope in policy["requiredScopes"]
+    ):
+        raise SurfaceError("FrontendScopeMismatch: policy uses an unknown scope")
+    if FRONTEND_DEFAULT_REMOTE_SCOPES != ("observe", "control"):
+        raise SurfaceError(
+            "FrontendDefaultScopeMismatch: remote default must be observe + control"
+        )
+
+    return {
+        "reviewed": tuple(reviewed),
+        "unresolved_baseline": tuple(unresolved),
+        "compatibility_review": tuple(compatibility),
+        "decomposition": decomposition,
+        "final_unresolved": tuple(final_unresolved),
+    }
 BACKEND_PROVIDER_OPERATION_NAMES = frozenset(
     {
         "account/login/cancel",
@@ -6544,56 +7104,7 @@ def registry_statuses(
         canonical_state_status, canonical_state=True
     )
 
-    if is_existing_frontend:
-        frontend_exposure = "FrontendExposure::ExistingOperationSubset"
-        frontend_security = (
-            "FrontendSecurityDecision::ExistingOperationSubsetExpansionUnresolved"
-        )
-    elif category == "server_request":
-        frontend_exposure = "FrontendExposure::GenericUnknownRequest"
-        frontend_security = (
-            "FrontendSecurityDecision::ExistingGenericContractDedicatedUnresolved"
-        )
-    elif category == "server_notification":
-        if entry["name"] in EXISTING_MODELED_SERVER_NOTIFICATION_METHODS:
-            frontend_exposure = "FrontendExposure::ExistingEventSubset"
-            frontend_security = (
-                "FrontendSecurityDecision::ExistingEventSubsetContract"
-            )
-        else:
-            frontend_exposure = "FrontendExposure::GenericExtension"
-            frontend_security = (
-                "FrontendSecurityDecision::ExistingRedactedExtensionContract"
-            )
-    elif category == "item_discriminator":
-        if (
-            entry["domain"] == "ThreadItem"
-            and entry["name"] in EXISTING_MODELED_THREAD_ITEM_NAMES
-        ):
-            frontend_exposure = "FrontendExposure::ExistingEventSubset"
-            frontend_security = (
-                "FrontendSecurityDecision::ExistingEventSubsetContract"
-            )
-        elif entry["domain"] == "ThreadItem":
-            frontend_exposure = "FrontendExposure::ExistingUnknownItemSubset"
-            frontend_security = (
-                "FrontendSecurityDecision::ExistingUnknownItemMetadataContract"
-            )
-        else:
-            frontend_exposure = "FrontendExposure::NotExposed"
-            frontend_security = "FrontendSecurityDecision::Unresolved"
-    elif is_operation:
-        frontend_exposure = "FrontendExposure::NotExposed"
-        frontend_security = "FrontendSecurityDecision::Unresolved"
-    else:
-        frontend_exposure = "FrontendExposure::NotApplicable"
-        frontend_security = "FrontendSecurityDecision::NotApplicable"
-
-    # Initialization is internal lifecycle negotiation rather than an
-    # application command or out-of-process frontend operation.
-    if identity == ("client_request", "ClientRequest", "method", "initialize"):
-        frontend_exposure = "FrontendExposure::NotApplicable"
-        frontend_security = "FrontendSecurityDecision::NotApplicable"
+    frontend_exposure, frontend_security = frontend_contract_decision(entry)
 
     if contract is None:
         parameter_type_identity = ""
@@ -6947,6 +7458,7 @@ def generate_registry_data(
     if not isinstance(entries, list):
         raise SurfaceError("surface manifest has no entries array")
     backend_coverage_ledger(manifest)
+    frontend_contract_review_ledger(manifest)
     evidence = evidence if evidence is not None else load_a1_registry_evidence()
     contracts = operation_contract_by_key(manifest, evidence["operation_contracts"])
     assignment_diagnostics = assignment_reachability_diagnostics(
@@ -10342,19 +10854,17 @@ def coverage_metrics(
     )
     stable_frontend_operations = selected(
         "stable",
-        lambda entry: (
-            entry["category"] == "server_request"
-            or (entry["category"] == "client_request" and entry["name"] != "initialize")
-        ),
+        lambda entry: entry["category"] == "client_request"
+        and entry["name"] != "initialize",
     )
-    stable_server_requests = selected(
-        "stable", lambda entry: entry["category"] == "server_request"
-    )
-    stable_frontend_events = selected(
+    stable_server_requests = selected("stable", lambda entry: entry["category"] == "server_request")
+    stable_notifications = selected("stable", lambda entry: entry["category"] == "server_notification")
+    stable_thread_items = selected(
         "stable",
-        lambda entry: entry["category"]
-        in {"server_notification", "item_discriminator"},
+        lambda entry: entry["category"] == "item_discriminator"
+        and entry["domain"] == "ThreadItem",
     )
+    review_ledger = frontend_contract_review_ledger(manifest)
 
     def implemented(entries: Sequence[dict[str, Any]], field: str, value: str) -> int:
         return sum(
@@ -10416,65 +10926,54 @@ def coverage_metrics(
             "18 ThreadItems, and 10 server requests.",
         ),
         (
-            "Frontend Protocol existing-subset exposure coverage",
-            implemented(
-                stable_frontend_operations,
-                "frontend_exposure",
-                "ExistingOperationSubset",
+            "Frontend Protocol stable operation methods",
+            sum(
+                registry[surface_key(entry)]["frontend_exposure"]
+                in {"DedicatedFrontendMethod", "ConditionallyExposedFrontendMethod"}
+                for entry in stable_frontend_operations
             ),
             len(stable_frontend_operations),
-            "Stable operations with an existing reviewed normalized v1 subset; not full upstream-method exposure.",
+            "All stable application operations have approved schema-defined v1 methods.",
         ),
         (
-            "Frontend Protocol normalized event/state subset coverage",
-            implemented(
-                stable_frontend_events,
-                "frontend_exposure",
-                "ExistingEventSubset",
-            ),
-            len(stable_frontend_events),
-            "Stable notifications/items with existing typed normalized v1 snapshot or event semantics.",
-        ),
-        (
-            "Frontend Protocol bounded generic extension coverage",
-            implemented(
-                stable_frontend_events,
-                "frontend_exposure",
-                "GenericExtension",
-            ),
-            len(stable_frontend_events),
-            "Stable notifications retained with bounded, redacted payloads through the v1 codex.extension contract.",
-        ),
-        (
-            "Frontend Protocol unknown-item metadata subset coverage",
-            implemented(
-                stable_frontend_events,
-                "frontend_exposure",
-                "ExistingUnknownItemSubset",
-            ),
-            len(stable_frontend_events),
-            "Stable untyped ThreadItem discriminators exposed only as codexType and "
-            "decodingError metadata; raw item payloads are not exposed.",
-        ),
-        (
-            "Generic unknown server-request preservation exposure",
-            implemented(
-                stable_server_requests,
-                "frontend_exposure",
-                "GenericUnknownRequest",
-            ),
+            "Frontend dedicated pending-request contracts",
+            implemented(stable_server_requests, "frontend_exposure", "DedicatedPendingRequestContract"),
             len(stable_server_requests),
-            "Stable server requests currently visible only through the bounded/redacted v1 unknown-request contract.",
+            "All stable server requests have bounded dedicated contracts.",
         ),
         (
-            "Owner-approved frontend-security subset disposition coverage",
-            implemented(
-                stable_frontend_operations,
-                "frontend_security",
-                "ExistingOperationSubsetExpansionUnresolved",
+            "Frontend stable notification mappings",
+            sum(
+                registry[surface_key(entry)]["frontend_exposure"]
+                in {"ExistingEventContractApproved", "DedicatedEventWithLegacyExtensionCompatibility"}
+                for entry in stable_notifications
             ),
-            len(stable_frontend_operations),
-            "Existing v1 subsets count; every new or expanded dedicated exposure remains UNRESOLVED.",
+            len(stable_notifications),
+            "Legacy compatibility is retained while expanded clients receive dedicated mappings.",
+        ),
+        (
+            "Frontend stable ThreadItem mappings",
+            sum(
+                registry[surface_key(entry)]["frontend_exposure"]
+                in {"ExistingEventContractApproved", "DedicatedItemWithLegacyMetadataCompatibility"}
+                for entry in stable_thread_items
+            ),
+            len(stable_thread_items),
+            "All ThreadItem alternatives have approved bounded expanded projections.",
+        ),
+        (
+            "A1.7a complete frontend-contract review",
+            sum(
+                registry[surface_key(entry)]["frontend_security"]
+                not in {
+                    "Unresolved",
+                    "ExistingOperationSubsetExpansionUnresolved",
+                    "ExistingGenericContractDedicatedUnresolved",
+                }
+                for entry in review_ledger["reviewed"]
+            ),
+            FRONTEND_REVIEW_DENOMINATOR_TOTAL,
+            "Fixed 148 unresolved-baseline plus 86 compatibility-review identities.",
         ),
     ]
     return [
@@ -10650,12 +11149,6 @@ def render_coverage_document(
     )
     for reason, count in backend_state["not_applicable_reasons"].items():
         lines.append(f"| `{reason}` | {count} |")
-    event_denominator = next(
-        metric["denominator"]
-        for metric in metrics
-        if metric["metric"]
-        == "Frontend Protocol normalized event/state subset coverage"
-    )
     stable_response_items = sum(
         entry["stability"] == "stable"
         and entry["category"] == "item_discriminator"
@@ -10665,19 +11158,17 @@ def render_coverage_document(
     lines.extend(
         [
             "",
-            f"The three frontend event/item metrics deliberately share the same {event_denominator}-entry",
-            "stable server-notification/item denominator. Their registry pairings are exact:",
-            "`ExistingEventSubset` ↔ `ExistingEventSubsetContract`, `GenericExtension` ↔",
-            "`ExistingRedactedExtensionContract`, and `ExistingUnknownItemSubset` ↔",
-            "`ExistingUnknownItemMetadataContract`. The unknown-item subset contains only",
-            "`codexType` and `decodingError`; it does not expose the raw item payload.",
-            f"The {stable_response_items} stable `ResponseItem` discriminators have no current runtime/frontend",
-            "path and are recorded as `NotExposed` ↔ `Unresolved`.",
+            "The reviewed compatibility set is exactly 14 normalized notifications, 54",
+            "bounded/redacted extension notifications, eight normalized ThreadItems, and",
+            "ten metadata-only ThreadItems. Expanded-capability projections preserve the",
+            "legacy representation and suppress duplicate delivery per connection.",
+            f"The {stable_response_items} stable `ResponseItem` discriminators have no runtime/frontend",
+            "path and are recorded as `NotApplicable` with the approved A1.6",
+            "`NoRuntimeBackendStatePath` rationale.",
             "",
-            "Raw-preserved, opaque-preserved, unsupported, deferred, and unresolved entries",
-            "do not count as typed or layer implementation. A0 requires complete inventory",
-            "registration only; it does not claim complete typed, backend, state, or frontend",
-            "coverage.",
+            "The A1.7a registry resolves all 234 reviewed frontend-contract identities.",
+            "Definition in the additive v1 contract does not by itself imply runtime",
+            "implementation, deployment enablement, or principal permission.",
             "",
             "## Pinned artifacts",
             "",
@@ -10800,140 +11291,74 @@ def render_security_document(
     manifest: dict[str, Any], registry_entries: Sequence[dict[str, Any]]
 ) -> str:
     registry = registry_by_key(registry_entries)
-    operations = [
-        entry
-        for entry in manifest["entries"]
-        if entry["category"] in {"client_request", "server_request"}
-    ]
+    ledger = frontend_contract_review_ledger(manifest)
+    reviewed = ledger["reviewed"]
     lines = [
         "# Codex App Server frontend security decisions",
         "",
         "<!-- Generated by tools/codex/app_server_surface.py docs. Do not edit by hand. -->",
         "",
-        "This is an owner-review worksheet, not a policy decision. A0 preserves existing",
-        "reviewed Frontend Protocol v1 subsets and bounded fallback behavior. Every new,",
-        "expanded, or dedicated exposure decision remains `UNRESOLVED`; an existing subset",
-        "does not approve the rest of the upstream operation.",
+        "This is the generated final A1.7a owner-decision record. The production",
+        "`ProtocolSurfaceRegistry` is authoritative; downstream manifest, schema, C++",
+        "metadata and documentation are generated views of that registry authority.",
         "",
-        "Risk cells report only signals visible in the generated method/parameter surface.",
-        "`NOT INDICATED` is not a security guarantee. Result types are not guessed: the",
-        "generated request unions do not encode method-to-result associations.",
+        "The fixed review denominator is **148 unresolved-baseline identities + 86",
+        "compatibility-contract identities = 234 reviewed identities**. Final unresolved:",
+        "**0**. The 16 `ResponseItem` rows are genuine `NotApplicable` decisions backed by",
+        "the A1.6 `NoRuntimeBackendStatePath` disposition; they do not shrink the denominator.",
         "",
-        "| Method | Direction | Stability | Parameter/result summary | Process | Files | Config | Auth | Credits | Secrets | Remote | Current frontend exposure | Candidate layers | Final decision |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Identity | Stability | Prior compatibility exposure | Final exposure | Final security decision | Mapping | Scopes | Controller | Default | Compatibility / rationale |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for entry in operations:
-        key = (
-            entry["category"],
-            entry["domain"],
-            entry["discriminator_field"],
-            entry["name"],
-        )
+    for entry in reviewed:
+        key = surface_key(entry)
         local = registry[key]
-        parameter_type = entry["params"]["type"] if entry["params"] else None
-        required = entry["params"]["required_fields"] if entry["params"] else []
-        fields = entry["params"].get("fields", []) if entry["params"] else []
-        property_paths = (
-            entry["params"].get("property_paths", []) if entry["params"] else []
-        )
-        experimental_params = entry.get("experimental_params")
-        experimental_fields = (
-            experimental_params.get("fields", [])
-            if isinstance(experimental_params, dict)
-            else []
-        )
-        experimental_additions = sorted(set(experimental_fields) - set(fields))
-        summary = (
-            f"params `{parameter_type or 'inline/none'}`"
-            + (f"; required: {', '.join(required)}" if required else "; no required fields")
-            + (f"; fields: {', '.join(fields)}" if fields else "; no parameter fields")
-            + (
-                f"; {len(property_paths)} recursively discovered property paths"
-                if property_paths
-                else ""
-            )
-            + (
-                f"; experimental generation additionally exposes: {', '.join(experimental_additions)}"
-                if experimental_additions
-                else ""
-            )
-            + "; result association not emitted upstream"
-        )
-        if (
-            local["frontend_security"]
-            == "ExistingOperationSubsetExpansionUnresolved"
-        ):
-            final_decision = (
-                "EXISTING REVIEWED SUBSET — unchanged by A0; any new or expanded exposure UNRESOLVED"
-            )
-            current_exposure = EXISTING_FRONTEND_OPERATION_DETAILS[
-                (entry["category"], entry["name"])
-            ]
-        elif (
-            local["frontend_security"]
-            == "ExistingGenericContractDedicatedUnresolved"
-        ):
-            final_decision = (
-                "EXISTING BOUNDED/REDACTED UNKNOWN-REQUEST CONTRACT — unchanged by A0; "
-                "dedicated exposure UNRESOLVED"
-            )
-            current_exposure = (
-                "v1 `request.pending` unknown summary preserves bounded/redacted method and params; "
-                "response via `request.unknown.respond` or `request.unknown.reject`"
-            )
-        elif entry["name"] == "initialize" and entry["category"] == "client_request":
-            final_decision = "EXISTING INTERNAL LIFECYCLE — not a frontend exposure"
-            current_exposure = "internal App Server lifecycle only"
+        policy = frontend_contract_policy(entry)
+        prior_exposure, _ = legacy_frontend_contract_decision(entry)
+        if entry["category"] == "client_request":
+            mapping = "none" if entry["stability"] == "experimental_only" else entry["name"].replace("/", ".")
+        elif entry["category"] == "server_request":
+            mapping = "pendingRequests.updated" if entry["stability"] == "stable" else "none"
+        elif entry["category"] == "server_notification":
+            mapping = "expanded domain event/state projection"
+        elif entry["domain"] == "ThreadItem":
+            mapping = "item.upserted safe projection"
         else:
-            final_decision = "UNRESOLVED"
-            current_exposure = "none"
+            mapping = "none (no runtime backend-state path)"
+        if entry["stability"] == "experimental_only":
+            rationale = "Inventory-only experimental request; no frontend path is generated."
+        elif entry["domain"] == "ResponseItem":
+            rationale = "A1.6 NoRuntimeBackendStatePath; no synthetic frontend path."
+        elif prior_exposure in {"ExistingEventSubset", "GenericExtension", "ExistingUnknownItemSubset"}:
+            rationale = "Legacy bytes retained; expanded-capability projection is duplicate-suppressed."
+        else:
+            rationale = "Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy."
         lines.append(
             "| "
             + " | ".join(
                 markdown_cell(value)
                 for value in (
-                    f"`{entry['name']}`",
-                    "client → server"
-                    if entry["category"] == "client_request"
-                    else "server → client request",
+                    f"`{entry['category']}:{entry['domain']}:{entry['name']}`",
                     entry["stability"].replace("_", "-"),
-                    summary,
-                    risk_fact(entry, "executes processes"),
-                    risk_fact(entry, "mutates files"),
-                    risk_fact(entry, "alters configuration"),
-                    risk_fact(entry, "authenticates"),
-                    risk_fact(entry, "spends credits"),
-                    risk_fact(entry, "accesses secrets"),
-                    risk_fact(entry, "affects remote services"),
-                    current_exposure,
-                    "raw protocol → typed API; BackendCore if application-facing; Frontend Protocol only after owner review",
-                    final_decision,
+                    prior_exposure,
+                    local["frontend_exposure"],
+                    local["frontend_security"],
+                    mapping,
+                    ", ".join(policy["requiredScopes"]) or "none",
+                    "required" if policy["controllerRequired"] else "not required",
+                    "enabled" if policy["defaultEnabled"] else "disabled",
+                    rationale,
                 )
             )
             + " |"
         )
-    unresolved_statuses = {
-        "Unresolved",
-        "ExistingOperationSubsetExpansionUnresolved",
-        "ExistingGenericContractDedicatedUnresolved",
-    }
-    unresolved = sum(
-        registry[
-            (
-                entry["category"],
-                entry["domain"],
-                entry["discriminator_field"],
-                entry["name"],
-            )
-        ]["frontend_security"]
-        in unresolved_statuses
-        for entry in operations
-    )
     lines.extend(
         [
             "",
-            f"Unresolved owner decisions: **{unresolved}/{len(operations)}** operations.",
-            "A0 selects no new frontend-exposure, approval, sandbox, or security-boundary policy.",
+            "Unresolved-decision denominator: **148**.",
+            "Compatibility-contract review denominator: **86**.",
+            "Complete reviewed denominator: **234**.",
+            "Final unresolved decisions: **0**.",
             "",
         ]
     )
