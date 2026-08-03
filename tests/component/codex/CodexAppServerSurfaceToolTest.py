@@ -2865,11 +2865,7 @@ def test_generated_artifacts(
     test_assignment_reachability_guards(tool, manifest, evidence)
     test_evidence_authority_boundaries(tool, manifest, evidence)
     registry = tool.registry_by_key(registry_entries)
-    operations = [
-        entry
-        for entry in manifest["entries"]
-        if entry["category"] in {"client_request", "server_request"}
-    ]
+    review = tool.frontend_contract_review_ledger(manifest)
     unresolved_statuses = {
         "Unresolved",
         "ExistingOperationSubsetExpansionUnresolved",
@@ -2877,7 +2873,7 @@ def test_generated_artifacts(
     }
     unresolved = [
         entry
-        for entry in operations
+        for entry in review["reviewed"]
         if registry[
             (
                 entry["category"],
@@ -2888,26 +2884,70 @@ def test_generated_artifacts(
         ]["frontend_security"]
         in unresolved_statuses
     ]
-    resolved = [
-        (entry["category"], entry["name"])
-        for entry in operations
-        if entry not in unresolved
-    ]
-    if len(operations) != 133 or len(unresolved) != 132 or resolved != [
-        ("client_request", "initialize")
-    ]:
+    if (
+        len(review["unresolved_baseline"]) != 148
+        or len(review["compatibility_review"]) != 86
+        or len(review["reviewed"]) != 234
+        or unresolved
+    ):
         raise AssertionError(
-            "owner worksheet must leave 132/133 operations unresolved, with only internal initialize not applicable"
+            "frontend review must preserve disjoint 148 + 86 = 234 denominators and resolve every production row"
         )
+    expected_decomposition = {
+        "stable_application_client_requests": 86,
+        "stable_server_notifications": 68,
+        "stable_thread_items": 18,
+        "stable_response_items": 16,
+        "stable_server_requests": 10,
+        "experimental_client_requests": 35,
+        "experimental_server_requests": 1,
+    }
+    if review["decomposition"] != expected_decomposition:
+        raise AssertionError("frontend review bucket decomposition changed")
+
+    shrunken_manifest = copy.deepcopy(manifest)
+    shrunken_manifest["entries"] = [
+        entry
+        for entry in shrunken_manifest["entries"]
+        if not (
+            entry["category"] == "client_request"
+            and entry["name"] == "thread/start"
+        )
+    ]
+    expect_surface_error_code(
+        tool,
+        lambda: tool.frontend_contract_review_ledger(shrunken_manifest),
+        "FrontendReviewDenominatorMismatch",
+        "remove one of the exact 148 unresolved-baseline identities",
+    )
+
+    original_conditional = tool.FRONTEND_CONDITIONAL_METHODS
+    try:
+        tool.FRONTEND_CONDITIONAL_METHODS = original_conditional | {"thread/start"}
+        expect_surface_error_code(
+            tool,
+            lambda: tool.frontend_contract_review_ledger(manifest),
+            "FrontendConditionalPolicyMismatch",
+            "reclassify a sixteenth stable method as conditional to change the approved denominator",
+        )
+    finally:
+        tool.FRONTEND_CONDITIONAL_METHODS = original_conditional
+
     generated_coverage = tool.render_coverage_document(
         manifest, registry_entries, provenance
     )
     if generated_coverage != coverage_path.read_text(encoding="utf-8"):
         raise AssertionError("generated App Server coverage document is stale")
     generated_security = tool.render_security_document(manifest, registry_entries)
-    if "Unresolved owner decisions: **132/133** operations." not in generated_security:
+    if (
+        "Unresolved-decision denominator: **148**." not in generated_security
+        or "Compatibility-contract review denominator: **86**."
+        not in generated_security
+        or "Complete reviewed denominator: **234**." not in generated_security
+        or "Final unresolved decisions: **0**." not in generated_security
+    ):
         raise AssertionError(
-            "generated owner worksheet does not report the frozen 132/133 unresolved decision count"
+            "generated owner decision record does not report the fixed 148 + 86 = 234 review and zero final unresolved"
         )
     if generated_security != security_path.read_text(encoding="utf-8"):
         raise AssertionError("generated owner security worksheet is stale")

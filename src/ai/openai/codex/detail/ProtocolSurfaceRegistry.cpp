@@ -1272,6 +1272,52 @@ namespace ai::openai::codex::detail {
                              keyName(entry.key) + " has inapplicable frontend exposure with an applicable security decision"});
                     }
                     break;
+                case FrontendExposure::DedicatedFrontendMethod:
+                    if (entry.frontendSecurity != FrontendSecurityDecision::ObserverReadApproved &&
+                        entry.frontendSecurity != FrontendSecurityDecision::ControllerRequiredApproved &&
+                        entry.frontendSecurity != FrontendSecurityDecision::PrivilegedScopedApproved &&
+                        entry.frontendSecurity != FrontendSecurityDecision::ParameterSensitiveApproved) {
+                        result.errors.push_back(
+                            {ProtocolSurfaceErrorCode::FrontendSecurityMismatch,
+                             keyName(entry.key) + " has a dedicated frontend method without an approved method-access decision"});
+                    }
+                    break;
+                case FrontendExposure::ConditionallyExposedFrontendMethod:
+                    if (entry.frontendSecurity != FrontendSecurityDecision::ConditionalExplicitEnablementApproved) {
+                        result.errors.push_back(
+                            {ProtocolSurfaceErrorCode::FrontendSecurityMismatch,
+                             keyName(entry.key) + " has a conditionally exposed frontend method without explicit-enablement approval"});
+                    }
+                    break;
+                case FrontendExposure::DedicatedPendingRequestContract:
+                    if (entry.frontendSecurity != FrontendSecurityDecision::ScopeProjectedStateEventApproved) {
+                        result.errors.push_back(
+                            {ProtocolSurfaceErrorCode::FrontendSecurityMismatch,
+                             keyName(entry.key) + " has a dedicated pending-request contract without scope-projected approval"});
+                    }
+                    break;
+                case FrontendExposure::ExistingEventContractApproved:
+                case FrontendExposure::DedicatedEventWithLegacyExtensionCompatibility:
+                case FrontendExposure::DedicatedItemWithLegacyMetadataCompatibility:
+                    if (entry.frontendSecurity != FrontendSecurityDecision::ScopeProjectedStateEventApproved) {
+                        result.errors.push_back(
+                            {ProtocolSurfaceErrorCode::FrontendSecurityMismatch,
+                             keyName(entry.key) + " has frontend event/item exposure without scope-projected approval"});
+                    }
+                    break;
+                case FrontendExposure::LocalInProcessOnly:
+                    if (entry.frontendSecurity != FrontendSecurityDecision::LocalOnlyApproved) {
+                        result.errors.push_back({ProtocolSurfaceErrorCode::FrontendSecurityMismatch,
+                                                 keyName(entry.key) + " has local-only frontend exposure without local-only approval"});
+                    }
+                    break;
+                case FrontendExposure::NotExposedBySecurityPolicy:
+                    if (entry.frontendSecurity != FrontendSecurityDecision::NotExposedApproved) {
+                        result.errors.push_back(
+                            {ProtocolSurfaceErrorCode::FrontendSecurityMismatch,
+                             keyName(entry.key) + " is excluded by frontend security policy without an approved exclusion"});
+                    }
+                    break;
             }
             if (index != 0 && entry.key < entries[index - 1].key) {
                 result.errors.push_back(

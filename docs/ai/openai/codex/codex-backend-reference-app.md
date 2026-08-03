@@ -41,6 +41,50 @@ trusted in-process API. See the
 [A1.6b backend completion](a1-6b-backend-completeness.md) for the exact
 provider/backend boundary.
 
+## A1.7a contract versus current runtime
+
+A1.7a freezes an additive v1 catalog of 105 methods: the original 15 plus 90
+new definitions. Seven are frontend-native and 98 map to BackendCore (86
+provider operations plus 12 reverse response/rejection commands). This
+reference application's runtime dispatch remains exactly the original 15.
+Defining an additive method does not make it available on the Unix socket,
+enabled by deployment policy, or permitted for a connection.
+
+The frozen review population is 148 formerly unresolved decisions plus 86
+existing notification/item compatibility contracts, or 234 identities, with
+zero final unresolved decisions. Generated percentages cannot shrink that
+denominator.
+
+Optional hello/welcome discovery fields distinguish capabilities that are
+defined, implemented, and permitted, and distinguish available methods from
+connection-permitted methods. The 18-name capability vocabulary is complete,
+but A1.7a runtime metadata marks only method discovery and security scopes as
+implemented; it does not claim authenticated frontend, scope-projected state,
+provider-lifecycle exposure, or multi-transport support.
+
+The default remote scope profile is exactly `observe` plus `control`. The local
+trusted profile contains those and the ten additional scopes
+`provider_lifecycle`, `account_management`, `configuration_write`,
+`command_execution`, `filesystem_read`, `filesystem_write`,
+`extension_management`, `mcp_invoke`, `sensitive_response`, and
+`unknown_request_response`. Scope possession and controller ownership are
+independent. A controller still needs every method scope; a principal with
+`control` scope does not become controller automatically.
+
+Filesystem access and arbitrary command execution are conditional and
+default-disabled. `account.read` is an observer operation only when
+`refreshToken` is absent or false; `refreshToken=true` additionally requires
+`control`, `account_management`, and current controller ownership. These are
+frozen contract decisions for A1.7b enforcement, not authentication or
+authorization already supplied by this local reference application.
+
+Compatibility remains complete and duplicate-free: all 68 stable
+notifications retain either their existing normalized path or bounded/redacted
+`codex.extension`, and all 18 stable `ThreadItem` alternatives retain their
+existing normalized or metadata-only path. Capability-gated expanded mappings
+are defined, but one provider occurrence must use either the legacy or expanded
+projection for a connection, never both.
+
 ## Composition and lifetime
 
 The listener uses the actual SNode.C legacy helper:
@@ -109,7 +153,10 @@ Ordinary library builds may set `-DAISUITE_BUILD_APPS=OFF`; the exported
 `AISuite::OpenAICodexBackend` and `AISuite::OpenAICodexFrontend` components
 remain independently reusable.
 All three Codex libraries remain in the intentionally unreleased SOVERSION-2
-development boundary; A1.6b does not change project version `0.1.0`.
+development boundary; A1.7a does not change project version `0.1.0`.
+A1.7a installs exactly two additional frontend headers,
+`GeneratedProtocol.h` and `Security.h`, so installed inventory is 29 main,
+seven backend, and nine frontend headers, or 45 total.
 The executable also requires the `codex` command expected by the existing
 stdio client. Authentication and quota are properties of that local Codex
 installation, not of the frontend protocol.
@@ -189,7 +236,8 @@ results does not change current reference-client response bytes or fields.
 Trusted in-process BackendCore observers may invoke a reviewed set of
 read-only operations, including filesystem metadata, directory, and file
 reads. That policy does not authorize any corresponding Frontend Protocol v1
-method. A1.7 owns the separate exposure and transport security review.
+method. A1.7a freezes those frontend methods as conditional and default-off;
+A1.7b owns authenticated runtime enablement and enforcement.
 
 Frontend sessions begin as observers, and the client does not acquire
 controller ownership automatically. `start`, `resume`, `new`, and `turn`
@@ -435,10 +483,17 @@ gate, not an implemented test switch. The ordinary deterministic suite uses a
 fake App Server and requires no credentials, quota, network service, or real
 model turn.
 
-A1.7 behavior is explicitly deferred: no IPv4, IPv6, RFCOMM, WebSocket, Qt UI,
-browser frontend, UI-product migration, remote authentication,
-multi-controller policy, or forced controller takeover is implemented here.
-The frozen A1.7 ownership is one `BackendCore`, one shared `BackendAdapter` and
-frontend journal, and multiple future transport factories. Those factories
-must share one replay sequence and retain Protocol v1's state reduction,
-coalescing, bounded batching, replay fallback, and slow-client isolation.
+A1.7a defines the complete additive contract but intentionally leaves runtime
+service expansion deferred. No IPv4, IPv6, RFCOMM, WebSocket, Qt UI, browser
+frontend, UI-product migration, remote authentication, multi-controller
+policy, or forced controller takeover is implemented here. A1.7b owns the
+authenticated, scope-projecting `FrontendService`, approved additive runtime
+methods/events/state, provider lifecycle exposure, and multi-transport
+composition. A1.7c owns the C++ client SDK and Qt UI. A1.7d owns the TypeScript
+client SDK and browser UI.
+
+The frozen ownership remains one `BackendCore`, one shared frontend journal,
+and multiple future transport factories. Those factories must share one replay
+sequence and retain Protocol v1's state reduction, coalescing, bounded
+batching, replay fallback, and slow-client isolation. Provider-neutral
+architecture remains A2.

@@ -70,6 +70,36 @@ add_test(
         ${CODEX_PHASE_A0_PYTHON_ARGUMENTS}
 )
 add_test(
+    NAME CodexFrontendProtocolGeneratedArtifactsGuardTest
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendProtocolGeneratorTest.py
+        --app-tool
+        ${CODEX_PHASE_A0_SURFACE_TOOL}
+        --app-manifest
+        ${CODEX_PHASE_A0_SURFACE_MANIFEST}
+        --registry
+        ${CODEX_PHASE_A0_REGISTRY}
+        --source
+        ${PROJECT_SOURCE_DIR}/tools/frontend/frontend-registry-source.json
+        --generator
+        ${PROJECT_SOURCE_DIR}/tools/frontend/generate_frontend_protocol.py
+        --manifest
+        ${PROJECT_SOURCE_DIR}/docs/ai/openai/codex/frontend-protocol-v1.manifest.json
+        --header
+        ${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/GeneratedProtocol.h
+        --schema-template
+        ${PROJECT_SOURCE_DIR}/tools/frontend/frontend-protocol-v1.schema.template.json
+        --schema
+        ${PROJECT_SOURCE_DIR}/docs/ai/openai/codex/frontend-protocol-v1.schema.json
+        --schema-data
+        ${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/GeneratedProtocolSchema.inc
+        --fixtures
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json
+        --review-identities
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-contract-review-identities.json
+)
+add_test(
     NAME CodexSchemaTranscriptFixtureValidationTest
     COMMAND
         ${Python3_EXECUTABLE}
@@ -80,6 +110,7 @@ set_tests_properties(
     CodexVendoredAppServerSchemaTest
     CodexAppServerSurfaceExtractionTest
     CodexAppServerGeneratedArtifactsGuardTest
+    CodexFrontendProtocolGeneratedArtifactsGuardTest
     CodexSchemaTranscriptFixtureValidationTest
     PROPERTIES LABELS "component;ai;openai;codex;phase-a0;schema" TIMEOUT 30
 )
@@ -1392,6 +1423,77 @@ set_tests_properties(
     PROPERTIES LABELS
                "component;ai;openai;codex;frontend;protocol;journal;batch"
                SKIP_RETURN_CODE 77 TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexFrontendContractMetadataTest
+    ${PROJECT_SOURCE_DIR}/tests/ai/openai/codex/CodexFrontendContractMetadataTest.cpp
+)
+target_link_libraries(
+    CodexFrontendContractMetadataTest PRIVATE snodec-test-support
+                                              AISuite::OpenAICodexFrontend
+)
+target_compile_features(CodexFrontendContractMetadataTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendContractMetadataTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;protocol;security;a1-7a"
+               TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexFrontendBackendMappingTest
+    ${PROJECT_SOURCE_DIR}/tests/ai/openai/codex/CodexFrontendBackendMappingTest.cpp
+)
+target_link_libraries(
+    CodexFrontendBackendMappingTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
+)
+target_compile_features(CodexFrontendBackendMappingTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendBackendMappingTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;protocol;backend-mapping;a1-7a"
+               TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexFrontendCompleteCodecTest CodexFrontendCompleteCodecTest.cpp
+)
+target_link_libraries(
+    CodexFrontendCompleteCodecTest PRIVATE snodec-test-support
+                                           AISuite::OpenAICodexFrontend
+)
+target_compile_features(CodexFrontendCompleteCodecTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexFrontendCompleteCodecTest
+    PRIVATE
+        CODEX_FRONTEND_GOLDEN_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
+)
+set_tests_properties(
+    CodexFrontendCompleteCodecTest
+    PROPERTIES LABELS "component;ai;openai;codex;frontend;protocol;codec;a1-7a"
+               TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexFrontendSchemaValidatorTest CodexFrontendSchemaValidatorTest.cpp
+)
+target_link_libraries(
+    CodexFrontendSchemaValidatorTest PRIVATE snodec-test-support
+                                             AISuite::OpenAICodexFrontend
+)
+target_compile_features(CodexFrontendSchemaValidatorTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexFrontendSchemaValidatorTest
+    PRIVATE
+        CODEX_FRONTEND_GOLDEN_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
+)
+set_tests_properties(
+    CodexFrontendSchemaValidatorTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;protocol;codec;schema;validator;a1-7a"
+               TIMEOUT 20
 )
 
 snodec_add_test(CodexFrontendAdapterTest CodexFrontendAdapterTest.cpp)

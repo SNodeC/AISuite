@@ -8,6 +8,7 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_CODEC_H
 #define AI_OPENAI_CODEX_FRONTEND_CODEC_H
 
+#include "ai/openai/codex/frontend/GeneratedProtocol.h"
 #include "ai/openai/codex/frontend/Messages.h"
 
 #include <cstddef>
@@ -76,13 +77,29 @@ namespace ai::openai::codex::frontend {
     public:
         [[nodiscard]] static CodecResult<ClientMessage> decodeClient(const Json& message) noexcept;
         [[nodiscard]] static CodecResult<ClientMessage> decodeClient(std::string_view message) noexcept;
+        // The complete additive-v1 command codec is deliberately separate
+        // from decodeClient().  The latter remains the production runtime
+        // gate for the original 15 methods until A1.7b installs
+        // authentication and scope enforcement.
+        [[nodiscard]] static CodecResult<generated::DefinedCommand> decodeDefinedCommand(const Json& message) noexcept;
+        [[nodiscard]] static CodecResult<generated::DefinedCommand> decodeDefinedCommand(std::string_view message) noexcept;
         [[nodiscard]] static CodecResult<ServerMessage> decodeServer(const Json& message) noexcept;
         [[nodiscard]] static CodecResult<ServerMessage> decodeServer(std::string_view message) noexcept;
 
         [[nodiscard]] static CodecResult<Json> encodeClient(const ClientMessage& message) noexcept;
+        [[nodiscard]] static CodecResult<Json> encodeDefinedCommand(const generated::DefinedCommand& command) noexcept;
+        [[nodiscard]] static CodecResult<generated::CompleteCommandResult> decodeDefinedResult(generated::MethodId method,
+                                                                                               const Json& result) noexcept;
+        [[nodiscard]] static CodecResult<Json> encodeDefinedResult(const generated::CompleteCommandResult& result) noexcept;
         [[nodiscard]] static CodecResult<Json> encodeServer(const ServerMessage& message) noexcept;
         [[nodiscard]] static CodecResult<std::string> serializeClient(const ClientMessage& message) noexcept;
+        [[nodiscard]] static CodecResult<std::string> serializeDefinedCommand(const generated::DefinedCommand& command) noexcept;
         [[nodiscard]] static CodecResult<std::string> serializeServer(const ServerMessage& message) noexcept;
+
+        [[nodiscard]] static CodecResult<ExpandedSnapshot> decodeExpandedSnapshot(const Json& message) noexcept;
+        [[nodiscard]] static CodecResult<Json> encodeExpandedSnapshot(const ExpandedSnapshot& snapshot) noexcept;
+        [[nodiscard]] static CodecResult<ExpandedFrontendEvent> decodeExpandedEvent(const Json& event) noexcept;
+        [[nodiscard]] static CodecResult<Json> encodeExpandedEvent(const ExpandedFrontendEvent& event) noexcept;
 
         // Event encoding excludes the surrounding event-batch envelope. It is
         // public so EventJournal can enforce an exact retained-byte bound.

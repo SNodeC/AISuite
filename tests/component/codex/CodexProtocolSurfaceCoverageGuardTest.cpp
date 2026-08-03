@@ -13,6 +13,7 @@
 #include "support/TestResult.h"
 
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <initializer_list>
 #include <iostream>
@@ -57,6 +58,47 @@ namespace {
             return applicationOperations + serverNotifications + threadItems + responseItems + serverRequests;
         }
     };
+
+    bool isFrontendReviewIdentity(const detail::ProtocolSurfaceEntry& entry) {
+        const bool stableReview = entry.stability == detail::Stability::Stable &&
+                                  ((entry.key.category == detail::SurfaceCategory::ClientRequest && entry.key.name != "initialize") ||
+                                   entry.key.category == detail::SurfaceCategory::ServerNotification ||
+                                   entry.key.category == detail::SurfaceCategory::ServerRequest ||
+                                   (entry.key.category == detail::SurfaceCategory::ItemDiscriminator &&
+                                    (entry.key.domain == "ThreadItem" || entry.key.domain == "ResponseItem")));
+        const bool experimentalReview =
+            entry.stability == detail::Stability::ExperimentalOnly &&
+            (entry.key.category == detail::SurfaceCategory::ClientRequest || entry.key.category == detail::SurfaceCategory::ServerRequest);
+        return stableReview || experimentalReview;
+    }
+
+    struct FrontendReviewCounts {
+        std::size_t baseline = 0;
+        std::size_t compatibility = 0;
+        std::size_t unresolved = 0;
+        std::array<std::size_t, 15> exposure{};
+        std::array<std::size_t, 17> security{};
+    };
+
+    FrontendReviewCounts frontendReviewCounts(std::span<const detail::ProtocolSurfaceEntry> entries) {
+        FrontendReviewCounts counts;
+        for (const detail::ProtocolSurfaceEntry& entry : entries) {
+            if (!isFrontendReviewIdentity(entry)) {
+                continue;
+            }
+            ++counts.exposure[static_cast<std::size_t>(entry.frontendProtocol)];
+            ++counts.security[static_cast<std::size_t>(entry.frontendSecurity)];
+            counts.unresolved += entry.frontendSecurity == detail::FrontendSecurityDecision::ExistingOperationSubsetExpansionUnresolved ||
+                                 entry.frontendSecurity == detail::FrontendSecurityDecision::ExistingGenericContractDedicatedUnresolved ||
+                                 entry.frontendSecurity == detail::FrontendSecurityDecision::Unresolved;
+            const bool compatibility =
+                entry.stability == detail::Stability::Stable &&
+                (entry.key.category == detail::SurfaceCategory::ServerNotification ||
+                 (entry.key.category == detail::SurfaceCategory::ItemDiscriminator && entry.key.domain == "ThreadItem"));
+            compatibility ? ++counts.compatibility : ++counts.baseline;
+        }
+        return counts;
+    }
 
     enum class TypedCoverageRatchetErrorCode {
         BaselineIdentityMissing,
@@ -479,6 +521,16 @@ int main() {
                           denominator.total() == 198,
                       "the pinned production manifest mechanically derives 87 stable requests minus initialize as 86 operations, "
                       "plus 68 notifications, 18 ThreadItems, 16 ResponseItems, and 10 server requests for the fixed 198 total");
+
+    const FrontendReviewCounts frontendReview = frontendReviewCounts(production);
+    result.expectTrue(frontendReview.baseline == 148 && frontendReview.compatibility == 86 &&
+                          frontendReview.baseline + frontendReview.compatibility == 234 && frontendReview.unresolved == 0,
+                      "the production registry resolves the fixed disjoint 148-row baseline plus 86-row compatibility review without "
+                      "shrinking the 234-entry frontend denominator");
+    result.expectTrue(frontendReview.exposure == std::array<std::size_t, 15>{0, 0, 0, 0, 0, 0, 16, 71, 15, 10, 22, 54, 10, 0, 36},
+                      "the frontend exposure ledger has the exact final 71/15/10/22/54/10/36/16 bucket counts");
+    result.expectTrue(frontendReview.security == std::array<std::size_t, 17>{0, 0, 0, 0, 0, 0, 16, 0, 26, 22, 22, 1, 15, 96, 0, 0, 36},
+                      "the frontend security ledger has the exact final 96/36/26/22/22/16/15/1 bucket counts");
 
     std::set<OwnedKey> a13DescriptorKeys;
     std::size_t a13ClientDescriptors = 0;

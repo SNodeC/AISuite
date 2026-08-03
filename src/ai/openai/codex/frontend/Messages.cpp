@@ -80,8 +80,196 @@ namespace ai::openai::codex::frontend {
                 return "replay_gap";
             case ErrorCode::InternalError:
                 return "internal_error";
+            case ErrorCode::AuthenticationRequired:
+                return "authentication_required";
+            case ErrorCode::AuthenticationFailed:
+                return "authentication_failed";
+            case ErrorCode::OriginRejected:
+                return "origin_rejected";
+            case ErrorCode::TransportSecurityRequired:
+                return "transport_security_required";
+            case ErrorCode::RateLimited:
+                return "rate_limited";
         }
         return "internal_error";
+    }
+
+    std::string_view toString(FrontendCapability capability) noexcept {
+        switch (capability) {
+            case FrontendCapability::MethodDiscovery:
+                return "method_discovery";
+            case FrontendCapability::SecurityScopes:
+                return "security_scopes";
+            case FrontendCapability::CompleteProviderOperations:
+                return "complete_provider_operations";
+            case FrontendCapability::CompleteReverseRequests:
+                return "complete_reverse_requests";
+            case FrontendCapability::CompleteBackendDomains:
+                return "complete_backend_domains";
+            case FrontendCapability::ConditionalFilesystem:
+                return "conditional_filesystem";
+            case FrontendCapability::ConditionalCommandExecution:
+                return "conditional_command_execution";
+            case FrontendCapability::DedicatedPendingRequests:
+                return "dedicated_pending_requests";
+            case FrontendCapability::DedicatedNotificationEvents:
+                return "dedicated_notification_events";
+            case FrontendCapability::CompleteThreadItems:
+                return "complete_thread_items";
+            case FrontendCapability::AuthenticatedFrontend:
+                return "authenticated_frontend";
+            case FrontendCapability::ScopeProjectedState:
+                return "scope_projected_state";
+            case FrontendCapability::ProviderLifecycle:
+                return "provider_lifecycle";
+            case FrontendCapability::MultiTransport:
+                return "multi_transport";
+            case FrontendCapability::CppClientSdk:
+                return "cpp_client_sdk";
+            case FrontendCapability::TypescriptClientSdk:
+                return "typescript_client_sdk";
+            case FrontendCapability::BrowserUi:
+                return "browser_ui";
+            case FrontendCapability::QtUi:
+                return "qt_ui";
+        }
+        return {};
+    }
+
+    std::string_view toString(ThreadItemKind kind) noexcept {
+        switch (kind) {
+            case ThreadItemKind::AgentMessage:
+                return "agentMessage";
+            case ThreadItemKind::CollabAgentToolCall:
+                return "collabAgentToolCall";
+            case ThreadItemKind::CommandExecution:
+                return "commandExecution";
+            case ThreadItemKind::ContextCompaction:
+                return "contextCompaction";
+            case ThreadItemKind::DynamicToolCall:
+                return "dynamicToolCall";
+            case ThreadItemKind::EnteredReviewMode:
+                return "enteredReviewMode";
+            case ThreadItemKind::ExitedReviewMode:
+                return "exitedReviewMode";
+            case ThreadItemKind::FileChange:
+                return "fileChange";
+            case ThreadItemKind::HookPrompt:
+                return "hookPrompt";
+            case ThreadItemKind::ImageGeneration:
+                return "imageGeneration";
+            case ThreadItemKind::ImageView:
+                return "imageView";
+            case ThreadItemKind::McpToolCall:
+                return "mcpToolCall";
+            case ThreadItemKind::Plan:
+                return "plan";
+            case ThreadItemKind::Reasoning:
+                return "reasoning";
+            case ThreadItemKind::Sleep:
+                return "sleep";
+            case ThreadItemKind::SubAgentActivity:
+                return "subAgentActivity";
+            case ThreadItemKind::UserMessage:
+                return "userMessage";
+            case ThreadItemKind::WebSearch:
+                return "webSearch";
+        }
+        return {};
+    }
+
+    std::string_view toString(PendingRequestKind kind) noexcept {
+        switch (kind) {
+            case PendingRequestKind::CommandExecutionApproval:
+                return "command_execution_approval";
+            case PendingRequestKind::FileChangeApproval:
+                return "file_change_approval";
+            case PendingRequestKind::UserInput:
+                return "user_input";
+            case PendingRequestKind::Authentication:
+                return "authentication";
+            case PendingRequestKind::ApplyPatchApproval:
+                return "apply_patch_approval";
+            case PendingRequestKind::ExecCommandApproval:
+                return "exec_command_approval";
+            case PendingRequestKind::PermissionsApproval:
+                return "permissions_approval";
+            case PendingRequestKind::Attestation:
+                return "attestation";
+            case PendingRequestKind::DynamicToolCall:
+                return "dynamic_tool_call";
+            case PendingRequestKind::McpElicitation:
+                return "mcp_elicitation";
+        }
+        return {};
+    }
+
+    std::string_view toString(ExpandedEventType type) noexcept {
+        switch (type) {
+            case ExpandedEventType::ProviderUpdated:
+                return "provider.updated";
+            case ExpandedEventType::ControllerUpdated:
+                return "controller.updated";
+            case ExpandedEventType::SessionsUpdated:
+                return "sessions.updated";
+            case ExpandedEventType::ThreadUpserted:
+                return "thread.upserted";
+            case ExpandedEventType::ThreadRemoved:
+                return "thread.removed";
+            case ExpandedEventType::TurnUpserted:
+                return "turn.upserted";
+            case ExpandedEventType::ItemUpserted:
+                return "item.upserted";
+            case ExpandedEventType::ItemContentUpdated:
+                return "item.content.updated";
+            case ExpandedEventType::PendingRequestsUpdated:
+                return "pendingRequests.updated";
+            case ExpandedEventType::AccountUpdated:
+                return "account.updated";
+            case ExpandedEventType::ModelsUpdated:
+                return "models.updated";
+            case ExpandedEventType::ConfigurationUpdated:
+                return "configuration.updated";
+            case ExpandedEventType::ProcessUpdated:
+                return "process.updated";
+            case ExpandedEventType::FilesystemWatchUpdated:
+                return "filesystemWatch.updated";
+            case ExpandedEventType::FuzzySearchUpdated:
+                return "fuzzySearch.updated";
+            case ExpandedEventType::ReviewsUpdated:
+                return "reviews.updated";
+            case ExpandedEventType::IntegrationsUpdated:
+                return "integrations.updated";
+            case ExpandedEventType::PluginsUpdated:
+                return "plugins.updated";
+            case ExpandedEventType::SkillsUpdated:
+                return "skills.updated";
+            case ExpandedEventType::McpUpdated:
+                return "mcp.updated";
+            case ExpandedEventType::PlatformUpdated:
+                return "platform.updated";
+            case ExpandedEventType::NoticeAdded:
+                return "notice.added";
+            case ExpandedEventType::ActivityUpdated:
+                return "activity.updated";
+            case ExpandedEventType::CapacityUpdated:
+                return "capacity.updated";
+            case ExpandedEventType::DiagnosticsUpdated:
+                return "diagnostics.updated";
+        }
+        return {};
+    }
+
+    std::string_view toString(StateFreshness freshness) noexcept {
+        switch (freshness) {
+            case StateFreshness::Unknown:
+                return "unknown";
+            case StateFreshness::Current:
+                return "current";
+            case StateFreshness::Stale:
+                return "stale";
+        }
+        return {};
     }
 
     std::optional<SessionRole> sessionRoleFromString(std::string_view value) noexcept {
@@ -131,7 +319,131 @@ namespace ai::openai::codex::frontend {
         FRONTEND_ERROR_CODE(SequenceOverflow, "sequence_overflow")
         FRONTEND_ERROR_CODE(ReplayGap, "replay_gap")
         FRONTEND_ERROR_CODE(InternalError, "internal_error")
+        FRONTEND_ERROR_CODE(AuthenticationRequired, "authentication_required")
+        FRONTEND_ERROR_CODE(AuthenticationFailed, "authentication_failed")
+        FRONTEND_ERROR_CODE(OriginRejected, "origin_rejected")
+        FRONTEND_ERROR_CODE(TransportSecurityRequired, "transport_security_required")
+        FRONTEND_ERROR_CODE(RateLimited, "rate_limited")
 #undef FRONTEND_ERROR_CODE
+        return std::nullopt;
+    }
+
+    std::optional<FrontendCapability> frontendCapabilityFromString(std::string_view value) noexcept {
+#define FRONTEND_CAPABILITY(name, spelling)                                                                                                \
+    if (value == spelling) {                                                                                                               \
+        return FrontendCapability::name;                                                                                                   \
+    }
+        FRONTEND_CAPABILITY(MethodDiscovery, "method_discovery")
+        FRONTEND_CAPABILITY(SecurityScopes, "security_scopes")
+        FRONTEND_CAPABILITY(CompleteProviderOperations, "complete_provider_operations")
+        FRONTEND_CAPABILITY(CompleteReverseRequests, "complete_reverse_requests")
+        FRONTEND_CAPABILITY(CompleteBackendDomains, "complete_backend_domains")
+        FRONTEND_CAPABILITY(ConditionalFilesystem, "conditional_filesystem")
+        FRONTEND_CAPABILITY(ConditionalCommandExecution, "conditional_command_execution")
+        FRONTEND_CAPABILITY(DedicatedPendingRequests, "dedicated_pending_requests")
+        FRONTEND_CAPABILITY(DedicatedNotificationEvents, "dedicated_notification_events")
+        FRONTEND_CAPABILITY(CompleteThreadItems, "complete_thread_items")
+        FRONTEND_CAPABILITY(AuthenticatedFrontend, "authenticated_frontend")
+        FRONTEND_CAPABILITY(ScopeProjectedState, "scope_projected_state")
+        FRONTEND_CAPABILITY(ProviderLifecycle, "provider_lifecycle")
+        FRONTEND_CAPABILITY(MultiTransport, "multi_transport")
+        FRONTEND_CAPABILITY(CppClientSdk, "cpp_client_sdk")
+        FRONTEND_CAPABILITY(TypescriptClientSdk, "typescript_client_sdk")
+        FRONTEND_CAPABILITY(BrowserUi, "browser_ui")
+        FRONTEND_CAPABILITY(QtUi, "qt_ui")
+#undef FRONTEND_CAPABILITY
+        return std::nullopt;
+    }
+
+    std::optional<ThreadItemKind> threadItemKindFromString(std::string_view value) noexcept {
+#define FRONTEND_THREAD_ITEM_KIND(name, spelling)                                                                                          \
+    if (value == spelling) {                                                                                                               \
+        return ThreadItemKind::name;                                                                                                       \
+    }
+        FRONTEND_THREAD_ITEM_KIND(AgentMessage, "agentMessage")
+        FRONTEND_THREAD_ITEM_KIND(CollabAgentToolCall, "collabAgentToolCall")
+        FRONTEND_THREAD_ITEM_KIND(CommandExecution, "commandExecution")
+        FRONTEND_THREAD_ITEM_KIND(ContextCompaction, "contextCompaction")
+        FRONTEND_THREAD_ITEM_KIND(DynamicToolCall, "dynamicToolCall")
+        FRONTEND_THREAD_ITEM_KIND(EnteredReviewMode, "enteredReviewMode")
+        FRONTEND_THREAD_ITEM_KIND(ExitedReviewMode, "exitedReviewMode")
+        FRONTEND_THREAD_ITEM_KIND(FileChange, "fileChange")
+        FRONTEND_THREAD_ITEM_KIND(HookPrompt, "hookPrompt")
+        FRONTEND_THREAD_ITEM_KIND(ImageGeneration, "imageGeneration")
+        FRONTEND_THREAD_ITEM_KIND(ImageView, "imageView")
+        FRONTEND_THREAD_ITEM_KIND(McpToolCall, "mcpToolCall")
+        FRONTEND_THREAD_ITEM_KIND(Plan, "plan")
+        FRONTEND_THREAD_ITEM_KIND(Reasoning, "reasoning")
+        FRONTEND_THREAD_ITEM_KIND(Sleep, "sleep")
+        FRONTEND_THREAD_ITEM_KIND(SubAgentActivity, "subAgentActivity")
+        FRONTEND_THREAD_ITEM_KIND(UserMessage, "userMessage")
+        FRONTEND_THREAD_ITEM_KIND(WebSearch, "webSearch")
+#undef FRONTEND_THREAD_ITEM_KIND
+        return std::nullopt;
+    }
+
+    std::optional<PendingRequestKind> pendingRequestKindFromString(std::string_view value) noexcept {
+#define FRONTEND_PENDING_REQUEST_KIND(name, spelling)                                                                                      \
+    if (value == spelling) {                                                                                                               \
+        return PendingRequestKind::name;                                                                                                   \
+    }
+        FRONTEND_PENDING_REQUEST_KIND(CommandExecutionApproval, "command_execution_approval")
+        FRONTEND_PENDING_REQUEST_KIND(FileChangeApproval, "file_change_approval")
+        FRONTEND_PENDING_REQUEST_KIND(UserInput, "user_input")
+        FRONTEND_PENDING_REQUEST_KIND(Authentication, "authentication")
+        FRONTEND_PENDING_REQUEST_KIND(ApplyPatchApproval, "apply_patch_approval")
+        FRONTEND_PENDING_REQUEST_KIND(ExecCommandApproval, "exec_command_approval")
+        FRONTEND_PENDING_REQUEST_KIND(PermissionsApproval, "permissions_approval")
+        FRONTEND_PENDING_REQUEST_KIND(Attestation, "attestation")
+        FRONTEND_PENDING_REQUEST_KIND(DynamicToolCall, "dynamic_tool_call")
+        FRONTEND_PENDING_REQUEST_KIND(McpElicitation, "mcp_elicitation")
+#undef FRONTEND_PENDING_REQUEST_KIND
+        return std::nullopt;
+    }
+
+    std::optional<ExpandedEventType> expandedEventTypeFromString(std::string_view value) noexcept {
+#define FRONTEND_EXPANDED_EVENT_TYPE(name, spelling)                                                                                       \
+    if (value == spelling) {                                                                                                               \
+        return ExpandedEventType::name;                                                                                                    \
+    }
+        FRONTEND_EXPANDED_EVENT_TYPE(ProviderUpdated, "provider.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(ControllerUpdated, "controller.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(SessionsUpdated, "sessions.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(ThreadUpserted, "thread.upserted")
+        FRONTEND_EXPANDED_EVENT_TYPE(ThreadRemoved, "thread.removed")
+        FRONTEND_EXPANDED_EVENT_TYPE(TurnUpserted, "turn.upserted")
+        FRONTEND_EXPANDED_EVENT_TYPE(ItemUpserted, "item.upserted")
+        FRONTEND_EXPANDED_EVENT_TYPE(ItemContentUpdated, "item.content.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(PendingRequestsUpdated, "pendingRequests.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(AccountUpdated, "account.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(ModelsUpdated, "models.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(ConfigurationUpdated, "configuration.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(ProcessUpdated, "process.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(FilesystemWatchUpdated, "filesystemWatch.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(FuzzySearchUpdated, "fuzzySearch.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(ReviewsUpdated, "reviews.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(IntegrationsUpdated, "integrations.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(PluginsUpdated, "plugins.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(SkillsUpdated, "skills.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(McpUpdated, "mcp.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(PlatformUpdated, "platform.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(NoticeAdded, "notice.added")
+        FRONTEND_EXPANDED_EVENT_TYPE(ActivityUpdated, "activity.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(CapacityUpdated, "capacity.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(DiagnosticsUpdated, "diagnostics.updated")
+#undef FRONTEND_EXPANDED_EVENT_TYPE
+        return std::nullopt;
+    }
+
+    std::optional<StateFreshness> stateFreshnessFromString(std::string_view value) noexcept {
+#define FRONTEND_STATE_FRESHNESS(name, spelling)                                                                                           \
+    if (value == spelling) {                                                                                                               \
+        return StateFreshness::name;                                                                                                       \
+    }
+        FRONTEND_STATE_FRESHNESS(Unknown, "unknown")
+        FRONTEND_STATE_FRESHNESS(Current, "current")
+        FRONTEND_STATE_FRESHNESS(Stale, "stale")
+#undef FRONTEND_STATE_FRESHNESS
         return std::nullopt;
     }
 

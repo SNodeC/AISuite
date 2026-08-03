@@ -57,6 +57,33 @@ namespace ai::openai::codex::frontend {
         template <typename T>
         concept ProviderOperationResult = VariantContains<std::remove_cvref_t<T>, backend::ProviderOperationValue>::value;
 
+        CapabilityAdvertisement currentCapabilityAdvertisement() {
+            CapabilityAdvertisement advertisement;
+            for (const generated::CapabilityMetadata& metadata : generated::AllCapabilities) {
+                const auto capability = frontendCapabilityFromString(metadata.key);
+                if (!capability.has_value()) {
+                    continue;
+                }
+                advertisement.defined.push_back(*capability);
+                if (metadata.implementedByCurrentRuntime) {
+                    advertisement.implemented.push_back(*capability);
+                    advertisement.permitted.push_back(*capability);
+                }
+            }
+            return advertisement;
+        }
+
+        std::vector<FrontendMethod> currentRuntimeMethods() {
+            std::vector<FrontendMethod> methods;
+            methods.reserve(generated::ExistingMethodCount);
+            for (const generated::MethodMetadata& metadata : generated::AllMethods) {
+                if (metadata.currentlyImplemented) {
+                    methods.emplace_back(metadata.method);
+                }
+            }
+            return methods;
+        }
+
         std::string backendLifecycleName(backend::ProviderLifecycle lifecycle) {
             switch (lifecycle) {
                 case backend::ProviderLifecycle::Stopped:
@@ -937,7 +964,13 @@ namespace ai::openai::codex::frontend {
 
             control->helloDone = true;
             const std::string id = std::to_string(control->backendSession->id().value());
-            if (!enqueue(control, ServerMessage{Welcome{id, SessionRole::Observer, journal.currentSequence(), syncMode, Json::object()}})) {
+            Welcome welcome{id, SessionRole::Observer, journal.currentSequence(), syncMode, Json::object()};
+            if (hello.capabilities.has_value()) {
+                welcome.capabilities = currentCapabilityAdvertisement();
+                welcome.availableMethods = currentRuntimeMethods();
+                welcome.permittedMethods = welcome.availableMethods;
+            }
+            if (!enqueue(control, ServerMessage{std::move(welcome)})) {
                 return;
             }
             if (replayUsable) {

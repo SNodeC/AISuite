@@ -37,12 +37,11 @@ rows. `ThreadItem` contributes 18 item discriminators and `ResponseItem` 16.
 | Typed item/delta coverage | 46/46 | 100.0% | Stable item discriminators plus delta/progress notification methods. |
 | BackendCore stable operation commands | 86/86 | 100.0% | Stable application client requests; initialize is internal lifecycle and excluded. |
 | Canonical-state/reducer coverage | 169/169 | 100.0% | The frozen 169-entry applicable set: 73 stateful operations, 68 notifications, 18 ThreadItems, and 10 server requests. |
-| Frontend Protocol existing-subset exposure coverage | 10/96 | 10.4% | Stable operations with an existing reviewed normalized v1 subset; not full upstream-method exposure. |
-| Frontend Protocol normalized event/state subset coverage | 22/102 | 21.6% | Stable notifications/items with existing typed normalized v1 snapshot or event semantics. |
-| Frontend Protocol bounded generic extension coverage | 54/102 | 52.9% | Stable notifications retained with bounded, redacted payloads through the v1 codex.extension contract. |
-| Frontend Protocol unknown-item metadata subset coverage | 10/102 | 9.8% | Stable untyped ThreadItem discriminators exposed only as codexType and decodingError metadata; raw item payloads are not exposed. |
-| Generic unknown server-request preservation exposure | 6/10 | 60.0% | Stable server requests currently visible only through the bounded/redacted v1 unknown-request contract. |
-| Owner-approved frontend-security subset disposition coverage | 10/96 | 10.4% | Existing v1 subsets count; every new or expanded dedicated exposure remains UNRESOLVED. |
+| Frontend Protocol stable operation methods | 86/86 | 100.0% | All stable application operations have approved schema-defined v1 methods. |
+| Frontend dedicated pending-request contracts | 10/10 | 100.0% | All stable server requests have bounded dedicated contracts. |
+| Frontend stable notification mappings | 68/68 | 100.0% | Legacy compatibility is retained while expanded clients receive dedicated mappings. |
+| Frontend stable ThreadItem mappings | 18/18 | 100.0% | All ThreadItem alternatives have approved bounded expanded projections. |
+| A1.7a complete frontend-contract review | 234/234 | 100.0% | Fixed 148 unresolved-baseline plus 86 compatibility-review identities. |
 
 ## Backend/state disposition
 
@@ -62,19 +61,17 @@ Canonical-state exclusions: **13 ActionOnlyNoPersistentState operations** and **
 |---|---:|
 | `NoRuntimeBackendStatePath` | 16 |
 
-The three frontend event/item metrics deliberately share the same 102-entry
-stable server-notification/item denominator. Their registry pairings are exact:
-`ExistingEventSubset` ↔ `ExistingEventSubsetContract`, `GenericExtension` ↔
-`ExistingRedactedExtensionContract`, and `ExistingUnknownItemSubset` ↔
-`ExistingUnknownItemMetadataContract`. The unknown-item subset contains only
-`codexType` and `decodingError`; it does not expose the raw item payload.
-The 16 stable `ResponseItem` discriminators have no current runtime/frontend
-path and are recorded as `NotExposed` ↔ `Unresolved`.
+The reviewed compatibility set is exactly 14 normalized notifications, 54
+bounded/redacted extension notifications, eight normalized ThreadItems, and
+ten metadata-only ThreadItems. Expanded-capability projections preserve the
+legacy representation and suppress duplicate delivery per connection.
+The 16 stable `ResponseItem` discriminators have no runtime/frontend
+path and are recorded as `NotApplicable` with the approved A1.6
+`NoRuntimeBackendStatePath` rationale.
 
-Raw-preserved, opaque-preserved, unsupported, deferred, and unresolved entries
-do not count as typed or layer implementation. A0 requires complete inventory
-registration only; it does not claim complete typed, backend, state, or frontend
-coverage.
+The A1.7a registry resolves all 234 reviewed frontend-contract identities.
+Definition in the additive v1 contract does not by itself imply runtime
+implementation, deployment enablement, or principal permission.
 
 ## Pinned artifacts
 

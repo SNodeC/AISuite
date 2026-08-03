@@ -8,6 +8,8 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_PROTOCOL_H
 #define AI_OPENAI_CODEX_FRONTEND_PROTOCOL_H
 
+#include "GeneratedProtocol.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -69,24 +71,6 @@ namespace ai::openai::codex::frontend {
         inline constexpr std::string_view Events = "events";
         inline constexpr std::string_view ProtocolError = "protocol.error";
     } // namespace kind
-
-    namespace method {
-        inline constexpr std::string_view ControllerAcquire = "controller.acquire";
-        inline constexpr std::string_view ControllerRelease = "controller.release";
-        inline constexpr std::string_view SnapshotGet = "snapshot.get";
-        inline constexpr std::string_view EventsReplay = "events.replay";
-        inline constexpr std::string_view ThreadStart = "thread.start";
-        inline constexpr std::string_view ThreadResume = "thread.resume";
-        inline constexpr std::string_view ThreadList = "thread.list";
-        inline constexpr std::string_view ThreadRead = "thread.read";
-        inline constexpr std::string_view TurnStart = "turn.start";
-        inline constexpr std::string_view TurnInterrupt = "turn.interrupt";
-        inline constexpr std::string_view ApprovalRespond = "request.approval.respond";
-        inline constexpr std::string_view UserInputRespond = "request.userInput.respond";
-        inline constexpr std::string_view AuthenticationRespond = "request.authentication.respond";
-        inline constexpr std::string_view UnknownRequestRespond = "request.unknown.respond";
-        inline constexpr std::string_view UnknownRequestReject = "request.unknown.reject";
-    } // namespace method
 
 } // namespace ai::openai::codex::frontend
 

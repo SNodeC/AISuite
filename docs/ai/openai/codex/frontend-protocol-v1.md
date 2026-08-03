@@ -39,26 +39,140 @@ See [Codex BackendCore](backend-core.md) for the canonical reducer and
 ownership model. The machine-readable contract is
 [`frontend-protocol-v1.schema.json`](frontend-protocol-v1.schema.json).
 
-## Phase A0 exposure boundary
+## Additive v1 contract and generation authority
 
-The Phase A0 App Server census does not extend Frontend Protocol v1. Complete
-upstream inventory registration, typed implementation, BackendCore support,
-canonical-state support, frontend exposure, and security disposition are
-separate metrics in the generated
-[coverage report](app-server-api-coverage.md). Registry presence therefore
-never makes an App Server operation remotely callable.
+A1.7a extends the definition of Protocol v1 additively; it does not change
+`ProtocolIdentity`, `ProtocolVersion`, any existing field meaning, or the eight
+message kinds. The complete method catalog is exactly:
 
-The registry also distinguishes existing partial operation contracts,
-normalized event/state subsets, generic unknown server requests, and the
-bounded/redacted `codex.extension` path. None of those preservation or subset
-statuses claims full upstream method exposure.
+- 15 original methods plus 90 additive definitions = 105 methods;
+- seven frontend-native methods: controller acquire/release, snapshot, replay,
+  and provider start/stop/restart; and
+- 98 non-native mappings: all 86 stable provider operations and all 12 reverse
+  response/rejection commands.
 
-The generated [owner-review worksheet](app-server-security-decisions.md)
-preserves every existing reviewed v1 exposure and marks every new exposure
-decision `UNRESOLVED`. A0 selects no new approval, sandbox, or security-boundary
-policy. A1.7 may add only the operations approved after the owner freezes those
-decisions, following the A1.5 application façade and completed A1.6
-BackendCore. Provider-neutral architecture remains separate A2 work.
+Definition and runtime availability are separate. The production runtime still
+accepts exactly the original 15 methods. The 90 additive methods are described
+by generated metadata and JSON Schema but remain unavailable until A1.7b adds
+the authenticated, scope-enforcing service boundary. An unavailable additive
+method is not a raw JSON escape hatch.
+
+The review denominator is also fixed independently of the generated
+percentage. It is 148 formerly unresolved exposure decisions plus 86 existing
+compatibility contracts, for 234 reviewed identities and zero final unresolved
+decisions. The 148 comprise 86 stable application operations, ten stable server
+requests, 35 experimental client requests, one experimental server request,
+and 16 stable `ResponseItem` alternatives. The 86 compatibility contracts are
+the 68 stable notifications and 18 stable `ThreadItem` alternatives. All 36
+experimental requests remain denied frontend exposure; the 16 `ResponseItem`
+alternatives remain genuinely not applicable because they have no runtime
+backend-state path.
+
+Generation flows in one direction:
+
+```text
+owner-approved frontend policy in app_server_surface.py
+        + production protocol registry and pinned schema evidence
+        -> tools/frontend/frontend-registry-source.json
+        + tools/frontend/frontend-protocol-v1.schema.template.json
+        -> tools/frontend/generate_frontend_protocol.py
+             |-> frontend-protocol-v1.manifest.json
+             |-> frontend-protocol-v1.schema.json
+             `-> frontend/GeneratedProtocol.h
+```
+
+The App Server surface tool is the upstream policy authority and emits the
+committed frontend-registry export. The downstream frontend generator consumes
+that export; it never reparses vendored Rust, TypeScript, schemas, or a local
+Codex executable to invent policy. The schema template preserves the legacy v1
+contract while generation adds reviewed definitions. The manifest, complete
+schema, and C++ header are generated outputs, not policy inputs, and their
+currentness guard rejects hand-edited drift.
+
+A1.7a adds exactly two installed public headers:
+`frontend/GeneratedProtocol.h` for the complete generated method/contract
+metadata and `frontend/Security.h` for scopes and profiles. The installed
+inventory is 29 main, seven backend, and nine frontend headers, or 45 total.
+Project version `0.1.0`, all three Codex libraries' SOVERSION 2, protocol
+identity, and protocol version remain unchanged.
+
+Complete upstream inventory registration, typed implementation, BackendCore
+support, canonical-state support, frontend definition, runtime availability,
+deployment enablement, and per-connection permission remain separate facts.
+Registry presence alone never makes an App Server operation remotely callable.
+See the generated [coverage report](app-server-api-coverage.md), frozen
+[security decisions](app-server-security-decisions.md), and focused
+[A1.7a report](a1-7a-frontend-contract.md).
+
+## C++ tagged-JSON model
+
+A1.7a's complete C++ protocol model is a method-tagged, schema-validated JSON
+contract layer. `generated::MethodParameters<Id>` and
+`generated::MethodResult<Id>` distinguish all 105 frontend methods at compile
+time, while their payload is retained in `nlohmann::json`. The tags provide
+exact method correlation, generated metadata, schema validation, and wire
+conformance. They are not yet the ergonomic, domain-typed C++ application API.
+
+A1.7c will introduce `AISuite::OpenAICodexFrontendClient` with domain-oriented
+façades, callback-last asynchronous operations, typed client-side state,
+replay/reconnection, and no raw-JSON requirement for stable application
+workflows. A1.7a therefore supplies method-tagged schema-validated protocol
+types; A1.7c supplies the domain-typed Frontend SDK.
+
+## Runtime schema validation profile
+
+The published protocol schema is a complete JSON Schema Draft 2020-12
+artifact. The C++ runtime validator is not a general-purpose Draft 2020-12
+implementation. It implements the exact assertion and numeric-format subset
+mechanically audited as reachable from generated runtime schemas. Generation
+fails if that subset gains an unsupported assertion keyword, malformed
+supported assertion, unsupported format, external/non-local reference, or
+unreviewed `x-aisuite-*` assertion. Local references must also use the strict
+RFC 6901 escape and array-index forms accepted by the C++ runtime.
+
+The exact supported assertion set is `$ref`, `allOf`, `anyOf`, `oneOf`, `not`,
+`if`, `then`, `else`, `type`, `const`, `enum`, `properties`, `propertyNames`,
+`additionalProperties`, `required`, `minProperties`, `maxProperties`, `items`,
+`minItems`, `maxItems`, `uniqueItems`, `minLength`, `maxLength`, `pattern`,
+`minimum`, `maximum`, `format`, `x-aisuite-sensitiveFieldNamesForbidden`, and
+`x-aisuite-forbiddenNormalizedPropertyNames`. `$defs` is structural. The
+mechanically present annotation-only set is `$id`, `$schema`, `default`,
+`description`, `title`, `x-aisuite-frontend-contract`, and
+`x-aisuite-redactionClass`.
+
+Numeric formats are exactly `int32`, `int64`, `uint`, `uint16`, `uint32`, and
+`uint64`. The current graph uses 27 of 29 supported assertions (`else` and
+`minProperties` are unused), two distinct patterns, and nine bounded
+`uniqueItems` sites. The maximum unique cardinality is 105, bounding the
+generated pair-comparison count at 5,460. Generated regex syntax is checked,
+and both exact current patterns are compiled and exercised with the C++
+runtime. AISuite makes no general ECMA-262 or Draft-2020-12 regex-conformance
+claim beyond that reviewed pattern set.
+
+The generated schema is parsed once. Production validation has deterministic
+limits of 128 schema-recursion levels and 4,000,000 node visits, and exceptions
+are contained at the `Codec` boundary. A generated `uniqueItems: true` array is
+accepted only when generation can prove a finite maximum cardinality and bound
+the resulting pair comparisons.
+
+The fixed regression corpus contains 558 generated validations. Its observed
+maxima are 3,323 visits, depth 16, 1,806 resolved references, 38 evaluated
+alternatives, 28 discriminator fast paths, zero unique-item comparisons, and 11
+regular-expression evaluations. A valid 2,000-item expanded snapshot consumes
+225,307 visits at depth 12. The generated `$defs` graph is currently acyclic;
+the private test seam therefore exercises the exact 128/129 depth boundary with
+a synthetic schema, while generated snapshots are tested at their exact
+measured depth and again through the public codec. The generated sensitive-field
+guard is separately driven past depth 128 through a real method result; the
+public codec rejects it with the bounded complexity error and remains reusable.
+
+Unknown non-conflicting fields are deliberately accepted for additive v1
+compatibility. Known fields retain full validation, while unknown values retain
+safe-property-name, sensitive-field, nesting, size, and nested-value checks.
+AISuite intentionally does not use `additionalProperties: false` to reject such
+safe extensions at runtime; this is a compatibility policy, not generic Draft
+2020-12 behavior. A1.7b still owns network admission, frame bounds, rate
+limiting, authentication, and connection-scope enforcement.
 
 ## Common envelope and compatibility
 
@@ -141,6 +255,73 @@ also closes only that frontend connection. An unsupported-version response
 includes `supportedVersions: [1]`. Protocol errors never stop `BackendCore`,
 the App Server, or another frontend.
 
+### Capability and method discovery
+
+A hello may add a `capabilities` array to request additive behavior. A welcome
+may add `capabilities`, `availableMethods`, `permittedMethods`, and
+`serverVersion`. All four welcome fields and the hello field are optional, so
+an original v1 peer retains its existing bytes and behavior. Capability
+advertisement contains three independent arrays:
+
+- `defined`: the server understands the contract name;
+- `implemented`: the running server has executable support; and
+- `permitted`: the authenticated connection, deployment configuration, and
+  current authorization permit its use.
+
+The 18 defined capability names are:
+
+```text
+method_discovery                 security_scopes
+complete_provider_operations     complete_reverse_requests
+complete_backend_domains         conditional_filesystem
+conditional_command_execution    dedicated_pending_requests
+dedicated_notification_events    complete_thread_items
+authenticated_frontend           scope_projected_state
+provider_lifecycle               multi_transport
+cpp_client_sdk                   typescript_client_sdk
+browser_ui                       qt_ui
+```
+
+A1.7a's generated metadata marks only `method_discovery` and `security_scopes`
+as implemented by the current runtime. Future capability names are defined so
+clients can negotiate without a version fork, but their presence in `defined`
+must never be interpreted as implementation or permission. Likewise,
+`availableMethods` is deployment/runtime availability while `permittedMethods`
+is connection-specific authorization. The current runtime method set remains
+the original 15 listed below.
+
+### Scope profiles and controller ownership
+
+Frontend scopes have exact stable string spellings. The default remote profile
+contains only `observe` and `control`. The local trusted profile contains all
+12 scopes, in order:
+
+```text
+observe                   control
+provider_lifecycle        account_management
+configuration_write       command_execution
+filesystem_read           filesystem_write
+extension_management      mcp_invoke
+sensitive_response        unknown_request_response
+```
+
+Scope possession and controller ownership are independent checks. Possessing
+`control` does not acquire the single controller role, and acquiring that role
+does not grant any scope. A method must satisfy every declared scope,
+controller, deployment-enable, and provider-lifecycle requirement.
+
+All filesystem methods and arbitrary command-execution methods are conditional
+and default-disabled. This includes filesystem metadata/directory/file reads,
+fuzzy search and watches, filesystem mutations, `command.exec` and its
+resize/terminate/write family, and `thread.shellCommand`. Trusted BackendCore
+read policy is not remote authorization. A1.7b must enforce explicit
+deployment enablement before any such frontend method can run.
+
+`account.read` is parameter-sensitive. With `refreshToken` absent or `false`,
+it is an observer read requiring `observe`. With `refreshToken: true`, it
+requires `control`, `account_management`, and current controller ownership.
+The sensitive result remains subject to projection and redaction policy.
+
 ## Commands and correlation
 
 A command has this envelope:
@@ -163,8 +344,10 @@ remains open. Closing a session suppresses its later response but does not
 cancel an already accepted App Server operation merely because the frontend
 went away.
 
-Every session starts as an observer. Observer commands are marked **O** below;
-all other commands require the controller role (**C**).
+Every session starts as an observer. The following table is the exact 15-method
+current runtime subset, not the complete 105-method additive catalog. Observer
+commands are marked **O**; all other commands require the controller role
+(**C**).
 
 | Role | Method | `params` fields |
 | --- | --- | --- |
@@ -253,6 +436,9 @@ invalid_field              unknown_kind
 unknown_method             frame_too_large
 capacity_exceeded          sequence_overflow
 replay_gap                 internal_error
+authentication_required    authentication_failed
+origin_rejected            transport_security_required
+rate_limited
 ```
 
 `details` may carry bounded, structured context. A remote App Server error may
@@ -329,6 +515,50 @@ user-input answers. Known item and request data is normalized. Bounded future
 information may appear under deliberately named `extensions` or `details`
 objects rather than as a raw ordinary App Server envelope.
 
+### Capability-gated expanded state
+
+A1.7a defines a scope-projectable expanded snapshot model without activating it
+for current connections. Its mandatory core is `provider`, `controller`,
+`sessions`, `capacity`, and `truncation`. Optional authorized domains are
+`threads`, `turns`, `items`, `pendingRequests`, `accounts`, `models`,
+`configuration`, `processes`, `filesystemWatches`, `fuzzySearches`,
+`permissionProfiles`, `reviews`, `apps`, `externalAgents`, `hooks`,
+`marketplace`, `plugins`, `skills`, `mcp`, `windowsSandbox`, `remoteControl`,
+`notices`, and `activities`. Omission is meaningful: a domain may be absent
+because the capability is not implemented, the deployment disabled it, the
+connection lacks scope, or the snapshot bound omitted optional data. Mandatory
+truncation metadata remains visible.
+
+The expanded safe `ThreadItem` discriminator covers all 18 stable alternatives:
+
+```text
+agentMessage          collabAgentToolCall  commandExecution
+contextCompaction     dynamicToolCall      enteredReviewMode
+exitedReviewMode      fileChange           hookPrompt
+imageGeneration       imageView            mcpToolCall
+plan                  reasoning            sleep
+subAgentActivity      userMessage          webSearch
+```
+
+Each expanded item retains safe IDs/location, bounded status and summary,
+generation/freshness, connection invalidation, and explicit
+truncation/omission metadata. It never exposes raw provider JSON, binary image
+or audio payloads, unbounded prompts, or secrets.
+
+Expanded pending requests use exactly ten safe kinds:
+
+```text
+command_execution_approval  file_change_approval  user_input
+authentication              apply_patch_approval  exec_command_approval
+permissions_approval        attestation           dynamic_tool_call
+mcp_elicitation
+```
+
+They retain only the backend-generated pending ID, safe associations, bounded
+summary/details, and truncation state. Provider occurrence tokens, JSON-RPC
+request IDs, authentication tokens, secret answers, and unbounded raw payloads
+remain excluded.
+
 ## Normalized events
 
 An `events` message contains a strictly increasing, non-empty sequence:
@@ -364,6 +594,32 @@ The stable normalized event names and their principal data are:
 | `controller.changed` | optional `controllerSessionId` |
 | `session.changed` | `sessionId`, `connected`, `role` |
 | `codex.extension` | bounded `method`, sanitized bounded `params`, optional bounded `decodingError`, optional `truncation` |
+
+The additive contract also defines 25 capability-gated expanded event
+families:
+
+```text
+provider.updated         controller.updated       sessions.updated
+thread.upserted          thread.removed            turn.upserted
+item.upserted            item.content.updated      pendingRequests.updated
+account.updated          models.updated            configuration.updated
+process.updated          filesystemWatch.updated   fuzzySearch.updated
+reviews.updated          integrations.updated      plugins.updated
+skills.updated           mcp.updated               platform.updated
+notice.added             activity.updated          capacity.updated
+diagnostics.updated
+```
+
+Compatibility is explicit and mechanically complete. All 68 stable server
+notifications retain one legacy path: 14 already use normalized state/events
+and 54 use bounded, recursively redacted `codex.extension`. All 18 stable
+`ThreadItem` alternatives retain one legacy path: eight have normalized item
+contracts and ten retain bounded metadata-only compatibility. The expanded
+mapping covers all 68 notifications and all 18 items. For one provider
+occurrence, a connection receives either its legacy projection or its
+capability-gated expanded projection, never both. A1.7a defines and tests that
+mapping but does not activate the expanded event families in the current
+runtime.
 
 The content channel is one of `agentText`, `reasoningText`,
 `reasoningSummary`, or `commandOutput`. Consumers replace their visible value
@@ -515,7 +771,7 @@ in a response, snapshot, normalized event, diagnostic, or replay entry. Secret
 user-input answers have the same rule. Transport implementations should still
 treat all command traffic as sensitive.
 
-## Transport independence and Task 5
+## Transport independence and A1.7 boundaries
 
 Protocol v1 defines JSON values, not record framing or a socket. The reference
 application uses compact newline-delimited JSON, documented in
@@ -523,9 +779,18 @@ application uses compact newline-delimited JSON, documented in
 in-process consumer, future WebSocket adapter, or other transport can use the
 same `Codec` and `BackendAdapter` without inheriting JSONL.
 
-The original Task 4 frontend slice did not implement provider recovery. A1.6a
-now adds event-loop-native provider recovery to the reference backend without
-changing Protocol v1. Qt, WebSocket/TCP frontends, browser UI, TLS, remote
-authentication, accounts, persistence, SQLite, systemd socket activation,
-forced takeover, multiple controllers, and UI migration remain later concerns;
-they must preserve this abstraction and the bounded coalescing contract.
+The original frontend slice did not implement provider recovery. A1.6a added
+event-loop-native provider recovery to the reference backend without changing
+Protocol v1, and A1.6b completed provider-to-backend semantics. A1.7a only
+freezes the additive contract, generated metadata, and owner-approved security
+decisions. It does not add a listener, TLS, remote authentication, scope
+enforcement, or another transport.
+
+A1.7b owns the authenticated, scope-projecting `FrontendService`, runtime
+activation of approved additive methods and event/state projections, provider
+lifecycle exposure, and multi-transport service composition. A1.7c owns the
+C++ client SDK and Qt UI. A1.7d owns the TypeScript client SDK and browser UI.
+Persistence, multiple controllers, forced takeover, and provider-neutral
+architecture are not implied by any capability name; provider neutrality
+remains A2. Every later phase must preserve v1 identity, bounded coalescing,
+replay, redaction, and per-connection slow-client isolation.

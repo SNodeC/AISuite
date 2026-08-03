@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -74,19 +75,233 @@ namespace ai::openai::codex::frontend {
         CapacityExceeded,
         SequenceOverflow,
         ReplayGap,
-        InternalError
+        InternalError,
+        AuthenticationRequired,
+        AuthenticationFailed,
+        OriginRejected,
+        TransportSecurityRequired,
+        RateLimited
     };
+
+    enum class FrontendCapability {
+        MethodDiscovery,
+        SecurityScopes,
+        CompleteProviderOperations,
+        CompleteReverseRequests,
+        CompleteBackendDomains,
+        ConditionalFilesystem,
+        ConditionalCommandExecution,
+        DedicatedPendingRequests,
+        DedicatedNotificationEvents,
+        CompleteThreadItems,
+        AuthenticatedFrontend,
+        ScopeProjectedState,
+        ProviderLifecycle,
+        MultiTransport,
+        CppClientSdk,
+        TypescriptClientSdk,
+        BrowserUi,
+        QtUi
+    };
+
+    enum class ThreadItemKind {
+        AgentMessage,
+        CollabAgentToolCall,
+        CommandExecution,
+        ContextCompaction,
+        DynamicToolCall,
+        EnteredReviewMode,
+        ExitedReviewMode,
+        FileChange,
+        HookPrompt,
+        ImageGeneration,
+        ImageView,
+        McpToolCall,
+        Plan,
+        Reasoning,
+        Sleep,
+        SubAgentActivity,
+        UserMessage,
+        WebSearch
+    };
+
+    enum class PendingRequestKind {
+        CommandExecutionApproval,
+        FileChangeApproval,
+        UserInput,
+        Authentication,
+        ApplyPatchApproval,
+        ExecCommandApproval,
+        PermissionsApproval,
+        Attestation,
+        DynamicToolCall,
+        McpElicitation
+    };
+
+    enum class ExpandedEventType {
+        ProviderUpdated,
+        ControllerUpdated,
+        SessionsUpdated,
+        ThreadUpserted,
+        ThreadRemoved,
+        TurnUpserted,
+        ItemUpserted,
+        ItemContentUpdated,
+        PendingRequestsUpdated,
+        AccountUpdated,
+        ModelsUpdated,
+        ConfigurationUpdated,
+        ProcessUpdated,
+        FilesystemWatchUpdated,
+        FuzzySearchUpdated,
+        ReviewsUpdated,
+        IntegrationsUpdated,
+        PluginsUpdated,
+        SkillsUpdated,
+        McpUpdated,
+        PlatformUpdated,
+        NoticeAdded,
+        ActivityUpdated,
+        CapacityUpdated,
+        DiagnosticsUpdated
+    };
+
+    enum class StateFreshness { Unknown, Current, Stale };
 
     [[nodiscard]] std::string_view toString(SessionRole role) noexcept;
     [[nodiscard]] std::string_view toString(SyncMode mode) noexcept;
     [[nodiscard]] std::string_view toString(ErrorCode code) noexcept;
+    [[nodiscard]] std::string_view toString(FrontendCapability capability) noexcept;
+    [[nodiscard]] std::string_view toString(ThreadItemKind kind) noexcept;
+    [[nodiscard]] std::string_view toString(PendingRequestKind kind) noexcept;
+    [[nodiscard]] std::string_view toString(ExpandedEventType type) noexcept;
+    [[nodiscard]] std::string_view toString(StateFreshness freshness) noexcept;
     [[nodiscard]] std::optional<SessionRole> sessionRoleFromString(std::string_view value) noexcept;
     [[nodiscard]] std::optional<SyncMode> syncModeFromString(std::string_view value) noexcept;
     [[nodiscard]] std::optional<ErrorCode> errorCodeFromString(std::string_view value) noexcept;
+    [[nodiscard]] std::optional<FrontendCapability> frontendCapabilityFromString(std::string_view value) noexcept;
+    [[nodiscard]] std::optional<ThreadItemKind> threadItemKindFromString(std::string_view value) noexcept;
+    [[nodiscard]] std::optional<PendingRequestKind> pendingRequestKindFromString(std::string_view value) noexcept;
+    [[nodiscard]] std::optional<ExpandedEventType> expandedEventTypeFromString(std::string_view value) noexcept;
+    [[nodiscard]] std::optional<StateFreshness> stateFreshnessFromString(std::string_view value) noexcept;
+
+    using FrontendMethod = std::string;
+
+    struct CapabilityAdvertisement {
+        std::vector<FrontendCapability> defined;
+        std::vector<FrontendCapability> implemented;
+        std::vector<FrontendCapability> permitted;
+        Json extensions = Json::object();
+
+        bool operator==(const CapabilityAdvertisement&) const = default;
+    };
+
+    struct ExpandedThreadItem {
+        std::string id;
+        ThreadItemKind type = ThreadItemKind::AgentMessage;
+        std::optional<std::string> threadId;
+        std::optional<std::string> turnId;
+        std::optional<std::string> status;
+        std::optional<std::string> summary;
+        std::optional<Json> location;
+        std::optional<std::string> agentText;
+        std::optional<std::string> reasoningText;
+        std::optional<std::string> reasoningSummary;
+        std::optional<std::string> commandOutput;
+        std::optional<std::uint64_t> droppedContentBytes;
+        std::optional<bool> contentTruncated;
+        std::optional<std::int64_t> startedAtMs;
+        std::optional<std::int64_t> completedAtMs;
+        std::optional<Json> data;
+        bool truncated = false;
+        std::vector<std::string> omittedFields;
+        bool connectionInvalidated = false;
+        std::optional<std::uint64_t> generation;
+        std::optional<StateFreshness> freshness;
+        Json extensions = Json::object();
+
+        bool operator==(const ExpandedThreadItem&) const = default;
+    };
+
+    struct ExpandedPendingRequest {
+        std::string pendingRequestId;
+        PendingRequestKind kind = PendingRequestKind::CommandExecutionApproval;
+        std::optional<std::string> threadId;
+        std::optional<std::string> turnId;
+        std::optional<std::string> itemId;
+        std::optional<std::string> summary;
+        std::optional<Json> details;
+        bool truncated = false;
+        Json extensions = Json::object();
+
+        bool operator==(const ExpandedPendingRequest&) const = default;
+    };
+
+    struct ExpandedFrontendEvent {
+        SequenceNumber sequence;
+        ExpandedEventType type = ExpandedEventType::ProviderUpdated;
+        Json data = Json::object();
+        Json extensions = Json::object();
+
+        bool operator==(const ExpandedFrontendEvent&) const = default;
+    };
+
+    struct ExpandedBackendSnapshotState {
+        Json provider = Json::object();
+        Json controller = Json::object();
+        std::vector<Json> sessions;
+        std::optional<std::vector<Json>> threads;
+        std::optional<std::vector<Json>> turns;
+        std::optional<std::vector<ExpandedThreadItem>> items;
+        std::optional<std::vector<ExpandedPendingRequest>> pendingRequests;
+        std::optional<Json> accounts;
+        std::optional<Json> models;
+        std::optional<Json> configuration;
+        std::optional<Json> processes;
+        std::optional<Json> filesystemWatches;
+        std::optional<Json> fuzzySearches;
+        std::optional<Json> permissionProfiles;
+        std::optional<Json> reviews;
+        std::optional<Json> apps;
+        std::optional<Json> externalAgents;
+        std::optional<Json> hooks;
+        std::optional<Json> marketplace;
+        std::optional<Json> plugins;
+        std::optional<Json> skills;
+        std::optional<Json> mcp;
+        std::optional<Json> windowsSandbox;
+        std::optional<Json> remoteControl;
+        std::optional<Json> notices;
+        std::optional<Json> activities;
+        Json capacity = Json::object();
+        Json truncation = Json::object();
+        Json extensions = Json::object();
+
+        bool operator==(const ExpandedBackendSnapshotState&) const = default;
+    };
+
+    struct ExpandedSnapshot {
+        SequenceNumber sequence;
+        ExpandedBackendSnapshotState state;
+        Json extensions = Json::object();
+
+        bool operator==(const ExpandedSnapshot&) const = default;
+    };
 
     struct Hello {
         std::optional<SequenceNumber> resumeAfter;
         Json extensions = Json::object();
+        std::optional<std::vector<FrontendCapability>> capabilities;
+
+        Hello() = default;
+
+        Hello(std::optional<SequenceNumber> resumeAfter,
+              Json extensions = Json::object(),
+              std::optional<std::vector<FrontendCapability>> capabilities = std::nullopt)
+            : resumeAfter(resumeAfter)
+            , extensions(std::move(extensions))
+            , capabilities(std::move(capabilities)) {
+        }
 
         bool operator==(const Hello&) const = default;
     };
@@ -319,6 +534,32 @@ namespace ai::openai::codex::frontend {
         SequenceNumber currentSequence;
         SyncMode syncMode = SyncMode::Snapshot;
         Json extensions = Json::object();
+        std::optional<CapabilityAdvertisement> capabilities;
+        std::optional<std::vector<FrontendMethod>> availableMethods;
+        std::optional<std::vector<FrontendMethod>> permittedMethods;
+        std::optional<std::string> serverVersion;
+
+        Welcome() = default;
+
+        Welcome(std::string sessionId,
+                SessionRole role = SessionRole::Observer,
+                SequenceNumber currentSequence = {},
+                SyncMode syncMode = SyncMode::Snapshot,
+                Json extensions = Json::object(),
+                std::optional<CapabilityAdvertisement> capabilities = std::nullopt,
+                std::optional<std::vector<FrontendMethod>> availableMethods = std::nullopt,
+                std::optional<std::vector<FrontendMethod>> permittedMethods = std::nullopt,
+                std::optional<std::string> serverVersion = std::nullopt)
+            : sessionId(std::move(sessionId))
+            , role(role)
+            , currentSequence(currentSequence)
+            , syncMode(syncMode)
+            , extensions(std::move(extensions))
+            , capabilities(std::move(capabilities))
+            , availableMethods(std::move(availableMethods))
+            , permittedMethods(std::move(permittedMethods))
+            , serverVersion(std::move(serverVersion)) {
+        }
 
         bool operator==(const Welcome&) const = default;
     };

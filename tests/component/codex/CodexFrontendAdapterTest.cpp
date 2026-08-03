@@ -186,6 +186,15 @@ namespace {
         return value && !value->ok && value->error && value->error->code == code;
     }
 
+    const frontend::ProtocolErrorMessage* protocolError(const Observations& observations, const std::string& requestId) {
+        for (const frontend::ServerMessage& message : observations.messages) {
+            if (const auto* value = std::get_if<frontend::ProtocolErrorMessage>(&message); value && value->requestId == requestId) {
+                return value;
+            }
+        }
+        return nullptr;
+    }
+
     bool hasSuccessfulResponse(const Observations& observations, const std::string& requestId) {
         for (const frontend::ServerMessage& message : observations.messages) {
             if (const auto* value = std::get_if<frontend::Response>(&message); value && value->requestId == requestId && value->ok) {
@@ -580,6 +589,67 @@ namespace {
         scheduler.drain();
         result.expectTrue(!adapter.isOpen() && !connectionB.isOpen() && !replayConnection.isOpen() && !oldReconnect.isOpen(),
                           "adapter shutdown detaches every frontend without destroying BackendCore");
+    }
+
+    void testCapabilityDiscoveryHandshake(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(backendOptions, transport);
+
+        frontend::BackendAdapterOptions adapterOptions;
+        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        frontend::BackendAdapter adapter(core, adapterOptions);
+
+        Observations observations;
+        frontend::FrontendConnection connection = adapter.openConnection(callbacksFor(observations));
+        const frontend::Hello discoveryHello{
+            std::nullopt,
+            frontend::Json::object(),
+            std::vector{frontend::FrontendCapability::MethodDiscovery, frontend::FrontendCapability::SecurityScopes},
+        };
+        result.expectTrue(connection.receive(frontend::ClientMessage{discoveryHello}).accepted() && observations.messages.empty(),
+                          "capability-aware hello preserves asynchronous handshake delivery");
+        scheduler.drain();
+
+        const frontend::Welcome* discovery = welcome(observations);
+        result.expectTrue(discovery != nullptr && discovery->capabilities.has_value() && discovery->capabilities->defined.size() == 18 &&
+                              discovery->capabilities->implemented == std::vector{frontend::FrontendCapability::MethodDiscovery,
+                                                                                  frontend::FrontendCapability::SecurityScopes} &&
+                              discovery->capabilities->permitted == discovery->capabilities->implemented,
+                          "capability-aware welcome distinguishes all defined capabilities from the two implemented contract features");
+        result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 15 &&
+                              discovery->permittedMethods == discovery->availableMethods &&
+                              std::all_of(discovery->availableMethods->begin(),
+                                          discovery->availableMethods->end(),
+                                          [](const frontend::FrontendMethod& method) {
+                                              return frontend::generated::runtimeMethodFromString(method).has_value();
+                                          }),
+                          "the A1.7a runtime advertises and permits exactly its original 15 methods");
+
+        const std::size_t providerSubmissions = transport->outgoing.size();
+        const frontend::ConnectionReceiveResult unavailable = connection.receive(frontend::Json{
+            {"protocol", frontend::ProtocolIdentity},
+            {"version", frontend::ProtocolVersion},
+            {"kind", "command"},
+            {"requestId", "defined-but-unavailable"},
+            {"method", "provider.start"},
+            {"params", frontend::Json::object()},
+        });
+        result.expectTrue(unavailable.status == frontend::ConnectionReceiveStatus::Rejected,
+                          "an A1.7a-defined method outside the legacy runtime set is rejected");
+        scheduler.drain();
+        const frontend::ProtocolErrorMessage* unavailableError = protocolError(observations, "defined-but-unavailable");
+        result.expectTrue(unavailableError != nullptr && unavailableError->code == frontend::ErrorCode::UnknownMethod &&
+                              !unavailableError->closeConnection && connection.isOpen() && observations.closeReasons.empty(),
+                          "defined-but-unavailable methods return unknown_method without closing the established connection");
+        result.expectTrue(transport->outgoing.size() == providerSubmissions,
+                          "none of the 90 additive methods reaches BackendCore before A1.7b security enforcement");
     }
 
     void testSnapshotReplayBarrier(tests::support::TestResult& result) {
@@ -1616,6 +1686,7 @@ int main(int argc, char* argv[]) {
         core::SNodeC::init(argc, argv);
         testCoalescingAndBounds(result);
         testAdapterHandshakeRolesReplayAndIsolation(result);
+        testCapabilityDiscoveryHandshake(result);
         testSnapshotReplayBarrier(result);
         testCapacityOnlySnapshotFeedback(result);
         bool timedOut = false;

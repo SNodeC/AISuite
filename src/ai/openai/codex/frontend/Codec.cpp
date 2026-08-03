@@ -8,6 +8,7 @@
 #include "ai/openai/codex/frontend/Codec.h"
 
 #include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/frontend/detail/GeneratedSchemaValidator.h"
 
 #include <algorithm>
 #include <exception>
@@ -58,6 +59,15 @@ namespace ai::openai::codex::frontend {
             }
         }
 
+        void validateGeneratedSchema(std::string_view reference, const Json& value, std::string_view valueName) {
+            const detail::GeneratedSchemaValidation validation =
+                detail::validateGeneratedSchema(detail::generatedProtocolSchema(), reference, value, valueName);
+            if (!validation.valid) {
+                fail(validation.internalFailure ? ErrorCode::InternalError
+                                                : (validation.missingRequired ? ErrorCode::MissingField : ErrorCode::InvalidField),
+                     std::string(valueName) + " does not satisfy the generated frontend schema: " + validation.message);
+            }
+        }
         const Json& requireObject(const Json& value, std::string_view field = "message") {
             if (!value.is_object()) {
                 fail(ErrorCode::InvalidField, std::string(field) + " must be an object");
@@ -224,6 +234,91 @@ namespace ai::openai::codex::frontend {
                 result.push_back(element.get<std::string>());
             }
             return result;
+        }
+
+        std::optional<std::vector<std::string>> optionalStringArray(const Json& object, std::string_view field) {
+            if (!object.contains(std::string(field))) {
+                return std::nullopt;
+            }
+            return requireStringArray(object, field, true);
+        }
+
+        std::optional<std::vector<FrontendCapability>> optionalCapabilities(const Json& object, std::string_view field) {
+            const auto encoded = optionalStringArray(object, field);
+            if (!encoded.has_value()) {
+                return std::nullopt;
+            }
+            std::vector<FrontendCapability> capabilities;
+            capabilities.reserve(encoded->size());
+            for (const std::string& value : *encoded) {
+                const auto capability = frontendCapabilityFromString(value);
+                if (!capability.has_value()) {
+                    fail(ErrorCode::InvalidField, "unknown frontend capability '" + value + "'");
+                }
+                if (std::find(capabilities.begin(), capabilities.end(), *capability) != capabilities.end()) {
+                    fail(ErrorCode::InvalidField, "duplicate frontend capability '" + value + "'");
+                }
+                capabilities.push_back(*capability);
+            }
+            return capabilities;
+        }
+
+        std::vector<std::string> encodeCapabilities(const std::vector<FrontendCapability>& capabilities) {
+            std::vector<std::string> encoded;
+            encoded.reserve(capabilities.size());
+            for (const FrontendCapability capability : capabilities) {
+                const std::string value(toString(capability));
+                if (std::find(encoded.begin(), encoded.end(), value) != encoded.end()) {
+                    fail(ErrorCode::InvalidField, "duplicate frontend capability '" + value + "'");
+                }
+                encoded.push_back(value);
+            }
+            return encoded;
+        }
+
+        std::optional<std::vector<FrontendMethod>> optionalMethods(const Json& object, std::string_view field) {
+            const auto encoded = optionalStringArray(object, field);
+            if (!encoded.has_value()) {
+                return std::nullopt;
+            }
+            for (const FrontendMethod& method : *encoded) {
+                if (!generated::definedMethodFromString(method).has_value()) {
+                    fail(ErrorCode::InvalidField, "unknown frontend method '" + method + "'");
+                }
+            }
+            for (std::size_t index = 0; index < encoded->size(); ++index) {
+                if (std::find(encoded->begin() + static_cast<std::ptrdiff_t>(index + 1), encoded->end(), (*encoded)[index]) !=
+                    encoded->end()) {
+                    fail(ErrorCode::InvalidField, "duplicate frontend method '" + (*encoded)[index] + "'");
+                }
+            }
+            return encoded;
+        }
+
+        std::vector<std::string> encodeMethods(const std::vector<FrontendMethod>& methods) {
+            Json wrapper{{"methods", methods}};
+            const auto validated = optionalMethods(wrapper, "methods");
+            return validated.value_or(std::vector<std::string>{});
+        }
+
+        CapabilityAdvertisement decodeCapabilityAdvertisement(const Json& encoded) {
+            requireObject(encoded, "capabilities");
+            const auto defined = optionalCapabilities(encoded, "defined");
+            const auto implemented = optionalCapabilities(encoded, "implemented");
+            const auto permitted = optionalCapabilities(encoded, "permitted");
+            if (!defined.has_value() || !implemented.has_value() || !permitted.has_value()) {
+                fail(ErrorCode::MissingField, "capability advertisement requires defined, implemented, and permitted");
+            }
+            return CapabilityAdvertisement{
+                *defined, *implemented, *permitted, extensionsOf(encoded, {"defined", "implemented", "permitted"})};
+        }
+
+        Json encodeCapabilityAdvertisement(const CapabilityAdvertisement& advertisement) {
+            Json encoded = withExtensions(advertisement.extensions);
+            encoded["defined"] = encodeCapabilities(advertisement.defined);
+            encoded["implemented"] = encodeCapabilities(advertisement.implemented);
+            encoded["permitted"] = encodeCapabilities(advertisement.permitted);
+            return encoded;
         }
 
         TurnInput decodeTurnInput(const Json& input) {
@@ -425,11 +520,91 @@ namespace ai::openai::codex::frontend {
             return Json::object();
         }
 
+        Json envelope(std::string_view messageKind, const Json& extensions);
+
+        const generated::MethodMetadata& definedMethodMetadata(generated::MethodId id) {
+            const auto index = static_cast<std::size_t>(id);
+            if (index >= generated::AllMethods.size()) {
+                fail(ErrorCode::UnknownMethod, "unsupported frontend command");
+            }
+            return generated::AllMethods[index];
+        }
+
+        bool containsField(std::span<const std::string_view> fields, std::string_view field) {
+            return std::find(fields.begin(), fields.end(), field) != fields.end();
+        }
+
+        void validateDefinedParameters(const generated::MethodMetadata& metadata, const Json& params) {
+            validateGeneratedSchema(metadata.parameterSchema, params, "params");
+        }
+
+        generated::DefinedCommand decodeDefinedCommandImpl(const Json& message) {
+            const std::string messageKind = validateEnvelope(message);
+            if (messageKind != kind::Command) {
+                fail(ErrorCode::UnknownKind, "expected frontend command, got '" + messageKind + "'");
+            }
+
+            generated::DefinedCommand command;
+            command.requestId = requireString(message, "requestId");
+            const std::string encodedMethod = requireString(message, "method");
+            const auto methodId = generated::definedMethodFromString(encodedMethod);
+            if (!methodId.has_value()) {
+                fail(ErrorCode::UnknownMethod, "unknown frontend command method '" + encodedMethod + "'");
+            }
+
+            const generated::MethodMetadata& metadata = definedMethodMetadata(*methodId);
+            const Json& params = requireMember(message, "params");
+            validateDefinedParameters(metadata, params);
+
+            Json knownParameters = Json::object();
+            command.parameterExtensions = Json::object();
+            for (const auto& [key, value] : params.items()) {
+                if (containsField(metadata.parameterFields, key)) {
+                    knownParameters[key] = value;
+                } else {
+                    command.parameterExtensions[key] = value;
+                }
+            }
+            command.parameters = generated::makeParameters(*methodId, std::move(knownParameters));
+            command.extensions = extensionsOf(message, {"protocol", "version", "kind", "requestId", "method", "params"});
+            return command;
+        }
+
+        Json encodeDefinedCommandImpl(const generated::DefinedCommand& command) {
+            if (command.requestId.empty()) {
+                fail(ErrorCode::InvalidField, "command requestId must not be empty");
+            }
+
+            const generated::MethodId methodId = generated::commandMethod(command.parameters);
+            const generated::MethodMetadata& metadata = definedMethodMetadata(methodId);
+            Json params = std::visit(
+                []<typename Parameters>(const Parameters& value) {
+                    return requireObject(value.value, "params");
+                },
+                command.parameters);
+            requireObject(command.parameterExtensions, "parameterExtensions");
+            for (const auto& [key, value] : command.parameterExtensions.items()) {
+                if (containsField(metadata.parameterFields, key)) {
+                    fail(ErrorCode::InvalidField, "parameter extension conflicts with defined field '" + key + "'");
+                }
+                params[key] = value;
+            }
+            validateDefinedParameters(metadata, params);
+
+            Json encoded = envelope(kind::Command, command.extensions);
+            encoded["requestId"] = command.requestId;
+            encoded["method"] = metadata.method;
+            encoded["params"] = std::move(params);
+            (void) decodeDefinedCommandImpl(encoded);
+            return encoded;
+        }
+
         ClientMessage decodeClientImpl(const Json& message) {
             const std::string messageKind = validateEnvelope(message);
             if (messageKind == kind::Hello) {
                 return Hello{optionalSequence(message, "resumeAfter"),
-                             extensionsOf(message, {"protocol", "version", "kind", "resumeAfter"})};
+                             extensionsOf(message, {"protocol", "version", "kind", "resumeAfter", "capabilities"}),
+                             optionalCapabilities(message, "capabilities")};
             }
             if (messageKind == kind::Command) {
                 Command command;
@@ -603,6 +778,9 @@ namespace ai::openai::codex::frontend {
                         if (value.resumeAfter.has_value()) {
                             result["resumeAfter"] = value.resumeAfter->value();
                         }
+                        if (value.capabilities.has_value()) {
+                            result["capabilities"] = encodeCapabilities(*value.capabilities);
+                        }
                         return result;
                     } else {
                         if (value.requestId.empty()) {
@@ -652,6 +830,340 @@ namespace ai::openai::codex::frontend {
             encoded["sequence"] = event.sequence.value();
             encoded["type"] = event.type;
             encoded["data"] = event.data;
+            return encoded;
+        }
+
+        ExpandedThreadItem decodeExpandedThreadItem(const Json& encoded) {
+            requireObject(encoded, "expanded thread item");
+            const std::string kindName = requireString(encoded, "type");
+            const auto kindValue = threadItemKindFromString(kindName);
+            if (!kindValue.has_value()) {
+                fail(ErrorCode::InvalidField, "unknown expanded thread item kind '" + kindName + "'");
+            }
+            ExpandedThreadItem item;
+            item.id = requireString(encoded, "id");
+            item.type = *kindValue;
+            item.threadId = optionalString(encoded, "threadId");
+            item.turnId = optionalString(encoded, "turnId");
+            item.status = optionalString(encoded, "status", false);
+            item.summary = optionalString(encoded, "summary", false);
+            if (const auto location = encoded.find("location"); location != encoded.end()) {
+                item.location = requireObject(*location, "location");
+            }
+            item.agentText = optionalString(encoded, "agentText", false);
+            item.reasoningText = optionalString(encoded, "reasoningText", false);
+            item.reasoningSummary = optionalString(encoded, "reasoningSummary", false);
+            item.commandOutput = optionalString(encoded, "commandOutput", false);
+            if (const auto dropped = encoded.find("droppedContentBytes"); dropped != encoded.end()) {
+                item.droppedContentBytes = unsignedInteger(*dropped, "droppedContentBytes");
+            }
+            item.contentTruncated = optionalBool(encoded, "contentTruncated");
+            if (encoded.contains("startedAtMs")) {
+                item.startedAtMs = requireSignedInteger(encoded, "startedAtMs");
+            }
+            if (encoded.contains("completedAtMs")) {
+                item.completedAtMs = requireSignedInteger(encoded, "completedAtMs");
+            }
+            if (const auto data = encoded.find("data"); data != encoded.end()) {
+                item.data = requireObject(*data, "data");
+            }
+            item.truncated = optionalBool(encoded, "truncated").value_or(false);
+            item.omittedFields = optionalStringArray(encoded, "omittedFields").value_or(std::vector<std::string>{});
+            item.connectionInvalidated = optionalBool(encoded, "connectionInvalidated").value_or(false);
+            if (const auto generation = encoded.find("generation"); generation != encoded.end()) {
+                item.generation = unsignedInteger(*generation, "generation");
+            }
+            if (const auto freshness = optionalString(encoded, "freshness"); freshness.has_value()) {
+                item.freshness = stateFreshnessFromString(*freshness);
+                if (!item.freshness.has_value()) {
+                    fail(ErrorCode::InvalidField, "unknown expanded item freshness '" + *freshness + "'");
+                }
+            }
+            item.extensions = extensionsOf(encoded,
+                                           {"id",
+                                            "type",
+                                            "threadId",
+                                            "turnId",
+                                            "status",
+                                            "summary",
+                                            "location",
+                                            "agentText",
+                                            "reasoningText",
+                                            "reasoningSummary",
+                                            "commandOutput",
+                                            "droppedContentBytes",
+                                            "contentTruncated",
+                                            "startedAtMs",
+                                            "completedAtMs",
+                                            "data",
+                                            "truncated",
+                                            "omittedFields",
+                                            "connectionInvalidated",
+                                            "generation",
+                                            "freshness"});
+            return item;
+        }
+
+        Json encodeExpandedThreadItem(const ExpandedThreadItem& item) {
+            if (item.id.empty()) {
+                fail(ErrorCode::InvalidField, "expanded thread item id must not be empty");
+            }
+            Json encoded = withExtensions(item.extensions);
+            encoded["id"] = item.id;
+            encoded["type"] = toString(item.type);
+            addOptional(encoded, "threadId", item.threadId);
+            addOptional(encoded, "turnId", item.turnId);
+            addOptional(encoded, "status", item.status);
+            addOptional(encoded, "summary", item.summary);
+            if (item.location.has_value()) {
+                encoded["location"] = requireObject(*item.location, "location");
+            }
+            addOptional(encoded, "agentText", item.agentText);
+            addOptional(encoded, "reasoningText", item.reasoningText);
+            addOptional(encoded, "reasoningSummary", item.reasoningSummary);
+            addOptional(encoded, "commandOutput", item.commandOutput);
+            addOptional(encoded, "droppedContentBytes", item.droppedContentBytes);
+            addOptional(encoded, "contentTruncated", item.contentTruncated);
+            addOptional(encoded, "startedAtMs", item.startedAtMs);
+            addOptional(encoded, "completedAtMs", item.completedAtMs);
+            if (item.data.has_value()) {
+                encoded["data"] = requireObject(*item.data, "data");
+            }
+            encoded["truncated"] = item.truncated;
+            if (!item.omittedFields.empty()) {
+                encoded["omittedFields"] = item.omittedFields;
+            }
+            encoded["connectionInvalidated"] = item.connectionInvalidated;
+            addOptional(encoded, "generation", item.generation);
+            if (item.freshness.has_value()) {
+                encoded["freshness"] = toString(*item.freshness);
+            }
+            return encoded;
+        }
+
+        ExpandedPendingRequest decodeExpandedPendingRequest(const Json& encoded) {
+            requireObject(encoded, "expanded pending request");
+            const std::string kindName = requireString(encoded, "kind");
+            const auto kindValue = pendingRequestKindFromString(kindName);
+            if (!kindValue.has_value()) {
+                fail(ErrorCode::InvalidField, "unknown expanded pending-request kind '" + kindName + "'");
+            }
+            ExpandedPendingRequest request;
+            request.pendingRequestId = requireString(encoded, "pendingRequestId");
+            request.kind = *kindValue;
+            request.threadId = optionalString(encoded, "threadId");
+            request.turnId = optionalString(encoded, "turnId");
+            request.itemId = optionalString(encoded, "itemId");
+            request.summary = optionalString(encoded, "summary", false);
+            if (const auto details = encoded.find("details"); details != encoded.end()) {
+                request.details = requireObject(*details, "details");
+            }
+            request.truncated = optionalBool(encoded, "truncated").value_or(false);
+            request.extensions =
+                extensionsOf(encoded, {"pendingRequestId", "kind", "threadId", "turnId", "itemId", "summary", "details", "truncated"});
+            return request;
+        }
+
+        Json encodeExpandedPendingRequest(const ExpandedPendingRequest& request) {
+            if (request.pendingRequestId.empty()) {
+                fail(ErrorCode::InvalidField, "expanded pendingRequestId must not be empty");
+            }
+            Json encoded = withExtensions(request.extensions);
+            encoded["pendingRequestId"] = request.pendingRequestId;
+            encoded["kind"] = toString(request.kind);
+            addOptional(encoded, "threadId", request.threadId);
+            addOptional(encoded, "turnId", request.turnId);
+            addOptional(encoded, "itemId", request.itemId);
+            addOptional(encoded, "summary", request.summary);
+            if (request.details.has_value()) {
+                encoded["details"] = requireObject(*request.details, "details");
+            }
+            encoded["truncated"] = request.truncated;
+            return encoded;
+        }
+
+        std::vector<Json> requireObjectArray(const Json& object, std::string_view field) {
+            const Json& encoded = requireMember(object, field);
+            if (!encoded.is_array()) {
+                fail(ErrorCode::InvalidField, "field '" + std::string(field) + "' must be an array");
+            }
+            std::vector<Json> values;
+            values.reserve(encoded.size());
+            for (const Json& value : encoded) {
+                values.push_back(requireObject(value, field));
+            }
+            return values;
+        }
+
+        std::optional<Json> optionalObject(const Json& object, std::string_view field) {
+            const auto member = object.find(std::string(field));
+            if (member == object.end()) {
+                return std::nullopt;
+            }
+            return std::optional<Json>{Json(requireObject(*member, field))};
+        }
+
+        ExpandedBackendSnapshotState decodeExpandedState(const Json& encoded) {
+            requireObject(encoded, "expanded snapshot state");
+            ExpandedBackendSnapshotState state;
+            state.provider = requireObject(requireMember(encoded, "provider"), "provider");
+            state.controller = requireObject(requireMember(encoded, "controller"), "controller");
+            state.sessions = requireObjectArray(encoded, "sessions");
+            state.capacity = requireObject(requireMember(encoded, "capacity"), "capacity");
+            state.truncation = requireObject(requireMember(encoded, "truncation"), "truncation");
+
+            if (encoded.contains("threads")) {
+                state.threads = requireObjectArray(encoded, "threads");
+            }
+            if (encoded.contains("turns")) {
+                state.turns = requireObjectArray(encoded, "turns");
+            }
+            if (const auto items = encoded.find("items"); items != encoded.end()) {
+                if (!items->is_array()) {
+                    fail(ErrorCode::InvalidField, "field 'items' must be an array");
+                }
+                state.items.emplace();
+                state.items->reserve(items->size());
+                for (const Json& item : *items) {
+                    state.items->push_back(decodeExpandedThreadItem(item));
+                }
+            }
+            if (const auto requests = encoded.find("pendingRequests"); requests != encoded.end()) {
+                if (!requests->is_array()) {
+                    fail(ErrorCode::InvalidField, "field 'pendingRequests' must be an array");
+                }
+                state.pendingRequests.emplace();
+                state.pendingRequests->reserve(requests->size());
+                for (const Json& request : *requests) {
+                    state.pendingRequests->push_back(decodeExpandedPendingRequest(request));
+                }
+            }
+
+            state.accounts = optionalObject(encoded, "accounts");
+            state.models = optionalObject(encoded, "models");
+            state.configuration = optionalObject(encoded, "configuration");
+            state.processes = optionalObject(encoded, "processes");
+            state.filesystemWatches = optionalObject(encoded, "filesystemWatches");
+            state.fuzzySearches = optionalObject(encoded, "fuzzySearches");
+            state.permissionProfiles = optionalObject(encoded, "permissionProfiles");
+            state.reviews = optionalObject(encoded, "reviews");
+            state.apps = optionalObject(encoded, "apps");
+            state.externalAgents = optionalObject(encoded, "externalAgents");
+            state.hooks = optionalObject(encoded, "hooks");
+            state.marketplace = optionalObject(encoded, "marketplace");
+            state.plugins = optionalObject(encoded, "plugins");
+            state.skills = optionalObject(encoded, "skills");
+            state.mcp = optionalObject(encoded, "mcp");
+            state.windowsSandbox = optionalObject(encoded, "windowsSandbox");
+            state.remoteControl = optionalObject(encoded, "remoteControl");
+            state.notices = optionalObject(encoded, "notices");
+            state.activities = optionalObject(encoded, "activities");
+            state.extensions = extensionsOf(encoded, {"provider",        "controller",
+                                                      "sessions",        "threads",
+                                                      "turns",           "items",
+                                                      "pendingRequests", "accounts",
+                                                      "models",          "configuration",
+                                                      "processes",       "filesystemWatches",
+                                                      "fuzzySearches",   "permissionProfiles",
+                                                      "reviews",         "apps",
+                                                      "externalAgents",  "hooks",
+                                                      "marketplace",     "plugins",
+                                                      "skills",          "mcp",
+                                                      "windowsSandbox",  "remoteControl",
+                                                      "notices",         "activities",
+                                                      "capacity",        "truncation"});
+            return state;
+        }
+
+        Json encodeExpandedState(const ExpandedBackendSnapshotState& state) {
+            Json encoded = withExtensions(state.extensions);
+            encoded["provider"] = requireObject(state.provider, "provider");
+            encoded["controller"] = requireObject(state.controller, "controller");
+            encoded["sessions"] = state.sessions;
+            for (const Json& session : state.sessions) {
+                (void) requireObject(session, "sessions");
+            }
+            encoded["capacity"] = requireObject(state.capacity, "capacity");
+            encoded["truncation"] = requireObject(state.truncation, "truncation");
+            addOptional(encoded, "threads", state.threads);
+            addOptional(encoded, "turns", state.turns);
+            if (state.items.has_value()) {
+                encoded["items"] = Json::array();
+                for (const ExpandedThreadItem& item : *state.items) {
+                    encoded["items"].push_back(encodeExpandedThreadItem(item));
+                }
+            }
+            if (state.pendingRequests.has_value()) {
+                encoded["pendingRequests"] = Json::array();
+                for (const ExpandedPendingRequest& request : *state.pendingRequests) {
+                    encoded["pendingRequests"].push_back(encodeExpandedPendingRequest(request));
+                }
+            }
+            addOptional(encoded, "accounts", state.accounts);
+            addOptional(encoded, "models", state.models);
+            addOptional(encoded, "configuration", state.configuration);
+            addOptional(encoded, "processes", state.processes);
+            addOptional(encoded, "filesystemWatches", state.filesystemWatches);
+            addOptional(encoded, "fuzzySearches", state.fuzzySearches);
+            addOptional(encoded, "permissionProfiles", state.permissionProfiles);
+            addOptional(encoded, "reviews", state.reviews);
+            addOptional(encoded, "apps", state.apps);
+            addOptional(encoded, "externalAgents", state.externalAgents);
+            addOptional(encoded, "hooks", state.hooks);
+            addOptional(encoded, "marketplace", state.marketplace);
+            addOptional(encoded, "plugins", state.plugins);
+            addOptional(encoded, "skills", state.skills);
+            addOptional(encoded, "mcp", state.mcp);
+            addOptional(encoded, "windowsSandbox", state.windowsSandbox);
+            addOptional(encoded, "remoteControl", state.remoteControl);
+            addOptional(encoded, "notices", state.notices);
+            addOptional(encoded, "activities", state.activities);
+            return encoded;
+        }
+
+        ExpandedSnapshot decodeExpandedSnapshotImpl(const Json& message) {
+            const std::string messageKind = validateEnvelope(message);
+            if (messageKind != kind::Snapshot) {
+                fail(ErrorCode::UnknownKind, "expected expanded snapshot, got '" + messageKind + "'");
+            }
+            validateGeneratedSchema("#/$defs/ExpandedSnapshot", message, "expanded snapshot");
+            return ExpandedSnapshot{
+                requireSequence(message, "sequence"),
+                decodeExpandedState(requireMember(message, "state")),
+                extensionsOf(message, {"protocol", "version", "kind", "sequence", "state"}),
+            };
+        }
+
+        Json encodeExpandedSnapshotImpl(const ExpandedSnapshot& snapshot) {
+            Json encoded = envelope(kind::Snapshot, snapshot.extensions);
+            encoded["sequence"] = snapshot.sequence.value();
+            encoded["state"] = encodeExpandedState(snapshot.state);
+            validateGeneratedSchema("#/$defs/ExpandedSnapshot", encoded, "expanded snapshot");
+            return encoded;
+        }
+
+        ExpandedFrontendEvent decodeExpandedEventImpl(const Json& encoded) {
+            requireObject(encoded, "expanded event");
+            validateGeneratedSchema("#/$defs/ExpandedFrontendEvent", encoded, "expanded event");
+            const std::string typeName = requireString(encoded, "type");
+            const auto typeValue = expandedEventTypeFromString(typeName);
+            if (!typeValue.has_value()) {
+                fail(ErrorCode::InvalidField, "unknown expanded event type '" + typeName + "'");
+            }
+            const Json& data = requireObject(requireMember(encoded, "data"), "data");
+            return ExpandedFrontendEvent{
+                requireSequence(encoded, "sequence"), *typeValue, data, extensionsOf(encoded, {"sequence", "type", "data"})};
+        }
+
+        Json encodeExpandedEventImpl(const ExpandedFrontendEvent& event) {
+            if (event.sequence.value() == 0) {
+                fail(ErrorCode::InvalidField, "expanded event sequence must be greater than zero");
+            }
+            Json encoded = withExtensions(event.extensions);
+            encoded["sequence"] = event.sequence.value();
+            encoded["type"] = toString(event.type);
+            encoded["data"] = requireObject(event.data, "data");
+            validateGeneratedSchema("#/$defs/ExpandedFrontendEvent", encoded, "expanded event");
             return encoded;
         }
 
@@ -711,11 +1223,30 @@ namespace ai::openai::codex::frontend {
                 if (!syncMode.has_value()) {
                     fail(ErrorCode::InvalidField, "unknown synchronization mode '" + encodedSyncMode + "'");
                 }
-                return Welcome{requireString(message, "sessionId"),
-                               *role,
-                               requireSequence(message, "currentSequence"),
-                               *syncMode,
-                               extensionsOf(message, {"protocol", "version", "kind", "sessionId", "role", "currentSequence", "syncMode"})};
+                Welcome welcome{requireString(message, "sessionId"),
+                                *role,
+                                requireSequence(message, "currentSequence"),
+                                *syncMode,
+                                extensionsOf(message,
+                                             {"protocol",
+                                              "version",
+                                              "kind",
+                                              "sessionId",
+                                              "role",
+                                              "currentSequence",
+                                              "syncMode",
+                                              "capabilities",
+                                              "availableMethods",
+                                              "permittedMethods",
+                                              "serverVersion"})};
+                const auto capabilities = message.find("capabilities");
+                if (capabilities != message.end()) {
+                    welcome.capabilities = decodeCapabilityAdvertisement(*capabilities);
+                }
+                welcome.availableMethods = optionalMethods(message, "availableMethods");
+                welcome.permittedMethods = optionalMethods(message, "permittedMethods");
+                welcome.serverVersion = optionalString(message, "serverVersion");
+                return welcome;
             }
             if (messageKind == kind::SyncComplete) {
                 return SyncComplete{requireSequence(message, "sequence"),
@@ -809,6 +1340,16 @@ namespace ai::openai::codex::frontend {
                         encoded["role"] = toString(value.role);
                         encoded["currentSequence"] = value.currentSequence.value();
                         encoded["syncMode"] = toString(value.syncMode);
+                        if (value.capabilities.has_value()) {
+                            encoded["capabilities"] = encodeCapabilityAdvertisement(*value.capabilities);
+                        }
+                        if (value.availableMethods.has_value()) {
+                            encoded["availableMethods"] = encodeMethods(*value.availableMethods);
+                        }
+                        if (value.permittedMethods.has_value()) {
+                            encoded["permittedMethods"] = encodeMethods(*value.permittedMethods);
+                        }
+                        addOptional(encoded, "serverVersion", value.serverVersion);
                         return encoded;
                     } else if constexpr (std::is_same_v<T, SyncComplete>) {
                         Json encoded = envelope(kind::SyncComplete, value.extensions);
@@ -921,6 +1462,19 @@ namespace ai::openai::codex::frontend {
                                              static_cast<CodecResult<ClientMessage> (*)(const Json&) noexcept>(&Codec::decodeClient));
     }
 
+    CodecResult<generated::DefinedCommand> Codec::decodeDefinedCommand(const Json& message) noexcept {
+        return guard<generated::DefinedCommand>(
+            [&message]() {
+                return decodeDefinedCommandImpl(message);
+            },
+            &message);
+    }
+
+    CodecResult<generated::DefinedCommand> Codec::decodeDefinedCommand(std::string_view message) noexcept {
+        return parseAndDecode<generated::DefinedCommand>(
+            message, static_cast<CodecResult<generated::DefinedCommand> (*)(const Json&) noexcept>(&Codec::decodeDefinedCommand));
+    }
+
     CodecResult<ServerMessage> Codec::decodeServer(const Json& message) noexcept {
         return guard<ServerMessage>(
             [&message]() {
@@ -940,6 +1494,32 @@ namespace ai::openai::codex::frontend {
         });
     }
 
+    CodecResult<Json> Codec::encodeDefinedCommand(const generated::DefinedCommand& command) noexcept {
+        return guard<Json>([&command]() {
+            return encodeDefinedCommandImpl(command);
+        });
+    }
+
+    CodecResult<generated::CompleteCommandResult> Codec::decodeDefinedResult(generated::MethodId method, const Json& result) noexcept {
+        return guard<generated::CompleteCommandResult>([method, &result]() {
+            const generated::MethodMetadata& metadata = definedMethodMetadata(method);
+            validateGeneratedSchema(metadata.resultSchema, result, "result");
+            return generated::makeResult(method, result);
+        });
+    }
+
+    CodecResult<Json> Codec::encodeDefinedResult(const generated::CompleteCommandResult& result) noexcept {
+        return guard<Json>([&result]() {
+            const generated::MethodMetadata& metadata = definedMethodMetadata(generated::commandMethod(result));
+            return std::visit(
+                [&metadata]<typename Result>(const Result& value) {
+                    validateGeneratedSchema(metadata.resultSchema, value.value, "result");
+                    return value.value;
+                },
+                result);
+        });
+    }
+
     CodecResult<Json> Codec::encodeServer(const ServerMessage& message) noexcept {
         return guard<Json>([&message]() {
             return encodeServerImpl(message);
@@ -956,6 +1536,16 @@ namespace ai::openai::codex::frontend {
         });
     }
 
+    CodecResult<std::string> Codec::serializeDefinedCommand(const generated::DefinedCommand& command) noexcept {
+        const auto encoded = encodeDefinedCommand(command);
+        if (!encoded) {
+            return encoded.error();
+        }
+        return guard<std::string>([&encoded]() {
+            return encoded.value().dump();
+        });
+    }
+
     CodecResult<std::string> Codec::serializeServer(const ServerMessage& message) noexcept {
         const auto encoded = encodeServer(message);
         if (!encoded) {
@@ -963,6 +1553,32 @@ namespace ai::openai::codex::frontend {
         }
         return guard<std::string>([&encoded]() {
             return encoded.value().dump();
+        });
+    }
+
+    CodecResult<ExpandedSnapshot> Codec::decodeExpandedSnapshot(const Json& message) noexcept {
+        return guard<ExpandedSnapshot>(
+            [&message]() {
+                return decodeExpandedSnapshotImpl(message);
+            },
+            &message);
+    }
+
+    CodecResult<Json> Codec::encodeExpandedSnapshot(const ExpandedSnapshot& snapshot) noexcept {
+        return guard<Json>([&snapshot]() {
+            return encodeExpandedSnapshotImpl(snapshot);
+        });
+    }
+
+    CodecResult<ExpandedFrontendEvent> Codec::decodeExpandedEvent(const Json& event) noexcept {
+        return guard<ExpandedFrontendEvent>([&event]() {
+            return decodeExpandedEventImpl(event);
+        });
+    }
+
+    CodecResult<Json> Codec::encodeExpandedEvent(const ExpandedFrontendEvent& event) noexcept {
+        return guard<Json>([&event]() {
+            return encodeExpandedEventImpl(event);
         });
     }
 
