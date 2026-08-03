@@ -92,10 +92,24 @@ namespace ai::openai::codex::detail {
      typedSchemaStatus,                                                                                                                    \
      schemaCompleteness},
 
+#define CODEX_ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITY(category, domain, field, name)
+
         constexpr ProtocolSurfaceEntry Registry[] = {
 #include "ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc"
         };
 
+#undef CODEX_ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITY
+#undef CODEX_PROTOCOL_SURFACE_ENTRY
+
+#define CODEX_PROTOCOL_SURFACE_ENTRY(...)
+#define CODEX_ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITY(category, domain, field, name) {category, domain, field, name},
+
+        constexpr ProtocolSurfaceKey ActionOnlyNoPersistentStateIdentities[] = {
+#include "ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc"
+        };
+        static_assert(sizeof(ActionOnlyNoPersistentStateIdentities) / sizeof(*ActionOnlyNoPersistentStateIdentities) == 13);
+
+#undef CODEX_ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITY
 #undef CODEX_PROTOCOL_SURFACE_ENTRY
 
 #define CODEX_CLIENT_OPERATION_CODEC_DESCRIPTOR(                                                                                           \
@@ -366,10 +380,10 @@ namespace ai::openai::codex::detail {
                    entry.key.category == SurfaceCategory::DeltaProgressDiscriminator;
         }
 
-        bool isTurnInterrupt(const ProtocolSurfaceEntry& entry) noexcept {
-            const ClientRequestTarget* target = std::get_if<ClientRequestTarget>(&entry.runtimeTarget);
-            return (target != nullptr && *target == ClientRequestTarget::TurnInterrupt) ||
-                   (entry.key.category == SurfaceCategory::ClientRequest && entry.key.name == "turn/interrupt");
+        bool isActionOnlyNoPersistentState(const ProtocolSurfaceEntry& entry) noexcept {
+            return std::find(std::begin(ActionOnlyNoPersistentStateIdentities),
+                             std::end(ActionOnlyNoPersistentStateIdentities),
+                             entry.key) != std::end(ActionOnlyNoPersistentStateIdentities);
         }
 
         std::optional<LayerDispositionReason> expectedNotApplicableReason(const ProtocolSurfaceEntry& entry, bool canonicalState) noexcept {
@@ -385,7 +399,7 @@ namespace ai::openai::codex::detail {
             if (isTypeModelOnly(entry)) {
                 return LayerDispositionReason::TypeModelOnly;
             }
-            if (canonicalState && isTurnInterrupt(entry)) {
+            if (canonicalState && isActionOnlyNoPersistentState(entry)) {
                 return LayerDispositionReason::ActionOnlyNoPersistentState;
             }
             return std::nullopt;
@@ -1057,6 +1071,13 @@ namespace ai::openai::codex::detail {
                 result.errors.push_back(
                     {ProtocolSurfaceErrorCode::ResponseItemCanonicalStateDispositionMismatch,
                      keyName(entry.key) + " stable ResponseItem requires NoRuntimeBackendStatePath canonical disposition"});
+            }
+            if (stable && isActionOnlyNoPersistentState(entry) &&
+                (entry.canonicalState != LayerStatus::NotApplicable ||
+                 entry.canonicalStateReason != LayerDispositionReason::ActionOnlyNoPersistentState)) {
+                result.errors.push_back(
+                    {ProtocolSurfaceErrorCode::ActionOnlyCanonicalStateDispositionMismatch,
+                     keyName(entry.key) + " frozen action-only operation requires ActionOnlyNoPersistentState canonical disposition"});
             }
             if (stable && entry.key.category == SurfaceCategory::ServerRequest &&
                 (entry.backendCore == LayerStatus::NotApplicable || entry.canonicalState == LayerStatus::NotApplicable)) {

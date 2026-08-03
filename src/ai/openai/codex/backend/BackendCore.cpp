@@ -13,7 +13,9 @@
 #include "ai/openai/codex/backend/BackendEvent.h"
 #include "ai/openai/codex/backend/BackendState.h"
 #include "ai/openai/codex/backend/Snapshot.h"
+#include "ai/openai/codex/backend/internal/ProviderOperationSupport.h"
 #include "ai/openai/codex/backend/internal/RecoveryPolicy.h"
+#include "ai/openai/codex/backend/internal/ReverseResponsePreflight.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/Items.h"
 #include "ai/openai/codex/typed/Results.h"
@@ -132,6 +134,32 @@ namespace ai::openai::codex::backend {
                            [](const DiagnosticReceived& value) {
                                return value.message.size();
                            },
+                           [](const ProviderOperationCompleted& value) {
+                               std::size_t bytes = value.method.size();
+                               const auto add = [&bytes](std::size_t amount) {
+                                   bytes = amount > std::numeric_limits<std::size_t>::max() - bytes
+                                               ? std::numeric_limits<std::size_t>::max()
+                                               : bytes + amount;
+                               };
+                               add(std::visit(
+                                   [](const auto& result) {
+                                       return detail::providerOperationRetainedBytes(result);
+                                   },
+                                   value.value));
+                               return bytes;
+                           },
+                           [](const ProviderOperationStateChanged& value) {
+                               return value.method.size();
+                           },
+                           [](const ProviderResourceAdmissionRequested& value) {
+                               std::size_t bytes = value.key.size();
+                               return value.resourceId.size() > std::numeric_limits<std::size_t>::max() - bytes
+                                          ? std::numeric_limits<std::size_t>::max()
+                                          : bytes + value.resourceId.size();
+                           },
+                           [](const ProviderResourceAdmissionReleased& value) {
+                               return value.key.size();
+                           },
                            [](const ThreadUpserted& value) {
                                return jsonBytes(value.thread.raw);
                            },
@@ -187,15 +215,17 @@ namespace ai::openai::codex::backend {
                                const std::size_t payload = jsonBytes(value.payload);
                                std::size_t text = value.method.size();
                                const auto add = [&text](std::size_t amount) {
-                                   text = amount > std::numeric_limits<std::size_t>::max() - text
-                                       ? std::numeric_limits<std::size_t>::max()
-                                       : text + amount;
+                                   text = amount > std::numeric_limits<std::size_t>::max() - text ? std::numeric_limits<std::size_t>::max()
+                                                                                                  : text + amount;
                                };
                                add(value.decodingError ? value.decodingError->size() : 0);
                                if (value.diagnostic) {
                                    add(value.diagnostic->surface.size());
                                    add(value.diagnostic->fieldPath.size());
                                    add(value.diagnostic->message.size());
+                               }
+                               if (value.typedEvent) {
+                                   add(detail::providerOperationRetainedBytes(*value.typedEvent));
                                }
                                return payload > std::numeric_limits<std::size_t>::max() - text ? std::numeric_limits<std::size_t>::max()
                                                                                                : payload + text;
@@ -217,43 +247,69 @@ namespace ai::openai::codex::backend {
                 }
                 bytes += errorBytes;
             }
-            const std::size_t valueBytes = std::visit(Overloaded{[](const std::monostate&) {
-                                                                     return std::size_t{0};
-                                                                 },
-                                                                 [](const Snapshot& value) {
-                                                                     return snapshotBytes(value);
-                                                                 },
-                                                                 [](const ControllerResult&) {
-                                                                     return std::size_t{32};
-                                                                 },
-                                                                 [](const typed::Thread& value) {
-                                                                     return jsonBytes(value.raw);
-                                                                 },
-                                                                 [](const typed::ThreadListResponse& value) {
-                                                                     return jsonBytes(value.raw);
-                                                                 },
-                                                                 [](const typed::Turn& value) {
-                                                                     return jsonBytes(value.raw);
-                                                                 },
-                                                                 [](const typed::Unit&) {
-                                                                     return std::size_t{0};
-                                                                 }},
-                                                      completion.result.value);
+            const std::size_t valueBytes = std::visit(
+                []<typename Value>(const Value& value) {
+                    if constexpr (std::is_same_v<Value, std::monostate>) {
+                        return std::size_t{0};
+                    } else if constexpr (std::is_same_v<Value, Snapshot>) {
+                        return snapshotBytes(value);
+                    } else if constexpr (std::is_same_v<Value, ControllerResult>) {
+                        return std::size_t{32};
+                    } else {
+                        return detail::providerOperationRetainedBytes(value);
+                    }
+                },
+                completion.result.value);
             return valueBytes > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max()
                                                                                 : bytes + valueBytes;
         }
 
-        bool requiresController(const BackendCommand& command) {
-            return !std::holds_alternative<ControllerAcquire>(command) && !std::holds_alternative<ControllerRelease>(command) &&
-                   !std::holds_alternative<SnapshotGet>(command) && !std::holds_alternative<ThreadList>(command) &&
-                   !std::holds_alternative<ThreadRead>(command);
-        }
+        template <typename Command>
+        struct ProviderCommandTraits;
 
-        bool requiresReadyBackend(const BackendCommand& command) {
-            return std::holds_alternative<ThreadStart>(command) || std::holds_alternative<ThreadResume>(command) ||
-                   std::holds_alternative<ThreadList>(command) || std::holds_alternative<ThreadRead>(command) ||
-                   std::holds_alternative<TurnStart>(command) || std::holds_alternative<TurnInterrupt>(command);
-        }
+#define CODEX_BACKEND_PROVIDER_OPERATION(COMMAND, RESULT, DOMAIN, METHOD, ACCESS, STATEFUL, WIRE_METHOD)                                   \
+    template <>                                                                                                                            \
+    struct ProviderCommandTraits<COMMAND> {                                                                                                \
+        using Result = typed::RESULT;                                                                                                      \
+        static constexpr CommandAccess access = CommandAccess::ACCESS;                                                                     \
+        static constexpr bool stateful = STATEFUL;                                                                                         \
+        static constexpr const char* method = WIRE_METHOD;                                                                                 \
+        static Submission submit(AppServerClient& client, const COMMAND& command, typed::CompletionHandler<Result> handler) {              \
+            return client.DOMAIN().METHOD(command.params, std::move(handler));                                                             \
+        }                                                                                                                                  \
+    };
+#define CODEX_BACKEND_PROVIDER_OPERATION_EMPTY(COMMAND, RESULT, DOMAIN, METHOD, ACCESS, STATEFUL, WIRE_METHOD)                             \
+    template <>                                                                                                                            \
+    struct ProviderCommandTraits<COMMAND> {                                                                                                \
+        using Result = typed::RESULT;                                                                                                      \
+        static constexpr CommandAccess access = CommandAccess::ACCESS;                                                                     \
+        static constexpr bool stateful = STATEFUL;                                                                                         \
+        static constexpr const char* method = WIRE_METHOD;                                                                                 \
+        static Submission submit(AppServerClient& client, const COMMAND&, typed::CompletionHandler<Result> handler) {                      \
+            return client.DOMAIN().METHOD(std::move(handler));                                                                             \
+        }                                                                                                                                  \
+    };
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+#include "ai/openai/codex/backend/internal/ProviderOperations.inc"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+#undef CODEX_BACKEND_PROVIDER_OPERATION_EMPTY
+#undef CODEX_BACKEND_PROVIDER_OPERATION
+
+        template <typename Command>
+        concept ProviderBackendCommand = requires(AppServerClient& client,
+                                                  const Command& command,
+                                                  typed::CompletionHandler<typename ProviderCommandTraits<Command>::Result> handler) {
+            typename ProviderCommandTraits<Command>::Result;
+            { ProviderCommandTraits<Command>::access } -> std::convertible_to<CommandAccess>;
+            { ProviderCommandTraits<Command>::stateful } -> std::convertible_to<bool>;
+            { ProviderCommandTraits<Command>::method } -> std::convertible_to<const char*>;
+            { ProviderCommandTraits<Command>::submit(client, command, std::move(handler)) } -> std::same_as<Submission>;
+        };
 
         CommandResult submissionFailure(const Submission& submission) {
             const std::string message =
@@ -261,30 +317,65 @@ namespace ai::openai::codex::backend {
             return CommandResult::failed(CommandErrorCode::LocalSubmissionFailure, message);
         }
 
-        template <typename T>
-        CommandResult operationFailure(const typed::OperationResult<T>& result) {
-            using Kind = typename typed::OperationResult<T>::Kind;
-            switch (result.kind) {
-                case Kind::RemoteError:
-                    return CommandResult::failed(CommandErrorCode::RemoteAppServerError,
-                                                 result.remoteError ? result.remoteError->message
-                                                                    : "The Codex App Server rejected the operation.",
-                                                 result.remoteError ? std::optional<std::int64_t>{result.remoteError->code} : std::nullopt);
-                case Kind::Cancelled:
-                    return CommandResult::failed(CommandErrorCode::Cancelled,
-                                                 result.localError ? result.localError->message : "The Codex operation was cancelled.");
-                case Kind::LocalError:
-                    return CommandResult::failed(result.localError && result.localError->category == Error::Category::Protocol
-                                                     ? CommandErrorCode::TypedDecodingFailure
-                                                     : CommandErrorCode::LocalSubmissionFailure,
-                                                 result.localError ? result.localError->message
-                                                                   : "The typed Codex result could not be processed.");
-                case Kind::Success:
-                    break;
-            }
-            return CommandResult::failed(CommandErrorCode::TypedDecodingFailure, "The typed Codex result omitted its value.");
-        }
     } // namespace
+
+    CommandPolicy commandPolicy(const BackendCommand& command) noexcept {
+        return std::visit(Overloaded{[](const ControllerAcquire&) {
+                                         return CommandPolicy{CommandAccess::Observer, false};
+                                     },
+                                     [](const ControllerRelease&) {
+                                         return CommandPolicy{CommandAccess::Observer, false};
+                                     },
+                                     [](const SnapshotGet&) {
+                                         return CommandPolicy{CommandAccess::Observer, false};
+                                     },
+                                     []<ProviderBackendCommand Command>(const Command& value) {
+                                         if constexpr (std::is_same_v<Command, AccountRead>) {
+                                             return CommandPolicy{value.params.refreshToken.value_or(false) ? CommandAccess::Controller
+                                                                                                            : CommandAccess::Observer,
+                                                                  true};
+                                         } else {
+                                             return CommandPolicy{ProviderCommandTraits<Command>::access, true};
+                                         }
+                                     },
+                                     [](const ApprovalRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const UserInputRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const AuthenticationRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const UnknownRequestRespondRaw&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const UnknownRequestReject&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const ApplyPatchApprovalRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const ExecCommandApprovalRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const PermissionsApprovalRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const AttestationGenerateRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const DynamicToolCallRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const McpServerElicitationRespond&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     },
+                                     [](const KnownRequestReject&) {
+                                         return CommandPolicy{CommandAccess::Controller, true};
+                                     }},
+                          command);
+    }
 
     class detail::BackendCoreRuntime::Impl : public std::enable_shared_from_this<detail::BackendCoreRuntime::Impl> {
     public:
@@ -790,6 +881,8 @@ namespace ai::openai::codex::backend {
         struct ActiveOperation {
             std::uint64_t providerGeneration = 0;
             std::uint64_t callbackEpoch = 0;
+            std::optional<ProviderResourceKind> resourceKind;
+            std::optional<std::string> resourceReservationKey;
         };
 
         struct InternalProviderOperation {
@@ -885,8 +978,40 @@ namespace ai::openai::codex::backend {
             }
 
             const Reduction reduction = reducer.apply(state, event);
-            if (!reduction.changed || !emitReducedEvent(std::move(event))) {
+            if (!reduction.changed) {
                 return false;
+            }
+            if (const auto* operation = std::get_if<ProviderOperationCompleted>(&event)) {
+                if (!emitReducedEvent(ProviderOperationStateChanged{operation->method})) {
+                    return false;
+                }
+            } else {
+                const bool externallyResolved =
+                    !reduction.pendingRequestRemovals.empty() && std::holds_alternative<CodexExtensionReceived>(event) &&
+                    std::get<CodexExtensionReceived>(event).typedEvent.has_value() &&
+                    std::holds_alternative<typed::ServerRequestResolvedNotification>(*std::get<CodexExtensionReceived>(event).typedEvent);
+                if (auto* extension = std::get_if<CodexExtensionReceived>(&event); extension != nullptr && !externallyResolved) {
+                    const ExtensionSnapshot bounded = makeExtensionSnapshot(ExtensionRecord{
+                        extension->method, extension->payload, extension->decodingError, std::nullopt, std::nullopt, std::nullopt});
+                    extension->method = bounded.method;
+                    extension->payload = bounded.payload;
+                    extension->decodingError = bounded.decodingError;
+                    extension->diagnostic.reset();
+                    extension->safeProjection = true;
+                    extension->methodTruncated = bounded.methodTruncated;
+                    extension->payloadTruncated = bounded.payloadTruncated;
+                    extension->decodingErrorTruncated = bounded.decodingErrorTruncated;
+                    extension->sensitiveFieldsRedacted = bounded.sensitiveFieldsRedacted;
+                    extension->originalMethodBytes = bounded.originalMethodBytes;
+                    extension->originalPayloadBytes = bounded.originalPayloadBytes;
+                    extension->originalDecodingErrorBytes = bounded.originalDecodingErrorBytes;
+                    // The exact typed event is an ephemeral reducer input. Session
+                    // and observer queues retain only the bounded extension marker.
+                    extension->typedEvent.reset();
+                }
+                if (!externallyResolved && !emitReducedEvent(std::move(event))) {
+                    return false;
+                }
             }
             for (const CapacityChanged& capacityChange : reduction.capacityChanges) {
                 if (!emitReducedEvent(capacityChange)) {
@@ -898,7 +1023,35 @@ namespace ai::openai::codex::backend {
                     return false;
                 }
             }
+            if (reduction.providerCapacityFailure) {
+                failProviderForResourceCapacity(reduction.providerCapacityFailureMessage);
+                return false;
+            }
             return true;
+        }
+
+        bool admitProviderResource(ProviderResourceKind kind, const std::string& key, const std::string& resourceId) {
+            if (!alive || state.sequence.value() == std::numeric_limits<std::uint64_t>::max()) {
+                return false;
+            }
+            BackendEvent event = ProviderResourceAdmissionRequested{kind, key, resourceId};
+            const Reduction reduction = reducer.apply(state, event);
+            if (!reduction.resourceAdmission.has_value()) {
+                return false;
+            }
+            if (reduction.changed && !emitReducedEvent(std::move(event))) {
+                return false;
+            }
+            for (const CapacityChanged& capacityChange : reduction.capacityChanges) {
+                if (!emitReducedEvent(capacityChange)) {
+                    return false;
+                }
+            }
+            return *reduction.resourceAdmission;
+        }
+
+        void releaseProviderResource(ProviderResourceKind kind, const std::string& key) {
+            publish(ProviderResourceAdmissionReleased{kind, key});
         }
 
         void enqueueEvent(SessionId id, const SequencedBackendEvent& event) {
@@ -1091,6 +1244,19 @@ namespace ai::openai::codex::backend {
             record->pendingRequestIds.clear();
             record->queuedCompletions.clear();
             sessions.erase(iterator);
+            for (auto operation = activeOperations.begin(); operation != activeOperations.end();) {
+                if (operation->first.first == id) {
+                    if (operation->second.resourceKind && operation->second.resourceReservationKey) {
+                        try {
+                            releaseProviderResource(*operation->second.resourceKind, *operation->second.resourceReservationKey);
+                        } catch (...) {
+                        }
+                    }
+                    operation = activeOperations.erase(operation);
+                } else {
+                    ++operation;
+                }
+            }
 
             try {
                 if (state.controller == id) {
@@ -1131,15 +1297,33 @@ namespace ai::openai::codex::backend {
             }
             iterator->second->pendingRequestIds.insert(requestId);
 
-            if (requiresController(command) && state.controller != id) {
+            const CommandPolicy policy = commandPolicy(command);
+            const bool providerOperation = std::visit(
+                []<typename Command>(const Command&) {
+                    return ProviderBackendCommand<Command>;
+                },
+                command);
+            if (policy.access == CommandAccess::Controller && state.controller != id) {
                 complete(id, requestId, CommandResult::failed(CommandErrorCode::PermissionDenied, "The controller role is required."));
                 return {true, SubmissionError::None, {}};
             }
-            if (requiresReadyBackend(command) && state.provider.lifecycle != ProviderLifecycle::Ready) {
+            const std::optional<PendingRequestId> pendingRequestId = std::visit(
+                []<typename Command>(const Command& value) -> std::optional<PendingRequestId> {
+                    if constexpr (requires { value.requestId; }) {
+                        return value.requestId;
+                    }
+                    return std::nullopt;
+                },
+                command);
+            if (pendingRequestId.has_value() && !state.pendingRequests.contains(*pendingRequestId)) {
+                complete(id, requestId, CommandResult::failed(CommandErrorCode::NotFound, "The pending request no longer exists."));
+                return {true, SubmissionError::None, {}};
+            }
+            if (policy.requiresProviderReady && state.provider.lifecycle != ProviderLifecycle::Ready) {
                 complete(id, requestId, CommandResult::failed(CommandErrorCode::BackendUnavailable, "The Codex App Server is not ready."));
                 return {true, SubmissionError::None, {}};
             }
-            if (requiresReadyBackend(command) && activeProviderOperationCount() >= options.capacity.maxActiveOperations) {
+            if (providerOperation && activeProviderOperationCount() >= options.capacity.maxActiveOperations) {
                 publish(CapacityChanged{CapacityMetric::RejectedOperations, 1});
                 schedule([weak = weak_from_this(), id, requestId]() {
                     if (const std::shared_ptr<Impl> self = weak.lock()) {
@@ -1184,23 +1368,8 @@ namespace ai::openai::codex::backend {
                     [this, id, &requestId](const SnapshotGet&) {
                         complete(id, requestId, CommandResult::succeeded(makeCurrentSnapshot()));
                     },
-                    [this, id, &requestId](const ThreadStart& value) {
-                        startThread(id, requestId, value);
-                    },
-                    [this, id, &requestId](const ThreadResume& value) {
-                        resumeThread(id, requestId, value);
-                    },
-                    [this, id, &requestId](const ThreadList& value) {
-                        listThreads(id, requestId, value);
-                    },
-                    [this, id, &requestId](const ThreadRead& value) {
-                        readThread(id, requestId, value);
-                    },
-                    [this, id, &requestId](const TurnStart& value) {
-                        startTurn(id, requestId, value);
-                    },
-                    [this, id, &requestId](const TurnInterrupt& value) {
-                        interruptTurn(id, requestId, value);
+                    [this, id, &requestId]<ProviderBackendCommand Command>(const Command& value) {
+                        executeProviderCommand(id, requestId, value);
                     },
                     [this, id, &requestId](const ApprovalRespond& value) {
                         respondApproval(id, requestId, value);
@@ -1216,6 +1385,27 @@ namespace ai::openai::codex::backend {
                     },
                     [this, id, &requestId](const UnknownRequestReject& value) {
                         rejectUnknown(id, requestId, value);
+                    },
+                    [this, id, &requestId](const ApplyPatchApprovalRespond& value) {
+                        respondApplyPatchApproval(id, requestId, value);
+                    },
+                    [this, id, &requestId](const ExecCommandApprovalRespond& value) {
+                        respondExecCommandApproval(id, requestId, value);
+                    },
+                    [this, id, &requestId](const PermissionsApprovalRespond& value) {
+                        respondPermissionsApproval(id, requestId, value);
+                    },
+                    [this, id, &requestId](const AttestationGenerateRespond& value) {
+                        respondAttestation(id, requestId, value);
+                    },
+                    [this, id, &requestId](const DynamicToolCallRespond& value) {
+                        respondDynamicTool(id, requestId, value);
+                    },
+                    [this, id, &requestId](const McpServerElicitationRespond& value) {
+                        respondMcpElicitation(id, requestId, value);
+                    },
+                    [this, id, &requestId](const KnownRequestReject& value) {
+                        rejectKnown(id, requestId, value);
                     }},
                 command);
         }
@@ -1239,144 +1429,213 @@ namespace ai::openai::codex::backend {
             scheduleSessionDrain(iterator->second);
         }
 
-        void markOperation(SessionId id, const std::string& requestId, std::uint64_t providerGeneration, std::uint64_t operationEpoch) {
-            activeOperations.insert_or_assign({id, requestId}, ActiveOperation{providerGeneration, operationEpoch});
+        void markOperation(SessionId id,
+                           const std::string& requestId,
+                           std::uint64_t providerGeneration,
+                           std::uint64_t operationEpoch,
+                           std::optional<ProviderResourceKind> resourceKind = std::nullopt,
+                           std::optional<std::string> resourceReservationKey = std::nullopt) {
+            activeOperations.insert_or_assign(
+                {id, requestId}, ActiveOperation{providerGeneration, operationEpoch, resourceKind, std::move(resourceReservationKey)});
         }
 
         bool acceptsCompletion(std::uint64_t providerGeneration, std::uint64_t operationEpoch) const noexcept {
             return alive && operationCallbacksEnabled && providerGeneration == state.provider.generation && operationEpoch == callbackEpoch;
         }
 
-        void startThread(SessionId id, const std::string& requestId, const ThreadStart& command) {
-            const std::uint64_t providerGeneration = state.provider.generation;
-            const std::uint64_t operationEpoch = callbackEpoch;
-            markOperation(id, requestId, providerGeneration, operationEpoch);
-            const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.threads().start(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock();
-                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
-                        if (result && result.value) {
-                            self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
-                            self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
-                    }
-                });
-            if (!submission) {
-                complete(id, requestId, submissionFailure(submission));
+        bool retireOperation(SessionId id,
+                             const std::string& requestId,
+                             std::uint64_t providerGeneration,
+                             std::uint64_t operationEpoch) noexcept {
+            const auto iterator = activeOperations.find({id, requestId});
+            if (iterator == activeOperations.end() || iterator->second.providerGeneration != providerGeneration ||
+                iterator->second.callbackEpoch != operationEpoch) {
+                return false;
+            }
+            activeOperations.erase(iterator);
+            return true;
+        }
+
+        template <ProviderBackendCommand Command>
+        static constexpr std::optional<ProviderResourceKind> providerResourceKind() noexcept {
+            if constexpr (std::is_same_v<Command, CommandExec>) {
+                return ProviderResourceKind::Process;
+            } else if constexpr (std::is_same_v<Command, FsWatch>) {
+                return ProviderResourceKind::FilesystemWatch;
+            } else if constexpr (std::is_same_v<Command, FuzzyFileSearch>) {
+                return ProviderResourceKind::FuzzySearch;
+            } else {
+                return std::nullopt;
             }
         }
 
-        void resumeThread(SessionId id, const std::string& requestId, const ThreadResume& command) {
-            const std::uint64_t providerGeneration = state.provider.generation;
-            const std::uint64_t operationEpoch = callbackEpoch;
-            markOperation(id, requestId, providerGeneration, operationEpoch);
-            const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.threads().resume(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock();
-                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
-                        if (result && result.value) {
-                            self->publish(ThreadUpserted{result.value->thread, EntityLoad::Summary});
-                            self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
-                    }
-                });
-            if (!submission) {
-                complete(id, requestId, submissionFailure(submission));
+        template <ProviderBackendCommand Command>
+        static std::string providerResourceId(const Command& command, const std::string& reservationKey) {
+            if constexpr (std::is_same_v<Command, CommandExec>) {
+                return command.params.processId.hasValue() ? command.params.processId.value->value : reservationKey;
+            } else if constexpr (std::is_same_v<Command, FsWatch>) {
+                return command.params.watchId.value;
+            } else if constexpr (std::is_same_v<Command, FuzzyFileSearch>) {
+                return command.params.cancellationToken.hasValue() ? *command.params.cancellationToken.value : reservationKey;
+            } else {
+                return reservationKey;
             }
         }
 
-        void listThreads(SessionId id, const std::string& requestId, const ThreadList& command) {
+        std::optional<std::string> allocateProviderResourceReservationKey() {
+            if (nextProviderResourceReservationId == 0) {
+                return std::nullopt;
+            }
+            const std::uint64_t id = nextProviderResourceReservationId;
+            if (nextProviderResourceReservationId == std::numeric_limits<std::uint64_t>::max()) {
+                nextProviderResourceReservationId = 0;
+            } else {
+                ++nextProviderResourceReservationId;
+            }
+            return "provider-resource/" + std::to_string(id);
+        }
+
+        template <ProviderBackendCommand Command>
+        bool projectProviderOperation(const Command& command,
+                                      const typename ProviderCommandTraits<Command>::Result& result,
+                                      const std::optional<std::string>& resourceReservationKey) {
+            if constexpr (ProviderCommandTraits<Command>::stateful) {
+                if (!publish(ProviderOperationCompleted{ProviderCommandTraits<Command>::method,
+                                                        BackendCommand{command},
+                                                        ProviderOperationValue{result},
+                                                        resourceReservationKey})) {
+                    return false;
+                }
+            }
+
+            if constexpr (std::is_same_v<Command, ThreadStart> || std::is_same_v<Command, ThreadResume>) {
+                if (!publish(ThreadUpserted{result.thread, EntityLoad::Summary})) {
+                    return false;
+                }
+            } else if constexpr (std::is_same_v<Command, ThreadList>) {
+                const std::optional<std::string> requestedCursor =
+                    command.params.cursor.hasValue() ? std::optional<std::string>{*command.params.cursor} : std::nullopt;
+                if (!publish(ThreadListUpdated{result, requestedCursor, false})) {
+                    return false;
+                }
+            } else if constexpr (std::is_same_v<Command, ThreadRead>) {
+                const EntityLoad load = command.params.includeTurns.value_or(false) ? EntityLoad::Full : EntityLoad::Summary;
+                if (!publish(ThreadUpserted{result.thread, load})) {
+                    return false;
+                }
+            } else if constexpr (std::is_same_v<Command, TurnStart>) {
+                if (!publish(TurnUpserted{result.turn})) {
+                    return false;
+                }
+            }
+            return !state.sequenceExhausted;
+        }
+
+        template <ProviderBackendCommand Command>
+        void executeProviderCommand(SessionId id, const std::string& requestId, const Command& command) {
+            using Traits = ProviderCommandTraits<Command>;
+            using Result = typename Traits::Result;
+
             const std::uint64_t providerGeneration = state.provider.generation;
             const std::uint64_t operationEpoch = callbackEpoch;
-            const std::optional<std::string> requestedCursor =
-                command.params.cursor.hasValue() ? std::optional<std::string>{*command.params.cursor} : std::nullopt;
-            markOperation(id, requestId, providerGeneration, operationEpoch);
+            constexpr std::optional<ProviderResourceKind> resourceKind = providerResourceKind<Command>();
+            std::optional<std::string> resourceReservationKey;
+            if constexpr (providerResourceKind<Command>().has_value()) {
+                resourceReservationKey = allocateProviderResourceReservationKey();
+                if (!resourceReservationKey) {
+                    complete(id,
+                             requestId,
+                             CommandResult::failed(CommandErrorCode::LocalSubmissionFailure,
+                                                   "The backend provider-resource reservation identifier space is exhausted."));
+                    return;
+                }
+                const std::string resourceId = providerResourceId(command, *resourceReservationKey);
+                if (!admitProviderResource(*resourceKind, *resourceReservationKey, resourceId)) {
+                    complete(id,
+                             requestId,
+                             CommandResult::failed(CommandErrorCode::LocalSubmissionFailure,
+                                                   "The backend provider-resource capacity is exhausted."));
+                    return;
+                }
+            }
+            markOperation(id, requestId, providerGeneration, operationEpoch, resourceKind, resourceReservationKey);
             const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.threads().list(
-                command.params, [weak, id, requestId, providerGeneration, operationEpoch, requestedCursor](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock();
-                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
-                        if (result && result.value) {
-                            self->publish(ThreadListUpdated{*result.value, requestedCursor, false});
+
+            Submission submission;
+            try {
+                submission = Traits::submit(
+                    client,
+                    command,
+                    [weak, id, requestId, providerGeneration, operationEpoch, command, resourceKind, resourceReservationKey](
+                        const typed::OperationResult<Result>& result) {
+                        const std::shared_ptr<Impl> self = weak.lock();
+                        if (!self || !self->retireOperation(id, requestId, providerGeneration, operationEpoch) ||
+                            !self->acceptsCompletion(providerGeneration, operationEpoch)) {
+                            return;
+                        }
+                        if (!result || !result.value) {
+                            if constexpr (providerResourceKind<Command>().has_value()) {
+                                self->releaseProviderResource(*resourceKind, *resourceReservationKey);
+                            }
+                            self->complete(id, requestId, detail::providerOperationFailure(result));
+                            return;
+                        }
+                        try {
+                            if (!self->projectProviderOperation(command, *result.value, resourceReservationKey)) {
+                                if constexpr (providerResourceKind<Command>().has_value()) {
+                                    self->releaseProviderResource(*resourceKind, *resourceReservationKey);
+                                }
+                                self->complete(
+                                    id,
+                                    requestId,
+                                    CommandResult::failed(CommandErrorCode::BackendUnavailable,
+                                                          "The canonical backend state could not publish the operation result."));
+                                return;
+                            }
                             self->complete(id, requestId, CommandResult::succeeded(*result.value));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
+                        } catch (const std::exception& error) {
+                            if constexpr (providerResourceKind<Command>().has_value()) {
+                                self->releaseProviderResource(*resourceKind, *resourceReservationKey);
+                            }
+                            self->complete(
+                                id,
+                                requestId,
+                                CommandResult::failed(CommandErrorCode::LocalSubmissionFailure,
+                                                      std::string{"The backend could not project the operation result: "} + error.what()));
+                        } catch (...) {
+                            if constexpr (providerResourceKind<Command>().has_value()) {
+                                self->releaseProviderResource(*resourceKind, *resourceReservationKey);
+                            }
+                            self->complete(id,
+                                           requestId,
+                                           CommandResult::failed(CommandErrorCode::LocalSubmissionFailure,
+                                                                 "The backend could not project the operation result."));
                         }
-                    }
-                });
-            if (!submission) {
-                complete(id, requestId, submissionFailure(submission));
+                    });
+            } catch (const std::exception& error) {
+                retireOperation(id, requestId, providerGeneration, operationEpoch);
+                if constexpr (providerResourceKind<Command>().has_value()) {
+                    releaseProviderResource(*resourceKind, *resourceReservationKey);
+                }
+                complete(id,
+                         requestId,
+                         CommandResult::failed(CommandErrorCode::LocalSubmissionFailure,
+                                               std::string{"The typed operation submitter threw: "} + error.what()));
+                return;
+            } catch (...) {
+                retireOperation(id, requestId, providerGeneration, operationEpoch);
+                if constexpr (providerResourceKind<Command>().has_value()) {
+                    releaseProviderResource(*resourceKind, *resourceReservationKey);
+                }
+                complete(
+                    id, requestId, CommandResult::failed(CommandErrorCode::LocalSubmissionFailure, "The typed operation submitter threw."));
+                return;
             }
-        }
-
-        void readThread(SessionId id, const std::string& requestId, const ThreadRead& command) {
-            const std::uint64_t providerGeneration = state.provider.generation;
-            const std::uint64_t operationEpoch = callbackEpoch;
-            markOperation(id, requestId, providerGeneration, operationEpoch);
-            const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission = client.threads().read(
-                command.params, [weak, id, requestId, providerGeneration, operationEpoch, command](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock();
-                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
-                        if (result && result.value) {
-                            const EntityLoad load = command.params.includeTurns.value_or(false) ? EntityLoad::Full : EntityLoad::Summary;
-                            self->publish(ThreadUpserted{result.value->thread, load});
-                            self->complete(id, requestId, CommandResult::succeeded(result.value->thread));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
-                    }
-                });
             if (!submission) {
-                complete(id, requestId, submissionFailure(submission));
-            }
-        }
-
-        void startTurn(SessionId id, const std::string& requestId, const TurnStart& command) {
-            const std::uint64_t providerGeneration = state.provider.generation;
-            const std::uint64_t operationEpoch = callbackEpoch;
-            markOperation(id, requestId, providerGeneration, operationEpoch);
-            const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.turns().start(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock();
-                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
-                        if (result && result.value) {
-                            self->publish(TurnUpserted{result.value->turn});
-                            self->complete(id, requestId, CommandResult::succeeded(result.value->turn));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
-                    }
-                });
-            if (!submission) {
-                complete(id, requestId, submissionFailure(submission));
-            }
-        }
-
-        void interruptTurn(SessionId id, const std::string& requestId, const TurnInterrupt& command) {
-            const std::uint64_t providerGeneration = state.provider.generation;
-            const std::uint64_t operationEpoch = callbackEpoch;
-            markOperation(id, requestId, providerGeneration, operationEpoch);
-            const std::weak_ptr<Impl> weak = weak_from_this();
-            const auto submission =
-                client.turns().interrupt(command.params, [weak, id, requestId, providerGeneration, operationEpoch](const auto& result) {
-                    if (const std::shared_ptr<Impl> self = weak.lock();
-                        self && self->acceptsCompletion(providerGeneration, operationEpoch)) {
-                        if (result && result.value) {
-                            self->complete(id, requestId, CommandResult::succeeded(*result.value));
-                        } else {
-                            self->complete(id, requestId, operationFailure(result));
-                        }
-                    }
-                });
-            if (!submission) {
+                retireOperation(id, requestId, providerGeneration, operationEpoch);
+                if constexpr (providerResourceKind<Command>().has_value()) {
+                    releaseProviderResource(*resourceKind, *resourceReservationKey);
+                }
                 complete(id, requestId, submissionFailure(submission));
             }
         }
@@ -1389,6 +1648,13 @@ namespace ai::openai::codex::backend {
                 complete(id, commandRequestId, CommandResult::failed(CommandErrorCode::NotFound, "The pending request no longer exists."));
                 return;
             }
+            if (iterator->second.connectionGeneration != state.provider.generation) {
+                complete(id,
+                         commandRequestId,
+                         CommandResult::failed(CommandErrorCode::InvalidCommand,
+                                               "The pending request belongs to an obsolete provider generation."));
+                return;
+            }
             const Request* request = std::get_if<Request>(&iterator->second.request);
             if (!request) {
                 complete(id,
@@ -1397,7 +1663,29 @@ namespace ai::openai::codex::backend {
                                                std::string("The pending request is not a ") + expectedType + " request."));
                 return;
             }
-            const auto send = respond(*request);
+            SendResult send;
+            try {
+                if (detail::submitReverseResponseIfSequenceAvailable(state, send, [&]() {
+                        return respond(*request);
+                    }) == detail::ReverseResponsePreflightStatus::SequenceUnavailable) {
+                    complete(id,
+                             commandRequestId,
+                             CommandResult::failed(CommandErrorCode::BackendUnavailable,
+                                                   "The backend has no sequence capacity to retire the answered provider request."));
+                    return;
+                }
+            } catch (const std::exception& error) {
+                complete(id,
+                         commandRequestId,
+                         CommandResult::failed(CommandErrorCode::LocalSubmissionFailure,
+                                               std::string{"The App Server response submitter threw: "} + error.what()));
+                return;
+            } catch (...) {
+                complete(id,
+                         commandRequestId,
+                         CommandResult::failed(CommandErrorCode::LocalSubmissionFailure, "The App Server response submitter threw."));
+                return;
+            }
             if (!send) {
                 complete(id,
                          commandRequestId,
@@ -1405,8 +1693,14 @@ namespace ai::openai::codex::backend {
                                                send.error ? send.error->message : "The App Server response could not be enqueued."));
                 return;
             }
-            publish(PendingRequestRemoved{pendingId, "response_enqueued"});
-            complete(id, commandRequestId, CommandResult::succeeded());
+            if (!publish(PendingRequestRemoved{pendingId, "response_enqueued"})) {
+                complete(id,
+                         commandRequestId,
+                         CommandResult::failed(CommandErrorCode::BackendUnavailable,
+                                               "The backend could not retire the answered provider request."));
+                return;
+            }
+            complete(id, commandRequestId, CommandResult::succeeded(typed::Unit{}));
         }
 
         void respondApproval(SessionId id, const std::string& requestId, const ApprovalRespond& command) {
@@ -1414,46 +1708,97 @@ namespace ai::openai::codex::backend {
             if (iterator == state.pendingRequests.end()) {
                 complete(id, requestId, CommandResult::failed(CommandErrorCode::NotFound, "The pending request no longer exists."));
             } else if (std::holds_alternative<typed::CommandApprovalRequest>(iterator->second.request)) {
-                respondTo<typed::CommandApprovalRequest>(
-                    id,
-                    requestId,
-                    command.requestId,
-                    [this, &command](const auto& request) {
-                        return client.requests().respond(request, command.decision);
-                    },
-                    "command approval");
+                std::visit(Overloaded{[&](const typed::ApprovalDecision& response) {
+                                          respondTo<typed::CommandApprovalRequest>(
+                                              id,
+                                              requestId,
+                                              command.requestId,
+                                              [this, &response](const auto& request) {
+                                                  return client.requests().respond(request, response);
+                                              },
+                                              "command approval");
+                                      },
+                                      [&](const typed::CommandExecutionRequestApprovalResponse& response) {
+                                          respondTo<typed::CommandApprovalRequest>(
+                                              id,
+                                              requestId,
+                                              command.requestId,
+                                              [this, &response](const auto& request) {
+                                                  return client.requests().respond(request, response);
+                                              },
+                                              "command approval");
+                                      },
+                                      [&](const typed::FileChangeRequestApprovalResponse&) {
+                                          complete(id,
+                                                   requestId,
+                                                   CommandResult::failed(CommandErrorCode::InvalidCommand,
+                                                                         "A file-change response cannot answer a command approval."));
+                                      }},
+                           command.response);
+            } else if (std::holds_alternative<typed::FileChangeApprovalRequest>(iterator->second.request)) {
+                std::visit(Overloaded{[&](const typed::ApprovalDecision& response) {
+                                          respondTo<typed::FileChangeApprovalRequest>(
+                                              id,
+                                              requestId,
+                                              command.requestId,
+                                              [this, &response](const auto& request) {
+                                                  return client.requests().respond(request, response);
+                                              },
+                                              "file-change approval");
+                                      },
+                                      [&](const typed::FileChangeRequestApprovalResponse& response) {
+                                          respondTo<typed::FileChangeApprovalRequest>(
+                                              id,
+                                              requestId,
+                                              command.requestId,
+                                              [this, &response](const auto& request) {
+                                                  return client.requests().respond(request, response);
+                                              },
+                                              "file-change approval");
+                                      },
+                                      [&](const typed::CommandExecutionRequestApprovalResponse&) {
+                                          complete(id,
+                                                   requestId,
+                                                   CommandResult::failed(CommandErrorCode::InvalidCommand,
+                                                                         "A command response cannot answer a file-change approval."));
+                                      }},
+                           command.response);
             } else {
-                respondTo<typed::FileChangeApprovalRequest>(
-                    id,
-                    requestId,
-                    command.requestId,
-                    [this, &command](const auto& request) {
-                        return client.requests().respond(request, command.decision);
-                    },
-                    "file-change approval");
+                complete(id,
+                         requestId,
+                         CommandResult::failed(CommandErrorCode::InvalidCommand,
+                                               "The pending request is not a command or file-change approval."));
             }
         }
 
         void respondUserInput(SessionId id, const std::string& requestId, const UserInputRespond& command) {
-            respondTo<typed::UserInputRequest>(
-                id,
-                requestId,
-                command.requestId,
-                [this, &command](const auto& request) {
-                    return client.requests().respond(request, command.answers);
+            std::visit(
+                [&](const auto& response) {
+                    respondTo<typed::UserInputRequest>(
+                        id,
+                        requestId,
+                        command.requestId,
+                        [this, &response](const auto& request) {
+                            return client.requests().respond(request, response);
+                        },
+                        "user-input");
                 },
-                "user-input");
+                command.response);
         }
 
         void respondAuthentication(SessionId id, const std::string& requestId, const AuthenticationRespond& command) {
-            respondTo<typed::AuthenticationRequest>(
-                id,
-                requestId,
-                command.requestId,
-                [this, &command](const auto& request) {
-                    return client.requests().respond(request, command.response);
+            std::visit(
+                [&](const auto& response) {
+                    respondTo<typed::AuthenticationRequest>(
+                        id,
+                        requestId,
+                        command.requestId,
+                        [this, &response](const auto& request) {
+                            return client.requests().respond(request, response);
+                        },
+                        "authentication");
                 },
-                "authentication");
+                command.response);
         }
 
         void respondUnknown(SessionId id, const std::string& requestId, const UnknownRequestRespondRaw& command) {
@@ -1476,6 +1821,127 @@ namespace ai::openai::codex::backend {
                     return client.requests().reject(request, command.error);
                 },
                 "unknown extension");
+        }
+
+        void respondApplyPatchApproval(SessionId id, const std::string& requestId, const ApplyPatchApprovalRespond& command) {
+            respondTo<typed::ApplyPatchApprovalRequest>(
+                id,
+                requestId,
+                command.requestId,
+                [this, &command](const auto& request) {
+                    return client.requests().respond(request, command.response);
+                },
+                "apply-patch approval");
+        }
+
+        void respondExecCommandApproval(SessionId id, const std::string& requestId, const ExecCommandApprovalRespond& command) {
+            respondTo<typed::ExecCommandApprovalRequest>(
+                id,
+                requestId,
+                command.requestId,
+                [this, &command](const auto& request) {
+                    return client.requests().respond(request, command.response);
+                },
+                "exec-command approval");
+        }
+
+        void respondPermissionsApproval(SessionId id, const std::string& requestId, const PermissionsApprovalRespond& command) {
+            respondTo<typed::PermissionsApprovalRequest>(
+                id,
+                requestId,
+                command.requestId,
+                [this, &command](const auto& request) {
+                    return client.requests().respond(request, command.response);
+                },
+                "permissions approval");
+        }
+
+        void respondAttestation(SessionId id, const std::string& requestId, const AttestationGenerateRespond& command) {
+            respondTo<typed::AttestationGenerateRequest>(
+                id,
+                requestId,
+                command.requestId,
+                [this, &command](const auto& request) {
+                    return client.requests().respond(request, command.response);
+                },
+                "attestation");
+        }
+
+        void respondDynamicTool(SessionId id, const std::string& requestId, const DynamicToolCallRespond& command) {
+            respondTo<typed::DynamicToolCallRequest>(
+                id,
+                requestId,
+                command.requestId,
+                [this, &command](const auto& request) {
+                    return client.requests().respond(request, command.response);
+                },
+                "dynamic-tool call");
+        }
+
+        void respondMcpElicitation(SessionId id, const std::string& requestId, const McpServerElicitationRespond& command) {
+            respondTo<typed::McpServerElicitationRequest>(
+                id,
+                requestId,
+                command.requestId,
+                [this, &command](const auto& request) {
+                    return client.requests().respond(request, command.response);
+                },
+                "MCP elicitation");
+        }
+
+        void rejectKnown(SessionId id, const std::string& requestId, const KnownRequestReject& command) {
+            const auto iterator = state.pendingRequests.find(command.requestId);
+            if (iterator == state.pendingRequests.end()) {
+                complete(id, requestId, CommandResult::failed(CommandErrorCode::NotFound, "The pending request no longer exists."));
+                return;
+            }
+            std::visit(Overloaded{[&](const typed::UserInputRequest&) {
+                                      respondTo<typed::UserInputRequest>(
+                                          id,
+                                          requestId,
+                                          command.requestId,
+                                          [this, &command](const auto& request) {
+                                              return client.requests().reject(request, command.error);
+                                          },
+                                          "user-input");
+                                  },
+                                  [&](const typed::AttestationGenerateRequest&) {
+                                      respondTo<typed::AttestationGenerateRequest>(
+                                          id,
+                                          requestId,
+                                          command.requestId,
+                                          [this, &command](const auto& request) {
+                                              return client.requests().reject(request, command.error);
+                                          },
+                                          "attestation");
+                                  },
+                                  [&](const typed::DynamicToolCallRequest&) {
+                                      respondTo<typed::DynamicToolCallRequest>(
+                                          id,
+                                          requestId,
+                                          command.requestId,
+                                          [this, &command](const auto& request) {
+                                              return client.requests().reject(request, command.error);
+                                          },
+                                          "dynamic-tool call");
+                                  },
+                                  [&](const typed::McpServerElicitationRequest&) {
+                                      respondTo<typed::McpServerElicitationRequest>(
+                                          id,
+                                          requestId,
+                                          command.requestId,
+                                          [this, &command](const auto& request) {
+                                              return client.requests().reject(request, command.error);
+                                          },
+                                          "MCP elicitation");
+                                  },
+                                  [&](const auto&) {
+                                      complete(id,
+                                               requestId,
+                                               CommandResult::failed(CommandErrorCode::InvalidCommand,
+                                                                     "This known request type does not support typed rejection."));
+                                  }},
+                       iterator->second.request);
         }
 
         void onStateChanged(const StateChange& change) {
@@ -1613,7 +2079,7 @@ namespace ai::openai::codex::backend {
                         if (result && result.value) {
                             self->publish(ThreadListUpdated{*result.value, std::nullopt, true});
                         } else {
-                            const CommandResult failure = operationFailure(result);
+                            const CommandResult failure = detail::providerOperationFailure(result);
                             self->publish(
                                 DiagnosticReceived{failure.error ? failure.error->message : "Initial bounded thread refresh failed."});
                         }
@@ -1661,16 +2127,34 @@ namespace ai::openai::codex::backend {
             client.stop();
         }
 
+        void failProviderForResourceCapacity(std::string message) {
+            automaticRecoveryPending = false;
+            failurePendingStop = true;
+            operationCallbacksEnabled = false;
+            ++callbackEpoch;
+            invalidateProvider("provider_resource_capacity_exhausted");
+            cancelActiveOperations("The provider connection exceeded backend resource capacity.");
+            ProviderState provider = state.provider;
+            provider.lifecycle = ProviderLifecycle::Failed;
+            provider.lastError =
+                Error{Error::Category::Capacity, ENOBUFS, message.empty() ? "Provider resource capacity exhausted." : std::move(message)};
+            publish(ProviderLifecycleChanged{provider});
+            client.stop();
+        }
+
         void cancelActiveOperations(const std::string& reason) {
-            std::vector<OperationKey> keys;
-            keys.reserve(activeOperations.size());
+            std::vector<std::pair<OperationKey, ActiveOperation>> operations;
+            operations.reserve(activeOperations.size());
             for (const auto& [key, operation] : activeOperations) {
-                (void) operation;
-                keys.push_back(key);
+                operations.emplace_back(key, operation);
             }
             activeOperations.clear();
             cancelInternalProviderOperations();
-            for (const auto& [sessionId, requestId] : keys) {
+            for (const auto& [key, operation] : operations) {
+                if (operation.resourceKind && operation.resourceReservationKey) {
+                    releaseProviderResource(*operation.resourceKind, *operation.resourceReservationKey);
+                }
+                const auto& [sessionId, requestId] = key;
                 complete(sessionId, requestId, CommandResult::failed(CommandErrorCode::Cancelled, reason));
             }
         }
@@ -1696,6 +2180,7 @@ namespace ai::openai::codex::backend {
         std::uint64_t nextSessionId = 1;
         std::uint64_t nextObserverId = 1;
         std::uint64_t nextPendingRequestId = 1;
+        std::uint64_t nextProviderResourceReservationId = 1;
         std::map<SessionId, std::shared_ptr<SessionRecord>> sessions;
         std::map<std::uint64_t, std::shared_ptr<ObserverRecord>> observers;
         std::map<OperationKey, ActiveOperation> activeOperations;

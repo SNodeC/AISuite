@@ -44,6 +44,20 @@ namespace {
         bool deprecated;
     };
 
+    struct BackendDenominatorCounts {
+        std::size_t stableClientRequests = 0;
+        std::size_t internalInitializeRequests = 0;
+        std::size_t applicationOperations = 0;
+        std::size_t serverNotifications = 0;
+        std::size_t threadItems = 0;
+        std::size_t responseItems = 0;
+        std::size_t serverRequests = 0;
+
+        std::size_t total() const noexcept {
+            return applicationOperations + serverNotifications + threadItems + responseItems + serverRequests;
+        }
+    };
+
     enum class TypedCoverageRatchetErrorCode {
         BaselineIdentityMissing,
         BaselineIdentityNotStable,
@@ -85,6 +99,35 @@ namespace {
                 entry.at("domain").get<std::string>(),
                 entry.at("discriminator_field").get<std::string>(),
                 entry.at("name").get<std::string>()};
+    }
+
+    BackendDenominatorCounts backendDenominatorCounts(const Json& manifest) {
+        BackendDenominatorCounts counts;
+        for (const Json& entry : manifest.at("entries")) {
+            if (entry.at("stability") != "stable") {
+                continue;
+            }
+            const detail::SurfaceCategory category = categoryFromJson(entry.at("category").get<std::string>());
+            const std::string domain = entry.at("domain").get<std::string>();
+            const std::string name = entry.at("name").get<std::string>();
+            if (category == detail::SurfaceCategory::ClientRequest) {
+                ++counts.stableClientRequests;
+                if (name == "initialize") {
+                    ++counts.internalInitializeRequests;
+                } else {
+                    ++counts.applicationOperations;
+                }
+            } else if (category == detail::SurfaceCategory::ServerNotification) {
+                ++counts.serverNotifications;
+            } else if (category == detail::SurfaceCategory::ServerRequest) {
+                ++counts.serverRequests;
+            } else if (category == detail::SurfaceCategory::ItemDiscriminator && domain == "ThreadItem") {
+                ++counts.threadItems;
+            } else if (category == detail::SurfaceCategory::ItemDiscriminator && domain == "ResponseItem") {
+                ++counts.responseItems;
+            }
+        }
+        return counts;
     }
 
     template <typename Diagnostic, typename Code>
@@ -428,6 +471,14 @@ int main() {
     const Json manifest = loadManifest();
     const std::span<const detail::ProtocolSurfaceEntry> production = detail::protocolSurfaceRegistry();
     const std::vector<detail::ProtocolSurfaceEntry> baseline(production.begin(), production.end());
+    const BackendDenominatorCounts denominator = backendDenominatorCounts(manifest);
+
+    result.expectTrue(denominator.stableClientRequests == 87 && denominator.internalInitializeRequests == 1 &&
+                          denominator.applicationOperations == 86 && denominator.serverNotifications == 68 &&
+                          denominator.threadItems == 18 && denominator.responseItems == 16 && denominator.serverRequests == 10 &&
+                          denominator.total() == 198,
+                      "the pinned production manifest mechanically derives 87 stable requests minus initialize as 86 operations, "
+                      "plus 68 notifications, 18 ThreadItems, 16 ResponseItems, and 10 server requests for the fixed 198 total");
 
     std::set<OwnedKey> a13DescriptorKeys;
     std::size_t a13ClientDescriptors = 0;
@@ -490,6 +541,22 @@ int main() {
                           a13ClientDescriptors == 17 && a13NotificationDescriptors == 7 && a13ServerRequestDescriptors == 5 &&
                           a13UnionDescriptors == 39,
                       "all 68 A1.3 rows form an exact registry/descriptor/current-fixture bijection");
+
+    std::vector<detail::ProtocolSurfaceEntry> promotedActionOnly = baseline;
+    const auto promotedInterrupt =
+        findEntry(promotedActionOnly, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "turn/interrupt");
+    promotedInterrupt->canonicalState = detail::LayerStatus::Implemented;
+    promotedInterrupt->canonicalStateReason = detail::LayerDispositionReason::None;
+    result.expectTrue(hasExactCoverageCodes(promotedActionOnly, manifest, {ErrorCode::ActionOnlyCanonicalStateDispositionMismatch}),
+                      "coverage guard rejects removal of the approved action-only disposition from one of the exact 13 identities");
+
+    std::vector<detail::ProtocolSurfaceEntry> fabricatedActionOnly = baseline;
+    const auto fabricatedThreadStart =
+        findEntry(fabricatedActionOnly, detail::SurfaceCategory::ClientRequest, "ClientRequest", "method", "thread/start");
+    fabricatedThreadStart->canonicalState = detail::LayerStatus::NotApplicable;
+    fabricatedThreadStart->canonicalStateReason = detail::LayerDispositionReason::ActionOnlyNoPersistentState;
+    result.expectTrue(hasExactCoverageCodes(fabricatedActionOnly, manifest, {ErrorCode::InvalidLayerDispositionReason}),
+                      "coverage guard rejects a fourteenth action-only stable operation instead of shrinking the fixed denominator");
 
     std::vector<detail::ProtocolSurfaceEntry> missing = baseline;
     const auto missingEntry =

@@ -5,9 +5,13 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include <ai/openai/codex/backend/BackendCommand.h>
 #include <ai/openai/codex/backend/BackendCore.h>
+#include <ai/openai/codex/backend/BackendState.h>
+#include <ai/openai/codex/backend/Snapshot.h>
 #include <ai/openai/codex/frontend/BackendAdapter.h>
 #include <ai/openai/codex/stdio/Client.h>
+#include <algorithm>
 #include <array>
 #include <core/SNodeC.h>
 #include <core/socket/State.h>
@@ -20,9 +24,40 @@
 #include <net/un/stream/legacy/SocketServer.h>
 #include <string>
 #include <system_error>
+#include <utility>
+#include <variant>
 
 namespace {
     namespace codex = ai::openai::codex;
+
+    static_assert(std::variant_size_v<codex::backend::ProviderOperationValue> == 65);
+    static_assert(std::variant_size_v<codex::backend::CommandValue> == 68);
+    static_assert(std::variant_size_v<codex::backend::BackendCommand> == 101);
+
+    template <std::size_t... Index>
+    bool exerciseInstalledCommandPolicies(std::index_sequence<Index...>) {
+        const std::array policies{
+            codex::backend::commandPolicy(codex::backend::BackendCommand{std::in_place_index<Index>})...,
+        };
+        return std::all_of(policies.begin(), policies.end(), [](const codex::backend::CommandPolicy& policy) {
+            return policy.access == codex::backend::CommandAccess::Observer || policy.access == codex::backend::CommandAccess::Controller;
+        });
+    }
+
+    bool exerciseInstalledBackendApi() {
+        codex::backend::BackendState state;
+        codex::backend::Snapshot snapshot;
+        codex::backend::ProviderOperationValue providerValue{codex::typed::Unit{}};
+        codex::backend::CommandValue commandValue{std::move(snapshot)};
+        const codex::backend::BackendCommand command{codex::backend::SnapshotGet{}};
+        const codex::backend::CommandPolicy policy = codex::backend::commandPolicy(command);
+
+        return state.provider.lifecycle == codex::backend::ProviderLifecycle::Stopped &&
+               std::holds_alternative<codex::typed::Unit>(providerValue) &&
+               std::holds_alternative<codex::backend::Snapshot>(commandValue) && policy.access == codex::backend::CommandAccess::Observer &&
+               !policy.requiresProviderReady &&
+               exerciseInstalledCommandPolicies(std::make_index_sequence<std::variant_size_v<codex::backend::BackendCommand>>{});
+    }
 
     class ModuleSocketContext final : public core::socket::stream::SocketContext {
     public:
@@ -80,6 +115,9 @@ namespace {
 } // namespace
 
 int main(int argc, char* argv[]) {
+    if (!exerciseInstalledBackendApi()) {
+        return 1;
+    }
     core::SNodeC::init(argc, argv);
 
     int result = 1;

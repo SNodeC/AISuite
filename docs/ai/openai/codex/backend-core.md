@@ -23,7 +23,7 @@ contexts, JSONL framing, Qt, WebSocket, or browser code. In particular, a Unix
 socket path is not backend state. Concrete listener and framing code belongs in
 `src/apps/codex-backend`.
 
-## A1.6a foundation and coverage boundary
+## A1.6 completion and coverage boundary
 
 Phase A0 pins the Codex CLI 0.144.6 stable and experimental App Server schemas
 and registers every mechanically discovered protocol entry in the private
@@ -35,21 +35,26 @@ entry or a raw-preservation disposition is not BackendCore command or state
 support.
 
 A1.6a hardens lifecycle, recovery, freshness, capacity, snapshot, replay, and
-module-consumer behavior without widening provider-operation coverage. The six
-existing provider commands remain the only implemented commands out of 86;
-none of the 80 missing commands is added here. The 198-entry backend/state
-denominator is reported as 32 Implemented, 16 reasoned NotApplicable, and 150
-NotImplemented (48 resolved). A1.6a does not claim closure.
+module-consumer behavior. A1.6b completes all 86 stable application provider
+commands, all 68 stable notifications, all ten stable server requests, and all
+18 stable `ThreadItem` alternatives. The mechanically derived relevant-layer
+denominator is therefore 86 + 68 + 10 + 18 + 16 = 198. Its final disposition
+is 182 Implemented, 16 reasoned NotApplicable, and 0 NotImplemented.
 
 `LayerDispositionReason` makes every NotApplicable state explicit. Internal
 handshake identities use `InternalProtocolLifecycle`, type-only rows use
-`TypeModelOnly`, action-only operations use `ActionOnlyNoPersistentState`, the
-16 `ResponseItem` alternatives use `NoRuntimeBackendStatePath`, and
-experimental inventory uses `ExperimentalInventory`. Stable application
-operations, notifications, `ThreadItem` alternatives, and server requests
-cannot be hidden as NotApplicable. A1.6b owns 86/86 commands and the final
-198-entry closure; A1.7 owns the multi-transport frontend service, while A2
-remains provider-neutral architecture.
+`TypeModelOnly`, the exact 13 action/result-only operations use
+`ActionOnlyNoPersistentState`, the 16 `ResponseItem` alternatives use
+`NoRuntimeBackendStatePath`, and experimental inventory uses
+`ExperimentalInventory`. The canonical-state applicable denominator is frozen
+independently at 169: 73 stateful operations, 68 notifications, 18
+`ThreadItem` alternatives, and ten server requests. All 169 are Implemented.
+The generator and C++ validator share the authoritative action-only identity
+set; count and mutation guards reject a fourteenth action-only identity or any
+attempt to improve coverage by shrinking the denominator. See the
+[A1.6b completion report](a1-6b-backend-completeness.md) for the exact ledger.
+A1.7 owns the multi-transport frontend service, while A2 remains
+provider-neutral architecture.
 
 ## Ownership and construction
 
@@ -141,6 +146,20 @@ The state contains:
 - capacity limits, saturating rejection/eviction/drop counters, and retained
   state accounting;
 - a bounded diagnostic summary;
+- metadata-only provider-operation records and per-domain result summaries,
+  containing method, result alternative, bounded subject/page metadata, and a
+  source stamp rather than duplicate complete results;
+- 42 named trusted replacement caches containing bounded typed copies for account
+  login/read/rate/usage/messages, model list/capabilities, configuration/
+  requirements/features/write/enablement, thread goal get/clear/set and
+  unsubscribe/loaded threads, permission profiles/reviews, apps/external
+  agents/hooks/marketplace, plugin install/catalog/detail/share/skill and
+  skills list/configuration, MCP OAuth/status, and Windows readiness; wire-only
+  raw data and diagnostics are discarded, while extra roots and large stream/
+  search payloads use dedicated bounded state;
+- bounded typed-notification markers grouped into account, model,
+  configuration, conversation, filesystem, review, integration,
+  plugin/skill, MCP, and platform domains;
 - threads in deterministic first-seen order;
 - each thread's typed summary and its known turns;
 - each turn's typed status, deterministic item order, terminal/failure state,
@@ -150,17 +169,24 @@ The state contains:
   output;
 - exact pending typed server requests, indexed by backend-generated
   `PendingRequestId`;
+- bounded process, filesystem-watch, fuzzy-search, review/import/hook/OAuth,
+  sandbox-setup, and other activity records;
+- bounded notices for warnings, deprecations, configuration/security notices,
+  and Windows world-writable warnings;
 - connected sessions and controller ownership;
 - thread-list pagination and completeness information;
-- generation/freshness source stamps for provider-derived threads, turns,
-  items, and thread-list state, plus connection-invalidation markers for active
-  turns and items; and
+- generation/freshness source stamps across provider-derived conversation and
+  domain state, plus connection-invalidation markers for active turns, items,
+  processes, watches, and searches; and
 - the current backend revision plus bounded unknown-extension records.
 
 Maps provide ID-based upsert semantics while explicit order vectors preserve
 the server's deterministic first-seen order. An operation result and a later
 notification for the same thread, turn, or item update the same entity; they do
-not create duplicate state.
+not create duplicate state. The metadata ledgers do not serve as authoritative
+typed caches and do not promote an entire domain's freshness. Each named cache
+or domain entity carries the stamp of the result or event that actually
+confirmed it.
 
 The default reducer retains 64 diagnostics and 64 Codex extensions.
 Individual diagnostic messages are capped at 16 KiB. Canonical extension
@@ -194,6 +220,8 @@ backend events:
 
 - `ProviderLifecycleChanged`, `ProviderConnectionInvalidated`,
   `CapacityConfigured`, `CapacityChanged`, and `DiagnosticReceived`;
+- `ProviderOperationCompleted` plus process/watch/search admission and release
+  transitions;
 - `ThreadUpserted`, `ThreadListUpdated`, and `ThreadStatusUpdated`;
 - `TurnUpserted`, `TurnCompleted`, `TurnFailed`, and `TurnErrorUpdated`;
 - `ItemUpserted`, `ItemContentChanged`, and `FileChangeUpdated`;
@@ -201,6 +229,17 @@ backend events:
 - `PendingRequestAdded` and `PendingRequestRemoved`;
 - `ControllerChanged` and `SessionChanged`; and
 - `CodexExtensionReceived`.
+
+Every one of the 68 stable typed notifications produces at least one backend
+event. Lasting account, configuration, model, conversation, process,
+filesystem/search, review/security, integration, MCP, platform, realtime, and
+notice meaning is reduced into the corresponding canonical domain. The
+existing `error` notification remains on exactly one `TurnErrorUpdated` path.
+The generic extension projection remains bounded and redacted and is used only
+to preserve occurrence information where no additional durable meaning
+exists; the exact typed notification is an ephemeral reducer input, while
+session and observer queues receive its precomputed safe projection. A
+provider notification is not delivered twice.
 
 User messages and unknown typed items with a stable ID and envelope location
 remain canonical items. Unknown items retain their common ID, thread, and turn
@@ -238,7 +277,8 @@ compare equal. It contains the current backend revision, safe provider state,
 recovery and initialization metadata, capacity/truncation accounting, source
 freshness, diagnostics, ordered threads, turns and items, accumulated bounded
 content, pending request summaries, controller, connected sessions,
-thread-list completeness, and sequence-exhaustion state.
+thread-list completeness, bounded domain/process/watch/search/activity/notice
+projections, and sequence-exhaustion state.
 
 Snapshot creation never exposes pointers, callbacks, App Server client request
 IDs, server-request occurrence tokens, authentication access tokens, or
@@ -304,8 +344,9 @@ it. Provider operations capture that generation and a private callback epoch,
 so a late completion from an invalidated connection cannot mutate a newer
 generation.
 
-Successful operations hydrate state before their command completion is
-delivered:
+All 86 provider operations use one common generation/epoch-guarded execution
+path. Successful stateful operations publish reducer events before their exact
+typed command completion is delivered. Conversation examples include:
 
 - thread start and resume upsert the returned thread summary;
 - thread list merges the returned page by ID and retains its cursors;
@@ -344,25 +385,42 @@ guards so queued work cannot enter a destroyed backend.
 `BackendCapacityOptions` has independent defaults of 128 sessions, 16
 observers, 4,096 active operations, 1,024 pending server requests, 2,048
 threads, 16,384 turns, 65,536 items, 64 MiB accumulated visible content, and an
-8 MiB final snapshot. Zero means zero capacity for deterministic boundary
-tests. For snapshots, zero permits no optional payload; the mandatory valid
-summary envelope is still returned and explicitly reports when it cannot fit.
-These global limits supplement, rather than replace, the existing
-per-session, observer-queue, extension, diagnostic, and per-item content
-bounds.
+8 MiB final snapshot. Domain-resource defaults additionally retain at most 256
+notices, 256 processes, 4 MiB of output per process, 16 MiB of process output
+globally, 1,024 filesystem watches, 256 fuzzy-search sessions, and 512 activity
+records. Zero means zero capacity for deterministic boundary tests. For
+snapshots, zero permits no optional payload; the mandatory valid summary
+envelope is still returned and explicitly reports when it cannot fit. These
+global limits supplement, rather than replace, the existing per-session,
+observer-queue, extension, diagnostic, item-content, and realtime bounds.
 
 Session or observer exhaustion rejects only the new handle. Active-operation
-capacity is global across session-attached commands and internal initial
-hydration. Exhaustion completes an accepted backend command asynchronously
-with `local_submission_failure`; denied hydration records a rejection and
-diagnostic without provider submission. Every typed server-request occurrence
-uses one pending slot, including A1.6b-deferred attestation, dynamic-tool, and
-MCP-elicitation requests. Those occurrences are retained safely but still have
-no A1.6a response commands. Pending typed server requests are never evicted or
-silently dropped: overflow records a capacity event, invalidates and stops the
-provider connection, clears provider-scoped occurrence ownership, and retains
-sessions and controller ownership. The capacity error requires operator
-correction and an explicit restart.
+capacity is global across every one of the 86 provider commands and internal
+initial hydration. Exhaustion completes an accepted backend command
+asynchronously with `local_submission_failure`; denied hydration records a
+rejection and diagnostic without provider submission. Every typed
+server-request occurrence uses one pending slot, including attestation,
+dynamic-tool, and MCP-elicitation requests. All ten stable request types now
+have exact response semantics.
+Pending typed server requests are never evicted or silently dropped: overflow
+records a capacity event, invalidates and stops the provider connection, clears
+provider-scoped occurrence ownership, and retains sessions and controller
+ownership. The capacity error requires operator correction and an explicit
+restart.
+
+Process execution, filesystem watch creation, and fuzzy search reserve their
+resource capacity before provider submission. Active resources are protected;
+terminal processes and completed searches are evicted deterministically when
+needed, while active watches are never evicted merely to admit another watch.
+Each reservation is bound to the expected process, watch, or search identifier.
+An early provider notification promotes only its matching reserved slot into
+the concrete resource record without double counting or reporting a false
+overflow; an unrelated notification cannot steal another pending operation's
+reservation.
+Unsolicited provider resources that cannot be represented fail the provider
+closed. The per-process output ceiling applies to stdout and stderr combined;
+process output then uses the global newest-suffix bound and saturating
+dropped-byte accounting.
 
 Conversation retention uses deterministic oldest-first scans over the explicit
 thread, turn, and item order vectors. Active/nonterminal entities and entities
@@ -376,11 +434,12 @@ and snapshot-omission counters saturate rather than wrap and change only
 through reducer-visible capacity events.
 
 Canonical retained thread, turn, item, and accumulated-content counts are
-updated incrementally at mutation points. The ordinary reducer path first
-performs four O(1) comparisons and returns immediately while all limits are
-satisfied. Pending-reference indexes and the relevant deterministic order walk
-are used only after a structural limit is exceeded; content is traversed only
-when accumulated content exceeds its limit.
+updated incrementally at mutation points, as are notice, process,
+process-output, watch, fuzzy-search, and activity counts. The ordinary reducer
+path performs only O(1) counter comparisons and returns immediately while all
+limits are satisfied. Pending-reference indexes and the relevant deterministic
+order walk are used only after a structural limit is exceeded; content or
+output is traversed only when its accumulated limit is exceeded.
 
 Snapshot construction first creates the bounded, redacted projection and then
 enforces `maxSnapshotBytes` deterministically. It omits oldest inactive state
@@ -446,21 +505,53 @@ retain event-loop scheduling rather than introduce threads or blocking waits.
 ## Controller policy and commands
 
 There is at most one controller. Admitted sessions may act as observers within
-the configured session and observer-subscription limits. The 14 backend
-commands are C++ value variants independent of JSON:
+the configured session and observer-subscription limits. `BackendCommand` is a
+101-alternative C++ value variant independent of JSON: three control commands,
+all 86 stable provider operations, and 12 exact response/rejection commands.
+`ProviderOperationValue` contains 65 exact typed result alternatives;
+`CommandValue` contains the three control values followed by those alternatives
+as one flat 68-alternative variant. Exact thread/turn operation wrappers are not
+flattened to their nested entity.
 
-- `ControllerAcquire`, `ControllerRelease`, and `SnapshotGet`;
-- `ThreadStart`, `ThreadResume`, `ThreadList`, and `ThreadRead`;
-- `TurnStart` and `TurnInterrupt`;
-- `ApprovalRespond`, `UserInputRespond`, and `AuthenticationRespond`; and
-- `UnknownRequestRespondRaw` and `UnknownRequestReject`.
+One exhaustive visitor assigns every command a `CommandPolicy`; there is no
+default policy for a future alternative. Any connected trusted in-process
+session may acquire/release the controller, obtain a snapshot, or submit these
+read-only provider operations while the provider is Ready:
 
-Observers may obtain snapshots and issue thread list/read operations. Frontend
-replay is handled entirely by the frontend journal. All other App Server
-operations require the controller. Acquisition
-succeeds when there is no controller or idempotently for the same session. A
-different session receives `conflict`; release succeeds only for the current
-controller.
+```text
+account/rateLimits/read       account/read
+account/usage/read            account/workspaceMessages/read
+config/read                   configRequirements/read
+experimentalFeature/list     model/list
+modelProvider/capabilities/read
+thread/list                   thread/loaded/list
+thread/read                   thread/goal/get
+fs/getMetadata                fs/readDirectory
+fs/readFile                   fuzzyFileSearch
+permissionProfile/list        app/list
+externalAgentConfig/detect    externalAgentConfig/import/readHistories
+hooks/list                    plugin/installed
+plugin/list                   plugin/read
+plugin/share/list             plugin/skill/read
+skills/list                   mcpServer/resource/read
+mcpServerStatus/list          windowsSandbox/readiness
+```
+
+`account/read` is observer-readable only when `refreshToken` is absent or
+false. A true value intentionally refreshes authentication material and is
+controller-only. Every other provider mutation and all request responses or
+rejections require the controller and a Ready provider.
+
+The filesystem read operations above are observer-readable only at the
+trusted in-process BackendCore authorization boundary. This is not permission
+to expose them through an out-of-process protocol. Frontend Protocol v1 does
+not map them, and A1.7 must perform a separate transport/frontend security
+review before any remote exposure.
+
+Frontend replay remains handled entirely by the frontend journal. Controller
+acquisition succeeds when there is no controller or idempotently for the same
+session. A different session receives `conflict`; release succeeds only for
+the current controller.
 
 When the controller disconnects, ownership is released and remaining sessions
 are notified. The App Server keeps running. Pending requests remain pending,
@@ -470,8 +561,9 @@ Each submitted command has a nonempty, session-local request ID. A duplicate ID
 is rejected while its earlier command is pending. IDs in different sessions do
 not conflict. An accepted command produces exactly one asynchronous
 `CommandCompletion` unless that session closes first. Closing a session
-suppresses later completions but does not cancel the App Server operation; a
-successful late result can still hydrate shared state.
+suppresses later completions and retires its session-attached active-operation
+bookkeeping. A later provider result is ignored by BackendCore's guarded
+callback and cannot mutate shared state.
 
 The stable command error categories are:
 
@@ -499,14 +591,54 @@ against App Server JSON-RPC ID reuse. The token is never a frontend identifier
 and never appears in a snapshot.
 
 A pending request is removed only after the typed `respond`, `respondRaw`, or
-`reject` call successfully enqueues the response. Validation, encoding, or
-enqueue failure returns `local_submission_failure` and retains the request for
-retry. App Server stop, failure, or other connection invalidation clears all
-pending requests because their typed occurrence ownership is no longer valid.
+`reject` call successfully enqueues the response. BackendCore first verifies
+that the reducer has sequence capacity to publish that removal. If sequence is
+exhausted, it returns `backend_unavailable` without sending a response and
+retains the occurrence. Validation, encoding, or enqueue failure returns
+`local_submission_failure` and also retains the request for retry. A successful
+enqueue immediately publishes `PendingRequestRemoved` before completing the
+backend command. App Server stop, failure, or other connection invalidation
+clears all pending requests because their typed occurrence ownership is no
+longer valid.
+
+All ten stable typed request alternatives have an exact BackendCore response
+path. The application-friendly approval, user-input, and authentication
+commands accept both their convenience values and their complete typed schema
+response alternatives. Dedicated commands cover apply-patch approval,
+exec-command approval, permissions approval, attestation, dynamic tool calls,
+and MCP elicitation. `KnownRequestReject` is limited to the four known request
+types whose typed façade supports `reject()`; raw response/rejection commands
+remain restricted to `UnknownServerRequest`. No response payload containing
+authentication or elicitation data is copied into `CommandValue`, snapshots,
+diagnostics, or logs.
+
+`serverRequest/resolved` removes a matching current-generation pending request
+once. Duplicate, unknown, or stale-generation notifications are idempotent. A
+conflicting thread association retains the occurrence and records a bounded,
+redacted extension marker rather than removing the wrong request. The provider
+request ID and typed occurrence token remain absent from public snapshots.
 
 Controller disconnect is not connection invalidation. It does not remove,
 approve, decline, reject, or otherwise answer any request. BackendCore contains
 no automatic approval or rejection policy.
+
+## Frontend Protocol v1 boundary
+
+Completing BackendCore does not add provider methods to Frontend Protocol v1.
+Its identity, version, message kinds, command subset, JSON fields, replay,
+coalescing, batching, controller rules, and error codes remain unchanged. The
+adapter projects `ThreadStartResponse`, `ThreadResumeResponse`, and
+`ThreadReadResponse` through their `.thread` member and `TurnStartResponse`
+through `.turn`, preserving the existing v1 JSON. `ThreadListResponse` and
+`typed::Unit` keep their existing page and empty-object projections.
+
+The other 59 provider result alternatives are unreachable from the v1 command
+set. The adapter exhaustively recognizes them but reports an internal adapter
+error if one arrives unexpectedly; it neither invents a v1 representation nor
+exposes raw typed state. Stable notifications continue through the existing
+dedicated normalized events or the single bounded `codex.extension` contract,
+without duplicate delivery. Frontend protocol expansion, new snapshot fields,
+additional transports, SDKs, and UI security decisions remain A1.7.
 
 ## Installed module consumption
 
@@ -540,3 +672,8 @@ The installed module-consumer test instantiates
 Unix-domain SNode.C server using only staged headers and packages. It uses no
 AISuite source include path, private header, real Codex credential, or fixed
 dependency commit.
+
+A1.6b remains inside the intentionally unreleased SOVERSION-2 development ABI
+boundary. Project version remains `0.1.0`, the installed public-header inventory
+remains 29 main, 7 backend, and 7 frontend headers, and no compatibility copy
+of the former flattened command-result API is installed.

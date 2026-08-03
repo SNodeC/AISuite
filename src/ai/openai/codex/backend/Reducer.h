@@ -12,6 +12,7 @@
 #include "ai/openai/codex/typed/Events.h"
 
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 namespace ai::openai::codex::backend {
@@ -25,6 +26,9 @@ namespace ai::openai::codex::backend {
         std::size_t maxExtensionDecodingErrorBytes = 16U * 1024U;
         std::size_t maxAccumulatedItemBytes = 4U * 1024U * 1024U;
         std::size_t maxModelReroutesPerTurn = 64;
+        std::size_t maxNoticeSummaryBytes = 4U * 1024U;
+        std::size_t maxNoticeDetailsBytes = 16U * 1024U;
+        std::size_t maxRealtimeTranscriptBytes = 4U * 1024U * 1024U;
     };
 
     struct Reduction {
@@ -37,6 +41,9 @@ namespace ai::openai::codex::backend {
         bool flushImmediately = false;
         std::vector<CapacityChanged> capacityChanges;
         std::vector<PendingRequestRemoved> pendingRequestRemovals;
+        bool providerCapacityFailure = false;
+        std::string providerCapacityFailureMessage;
+        std::optional<bool> resourceAdmission;
     };
 
     class Reducer {

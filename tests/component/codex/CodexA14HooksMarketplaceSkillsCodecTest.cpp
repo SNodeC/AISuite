@@ -524,7 +524,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
         for (const codex::Notification& wire : wires) {
             const typed::Event event = detail::decodeEvent(wire);
             const std::vector<backend::BackendEvent> translated = reducer.translate(event);
@@ -553,12 +552,12 @@ namespace {
                 frontendBytes.find(privateSkillName) == std::string::npos,
             "frontend-compatible snapshots redact hook and open skills payload values");
 
-        backend::Snapshot withoutExtensions = snapshot;
-        withoutExtensions.recentExtensions.clear();
-        withoutExtensions.omittedRecentExtensions = 0;
-        result.expectTrue(withoutExtensions == before && state.threads.empty() && state.threadOrder.empty() &&
+        result.expectTrue(snapshot.integrations.latestNotifications.size() == 2 &&
+                              snapshot.pluginsAndSkills.latestNotifications.size() == 1 && snapshot.activities.size() == 1 &&
+                              snapshot.activities.front().kind == "hook" && snapshot.activities.front().lifecycle == "completed" &&
+                              !snapshot.activities.front().active && state.threads.empty() && state.threadOrder.empty() &&
                               state.pendingRequests.empty(),
-                          "hooks/marketplace/skills notifications add no backend product state");
+                          "hooks and skills notifications update dedicated bounded domain and activity state");
 
         backend::ExtensionRecord unrelated{};
         unrelated.method = "future/extension";
@@ -570,8 +569,11 @@ namespace {
             {"futureSkillName", privateSkillName},
         };
         const backend::ExtensionSnapshot unrelatedSnapshot = backend::makeExtensionSnapshot(unrelated);
-        result.expectTrue(!unrelatedSnapshot.sensitiveFieldsRedacted && unrelatedSnapshot.payload == unrelated.payload,
-                          "hooks/marketplace/skills redaction is scoped to the exact notification methods");
+        result.expectTrue(unrelatedSnapshot.sensitiveFieldsRedacted &&
+                              unrelatedSnapshot.payload.value("futureSkillPath", "") == "[redacted]" &&
+                              unrelatedSnapshot.payload.value("run", "") == privateRun &&
+                              unrelatedSnapshot.payload.value("futureSkillName", "") == privateSkillName,
+                          "generic extension projection recursively redacts path-like values without method-specific over-redaction");
     }
 } // namespace
 

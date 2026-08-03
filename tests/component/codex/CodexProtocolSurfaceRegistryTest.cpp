@@ -25,6 +25,50 @@
 namespace {
     namespace detail = ai::openai::codex::detail;
 
+    constexpr std::array<std::string_view, 13> ActionOnlyNoPersistentStateNames{
+        "account/sendAddCreditsNudgeEmail",
+        "feedback/upload",
+        "fs/copy",
+        "fs/createDirectory",
+        "fs/getMetadata",
+        "fs/readDirectory",
+        "fs/readFile",
+        "fs/remove",
+        "fs/writeFile",
+        "mcpServer/resource/read",
+        "mcpServer/tool/call",
+        "thread/shellCommand",
+        "turn/interrupt",
+    };
+
+    bool isActionOnlyNoPersistentState(std::string_view name) {
+        return std::find(ActionOnlyNoPersistentStateNames.begin(), ActionOnlyNoPersistentStateNames.end(), name) !=
+               ActionOnlyNoPersistentStateNames.end();
+    }
+
+    std::pair<std::size_t, std::size_t> canonicalStateCoverage(std::span<const detail::ProtocolSurfaceEntry> entries) {
+        std::size_t implemented = 0;
+        std::size_t applicable = 0;
+        for (const detail::ProtocolSurfaceEntry& entry : entries) {
+            if (entry.stability != detail::Stability::Stable) {
+                continue;
+            }
+            const bool applicationOperation =
+                entry.key.category == detail::SurfaceCategory::ClientRequest && entry.key.name != "initialize";
+            const bool canonicalApplicable =
+                (applicationOperation && !isActionOnlyNoPersistentState(entry.key.name)) ||
+                entry.key.category == detail::SurfaceCategory::ServerNotification ||
+                entry.key.category == detail::SurfaceCategory::ServerRequest ||
+                (entry.key.category == detail::SurfaceCategory::ItemDiscriminator && entry.key.domain == "ThreadItem");
+            if (!canonicalApplicable) {
+                continue;
+            }
+            ++applicable;
+            implemented += entry.canonicalState == detail::LayerStatus::Implemented;
+        }
+        return {implemented, applicable};
+    }
+
     template <typename Target, std::size_t Size>
     void expectTargets(tests::support::TestResult& result, const std::array<std::string_view, Size>& expected, const char* description) {
         bool matches = Size == static_cast<std::size_t>(Target::Count);
@@ -105,6 +149,9 @@ int main() {
     std::array<std::size_t, 3> backendOperationDispositions{};
     std::array<std::size_t, 3> backendStateDispositions{};
     std::array<std::size_t, 6> backendStateNotApplicableReasons{};
+    std::size_t actionOnlyNoPersistentState = 0;
+    std::size_t canonicalStateApplicable = 0;
+    std::size_t canonicalStateImplemented = 0;
     std::array<std::size_t, 7> categories{};
     std::array<std::size_t, 6> slices{};
     for (const detail::ProtocolSurfaceEntry& entry : registry) {
@@ -121,9 +168,17 @@ int main() {
             const bool responseItem =
                 entry.key.category == detail::SurfaceCategory::ItemDiscriminator && entry.key.domain == "ResponseItem";
             const bool serverRequest = entry.key.category == detail::SurfaceCategory::ServerRequest;
+            const bool actionOnly = applicationOperation && isActionOnlyNoPersistentState(entry.key.name);
+            const bool canonicalApplicable = (applicationOperation && !actionOnly) || notification || threadItem || serverRequest;
             if (applicationOperation) {
                 recordDisposition(entry.backendCore, backendOperationDispositions);
             }
+            if (canonicalApplicable) {
+                ++canonicalStateApplicable;
+                canonicalStateImplemented += entry.canonicalState == detail::LayerStatus::Implemented;
+            }
+            actionOnlyNoPersistentState += actionOnly && entry.canonicalState == detail::LayerStatus::NotApplicable &&
+                                           entry.canonicalStateReason == detail::LayerDispositionReason::ActionOnlyNoPersistentState;
             const std::optional<std::pair<detail::LayerStatus, detail::LayerDispositionReason>> backendStateDisposition =
                 applicationOperation || notification || serverRequest
                     ? std::optional<std::pair<detail::LayerStatus, detail::LayerDispositionReason>>{{entry.backendCore,
@@ -228,14 +283,18 @@ int main() {
         "while the 25 new methods use the bounded generic-extension contract");
     result.expectTrue(stableClientAssociations == 87 && stableServerAssociations == 10,
                       "canonical registry carries all 87 Rust-derived client contracts and all 10 schema-paired server contracts");
-    result.expectTrue(backendOperationDispositions == std::array<std::size_t, 3>{6, 80, 0},
-                      "BackendCore stable provider-operation coverage remains separately reported as 6 Implemented, 80 NotImplemented, "
-                      "and 0 NotApplicable out of 86");
+    result.expectTrue(backendOperationDispositions == std::array<std::size_t, 3>{86, 0, 0},
+                      "BackendCore stable provider-operation coverage is exactly 86 Implemented and zero unresolved out of 86");
     result.expectTrue(
-        backendStateDispositions == std::array<std::size_t, 3>{32, 150, 16} &&
+        backendStateDispositions == std::array<std::size_t, 3>{182, 0, 16} &&
             backendStateNotApplicableReasons[static_cast<std::size_t>(detail::LayerDispositionReason::NoRuntimeBackendStatePath)] == 16 &&
             std::accumulate(backendStateNotApplicableReasons.begin(), backendStateNotApplicableReasons.end(), std::size_t{0}) == 16,
-        "the 198-entry backend/state denominator reports 32 Implemented, 16 reasoned NotApplicable, 150 NotImplemented, and 48 resolved");
+        "the 198-entry backend/state denominator reports 182 Implemented, 16 reasoned NotApplicable, zero NotImplemented, and 198 "
+        "resolved");
+    result.expectTrue(actionOnlyNoPersistentState == ActionOnlyNoPersistentStateNames.size() && actionOnlyNoPersistentState == 13,
+                      "the exact frozen 13 stable application operations remain ActionOnlyNoPersistentState");
+    result.expectTrue(canonicalStateApplicable == 169 && canonicalStateImplemented == 169,
+                      "canonical-state coverage is exactly 169 Implemented over the fixed 169-entry applicable denominator");
     result.expectTrue(concreteResultContracts == 76 && unitResultContracts == 21,
                       "result contracts preserve 76 concrete and 21 explicit Unit identities without empty-string sentinels");
     result.expectTrue(schemaComplete == 339 && schemaPartial == 0 && schemaNotImplemented == 0 && schemaNotApplicable == 48,
@@ -2734,7 +2793,7 @@ int main() {
                 detail::LayerDispositionReason::TypeModelOnly;
         },
         detail::ProtocolSurfaceErrorCode::UnexpectedLayerDispositionReason,
-        "NotImplemented with a non-None reason is rejected");
+        "an applicable layer status with a non-None reason is rejected");
     expectLayerMutation(
         [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
             auto operation = findEntry(entries, detail::SurfaceCategory::ClientRequest, "account/login/cancel");
@@ -2767,6 +2826,32 @@ int main() {
         },
         detail::ProtocolSurfaceErrorCode::ResponseItemCanonicalStateDispositionMismatch,
         "every stable ResponseItem requires the NoRuntimeBackendStatePath disposition");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto operation = findEntry(entries, detail::SurfaceCategory::ClientRequest, "turn/interrupt");
+            operation->canonicalState = detail::LayerStatus::Implemented;
+            operation->canonicalStateReason = detail::LayerDispositionReason::None;
+        },
+        detail::ProtocolSurfaceErrorCode::ActionOnlyCanonicalStateDispositionMismatch,
+        "one of the exact 13 action-only operations cannot be promoted into the canonical-state denominator");
+    expectLayerMutation(
+        [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
+            auto operation = findEntry(entries, detail::SurfaceCategory::ClientRequest, "thread/start");
+            operation->canonicalState = detail::LayerStatus::NotApplicable;
+            operation->canonicalStateReason = detail::LayerDispositionReason::ActionOnlyNoPersistentState;
+        },
+        detail::ProtocolSurfaceErrorCode::InvalidLayerDispositionReason,
+        "a fourteenth stable operation cannot acquire the ActionOnlyNoPersistentState disposition");
+
+    std::vector<detail::ProtocolSurfaceEntry> denominatorShrink(registry.begin(), registry.end());
+    auto denominatorShrinkOperation = findEntry(denominatorShrink, detail::SurfaceCategory::ClientRequest, "thread/start");
+    denominatorShrinkOperation->canonicalState = detail::LayerStatus::NotApplicable;
+    denominatorShrinkOperation->canonicalStateReason = detail::LayerDispositionReason::ActionOnlyNoPersistentState;
+    const auto [shrunkImplemented, fixedApplicable] = canonicalStateCoverage(denominatorShrink);
+    result.expectTrue(
+        fixedApplicable == 169 && shrunkImplemented == 168 &&
+            hasCode(detail::validateProtocolSurface(denominatorShrink), detail::ProtocolSurfaceErrorCode::InvalidLayerDispositionReason),
+        "reclassifying an applicable operation cannot shrink the fixed 169 denominator or preserve a false 100 percent");
     expectLayerMutation(
         [](std::vector<detail::ProtocolSurfaceEntry>& entries) {
             auto request = findEntry(entries, detail::SurfaceCategory::ServerRequest, "attestation/generate");

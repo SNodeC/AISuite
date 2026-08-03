@@ -140,6 +140,57 @@ namespace {
         return &snapshot.threads.front().turns.front().items.front();
     }
 
+    backend::ItemSnapshot* onlyItem(backend::Snapshot& snapshot) {
+        if (snapshot.threads.size() != 1 || snapshot.threads.front().turns.size() != 1 ||
+            snapshot.threads.front().turns.front().items.size() != 1) {
+            return nullptr;
+        }
+        return &snapshot.threads.front().turns.front().items.front();
+    }
+
+    bool matchesDedicatedProjection(const ItemCase& itemCase, const Json& fixture, const Json& data) {
+        const std::string type = itemCase.discriminator;
+        if (type == "collabAgentToolCall") {
+            return data.value("tool", "") == fixture.at("tool").get<std::string>() &&
+                   data.value("status", "") == fixture.at("status").get<std::string>() &&
+                   data.value("senderThreadId", "") == fixture.at("senderThreadId").get<std::string>() &&
+                   data.value("receiverCount", std::size_t{0}) == fixture.at("receiverThreadIds").size() &&
+                   data.value("agentStateCount", std::size_t{0}) == fixture.at("agentsStates").size() && data.value("hasPrompt", false) &&
+                   data.value("promptBytes", std::size_t{0}) == fixture.at("prompt").get_ref<const std::string&>().size();
+        }
+        if (type == "contextCompaction") {
+            return data == Json{{"compacted", true}};
+        }
+        if (type == "enteredReviewMode" || type == "exitedReviewMode") {
+            return data.value("mode", "") == (type == "enteredReviewMode" ? "entered" : "exited") &&
+                   data.value("review", "") == fixture.at("review").get<std::string>();
+        }
+        if (type == "hookPrompt") {
+            return data.value("fragmentCount", std::size_t{0}) == fixture.at("fragments").size() &&
+                   data.value("firstHookRunId", "") == fixture.at("fragments").front().at("hookRunId").get<std::string>();
+        }
+        if (type == "imageGeneration") {
+            return data.value("status", "") == fixture.at("status").get<std::string>() &&
+                   data.value("resultBytes", std::size_t{0}) == fixture.at("result").get_ref<const std::string&>().size() &&
+                   data.value("hasRevisedPrompt", false) && data.value("hasSavedPath", false);
+        }
+        if (type == "imageView") {
+            return data.value("path", "") == fixture.at("path").get<std::string>();
+        }
+        if (type == "plan") {
+            return data.value("text", "") == fixture.at("text").get<std::string>() && !data.value("textTruncated", true);
+        }
+        if (type == "sleep") {
+            return data.value("durationMs", std::int64_t{-1}) == fixture.at("durationMs").get<std::int64_t>();
+        }
+        if (type == "subAgentActivity") {
+            return data.value("agentPath", "") == fixture.at("agentPath").get<std::string>() &&
+                   data.value("agentThreadId", "") == fixture.at("agentThreadId").get<std::string>() &&
+                   data.value("kind", "") == fixture.at("kind").get<std::string>();
+        }
+        return false;
+    }
+
     void testLifecycleParity(tests::support::TestResult& result) {
         const typed::ThreadId threadId{"thread-parity"};
         const typed::TurnId turnId{"turn-parity"};
@@ -218,19 +269,25 @@ namespace {
                                   typedState.recentExtensions.empty(),
                               description + " remains canonical and observable without a duplicate extension");
 
-            const backend::Snapshot typedSnapshot = backend::makeSnapshot(typedState);
+            backend::Snapshot typedSnapshot = backend::makeSnapshot(typedState);
             const backend::Snapshot legacySnapshot = backend::makeSnapshot(legacyState);
             const backend::ItemSnapshot* itemSnapshot = onlyItem(typedSnapshot);
-            result.expectTrue(typedSnapshot == legacySnapshot,
-                              description + " preserves the exact pre-typing metadata-only backend snapshot");
-            result.expectTrue(itemSnapshot && itemSnapshot->id == fixture->at("id").get<std::string>() &&
-                                  itemSnapshot->type == itemCase.discriminator && itemSnapshot->status == "completed" &&
-                                  itemSnapshot->startedAtMs == StartedAt && itemSnapshot->completedAtMs == CompletedAt &&
-                                  itemSnapshot->data == Json::object({{"codexType", itemCase.discriminator}}) &&
-                                  itemSnapshot->agentText.empty() && itemSnapshot->reasoningText.empty() &&
-                                  itemSnapshot->reasoningSummary.empty() && itemSnapshot->commandOutput.empty() &&
-                                  itemSnapshot->extensions.empty(),
-                              description + " exposes only the existing Frontend Protocol v1 unknown-item metadata subset");
+            backend::Snapshot metadataNormalizedSnapshot = typedSnapshot;
+            backend::ItemSnapshot* normalizedItem = onlyItem(metadataNormalizedSnapshot);
+            const backend::ItemSnapshot* legacyItem = onlyItem(legacySnapshot);
+            if (normalizedItem && legacyItem) {
+                normalizedItem->data = legacyItem->data;
+            }
+            result.expectTrue(normalizedItem && legacyItem && metadataNormalizedSnapshot == legacySnapshot,
+                              description + " preserves lifecycle/location parity while adding only its dedicated safe projection");
+            result.expectTrue(
+                itemSnapshot && itemSnapshot->id == fixture->at("id").get<std::string>() && itemSnapshot->type == itemCase.discriminator &&
+                    itemSnapshot->status == "completed" && itemSnapshot->startedAtMs == StartedAt &&
+                    itemSnapshot->completedAtMs == CompletedAt && matchesDedicatedProjection(itemCase, *fixture, itemSnapshot->data) &&
+                    !itemSnapshot->data.contains("raw") && !itemSnapshot->data.contains("accessToken") && itemSnapshot->agentText.empty() &&
+                    itemSnapshot->reasoningText.empty() && itemSnapshot->reasoningSummary.empty() && itemSnapshot->commandOutput.empty() &&
+                    itemSnapshot->extensions.empty(),
+                description + " exposes a useful bounded typed backend projection without raw provider JSON");
             ++exercised;
         }
 

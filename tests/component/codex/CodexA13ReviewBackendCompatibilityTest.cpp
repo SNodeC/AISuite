@@ -154,7 +154,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
 
         for (const Case& testCase : cases) {
             const typed::Event event = detail::decodeEvent(notification(testCase));
@@ -238,12 +237,12 @@ namespace {
             "frontend-compatible bytes contain no synthetic guardian-sensitive "
             "values or envelopes");
 
-        backend::Snapshot withoutExtensions = snapshot;
-        withoutExtensions.recentExtensions.clear();
-        withoutExtensions.omittedRecentExtensions = 0;
-        result.expectTrue(withoutExtensions == before && state.threads.empty() && state.threadOrder.empty() &&
-                              state.pendingRequests.empty(),
-                          "guardian notifications add no semantic review, thread, or approval state");
+        result.expectTrue(snapshot.notices.size() == 1 && snapshot.notices.front().category == backend::NoticeCategory::Security &&
+                              snapshot.activities.size() == 1 && snapshot.activities.front().kind == "guardian_review" &&
+                              snapshot.activities.front().lifecycle == "completed" && !snapshot.activities.front().active &&
+                              snapshot.reviews.latestNotifications.size() == 1 && snapshot.conversations.latestNotifications.size() == 2 &&
+                              state.threads.empty() && state.threadOrder.empty() && state.pendingRequests.empty(),
+                          "guardian notifications update dedicated bounded notice and review-activity state");
     }
 
     void testRedactionIsMethodSpecific(tests::support::TestResult& result) {
@@ -271,9 +270,13 @@ namespace {
 } // namespace
 
 int main() {
-    static_assert(std::variant_size_v<backend::BackendCommand> == 14);
+    static_assert(std::variant_size_v<backend::BackendCommand> == 101);
+    static_assert(std::variant_size_v<backend::ProviderOperationValue> == 65);
+    static_assert(std::variant_size_v<backend::CommandValue> == 68);
     static_assert(std::is_same_v<std::variant_alternative_t<0, backend::BackendCommand>, backend::ControllerAcquire>);
-    static_assert(std::is_same_v<std::variant_alternative_t<13, backend::BackendCommand>, backend::UnknownRequestReject>);
+    static_assert(std::is_same_v<std::variant_alternative_t<100, backend::BackendCommand>, backend::KnownRequestReject>);
+    static_assert(!std::is_constructible_v<backend::CommandValue, typed::Thread>);
+    static_assert(!std::is_constructible_v<backend::CommandValue, typed::Turn>);
     static_assert(!HasGuardianReviewState<backend::BackendState>);
     static_assert(!HasReviewResultState<backend::BackendState>);
     static_assert(!HasGuardianPolicy<backend::BackendState>);

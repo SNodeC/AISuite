@@ -35,8 +35,8 @@ rows. `ThreadItem` contributes 18 item discriminators and `ResponseItem` 16.
 | Typed wire request/result coverage | 87/87 | 100.0% | Stable client requests; includes typed initialization lifecycle support. |
 | Typed notification/server-request coverage | 78/78 | 100.0% | Stable server notifications and server-initiated requests. |
 | Typed item/delta coverage | 46/46 | 100.0% | Stable item discriminators plus delta/progress notification methods. |
-| BackendCore stable operation commands | 6/86 | 7.0% | Stable application client requests; initialize is internal lifecycle and excluded. |
-| Canonical-state/reducer coverage | 31/181 | 17.1% | Stable registry entries whose canonical-state status is applicable. |
+| BackendCore stable operation commands | 86/86 | 100.0% | Stable application client requests; initialize is internal lifecycle and excluded. |
+| Canonical-state/reducer coverage | 169/169 | 100.0% | The frozen 169-entry applicable set: 73 stateful operations, 68 notifications, 18 ThreadItems, and 10 server requests. |
 | Frontend Protocol existing-subset exposure coverage | 10/96 | 10.4% | Stable operations with an existing reviewed normalized v1 subset; not full upstream-method exposure. |
 | Frontend Protocol normalized event/state subset coverage | 22/102 | 21.6% | Stable notifications/items with existing typed normalized v1 snapshot or event semantics. |
 | Frontend Protocol bounded generic extension coverage | 54/102 | 52.9% | Stable notifications retained with bounded, redacted payloads through the v1 codex.extension contract. |
@@ -46,14 +46,16 @@ rows. `ThreadItem` contributes 18 item discriminators and `ResponseItem` 16.
 
 ## Backend/state disposition
 
-BackendCore stable operation commands: **6 / 86 Implemented**.
+BackendCore stable operation commands: **86 / 86 Implemented**.
+Canonical state: **169 / 169 applicable entries Implemented**.
+Canonical-state exclusions: **13 ActionOnlyNoPersistentState operations** and **16 NoRuntimeBackendStatePath ResponseItem alternatives**.
 
 | Disposition | Count |
 |---|---:|
-| Implemented | 32 |
+| Implemented | 182 |
 | NotApplicable | 16 |
-| NotImplemented | 150 |
-| Resolved | 48 |
+| NotImplemented | 0 |
+| Resolved | 198 |
 | Total | 198 |
 
 | NotApplicable reason | Count |
@@ -107,7 +109,7 @@ TypeScript representation.
 ## Phase boundary
 
 A0 established the census, registry, guards, and owner worksheet. Final A1 and
-A1.5 complete the typed protocol and application façade. A1.6a hardens the
-backend foundation without expanding provider-command coverage; A1.6b owns
-backend completeness. A1.7 exposes only owner-approved Frontend Protocol
-operations. Provider-neutral architecture remains separate A2 work.
+A1.5 complete the typed protocol and application façade. A1.6a hardened the
+backend foundation, and A1.6b completes the provider-to-backend command and
+state layer. A1.7 exposes only owner-approved Frontend Protocol operations.
+Provider-neutral architecture remains separate A2 work.

@@ -688,6 +688,7 @@ namespace ai::openai::codex::detail {
         StableServerNotificationBackendNotApplicable,
         ThreadItemCanonicalStateNotApplicable,
         ResponseItemCanonicalStateDispositionMismatch,
+        ActionOnlyCanonicalStateDispositionMismatch,
         StableServerRequestLayerNotApplicable,
         InventoryOnlyDispositionReasonMismatch,
         FrontendSecurityMismatch,

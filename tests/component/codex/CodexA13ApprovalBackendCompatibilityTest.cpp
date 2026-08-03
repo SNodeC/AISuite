@@ -72,9 +72,11 @@ namespace {
     }
 
     codex::Json pendingFrontendJson(const backend::PendingRequestSnapshot& pending) {
+        const bool genericFrontendRequest =
+            pending.type == "apply_patch_approval" || pending.type == "exec_command_approval" || pending.type == "permissions_approval";
         codex::Json encoded{
             {"id", std::to_string(pending.id.value())},
-            {"type", pending.type},
+            {"type", genericFrontendRequest ? "unknown" : pending.type},
             {"details", pending.details},
         };
         if (pending.threadId) {
@@ -206,9 +208,9 @@ namespace {
         const backend::PendingRequestSnapshot* apply = findPending(snapshot, 1);
         const backend::PendingRequestSnapshot* exec = findPending(snapshot, 2);
         const backend::PendingRequestSnapshot* permissions = findPending(snapshot, 3);
-        result.expectTrue(apply && exec && permissions && apply->type == "unknown" && exec->type == "unknown" &&
-                              permissions->type == "unknown",
-                          "new approval request alternatives retain the existing generic frontend request type");
+        result.expectTrue(apply && exec && permissions && apply->type == "apply_patch_approval" && exec->type == "exec_command_approval" &&
+                              permissions->type == "permissions_approval",
+                          "BackendCore gives each completed approval request family a meaningful pending-request kind");
 
         if (apply && exec && permissions) {
             const codex::Json& applyParams = apply->details["params"];
@@ -304,26 +306,36 @@ namespace {
         result.expectTrue(
             commandSnapshot && commandSnapshot->type == "command_approval" && commandSnapshot->threadId == "established-command-thread" &&
                 commandSnapshot->turnId == "established-command-turn" && commandSnapshot->itemId == "established-command-item" &&
-                commandSnapshot->details.value("command", "") == "synthetic-established-command" &&
-                commandSnapshot->details.value("cwd", "") == "/synthetic/established-command-cwd" &&
-                commandSnapshot->details.value("reason", "") == "synthetic-established-command-reason" &&
+                commandSnapshot->details.value("commandBytes", 0U) == std::string{"synthetic-established-command"}.size() &&
+                commandSnapshot->details.value("cwdBytes", 0U) == std::string{"/synthetic/established-command-cwd"}.size() &&
+                commandSnapshot->details.value("reasonBytes", 0U) == std::string{"synthetic-established-command-reason"}.size() &&
+                commandSnapshot->details.value("commandRedacted", false) && commandSnapshot->details.value("cwdRedacted", false) &&
+                commandSnapshot->details.value("reasonRedacted", false) && !commandSnapshot->details.contains("command") &&
+                !commandSnapshot->details.contains("cwd") && !commandSnapshot->details.contains("reason") &&
                 !commandSnapshot->details.contains("method") && !commandSnapshot->details.contains("params"),
-            "schema completion preserves the established command-approval frontend projection");
-        result.expectTrue(fileSnapshot && fileSnapshot->type == "file_change_approval" &&
-                              fileSnapshot->threadId == "established-file-thread" && fileSnapshot->turnId == "established-file-turn" &&
-                              fileSnapshot->itemId == "established-file-item" &&
-                              fileSnapshot->details.value("grantRoot", "") == "/synthetic/established-file-root" &&
-                              fileSnapshot->details.value("reason", "") == "synthetic-established-file-reason" &&
-                              !fileSnapshot->details.contains("method") && !fileSnapshot->details.contains("params"),
-                          "schema completion preserves the established file-change-approval frontend projection");
+            "command-approval projection preserves associations while redacting command, path, and reason values");
+        result.expectTrue(
+            fileSnapshot && fileSnapshot->type == "file_change_approval" && fileSnapshot->threadId == "established-file-thread" &&
+                fileSnapshot->turnId == "established-file-turn" && fileSnapshot->itemId == "established-file-item" &&
+                fileSnapshot->details.value("grantRootBytes", 0U) == std::string{"/synthetic/established-file-root"}.size() &&
+                fileSnapshot->details.value("reasonBytes", 0U) == std::string{"synthetic-established-file-reason"}.size() &&
+                fileSnapshot->details.value("grantRootRedacted", false) && fileSnapshot->details.value("reasonRedacted", false) &&
+                !fileSnapshot->details.contains("grantRoot") && !fileSnapshot->details.contains("reason") &&
+                !fileSnapshot->details.contains("method") && !fileSnapshot->details.contains("params"),
+            "file-change approval projection preserves associations while redacting path and reason values");
     }
 } // namespace
 
 int main() {
-    static_assert(std::variant_size_v<backend::BackendCommand> == 14);
+    static_assert(std::variant_size_v<backend::BackendCommand> == 101);
+    static_assert(std::variant_size_v<backend::ProviderOperationValue> == 65);
+    static_assert(std::variant_size_v<backend::CommandValue> == 68);
     static_assert(!std::is_constructible_v<backend::BackendCommand, typed::ApplyPatchApprovalRequest>);
     static_assert(!std::is_constructible_v<backend::BackendCommand, typed::ExecCommandApprovalRequest>);
     static_assert(!std::is_constructible_v<backend::BackendCommand, typed::PermissionsApprovalRequest>);
+    static_assert(std::is_constructible_v<backend::BackendCommand, backend::ApplyPatchApprovalRespond>);
+    static_assert(std::is_constructible_v<backend::BackendCommand, backend::ExecCommandApprovalRespond>);
+    static_assert(std::is_constructible_v<backend::BackendCommand, backend::PermissionsApprovalRespond>);
     static_assert(std::is_same_v<decltype(backend::BackendState::pendingRequests),
                                  std::map<backend::PendingRequestId, backend::PendingRequestState>>);
     static_assert(std::is_same_v<std::variant_alternative_t<0, typed::TypedServerRequest>, typed::CommandApprovalRequest>);

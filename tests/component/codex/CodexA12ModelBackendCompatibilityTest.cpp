@@ -38,12 +38,6 @@ namespace {
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
 
-    backend::Snapshot withoutExtensions(backend::Snapshot snapshot) {
-        snapshot.recentExtensions.clear();
-        snapshot.omittedRecentExtensions = 0;
-        return snapshot;
-    }
-
     codex::Notification notification(std::string method, codex::Json params, std::size_t sequence) {
         codex::Json raw{
             {"jsonrpc", "2.0"},
@@ -237,7 +231,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
         std::size_t exact = 0;
         exact += verifyPreserved<typed::ModelSafetyBufferingUpdatedNotification>(
                      result, reducer, state, safety, safetyEvent)
@@ -247,10 +240,37 @@ namespace {
                      result, reducer, state, verification, verificationEvent)
                      ? 1U
                      : 0U;
-        result.expectTrue(exact == 2 && state.recentExtensions.size() == 2 &&
-                              withoutExtensions(backend::makeSnapshot(state)) == before &&
-                              state.threads.empty(),
-                          "both new B3 notifications remain bounded extensions and invent no canonical model state");
+        const auto thread = state.threads.find("thread-preserve");
+        const backend::TurnState* turn = thread != state.threads.end() ? [&]() -> const backend::TurnState* {
+            const auto found = thread->second.turns.find("turn-preserve");
+            return found == thread->second.turns.end() ? nullptr : &found->second;
+        }()
+            : nullptr;
+        const backend::Snapshot snapshot = backend::makeSnapshot(state);
+        const auto snapshotThread =
+            std::find_if(snapshot.threads.begin(), snapshot.threads.end(), [](const backend::ThreadSnapshot& value) {
+                return value.id == "thread-preserve";
+            });
+        const backend::TurnSnapshot* snapshotTurn = snapshotThread != snapshot.threads.end() ? [&]() -> const backend::TurnSnapshot* {
+            const auto found =
+                std::find_if(snapshotThread->turns.begin(), snapshotThread->turns.end(), [](const backend::TurnSnapshot& value) {
+                    return value.id == "turn-preserve";
+                });
+            return found == snapshotThread->turns.end() ? nullptr : &*found;
+        }()
+            : nullptr;
+        const bool canonicalModelState =
+            exact == 2 && state.recentExtensions.size() == 2 && state.models.latestNotifications.size() == 2 &&
+            snapshot.models.latestNotifications.size() == 2 && turn && snapshotTurn &&
+            turn->extensions.value("modelSafetyBuffering", codex::Json{}).value("model", "") == "model-buffering" &&
+            turn->extensions.value("modelSafetyBuffering", codex::Json{}).value("showBufferingUi", false) &&
+            turn->extensions.value("modelSafetyBuffering", codex::Json{}).value("reasonCount", 0U) == 1U &&
+            turn->extensions.value("modelSafetyBuffering", codex::Json{}).value("useCaseCount", 0U) == 1U &&
+            turn->extensions.value("modelVerifications", codex::Json{}).value("total", 0U) == 2U &&
+            !turn->extensions.value("modelVerifications", codex::Json{}).value("truncated", true) &&
+            snapshotTurn->extensions == turn->extensions && turn->stamp.freshness == backend::Freshness::Current;
+        result.expectTrue(canonicalModelState,
+                          "both B3 notifications preserve bounded extensions and update current-generation turn/model state");
 
         backend::BackendState bounded;
         for (std::size_t index = 0; index < 65; ++index) {
@@ -267,10 +287,10 @@ namespace {
                 reducer.apply(bounded, translated.front());
             }
         }
-        result.expectTrue(bounded.recentExtensions.size() == 64 &&
-                              bounded.recentExtensions.front().payload.value("sequence", 0U) == 1U &&
-                              bounded.recentExtensions.back().payload.value("sequence", 0U) == 64U,
-                          "new model notifications inherit the existing exact 64-record extension bound");
+        result.expectTrue(bounded.recentExtensions.size() == 64 && bounded.recentExtensions.front().payload.value("sequence", 0U) == 1U &&
+                              bounded.recentExtensions.back().payload.value("sequence", 0U) == 64U &&
+                              bounded.models.latestNotifications.size() == 1 && bounded.threads.size() == 1,
+                          "repeated model notifications keep exact extension bounds and replacement-style canonical summaries");
     }
 
     void testActualFrontendAdapterParity(tests::support::TestResult& result) {

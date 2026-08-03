@@ -2765,6 +2765,102 @@ def test_generated_artifacts(
             "canonical production registry data is stale against local status mappings"
         )
     registry_entries = tool.parse_registry_data(registry_path)
+    expected_action_only = {
+        "account/sendAddCreditsNudgeEmail",
+        "feedback/upload",
+        "fs/copy",
+        "fs/createDirectory",
+        "fs/getMetadata",
+        "fs/readDirectory",
+        "fs/readFile",
+        "fs/remove",
+        "fs/writeFile",
+        "mcpServer/resource/read",
+        "mcpServer/tool/call",
+        "thread/shellCommand",
+        "turn/interrupt",
+    }
+    backend_ledger = tool.backend_coverage_ledger(manifest)
+    if (
+        len(backend_ledger["provider_operations"]) != 86
+        or len(backend_ledger["notifications"]) != 68
+        or len(backend_ledger["thread_items"]) != 18
+        or len(backend_ledger["response_items"]) != 16
+        or len(backend_ledger["server_requests"]) != 10
+        or backend_ledger["relevant_total"] != 198
+        or backend_ledger["action_only"] != expected_action_only
+        or len(backend_ledger["canonical_state_applicable"]) != 169
+        or len(tool.BACKEND_IMPLEMENTED_IDENTITIES) != 182
+        or len(tool.CANONICAL_STATE_IMPLEMENTED_IDENTITIES) != 169
+    ):
+        raise AssertionError(
+            "backend ledger lost the mechanically derived 86/68/18/16/10 total, "
+            "the exact 13 action-only identities, or the fixed 169 applicable "
+            "denominator"
+        )
+
+    metrics = {
+        metric["metric"]: metric
+        for metric in tool.coverage_metrics(manifest, registry_entries)
+    }
+    canonical_metric = metrics["Canonical-state/reducer coverage"]
+    if (
+        canonical_metric["numerator"] != 169
+        or canonical_metric["denominator"] != 169
+    ):
+        raise AssertionError(
+            "canonical-state coverage must report 169 implemented over the "
+            "independently fixed 169 denominator"
+        )
+
+    denominator_shrink = copy.deepcopy(registry_entries)
+    stateful_operation = next(
+        entry
+        for entry in denominator_shrink
+        if entry["category"] == "client_request"
+        and entry["name"] == "thread/start"
+    )
+    stateful_operation["canonical_state_status"] = "NotApplicable"
+    stateful_operation["canonical_state_reason"] = (
+        "ActionOnlyNoPersistentState"
+    )
+    shrunken_metric = {
+        metric["metric"]: metric
+        for metric in tool.coverage_metrics(manifest, denominator_shrink)
+    }["Canonical-state/reducer coverage"]
+    if (
+        shrunken_metric["numerator"] != 168
+        or shrunken_metric["denominator"] != 169
+        or shrunken_metric["percentage"] == "100.0%"
+    ):
+        raise AssertionError(
+            "reclassifying one applicable operation must reduce the numerator, "
+            "not shrink the frozen denominator"
+        )
+
+    original_action_only = tool.ACTION_ONLY_NO_PERSISTENT_STATE_NAMES
+    try:
+        tool.ACTION_ONLY_NO_PERSISTENT_STATE_NAMES = original_action_only | {
+            "thread/start"
+        }
+        expect_surface_error_code(
+            tool,
+            lambda: tool.backend_coverage_ledger(manifest),
+            "ActionOnlyIdentitySetMismatch",
+            "add a fourteenth action-only stable operation",
+        )
+        tool.ACTION_ONLY_NO_PERSISTENT_STATE_NAMES = original_action_only - {
+            "turn/interrupt"
+        }
+        expect_surface_error_code(
+            tool,
+            lambda: tool.backend_coverage_ledger(manifest),
+            "ActionOnlyIdentitySetMismatch",
+            "remove one of the exact 13 action-only stable operations",
+        )
+    finally:
+        tool.ACTION_ONLY_NO_PERSISTENT_STATE_NAMES = original_action_only
+
     test_operation_association_guards(tool, manifest, evidence, registry_entries)
     test_assignment_reachability_guards(tool, manifest, evidence)
     test_evidence_authority_boundaries(tool, manifest, evidence)

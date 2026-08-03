@@ -26,12 +26,6 @@ namespace {
 
     constexpr const char* SyntheticWarningDetails = "synthetic-config-warning-details-sensitive";
 
-    backend::Snapshot withoutExtensions(backend::Snapshot snapshot) {
-        snapshot.recentExtensions.clear();
-        snapshot.omittedRecentExtensions = 0;
-        return snapshot;
-    }
-
     codex::Notification configWarning(codex::Json params, std::size_t sequence) {
         codex::Json raw{
             {"jsonrpc", "2.0"},
@@ -71,7 +65,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
         const std::vector<backend::BackendEvent> translated = reducer.translate(event);
         const auto* extension = translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated.front()) : nullptr;
 
@@ -85,7 +78,7 @@ namespace {
         if (extension) {
             const backend::Reduction reduction = reducer.apply(state, *extension);
             result.expectTrue(reduction.changed && !reduction.flushImmediately,
-                              "configWarning changes only the existing bounded extension history");
+                              "configWarning records its bounded extension and canonical notice state");
         }
 
         const backend::ExtensionRecord* retained = state.recentExtensions.size() == 1 ? &state.recentExtensions.front() : nullptr;
@@ -106,7 +99,7 @@ namespace {
             projected && projected->method == "configWarning" && projected->sensitiveFieldsRedacted &&
             projected->payload.value("details", "") == "[redacted]" &&
             projected->payload.value("summary", "") == "Synthetic configuration warning" &&
-            projected->payload.value("path", "") == "/tmp/test-config.toml" && projected->payload.at("range") == params.at("range") &&
+            projected->payload.value("path", "") == "[redacted]" && projected->payload.at("range") == params.at("range") &&
             !projected->payload.contains("jsonrpc") && !projected->payload.contains("method") &&
             !projected->payload.contains("futureEnvelopeOnly") && frontendData.value("params", codex::Json{}) == projected->payload &&
             frontendData.value("sensitiveFieldsRedacted", false) &&
@@ -116,15 +109,24 @@ namespace {
                           "makeSnapshot method-specifically redacts configWarning details while retaining safe params semantics in "
                           "serialized frontend-compatible data");
 
-        result.expectTrue(withoutExtensions(snapshot) == before && state.threads.empty() && state.threadOrder.empty() &&
-                              state.pendingRequests.empty(),
-                          "configWarning preservation invents no canonical configuration, warning, thread, or pending-request state");
+        const auto canonicalNotification = state.configuration.latestNotifications.find("configWarning");
+        const bool canonicalWarning =
+            canonicalNotification != state.configuration.latestNotifications.end() && state.notices.size() == 1 &&
+            state.capacity.retainedNotices == 1 && state.notices.front().category == backend::NoticeCategory::Configuration &&
+            state.notices.front().summary == "Synthetic configuration warning" && state.notices.front().details &&
+            *state.notices.front().details == SyntheticWarningDetails && snapshot.notices.size() == 1 &&
+            snapshot.notices.front().category == backend::NoticeCategory::Configuration &&
+            snapshot.notices.front().summary == "Synthetic configuration warning" && snapshot.notices.front().details &&
+            *snapshot.notices.front().details == "[redacted]" && snapshot.configuration.latestNotificationMethods.size() == 1 &&
+            snapshot.configuration.latestNotificationMethods.front() == "configWarning" && state.threads.empty() &&
+            state.threadOrder.empty() && state.pendingRequests.empty();
+        result.expectTrue(canonicalWarning,
+                          "configWarning records bounded canonical configuration/notice state with safe snapshot redaction");
     }
 
     void testExistingExtensionBound(tests::support::TestResult& result) {
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
         std::size_t translatedCount = 0;
 
         for (std::size_t index = 0; index < 65; ++index) {
@@ -144,9 +146,12 @@ namespace {
                                 state.recentExtensions.back().payload.value("sequence", 0U) == 64U &&
                                 state.recentExtensions.back().payload.value("summary", "") == "warning-64";
         result.expectTrue(exactBound, "configWarning uses the existing exact 64-record bounded extension history");
-        result.expectTrue(withoutExtensions(backend::makeSnapshot(state)) == before && state.threads.empty() &&
-                              state.pendingRequests.empty(),
-                          "bounded configWarning preservation still creates no canonical configuration or warning state");
+        const backend::Snapshot snapshot = backend::makeSnapshot(state);
+        result.expectTrue(state.notices.size() == 65 && state.capacity.retainedNotices == 65 && state.notices.front().occurrence == 1 &&
+                              state.notices.back().occurrence == 65 && state.configuration.latestNotifications.size() == 1 &&
+                              snapshot.notices.size() == 65 && snapshot.configuration.latestNotifications.size() == 1 &&
+                              state.threads.empty() && state.pendingRequests.empty(),
+                          "configWarning keeps bounded accumulating notices and a replacement-style configuration summary");
     }
 
     void testMethodSpecificTriStateRedaction(tests::support::TestResult& result) {

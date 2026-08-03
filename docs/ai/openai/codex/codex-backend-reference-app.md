@@ -32,6 +32,15 @@ applications and staged server compositions link the canonical
 require the Unix transport component. That boundary keeps future transports
 from depending on a Unix socket path or `SocketContext`.
 
+The owned BackendCore implements all 86 stable Codex application operations,
+all ten stable provider requests, and canonical state for all 68 stable
+notifications and 18 `ThreadItem` alternatives. The reference application's
+Frontend Protocol v1 mapping deliberately remains smaller. Backend completion
+does not create new socket methods or authorize remote access to the complete
+trusted in-process API. See the
+[A1.6b backend completion](a1-6b-backend-completeness.md) for the exact
+provider/backend boundary.
+
 ## Composition and lifetime
 
 The listener uses the actual SNode.C legacy helper:
@@ -99,6 +108,8 @@ cmake --install build
 Ordinary library builds may set `-DAISUITE_BUILD_APPS=OFF`; the exported
 `AISuite::OpenAICodexBackend` and `AISuite::OpenAICodexFrontend` components
 remain independently reusable.
+All three Codex libraries remain in the intentionally unreleased SOVERSION-2
+development boundary; A1.6b does not change project version `0.1.0`.
 The executable also requires the `codex` command expected by the existing
 stdio client. Authentication and quota are properties of that local Codex
 installation, not of the frontend protocol.
@@ -166,6 +177,19 @@ threads
 acquire
 release
 ```
+
+These remain the existing v1 command subset. A1.6b's additional BackendCore
+commands are not mapped into this protocol. The adapter projects the exact
+`ThreadStartResponse`, `ThreadResumeResponse`, and `ThreadReadResponse` wrappers
+back to the existing `result.thread` JSON, `TurnStartResponse` to the existing
+`result.turn`, `ThreadListResponse` to the existing page JSON, and
+`typed::Unit` to the existing empty object. Thus completing exact BackendCore
+results does not change current reference-client response bytes or fields.
+
+Trusted in-process BackendCore observers may invoke a reviewed set of
+read-only operations, including filesystem metadata, directory, and file
+reads. That policy does not authorize any corresponding Frontend Protocol v1
+method. A1.7 owns the separate exposure and transport security review.
 
 Frontend sessions begin as observers, and the client does not acquire
 controller ownership automatically. `start`, `resume`, `new`, and `turn`

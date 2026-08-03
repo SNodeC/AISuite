@@ -8,12 +8,19 @@
 #include "ai/openai/codex/backend/Reducer.h"
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/backend/detail/PreserveUnmodeledTypedEvent.h"
+#include "ai/openai/codex/backend/internal/RetentionCapacityInstrumentation.h"
+#include "ai/openai/codex/detail/ProtocolSurfaceRegistry.h"
 #include "support/TestResult.h"
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <optional>
+#include <set>
 #include <string>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -26,6 +33,52 @@ namespace {
     using ai::openai::codex::Json;
     using ai::openai::codex::ServerRequestId;
     using ai::openai::codex::ServerRequestToken;
+
+    static_assert(requires(backend::BackendState state) {
+        state.accounts.loginCancellation;
+        state.accounts.loginStart;
+        state.accounts.rateLimitRead;
+        state.accounts.accountRead;
+        state.accounts.usage;
+        state.accounts.workspaceMessages;
+        state.configuration.configuration;
+        state.configuration.requirements;
+        state.configuration.experimentalFeatures;
+        state.configuration.lastWrite;
+        state.configuration.experimentalFeatureEnablement;
+        state.models.list;
+        state.models.providerCapabilities;
+        state.conversations.latestGoal;
+        state.conversations.latestGoalClear;
+        state.conversations.latestGoalSet;
+        state.conversations.latestUnsubscribe;
+        state.conversations.loadedThreads;
+        state.reviews.permissionProfiles;
+        state.reviews.latestReview;
+        state.integrations.appList;
+        state.integrations.externalAgentDetection;
+        state.integrations.externalAgentImport;
+        state.integrations.externalAgentImportHistories;
+        state.integrations.hooks;
+        state.integrations.marketplaceAdd;
+        state.integrations.marketplaceRemove;
+        state.integrations.marketplaceUpgrade;
+        state.pluginsAndSkills.pluginInstall;
+        state.pluginsAndSkills.installedPlugins;
+        state.pluginsAndSkills.plugins;
+        state.pluginsAndSkills.pluginDetail;
+        state.pluginsAndSkills.pluginShares;
+        state.pluginsAndSkills.pluginShareCheckout;
+        state.pluginsAndSkills.pluginShareSave;
+        state.pluginsAndSkills.pluginShareUpdateTargets;
+        state.pluginsAndSkills.pluginSkill;
+        state.pluginsAndSkills.skills;
+        state.pluginsAndSkills.skillsConfigWrite;
+        state.pluginsAndSkills.extraRoots;
+        state.mcp.oauthStart;
+        state.mcp.statusListResponse;
+        state.platform.windowsReadiness;
+    });
 
     typed::ItemMetadata metadata(const std::string& threadId, const std::string& turnId, const std::string& itemId) {
         typed::ItemMetadata result;
@@ -134,6 +187,38 @@ namespace {
     const backend::ItemState*
     findItem(const backend::BackendState& state, const std::string& threadId, const std::string& turnId, const std::string& itemId) {
         return backend::findItem(state, typed::ThreadId{threadId}, typed::TurnId{turnId}, typed::ItemId{itemId});
+    }
+
+    template <typename Notification>
+    typed::Event notificationEvent() {
+        Notification notification{};
+        notification.raw = Json{{"params", Json::object()}};
+        return typed::Event{std::move(notification)};
+    }
+
+    template <typename Request>
+    Request deferredRequest(std::uint64_t occurrence) {
+        return Request{
+            ServerRequestId{std::string{"deferred-"} + std::to_string(occurrence)}, ServerRequestToken{occurrence}, {}, Json::object(), {}};
+    }
+
+    template <std::size_t Index>
+    bool eventAlternativeTranslates(const backend::Reducer& reducer) {
+        using EventValue = std::variant_alternative_t<Index, typed::Event>;
+        if constexpr (!std::is_default_constructible_v<EventValue>) {
+            return false;
+        } else {
+            EventValue value{};
+            if constexpr (requires(EventValue& candidate) { candidate.raw = Json::object(); }) {
+                value.raw = Json{{"params", Json::object()}};
+            }
+            return !reducer.translate(typed::Event{std::move(value)}).empty();
+        }
+    }
+
+    template <std::size_t... Indices>
+    bool allEventAlternativesTranslate(const backend::Reducer& reducer, std::index_sequence<Indices...>) {
+        return (eventAlternativeTranslates<Indices>(reducer) && ...);
     }
 
     void testInitialStateAndLifecycle(tests::support::TestResult& result) {
@@ -287,12 +372,9 @@ namespace {
                          [](const backend::ThreadSnapshot& candidate) {
                              return candidate.id == "thread-marker-collision";
                          });
-        result.expectTrue(collisionThread != collisionSnapshot.threads.end() &&
-                              collisionThread->cwd == "/tmp/project" &&
-                              collisionThread->modelProvider == "openai" &&
-                              collisionThread->preview == "preview thread-marker-collision" &&
-                              collisionThread->status == "idle" && collisionThread->createdAt == 1 &&
-                              collisionThread->updatedAt == 2,
+        result.expectTrue(collisionThread != collisionSnapshot.threads.end() && collisionThread->cwd == "[redacted]" &&
+                              collisionThread->modelProvider == "openai" && collisionThread->preview == "preview thread-marker-collision" &&
+                              collisionThread->status == "idle" && collisionThread->createdAt == 1 && collisionThread->updatedAt == 2,
                           "an unknown wire field named backendPlaceholder cannot collide with the exact internal sentinel");
     }
 
@@ -947,9 +1029,15 @@ namespace {
         const backend::Snapshot pendingSnapshot = backend::makeSnapshot(state);
         result.expectTrue(pendingSnapshot.pendingRequests.size() == 1 && pendingSnapshot.pendingRequests[0].id.value() == 9 &&
                               pendingSnapshot.pendingRequests[0].type == "command_approval" &&
-                              pendingSnapshot.pendingRequests[0].details.value("command", "") == "make test" &&
+                              pendingSnapshot.pendingRequests[0].details.value("commandRedacted", false) &&
+                              pendingSnapshot.pendingRequests[0].details.value("commandBytes", 0) == 9 &&
+                              pendingSnapshot.pendingRequests[0].details.value("cwdRedacted", false) &&
+                              pendingSnapshot.pendingRequests[0].details.value("reasonRedacted", false) &&
+                              pendingSnapshot.pendingRequests[0].details.dump().find("make test") == std::string::npos &&
+                              pendingSnapshot.pendingRequests[0].details.dump().find("/tmp/project") == std::string::npos &&
+                              pendingSnapshot.pendingRequests[0].details.dump().find("needs approval") == std::string::npos &&
                               !pendingSnapshot.pendingRequests[0].details.contains("privateOccurrence"),
-                          "pending request snapshot exposes safe frontend details without occurrence tokens or raw request data");
+                          "pending request snapshot exposes only redacted command/path/reason metadata without occurrence tokens");
 
         const std::string unknownAccessToken = "unknown-request-access-token-must-not-leak";
         const std::string unknownSecretAnswer = "unknown-request-secret-answer-must-not-leak";
@@ -1050,6 +1138,1025 @@ namespace {
         reducer.apply(state, backend::DiagnosticReceived{"changed"});
         result.expectTrue(first != backend::makeSnapshot(state), "a visible state transition changes snapshot equality");
     }
+
+    void testA16bNotificationItemAndCapacityClosure(tests::support::TestResult& result) {
+        static_assert(std::variant_size_v<typed::CanonicalServerNotification> == 68);
+        static_assert(std::variant_size_v<typed::Event> == 69);
+
+        backend::Reducer reducer;
+        const std::span<const ai::openai::codex::detail::ServerNotificationCodecDescriptor> notificationDescriptors =
+            ai::openai::codex::detail::serverNotificationCodecDescriptors();
+        std::set<ai::openai::codex::detail::ServerNotificationTarget> notificationTargets;
+        std::set<std::string_view> notificationMethods;
+        bool exactStableNotificationRegistry = true;
+        for (const ai::openai::codex::detail::ServerNotificationCodecDescriptor& descriptor : notificationDescriptors) {
+            const ai::openai::codex::detail::ProtocolSurfaceEntry& entry = ai::openai::codex::detail::entryFor(descriptor.target);
+            exactStableNotificationRegistry = exactStableNotificationRegistry && entry.key == descriptor.key &&
+                                              entry.key.category == ai::openai::codex::detail::SurfaceCategory::ServerNotification &&
+                                              entry.stability == ai::openai::codex::detail::Stability::Stable &&
+                                              entry.backendCore == ai::openai::codex::detail::LayerStatus::Implemented &&
+                                              entry.canonicalState == ai::openai::codex::detail::LayerStatus::Implemented &&
+                                              notificationTargets.insert(descriptor.target).second &&
+                                              notificationMethods.insert(descriptor.key.name).second;
+        }
+        result.expectTrue(notificationDescriptors.size() == 68 && notificationTargets.size() == 68 && notificationMethods.size() == 68 &&
+                              notificationMethods.contains("error") && exactStableNotificationRegistry,
+                          "the registry-derived stable notification set contains exactly 68 unique implemented backend/state identities");
+        result.expectTrue(allEventAlternativesTranslate(reducer, std::make_index_sequence<std::variant_size_v<typed::Event>>{}),
+                          "every stable typed notification projection and the forward-compatible unknown event translate nonempty");
+        const std::vector<backend::BackendEvent> translatedError = reducer.translate(notificationEvent<typed::TurnErrorEvent>());
+        result.expectTrue(translatedError.size() == 1 && std::holds_alternative<backend::TurnErrorUpdated>(translatedError.front()),
+                          "the stable error notification has exactly one backend translation on the existing TurnErrorUpdated path");
+        const std::vector<typed::Event> formerlyDropped{
+            notificationEvent<typed::McpServerOauthLoginCompletedNotification>(),
+            notificationEvent<typed::McpServerStatusUpdatedNotification>(),
+            notificationEvent<typed::DeprecationNoticeNotification>(),
+            notificationEvent<typed::ProcessExitedNotification>(),
+            notificationEvent<typed::ProcessOutputDeltaNotification>(),
+            notificationEvent<typed::RemoteControlStatusChangedNotification>(),
+            notificationEvent<typed::ServerRequestResolvedNotification>(),
+            notificationEvent<typed::WarningNotification>(),
+            notificationEvent<typed::WindowsWorldWritableWarningNotification>(),
+            notificationEvent<typed::WindowsSandboxSetupCompletedNotification>(),
+        };
+        const bool allFormerlyDroppedTranslate = std::ranges::all_of(formerlyDropped, [&reducer](const typed::Event& event) {
+            return !reducer.translate(event).empty();
+        });
+        result.expectTrue(allFormerlyDroppedTranslate && formerlyDropped.size() == 10,
+                          "all ten formerly empty stable notification translations now produce a backend event");
+
+        backend::BackendState semanticState;
+        semanticState.provider.generation = 1;
+        reducer.apply(
+            semanticState,
+            backend::ThreadUpserted{thread("semantic-thread", {turn("semantic-thread", "semantic-turn")}), backend::EntityLoad::Full});
+        reducer.apply(semanticState, backend::ProviderConnectionInvalidated{1, "test disconnect"});
+        semanticState.provider.generation = 2;
+        typed::ModelSafetyBufferingUpdatedNotification safety;
+        safety.threadId = typed::ThreadId{"semantic-thread"};
+        safety.turnId = typed::TurnId{"semantic-turn"};
+        safety.model = typed::ModelId{"model-a"};
+        safety.raw = Json{{"params", Json::object()}};
+        reducer.apply(semanticState, reducer.translate(typed::Event{std::move(safety)}).front());
+        const backend::TurnState* confirmedTurn = findTurn(semanticState, "semantic-thread", "semantic-turn");
+        result.expectTrue(confirmedTurn && confirmedTurn->stamp == backend::SourceStamp{2, backend::Freshness::Current} &&
+                              semanticState.threads.at("semantic-thread").stamp == backend::SourceStamp{1, backend::Freshness::Stale},
+                          "an authoritative model/turn notification confirms only the turn and does not promote its stale parent thread");
+
+        typed::ModelVerificationNotification verification;
+        verification.threadId = typed::ThreadId{"semantic-thread"};
+        verification.turnId = typed::TurnId{"semantic-turn"};
+        for (std::size_t index = 0; index < 300; ++index) {
+            typed::ModelVerification entry;
+            entry.value = "verification-" + std::to_string(index);
+            verification.verifications.push_back(std::move(entry));
+        }
+        verification.raw = Json{{"params", Json::object()}};
+        reducer.apply(semanticState, reducer.translate(typed::Event{std::move(verification)}).front());
+        const Json& retainedVerifications =
+            semanticState.threads.at("semantic-thread").turns.at("semantic-turn").extensions.at("modelVerifications");
+        result.expectTrue(retainedVerifications.at("entries").size() == 256 && retainedVerifications.at("total") == 300 &&
+                              retainedVerifications.at("truncated") == true,
+                          "model verification state is bounded and records its truncation without retaining an unbounded vector");
+
+        typed::ThreadNameUpdatedNotification renamed;
+        renamed.threadId = typed::ThreadId{"semantic-thread"};
+        renamed.threadName = std::string{"renamed by provider"};
+        renamed.raw = Json{{"params", Json::object()}};
+        reducer.apply(semanticState, reducer.translate(typed::Event{std::move(renamed)}).front());
+        result.expectTrue(semanticState.threads.at("semantic-thread").thread.title == "renamed by provider" &&
+                              semanticState.threads.at("semantic-thread").stamp == backend::SourceStamp{2, backend::Freshness::Current},
+                          "thread-level notifications update the typed thread aggregate and confirm that entity at the current generation");
+
+        backend::BackendState domainState;
+        domainState.provider.generation = 5;
+        const auto applyDomainNotification = [&reducer, &domainState](typed::Event event) {
+            const std::vector<backend::BackendEvent> translated = reducer.translate(event);
+            return reducer.apply(domainState, translated.front());
+        };
+        typed::AccountLoginCompletedNotification loginCompleted;
+        loginCompleted.loginId = typed::LoginId{"login-5"};
+        loginCompleted.success = true;
+        loginCompleted.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(loginCompleted)});
+        typed::AccountRateLimitsUpdatedNotification rateLimitsUpdated;
+        typed::RateLimitWindow primaryLimit;
+        primaryLimit.usedPercent = 37;
+        primaryLimit.resetsAt = std::int64_t{1234};
+        rateLimitsUpdated.rateLimits.primary = std::move(primaryLimit);
+        rateLimitsUpdated.rateLimits.planType = typed::PlanType::plus();
+        rateLimitsUpdated.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(rateLimitsUpdated)});
+        typed::AccountUpdatedNotification accountUpdated;
+        accountUpdated.authMode = typed::AuthMode::chatgpt();
+        accountUpdated.planType = typed::PlanType::plus();
+        accountUpdated.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(accountUpdated)});
+        typed::AppListUpdatedNotification appsUpdated;
+        typed::AppInfo app;
+        app.id = "app-5";
+        app.name = "Application Five";
+        app.isAccessible = true;
+        app.isEnabled = false;
+        appsUpdated.data.push_back(std::move(app));
+        appsUpdated.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(appsUpdated)});
+        typed::McpServerStatusUpdatedNotification mcpStartup;
+        mcpStartup.name = "server-5";
+        mcpStartup.status = typed::McpServerStartupState::ready();
+        mcpStartup.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(mcpStartup)});
+        typed::RemoteControlStatusChangedNotification remoteControl;
+        remoteControl.status = typed::RemoteControlConnectionStatus::connected();
+        remoteControl.environmentId = std::string{"environment-5"};
+        remoteControl.installationId = "installation-5";
+        remoteControl.serverName = "remote-5";
+        remoteControl.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(remoteControl)});
+        typed::WindowsSandboxSetupCompletedNotification windowsCompleted;
+        windowsCompleted.mode = typed::WindowsSandboxSetupMode::elevated();
+        windowsCompleted.success = true;
+        windowsCompleted.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(windowsCompleted)});
+        typed::ExternalAgentConfigImportProgressNotification importProgress;
+        importProgress.importId = "shared-activity-id";
+        importProgress.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(importProgress)});
+        typed::McpServerOauthLoginCompletedNotification oauthCompleted;
+        oauthCompleted.name = "shared-activity-id";
+        oauthCompleted.success = true;
+        oauthCompleted.raw = Json{{"params", Json::object()}};
+        applyDomainNotification(typed::Event{std::move(oauthCompleted)});
+        const backend::Snapshot domainSnapshot = backend::makeSnapshot(domainState);
+        result.expectTrue(domainSnapshot.accounts.login && domainSnapshot.accounts.login->lifecycle == "completed" &&
+                              domainSnapshot.accounts.rateLimits && domainSnapshot.accounts.rateLimits->primaryUsedPercent == 37 &&
+                              domainSnapshot.accounts.authentication && domainSnapshot.accounts.authentication->authMode == "chatgpt" &&
+                              domainSnapshot.integrations.apps && domainSnapshot.integrations.apps->entries.size() == 1 &&
+                              domainSnapshot.integrations.apps->entries.front().id == "app-5",
+                          "account and app notifications project bounded meaningful canonical and safe snapshot state");
+        result.expectTrue(domainSnapshot.mcp.startup && domainSnapshot.mcp.startup->serverName == "server-5" &&
+                              domainSnapshot.mcp.startup->status == "ready" && domainSnapshot.platform.remoteControl &&
+                              domainSnapshot.platform.remoteControl->environmentId == "environment-5" &&
+                              domainSnapshot.platform.windowsSandbox && domainSnapshot.platform.windowsSandbox->success == true,
+                          "MCP, remote-control, and Windows notifications project bounded provider domain state");
+        const bool activityKindsDoNotCollide =
+            std::ranges::count_if(domainSnapshot.activities, [](const backend::ActivitySnapshot& activity) {
+                return activity.subjectId == "shared-activity-id" &&
+                       (activity.kind == "external_agent_import" || activity.kind == "mcp_oauth");
+            }) == 2;
+        result.expectTrue(
+            activityKindsDoNotCollide && domainSnapshot.mcp.oauth && domainSnapshot.mcp.oauth->success == true,
+            "activity identities include their typed kind and preserve meaningful bounded OAuth/import state without collisions");
+
+        backend::BackendState operationState;
+        operationState.provider.generation = 7;
+        reducer.apply(operationState, backend::ThreadUpserted{thread("operation-thread"), backend::EntityLoad::Full});
+        reducer.apply(operationState,
+                      backend::ProviderOperationCompleted{"thread/name/set",
+                                                          backend::BackendCommand{backend::ThreadSetName{typed::ThreadSetNameParams{
+                                                              typed::ThreadId{"operation-thread"}, "operation name"}}},
+                                                          backend::ProviderOperationValue{typed::Unit{}},
+                                                          std::nullopt});
+        const bool nameProjected = operationState.threads.at("operation-thread").thread.title == "operation name" &&
+                                   operationState.threads.at("operation-thread").stamp.freshness == backend::Freshness::Current;
+        reducer.apply(operationState,
+                      backend::ProviderOperationCompleted{"thread/inject_items",
+                                                          backend::BackendCommand{backend::ThreadInjectItems{typed::ThreadInjectItemsParams{
+                                                              typed::ThreadId{"operation-thread"}, {Json::object()}}}},
+                                                          backend::ProviderOperationValue{typed::Unit{}},
+                                                          std::nullopt});
+        const bool injectionStaledAggregate = operationState.threads.at("operation-thread").stamp.freshness == backend::Freshness::Stale;
+        operationState.providerOperations.emplace(
+            "mcpServerStatus/list",
+            backend::ProviderOperationState{"mcpServerStatus/list",
+                                            backend::ProviderOperationValue{typed::ListMcpServerStatusResponse{}}.index(),
+                                            {7, backend::Freshness::Current}});
+        backend::ProviderResultSummaryState mcpSummary;
+        mcpSummary.method = "mcpServerStatus/list";
+        mcpSummary.stamp = {7, backend::Freshness::Current};
+        operationState.mcp.latestResults.emplace("mcpServerStatus/list", std::move(mcpSummary));
+        reducer.apply(operationState,
+                      backend::ProviderOperationCompleted{"config/mcpServer/reload",
+                                                          backend::BackendCommand{backend::ConfigMcpServerReload{}},
+                                                          backend::ProviderOperationValue{typed::Unit{}},
+                                                          std::nullopt});
+        const bool reloadStaledMcp =
+            operationState.providerOperations.at("mcpServerStatus/list").stamp.freshness == backend::Freshness::Stale &&
+            operationState.mcp.latestResults.at("mcpServerStatus/list").stamp.freshness == backend::Freshness::Stale;
+        reducer.apply(operationState,
+                      backend::ProviderOperationCompleted{
+                          "thread/delete",
+                          backend::BackendCommand{backend::ThreadDelete{typed::ThreadDeleteParams{typed::ThreadId{"operation-thread"}}}},
+                          backend::ProviderOperationValue{typed::Unit{}},
+                          std::nullopt});
+        result.expectTrue(nameProjected && injectionStaledAggregate && reloadStaledMcp && operationState.threads.empty() &&
+                              operationState.capacity.retainedThreads == 0,
+                          "operation projections retain bounded semantic state, apply authoritative fields, stale incomplete caches, and "
+                          "remove deleted subtrees");
+
+        typed::AppsListResponse appListResult;
+        appListResult.raw = Json{{"secret", std::string(128, 's')}};
+        for (std::size_t index = 0; index < 300; ++index) {
+            typed::AppInfo listed;
+            listed.id = "app-" + std::to_string(index);
+            listed.name = "listed application";
+            listed.raw = Json{{"unbounded", std::string(128, 'r')}};
+            appListResult.data.push_back(std::move(listed));
+        }
+        reducer.apply(operationState,
+                      backend::ProviderOperationCompleted{"app/list",
+                                                          backend::BackendCommand{backend::AppsList{typed::AppsListParams{}}},
+                                                          backend::ProviderOperationValue{std::move(appListResult)},
+                                                          std::nullopt});
+        const auto& retainedApps = *operationState.integrations.appList;
+        const backend::Snapshot operationSnapshot = backend::makeSnapshot(operationState);
+        result.expectTrue(
+            retainedApps.originalEntries == 300 && retainedApps.truncated && retainedApps.value.data.size() == 256 &&
+                retainedApps.value.raw.empty() && retainedApps.value.data.front().raw.empty() &&
+                operationState.providerOperations.at("app/list").resultAlternative ==
+                    backend::ProviderOperationValue{typed::AppsListResponse{}}.index() &&
+                operationState.integrations.latestResults.at("app/list").itemCount == 300 && operationSnapshot.integrations.apps &&
+                operationSnapshot.integrations.apps->truncated,
+            "stateful operation completion retains one bounded typed replacement plus semantic snapshot state, not raw result graphs");
+
+        const auto completeOperation = [&reducer, &operationState](
+                                           std::string method, backend::BackendCommand command, backend::ProviderOperationValue value) {
+            return reducer.apply(
+                operationState, backend::ProviderOperationCompleted{std::move(method), std::move(command), std::move(value), std::nullopt});
+        };
+        operationState.configuration.configuration = backend::ReplacementCache<typed::ConfigReadResponse>{
+            typed::ConfigReadResponse{}, {}, {}, 0, false, {7, backend::Freshness::Current}};
+        const std::size_t canonicalReplacementStringLimit = backend::ReducerOptions{}.maxNoticeDetailsBytes;
+        typed::ConfigWriteResponse configWrite;
+        configWrite.filePath = typed::AbsolutePath{std::string(canonicalReplacementStringLimit * 2, 'c')};
+        configWrite.status = typed::WriteStatus::okOverridden();
+        configWrite.version = std::string(2048, 'v');
+        typed::OverriddenMetadata overridden;
+        overridden.effectiveValue = Json{{"secret", std::string(2048, 'x')}};
+        overridden.message = std::string(2048, 'm');
+        configWrite.overriddenMetadata = std::move(overridden);
+        completeOperation("config/batchWrite",
+                          backend::BackendCommand{backend::ConfigBatchWrite{typed::ConfigBatchWriteParams{}}},
+                          backend::ProviderOperationValue{std::move(configWrite)});
+
+        typed::ExperimentalFeatureEnablementSetResponse enablement;
+        for (std::size_t index = 0; index < 300; ++index) {
+            enablement.enablement.emplace(typed::ExperimentalFeatureId{"feature-" + std::to_string(index)}, index % 2 == 0);
+        }
+        completeOperation(
+            "experimentalFeature/enablement/set",
+            backend::BackendCommand{backend::ExperimentalFeatureEnablementSet{typed::ExperimentalFeatureEnablementSetParams{}}},
+            backend::ProviderOperationValue{std::move(enablement)});
+
+        typed::MarketplaceAddResponse marketplaceAdd;
+        marketplaceAdd.alreadyAdded = true;
+        marketplaceAdd.installedRoot = typed::AbsolutePath{std::string(2048, 'r')};
+        marketplaceAdd.marketplaceName = std::string(2048, 'm');
+        completeOperation("marketplace/add",
+                          backend::BackendCommand{backend::MarketplaceAdd{typed::MarketplaceAddParams{}}},
+                          backend::ProviderOperationValue{std::move(marketplaceAdd)});
+        typed::MarketplaceRemoveResponse marketplaceRemove;
+        marketplaceRemove.installedRoot = typed::AbsolutePath{std::string(2048, 'd')};
+        marketplaceRemove.marketplaceName = "removed-marketplace";
+        completeOperation("marketplace/remove",
+                          backend::BackendCommand{backend::MarketplaceRemove{typed::MarketplaceRemoveParams{}}},
+                          backend::ProviderOperationValue{std::move(marketplaceRemove)});
+        typed::MarketplaceUpgradeResponse marketplaceUpgrade;
+        marketplaceUpgrade.errors.resize(300);
+        marketplaceUpgrade.selectedMarketplaces.assign(300, std::string(2048, 's'));
+        marketplaceUpgrade.upgradedRoots.assign(300, typed::AbsolutePath{std::string(2048, 'u')});
+        completeOperation("marketplace/upgrade",
+                          backend::BackendCommand{backend::MarketplaceUpgrade{typed::MarketplaceUpgradeParams{}}},
+                          backend::ProviderOperationValue{std::move(marketplaceUpgrade)});
+
+        typed::PluginInstallResponse pluginInstall;
+        pluginInstall.authPolicy = typed::PluginAuthPolicy::onInstall();
+        completeOperation("plugin/install",
+                          backend::BackendCommand{backend::PluginInstall{typed::PluginInstallParams{}}},
+                          backend::ProviderOperationValue{std::move(pluginInstall)});
+        typed::PluginShareCheckoutResponse shareCheckout;
+        shareCheckout.marketplaceName = "marketplace";
+        shareCheckout.marketplacePath = typed::AbsolutePath{std::string(2048, 'a')};
+        shareCheckout.pluginId = "plugin";
+        shareCheckout.pluginName = "Plugin";
+        shareCheckout.pluginPath = typed::AbsolutePath{std::string(2048, 'b')};
+        shareCheckout.remotePluginId = "remote-plugin";
+        shareCheckout.remoteVersion = std::string(2048, 'q');
+        completeOperation("plugin/share/checkout",
+                          backend::BackendCommand{backend::PluginShareCheckout{typed::PluginShareCheckoutParams{}}},
+                          backend::ProviderOperationValue{std::move(shareCheckout)});
+        typed::PluginShareSaveResponse shareSave;
+        shareSave.remotePluginId = "remote-plugin";
+        shareSave.shareUrl = std::string(2048, 'z');
+        completeOperation("plugin/share/save",
+                          backend::BackendCommand{backend::PluginShareSave{typed::PluginShareSaveParams{}}},
+                          backend::ProviderOperationValue{std::move(shareSave)});
+        typed::PluginShareUpdateTargetsResponse shareTargets;
+        shareTargets.discoverability = typed::PluginShareDiscoverability::privateVisibility();
+        shareTargets.principals.resize(300);
+        completeOperation("plugin/share/updateTargets",
+                          backend::BackendCommand{backend::PluginShareUpdateTargets{typed::PluginShareUpdateTargetsParams{}}},
+                          backend::ProviderOperationValue{std::move(shareTargets)});
+        typed::SkillsConfigWriteResponse skillsWrite;
+        skillsWrite.effectiveEnabled = true;
+        completeOperation("skills/config/write",
+                          backend::BackendCommand{backend::SkillsConfigWrite{typed::SkillsConfigWriteParams{}}},
+                          backend::ProviderOperationValue{skillsWrite});
+        typed::SkillsExtraRootsSetParams extraRoots;
+        for (std::size_t index = 0; index < 300; ++index) {
+            extraRoots.extraRoots.emplace_back(std::string(2048, 'p') + std::to_string(index));
+        }
+        completeOperation("skills/extraRoots/set",
+                          backend::BackendCommand{backend::SkillsExtraRootsSet{std::move(extraRoots)}},
+                          backend::ProviderOperationValue{typed::Unit{}});
+
+        typed::GetAccountRateLimitsResponse rateLimitResult;
+        typed::RateLimitResetCreditsSummary creditSummary;
+        std::vector<typed::RateLimitResetCredit> credits(300);
+        for (std::size_t index = 0; index < credits.size(); ++index) {
+            credits[index].id = typed::RateLimitResetCreditId{std::string(2048, 'i') + std::to_string(index)};
+            credits[index].description = std::string(2048, 'd');
+            credits[index].title = std::string(2048, 't');
+            credits[index].raw = Json{{"secret", std::string(2048, 'x')}};
+        }
+        creditSummary.credits = std::move(credits);
+        creditSummary.raw = Json{{"secret", true}};
+        rateLimitResult.rateLimitResetCredits = std::move(creditSummary);
+        completeOperation("account/rateLimits/read",
+                          backend::BackendCommand{backend::AccountRateLimitsRead{}},
+                          backend::ProviderOperationValue{std::move(rateLimitResult)});
+
+        typed::ConfigRequirementsReadResponse requirementsResult;
+        typed::ConfigRequirements requirements;
+        requirements.defaultPermissions = std::string(2048, 'd');
+        std::map<typed::PermissionProfileName, bool> permissionProfiles;
+        std::map<typed::ExperimentalFeatureId, bool> featureRequirements;
+        for (std::size_t index = 0; index < 300; ++index) {
+            permissionProfiles.emplace(typed::PermissionProfileName{std::string(2048, 'p') + std::to_string(index)}, true);
+            featureRequirements.emplace(typed::ExperimentalFeatureId{std::string(2048, 'f') + std::to_string(index)}, false);
+        }
+        requirements.allowedPermissionProfiles = std::move(permissionProfiles);
+        requirements.featureRequirements = std::move(featureRequirements);
+        typed::NewThreadModelDefaults defaults;
+        defaults.model = typed::ModelId{std::string(2048, 'm')};
+        typed::ModelsRequirements modelRequirements;
+        modelRequirements.newThread = std::move(defaults);
+        modelRequirements.raw = Json{{"secret", true}};
+        requirements.models = std::move(modelRequirements);
+        requirements.raw = Json{{"secret", true}};
+        requirementsResult.requirements = std::move(requirements);
+        completeOperation("configRequirements/read",
+                          backend::BackendCommand{backend::ConfigRequirementsRead{}},
+                          backend::ProviderOperationValue{std::move(requirementsResult)});
+
+        typed::PluginListResponse pluginList;
+        pluginList.featuredPluginIds = std::vector<std::string>(300, std::string(canonicalReplacementStringLimit + 1, 'f'));
+        std::vector<typed::MarketplaceLoadErrorInfo> loadErrors(300);
+        for (typed::MarketplaceLoadErrorInfo& error : loadErrors) {
+            error.marketplacePath = typed::AbsolutePath{std::string(2048, 'p')};
+            error.message = std::string(canonicalReplacementStringLimit + 1, 'e');
+            error.raw = Json{{"secret", true}};
+        }
+        pluginList.marketplaceLoadErrors = std::move(loadErrors);
+        completeOperation("plugin/list",
+                          backend::BackendCommand{backend::PluginList{typed::PluginListParams{}}},
+                          backend::ProviderOperationValue{std::move(pluginList)});
+
+        const typed::ThreadId goalThread{"goal-thread"};
+        typed::ThreadGoalGetResponse oldGoalRead;
+        typed::ThreadGoal oldGoal;
+        oldGoal.threadId = goalThread;
+        oldGoal.objective = "old objective";
+        oldGoal.status = typed::ThreadGoalStatus::active();
+        oldGoalRead.goal = oldGoal;
+        operationState.conversations.latestGoalThreadId = goalThread;
+        operationState.conversations.latestGoal = backend::ReplacementCache<typed::ThreadGoalGetResponse>{
+            std::move(oldGoalRead), {}, {}, 0, false, {7, backend::Freshness::Current}};
+        typed::ThreadGoal setGoal;
+        setGoal.threadId = goalThread;
+        setGoal.objective = std::string(64U * 1024U, 'g');
+        setGoal.status = typed::ThreadGoalStatus::active();
+        typed::ThreadGoalSetParams goalSetParams;
+        goalSetParams.threadId = goalThread;
+        typed::ThreadGoalSetResponse goalSetResponse;
+        goalSetResponse.goal = setGoal;
+        completeOperation("thread/goal/set",
+                          backend::BackendCommand{backend::ThreadGoalSet{std::move(goalSetParams)}},
+                          backend::ProviderOperationValue{std::move(goalSetResponse)});
+        typed::ThreadGoalClearResponse goalClearResponse;
+        goalClearResponse.cleared = true;
+        completeOperation("thread/goal/clear",
+                          backend::BackendCommand{backend::ThreadGoalClear{typed::ThreadGoalClearParams{goalThread}}},
+                          backend::ProviderOperationValue{std::move(goalClearResponse)});
+        typed::ThreadUnsubscribeResponse unsubscribe;
+        unsubscribe.status = typed::ThreadUnsubscribeStatus::unsubscribed();
+        completeOperation("thread/unsubscribe",
+                          backend::BackendCommand{backend::ThreadUnsubscribe{typed::ThreadUnsubscribeParams{goalThread}}},
+                          backend::ProviderOperationValue{unsubscribe});
+
+        const backend::Snapshot typedDomainSnapshot = backend::makeSnapshot(operationState);
+        const bool exactTypedCaches =
+            operationState.configuration.lastWrite && operationState.configuration.lastWrite->value.raw.empty() &&
+            operationState.configuration.lastWrite->value.filePath.value.size() == canonicalReplacementStringLimit &&
+            operationState.configuration.configuration->stamp.freshness == backend::Freshness::Stale &&
+            operationState.configuration.experimentalFeatureEnablement &&
+            operationState.configuration.experimentalFeatureEnablement->value.enablement.size() == 256 &&
+            operationState.integrations.marketplaceAdd && operationState.integrations.marketplaceRemove &&
+            operationState.integrations.marketplaceUpgrade &&
+            operationState.integrations.marketplaceUpgrade->value.selectedMarketplaces.size() == 256 &&
+            operationState.integrations.marketplaceUpgrade->value.upgradedRoots.size() == 256 &&
+            operationState.pluginsAndSkills.pluginInstall && operationState.pluginsAndSkills.pluginShareCheckout &&
+            operationState.pluginsAndSkills.pluginShareSave && operationState.pluginsAndSkills.pluginShareUpdateTargets &&
+            operationState.pluginsAndSkills.pluginShareUpdateTargets->value.principals.size() == 256 &&
+            operationState.pluginsAndSkills.skillsConfigWrite && operationState.pluginsAndSkills.extraRoots &&
+            operationState.pluginsAndSkills.extraRoots->roots.size() == 256 &&
+            operationState.pluginsAndSkills.extraRoots->totalRoots == 300 && operationState.accounts.rateLimitRead &&
+            operationState.accounts.rateLimitRead->value.rateLimitResetCredits.value->credits.value->size() == 256 &&
+            operationState.accounts.rateLimitRead->value.rateLimitResetCredits.value->raw.empty() &&
+            operationState.accounts.rateLimitRead->value.rateLimitResetCredits.value->credits.value->front().raw.empty() &&
+            operationState.configuration.requirements &&
+            operationState.configuration.requirements->value.requirements.value->allowedPermissionProfiles.value->size() == 256 &&
+            operationState.configuration.requirements->value.requirements.value->featureRequirements.value->size() == 256 &&
+            operationState.configuration.requirements->value.requirements.value->raw.empty() && operationState.pluginsAndSkills.plugins &&
+            operationState.pluginsAndSkills.plugins->value.featuredPluginIds->size() == 256 &&
+            operationState.pluginsAndSkills.plugins->value.featuredPluginIds->front().size() == canonicalReplacementStringLimit &&
+            operationState.pluginsAndSkills.plugins->value.marketplaceLoadErrors->size() == 256 &&
+            operationState.pluginsAndSkills.plugins->value.marketplaceLoadErrors->front().raw.empty() &&
+            operationState.pluginsAndSkills.plugins->value.marketplaceLoadErrors->front().message.size() == canonicalReplacementStringLimit;
+        const bool safeTypedSummaries =
+            typedDomainSnapshot.configuration.lastWrite && typedDomainSnapshot.configuration.lastWrite->overridden &&
+            typedDomainSnapshot.configuration.lastWrite->filePath.size() == backend::MaxSnapshotExtensionMethodBytes &&
+            typedDomainSnapshot.configuration.experimentalFeatureEnablement &&
+            typedDomainSnapshot.configuration.experimentalFeatureEnablement->totalEntries == 300 &&
+            typedDomainSnapshot.integrations.marketplaceUpgrade && typedDomainSnapshot.integrations.marketplaceUpgrade->truncated &&
+            typedDomainSnapshot.pluginsAndSkills.pluginShareSave &&
+            typedDomainSnapshot.pluginsAndSkills.pluginShareSave->subjectId == "remote-plugin" &&
+            typedDomainSnapshot.pluginsAndSkills.extraRoots && typedDomainSnapshot.pluginsAndSkills.extraRoots->truncated;
+        const bool goalSemantics =
+            operationState.conversations.latestGoalSetThreadId == goalThread &&
+            operationState.conversations.latestGoalClearThreadId == goalThread &&
+            operationState.conversations.latestUnsubscribeThreadId == goalThread && typedDomainSnapshot.conversations.latestGoalSet &&
+            typedDomainSnapshot.conversations.latestGoalSet->objective->size() == canonicalReplacementStringLimit &&
+            typedDomainSnapshot.conversations.latestGoalClear && typedDomainSnapshot.conversations.latestGoalClear->cleared == true &&
+            typedDomainSnapshot.conversations.latestUnsubscribe &&
+            typedDomainSnapshot.conversations.latestUnsubscribe->status == "unsubscribed" &&
+            operationState.conversations.latestGoal->stamp.freshness == backend::Freshness::Stale;
+        result.expectTrue(exactTypedCaches && safeTypedSummaries && goalSemantics,
+                          "approved typed mutation results retain bounded exact caches, command associations, and safe semantic snapshots");
+
+        backend::BackendState derivedBoundState = operationState;
+        derivedBoundState.capacity.limits.maxSnapshotBytes = 4096;
+        const backend::Snapshot derivedBoundSnapshot = backend::makeSnapshot(derivedBoundState);
+        result.expectTrue(derivedBoundSnapshot.capacity.truncated && !derivedBoundSnapshot.capacity.mandatoryCoreExceedsLimit &&
+                              !derivedBoundSnapshot.configuration.experimentalFeatureEnablement &&
+                              !derivedBoundSnapshot.pluginsAndSkills.extraRoots && derivedBoundSnapshot.provider.generation == 7,
+                          "snapshot bounding omits derived domain summaries deterministically before the mandatory-core fallback");
+
+        reducer.apply(operationState, backend::ProviderConnectionInvalidated{7, "typed cache freshness test"});
+        result.expectTrue(operationState.configuration.lastWrite->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.configuration.experimentalFeatureEnablement->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.integrations.marketplaceAdd->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.integrations.marketplaceRemove->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.integrations.marketplaceUpgrade->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.pluginsAndSkills.pluginInstall->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.pluginsAndSkills.pluginShareCheckout->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.pluginsAndSkills.pluginShareSave->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.pluginsAndSkills.pluginShareUpdateTargets->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.pluginsAndSkills.skillsConfigWrite->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.pluginsAndSkills.extraRoots->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.conversations.latestGoalSet->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.conversations.latestGoalClear->stamp.freshness == backend::Freshness::Stale &&
+                              operationState.conversations.latestUnsubscribe->stamp.freshness == backend::Freshness::Stale,
+                          "provider invalidation marks every approved typed mutation cache stale without dropping its bounded value");
+
+        backend::BackendState itemState;
+        itemState.provider.generation = 2;
+        std::vector<typed::ThreadItem> items;
+        typed::CollabAgentToolCallThreadItem collab;
+        collab.metadata = metadata("all-items", "turn", "collab");
+        collab.senderThreadId = typed::ThreadId{"sender"};
+        collab.receiverThreadIds = {typed::ThreadId{"receiver"}};
+        collab.status = typed::CollabAgentToolCallStatus::completed();
+        collab.tool = typed::CollabAgentTool::spawnAgent();
+        items.emplace_back(std::move(collab));
+        typed::ContextCompactionThreadItem compact;
+        compact.metadata = metadata("all-items", "turn", "compact");
+        items.emplace_back(std::move(compact));
+        typed::EnteredReviewModeThreadItem entered;
+        entered.metadata = metadata("all-items", "turn", "entered");
+        entered.review = "security";
+        items.emplace_back(std::move(entered));
+        typed::ExitedReviewModeThreadItem exited;
+        exited.metadata = metadata("all-items", "turn", "exited");
+        exited.review = "security";
+        items.emplace_back(std::move(exited));
+        typed::HookPromptThreadItem hook;
+        hook.metadata = metadata("all-items", "turn", "hook");
+        hook.fragments.push_back({"hook-run", "secret prompt text is not projected"});
+        items.emplace_back(std::move(hook));
+        typed::ImageGenerationThreadItem generated;
+        generated.metadata = metadata("all-items", "turn", "generated");
+        generated.result = "binary-image-data-is-not-projected";
+        generated.status = "completed";
+        items.emplace_back(std::move(generated));
+        typed::ImageViewThreadItem viewed;
+        viewed.metadata = metadata("all-items", "turn", "viewed");
+        viewed.path = typed::PathString{"/synthetic/image.png"};
+        items.emplace_back(std::move(viewed));
+        typed::PlanThreadItem plan;
+        plan.metadata = metadata("all-items", "turn", "plan");
+        plan.text = "bounded plan";
+        items.emplace_back(std::move(plan));
+        typed::SleepThreadItem sleep;
+        sleep.metadata = metadata("all-items", "turn", "sleep");
+        sleep.durationMs = 25;
+        items.emplace_back(std::move(sleep));
+        typed::SubAgentActivityThreadItem subAgent;
+        subAgent.metadata = metadata("all-items", "turn", "sub-agent");
+        subAgent.agentPath = "root/worker";
+        subAgent.agentThreadId = typed::ThreadId{"worker-thread"};
+        subAgent.kind = typed::SubAgentActivityKind::started();
+        items.emplace_back(std::move(subAgent));
+        for (const typed::ThreadItem& item : items) {
+            reducer.apply(itemState,
+                          backend::ItemUpserted{
+                              typed::ThreadId{"all-items"}, typed::TurnId{"turn"}, item, backend::ItemLifecycle::Completed, std::nullopt});
+        }
+        const backend::Snapshot itemSnapshot = backend::makeSnapshot(itemState);
+        const std::vector<backend::ItemSnapshot>& projectedItems = itemSnapshot.threads.front().turns.front().items;
+        const bool allTenUseful = projectedItems.size() == 10 && std::ranges::all_of(projectedItems, [](const backend::ItemSnapshot& item) {
+                                      return item.data.is_object() && !item.data.empty() && !item.data.contains("codexType");
+                                  });
+        const std::string compactSnapshot =
+            Json(projectedItems.front().data).dump() + itemSnapshot.threads.front().turns.front().items[5].data.dump();
+        result.expectTrue(
+            allTenUseful && compactSnapshot.find("secret prompt text") == std::string::npos &&
+                compactSnapshot.find("binary-image-data") == std::string::npos,
+            "all ten formerly generic ThreadItem alternatives have useful bounded projections without prompt or binary payloads");
+
+        backend::BackendState boundedItemState;
+        boundedItemState.provider.generation = 2;
+        const std::string oversizedMethod(4096, 'i');
+        const std::string oversizedPayload(64U * 1024U, 'p');
+        typed::CommandExecutionThreadItem boundedCommand;
+        boundedCommand.metadata = metadata("bounded-items", "turn", "command");
+        boundedCommand.command = oversizedPayload;
+        boundedCommand.cwd = typed::PathString{oversizedMethod};
+        boundedCommand.status = typed::CommandExecutionStatus{oversizedMethod};
+        boundedCommand.processId = oversizedMethod;
+        typed::McpToolCallThreadItem boundedMcp;
+        boundedMcp.metadata = metadata("bounded-items", "turn", "mcp");
+        boundedMcp.server = oversizedMethod;
+        boundedMcp.tool = oversizedMethod;
+        boundedMcp.status = typed::McpToolCallStatus{oversizedMethod};
+        typed::DynamicToolCallThreadItem boundedDynamic;
+        boundedDynamic.metadata = metadata("bounded-items", "turn", "dynamic");
+        boundedDynamic.tool = oversizedMethod;
+        boundedDynamic.status = typed::DynamicToolCallStatus{oversizedMethod};
+        boundedDynamic.nameSpace = oversizedMethod;
+        typed::WebSearchThreadItem boundedWeb;
+        boundedWeb.metadata = metadata("bounded-items", "turn", "web");
+        boundedWeb.query = oversizedPayload;
+        typed::FileChangeThreadItem boundedFileChange;
+        boundedFileChange.metadata = metadata("bounded-items", "turn", "file");
+        boundedFileChange.metadata.raw["changes"] = Json::array({Json{{"rawSentinel", "must-not-appear"}}});
+        boundedFileChange.status = typed::PatchApplyStatus::completed();
+        boundedFileChange.changes.push_back(
+            typed::FileUpdateChange{std::string(64U * 1024U, 'd'), typed::UpdatePatchChangeKind{}, "/secret/path"});
+        const std::vector<typed::ThreadItem> boundedItems{boundedCommand, boundedMcp, boundedDynamic, boundedWeb, boundedFileChange};
+        for (const typed::ThreadItem& item : boundedItems) {
+            reducer.apply(
+                boundedItemState,
+                backend::ItemUpserted{
+                    typed::ThreadId{"bounded-items"}, typed::TurnId{"turn"}, item, backend::ItemLifecycle::Completed, std::nullopt});
+        }
+        const backend::Snapshot boundedItemSnapshot = backend::makeSnapshot(boundedItemState);
+        const auto& boundedItemProjections = boundedItemSnapshot.threads.front().turns.front().items;
+        const bool boundedItemStrings =
+            boundedItemProjections.size() == 5 &&
+            boundedItemProjections[0].data.at("command").get_ref<const std::string&>().size() ==
+                backend::MaxSnapshotExtensionPayloadBytes &&
+            boundedItemProjections[0].data.at("cwd").get_ref<const std::string&>().size() == backend::MaxSnapshotExtensionMethodBytes &&
+            boundedItemProjections[0].data.at("processId").get_ref<const std::string&>().size() ==
+                backend::MaxSnapshotExtensionMethodBytes &&
+            boundedItemProjections[1].data.at("tool").get_ref<const std::string&>().size() == backend::MaxSnapshotExtensionMethodBytes &&
+            boundedItemProjections[1].data.at("server").get_ref<const std::string&>().size() == backend::MaxSnapshotExtensionMethodBytes &&
+            boundedItemProjections[2].data.at("namespace").get_ref<const std::string&>().size() ==
+                backend::MaxSnapshotExtensionMethodBytes &&
+            boundedItemProjections[3].data.at("query").get_ref<const std::string&>().size() == backend::MaxSnapshotExtensionPayloadBytes &&
+            boundedItemProjections[4].data.value("changeCount", 0) == 1 &&
+            boundedItemProjections[4].data.at("changes").front().value("pathRedacted", false) &&
+            boundedItemProjections[4].data.at("changes").front().value("diffOmitted", false) &&
+            boundedItemProjections[4].data.dump().find("must-not-appear") == std::string::npos &&
+            boundedItemProjections[4].data.dump().find("/secret/path") == std::string::npos;
+        result.expectTrue(boundedItemStrings,
+                          "safe ThreadItem projections bound command, path, process, MCP, dynamic-tool, and web-search strings");
+
+        backend::BackendState capacityState;
+        backend::BackendCapacityOptions zeroLimits;
+        zeroLimits.maxRetainedProcesses = 0;
+        zeroLimits.maxRetainedFilesystemWatches = 0;
+        zeroLimits.maxRetainedFuzzySearchSessions = 0;
+        reducer.apply(capacityState, backend::CapacityConfigured{zeroLimits});
+        backend::detail::resetRetentionCapacityInstrumentation();
+        const backend::Reduction deniedProcess = reducer.apply(
+            capacityState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::Process, "process-reservation", "process-zero"});
+        const backend::Reduction deniedWatch = reducer.apply(
+            capacityState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FilesystemWatch, "watch-reservation", "watch-zero"});
+        const backend::Reduction deniedSearch = reducer.apply(
+            capacityState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FuzzySearch, "search-reservation", "search-zero"});
+        const backend::detail::RetentionCapacityInstrumentation instrumentation = backend::detail::retentionCapacityInstrumentation();
+        const backend::Snapshot capacitySnapshot = backend::makeSnapshot(capacityState);
+        result.expectTrue(
+            deniedProcess.resourceAdmission == false && deniedWatch.resourceAdmission == false && deniedSearch.resourceAdmission == false &&
+                capacityState.capacity.rejectedOperations == 3 && capacitySnapshot.capacity.retainedProcesses == 0 &&
+                capacitySnapshot.capacity.retainedFilesystemWatches == 0 && capacitySnapshot.capacity.retainedFuzzySearchSessions == 0 &&
+                instrumentation.slowPathEntries == 0 && instrumentation.pendingReferenceBuilds == 0,
+            "zero resource capacities reject globally, expose incremental counters, and keep the ordinary capacity path O(1)");
+
+        backend::BackendState targetBoundState;
+        targetBoundState.provider.generation = 3;
+        backend::BackendCapacityOptions targetBoundLimits;
+        targetBoundLimits.maxRetainedProcesses = 1;
+        targetBoundLimits.maxRetainedFilesystemWatches = 1;
+        targetBoundLimits.maxRetainedFuzzySearchSessions = 1;
+        reducer.apply(targetBoundState, backend::CapacityConfigured{targetBoundLimits});
+        const auto applyTargetBoundTyped = [&reducer, &targetBoundState](typed::Event event) {
+            const std::vector<backend::BackendEvent> translated = reducer.translate(event);
+            return reducer.apply(targetBoundState, translated.front());
+        };
+        reducer.apply(targetBoundState,
+                      backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::Process, "process-a-op", "process-a"});
+        reducer.apply(targetBoundState,
+                      backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FilesystemWatch, "watch-a-op", "watch-a"});
+        reducer.apply(targetBoundState,
+                      backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FuzzySearch, "search-a-op", "search-a"});
+        typed::ProcessOutputDeltaNotification unsolicitedProcess;
+        unsolicitedProcess.processHandle = "process-b";
+        unsolicitedProcess.stream = typed::ProcessOutputStream::stdoutStream();
+        unsolicitedProcess.deltaBase64 = "unexpected";
+        unsolicitedProcess.raw = Json{{"params", Json::object()}};
+        const backend::Reduction processTargetRejected = applyTargetBoundTyped(typed::Event{std::move(unsolicitedProcess)});
+        typed::FsChangedNotification unsolicitedWatch;
+        unsolicitedWatch.watchId = typed::FsWatchId{"watch-b"};
+        unsolicitedWatch.raw = Json{{"params", Json::object()}};
+        const backend::Reduction watchTargetRejected = applyTargetBoundTyped(typed::Event{std::move(unsolicitedWatch)});
+        typed::FuzzyFileSearchSessionUpdatedNotification unsolicitedSearch;
+        unsolicitedSearch.sessionId = "search-b";
+        unsolicitedSearch.query = "unexpected";
+        unsolicitedSearch.raw = Json{{"params", Json::object()}};
+        const backend::Reduction searchTargetRejected = applyTargetBoundTyped(typed::Event{std::move(unsolicitedSearch)});
+        const bool unrelatedResourcesCannotSteal =
+            processTargetRejected.providerCapacityFailure && watchTargetRejected.providerCapacityFailure &&
+            searchTargetRejected.providerCapacityFailure && targetBoundState.processes.empty() &&
+            targetBoundState.filesystemWatches.empty() && targetBoundState.fuzzySearchSessions.empty() &&
+            targetBoundState.processReservationClaims.empty() && targetBoundState.filesystemWatchReservationClaims.empty() &&
+            targetBoundState.fuzzySearchReservationClaims.empty() &&
+            targetBoundState.processReservationTargets.at("process-a-op") == "process-a" &&
+            targetBoundState.filesystemWatchReservationTargets.at("watch-a-op") == "watch-a" &&
+            targetBoundState.fuzzySearchReservationTargets.at("search-a-op") == "search-a";
+
+        typed::ProcessOutputDeltaNotification expectedProcess;
+        expectedProcess.processHandle = "process-a";
+        expectedProcess.stream = typed::ProcessOutputStream::stdoutStream();
+        expectedProcess.deltaBase64 = "expected";
+        expectedProcess.raw = Json{{"params", Json::object()}};
+        const backend::Reduction processTargetAdmitted = applyTargetBoundTyped(typed::Event{std::move(expectedProcess)});
+        typed::FsChangedNotification expectedWatch;
+        expectedWatch.watchId = typed::FsWatchId{"watch-a"};
+        expectedWatch.raw = Json{{"params", Json::object()}};
+        const backend::Reduction watchTargetAdmitted = applyTargetBoundTyped(typed::Event{std::move(expectedWatch)});
+        typed::FuzzyFileSearchSessionUpdatedNotification expectedSearch;
+        expectedSearch.sessionId = "search-a";
+        expectedSearch.query = "expected";
+        expectedSearch.raw = Json{{"params", Json::object()}};
+        const backend::Reduction searchTargetAdmitted = applyTargetBoundTyped(typed::Event{std::move(expectedSearch)});
+        const bool exactTargetsClaimReservations =
+            !processTargetAdmitted.providerCapacityFailure && !watchTargetAdmitted.providerCapacityFailure &&
+            !searchTargetAdmitted.providerCapacityFailure && targetBoundState.processes.contains("process-a") &&
+            targetBoundState.filesystemWatches.contains("watch-a") && targetBoundState.fuzzySearchSessions.contains("search-a") &&
+            targetBoundState.processReservationClaims.at("process-a") == "process-a-op" &&
+            targetBoundState.filesystemWatchReservationClaims.at("watch-a") == "watch-a-op" &&
+            targetBoundState.fuzzySearchReservationClaims.at("search-a") == "search-a-op";
+        reducer.apply(targetBoundState, backend::ProviderConnectionInvalidated{3, "target-bound reservation test"});
+        const bool targetReservationsInvalidated =
+            targetBoundState.processReservations.empty() && targetBoundState.processReservationTargets.empty() &&
+            targetBoundState.processReservationClaims.empty() && targetBoundState.filesystemWatchReservations.empty() &&
+            targetBoundState.filesystemWatchReservationTargets.empty() && targetBoundState.filesystemWatchReservationClaims.empty() &&
+            targetBoundState.fuzzySearchReservations.empty() && targetBoundState.fuzzySearchReservationTargets.empty() &&
+            targetBoundState.fuzzySearchReservationClaims.empty();
+        result.expectTrue(unrelatedResourcesCannotSteal && exactTargetsClaimReservations && targetReservationsInvalidated,
+                          "provider-resource reservations are target-bound and cannot be stolen by unsolicited resources");
+
+        backend::ReducerOptions boundedOptions;
+        boundedOptions.maxNoticeSummaryBytes = 8;
+        boundedOptions.maxNoticeDetailsBytes = 8;
+        backend::Reducer boundedReducer{boundedOptions};
+        backend::BackendState boundedState;
+        boundedState.provider.generation = 4;
+        backend::BackendCapacityOptions boundedLimits;
+        boundedLimits.maxRetainedNotices = 1;
+        boundedLimits.maxRetainedProcesses = 1;
+        boundedLimits.maxProcessOutputBytesPerProcess = 4;
+        boundedLimits.maxAccumulatedProcessOutputBytes = 3;
+        boundedLimits.maxRetainedFilesystemWatches = 1;
+        boundedLimits.maxRetainedFuzzySearchSessions = 1;
+        boundedLimits.maxRetainedActivityRecords = 1;
+        boundedReducer.apply(boundedState, backend::CapacityConfigured{boundedLimits});
+
+        const auto applyTyped = [&boundedReducer, &boundedState](typed::Event event) {
+            const std::vector<backend::BackendEvent> translated = boundedReducer.translate(event);
+            return boundedReducer.apply(boundedState, translated.front());
+        };
+
+        typed::WarningNotification firstWarning;
+        firstWarning.message = "first warning";
+        firstWarning.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(firstWarning)});
+        typed::WarningNotification secondWarning;
+        secondWarning.message = "second warning";
+        secondWarning.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(secondWarning)});
+        const bool noticeBounded = boundedState.notices.size() == 1 && boundedState.capacity.retainedNotices == 1 &&
+                                   boundedState.capacity.evictedNotices == 1 && boundedState.notices.front().summary == "second w";
+
+        const backend::Reduction processReservation = boundedReducer.apply(
+            boundedState, backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::Process, "process-op", "process-1"});
+        const bool reservationNotRetained = processReservation.resourceAdmission == true && boundedState.capacity.retainedProcesses == 0;
+        typed::ProcessOutputDeltaNotification stdoutDelta;
+        stdoutDelta.processHandle = "process-1";
+        stdoutDelta.stream = typed::ProcessOutputStream::stdoutStream();
+        stdoutDelta.deltaBase64 = "abcd";
+        stdoutDelta.raw = Json{{"params", Json::object()}};
+        const backend::Reduction earlyProcess = applyTyped(typed::Event{std::move(stdoutDelta)});
+        typed::ProcessOutputDeltaNotification stderrDelta;
+        stderrDelta.processHandle = "process-1";
+        stderrDelta.stream = typed::ProcessOutputStream::stderrStream();
+        stderrDelta.deltaBase64 = "efgh";
+        stderrDelta.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(stderrDelta)});
+        const backend::ProcessState& boundedProcess = boundedState.processes.at("process-1");
+        const bool processOutputBounded = !earlyProcess.providerCapacityFailure && boundedState.capacity.retainedProcesses == 1 &&
+                                          boundedState.processReservationClaims.contains("process-1") &&
+                                          boundedProcess.stdoutData.size() + boundedProcess.stderrData.size() == 3 &&
+                                          boundedProcess.stdoutTruncated && boundedProcess.stderrTruncated &&
+                                          boundedProcess.droppedOutputBytes == 5 && boundedState.capacity.droppedProcessOutputBytes == 5;
+        const backend::Reduction activeProcessDenied = boundedReducer.apply(
+            boundedState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::Process, "second-process-op", "process-2"});
+        typed::ProcessExitedNotification processExited;
+        processExited.processHandle = "process-1";
+        processExited.exitCode = 0;
+        processExited.stdout = "xy";
+        processExited.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(processExited)});
+        const backend::Reduction pendingTerminalProcessProtected = boundedReducer.apply(
+            boundedState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::Process, "second-process-op", "process-2"});
+        boundedReducer.apply(boundedState,
+                             backend::ProviderResourceAdmissionReleased{backend::ProviderResourceKind::Process, "process-op"});
+        const backend::Reduction terminalProcessEvicted = boundedReducer.apply(
+            boundedState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::Process, "second-process-op", "process-2"});
+        boundedReducer.apply(boundedState,
+                             backend::ProviderResourceAdmissionReleased{backend::ProviderResourceKind::Process, "second-process-op"});
+        const backend::Reduction duplicateProcessRelease = boundedReducer.apply(
+            boundedState, backend::ProviderResourceAdmissionReleased{backend::ProviderResourceKind::Process, "second-process-op"});
+        const bool processCapacity = activeProcessDenied.resourceAdmission == false &&
+                                     pendingTerminalProcessProtected.resourceAdmission == false &&
+                                     terminalProcessEvicted.resourceAdmission == true && boundedState.capacity.evictedProcesses == 1 &&
+                                     boundedState.capacity.retainedProcesses == 0 && !duplicateProcessRelease.changed;
+
+        const backend::Reduction watchReservation = boundedReducer.apply(
+            boundedState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FilesystemWatch, "watch-op", "watch-1"});
+        typed::FsChangedNotification changed;
+        changed.watchId = typed::FsWatchId{"watch-1"};
+        for (std::size_t index = 0; index < 300; ++index) {
+            changed.changedPaths.emplace_back("/changed/path/" + std::to_string(index));
+        }
+        changed.raw = Json{{"params", Json::object()}};
+        const backend::Reduction earlyWatch = applyTyped(typed::Event{std::move(changed)});
+        typed::FsWatchParams watchParams{typed::AbsolutePath{"/bounded/watch/root"}, typed::FsWatchId{"watch-1"}};
+        typed::FsWatchResponse watchResponse;
+        watchResponse.path = watchParams.path;
+        boundedReducer.apply(boundedState,
+                             backend::ProviderOperationCompleted{"fs/watch",
+                                                                 backend::BackendCommand{backend::FsWatch{watchParams}},
+                                                                 backend::ProviderOperationValue{watchResponse},
+                                                                 std::optional<std::string>{"watch-op"}});
+        const bool watchBounded = watchReservation.resourceAdmission == true && !earlyWatch.providerCapacityFailure &&
+                                  boundedState.capacity.retainedFilesystemWatches == 1 &&
+                                  boundedState.filesystemWatches.at("watch-1").changedPaths.size() == 256 &&
+                                  boundedState.filesystemWatches.at("watch-1").root.has_value() &&
+                                  boundedState.filesystemWatches.at("watch-1").root->value.size() == 8;
+        boundedReducer.apply(boundedState,
+                             backend::ProviderOperationCompleted{
+                                 "fs/unwatch",
+                                 backend::BackendCommand{backend::FsUnwatch{typed::FsUnwatchParams{typed::FsWatchId{"watch-1"}}}},
+                                 backend::ProviderOperationValue{typed::Unit{}},
+                                 std::nullopt});
+        const bool watchReleased = boundedState.capacity.retainedFilesystemWatches == 0 && boundedState.filesystemWatches.empty();
+
+        const backend::Reduction fuzzyReservation = boundedReducer.apply(
+            boundedState, backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FuzzySearch, "fuzzy-op", "fuzzy-1"});
+        typed::FuzzyFileSearchSessionUpdatedNotification fuzzy;
+        fuzzy.sessionId = "fuzzy-1";
+        fuzzy.query = "query that is deliberately long";
+        fuzzy.files.resize(600);
+        for (std::size_t index = 0; index < fuzzy.files.size(); ++index) {
+            fuzzy.files[index].fileName = "file-name-" + std::to_string(index);
+            fuzzy.files[index].path = "/very/long/path/" + std::to_string(index);
+            fuzzy.files[index].root = "/very/long/root";
+        }
+        fuzzy.raw = Json{{"params", Json::object()}};
+        const backend::Reduction earlyFuzzy = applyTyped(typed::Event{std::move(fuzzy)});
+        typed::FuzzyFileSearchSessionCompletedNotification fuzzyCompleted;
+        fuzzyCompleted.sessionId = "fuzzy-1";
+        fuzzyCompleted.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(fuzzyCompleted)});
+        const bool fuzzyBounded = fuzzyReservation.resourceAdmission == true && !earlyFuzzy.providerCapacityFailure &&
+                                  boundedState.capacity.retainedFuzzySearchSessions == 1 &&
+                                  boundedState.fuzzySearchSessions.at("fuzzy-1").query.size() == 8 &&
+                                  boundedState.fuzzySearchSessions.at("fuzzy-1").files.size() == 512 &&
+                                  boundedState.fuzzySearchSessions.at("fuzzy-1").files.front().path.size() == 8;
+        const backend::Reduction pendingCompletedFuzzyProtected = boundedReducer.apply(
+            boundedState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FuzzySearch, "next-fuzzy-op", "fuzzy-2"});
+        boundedReducer.apply(boundedState,
+                             backend::ProviderResourceAdmissionReleased{backend::ProviderResourceKind::FuzzySearch, "fuzzy-op"});
+        const backend::Reduction nextFuzzyReservation = boundedReducer.apply(
+            boundedState,
+            backend::ProviderResourceAdmissionRequested{backend::ProviderResourceKind::FuzzySearch, "next-fuzzy-op", "fuzzy-2"});
+        boundedReducer.apply(boundedState,
+                             backend::ProviderResourceAdmissionReleased{backend::ProviderResourceKind::FuzzySearch, "next-fuzzy-op"});
+        const bool fuzzyEvicted = pendingCompletedFuzzyProtected.resourceAdmission == false &&
+                                  nextFuzzyReservation.resourceAdmission == true && boundedState.capacity.evictedFuzzySearchSessions == 1 &&
+                                  boundedState.capacity.retainedFuzzySearchSessions == 0;
+
+        typed::ExternalAgentConfigImportProgressNotification importOne;
+        importOne.importId = "import-one";
+        importOne.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(importOne)});
+        typed::ExternalAgentConfigImportProgressNotification importTwo;
+        importTwo.importId = "import-two";
+        importTwo.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(importTwo)});
+        const auto hasImportActivity = [&boundedState](std::string_view subject) {
+            return std::ranges::any_of(boundedState.activities, [subject](const auto& entry) {
+                return entry.second.kind == "external_agent_import" && entry.second.subjectId == subject;
+            });
+        };
+        const bool activeActivityProtected = boundedState.activities.size() == 1 && hasImportActivity("import-one");
+        typed::ExternalAgentConfigImportCompletedNotification importOneCompleted;
+        importOneCompleted.importId = "import-one";
+        importOneCompleted.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(importOneCompleted)});
+        typed::ExternalAgentConfigImportProgressNotification importTwoAgain;
+        importTwoAgain.importId = "import-two";
+        importTwoAgain.raw = Json{{"params", Json::object()}};
+        applyTyped(typed::Event{std::move(importTwoAgain)});
+        const bool activityEvicted = boundedState.activities.size() == 1 && hasImportActivity("import-two") &&
+                                     boundedState.capacity.retainedActivityRecords == 1 &&
+                                     boundedState.capacity.evictedActivityRecords == 2;
+
+        const backend::Snapshot beforeInvalidation = backend::makeSnapshot(boundedState);
+        const auto retainedBeforeInvalidation = std::tuple{boundedState.capacity.retainedNotices,
+                                                           boundedState.capacity.retainedProcesses,
+                                                           boundedState.capacity.retainedFilesystemWatches,
+                                                           boundedState.capacity.retainedFuzzySearchSessions,
+                                                           boundedState.capacity.retainedActivityRecords};
+        boundedReducer.apply(boundedState, backend::ProviderConnectionInvalidated{4, "capacity test"});
+        const backend::Snapshot afterInvalidation = backend::makeSnapshot(boundedState);
+        const auto retainedAfterInvalidation = std::tuple{boundedState.capacity.retainedNotices,
+                                                          boundedState.capacity.retainedProcesses,
+                                                          boundedState.capacity.retainedFilesystemWatches,
+                                                          boundedState.capacity.retainedFuzzySearchSessions,
+                                                          boundedState.capacity.retainedActivityRecords};
+        boundedState.capacity.droppedProcessOutputBytes = std::numeric_limits<std::uint64_t>::max();
+        boundedReducer.apply(boundedState, backend::CapacityChanged{backend::CapacityMetric::DroppedProcessOutputBytes, std::uint64_t{1}});
+        const bool countersStable = beforeInvalidation.capacity.retainedNotices == 1 &&
+                                    retainedBeforeInvalidation == retainedAfterInvalidation &&
+                                    beforeInvalidation.capacity.retainedNotices == afterInvalidation.capacity.retainedNotices &&
+                                    boundedState.capacity.droppedProcessOutputBytes == std::numeric_limits<std::uint64_t>::max();
+
+        result.expectTrue(
+            noticeBounded && reservationNotRetained && processOutputBounded && processCapacity,
+            "notice/process capacities preserve active resources, evict terminal state, bound combined output, and saturate drops");
+        result.expectTrue(watchBounded && watchReleased && fuzzyBounded && fuzzyEvicted,
+                          "watch and fuzzy reservations promote early notifications without false overflow and retain bounded summaries");
+        result.expectTrue(
+            activeActivityProtected && activityEvicted && countersStable,
+            "activity bounds protect active work while provider invalidation and snapshots preserve canonical incremental counts");
+
+        backend::BackendState resolvedState;
+        resolvedState.provider.generation = 3;
+        resolvedState.pendingRequests.emplace(
+            backend::PendingRequestId{77},
+            backend::PendingRequestState{backend::PendingRequestId{77}, typed::TypedServerRequest{approvalRequest()}, 3});
+        typed::ServerRequestResolvedNotification resolved;
+        resolved.requestId = ServerRequestId{std::string("server-request")};
+        resolved.threadId = typed::ThreadId{"thread-request"};
+        resolved.raw = Json{{"params", Json::object()}};
+        const std::vector<backend::BackendEvent> resolvedEvents = reducer.translate(typed::Event{resolved});
+        const backend::Reduction resolvedReduction = reducer.apply(resolvedState, resolvedEvents.front());
+        const backend::Reduction duplicateReduction = reducer.apply(resolvedState, resolvedEvents.front());
+        const backend::Snapshot resolvedSnapshot = backend::makeSnapshot(resolvedState);
+        result.expectTrue(resolvedState.pendingRequests.empty() && resolvedReduction.pendingRequestRemovals.size() == 1 &&
+                              resolvedReduction.pendingRequestRemovals.front().reason == "externally_resolved" &&
+                              !duplicateReduction.changed && duplicateReduction.pendingRequestRemovals.empty() &&
+                              resolvedSnapshot.recentExtensions.empty() && resolvedSnapshot.conversations.latestNotificationMethods.empty(),
+                          "serverRequest/resolved retires a matching occurrence exactly once without retaining its provider request id");
+
+        backend::BackendState staleResolvedState;
+        staleResolvedState.provider.generation = 3;
+        staleResolvedState.sequence = backend::SequenceNumber{41};
+        staleResolvedState.pendingRequests.emplace(
+            backend::PendingRequestId{79},
+            backend::PendingRequestState{backend::PendingRequestId{79}, typed::TypedServerRequest{approvalRequest()}, 2});
+        const backend::Reduction staleResolvedReduction = reducer.apply(staleResolvedState, resolvedEvents.front());
+        const backend::Snapshot staleResolvedSnapshot = backend::makeSnapshot(staleResolvedState);
+        result.expectTrue(
+            !staleResolvedReduction.changed && staleResolvedReduction.pendingRequestRemovals.empty() &&
+                staleResolvedState.sequence == backend::SequenceNumber{41} && staleResolvedState.pendingRequests.size() == 1 &&
+                staleResolvedState.pendingRequests.contains(backend::PendingRequestId{79}) &&
+                staleResolvedSnapshot.recentExtensions.empty() && staleResolvedSnapshot.conversations.latestNotificationMethods.empty(),
+            "serverRequest/resolved with a stale occurrence generation is an exact ownership and sequence no-op");
+
+        backend::BackendState unknownResolvedState;
+        unknownResolvedState.provider.generation = 3;
+        unknownResolvedState.sequence = backend::SequenceNumber{42};
+        unknownResolvedState.pendingRequests.emplace(
+            backend::PendingRequestId{80},
+            backend::PendingRequestState{backend::PendingRequestId{80}, typed::TypedServerRequest{approvalRequest()}, 3});
+        typed::ServerRequestResolvedNotification unknownResolved = resolved;
+        unknownResolved.requestId = ServerRequestId{std::string{"unknown-provider-request"}};
+        const std::vector<backend::BackendEvent> unknownResolvedEvents = reducer.translate(typed::Event{std::move(unknownResolved)});
+        const backend::Reduction unknownResolvedReduction = reducer.apply(unknownResolvedState, unknownResolvedEvents.front());
+        const backend::Snapshot unknownResolvedSnapshot = backend::makeSnapshot(unknownResolvedState);
+        result.expectTrue(
+            !unknownResolvedReduction.changed && unknownResolvedReduction.pendingRequestRemovals.empty() &&
+                unknownResolvedState.sequence == backend::SequenceNumber{42} && unknownResolvedState.pendingRequests.size() == 1 &&
+                unknownResolvedState.pendingRequests.contains(backend::PendingRequestId{80}) &&
+                unknownResolvedSnapshot.recentExtensions.empty() && unknownResolvedSnapshot.conversations.latestNotificationMethods.empty(),
+            "serverRequest/resolved with an unknown provider request id leaves another current occurrence untouched");
+
+        backend::BackendState conflictingResolvedState;
+        conflictingResolvedState.provider.generation = 3;
+        typed::CommandApprovalRequest conflictingRequest = approvalRequest();
+        conflictingRequest.threadId = typed::ThreadId{"different-thread"};
+        conflictingResolvedState.pendingRequests.emplace(
+            backend::PendingRequestId{78},
+            backend::PendingRequestState{backend::PendingRequestId{78}, typed::TypedServerRequest{std::move(conflictingRequest)}, 3});
+        reducer.apply(conflictingResolvedState, resolvedEvents.front());
+        const backend::Snapshot conflictingResolvedSnapshot = backend::makeSnapshot(conflictingResolvedState);
+        result.expectTrue(
+            conflictingResolvedState.pendingRequests.size() == 1 && conflictingResolvedSnapshot.recentExtensions.size() == 1 &&
+                conflictingResolvedSnapshot.recentExtensions.front().payload.dump().find("server-request") == std::string::npos,
+            "a conflicting resolved notification remains bounded and omits the provider request identifier");
+
+        backend::BackendState pendingKinds;
+        pendingKinds.pendingRequests.emplace(
+            backend::PendingRequestId{1},
+            backend::PendingRequestState{
+                backend::PendingRequestId{1}, typed::TypedServerRequest{deferredRequest<typed::ApplyPatchApprovalRequest>(1)}, 1});
+        pendingKinds.pendingRequests.emplace(
+            backend::PendingRequestId{2},
+            backend::PendingRequestState{
+                backend::PendingRequestId{2}, typed::TypedServerRequest{deferredRequest<typed::ExecCommandApprovalRequest>(2)}, 1});
+        pendingKinds.pendingRequests.emplace(
+            backend::PendingRequestId{3},
+            backend::PendingRequestState{
+                backend::PendingRequestId{3}, typed::TypedServerRequest{deferredRequest<typed::PermissionsApprovalRequest>(3)}, 1});
+        pendingKinds.pendingRequests.emplace(
+            backend::PendingRequestId{4},
+            backend::PendingRequestState{
+                backend::PendingRequestId{4}, typed::TypedServerRequest{deferredRequest<typed::AttestationGenerateRequest>(4)}, 1});
+        pendingKinds.pendingRequests.emplace(
+            backend::PendingRequestId{5},
+            backend::PendingRequestState{
+                backend::PendingRequestId{5}, typed::TypedServerRequest{deferredRequest<typed::DynamicToolCallRequest>(5)}, 1});
+        pendingKinds.pendingRequests.emplace(
+            backend::PendingRequestId{6},
+            backend::PendingRequestState{
+                backend::PendingRequestId{6}, typed::TypedServerRequest{deferredRequest<typed::McpServerElicitationRequest>(6)}, 1});
+        const backend::Snapshot pendingKindsSnapshot = backend::makeSnapshot(pendingKinds);
+        const std::vector<std::string> expectedKinds{
+            "apply_patch_approval", "exec_command_approval", "permissions_approval", "attestation", "dynamic_tool_call", "mcp_elicitation"};
+        const bool kindsMatch =
+            pendingKindsSnapshot.pendingRequests.size() == expectedKinds.size() &&
+            std::ranges::equal(
+                pendingKindsSnapshot.pendingRequests, expectedKinds, {}, &backend::PendingRequestSnapshot::type, std::identity{});
+        result.expectTrue(kindsMatch, "all six formerly generic pending request kinds have explicit bounded safe snapshot identities");
+        result.expectTrue(pendingKindsSnapshot.pendingRequests[0].details.value("method", "") == "applyPatchApproval" &&
+                              pendingKindsSnapshot.pendingRequests[0].details.contains("summary") &&
+                              pendingKindsSnapshot.pendingRequests[1].details.value("method", "") == "execCommandApproval" &&
+                              pendingKindsSnapshot.pendingRequests[2].details.value("method", "") == "item/permissions/requestApproval",
+                          "approval snapshots retain the bounded/redacted legacy generic envelope beside a meaningful backend summary");
+    }
 } // namespace
 
 int main() {
@@ -1066,6 +2173,7 @@ int main() {
     testUnknownPreservationAndTranslation(result);
     testPendingRequestsAndSessions(result);
     testSnapshotDeterminism(result);
+    testA16bNotificationItemAndCapacityClosure(result);
 
     return result.processResult();
 }

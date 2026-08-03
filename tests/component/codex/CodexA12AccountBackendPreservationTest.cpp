@@ -40,12 +40,6 @@ namespace {
 
     constexpr const char* SyntheticNotificationSecret = "synthetic-notification-secret";
 
-    backend::Snapshot withoutExtensions(backend::Snapshot snapshot) {
-        snapshot.recentExtensions.clear();
-        snapshot.omittedRecentExtensions = 0;
-        return snapshot;
-    }
-
     codex::Notification notification(std::string method, codex::Json params, std::size_t sequence) {
         codex::Json raw{
             {"jsonrpc", "2.0"},
@@ -66,7 +60,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
         const std::vector<backend::BackendEvent> translated = reducer.translate(event);
         const auto* extension =
             translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated.front()) : nullptr;
@@ -81,7 +74,7 @@ namespace {
         if (extension) {
             const backend::Reduction reduction = reducer.apply(state, *extension);
             result.expectTrue(reduction.changed && !reduction.flushImmediately,
-                              wire.method + " changes only the bounded extension history");
+                              wire.method + " records its bounded extension and canonical account state");
         }
 
         const backend::ExtensionRecord* retained =
@@ -90,10 +83,31 @@ namespace {
                               !retained->payload.contains("futureEnvelopeOnly"),
                           wire.method + " bounded BackendCore preservation retains exact params and method");
 
-        const backend::Snapshot after = backend::makeSnapshot(state);
-        result.expectTrue(withoutExtensions(after) == before,
-                          wire.method + " invents no account, authentication, or rate-limit canonical state");
-        return decoded && exactTranslation && retained;
+        const backend::Snapshot snapshot = backend::makeSnapshot(state);
+        const auto canonicalNotification = state.accounts.latestNotifications.find(wire.method);
+        const bool notificationRetained =
+            canonicalNotification != state.accounts.latestNotifications.end() &&
+            canonicalNotification->second.stamp.freshness == backend::Freshness::Current &&
+            snapshot.accounts.latestNotificationMethods.size() == 1 && snapshot.accounts.latestNotificationMethods.front() == wire.method &&
+            snapshot.accounts.latestNotifications.size() == 1 && snapshot.accounts.latestNotifications.front().method == wire.method;
+        result.expectTrue(notificationRetained, wire.method + " records one current-generation canonical account notification summary");
+
+        bool dedicatedState = false;
+        if constexpr (std::is_same_v<Notification, typed::AccountLoginCompletedNotification>) {
+            dedicatedState = state.accounts.login && state.accounts.login->lifecycle == "completed" &&
+                             state.accounts.login->success == true && state.accounts.login->loginId &&
+                             state.accounts.login->loginId->value == "login-preserved" && !state.accounts.login->error &&
+                             snapshot.accounts.login == state.accounts.login;
+        } else if constexpr (std::is_same_v<Notification, typed::AccountRateLimitsUpdatedNotification>) {
+            dedicatedState = state.accounts.rateLimits && state.accounts.rateLimits->planType == "future-plan" &&
+                             state.accounts.rateLimits->primaryUsedPercent == 25 &&
+                             snapshot.accounts.rateLimits == state.accounts.rateLimits;
+        } else if constexpr (std::is_same_v<Notification, typed::AccountUpdatedNotification>) {
+            dedicatedState = state.accounts.authentication && state.accounts.authentication->authMode == "future-auth-mode" &&
+                             !state.accounts.authentication->planType && snapshot.accounts.authentication == state.accounts.authentication;
+        }
+        result.expectTrue(dedicatedState, wire.method + " updates its bounded typed canonical account projection");
+        return decoded && exactTranslation && retained && notificationRetained && dedicatedState;
     }
 
     void testAllAccountNotifications(tests::support::TestResult& result) {
@@ -130,8 +144,7 @@ namespace {
         exact += verifyPreserved<typed::AccountLoginCompletedNotification>(result, login, loginEvent) ? 1U : 0U;
         exact += verifyPreserved<typed::AccountRateLimitsUpdatedNotification>(result, rateLimits, rateLimitEvent) ? 1U : 0U;
         exact += verifyPreserved<typed::AccountUpdatedNotification>(result, updated, updatedEvent) ? 1U : 0U;
-        result.expectTrue(exact == 3,
-                          "all three B2 account notifications decode and use the one bounded params-only preservation path");
+        result.expectTrue(exact == 3, "all three B2 account notifications preserve params and update their A1.6b canonical account state");
     }
 
     void testFrontendSnapshotRedaction(tests::support::TestResult& result) {
@@ -160,6 +173,11 @@ namespace {
 
         result.expectTrue(canonical && canonical->payload == updated.params,
                           "bounded internal extension state retains the exact typed notification params before projection");
+        result.expectTrue(state.accounts.authentication && state.accounts.authentication->authMode == "chatgpt" &&
+                              state.accounts.authentication->planType == "plus" && snapshot.accounts.authentication &&
+                              snapshot.accounts.authentication->authMode == "chatgpt" &&
+                              snapshot.accounts.authentication->planType == "plus",
+                          "account/updated retains only bounded non-token authentication metadata in the safe account projection");
         result.expectTrue(projected && projected->method == "account/updated" && projected->sensitiveFieldsRedacted &&
                               projected->payload.value("safe", "") == "visible" &&
                               frontendPayload.find(SyntheticNotificationSecret) == std::string::npos &&

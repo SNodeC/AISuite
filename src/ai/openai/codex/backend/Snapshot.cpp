@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -153,7 +154,8 @@ namespace ai::openai::codex::backend {
             return normalized.ends_with("token") || normalized.ends_with("secret") || normalized.ends_with("answer") ||
                    normalized.ends_with("answers") || normalized.ends_with("credential") || normalized.ends_with("credentials") ||
                    normalized.find("password") != std::string::npos || normalized.find("passphrase") != std::string::npos ||
-                   normalized.find("authorization") != std::string::npos || normalized.find("apikey") != std::string::npos;
+                   normalized.find("authorization") != std::string::npos || normalized.find("apikey") != std::string::npos ||
+                   normalized == "command" || normalized == "cwd" || normalized == "reason" || normalized.ends_with("path");
         }
 
         bool isSecretValueKey(std::string_view key) {
@@ -346,6 +348,11 @@ namespace ai::openai::codex::backend {
             return sanitizeExtensionJson(value, state);
         }
 
+        Json safeSnapshotJson(const Json& value) {
+            JsonSanitizerState sanitizer;
+            return boundedJson(sanitizeExtensionJson(value, sanitizer));
+        }
+
         std::string lifecycleName(ItemLifecycle lifecycle) {
             switch (lifecycle) {
                 case ItemLifecycle::Unknown:
@@ -386,99 +393,164 @@ namespace ai::openai::codex::backend {
 
         ItemSnapshot snapshotItem(const typed::ItemId& id, const ItemState& state) {
             ItemSnapshot snapshot;
-            snapshot.id = id.value;
-            snapshot.type = itemType(state.item);
-            snapshot.status = lifecycleName(state.lifecycle);
-            snapshot.agentText = state.agentText;
-            snapshot.reasoningText = state.reasoningText;
-            snapshot.reasoningSummary = state.reasoningSummary;
-            snapshot.commandOutput = state.commandOutput;
+            snapshot.id = safeUtf8Prefix(id.value, MaxSnapshotExtensionMethodBytes);
+            snapshot.type = safeUtf8Prefix(itemType(state.item), MaxSnapshotExtensionMethodBytes);
+            snapshot.status = safeUtf8Prefix(lifecycleName(state.lifecycle), MaxSnapshotExtensionMethodBytes);
+            snapshot.agentText = safeUtf8Prefix(state.agentText, MaxSnapshotExtensionPayloadBytes);
+            snapshot.reasoningText = safeUtf8Prefix(state.reasoningText, MaxSnapshotExtensionPayloadBytes);
+            snapshot.reasoningSummary = safeUtf8Prefix(state.reasoningSummary, MaxSnapshotExtensionPayloadBytes);
+            snapshot.commandOutput = safeUtf8Prefix(state.commandOutput, MaxSnapshotExtensionPayloadBytes);
             snapshot.droppedContentBytes = state.droppedContentBytes;
             snapshot.contentTruncated = state.droppedContentBytes != 0;
             snapshot.startedAtMs = state.startedAtMs;
             snapshot.completedAtMs = state.completedAtMs;
-            snapshot.extensions = boundedJson(state.extensions);
+            snapshot.extensions = safeSnapshotJson(state.extensions);
             snapshot.stamp = state.stamp;
             snapshot.connectionInvalidated = state.connectionInvalidated;
 
             std::visit(
-                Overloaded{[&snapshot](const typed::AgentMessageThreadItem& value) {
-                               if (value.phase) {
-                                   snapshot.data["phase"] = value.phase->value;
-                               }
-                           },
-                           [&snapshot](const typed::UserMessageThreadItem& value) {
-                               snapshot.data = userMessageData(value);
-                           },
-                           [&snapshot](const typed::ReasoningThreadItem&) {
-                               snapshot.data["hasSummary"] = !snapshot.reasoningSummary.empty();
-                           },
-                           [&snapshot](const typed::CommandExecutionThreadItem& value) {
-                               snapshot.data =
-                                   Json::object({{"command", value.command}, {"cwd", value.cwd.value}, {"status", value.status.value}});
-                               if (value.processId) {
-                                   snapshot.data["processId"] = *value.processId;
-                               }
-                               if (value.exitCode) {
-                                   snapshot.data["exitCode"] = *value.exitCode;
-                               }
-                               if (value.durationMs) {
-                                   snapshot.data["durationMs"] = *value.durationMs;
-                               }
-                           },
-                           [&snapshot](const typed::FileChangeThreadItem& value) {
-                               const auto changes = value.metadata.raw.find("changes");
-                               snapshot.data = Json::object(
-                                   {{"status", value.status.value},
-                                    {"changes",
-                                     changes != value.metadata.raw.end() && changes->is_array() ? boundedJson(*changes) : Json::array()}});
-                           },
-                           [&snapshot](const typed::McpToolCallThreadItem& value) {
-                               snapshot.data = Json::object(
-                                   {{"tool", value.tool}, {"status", value.status.value}, {"hasResult", value.result.hasValue()}});
-                               snapshot.data["server"] = value.server;
-                           },
-                           [&snapshot](const typed::DynamicToolCallThreadItem& value) {
-                               snapshot.data = Json::object(
-                                   {{"tool", value.tool}, {"status", value.status.value}, {"hasResult", value.contentItems.hasValue()}});
-                               if (value.nameSpace) {
-                                   snapshot.data["namespace"] = *value.nameSpace;
-                               }
-                           },
-                           [&snapshot](const typed::WebSearchThreadItem& value) {
-                               snapshot.data = Json::object({{"query", value.query}});
-                           },
-                           [&snapshot](const typed::UnknownItem& value) {
-                               snapshot.data = Json::object();
-                               if (value.type) {
-                                   snapshot.data["codexType"] = *value.type;
-                               }
-                               if (const std::optional<std::string> decodingError =
-                                       ::ai::openai::codex::detail::safeDecodeDiagnosticText(value.diagnostic)) {
-                                   snapshot.data["decodingError"] = *decodingError;
-                               }
-                           },
-                           [&snapshot](const auto&) {
-                               snapshot.data = Json::object({{"codexType", snapshot.type}});
-                           }},
+                Overloaded{
+                    [&snapshot](const typed::AgentMessageThreadItem& value) {
+                        if (value.phase) {
+                            snapshot.data["phase"] = safeUtf8Prefix(value.phase->value, MaxSnapshotExtensionMethodBytes);
+                        }
+                    },
+                    [&snapshot](const typed::UserMessageThreadItem& value) {
+                        snapshot.data = userMessageData(value);
+                    },
+                    [&snapshot](const typed::ReasoningThreadItem&) {
+                        snapshot.data["hasSummary"] = !snapshot.reasoningSummary.empty();
+                    },
+                    [&snapshot](const typed::CommandExecutionThreadItem& value) {
+                        snapshot.data = Json::object({{"command", safeUtf8Prefix(value.command, MaxSnapshotExtensionPayloadBytes)},
+                                                      {"cwd", safeUtf8Prefix(value.cwd.value, MaxSnapshotExtensionMethodBytes)},
+                                                      {"status", safeUtf8Prefix(value.status.value, MaxSnapshotExtensionMethodBytes)}});
+                        if (value.processId) {
+                            snapshot.data["processId"] = safeUtf8Prefix(*value.processId, MaxSnapshotExtensionMethodBytes);
+                        }
+                        if (value.exitCode) {
+                            snapshot.data["exitCode"] = *value.exitCode;
+                        }
+                        if (value.durationMs) {
+                            snapshot.data["durationMs"] = *value.durationMs;
+                        }
+                    },
+                    [&snapshot](const typed::FileChangeThreadItem& value) {
+                        constexpr std::size_t MaxRetainedFileChangeSummaries = 256;
+                        snapshot.data = Json::object({{"status", safeUtf8Prefix(value.status.value, MaxSnapshotExtensionMethodBytes)},
+                                                      {"changeCount", value.changes.size()},
+                                                      {"changesTruncated", value.changes.size() > MaxRetainedFileChangeSummaries},
+                                                      {"changes", Json::array()}});
+                        const std::size_t retainedCount = std::min(value.changes.size(), MaxRetainedFileChangeSummaries);
+                        for (std::size_t index = 0; index < retainedCount; ++index) {
+                            const typed::FileUpdateChange& change = value.changes[index];
+                            snapshot.data["changes"].push_back({{"kindAlternative", change.kind.index()},
+                                                                {"pathBytes", change.path.size()},
+                                                                {"pathRedacted", true},
+                                                                {"diffBytes", change.diff.size()},
+                                                                {"diffOmitted", true}});
+                        }
+                    },
+                    [&snapshot](const typed::McpToolCallThreadItem& value) {
+                        snapshot.data = Json::object({{"tool", safeUtf8Prefix(value.tool, MaxSnapshotExtensionMethodBytes)},
+                                                      {"status", safeUtf8Prefix(value.status.value, MaxSnapshotExtensionMethodBytes)},
+                                                      {"hasResult", value.result.hasValue()}});
+                        snapshot.data["server"] = safeUtf8Prefix(value.server, MaxSnapshotExtensionMethodBytes);
+                    },
+                    [&snapshot](const typed::DynamicToolCallThreadItem& value) {
+                        snapshot.data = Json::object({{"tool", safeUtf8Prefix(value.tool, MaxSnapshotExtensionMethodBytes)},
+                                                      {"status", safeUtf8Prefix(value.status.value, MaxSnapshotExtensionMethodBytes)},
+                                                      {"hasResult", value.contentItems.hasValue()}});
+                        if (value.nameSpace) {
+                            snapshot.data["namespace"] = safeUtf8Prefix(*value.nameSpace, MaxSnapshotExtensionMethodBytes);
+                        }
+                    },
+                    [&snapshot](const typed::WebSearchThreadItem& value) {
+                        snapshot.data = Json::object({{"query", safeUtf8Prefix(value.query, MaxSnapshotExtensionPayloadBytes)}});
+                    },
+                    [&snapshot](const typed::CollabAgentToolCallThreadItem& value) {
+                        snapshot.data =
+                            Json::object({{"tool", safeUtf8Prefix(value.tool.value, MaxSnapshotExtensionMethodBytes)},
+                                          {"status", safeUtf8Prefix(value.status.value, MaxSnapshotExtensionMethodBytes)},
+                                          {"senderThreadId", safeUtf8Prefix(value.senderThreadId.value, MaxSnapshotExtensionMethodBytes)},
+                                          {"receiverCount", value.receiverThreadIds.size()},
+                                          {"agentStateCount", value.agentsStates.size()},
+                                          {"hasPrompt", value.prompt.hasValue()}});
+                        if (value.prompt.hasValue()) {
+                            snapshot.data["promptBytes"] = value.prompt.value->size();
+                        }
+                    },
+                    [&snapshot](const typed::ContextCompactionThreadItem&) {
+                        snapshot.data = Json::object({{"compacted", true}});
+                    },
+                    [&snapshot](const typed::EnteredReviewModeThreadItem& value) {
+                        snapshot.data =
+                            Json::object({{"mode", "entered"}, {"review", safeUtf8Prefix(value.review, MaxSnapshotExtensionMethodBytes)}});
+                    },
+                    [&snapshot](const typed::ExitedReviewModeThreadItem& value) {
+                        snapshot.data =
+                            Json::object({{"mode", "exited"}, {"review", safeUtf8Prefix(value.review, MaxSnapshotExtensionMethodBytes)}});
+                    },
+                    [&snapshot](const typed::HookPromptThreadItem& value) {
+                        snapshot.data = Json::object({{"fragmentCount", value.fragments.size()}});
+                        if (!value.fragments.empty()) {
+                            snapshot.data["firstHookRunId"] =
+                                safeUtf8Prefix(value.fragments.front().hookRunId, MaxSnapshotExtensionMethodBytes);
+                        }
+                    },
+                    [&snapshot](const typed::ImageGenerationThreadItem& value) {
+                        snapshot.data = Json::object({{"status", safeUtf8Prefix(value.status, MaxSnapshotExtensionMethodBytes)},
+                                                      {"resultBytes", value.result.size()},
+                                                      {"hasRevisedPrompt", value.revisedPrompt.hasValue()},
+                                                      {"hasSavedPath", value.savedPath.hasValue()}});
+                    },
+                    [&snapshot](const typed::ImageViewThreadItem& value) {
+                        snapshot.data = Json::object({{"path", safeUtf8Prefix(value.path.value, MaxSnapshotExtensionMethodBytes)}});
+                    },
+                    [&snapshot](const typed::PlanThreadItem& value) {
+                        snapshot.data = Json::object({{"text", safeUtf8Prefix(value.text, MaxSnapshotExtensionPayloadBytes)},
+                                                      {"textTruncated", value.text.size() > MaxSnapshotExtensionPayloadBytes}});
+                    },
+                    [&snapshot](const typed::SleepThreadItem& value) {
+                        snapshot.data = Json::object({{"durationMs", value.durationMs}});
+                    },
+                    [&snapshot](const typed::SubAgentActivityThreadItem& value) {
+                        snapshot.data =
+                            Json::object({{"agentPath", safeUtf8Prefix(value.agentPath, MaxSnapshotExtensionMethodBytes)},
+                                          {"agentThreadId", safeUtf8Prefix(value.agentThreadId.value, MaxSnapshotExtensionMethodBytes)},
+                                          {"kind", safeUtf8Prefix(value.kind.value, MaxSnapshotExtensionMethodBytes)}});
+                    },
+                    [&snapshot](const typed::UnknownItem& value) {
+                        snapshot.data = Json::object();
+                        if (value.type) {
+                            snapshot.data["codexType"] = safeUtf8Prefix(*value.type, MaxSnapshotExtensionMethodBytes);
+                        }
+                        if (const std::optional<std::string> decodingError =
+                                ::ai::openai::codex::detail::safeDecodeDiagnosticText(value.diagnostic)) {
+                            snapshot.data["decodingError"] = safeUtf8Prefix(*decodingError, MaxSnapshotExtensionDecodingErrorBytes);
+                        }
+                    },
+                    [&snapshot](const auto&) {
+                        snapshot.data = Json::object({{"codexType", snapshot.type}});
+                    }},
                 state.item);
             return snapshot;
         }
 
         TurnSnapshot snapshotTurn(const typed::TurnId& id, const TurnState& state) {
             TurnSnapshot snapshot;
-            snapshot.id = id.value;
-            snapshot.threadId = state.turn.threadId.value;
-            snapshot.status = state.turn.status.value;
+            snapshot.id = safeUtf8Prefix(id.value, MaxSnapshotExtensionMethodBytes);
+            snapshot.threadId = safeUtf8Prefix(state.turn.threadId.value, MaxSnapshotExtensionMethodBytes);
+            snapshot.status = safeUtf8Prefix(state.turn.status.value, MaxSnapshotExtensionMethodBytes);
             snapshot.active = state.active;
             snapshot.terminal = state.terminal;
             if (state.failure) {
-                snapshot.failure = boundedJson(*state.failure);
+                snapshot.failure = safeSnapshotJson(*state.failure);
             }
             if (state.tokenUsage) {
-                snapshot.tokenUsage = boundedJson(*state.tokenUsage);
+                snapshot.tokenUsage = safeSnapshotJson(*state.tokenUsage);
             }
-            snapshot.extensions = boundedJson(state.extensions);
+            snapshot.extensions = safeSnapshotJson(state.extensions);
             snapshot.stamp = state.stamp;
             snapshot.connectionInvalidated = state.connectionInvalidated;
 
@@ -499,31 +571,51 @@ namespace ai::openai::codex::backend {
 
         ThreadSnapshot snapshotThread(const typed::ThreadId& id, const ThreadState& state) {
             ThreadSnapshot snapshot;
-            snapshot.id = id.value;
-            snapshot.title = state.thread.title;
+            snapshot.id = safeUtf8Prefix(id.value, MaxSnapshotExtensionMethodBytes);
+            if (state.thread.title) {
+                snapshot.title = safeUtf8Prefix(*state.thread.title, MaxSnapshotExtensionPayloadBytes);
+            }
             const bool backendPlaceholder =
                 state.thread.raw.is_object() && (state.thread.raw.size() == 1 || state.thread.raw.size() == 2) &&
                 state.thread.raw.value("backendPlaceholder", false) &&
                 (state.thread.raw.size() == 1 ||
                  (state.thread.raw.size() == 2 && state.thread.raw.value("backendPlaceholderStatusKnown", false)));
             const bool backendPlaceholderStatusKnown = backendPlaceholder && state.thread.raw.size() == 2;
-            if (!backendPlaceholder) {
-                snapshot.cwd = state.thread.cwd.value;
+            if (!backendPlaceholder && !state.thread.cwd.value.empty()) {
+                snapshot.cwd = "[redacted]";
             }
             if (state.thread.model) {
-                snapshot.model = state.thread.model->value;
+                snapshot.model = safeUtf8Prefix(state.thread.model->value, MaxSnapshotExtensionMethodBytes);
             }
             if (!backendPlaceholder) {
-                snapshot.modelProvider = state.thread.modelProvider;
-                snapshot.preview = state.thread.preview;
+                snapshot.modelProvider = safeUtf8Prefix(state.thread.modelProvider, MaxSnapshotExtensionMethodBytes);
+                snapshot.preview = safeUtf8Prefix(state.thread.preview, MaxSnapshotExtensionPayloadBytes);
                 snapshot.createdAt = state.thread.createdAt;
                 snapshot.updatedAt = state.thread.updatedAt;
             }
             if (!backendPlaceholder || backendPlaceholderStatusKnown) {
-                snapshot.status = typed::threadStatusDiscriminator(state.thread.status);
+                snapshot.status = safeUtf8Prefix(typed::threadStatusDiscriminator(state.thread.status), MaxSnapshotExtensionMethodBytes);
             }
             snapshot.fullyLoaded = state.fullyLoaded;
-            snapshot.extensions = boundedJson(state.extensions);
+            snapshot.extensions = safeSnapshotJson(state.extensions);
+            snapshot.realtime = {
+                safeUtf8Prefix(state.realtime.lifecycle, MaxSnapshotExtensionMethodBytes),
+                safeUtf8Prefix(state.realtime.transcript, MaxSnapshotExtensionPayloadBytes),
+                state.realtime.lastError
+                    ? std::optional<std::string>{safeUtf8Prefix(*state.realtime.lastError, MaxSnapshotExtensionDecodingErrorBytes)}
+                    : std::nullopt,
+                state.realtime.sessionId
+                    ? std::optional<std::string>{safeUtf8Prefix(*state.realtime.sessionId, MaxSnapshotExtensionMethodBytes)}
+                    : std::nullopt,
+                state.realtime.version
+                    ? std::optional<std::string>{safeUtf8Prefix(*state.realtime.version, MaxSnapshotExtensionMethodBytes)}
+                    : std::nullopt,
+                state.realtime.lastSdpBytes,
+                state.realtime.itemCount,
+                state.realtime.receivedAudioBytes,
+                state.realtime.droppedAudioBytes,
+                state.realtime.transcriptTruncated,
+                state.realtime.stamp};
             snapshot.stamp = state.stamp;
 
             std::set<std::string> visited;
@@ -581,13 +673,16 @@ namespace ai::openai::codex::backend {
                                       snapshot.turnId = value.turnId.value;
                                       snapshot.itemId = value.itemId.value;
                                       if (value.command) {
-                                          snapshot.details["command"] = *value.command;
+                                          snapshot.details["commandBytes"] = value.command->size();
+                                          snapshot.details["commandRedacted"] = true;
                                       }
                                       if (value.cwd) {
-                                          snapshot.details["cwd"] = *value.cwd;
+                                          snapshot.details["cwdBytes"] = value.cwd->size();
+                                          snapshot.details["cwdRedacted"] = true;
                                       }
                                       if (value.reason) {
-                                          snapshot.details["reason"] = *value.reason;
+                                          snapshot.details["reasonBytes"] = value.reason->size();
+                                          snapshot.details["reasonRedacted"] = true;
                                       }
                                   },
                                   [&snapshot](const typed::FileChangeApprovalRequest& value) {
@@ -596,10 +691,12 @@ namespace ai::openai::codex::backend {
                                       snapshot.turnId = value.turnId.value;
                                       snapshot.itemId = value.itemId.value;
                                       if (value.reason) {
-                                          snapshot.details["reason"] = *value.reason;
+                                          snapshot.details["reasonBytes"] = value.reason->size();
+                                          snapshot.details["reasonRedacted"] = true;
                                       }
                                       if (value.grantRoot) {
-                                          snapshot.details["grantRoot"] = *value.grantRoot;
+                                          snapshot.details["grantRootBytes"] = value.grantRoot->size();
+                                          snapshot.details["grantRootRedacted"] = true;
                                       }
                                   },
                                   [&snapshot](const typed::UserInputRequest& value) {
@@ -638,33 +735,53 @@ namespace ai::openai::codex::backend {
                                                              ::ai::openai::codex::detail::safeDecodeDiagnosticText(value.diagnostic));
                                   },
                                   [&snapshot](const typed::ApplyPatchApprovalRequest& value) {
-                                      snapshot.threadId = value.params.conversationId.value;
                                       snapshotGenericRequest(snapshot, "applyPatchApproval", value.params.raw);
+                                      snapshot.type = "apply_patch_approval";
+                                      snapshot.threadId = value.params.conversationId.value;
+                                      snapshot.details["summary"] = Json::object({{"fileChangeCount", value.params.fileChanges.size()},
+                                                                                  {"hasReason", value.params.reason.hasValue()},
+                                                                                  {"hasGrantRoot", value.params.grantRoot.hasValue()}});
                                   },
                                   [&snapshot](const typed::ExecCommandApprovalRequest& value) {
-                                      snapshot.threadId = value.params.conversationId.value;
                                       snapshotGenericRequest(snapshot, "execCommandApproval", value.params.raw);
+                                      snapshot.type = "exec_command_approval";
+                                      snapshot.threadId = value.params.conversationId.value;
+                                      snapshot.details["summary"] = Json::object({{"commandArgumentCount", value.params.command.size()},
+                                                                                  {"parsedCommandCount", value.params.parsedCommand.size()},
+                                                                                  {"hasReason", value.params.reason.hasValue()},
+                                                                                  {"hasApprovalId", value.params.approvalId.hasValue()}});
                                   },
                                   [&snapshot](const typed::PermissionsApprovalRequest& value) {
+                                      snapshotGenericRequest(snapshot, "item/permissions/requestApproval", value.params.raw);
+                                      snapshot.type = "permissions_approval";
                                       snapshot.threadId = value.params.threadId.value;
                                       snapshot.turnId = value.params.turnId.value;
                                       snapshot.itemId = value.params.itemId.value;
-                                      snapshotGenericRequest(snapshot, "item/permissions/requestApproval", value.params.raw);
+                                      snapshot.details["summary"] =
+                                          Json::object({{"hasReason", value.params.reason.hasValue()},
+                                                        {"hasEnvironmentId", value.params.environmentId.hasValue()}});
                                   },
                                   [&snapshot](const typed::AttestationGenerateRequest&) {
-                                      snapshot.type = "unknown";
+                                      snapshot.type = "attestation";
                                   },
                                   [&snapshot](const typed::DynamicToolCallRequest& value) {
-                                      snapshot.type = "unknown";
+                                      snapshot.type = "dynamic_tool_call";
                                       snapshot.threadId = value.params.threadId.value;
                                       snapshot.turnId = value.params.turnId.value;
+                                      snapshot.details["tool"] = safeUtf8Prefix(value.params.tool, MaxSnapshotExtensionMethodBytes);
+                                      snapshot.details["hasNamespace"] = value.params.nameSpace.hasValue();
+                                      snapshot.details["argumentsOmitted"] = true;
                                   },
                                   [&snapshot](const typed::McpServerElicitationRequest& value) {
-                                      snapshot.type = "unknown";
+                                      snapshot.type = "mcp_elicitation";
                                       snapshot.threadId = value.params.threadId.value;
                                       if (value.params.turnId.hasValue()) {
                                           snapshot.turnId = value.params.turnId.value->value;
                                       }
+                                      snapshot.details["serverName"] =
+                                          safeUtf8Prefix(value.params.serverName, MaxSnapshotExtensionMethodBytes);
+                                      snapshot.details["elicitationAlternative"] = value.params.elicitation.index();
+                                      snapshot.details["elicitationContentOmitted"] = true;
                                   }},
                        state.request);
             snapshot.details = boundedJson(snapshot.details);
@@ -734,7 +851,27 @@ namespace ai::openai::codex::backend {
                          {"fullyLoaded", thread.fullyLoaded},
                          {"turns", Json::array()},
                          {"extensions", thread.extensions},
-                         {"stamp", sourceStampJson(thread.stamp)}};
+                         {"stamp", sourceStampJson(thread.stamp)},
+                         {"realtime",
+                          {{"lifecycle", thread.realtime.lifecycle},
+                           {"transcript", thread.realtime.transcript},
+                           {"itemCount", thread.realtime.itemCount},
+                           {"receivedAudioBytes", thread.realtime.receivedAudioBytes},
+                           {"droppedAudioBytes", thread.realtime.droppedAudioBytes},
+                           {"transcriptTruncated", thread.realtime.transcriptTruncated},
+                           {"stamp", sourceStampJson(thread.realtime.stamp)}}}};
+            if (thread.realtime.lastError) {
+                encoded["realtime"]["lastError"] = *thread.realtime.lastError;
+            }
+            if (thread.realtime.sessionId) {
+                encoded["realtime"]["sessionId"] = *thread.realtime.sessionId;
+            }
+            if (thread.realtime.version) {
+                encoded["realtime"]["version"] = *thread.realtime.version;
+            }
+            if (thread.realtime.lastSdpBytes) {
+                encoded["realtime"]["lastSdpBytes"] = *thread.realtime.lastSdpBytes;
+            }
             const auto assign = [&encoded](const char* name, const auto& value) {
                 if (value) {
                     encoded[name] = *value;
@@ -779,6 +916,12 @@ namespace ai::openai::codex::backend {
                           {"evictedItems", capacity.state.evictedItems},
                           {"droppedContentBytes", capacity.state.droppedContentBytes},
                           {"snapshotOmissions", capacity.state.snapshotOmissions},
+                          {"evictedNotices", capacity.state.evictedNotices},
+                          {"evictedProcesses", capacity.state.evictedProcesses},
+                          {"droppedProcessOutputBytes", capacity.state.droppedProcessOutputBytes},
+                          {"evictedFilesystemWatches", capacity.state.evictedFilesystemWatches},
+                          {"evictedFuzzySearchSessions", capacity.state.evictedFuzzySearchSessions},
+                          {"evictedActivityRecords", capacity.state.evictedActivityRecords},
                           {"limits",
                            {{"maxSessions", limits.maxSessions},
                             {"maxObservers", limits.maxObservers},
@@ -788,11 +931,24 @@ namespace ai::openai::codex::backend {
                             {"maxRetainedTurns", limits.maxRetainedTurns},
                             {"maxRetainedItems", limits.maxRetainedItems},
                             {"maxAccumulatedContentBytes", limits.maxAccumulatedContentBytes},
-                            {"maxSnapshotBytes", limits.maxSnapshotBytes}}}}},
+                            {"maxSnapshotBytes", limits.maxSnapshotBytes},
+                            {"maxRetainedNotices", limits.maxRetainedNotices},
+                            {"maxRetainedProcesses", limits.maxRetainedProcesses},
+                            {"maxProcessOutputBytesPerProcess", limits.maxProcessOutputBytesPerProcess},
+                            {"maxAccumulatedProcessOutputBytes", limits.maxAccumulatedProcessOutputBytes},
+                            {"maxRetainedFilesystemWatches", limits.maxRetainedFilesystemWatches},
+                            {"maxRetainedFuzzySearchSessions", limits.maxRetainedFuzzySearchSessions},
+                            {"maxRetainedActivityRecords", limits.maxRetainedActivityRecords}}}}},
                         {"retainedThreads", capacity.retainedThreads},
                         {"retainedTurns", capacity.retainedTurns},
                         {"retainedItems", capacity.retainedItems},
                         {"accumulatedContentBytes", capacity.accumulatedContentBytes},
+                        {"retainedNotices", capacity.retainedNotices},
+                        {"retainedProcesses", capacity.retainedProcesses},
+                        {"accumulatedProcessOutputBytes", capacity.accumulatedProcessOutputBytes},
+                        {"retainedFilesystemWatches", capacity.retainedFilesystemWatches},
+                        {"retainedFuzzySearchSessions", capacity.retainedFuzzySearchSessions},
+                        {"retainedActivityRecords", capacity.retainedActivityRecords},
                         {"omittedThreads", capacity.omittedThreads},
                         {"omittedTurns", capacity.omittedTurns},
                         {"omittedItems", capacity.omittedItems},
@@ -837,6 +993,13 @@ namespace ai::openai::codex::backend {
                                {"complete", snapshot.threadList.complete},
                                {"pagesLoaded", snapshot.threadList.pagesLoaded},
                                {"stamp", sourceStampJson(snapshot.threadList.stamp)}}},
+                             {"providerOperations", Json::array()},
+                             {"domains", Json::object()},
+                             {"notices", Json::array()},
+                             {"processes", Json::array()},
+                             {"filesystemWatches", Json::array()},
+                             {"fuzzySearchSessions", Json::array()},
+                             {"activities", Json::array()},
                              {"recentExtensions", Json::array()},
                              {"omittedRecentExtensions", snapshot.omittedRecentExtensions},
                              {"sequenceExhausted", snapshot.sequenceExhausted}};
@@ -857,6 +1020,312 @@ namespace ai::openai::codex::backend {
                 }
                 for (const SessionSnapshot& session : snapshot.sessions) {
                     encoded["sessions"].push_back({{"id", session.id.value()}, {"role", static_cast<unsigned>(session.role)}});
+                }
+                for (const ProviderOperationSnapshot& operation : snapshot.providerOperations) {
+                    encoded["providerOperations"].push_back({{"method", operation.method},
+                                                             {"resultAlternative", operation.resultAlternative},
+                                                             {"stamp", sourceStampJson(operation.stamp)}});
+                }
+                const auto encodeDomain = [&encoded](const char* name, const ProviderDomainSnapshot& domain) {
+                    Json projected{{"latestNotificationMethods", domain.latestNotificationMethods},
+                                   {"latestNotifications", Json::array()},
+                                   {"latestResults", Json::array()}};
+                    for (const ProviderNotificationSnapshot& notification : domain.latestNotifications) {
+                        projected["latestNotifications"].push_back({{"method", notification.method},
+                                                                    {"eventAlternative", notification.eventAlternative},
+                                                                    {"stamp", sourceStampJson(notification.stamp)}});
+                    }
+                    for (const ProviderResultSummarySnapshot& result : domain.latestResults) {
+                        Json encodedResult{{"method", result.method},
+                                           {"resultAlternative", result.resultAlternative},
+                                           {"status", result.status},
+                                           {"itemCount", result.itemCount},
+                                           {"complete", result.complete},
+                                           {"stamp", sourceStampJson(result.stamp)}};
+                        if (result.subjectId) {
+                            encodedResult["subjectId"] = *result.subjectId;
+                        }
+                        if (result.nextCursor) {
+                            encodedResult["nextCursor"] = *result.nextCursor;
+                        }
+                        projected["latestResults"].push_back(std::move(encodedResult));
+                    }
+                    encoded["domains"][name] = std::move(projected);
+                };
+                encodeDomain("accounts", snapshot.accounts);
+                encodeDomain("models", snapshot.models);
+                encodeDomain("configuration", snapshot.configuration);
+                encodeDomain("conversations", snapshot.conversations);
+                encodeDomain("filesystem", snapshot.filesystem);
+                encodeDomain("reviews", snapshot.reviews);
+                encodeDomain("integrations", snapshot.integrations);
+                encodeDomain("pluginsAndSkills", snapshot.pluginsAndSkills);
+                encodeDomain("mcp", snapshot.mcp);
+                encodeDomain("platform", snapshot.platform);
+                if (snapshot.accounts.login) {
+                    Json login{{"lifecycle", snapshot.accounts.login->lifecycle},
+                               {"method", snapshot.accounts.login->method},
+                               {"stamp", sourceStampJson(snapshot.accounts.login->stamp)}};
+                    if (snapshot.accounts.login->loginId) {
+                        login["loginId"] = snapshot.accounts.login->loginId->value;
+                    }
+                    if (snapshot.accounts.login->cancellationStatus) {
+                        login["cancellationStatus"] = *snapshot.accounts.login->cancellationStatus;
+                    }
+                    if (snapshot.accounts.login->success) {
+                        login["success"] = *snapshot.accounts.login->success;
+                    }
+                    if (snapshot.accounts.login->error) {
+                        login["error"] = *snapshot.accounts.login->error;
+                    }
+                    encoded["domains"]["accounts"]["login"] = std::move(login);
+                }
+                if (snapshot.accounts.authentication) {
+                    Json authentication{{"authenticated", snapshot.accounts.authentication->authenticated},
+                                        {"stamp", sourceStampJson(snapshot.accounts.authentication->stamp)}};
+                    if (snapshot.accounts.authentication->accountType) {
+                        authentication["accountType"] = *snapshot.accounts.authentication->accountType;
+                    }
+                    if (snapshot.accounts.authentication->authMode) {
+                        authentication["authMode"] = *snapshot.accounts.authentication->authMode;
+                    }
+                    if (snapshot.accounts.authentication->planType) {
+                        authentication["planType"] = *snapshot.accounts.authentication->planType;
+                    }
+                    encoded["domains"]["accounts"]["authentication"] = std::move(authentication);
+                }
+                if (snapshot.accounts.rateLimits) {
+                    encoded["domains"]["accounts"]["rateLimits"] = {
+                        {"primaryUsedPercent", snapshot.accounts.rateLimits->primaryUsedPercent},
+                        {"primaryResetsAt", snapshot.accounts.rateLimits->primaryResetsAt},
+                        {"secondaryUsedPercent", snapshot.accounts.rateLimits->secondaryUsedPercent},
+                        {"secondaryResetsAt", snapshot.accounts.rateLimits->secondaryResetsAt},
+                        {"hasCredits", snapshot.accounts.rateLimits->hasCredits},
+                        {"unlimitedCredits", snapshot.accounts.rateLimits->unlimitedCredits},
+                        {"stamp", sourceStampJson(snapshot.accounts.rateLimits->stamp)}};
+                }
+                encoded["domains"]["accounts"]["loggedOut"] = snapshot.accounts.loggedOut;
+                if (snapshot.configuration.lastWrite) {
+                    encoded["domains"]["configuration"]["lastWrite"] = {
+                        {"filePath", snapshot.configuration.lastWrite->filePath},
+                        {"status", snapshot.configuration.lastWrite->status},
+                        {"version", snapshot.configuration.lastWrite->version},
+                        {"overridden", snapshot.configuration.lastWrite->overridden},
+                        {"truncated", snapshot.configuration.lastWrite->truncated},
+                        {"stamp", sourceStampJson(snapshot.configuration.lastWrite->stamp)}};
+                }
+                if (snapshot.configuration.experimentalFeatureEnablement) {
+                    Json enablement{{"totalEntries", snapshot.configuration.experimentalFeatureEnablement->totalEntries},
+                                    {"truncated", snapshot.configuration.experimentalFeatureEnablement->truncated},
+                                    {"stamp", sourceStampJson(snapshot.configuration.experimentalFeatureEnablement->stamp)},
+                                    {"entries", Json::array()}};
+                    for (const auto& [feature, enabled] : snapshot.configuration.experimentalFeatureEnablement->entries) {
+                        enablement["entries"].push_back({{"feature", feature}, {"enabled", enabled}});
+                    }
+                    encoded["domains"]["configuration"]["experimentalFeatureEnablement"] = std::move(enablement);
+                }
+                const auto encodeGoalMutation = [&encoded](const char* name, const ConversationDomainSnapshot::GoalMutation& mutation) {
+                    Json value{
+                        {"operation", mutation.operation}, {"threadId", mutation.threadId}, {"stamp", sourceStampJson(mutation.stamp)}};
+                    if (mutation.objective) {
+                        value["objective"] = *mutation.objective;
+                    }
+                    if (mutation.status) {
+                        value["status"] = *mutation.status;
+                    }
+                    if (mutation.cleared) {
+                        value["cleared"] = *mutation.cleared;
+                    }
+                    encoded["domains"]["conversations"][name] = std::move(value);
+                };
+                if (snapshot.conversations.latestGoal) {
+                    encodeGoalMutation("latestGoal", *snapshot.conversations.latestGoal);
+                }
+                if (snapshot.conversations.latestGoalClear) {
+                    encodeGoalMutation("latestGoalClear", *snapshot.conversations.latestGoalClear);
+                }
+                if (snapshot.conversations.latestGoalSet) {
+                    encodeGoalMutation("latestGoalSet", *snapshot.conversations.latestGoalSet);
+                }
+                if (snapshot.conversations.latestUnsubscribe) {
+                    encodeGoalMutation("latestUnsubscribe", *snapshot.conversations.latestUnsubscribe);
+                }
+                if (snapshot.integrations.apps) {
+                    Json apps{{"totalEntries", snapshot.integrations.apps->totalEntries},
+                              {"truncated", snapshot.integrations.apps->truncated},
+                              {"stamp", sourceStampJson(snapshot.integrations.apps->stamp)},
+                              {"entries", Json::array()}};
+                    for (const AppCatalogEntryState& app : snapshot.integrations.apps->entries) {
+                        apps["entries"].push_back(
+                            {{"id", app.id}, {"name", app.name}, {"accessible", app.accessible}, {"enabled", app.enabled}});
+                    }
+                    encoded["domains"]["integrations"]["apps"] = std::move(apps);
+                }
+                const auto encodeMarketplaceMutation = [&encoded](const char* name,
+                                                                  const IntegrationsDomainSnapshot::MarketplaceMutation& mutation) {
+                    Json value{{"operation", mutation.operation},
+                               {"selectedCount", mutation.selectedCount},
+                               {"upgradedRootCount", mutation.upgradedRootCount},
+                               {"errorCount", mutation.errorCount},
+                               {"alreadyAdded", mutation.alreadyAdded},
+                               {"truncated", mutation.truncated},
+                               {"stamp", sourceStampJson(mutation.stamp)}};
+                    if (mutation.marketplaceName) {
+                        value["marketplaceName"] = *mutation.marketplaceName;
+                    }
+                    if (mutation.installedRoot) {
+                        value["installedRoot"] = *mutation.installedRoot;
+                    }
+                    encoded["domains"]["integrations"][name] = std::move(value);
+                };
+                if (snapshot.integrations.marketplaceAdd) {
+                    encodeMarketplaceMutation("marketplaceAdd", *snapshot.integrations.marketplaceAdd);
+                }
+                if (snapshot.integrations.marketplaceRemove) {
+                    encodeMarketplaceMutation("marketplaceRemove", *snapshot.integrations.marketplaceRemove);
+                }
+                if (snapshot.integrations.marketplaceUpgrade) {
+                    encodeMarketplaceMutation("marketplaceUpgrade", *snapshot.integrations.marketplaceUpgrade);
+                }
+                const auto encodePluginMutation = [&encoded](const char* name, const PluginsAndSkillsDomainSnapshot::Mutation& mutation) {
+                    Json value{{"operation", mutation.operation},
+                               {"itemCount", mutation.itemCount},
+                               {"truncated", mutation.truncated},
+                               {"stamp", sourceStampJson(mutation.stamp)}};
+                    if (mutation.subjectId) {
+                        value["subjectId"] = *mutation.subjectId;
+                    }
+                    if (mutation.status) {
+                        value["status"] = *mutation.status;
+                    }
+                    encoded["domains"]["pluginsAndSkills"][name] = std::move(value);
+                };
+                if (snapshot.pluginsAndSkills.pluginInstall) {
+                    encodePluginMutation("pluginInstall", *snapshot.pluginsAndSkills.pluginInstall);
+                }
+                if (snapshot.pluginsAndSkills.pluginShareCheckout) {
+                    encodePluginMutation("pluginShareCheckout", *snapshot.pluginsAndSkills.pluginShareCheckout);
+                }
+                if (snapshot.pluginsAndSkills.pluginShareSave) {
+                    encodePluginMutation("pluginShareSave", *snapshot.pluginsAndSkills.pluginShareSave);
+                }
+                if (snapshot.pluginsAndSkills.pluginShareUpdateTargets) {
+                    encodePluginMutation("pluginShareUpdateTargets", *snapshot.pluginsAndSkills.pluginShareUpdateTargets);
+                }
+                if (snapshot.pluginsAndSkills.skillsConfigWrite) {
+                    encodePluginMutation("skillsConfigWrite", *snapshot.pluginsAndSkills.skillsConfigWrite);
+                }
+                if (snapshot.pluginsAndSkills.extraRoots) {
+                    Json roots{{"totalRoots", snapshot.pluginsAndSkills.extraRoots->totalRoots},
+                               {"truncated", snapshot.pluginsAndSkills.extraRoots->truncated},
+                               {"stamp", sourceStampJson(snapshot.pluginsAndSkills.extraRoots->stamp)},
+                               {"roots", Json::array()}};
+                    for (const typed::AbsolutePath& root : snapshot.pluginsAndSkills.extraRoots->roots) {
+                        roots["roots"].push_back(root.value);
+                    }
+                    encoded["domains"]["pluginsAndSkills"]["extraRoots"] = std::move(roots);
+                }
+                if (snapshot.mcp.oauth) {
+                    encoded["domains"]["mcp"]["oauth"] = {{"serverName", snapshot.mcp.oauth->serverName},
+                                                          {"lifecycle", snapshot.mcp.oauth->lifecycle},
+                                                          {"success", snapshot.mcp.oauth->success},
+                                                          {"error", snapshot.mcp.oauth->error},
+                                                          {"stamp", sourceStampJson(snapshot.mcp.oauth->stamp)}};
+                }
+                if (snapshot.mcp.startup) {
+                    encoded["domains"]["mcp"]["startup"] = {{"serverName", snapshot.mcp.startup->serverName},
+                                                            {"status", snapshot.mcp.startup->status},
+                                                            {"error", snapshot.mcp.startup->error},
+                                                            {"failureReason", snapshot.mcp.startup->failureReason},
+                                                            {"stamp", sourceStampJson(snapshot.mcp.startup->stamp)}};
+                }
+                if (snapshot.mcp.statusList) {
+                    encoded["domains"]["mcp"]["statusList"] = {{"serverCount", snapshot.mcp.statusList->serverCount},
+                                                               {"nextCursor", snapshot.mcp.statusList->nextCursor},
+                                                               {"complete", snapshot.mcp.statusList->complete},
+                                                               {"stamp", sourceStampJson(snapshot.mcp.statusList->stamp)}};
+                }
+                if (snapshot.platform.remoteControl) {
+                    encoded["domains"]["platform"]["remoteControl"] = {{"status", snapshot.platform.remoteControl->status},
+                                                                       {"environmentId", snapshot.platform.remoteControl->environmentId},
+                                                                       {"installationId", snapshot.platform.remoteControl->installationId},
+                                                                       {"serverName", snapshot.platform.remoteControl->serverName},
+                                                                       {"stamp", sourceStampJson(snapshot.platform.remoteControl->stamp)}};
+                }
+                if (snapshot.platform.windowsSandbox) {
+                    encoded["domains"]["platform"]["windowsSandbox"] = {
+                        {"lifecycle", snapshot.platform.windowsSandbox->lifecycle},
+                        {"readiness", snapshot.platform.windowsSandbox->readiness},
+                        {"mode", snapshot.platform.windowsSandbox->mode},
+                        {"success", snapshot.platform.windowsSandbox->success},
+                        {"error", snapshot.platform.windowsSandbox->error},
+                        {"stamp", sourceStampJson(snapshot.platform.windowsSandbox->stamp)}};
+                }
+                for (const NoticeSnapshot& notice : snapshot.notices) {
+                    Json encodedNotice{{"occurrence", notice.occurrence},
+                                       {"category", static_cast<unsigned>(notice.category)},
+                                       {"summary", notice.summary},
+                                       {"stamp", sourceStampJson(notice.stamp)}};
+                    if (notice.details) {
+                        encodedNotice["details"] = *notice.details;
+                    }
+                    if (notice.threadId) {
+                        encodedNotice["threadId"] = *notice.threadId;
+                    }
+                    encoded["notices"].push_back(std::move(encodedNotice));
+                }
+                for (const ProcessSnapshot& process : snapshot.processes) {
+                    Json encodedProcess{{"processHandle", process.processHandle},
+                                        {"lifecycle", process.lifecycle},
+                                        {"stdoutBytes", process.stdoutBytes},
+                                        {"stderrBytes", process.stderrBytes},
+                                        {"stdoutTruncated", process.stdoutTruncated},
+                                        {"stderrTruncated", process.stderrTruncated},
+                                        {"droppedOutputBytes", process.droppedOutputBytes},
+                                        {"stamp", sourceStampJson(process.stamp)},
+                                        {"connectionInvalidated", process.connectionInvalidated}};
+                    if (process.exitCode) {
+                        encodedProcess["exitCode"] = *process.exitCode;
+                    }
+                    encoded["processes"].push_back(std::move(encodedProcess));
+                }
+                for (const FilesystemWatchSnapshot& watch : snapshot.filesystemWatches) {
+                    Json encodedWatch{{"watchId", watch.watchId},
+                                      {"changedPathCount", watch.changedPathCount},
+                                      {"stamp", sourceStampJson(watch.stamp)},
+                                      {"connectionInvalidated", watch.connectionInvalidated}};
+                    if (watch.root) {
+                        encodedWatch["root"] = *watch.root;
+                    }
+                    encoded["filesystemWatches"].push_back(std::move(encodedWatch));
+                }
+                for (const FuzzySearchSnapshot& search : snapshot.fuzzySearchSessions) {
+                    encoded["fuzzySearchSessions"].push_back({{"sessionId", search.sessionId},
+                                                              {"resultCount", search.resultCount},
+                                                              {"complete", search.complete},
+                                                              {"stamp", sourceStampJson(search.stamp)},
+                                                              {"connectionInvalidated", search.connectionInvalidated}});
+                }
+                for (const ActivitySnapshot& activity : snapshot.activities) {
+                    Json encodedActivity{{"key", activity.key},
+                                         {"subjectId", activity.subjectId},
+                                         {"kind", activity.kind},
+                                         {"lifecycle", activity.lifecycle},
+                                         {"stamp", sourceStampJson(activity.stamp)},
+                                         {"active", activity.active}};
+                    if (activity.summary) {
+                        encodedActivity["summary"] = *activity.summary;
+                    }
+                    if (activity.details) {
+                        encodedActivity["details"] = *activity.details;
+                    }
+                    if (activity.threadId) {
+                        encodedActivity["threadId"] = *activity.threadId;
+                    }
+                    if (activity.turnId) {
+                        encodedActivity["turnId"] = *activity.turnId;
+                    }
+                    encoded["activities"].push_back(std::move(encodedActivity));
                 }
                 for (const ExtensionSnapshot& extension : snapshot.recentExtensions) {
                     Json value{{"method", extension.method},
@@ -997,20 +1466,225 @@ namespace ai::openai::codex::backend {
             }
         }
 
+        std::size_t providerOperationRemovalCredit(const ProviderOperationSnapshot& operation) noexcept {
+            try {
+                return conservativeRemovalCredit(Json{{"method", operation.method},
+                                                      {"resultAlternative", operation.resultAlternative},
+                                                      {"stamp", sourceStampJson(operation.stamp)}});
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t noticeRemovalCredit(const NoticeSnapshot& notice) noexcept {
+            try {
+                Json encoded{{"occurrence", notice.occurrence},
+                             {"category", static_cast<unsigned>(notice.category)},
+                             {"summary", notice.summary},
+                             {"stamp", sourceStampJson(notice.stamp)}};
+                if (notice.details) {
+                    encoded["details"] = *notice.details;
+                }
+                if (notice.threadId) {
+                    encoded["threadId"] = *notice.threadId;
+                }
+                return conservativeRemovalCredit(encoded);
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t processRemovalCredit(const ProcessSnapshot& process) noexcept {
+            try {
+                Json encoded{{"processHandle", process.processHandle},
+                             {"lifecycle", process.lifecycle},
+                             {"stdoutBytes", process.stdoutBytes},
+                             {"stderrBytes", process.stderrBytes},
+                             {"stdoutTruncated", process.stdoutTruncated},
+                             {"stderrTruncated", process.stderrTruncated},
+                             {"droppedOutputBytes", process.droppedOutputBytes},
+                             {"stamp", sourceStampJson(process.stamp)},
+                             {"connectionInvalidated", process.connectionInvalidated}};
+                if (process.exitCode) {
+                    encoded["exitCode"] = *process.exitCode;
+                }
+                return conservativeRemovalCredit(encoded);
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t filesystemWatchRemovalCredit(const FilesystemWatchSnapshot& watch) noexcept {
+            try {
+                Json encoded{{"watchId", watch.watchId},
+                             {"changedPathCount", watch.changedPathCount},
+                             {"stamp", sourceStampJson(watch.stamp)},
+                             {"connectionInvalidated", watch.connectionInvalidated}};
+                if (watch.root) {
+                    encoded["root"] = *watch.root;
+                }
+                return conservativeRemovalCredit(encoded);
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t fuzzySearchRemovalCredit(const FuzzySearchSnapshot& search) noexcept {
+            try {
+                return conservativeRemovalCredit(Json{{"sessionId", search.sessionId},
+                                                      {"resultCount", search.resultCount},
+                                                      {"complete", search.complete},
+                                                      {"stamp", sourceStampJson(search.stamp)},
+                                                      {"connectionInvalidated", search.connectionInvalidated}});
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t activityRemovalCredit(const ActivitySnapshot& activity) noexcept {
+            try {
+                Json encoded{{"key", activity.key},
+                             {"subjectId", activity.subjectId},
+                             {"kind", activity.kind},
+                             {"lifecycle", activity.lifecycle},
+                             {"stamp", sourceStampJson(activity.stamp)},
+                             {"active", activity.active}};
+                if (activity.summary) {
+                    encoded["summary"] = *activity.summary;
+                }
+                if (activity.details) {
+                    encoded["details"] = *activity.details;
+                }
+                if (activity.threadId) {
+                    encoded["threadId"] = *activity.threadId;
+                }
+                if (activity.turnId) {
+                    encoded["turnId"] = *activity.turnId;
+                }
+                return conservativeRemovalCredit(encoded);
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t domainMethodRemovalCredit(const std::string& method) noexcept {
+            try {
+                return conservativeRemovalCredit(Json(method));
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t domainNotificationRemovalCredit(const ProviderNotificationSnapshot& notification) noexcept {
+            try {
+                return conservativeRemovalCredit(Json{{"method", notification.method},
+                                                      {"eventAlternative", notification.eventAlternative},
+                                                      {"stamp", sourceStampJson(notification.stamp)}});
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        std::size_t domainResultRemovalCredit(const ProviderResultSummarySnapshot& result) noexcept {
+            try {
+                Json encoded{{"method", result.method},
+                             {"resultAlternative", result.resultAlternative},
+                             {"status", result.status},
+                             {"itemCount", result.itemCount},
+                             {"complete", result.complete},
+                             {"stamp", sourceStampJson(result.stamp)}};
+                if (result.subjectId) {
+                    encoded["subjectId"] = *result.subjectId;
+                }
+                if (result.nextCursor) {
+                    encoded["nextCursor"] = *result.nextCursor;
+                }
+                return conservativeRemovalCredit(encoded);
+            } catch (...) {
+                return 1;
+            }
+        }
+
+        void minimizePendingRequest(PendingRequestSnapshot& pending) {
+            pending.type = safeUtf8Prefix(pending.type, MaxSnapshotExtensionMethodBytes);
+            const auto boundAssociation = [](std::optional<std::string>& value) {
+                if (value) {
+                    *value = safeUtf8Prefix(*value, MaxSnapshotExtensionMethodBytes);
+                }
+            };
+            boundAssociation(pending.threadId);
+            boundAssociation(pending.turnId);
+            boundAssociation(pending.itemId);
+            pending.details = Json::object({{"omitted", true}, {"reason", "minimal snapshot"}});
+        }
+
+        std::uint64_t saturatedSize(std::size_t value) noexcept {
+            if constexpr (sizeof(std::size_t) > sizeof(std::uint64_t)) {
+                if (value > std::numeric_limits<std::uint64_t>::max()) {
+                    return std::numeric_limits<std::uint64_t>::max();
+                }
+            }
+            return static_cast<std::uint64_t>(value);
+        }
+
         void collapseToMinimalSnapshot(Snapshot& snapshot) noexcept {
             try {
                 for (const ThreadSnapshot& thread : snapshot.threads) {
                     accountOmittedThread(snapshot.capacity, thread);
                 }
                 snapshot.threads.clear();
-                snapshot.pendingRequests.clear();
-                snapshot.sessions.clear();
+                for (PendingRequestSnapshot& pending : snapshot.pendingRequests) {
+                    minimizePendingRequest(pending);
+                }
                 snapshot.diagnostics.recent.clear();
+                std::size_t optionalOmissions = 0;
+                const auto accountOptionalEntries = [&optionalOmissions](std::size_t count) {
+                    const std::size_t available = std::numeric_limits<std::size_t>::max() - optionalOmissions;
+                    optionalOmissions += std::min(available, count);
+                };
+                accountOptionalEntries(snapshot.providerOperations.size());
+                accountOptionalEntries(snapshot.notices.size());
+                accountOptionalEntries(snapshot.processes.size());
+                accountOptionalEntries(snapshot.filesystemWatches.size());
+                accountOptionalEntries(snapshot.fuzzySearchSessions.size());
+                accountOptionalEntries(snapshot.activities.size());
+                const auto accountDomainMethods = [&accountOptionalEntries](const ProviderDomainSnapshot& domain) {
+                    accountOptionalEntries(domain.latestNotificationMethods.size());
+                    accountOptionalEntries(domain.latestNotifications.size());
+                    accountOptionalEntries(domain.latestResults.size());
+                };
+                accountDomainMethods(snapshot.accounts);
+                accountDomainMethods(snapshot.models);
+                accountDomainMethods(snapshot.configuration);
+                accountDomainMethods(snapshot.conversations);
+                accountDomainMethods(snapshot.filesystem);
+                accountDomainMethods(snapshot.reviews);
+                accountDomainMethods(snapshot.integrations);
+                accountDomainMethods(snapshot.pluginsAndSkills);
+                accountDomainMethods(snapshot.mcp);
+                accountDomainMethods(snapshot.platform);
+                snapshot.providerOperations.clear();
+                snapshot.accounts = {};
+                snapshot.models = {};
+                snapshot.configuration = {};
+                snapshot.conversations = {};
+                snapshot.filesystem = {};
+                snapshot.reviews = {};
+                snapshot.integrations = {};
+                snapshot.pluginsAndSkills = {};
+                snapshot.mcp = {};
+                snapshot.platform = {};
+                snapshot.notices.clear();
+                snapshot.processes.clear();
+                snapshot.filesystemWatches.clear();
+                snapshot.fuzzySearchSessions.clear();
+                snapshot.activities.clear();
                 saturatingAddSize(snapshot.omittedRecentExtensions, snapshot.recentExtensions.size());
                 snapshot.recentExtensions.clear();
                 snapshot.threadList = {};
                 snapshot.provider.initialization.reset();
                 snapshot.capacity.truncated = true;
+                saturatingAdd(snapshot.capacity.state.snapshotOmissions, saturatedSize(optionalOmissions));
                 saturatingAdd(snapshot.capacity.state.snapshotOmissions);
             } catch (...) {
                 snapshot.capacity.truncated = true;
@@ -1033,6 +1707,24 @@ namespace ai::openai::codex::backend {
                     saturatingAdd(snapshot.capacity.state.snapshotOmissions);
                 };
                 const SnapshotPendingReferences referenced = pendingReferences(snapshot);
+                const auto omitOptionalEntries = [&snapshot, &estimatedBytes, limit, &recordOmission]<typename Value>(
+                                                     std::vector<Value>& values, const auto& mayOmit, const auto& removalCredit) {
+                    if (estimatedBytes <= limit) {
+                        return;
+                    }
+                    std::vector<Value> retained;
+                    retained.reserve(values.size());
+                    for (Value& value : values) {
+                        if (estimatedBytes > limit && mayOmit(value)) {
+                            applyRemovalCredit(estimatedBytes, removalCredit(value));
+                            recordOmission();
+                        } else {
+                            retained.push_back(std::move(value));
+                        }
+                    }
+                    values = std::move(retained);
+                    estimatedBytes = accountedSnapshotBytes(snapshot);
+                };
 
                 // Each phase walks its vectors once and applies conservative
                 // per-entry credits. This keeps bounding linear in the number of
@@ -1094,6 +1786,112 @@ namespace ai::openai::codex::backend {
                     snapshot.threads = std::move(retained);
                     estimatedBytes = accountedSnapshotBytes(snapshot);
                 }
+
+                // A1.6b domain projections are optional snapshot material.
+                // Omit them deterministically before falling back to the
+                // mandatory provider/controller/capacity/request core. Active
+                // provider-scoped resources remain protected until that final
+                // minimal fallback is unavoidable.
+                omitOptionalEntries(
+                    snapshot.notices,
+                    [](const NoticeSnapshot&) {
+                        return true;
+                    },
+                    noticeRemovalCredit);
+                omitOptionalEntries(
+                    snapshot.processes,
+                    [](const ProcessSnapshot& process) {
+                        return process.lifecycle == "exited" || process.connectionInvalidated;
+                    },
+                    processRemovalCredit);
+                omitOptionalEntries(
+                    snapshot.filesystemWatches,
+                    [](const FilesystemWatchSnapshot& watch) {
+                        return watch.connectionInvalidated;
+                    },
+                    filesystemWatchRemovalCredit);
+                omitOptionalEntries(
+                    snapshot.fuzzySearchSessions,
+                    [](const FuzzySearchSnapshot& search) {
+                        return search.complete || search.connectionInvalidated;
+                    },
+                    fuzzySearchRemovalCredit);
+                omitOptionalEntries(
+                    snapshot.activities,
+                    [](const ActivitySnapshot& activity) {
+                        return !activity.active;
+                    },
+                    activityRemovalCredit);
+                omitOptionalEntries(
+                    snapshot.providerOperations,
+                    [](const ProviderOperationSnapshot&) {
+                        return true;
+                    },
+                    providerOperationRemovalCredit);
+
+                const auto omitDomainMethods = [&omitOptionalEntries](ProviderDomainSnapshot& domain) {
+                    omitOptionalEntries(
+                        domain.latestNotificationMethods,
+                        [](const std::string&) {
+                            return true;
+                        },
+                        domainMethodRemovalCredit);
+                    omitOptionalEntries(
+                        domain.latestNotifications,
+                        [](const ProviderNotificationSnapshot&) {
+                            return true;
+                        },
+                        domainNotificationRemovalCredit);
+                    omitOptionalEntries(
+                        domain.latestResults,
+                        [](const ProviderResultSummarySnapshot&) {
+                            return true;
+                        },
+                        domainResultRemovalCredit);
+                };
+                omitDomainMethods(snapshot.accounts);
+                omitDomainMethods(snapshot.models);
+                omitDomainMethods(snapshot.configuration);
+                omitDomainMethods(snapshot.conversations);
+                omitDomainMethods(snapshot.filesystem);
+                omitDomainMethods(snapshot.reviews);
+                omitDomainMethods(snapshot.integrations);
+                omitDomainMethods(snapshot.pluginsAndSkills);
+                omitDomainMethods(snapshot.mcp);
+                omitDomainMethods(snapshot.platform);
+
+                const auto omitOptionalProjection = [&snapshot, &estimatedBytes, limit, &recordOmission](auto& value) {
+                    if (estimatedBytes > limit && value) {
+                        value.reset();
+                        recordOmission();
+                        estimatedBytes = accountedSnapshotBytes(snapshot);
+                    }
+                };
+                omitOptionalProjection(snapshot.accounts.login);
+                omitOptionalProjection(snapshot.accounts.authentication);
+                omitOptionalProjection(snapshot.accounts.rateLimits);
+                omitOptionalProjection(snapshot.accounts.resetCreditOutcome);
+                omitOptionalProjection(snapshot.configuration.lastWrite);
+                omitOptionalProjection(snapshot.configuration.experimentalFeatureEnablement);
+                omitOptionalProjection(snapshot.conversations.latestGoal);
+                omitOptionalProjection(snapshot.conversations.latestGoalClear);
+                omitOptionalProjection(snapshot.conversations.latestGoalSet);
+                omitOptionalProjection(snapshot.conversations.latestUnsubscribe);
+                omitOptionalProjection(snapshot.integrations.apps);
+                omitOptionalProjection(snapshot.integrations.marketplaceAdd);
+                omitOptionalProjection(snapshot.integrations.marketplaceRemove);
+                omitOptionalProjection(snapshot.integrations.marketplaceUpgrade);
+                omitOptionalProjection(snapshot.pluginsAndSkills.pluginInstall);
+                omitOptionalProjection(snapshot.pluginsAndSkills.pluginShareCheckout);
+                omitOptionalProjection(snapshot.pluginsAndSkills.pluginShareSave);
+                omitOptionalProjection(snapshot.pluginsAndSkills.pluginShareUpdateTargets);
+                omitOptionalProjection(snapshot.pluginsAndSkills.skillsConfigWrite);
+                omitOptionalProjection(snapshot.pluginsAndSkills.extraRoots);
+                omitOptionalProjection(snapshot.mcp.oauth);
+                omitOptionalProjection(snapshot.mcp.startup);
+                omitOptionalProjection(snapshot.mcp.statusList);
+                omitOptionalProjection(snapshot.platform.remoteControl);
+                omitOptionalProjection(snapshot.platform.windowsSandbox);
 
                 if (estimatedBytes > limit) {
                     std::vector<ExtensionSnapshot> retained;
@@ -1208,7 +2006,13 @@ namespace ai::openai::codex::backend {
         return sequence == other.sequence && provider == other.provider && capacity == other.capacity &&
                diagnostics.received == other.diagnostics.received && diagnostics.recent == other.diagnostics.recent &&
                threads == other.threads && pendingRequests == other.pendingRequests && controller == other.controller &&
-               sessions == other.sessions && threadList == other.threadList && recentExtensions == other.recentExtensions &&
+               sessions == other.sessions && threadList == other.threadList && providerOperations == other.providerOperations &&
+               accounts == other.accounts && models == other.models && configuration == other.configuration &&
+               conversations == other.conversations && filesystem == other.filesystem && reviews == other.reviews &&
+               integrations == other.integrations && pluginsAndSkills == other.pluginsAndSkills && mcp == other.mcp &&
+               platform == other.platform && notices == other.notices && processes == other.processes &&
+               filesystemWatches == other.filesystemWatches && fuzzySearchSessions == other.fuzzySearchSessions &&
+               activities == other.activities && recentExtensions == other.recentExtensions &&
                omittedRecentExtensions == other.omittedRecentExtensions && sequenceExhausted == other.sequenceExhausted;
     }
 
@@ -1238,6 +2042,12 @@ namespace ai::openai::codex::backend {
         snapshot.capacity.retainedTurns = state.capacity.retainedTurns;
         snapshot.capacity.retainedItems = state.capacity.retainedItems;
         snapshot.capacity.accumulatedContentBytes = state.capacity.accumulatedContentBytes;
+        snapshot.capacity.retainedNotices = state.capacity.retainedNotices;
+        snapshot.capacity.retainedProcesses = state.capacity.retainedProcesses;
+        snapshot.capacity.accumulatedProcessOutputBytes = state.capacity.accumulatedProcessOutputBytes;
+        snapshot.capacity.retainedFilesystemWatches = state.capacity.retainedFilesystemWatches;
+        snapshot.capacity.retainedFuzzySearchSessions = state.capacity.retainedFuzzySearchSessions;
+        snapshot.capacity.retainedActivityRecords = state.capacity.retainedActivityRecords;
         snapshot.capacity.sourcePendingRequestCount = state.pendingRequests.size();
         snapshot.capacity.sourceSessionCount = state.sessions.size();
         snapshot.diagnostics = state.diagnostics;
@@ -1249,6 +2059,278 @@ namespace ai::openai::codex::backend {
                                                  state.threadList.pagesLoaded,
                                                  state.threadList.stamp};
         snapshot.sequenceExhausted = state.sequenceExhausted;
+
+        for (const auto& [method, operation] : state.providerOperations) {
+            (void) method;
+            snapshot.providerOperations.push_back({operation.method, operation.resultAlternative, operation.stamp});
+        }
+        const auto snapshotDomain = [](const ProviderDomainState& domain) {
+            ProviderDomainSnapshot projected;
+            projected.latestNotificationMethods.reserve(domain.latestNotifications.size());
+            for (const auto& [method, notification] : domain.latestNotifications) {
+                projected.latestNotificationMethods.push_back(method);
+                projected.latestNotifications.push_back({notification.method, notification.eventAlternative, notification.stamp});
+            }
+            projected.latestResults.reserve(domain.latestResults.size());
+            for (const auto& [method, result] : domain.latestResults) {
+                (void) method;
+                projected.latestResults.push_back({result.method,
+                                                   result.resultAlternative,
+                                                   result.status,
+                                                   result.subjectId,
+                                                   result.nextCursor,
+                                                   result.itemCount,
+                                                   result.complete,
+                                                   result.stamp});
+            }
+            return projected;
+        };
+        static_cast<ProviderDomainSnapshot&>(snapshot.accounts) = snapshotDomain(state.accounts);
+        snapshot.accounts.login = state.accounts.login;
+        snapshot.accounts.authentication = state.accounts.authentication;
+        snapshot.accounts.rateLimits = state.accounts.rateLimits;
+        snapshot.accounts.resetCreditOutcome = state.accounts.resetCreditOutcome;
+        snapshot.accounts.resetCreditStamp = state.accounts.resetCreditStamp;
+        snapshot.accounts.loggedOut = state.accounts.loggedOut;
+        snapshot.accounts.logoutStamp = state.accounts.logoutStamp;
+        snapshot.models = snapshotDomain(state.models);
+        static_cast<ProviderDomainSnapshot&>(snapshot.configuration) = snapshotDomain(state.configuration);
+        if (state.configuration.lastWrite) {
+            const auto& cache = *state.configuration.lastWrite;
+            snapshot.configuration.lastWrite =
+                ConfigurationDomainSnapshot::Write{safeUtf8Prefix(cache.value.filePath.value, MaxSnapshotExtensionMethodBytes),
+                                                   safeUtf8Prefix(cache.value.status.value, MaxSnapshotExtensionMethodBytes),
+                                                   safeUtf8Prefix(cache.value.version, MaxSnapshotExtensionMethodBytes),
+                                                   cache.value.overriddenMetadata.hasValue(),
+                                                   cache.truncated,
+                                                   cache.stamp};
+        }
+        if (state.configuration.experimentalFeatureEnablement) {
+            const auto& cache = *state.configuration.experimentalFeatureEnablement;
+            ConfigurationDomainSnapshot::FeatureEnablement enablement;
+            enablement.totalEntries = cache.originalEntries;
+            enablement.truncated = cache.truncated;
+            enablement.stamp = cache.stamp;
+            enablement.entries.reserve(cache.value.enablement.size());
+            for (const auto& [feature, enabled] : cache.value.enablement) {
+                enablement.entries.emplace_back(safeUtf8Prefix(feature.value, MaxSnapshotExtensionMethodBytes), enabled);
+            }
+            snapshot.configuration.experimentalFeatureEnablement = std::move(enablement);
+        }
+        static_cast<ProviderDomainSnapshot&>(snapshot.conversations) = snapshotDomain(state.conversations);
+        const auto goalSnapshot =
+            [](std::string operation, const typed::ThreadId& threadId, const typed::ThreadGoal& goal, const SourceStamp& stamp) {
+                return ConversationDomainSnapshot::GoalMutation{std::move(operation),
+                                                                safeUtf8Prefix(threadId.value, MaxSnapshotExtensionMethodBytes),
+                                                                safeUtf8Prefix(goal.objective, MaxSnapshotExtensionPayloadBytes),
+                                                                safeUtf8Prefix(goal.status.value, MaxSnapshotExtensionMethodBytes),
+                                                                std::nullopt,
+                                                                stamp};
+            };
+        if (state.conversations.latestGoal && state.conversations.latestGoalThreadId &&
+            state.conversations.latestGoal->value.goal.hasValue()) {
+            snapshot.conversations.latestGoal = goalSnapshot("get",
+                                                             *state.conversations.latestGoalThreadId,
+                                                             *state.conversations.latestGoal->value.goal.value,
+                                                             state.conversations.latestGoal->stamp);
+        }
+        if (state.conversations.latestGoalClear && state.conversations.latestGoalClearThreadId) {
+            snapshot.conversations.latestGoalClear = ConversationDomainSnapshot::GoalMutation{
+                "clear",
+                safeUtf8Prefix(state.conversations.latestGoalClearThreadId->value, MaxSnapshotExtensionMethodBytes),
+                std::nullopt,
+                std::nullopt,
+                state.conversations.latestGoalClear->value.cleared,
+                state.conversations.latestGoalClear->stamp};
+        }
+        if (state.conversations.latestGoalSet && state.conversations.latestGoalSetThreadId) {
+            snapshot.conversations.latestGoalSet = goalSnapshot("set",
+                                                                *state.conversations.latestGoalSetThreadId,
+                                                                state.conversations.latestGoalSet->value.goal,
+                                                                state.conversations.latestGoalSet->stamp);
+        }
+        if (state.conversations.latestUnsubscribe && state.conversations.latestUnsubscribeThreadId) {
+            snapshot.conversations.latestUnsubscribe = ConversationDomainSnapshot::GoalMutation{
+                "unsubscribe",
+                safeUtf8Prefix(state.conversations.latestUnsubscribeThreadId->value, MaxSnapshotExtensionMethodBytes),
+                std::nullopt,
+                safeUtf8Prefix(state.conversations.latestUnsubscribe->value.status.value, MaxSnapshotExtensionMethodBytes),
+                std::nullopt,
+                state.conversations.latestUnsubscribe->stamp};
+        }
+        snapshot.filesystem = snapshotDomain(state.filesystem);
+        snapshot.reviews = snapshotDomain(state.reviews);
+        static_cast<ProviderDomainSnapshot&>(snapshot.integrations) = snapshotDomain(state.integrations);
+        snapshot.integrations.apps = state.integrations.apps;
+        const auto marketplaceSnapshot = [](std::string operation, const auto& cache) {
+            IntegrationsDomainSnapshot::MarketplaceMutation mutation;
+            mutation.operation = std::move(operation);
+            mutation.truncated = cache.truncated;
+            mutation.stamp = cache.stamp;
+            if constexpr (requires { cache.value.marketplaceName; }) {
+                mutation.marketplaceName = safeUtf8Prefix(cache.value.marketplaceName, MaxSnapshotExtensionMethodBytes);
+            }
+            if constexpr (requires { cache.value.alreadyAdded; }) {
+                mutation.alreadyAdded = cache.value.alreadyAdded;
+            }
+            if constexpr (requires { cache.value.installedRoot.value; }) {
+                using InstalledRoot = std::remove_cvref_t<decltype(cache.value.installedRoot.value)>;
+                if constexpr (std::is_same_v<InstalledRoot, std::string>) {
+                    mutation.installedRoot = safeUtf8Prefix(cache.value.installedRoot.value, MaxSnapshotExtensionMethodBytes);
+                } else if constexpr (std::is_same_v<InstalledRoot, std::optional<typed::AbsolutePath>>) {
+                    if (cache.value.installedRoot.value) {
+                        mutation.installedRoot = safeUtf8Prefix(cache.value.installedRoot.value->value, MaxSnapshotExtensionMethodBytes);
+                    }
+                }
+            }
+            if constexpr (requires { cache.value.selectedMarketplaces.size(); }) {
+                mutation.selectedCount = cache.value.selectedMarketplaces.size();
+            }
+            if constexpr (requires { cache.value.upgradedRoots.size(); }) {
+                mutation.upgradedRootCount = cache.value.upgradedRoots.size();
+            }
+            if constexpr (requires { cache.value.errors.size(); }) {
+                mutation.errorCount = cache.value.errors.size();
+            }
+            return mutation;
+        };
+        if (state.integrations.marketplaceAdd) {
+            snapshot.integrations.marketplaceAdd = marketplaceSnapshot("add", *state.integrations.marketplaceAdd);
+        }
+        if (state.integrations.marketplaceRemove) {
+            snapshot.integrations.marketplaceRemove = marketplaceSnapshot("remove", *state.integrations.marketplaceRemove);
+        }
+        if (state.integrations.marketplaceUpgrade) {
+            snapshot.integrations.marketplaceUpgrade = marketplaceSnapshot("upgrade", *state.integrations.marketplaceUpgrade);
+        }
+        static_cast<ProviderDomainSnapshot&>(snapshot.pluginsAndSkills) = snapshotDomain(state.pluginsAndSkills);
+        const auto pluginMutation = [](std::string operation,
+                                       std::optional<std::string> subjectId,
+                                       std::optional<std::string> status,
+                                       std::size_t itemCount,
+                                       bool truncated,
+                                       const SourceStamp& stamp) {
+            if (subjectId) {
+                *subjectId = safeUtf8Prefix(*subjectId, MaxSnapshotExtensionMethodBytes);
+            }
+            if (status) {
+                *status = safeUtf8Prefix(*status, MaxSnapshotExtensionMethodBytes);
+            }
+            return PluginsAndSkillsDomainSnapshot::Mutation{
+                std::move(operation), std::move(subjectId), std::move(status), itemCount, truncated, stamp};
+        };
+        if (state.pluginsAndSkills.pluginInstall) {
+            const auto& cache = *state.pluginsAndSkills.pluginInstall;
+            snapshot.pluginsAndSkills.pluginInstall = pluginMutation(
+                "install", std::nullopt, cache.value.authPolicy.value, cache.value.appsNeedingAuth.size(), cache.truncated, cache.stamp);
+        }
+        if (state.pluginsAndSkills.pluginShareCheckout) {
+            const auto& cache = *state.pluginsAndSkills.pluginShareCheckout;
+            snapshot.pluginsAndSkills.pluginShareCheckout =
+                pluginMutation("share_checkout", cache.value.remotePluginId, cache.value.pluginName, 0, cache.truncated, cache.stamp);
+        }
+        if (state.pluginsAndSkills.pluginShareSave) {
+            const auto& cache = *state.pluginsAndSkills.pluginShareSave;
+            snapshot.pluginsAndSkills.pluginShareSave =
+                pluginMutation("share_save", cache.value.remotePluginId, "saved", 0, cache.truncated, cache.stamp);
+        }
+        if (state.pluginsAndSkills.pluginShareUpdateTargets) {
+            const auto& cache = *state.pluginsAndSkills.pluginShareUpdateTargets;
+            snapshot.pluginsAndSkills.pluginShareUpdateTargets = pluginMutation("share_update_targets",
+                                                                                std::nullopt,
+                                                                                cache.value.discoverability.value,
+                                                                                cache.value.principals.size(),
+                                                                                cache.truncated,
+                                                                                cache.stamp);
+        }
+        if (state.pluginsAndSkills.skillsConfigWrite) {
+            const auto& cache = *state.pluginsAndSkills.skillsConfigWrite;
+            snapshot.pluginsAndSkills.skillsConfigWrite = pluginMutation("skills_config_write",
+                                                                         std::nullopt,
+                                                                         cache.value.effectiveEnabled ? "enabled" : "disabled",
+                                                                         0,
+                                                                         cache.truncated,
+                                                                         cache.stamp);
+        }
+        if (state.pluginsAndSkills.extraRoots) {
+            SkillsExtraRootsState roots = *state.pluginsAndSkills.extraRoots;
+            for (typed::AbsolutePath& path : roots.roots) {
+                path.value = safeUtf8Prefix(path.value, MaxSnapshotExtensionMethodBytes);
+            }
+            snapshot.pluginsAndSkills.extraRoots = std::move(roots);
+        }
+        static_cast<ProviderDomainSnapshot&>(snapshot.mcp) = snapshotDomain(state.mcp);
+        snapshot.mcp.oauth = state.mcp.oauth;
+        snapshot.mcp.startup = state.mcp.startup;
+        snapshot.mcp.statusList = state.mcp.statusList;
+        static_cast<ProviderDomainSnapshot&>(snapshot.platform) = snapshotDomain(state.platform);
+        snapshot.platform.remoteControl = state.platform.remoteControl;
+        snapshot.platform.windowsSandbox = state.platform.windowsSandbox;
+        for (const NoticeState& notice : state.notices) {
+            std::optional<std::string> details = notice.details;
+            if (notice.category == NoticeCategory::Configuration && details) {
+                details = "[redacted]";
+            }
+            snapshot.notices.push_back({notice.occurrence,
+                                        notice.category,
+                                        notice.summary,
+                                        std::move(details),
+                                        notice.threadId ? std::optional<std::string>{notice.threadId->value} : std::nullopt,
+                                        notice.stamp});
+        }
+        for (const std::string& processId : state.processOrder) {
+            const auto process = state.processes.find(processId);
+            if (process != state.processes.end()) {
+                snapshot.processes.push_back({process->second.processHandle,
+                                              process->second.lifecycle,
+                                              process->second.stdoutData.size(),
+                                              process->second.stderrData.size(),
+                                              process->second.stdoutTruncated,
+                                              process->second.stderrTruncated,
+                                              process->second.droppedOutputBytes,
+                                              process->second.exitCode,
+                                              process->second.stamp,
+                                              process->second.connectionInvalidated});
+            }
+        }
+        for (const std::string& watchId : state.filesystemWatchOrder) {
+            const auto watch = state.filesystemWatches.find(watchId);
+            if (watch != state.filesystemWatches.end()) {
+                snapshot.filesystemWatches.push_back({watch->second.watchId.value,
+                                                      watch->second.root ? std::optional<std::string>{safeUtf8Prefix(
+                                                                               watch->second.root->value, MaxSnapshotExtensionMethodBytes)}
+                                                                         : std::nullopt,
+                                                      watch->second.changedPaths.size(),
+                                                      watch->second.stamp,
+                                                      watch->second.connectionInvalidated});
+            }
+        }
+        for (const std::string& sessionId : state.fuzzySearchOrder) {
+            const auto search = state.fuzzySearchSessions.find(sessionId);
+            if (search != state.fuzzySearchSessions.end()) {
+                snapshot.fuzzySearchSessions.push_back({search->second.sessionId,
+                                                        search->second.files.size(),
+                                                        search->second.complete,
+                                                        search->second.stamp,
+                                                        search->second.connectionInvalidated});
+            }
+        }
+        for (const std::string& activityId : state.activityOrder) {
+            const auto activity = state.activities.find(activityId);
+            if (activity != state.activities.end()) {
+                snapshot.activities.push_back(
+                    {activity->second.key,
+                     activity->second.subjectId,
+                     activity->second.kind,
+                     activity->second.lifecycle,
+                     activity->second.summary,
+                     activity->second.details,
+                     activity->second.threadId ? std::optional<std::string>{activity->second.threadId->value} : std::nullopt,
+                     activity->second.turnId ? std::optional<std::string>{activity->second.turnId->value} : std::nullopt,
+                     activity->second.notification.stamp,
+                     activity->second.active});
+            }
+        }
 
         std::set<std::string> visited;
         for (const typed::ThreadId& threadId : state.threadOrder) {
