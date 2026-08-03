@@ -48,6 +48,15 @@ namespace ai::openai::codex::frontend {
         template <typename... Visitors>
         Overloaded(Visitors...) -> Overloaded<Visitors...>;
 
+        template <typename T, typename Variant>
+        struct VariantContains;
+
+        template <typename T, typename... Alternatives>
+        struct VariantContains<T, std::variant<Alternatives...>> : std::bool_constant<(std::is_same_v<T, Alternatives> || ...)> {};
+
+        template <typename T>
+        concept ProviderOperationResult = VariantContains<std::remove_cvref_t<T>, backend::ProviderOperationValue>::value;
+
         std::string backendLifecycleName(backend::ProviderLifecycle lifecycle) {
             switch (lifecycle) {
                 case backend::ProviderLifecycle::Stopped:
@@ -78,6 +87,12 @@ namespace ai::openai::codex::frontend {
                 case backend::CapacityMetric::EvictedTurns:
                 case backend::CapacityMetric::EvictedItems:
                 case backend::CapacityMetric::DroppedContentBytes:
+                case backend::CapacityMetric::EvictedNotices:
+                case backend::CapacityMetric::EvictedProcesses:
+                case backend::CapacityMetric::DroppedProcessOutputBytes:
+                case backend::CapacityMetric::EvictedFilesystemWatches:
+                case backend::CapacityMetric::EvictedFuzzySearchSessions:
+                case backend::CapacityMetric::EvictedActivityRecords:
                     return true;
                 case backend::CapacityMetric::RejectedSessions:
                 case backend::CapacityMetric::RejectedObservers:
@@ -93,7 +108,14 @@ namespace ai::openai::codex::frontend {
             return Json{{"category", error.category}, {"code", error.code}, {"message", error.message}};
         }
 
+        bool isFrontendV1MetadataOnlyItem(std::string_view type) noexcept {
+            return type == "collabAgentToolCall" || type == "contextCompaction" || type == "enteredReviewMode" ||
+                   type == "exitedReviewMode" || type == "hookPrompt" || type == "imageGeneration" || type == "imageView" ||
+                   type == "plan" || type == "sleep" || type == "subAgentActivity";
+        }
+
         Json itemSnapshotJson(const backend::ItemSnapshot& item) {
+            const Json frontendData = isFrontendV1MetadataOnlyItem(item.type) ? Json::object({{"codexType", item.type}}) : item.data;
             Json encoded{{"id", item.id},
                          {"type", item.type},
                          {"status", item.status},
@@ -103,7 +125,7 @@ namespace ai::openai::codex::frontend {
                          {"commandOutput", item.commandOutput},
                          {"droppedContentBytes", item.droppedContentBytes},
                          {"contentTruncated", item.contentTruncated},
-                         {"data", item.data},
+                         {"data", frontendData},
                          {"extensions", item.extensions}};
             if (item.startedAtMs.has_value()) {
                 encoded["startedAtMs"] = *item.startedAtMs;
@@ -168,7 +190,40 @@ namespace ai::openai::codex::frontend {
         }
 
         Json pendingRequestSnapshotJson(const backend::PendingRequestSnapshot& pending) {
-            Json encoded{{"id", std::to_string(pending.id.value())}, {"type", pending.type}, {"details", pending.details}};
+            std::string type = pending.type;
+            Json details = pending.details;
+
+            // BackendCore now distinguishes these request families for trusted
+            // in-process consumers.  Frontend Protocol v1 deliberately keeps
+            // its existing generic unknown-request contract until A1.7 reviews
+            // their remote exposure.  Preserve the previous generic envelope
+            // for the three approval families and the previous empty details
+            // for the other three request families.
+            if (pending.type == "apply_patch_approval" || pending.type == "exec_command_approval" ||
+                pending.type == "permissions_approval") {
+                type = "unknown";
+                Json legacyDetails = Json::object();
+                for (const char* key : {"method",
+                                        "methodTruncated",
+                                        "originalMethodBytes",
+                                        "params",
+                                        "sensitiveFieldsRedacted",
+                                        "paramsTruncated",
+                                        "originalParamsBytes",
+                                        "decodingError",
+                                        "decodingErrorTruncated",
+                                        "originalDecodingErrorBytes"}) {
+                    if (details.contains(key)) {
+                        legacyDetails[key] = details[key];
+                    }
+                }
+                details = std::move(legacyDetails);
+            } else if (pending.type == "attestation" || pending.type == "dynamic_tool_call" || pending.type == "mcp_elicitation") {
+                type = "unknown";
+                details = Json::object();
+            }
+
+            Json encoded{{"id", std::to_string(pending.id.value())}, {"type", std::move(type)}, {"details", std::move(details)}};
             if (pending.threadId.has_value()) {
                 encoded["threadId"] = *pending.threadId;
             }
@@ -1053,7 +1108,18 @@ namespace ai::openai::codex::frontend {
                                }
                                return encoded;
                            },
-                           [&currentSnapshot](const typed::Thread& thread) {
+                           [&currentSnapshot](const typed::ThreadStartResponse& response) {
+                               const typed::Thread& thread = response.thread;
+                               const backend::ThreadSnapshot* found = findThread(currentSnapshot, thread.id.value);
+                               return found != nullptr ? Json{{"thread", threadSnapshotJson(*found)}} : Json{{"threadId", thread.id.value}};
+                           },
+                           [&currentSnapshot](const typed::ThreadResumeResponse& response) {
+                               const typed::Thread& thread = response.thread;
+                               const backend::ThreadSnapshot* found = findThread(currentSnapshot, thread.id.value);
+                               return found != nullptr ? Json{{"thread", threadSnapshotJson(*found)}} : Json{{"threadId", thread.id.value}};
+                           },
+                           [&currentSnapshot](const typed::ThreadReadResponse& response) {
+                               const typed::Thread& thread = response.thread;
                                const backend::ThreadSnapshot* found = findThread(currentSnapshot, thread.id.value);
                                return found != nullptr ? Json{{"thread", threadSnapshotJson(*found)}} : Json{{"threadId", thread.id.value}};
                            },
@@ -1072,12 +1138,16 @@ namespace ai::openai::codex::frontend {
                                }
                                return encoded;
                            },
-                           [&currentSnapshot](const typed::Turn& turn) {
+                           [&currentSnapshot](const typed::TurnStartResponse& response) {
+                               const typed::Turn& turn = response.turn;
                                const backend::TurnSnapshot* found = findTurn(currentSnapshot, turn.threadId.value, turn.id.value);
                                return found != nullptr ? Json{{"turn", turnSnapshotJson(*found)}} : Json{{"turnId", turn.id.value}};
                            },
                            [](const typed::Unit&) {
                                return Json::object();
+                           },
+                           []<ProviderOperationResult Result>(const Result&) -> Json {
+                               throw std::logic_error("provider operation result is not exposed by Frontend Protocol v1");
                            }},
                 value);
         }
@@ -1236,6 +1306,14 @@ namespace ai::openai::codex::frontend {
                                                 "diagnostics.updated",
                                                 Json{{"received", snapshot.diagnostics.received}, {"recent", snapshot.diagnostics.recent}});
                     },
+                    [&](const backend::ProviderOperationCompleted&) {
+                    },
+                    [&](const backend::ProviderOperationStateChanged&) {
+                    },
+                    [&](const backend::ProviderResourceAdmissionRequested&) {
+                    },
+                    [&](const backend::ProviderResourceAdmissionReleased&) {
+                    },
                     [&](const backend::ThreadUpserted& event) {
                         result = markThread(snapshot, event.thread.id.value);
                     },
@@ -1342,8 +1420,22 @@ namespace ai::openai::codex::frontend {
                     },
                     [&](const backend::CodexExtensionReceived& event) {
                         try {
-                            const backend::ExtensionSnapshot extension = backend::makeExtensionSnapshot(backend::ExtensionRecord{
-                                event.method, event.payload, event.decodingError, std::nullopt, std::nullopt, std::nullopt});
+                            backend::ExtensionSnapshot extension;
+                            if (event.safeProjection) {
+                                extension.method = event.method;
+                                extension.payload = event.payload;
+                                extension.decodingError = event.decodingError;
+                                extension.methodTruncated = event.methodTruncated;
+                                extension.payloadTruncated = event.payloadTruncated;
+                                extension.decodingErrorTruncated = event.decodingErrorTruncated;
+                                extension.sensitiveFieldsRedacted = event.sensitiveFieldsRedacted;
+                                extension.originalMethodBytes = event.originalMethodBytes;
+                                extension.originalPayloadBytes = event.originalPayloadBytes;
+                                extension.originalDecodingErrorBytes = event.originalDecodingErrorBytes;
+                            } else {
+                                extension = backend::makeExtensionSnapshot(backend::ExtensionRecord{
+                                    event.method, event.payload, event.decodingError, std::nullopt, std::nullopt, std::nullopt});
+                            }
                             Json data = extensionSnapshotJson(extension);
                             result = markNormalized(
                                 CoalescingKey{

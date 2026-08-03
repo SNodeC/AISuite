@@ -26,12 +26,6 @@ namespace {
     constexpr const char* SyntheticDelta = "c3ludGhldGljLXN0cmVhbS1ieXRlcw==";
     constexpr const char* SyntheticProcessId = "synthetic-command-process";
 
-    backend::Snapshot withoutExtensions(backend::Snapshot snapshot) {
-        snapshot.recentExtensions.clear();
-        snapshot.omittedRecentExtensions = 0;
-        return snapshot;
-    }
-
     codex::Json frontendCompatibleData(const backend::ExtensionSnapshot& extension) {
         codex::Json data{{"method", extension.method}, {"params", extension.payload}};
         if (extension.sensitiveFieldsRedacted) {
@@ -69,7 +63,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
         const std::vector<backend::BackendEvent> translated = reducer.translate(event);
         const auto* extension = translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated.front()) : nullptr;
         result.expectTrue(extension && extension->method == "command/exec/outputDelta" && extension->payload == params &&
@@ -102,9 +95,12 @@ namespace {
             "frontend-compatible extension bytes redact encoded output and process identity "
             "while preserving the existing generic event shape");
 
-        result.expectTrue(withoutExtensions(snapshot) == before && state.threads.empty() && state.threadOrder.empty() &&
-                              state.pendingRequests.empty(),
-                          "command output adds no command state, thread item, or approval state");
+        const backend::ProcessSnapshot* process = snapshot.processes.size() == 1 ? &snapshot.processes.front() : nullptr;
+        result.expectTrue(process && process->processHandle == SyntheticProcessId && process->lifecycle == "running" &&
+                              process->stdoutBytes == 0 && process->stderrBytes == std::string{SyntheticDelta}.size() &&
+                              process->stderrTruncated && snapshot.conversations.latestNotifications.size() == 1 && state.threads.empty() &&
+                              state.threadOrder.empty() && state.pendingRequests.empty(),
+                          "command output updates dedicated bounded process state without fabricating conversation entities");
     }
 
     void testRedactionIsMethodSpecific(tests::support::TestResult& result) {

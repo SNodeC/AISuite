@@ -80,15 +80,21 @@ Native A1.4 remains 56 Complete / 0 Partial / 0 NotImplemented. All 48
 InventoryOnly identities remain NotApplicable. Final A1b removed the frozen
 deferred compatibility layer and moved all three Codex libraries to SOVERSION
 2. A1.5 completes the still-unreleased `.so.2` application façade with direct
-domain access. A1.6a now hardens the reusable backend foundation: provider
+domain access. A1.6a hardens the reusable backend foundation: provider
 lifecycle and recovery are independent of frontend-session lifetime, cached
 state carries provider-generation freshness, capacity and snapshot bounds are
-explicit, and frontend replay remains owned by the frontend journal. Provider
-command coverage remains **6/86**; A1.6a adds none of the 80 missing commands
-and does not claim backend closure. A1.6b owns those commands and the final
-198-entry backend/state disposition. See the
+explicit, and frontend replay remains owned by the frontend journal. A1.6b
+completes all **86/86** stable provider-operation commands while preserving
+their exact typed results, all 68 stable notifications, all ten stable server
+requests, and all 18 `ThreadItem` alternatives. Its frozen canonical-state
+coverage is 169/169 applicable entries: 73 stateful operations plus the 68
+notifications, 18 items, and ten requests. Exactly 13 application operations
+remain reasoned action-only results, and the 16 `ResponseItem` alternatives
+remain reasoned `NoRuntimeBackendStatePath`. Frontend Protocol v1 is not
+expanded. See the
 [A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the
-[Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
+[A1.6b backend completion](docs/ai/openai/codex/a1-6b-backend-completeness.md),
+the [Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
 for initialization and canonical error behavior, and the
 [Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
 for the exact source-compatibility boundary. A1.7 remains responsible for a

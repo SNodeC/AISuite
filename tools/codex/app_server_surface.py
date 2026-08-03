@@ -3233,6 +3233,19 @@ EXISTING_MODELED_SERVER_NOTIFICATION_METHODS = frozenset(
     }
 )
 
+EXISTING_MODELED_THREAD_ITEM_NAMES = frozenset(
+    {
+        "agentMessage",
+        "commandExecution",
+        "dynamicToolCall",
+        "fileChange",
+        "mcpToolCall",
+        "reasoning",
+        "userMessage",
+        "webSearch",
+    }
+)
+
 SERVER_NOTIFICATION_CODECS = {
     key: (target, SERVER_NOTIFICATION_PAYLOAD_TYPES_BY_METHOD[key[3]])
     for key, target in RUNTIME_TARGETS.items()
@@ -3302,88 +3315,384 @@ EXISTING_FRONTEND_OPERATION_DETAILS = {
     ),
 }
 EXISTING_FRONTEND_OPERATIONS = frozenset(EXISTING_FRONTEND_OPERATION_DETAILS)
-BACKEND_IMPLEMENTED_IDENTITIES = frozenset(
+BACKEND_PROVIDER_OPERATION_NAMES = frozenset(
     {
-        ("client_request", "thread/start"),
-        ("client_request", "thread/resume"),
-        ("client_request", "thread/list"),
-        ("client_request", "thread/read"),
-        ("client_request", "turn/start"),
-        ("client_request", "turn/interrupt"),
-        ("server_notification", "error"),
-        ("server_notification", "thread/started"),
-        ("server_notification", "thread/status/changed"),
-        ("server_notification", "turn/started"),
-        ("server_notification", "turn/completed"),
-        ("server_notification", "item/started"),
-        ("server_notification", "item/completed"),
-        ("server_notification", "item/agentMessage/delta"),
-        ("server_notification", "item/reasoning/textDelta"),
-        ("server_notification", "item/reasoning/summaryTextDelta"),
-        ("server_notification", "item/commandExecution/outputDelta"),
-        ("server_notification", "item/fileChange/patchUpdated"),
-        ("server_notification", "thread/tokenUsage/updated"),
-        ("server_notification", "model/rerouted"),
-        ("server_request", "item/commandExecution/requestApproval"),
-        ("server_request", "item/fileChange/requestApproval"),
-        ("server_request", "item/tool/requestUserInput"),
-        ("server_request", "account/chatgptAuthTokens/refresh"),
-        ("item_discriminator", "agentMessage"),
-        ("item_discriminator", "userMessage"),
-        ("item_discriminator", "reasoning"),
-        ("item_discriminator", "commandExecution"),
-        ("item_discriminator", "fileChange"),
-        ("item_discriminator", "mcpToolCall"),
-        ("item_discriminator", "dynamicToolCall"),
-        ("item_discriminator", "webSearch"),
+        "account/login/cancel",
+        "account/login/start",
+        "account/logout",
+        "account/rateLimitResetCredit/consume",
+        "account/rateLimits/read",
+        "account/read",
+        "account/sendAddCreditsNudgeEmail",
+        "account/usage/read",
+        "account/workspaceMessages/read",
+        "app/list",
+        "command/exec",
+        "command/exec/resize",
+        "command/exec/terminate",
+        "command/exec/write",
+        "config/batchWrite",
+        "config/mcpServer/reload",
+        "config/read",
+        "config/value/write",
+        "configRequirements/read",
+        "experimentalFeature/enablement/set",
+        "experimentalFeature/list",
+        "externalAgentConfig/detect",
+        "externalAgentConfig/import",
+        "externalAgentConfig/import/readHistories",
+        "feedback/upload",
+        "fs/copy",
+        "fs/createDirectory",
+        "fs/getMetadata",
+        "fs/readDirectory",
+        "fs/readFile",
+        "fs/remove",
+        "fs/unwatch",
+        "fs/watch",
+        "fs/writeFile",
+        "fuzzyFileSearch",
+        "hooks/list",
+        "marketplace/add",
+        "marketplace/remove",
+        "marketplace/upgrade",
+        "mcpServer/oauth/login",
+        "mcpServer/resource/read",
+        "mcpServer/tool/call",
+        "mcpServerStatus/list",
+        "model/list",
+        "modelProvider/capabilities/read",
+        "permissionProfile/list",
+        "plugin/install",
+        "plugin/installed",
+        "plugin/list",
+        "plugin/read",
+        "plugin/share/checkout",
+        "plugin/share/delete",
+        "plugin/share/list",
+        "plugin/share/save",
+        "plugin/share/updateTargets",
+        "plugin/skill/read",
+        "plugin/uninstall",
+        "review/start",
+        "skills/config/write",
+        "skills/extraRoots/set",
+        "skills/list",
+        "thread/approveGuardianDeniedAction",
+        "thread/archive",
+        "thread/compact/start",
+        "thread/delete",
+        "thread/fork",
+        "thread/goal/clear",
+        "thread/goal/get",
+        "thread/goal/set",
+        "thread/inject_items",
+        "thread/list",
+        "thread/loaded/list",
+        "thread/metadata/update",
+        "thread/name/set",
+        "thread/read",
+        "thread/resume",
+        "thread/rollback",
+        "thread/shellCommand",
+        "thread/start",
+        "thread/unarchive",
+        "thread/unsubscribe",
+        "turn/interrupt",
+        "turn/start",
+        "turn/steer",
+        "windowsSandbox/readiness",
+        "windowsSandbox/setupStart",
     }
 )
-CANONICAL_STATE_IMPLEMENTED_IDENTITIES = frozenset(
+
+BACKEND_SERVER_NOTIFICATION_NAMES = frozenset(
     {
-        ("client_request", "thread/start"),
-        ("client_request", "thread/resume"),
-        ("client_request", "thread/list"),
-        ("client_request", "thread/read"),
-        ("client_request", "turn/start"),
-        ("client_request", "turn/interrupt"),
-        ("server_notification", "error"),
-        ("server_notification", "thread/started"),
-        ("server_notification", "thread/status/changed"),
-        ("server_notification", "turn/started"),
-        ("server_notification", "turn/completed"),
-        ("server_notification", "item/started"),
-        ("server_notification", "item/completed"),
-        ("server_notification", "item/agentMessage/delta"),
-        ("server_notification", "item/reasoning/textDelta"),
-        ("server_notification", "item/reasoning/summaryTextDelta"),
-        ("server_notification", "item/commandExecution/outputDelta"),
-        ("server_notification", "item/fileChange/patchUpdated"),
-        ("server_notification", "thread/tokenUsage/updated"),
-        ("server_notification", "model/rerouted"),
-        ("server_request", "item/commandExecution/requestApproval"),
-        ("server_request", "item/fileChange/requestApproval"),
-        ("server_request", "item/tool/requestUserInput"),
-        ("server_request", "account/chatgptAuthTokens/refresh"),
-        ("item_discriminator", "agentMessage"),
-        ("item_discriminator", "userMessage"),
-        ("item_discriminator", "reasoning"),
-        ("item_discriminator", "commandExecution"),
-        ("item_discriminator", "fileChange"),
-        ("item_discriminator", "mcpToolCall"),
-        ("item_discriminator", "dynamicToolCall"),
-        ("item_discriminator", "webSearch"),
+        "account/login/completed",
+        "account/rateLimits/updated",
+        "account/updated",
+        "app/list/updated",
+        "command/exec/outputDelta",
+        "configWarning",
+        "deprecationNotice",
+        "error",
+        "externalAgentConfig/import/completed",
+        "externalAgentConfig/import/progress",
+        "fs/changed",
+        "fuzzyFileSearch/sessionCompleted",
+        "fuzzyFileSearch/sessionUpdated",
+        "guardianWarning",
+        "hook/completed",
+        "hook/started",
+        "item/agentMessage/delta",
+        "item/autoApprovalReview/completed",
+        "item/autoApprovalReview/started",
+        "item/commandExecution/outputDelta",
+        "item/commandExecution/terminalInteraction",
+        "item/completed",
+        "item/fileChange/outputDelta",
+        "item/fileChange/patchUpdated",
+        "item/mcpToolCall/progress",
+        "item/plan/delta",
+        "item/reasoning/summaryPartAdded",
+        "item/reasoning/summaryTextDelta",
+        "item/reasoning/textDelta",
+        "item/started",
+        "mcpServer/oauthLogin/completed",
+        "mcpServer/startupStatus/updated",
+        "model/rerouted",
+        "model/safetyBuffering/updated",
+        "model/verification",
+        "process/exited",
+        "process/outputDelta",
+        "remoteControl/status/changed",
+        "serverRequest/resolved",
+        "skills/changed",
+        "thread/archived",
+        "thread/closed",
+        "thread/compacted",
+        "thread/deleted",
+        "thread/goal/cleared",
+        "thread/goal/updated",
+        "thread/name/updated",
+        "thread/realtime/closed",
+        "thread/realtime/error",
+        "thread/realtime/itemAdded",
+        "thread/realtime/outputAudio/delta",
+        "thread/realtime/sdp",
+        "thread/realtime/started",
+        "thread/realtime/transcript/delta",
+        "thread/realtime/transcript/done",
+        "thread/settings/updated",
+        "thread/started",
+        "thread/status/changed",
+        "thread/tokenUsage/updated",
+        "thread/unarchived",
+        "turn/completed",
+        "turn/diff/updated",
+        "turn/moderationMetadata",
+        "turn/plan/updated",
+        "turn/started",
+        "warning",
+        "windows/worldWritableWarning",
+        "windowsSandbox/setupCompleted",
+    }
+)
+
+BACKEND_SERVER_REQUEST_NAMES = frozenset(
+    {
+        "account/chatgptAuthTokens/refresh",
+        "applyPatchApproval",
+        "attestation/generate",
+        "execCommandApproval",
+        "item/commandExecution/requestApproval",
+        "item/fileChange/requestApproval",
+        "item/permissions/requestApproval",
+        "item/tool/call",
+        "item/tool/requestUserInput",
+        "mcpServer/elicitation/request",
+    }
+)
+
+BACKEND_THREAD_ITEM_NAMES = frozenset(
+    {
+        "agentMessage",
+        "collabAgentToolCall",
+        "commandExecution",
+        "contextCompaction",
+        "dynamicToolCall",
+        "enteredReviewMode",
+        "exitedReviewMode",
+        "fileChange",
+        "hookPrompt",
+        "imageGeneration",
+        "imageView",
+        "mcpToolCall",
+        "plan",
+        "reasoning",
+        "sleep",
+        "subAgentActivity",
+        "userMessage",
+        "webSearch",
+    }
+)
+
+ACTION_ONLY_NO_PERSISTENT_STATE_NAMES = frozenset(
+    {
+        "account/sendAddCreditsNudgeEmail",
+        "feedback/upload",
+        "fs/copy",
+        "fs/createDirectory",
+        "fs/getMetadata",
+        "fs/readDirectory",
+        "fs/readFile",
+        "fs/remove",
+        "fs/writeFile",
+        "mcpServer/resource/read",
+        "mcpServer/tool/call",
+        "thread/shellCommand",
+        "turn/interrupt",
     }
 )
 
 ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITIES = frozenset(
-    {
-        ("client_request", "ClientRequest", "method", "turn/interrupt"),
+    (
+        "client_request",
+        "ClientRequest",
+        "method",
+        name,
+    )
+    for name in ACTION_ONLY_NO_PERSISTENT_STATE_NAMES
+)
+
+BACKEND_IMPLEMENTED_IDENTITIES = frozenset(
+    {("client_request", name) for name in BACKEND_PROVIDER_OPERATION_NAMES}
+    | {
+        ("server_notification", name)
+        for name in BACKEND_SERVER_NOTIFICATION_NAMES
     }
+    | {("server_request", name) for name in BACKEND_SERVER_REQUEST_NAMES}
+    | {("item_discriminator", name) for name in BACKEND_THREAD_ITEM_NAMES}
+)
+
+CANONICAL_STATE_IMPLEMENTED_IDENTITIES = frozenset(
+    {
+        ("client_request", name)
+        for name in BACKEND_PROVIDER_OPERATION_NAMES
+        if name not in ACTION_ONLY_NO_PERSISTENT_STATE_NAMES
+    }
+    | {
+        ("server_notification", name)
+        for name in BACKEND_SERVER_NOTIFICATION_NAMES
+    }
+    | {("server_request", name) for name in BACKEND_SERVER_REQUEST_NAMES}
+    | {("item_discriminator", name) for name in BACKEND_THREAD_ITEM_NAMES}
 )
 
 
 class SurfaceError(RuntimeError):
     """An authoritative artifact is missing, ambiguous, or unrecognized."""
+
+
+def backend_coverage_ledger(manifest: dict[str, Any]) -> dict[str, Any]:
+    entries = manifest.get("entries")
+    if not isinstance(entries, list):
+        raise SurfaceError(
+            "BackendCoverageDenominatorMismatch: surface manifest has no entries array"
+        )
+
+    def stable_names(category: str, *, domain: str | None = None) -> frozenset[str]:
+        return frozenset(
+            entry["name"]
+            for entry in entries
+            if entry.get("stability") == "stable"
+            and entry.get("category") == category
+            and (domain is None or entry.get("domain") == domain)
+        )
+
+    provider_operations = stable_names("client_request") - {"initialize"}
+    notifications = stable_names("server_notification")
+    server_requests = stable_names("server_request")
+    thread_items = stable_names("item_discriminator", domain="ThreadItem")
+    response_items = stable_names("item_discriminator", domain="ResponseItem")
+
+    expected_components = (
+        (
+            "stable application provider operations",
+            provider_operations,
+            BACKEND_PROVIDER_OPERATION_NAMES,
+            86,
+        ),
+        (
+            "stable server notifications",
+            notifications,
+            BACKEND_SERVER_NOTIFICATION_NAMES,
+            68,
+        ),
+        (
+            "stable server requests",
+            server_requests,
+            BACKEND_SERVER_REQUEST_NAMES,
+            10,
+        ),
+        (
+            "stable ThreadItem alternatives",
+            thread_items,
+            BACKEND_THREAD_ITEM_NAMES,
+            18,
+        ),
+    )
+    for label, actual, expected, count in expected_components:
+        if actual != expected or len(actual) != count:
+            raise SurfaceError(
+                "BackendCoverageDenominatorMismatch: "
+                f"{label} differ from the frozen current-state ledger; "
+                f"expected {count}, observed {len(actual)}"
+            )
+    if len(response_items) != 16:
+        raise SurfaceError(
+            "BackendCoverageDenominatorMismatch: stable ResponseItem alternatives "
+            f"must remain 16, observed {len(response_items)}"
+        )
+    if (
+        len(ACTION_ONLY_NO_PERSISTENT_STATE_NAMES) != 13
+        or not ACTION_ONLY_NO_PERSISTENT_STATE_NAMES <= provider_operations
+    ):
+        raise SurfaceError(
+            "ActionOnlyIdentitySetMismatch: the frozen action-only operation set "
+            "must contain "
+            "exactly 13 stable application operations"
+        )
+
+    canonical_state_applicable = frozenset(
+        surface_key(entry)
+        for entry in entries
+        if entry.get("stability") == "stable"
+        and (
+            (
+                entry.get("category") == "client_request"
+                and entry.get("name") != "initialize"
+                and entry.get("name")
+                not in ACTION_ONLY_NO_PERSISTENT_STATE_NAMES
+            )
+            or entry.get("category")
+            in {"server_notification", "server_request"}
+            or (
+                entry.get("category") == "item_discriminator"
+                and entry.get("domain") == "ThreadItem"
+            )
+        )
+    )
+    if len(canonical_state_applicable) != 169:
+        raise SurfaceError(
+            "CanonicalStateDenominatorMismatch: the frozen canonical-state "
+            "applicable denominator "
+            f"must remain 169, observed {len(canonical_state_applicable)}"
+        )
+    if CANONICAL_STATE_IMPLEMENTED_IDENTITIES != frozenset(
+        (key[0], key[3]) for key in canonical_state_applicable
+    ):
+        raise SurfaceError(
+            "CanonicalStateImplementationMismatch: implemented canonical-state "
+            "identities do not "
+            "match the frozen 169-entry applicable denominator"
+        )
+    if len(BACKEND_IMPLEMENTED_IDENTITIES) != 182:
+        raise SurfaceError(
+            "BackendCoverageImplementationMismatch: the final implemented "
+            "relevant-layer set must contain 182 identities"
+        )
+
+    return {
+        "provider_operations": provider_operations,
+        "notifications": notifications,
+        "thread_items": thread_items,
+        "response_items": response_items,
+        "server_requests": server_requests,
+        "relevant_total": 198,
+        "action_only": ACTION_ONLY_NO_PERSISTENT_STATE_NAMES,
+        "canonical_state_applicable": canonical_state_applicable,
+    }
 
 
 def canonical_json(value: Any) -> str:
@@ -6257,7 +6566,10 @@ def registry_statuses(
                 "FrontendSecurityDecision::ExistingRedactedExtensionContract"
             )
     elif category == "item_discriminator":
-        if entry["domain"] == "ThreadItem" and backend_implemented:
+        if (
+            entry["domain"] == "ThreadItem"
+            and entry["name"] in EXISTING_MODELED_THREAD_ITEM_NAMES
+        ):
             frontend_exposure = "FrontendExposure::ExistingEventSubset"
             frontend_security = (
                 "FrontendSecurityDecision::ExistingEventSubsetContract"
@@ -6634,6 +6946,7 @@ def generate_registry_data(
     entries = manifest.get("entries")
     if not isinstance(entries, list):
         raise SurfaceError("surface manifest has no entries array")
+    backend_coverage_ledger(manifest)
     evidence = evidence if evidence is not None else load_a1_registry_evidence()
     contracts = operation_contract_by_key(manifest, evidence["operation_contracts"])
     assignment_diagnostics = assignment_reachability_diagnostics(
@@ -6691,6 +7004,26 @@ def generate_registry_data(
             *statuses,
         )
         lines.append("CODEX_PROTOCOL_SURFACE_ENTRY(" + ", ".join(arguments) + ")")
+    lines.extend(
+        [
+            "",
+            "// The generator's frozen action-only ledger is re-included by the "
+            "C++ validator.",
+        ]
+    )
+    for name in sorted(ACTION_ONLY_NO_PERSISTENT_STATE_NAMES):
+        lines.append(
+            "CODEX_ACTION_ONLY_NO_PERSISTENT_STATE_IDENTITY("
+            + ", ".join(
+                (
+                    "SurfaceCategory::ClientRequest",
+                    cpp_string("ClientRequest"),
+                    cpp_string("method"),
+                    cpp_string(name),
+                )
+            )
+            + ")"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -9958,6 +10291,7 @@ def coverage_metrics(
 ) -> list[dict[str, Any]]:
     manifest_entries = manifest["entries"]
     registry = registry_by_key(registry_entries)
+    backend_ledger = backend_coverage_ledger(manifest)
 
     def selected(stability: str, predicate: Any) -> list[dict[str, Any]]:
         return [
@@ -10003,15 +10337,8 @@ def coverage_metrics(
     )
     stable_state_eligible = selected(
         "stable",
-        lambda entry: registry[
-            (
-                entry["category"],
-                entry["domain"],
-                entry["discriminator_field"],
-                entry["name"],
-            )
-        ]["canonical_state_status"]
-        != "NotApplicable",
+        lambda entry: surface_key(entry)
+        in backend_ledger["canonical_state_applicable"],
     )
     stable_frontend_operations = selected(
         "stable",
@@ -10084,7 +10411,9 @@ def coverage_metrics(
             "Canonical-state/reducer coverage",
             implemented(stable_state_eligible, "canonical_state_status", "Implemented"),
             len(stable_state_eligible),
-            "Stable registry entries whose canonical-state status is applicable.",
+            "The frozen 169-entry applicable set: 73 stateful operations, "
+            "68 notifications, "
+            "18 ThreadItems, and 10 server requests.",
         ),
         (
             "Frontend Protocol existing-subset exposure coverage",
@@ -10201,6 +10530,22 @@ def backend_state_disposition_metrics(
             }
         )
     }
+    canonical_state_implemented = sum(
+        entry["stability"] == "stable"
+        and (entry["category"], entry["name"])
+        in CANONICAL_STATE_IMPLEMENTED_IDENTITIES
+        and entry["canonical_state_status"] == "Implemented"
+        for entry in registry_entries
+    )
+    action_only = sum(
+        entry["stability"] == "stable"
+        and entry["category"] == "client_request"
+        and entry["name"] in ACTION_ONLY_NO_PERSISTENT_STATE_NAMES
+        and entry["canonical_state_status"] == "NotApplicable"
+        and entry["canonical_state_reason"]
+        == "ActionOnlyNoPersistentState"
+        for entry in registry_entries
+    )
     return {
         "operation_implemented": operation_statuses.count("Implemented"),
         "operation_total": len(operation_statuses),
@@ -10210,6 +10555,9 @@ def backend_state_disposition_metrics(
         "resolved": statuses["Implemented"] + statuses["NotApplicable"],
         "total": len(denominator),
         "not_applicable_reasons": reasons,
+        "canonical_state_implemented": canonical_state_implemented,
+        "canonical_state_applicable": 169,
+        "action_only": action_only,
     }
 
 
@@ -10279,6 +10627,14 @@ def render_coverage_document(
             "",
             "BackendCore stable operation commands: "
             f"**{backend_state['operation_implemented']} / {backend_state['operation_total']} Implemented**.",
+            "Canonical state: "
+            f"**{backend_state['canonical_state_implemented']} / "
+            f"{backend_state['canonical_state_applicable']} applicable entries "
+            "Implemented**.",
+            "Canonical-state exclusions: "
+            f"**{backend_state['action_only']} ActionOnlyNoPersistentState "
+            "operations** and "
+            "**16 NoRuntimeBackendStatePath ResponseItem alternatives**.",
             "",
             "| Disposition | Count |",
             "|---|---:|",
@@ -10356,10 +10712,13 @@ def render_coverage_document(
             "## Phase boundary",
             "",
             "A0 established the census, registry, guards, and owner worksheet. Final A1 and",
-            "A1.5 complete the typed protocol and application façade. A1.6a hardens the",
-            "backend foundation without expanding provider-command coverage; A1.6b owns",
-            "backend completeness. A1.7 exposes only owner-approved Frontend Protocol",
-            "operations. Provider-neutral architecture remains separate A2 work.",
+            "A1.5 complete the typed protocol and application façade. A1.6a hardened "
+            "the",
+            "backend foundation, and A1.6b completes the provider-to-backend command "
+            "and",
+            "state layer. A1.7 exposes only owner-approved Frontend Protocol "
+            "operations.",
+            "Provider-neutral architecture remains separate A2 work.",
             "",
         ]
     )

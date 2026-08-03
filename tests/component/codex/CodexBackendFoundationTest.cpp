@@ -211,7 +211,8 @@ namespace {
         backend::BackendState contentState;
         reducer.apply(contentState, backend::ProviderLifecycleChanged{provider});
         limits.maxRetainedThreads = 2;
-        limits.maxSnapshotBytes = 1536;
+        constexpr std::size_t SnapshotLimit = 3072;
+        limits.maxSnapshotBytes = SnapshotLimit;
         reducer.apply(contentState, backend::CapacityConfigured{limits});
         reducer.apply(contentState,
                       backend::ThreadUpserted{retainedThread("old", "old-turn", false, "old-item", "abcd"), backend::EntityLoad::Full});
@@ -418,10 +419,78 @@ namespace {
         result.expectTrue(bounded.capacity.truncated &&
                               bounded.capacity.omittedThreads + bounded.capacity.omittedTurns + bounded.capacity.omittedItems != 0,
                           "snapshot construction deterministically omits oldest inactive state at its byte ceiling");
-        result.expectTrue(bounded.provider.generation == 9 && bounded.capacity.state.limits.maxSnapshotBytes == 1536,
+        result.expectTrue(bounded.provider.generation == 9 && bounded.capacity.state.limits.maxSnapshotBytes == SnapshotLimit,
                           "minimal bounded snapshots retain provider generation and configured capacity policy");
-        result.expectTrue(!bounded.capacity.mandatoryCoreExceedsLimit && backend::snapshotSizeBytes(bounded) <= 1536,
+        result.expectTrue(!bounded.capacity.mandatoryCoreExceedsLimit && backend::snapshotSizeBytes(bounded) <= SnapshotLimit,
                           "a representable snapshot ceiling is enforced against the exact safe serialized projection");
+
+        backend::BackendState optionalSnapshotState;
+        optionalSnapshotState.provider = provider;
+        optionalSnapshotState.provider.initialization =
+            typed::InitializeResponse{typed::AbsolutePath{"/synthetic/codex"}, "linux", "linux", "aisuite-test", Json::object()};
+        optionalSnapshotState.sessions.emplace(backend::SessionId{1},
+                                               backend::ConnectedSessionState{backend::SessionId{1}, backend::SessionRole::Controller});
+        optionalSnapshotState.controller = backend::SessionId{1};
+        typed::UnknownServerRequest optionalPending{ai::openai::codex::ServerRequestId{std::int64_t{7}},
+                                                    ai::openai::codex::ServerRequestToken{7},
+                                                    "future/optional-snapshot",
+                                                    Json::object(),
+                                                    Json::object(),
+                                                    std::nullopt};
+        optionalSnapshotState.pendingRequests.emplace(
+            backend::PendingRequestId{7},
+            backend::PendingRequestState{backend::PendingRequestId{7}, typed::TypedServerRequest{std::move(optionalPending)}, 9});
+        const std::size_t mandatorySnapshotBytes = backend::snapshotSizeBytes(backend::makeSnapshot(optionalSnapshotState));
+        optionalSnapshotState.capacity.limits.maxSnapshotBytes = mandatorySnapshotBytes + 256;
+
+        const std::string largeOptionalField(2048, 'o');
+        optionalSnapshotState.providerOperations.emplace(
+            "operation",
+            backend::ProviderOperationState{
+                largeOptionalField, backend::ProviderOperationValue{typed::Unit{}}.index(), {9, backend::Freshness::Current}});
+        const typed::Event optionalEvent{typed::UnknownEvent{"future/optional", Json::object(), Json::object(), std::nullopt}};
+        optionalSnapshotState.accounts.latestNotifications.emplace(
+            largeOptionalField,
+            backend::ProviderNotificationState{largeOptionalField, optionalEvent.index(), {9, backend::Freshness::Current}});
+        optionalSnapshotState.notices.push_back(
+            {1, backend::NoticeCategory::Warning, largeOptionalField, largeOptionalField, std::nullopt, {9, backend::Freshness::Current}});
+        optionalSnapshotState.capacity.retainedNotices = 1;
+        optionalSnapshotState.processes.emplace(
+            largeOptionalField,
+            backend::ProcessState{largeOptionalField, "exited", {}, {}, false, false, 0, 0, {9, backend::Freshness::Current}, false});
+        optionalSnapshotState.processOrder.push_back(largeOptionalField);
+        optionalSnapshotState.capacity.retainedProcesses = 1;
+        optionalSnapshotState.filesystemWatches.emplace(
+            largeOptionalField,
+            backend::FilesystemWatchState{typed::FsWatchId{largeOptionalField}, std::nullopt, {}, {9, backend::Freshness::Stale}, true});
+        optionalSnapshotState.filesystemWatchOrder.push_back(largeOptionalField);
+        optionalSnapshotState.capacity.retainedFilesystemWatches = 1;
+        optionalSnapshotState.fuzzySearchSessions.emplace(
+            largeOptionalField, backend::FuzzySearchState{largeOptionalField, {}, {}, true, {9, backend::Freshness::Current}, false});
+        optionalSnapshotState.fuzzySearchOrder.push_back(largeOptionalField);
+        optionalSnapshotState.capacity.retainedFuzzySearchSessions = 1;
+        backend::ActivityRecordState optionalActivity;
+        optionalActivity.key = largeOptionalField;
+        optionalActivity.subjectId = largeOptionalField;
+        optionalActivity.kind = "test";
+        optionalActivity.lifecycle = "completed";
+        optionalActivity.notification = {"future/optional", optionalEvent.index(), {9, backend::Freshness::Current}};
+        optionalSnapshotState.activities.emplace(largeOptionalField, std::move(optionalActivity));
+        optionalSnapshotState.activityOrder.push_back(largeOptionalField);
+        optionalSnapshotState.capacity.retainedActivityRecords = 1;
+
+        const backend::Snapshot boundedOptional = backend::makeSnapshot(optionalSnapshotState);
+        result.expectTrue(boundedOptional.capacity.truncated && !boundedOptional.capacity.mandatoryCoreExceedsLimit &&
+                              backend::snapshotSizeBytes(boundedOptional) <= optionalSnapshotState.capacity.limits.maxSnapshotBytes &&
+                              boundedOptional.provider.initialization && boundedOptional.providerOperations.empty() &&
+                              boundedOptional.accounts.latestNotificationMethods.empty() && boundedOptional.notices.empty() &&
+                              boundedOptional.processes.empty() && boundedOptional.filesystemWatches.empty() &&
+                              boundedOptional.fuzzySearchSessions.empty() && boundedOptional.activities.empty(),
+                          "snapshot bounding omits A1.6b optional domain summaries deterministically before using the minimal fallback");
+        result.expectTrue(boundedOptional.controller == backend::SessionId{1} && boundedOptional.sessions.size() == 1 &&
+                              boundedOptional.pendingRequests.size() == 1 &&
+                              boundedOptional.pendingRequests.front().id == backend::PendingRequestId{7},
+                          "optional A1.6b omissions preserve mandatory controller, session, and safe pending-request summaries");
 
         backend::BackendState zeroSnapshotState;
         backend::BackendCapacityOptions zeroSnapshotLimits;
@@ -447,7 +516,11 @@ namespace {
         reducer.apply(zeroSnapshotState, backend::CapacityConfigured{zeroSnapshotLimits});
         const backend::Snapshot zeroSnapshot = backend::makeSnapshot(zeroSnapshotState);
         result.expectTrue(zeroSnapshot.capacity.truncated && zeroSnapshot.capacity.mandatoryCoreExceedsLimit &&
-                              zeroSnapshot.threads.empty() && zeroSnapshot.pendingRequests.empty() && zeroSnapshot.sessions.empty(),
+                              zeroSnapshot.threads.empty() && zeroSnapshot.pendingRequests.size() == 1 &&
+                              zeroSnapshot.pendingRequests.front().id == backend::PendingRequestId{6} &&
+                              zeroSnapshot.pendingRequests.front().type == "unknown" &&
+                              zeroSnapshot.pendingRequests.front().details.value("omitted", false) && zeroSnapshot.sessions.size() == 1 &&
+                              zeroSnapshot.sessions.front().id == backend::SessionId{1},
                           "zero snapshot capacity emits only the mandatory valid envelope and explicitly reports its unavoidable size");
         result.expectTrue(zeroSnapshot.provider.lifecycle == backend::ProviderLifecycle::Failed && zeroSnapshot.provider.generation == 11 &&
                               zeroSnapshot.provider.lastError && zeroSnapshot.provider.lastError->category == "protocol" &&
@@ -1351,8 +1424,8 @@ namespace {
                 },
                 [this, recoveryTimers]() {
                     const backend::Snapshot retained = backendCore->snapshot();
-                    expect(retained.pendingRequests.front().type == "unknown" && retained.pendingRequests.front().details.empty(),
-                           "a deferred attestation occurrence has a bounded safe projection without provider request identifiers");
+                    expect(retained.pendingRequests.front().type == "attestation" && retained.pendingRequests.front().details.empty(),
+                           "an attestation occurrence has a meaningful bounded projection without provider request identifiers");
                     transport->inject({{"method", "item/tool/call"},
                                        {"id", "dynamic-two"},
                                        {"params",

@@ -443,7 +443,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
 
         for (const Case& testCase : cases) {
             const typed::Event event = detail::decodeEvent(notification(testCase.method, testCase.params));
@@ -483,12 +482,12 @@ namespace {
                               "frontend-compatible extension bytes contain no synthetic user-integration values");
         }
 
-        backend::Snapshot withoutExtensions = snapshot;
-        withoutExtensions.recentExtensions.clear();
-        withoutExtensions.omittedRecentExtensions = 0;
-        result.expectTrue(withoutExtensions == before && state.threads.empty() && state.threadOrder.empty() &&
-                              state.pendingRequests.empty(),
-                          "user-integration notifications add no backend product state");
+        result.expectTrue(snapshot.integrations.apps && snapshot.integrations.apps->entries.size() == 1 &&
+                              snapshot.integrations.latestNotifications.size() == cases.size() && snapshot.activities.size() == 1 &&
+                              snapshot.activities.front().kind == "external_agent_import" &&
+                              snapshot.activities.front().lifecycle == "running" && snapshot.activities.front().active &&
+                              state.threads.empty() && state.threadOrder.empty() && state.pendingRequests.empty(),
+                          "user-integration notifications update dedicated bounded integration and activity state");
 
         backend::ExtensionRecord unrelated{};
         unrelated.method = "future/extension";

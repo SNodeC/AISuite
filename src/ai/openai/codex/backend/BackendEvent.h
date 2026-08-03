@@ -8,7 +8,9 @@
 #ifndef AI_OPENAI_CODEX_BACKEND_BACKENDEVENT_H
 #define AI_OPENAI_CODEX_BACKEND_BACKENDEVENT_H
 
+#include "ai/openai/codex/backend/BackendCommand.h"
 #include "ai/openai/codex/backend/BackendState.h"
+#include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
 
@@ -39,7 +41,13 @@ namespace ai::openai::codex::backend {
         EvictedTurns,
         EvictedItems,
         DroppedContentBytes,
-        SnapshotOmissions
+        SnapshotOmissions,
+        EvictedNotices,
+        EvictedProcesses,
+        DroppedProcessOutputBytes,
+        EvictedFilesystemWatches,
+        EvictedFuzzySearchSessions,
+        EvictedActivityRecords
     };
 
     struct CapacityConfigured {
@@ -55,6 +63,34 @@ namespace ai::openai::codex::backend {
 
     struct DiagnosticReceived {
         std::string message;
+    };
+
+    struct ProviderOperationCompleted {
+        std::string method;
+        BackendCommand command;
+        ProviderOperationValue value;
+        std::optional<std::string> resourceReservationKey;
+    };
+
+    // ProviderOperationCompleted is an exact reducer input and can contain
+    // arbitrarily large, heap-backed typed parameters.  BackendCore publishes
+    // this bounded marker after reducing that input so session and observer
+    // queues never retain a second copy of the command payload.
+    struct ProviderOperationStateChanged {
+        std::string method;
+    };
+
+    enum class ProviderResourceKind { Process, FilesystemWatch, FuzzySearch };
+
+    struct ProviderResourceAdmissionRequested {
+        ProviderResourceKind kind = ProviderResourceKind::Process;
+        std::string key;
+        std::string resourceId;
+    };
+
+    struct ProviderResourceAdmissionReleased {
+        ProviderResourceKind kind = ProviderResourceKind::Process;
+        std::string key;
     };
 
     struct ThreadUpserted {
@@ -157,6 +193,15 @@ namespace ai::openai::codex::backend {
         Json payload = nullptr;
         std::optional<std::string> decodingError;
         std::optional<typed::DecodeDiagnostic> diagnostic = std::nullopt;
+        std::optional<typed::Event> typedEvent = std::nullopt;
+        bool safeProjection = false;
+        bool methodTruncated = false;
+        bool payloadTruncated = false;
+        bool decodingErrorTruncated = false;
+        bool sensitiveFieldsRedacted = false;
+        std::uint64_t originalMethodBytes = 0;
+        std::optional<std::uint64_t> originalPayloadBytes = std::nullopt;
+        std::uint64_t originalDecodingErrorBytes = 0;
     };
 
     using BackendEvent = std::variant<ProviderLifecycleChanged,
@@ -164,6 +209,10 @@ namespace ai::openai::codex::backend {
                                       CapacityConfigured,
                                       CapacityChanged,
                                       DiagnosticReceived,
+                                      ProviderOperationCompleted,
+                                      ProviderOperationStateChanged,
+                                      ProviderResourceAdmissionRequested,
+                                      ProviderResourceAdmissionReleased,
                                       ThreadUpserted,
                                       ThreadListUpdated,
                                       ThreadStatusUpdated,

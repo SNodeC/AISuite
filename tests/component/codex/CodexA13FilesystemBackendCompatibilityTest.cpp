@@ -92,7 +92,6 @@ namespace {
 
         backend::Reducer reducer;
         backend::BackendState state;
-        const backend::Snapshot before = backend::makeSnapshot(state);
 
         for (const Case& testCase : cases) {
             const typed::Event event = detail::decodeEvent(notification(testCase));
@@ -143,12 +142,15 @@ namespace {
                               "frontend-compatible bytes contain no synthetic filesystem-sensitive values");
         }
 
-        backend::Snapshot withoutExtensions = snapshot;
-        withoutExtensions.recentExtensions.clear();
-        withoutExtensions.omittedRecentExtensions = 0;
-        result.expectTrue(withoutExtensions == before && state.threads.empty() && state.threadOrder.empty() &&
-                              state.pendingRequests.empty(),
-                          "filesystem notifications add no BackendState watcher, filesystem, or fuzzy-search model");
+        const backend::FilesystemWatchSnapshot* watch =
+            snapshot.filesystemWatches.size() == 1 ? &snapshot.filesystemWatches.front() : nullptr;
+        const backend::FuzzySearchSnapshot* search =
+            snapshot.fuzzySearchSessions.size() == 1 ? &snapshot.fuzzySearchSessions.front() : nullptr;
+        result.expectTrue(watch && watch->watchId == "synthetic-private-watch" && watch->changedPathCount == 2 && search &&
+                              search->sessionId == "synthetic-private-session" && search->resultCount == 1 && !search->complete &&
+                              snapshot.filesystem.latestNotifications.size() == cases.size() && state.threads.empty() &&
+                              state.threadOrder.empty() && state.pendingRequests.empty(),
+                          "filesystem notifications update dedicated bounded watch and fuzzy-search state");
     }
 
     void testRedactionIsMethodSpecific(tests::support::TestResult& result) {

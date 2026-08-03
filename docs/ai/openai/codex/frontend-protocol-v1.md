@@ -57,9 +57,8 @@ The generated [owner-review worksheet](app-server-security-decisions.md)
 preserves every existing reviewed v1 exposure and marks every new exposure
 decision `UNRESOLVED`. A0 selects no new approval, sandbox, or security-boundary
 policy. A1.7 may add only the operations approved after the owner freezes those
-decisions, following the A1.5 application façade and A1.6a BackendCore
-foundation. A1.6b remains the backend-completeness phase. Provider-neutral
-architecture remains separate A2 work.
+decisions, following the A1.5 application façade and completed A1.6
+BackendCore. Provider-neutral architecture remains separate A2 work.
 
 ## Common envelope and compatibility
 

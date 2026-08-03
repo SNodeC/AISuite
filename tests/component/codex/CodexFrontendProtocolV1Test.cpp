@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -309,6 +310,8 @@ namespace {
 
 int main() {
     using namespace ai::openai::codex::frontend;
+
+    static_assert(std::variant_size_v<CommandParameters> == 15, "A1.6b must not expand the Frontend Protocol v1 command surface");
 
     tests::support::TestResult result;
 

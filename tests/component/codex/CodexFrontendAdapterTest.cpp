@@ -17,6 +17,7 @@
 #include "utils/Timeval.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -42,6 +43,59 @@ namespace {
 
     Json agentItemValue(const std::string& id, const std::string& text = {}) {
         return {{"type", "agentMessage"}, {"id", id}, {"text", text}};
+    }
+
+    struct LegacyMetadataItemFixture {
+        std::string id;
+        std::string type;
+        Json item;
+    };
+
+    std::vector<LegacyMetadataItemFixture> legacyMetadataItemFixtures() {
+        return {
+            {"v1-collab-agent",
+             "collabAgentToolCall",
+             {{"type", "collabAgentToolCall"},
+              {"id", "v1-collab-agent"},
+              {"agentsStates", {{"worker", {{"message", "private worker message"}, {"status", "pendingInit"}}}}},
+              {"model", "private-model"},
+              {"prompt", "private prompt"},
+              {"reasoningEffort", "high"},
+              {"receiverThreadIds", Json::array({"private-receiver"})},
+              {"senderThreadId", "private-sender"},
+              {"status", "inProgress"},
+              {"tool", "spawnAgent"}}},
+            {"v1-context-compaction", "contextCompaction", {{"type", "contextCompaction"}, {"id", "v1-context-compaction"}}},
+            {"v1-entered-review",
+             "enteredReviewMode",
+             {{"type", "enteredReviewMode"}, {"id", "v1-entered-review"}, {"review", "private review"}}},
+            {"v1-exited-review",
+             "exitedReviewMode",
+             {{"type", "exitedReviewMode"}, {"id", "v1-exited-review"}, {"review", "private review"}}},
+            {"v1-hook-prompt",
+             "hookPrompt",
+             {{"type", "hookPrompt"},
+              {"id", "v1-hook-prompt"},
+              {"fragments", Json::array({Json{{"hookRunId", "private-hook"}, {"text", "private hook prompt"}}})}}},
+            {"v1-image-generation",
+             "imageGeneration",
+             {{"type", "imageGeneration"},
+              {"id", "v1-image-generation"},
+              {"result", "private image result"},
+              {"revisedPrompt", "private revised prompt"},
+              {"savedPath", "/private/image.png"},
+              {"status", "completed"}}},
+            {"v1-image-view", "imageView", {{"type", "imageView"}, {"id", "v1-image-view"}, {"path", "/private/image.png"}}},
+            {"v1-plan", "plan", {{"type", "plan"}, {"id", "v1-plan"}, {"text", "private plan"}}},
+            {"v1-sleep", "sleep", {{"type", "sleep"}, {"id", "v1-sleep"}, {"durationMs", 25}}},
+            {"v1-sub-agent",
+             "subAgentActivity",
+             {{"type", "subAgentActivity"},
+              {"id", "v1-sub-agent"},
+              {"agentPath", "private/worker"},
+              {"agentThreadId", "private-worker-thread"},
+              {"kind", "started"}}},
+        };
     }
 
     class ManualScheduler {
@@ -668,14 +722,41 @@ namespace {
                            connectionB->helloComplete();
                 },
                 [this]() {
-                    afterTicks(8, [this]() {
-                        emitExtensions();
-                    });
+                    exerciseExactWrapperProjection();
                 });
         }
 
         bool isFinished() const noexcept {
             return finished;
+        }
+
+        const std::string& waitingStage() const noexcept {
+            return waitingDescription;
+        }
+
+        std::string terminalProgress() const {
+            if (!backendCore) {
+                return "runner finished";
+            }
+            const std::string backendText = terminalBackendText();
+            const std::string frontendTextA = latestFrontendText(observerA);
+            const std::string frontendTextB = latestFrontendText(observerB);
+            return "backend=" + std::to_string(backendText.size()) + "/" + std::to_string(expectedText.size()) +
+                   ", frontendA=" + std::to_string(frontendTextA.size()) + ", frontendB=" + std::to_string(frontendTextB.size()) +
+                   ", user=" +
+                   std::to_string(hasCompletedItemUpdate(
+                       observerA, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs)) +
+                   "/" +
+                   std::to_string(hasCompletedItemUpdate(
+                       observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs)) +
+                   ", unknown=" +
+                   std::to_string(hasCompletedItemUpdate(
+                       observerA, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs)) +
+                   "/" +
+                   std::to_string(hasCompletedItemUpdate(
+                       observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs)) +
+                   ", legacy=" + std::to_string(hasMetadataOnlyLegacyItemUpdates(observerA)) + "/" +
+                   std::to_string(hasMetadataOnlyLegacyItemUpdates(observerB));
         }
 
     private:
@@ -689,6 +770,7 @@ namespace {
 
         void
         waitUntil(std::string description, std::function<bool()> predicate, std::function<void()> next, std::size_t remaining = 8'000) {
+            waitingDescription = description;
             defer([this,
                    description = std::move(description),
                    predicate = std::move(predicate),
@@ -698,6 +780,7 @@ namespace {
                     return;
                 }
                 if (predicate()) {
+                    waitingDescription = "advancing after: " + description;
                     next();
                     return;
                 }
@@ -727,10 +810,131 @@ namespace {
                 return;
             }
             if (*method == "thread/list") {
+                const Json params = message.value("params", Json::object());
+                const bool frontendRequest = params.value("cursor", "") == wrapperCursor;
                 tests::codex::inject(
                     callbacks,
-                    Json{{"id", *id}, {"result", {{"data", Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
+                    Json{{"id", *id},
+                         {"result",
+                          {{"data", frontendRequest ? Json::array({tests::codex::threadValue(wrapperThreadId)}) : Json::array()},
+                           {"nextCursor", nullptr},
+                           {"backwardsCursor", nullptr}}}});
+            } else if (*method == "thread/start" || *method == "thread/resume") {
+                tests::codex::inject(callbacks, Json{{"id", *id}, {"result", tests::codex::threadOperationResult(wrapperThreadId)}});
+            } else if (*method == "thread/read") {
+                const std::string threadId = message.value("params", Json::object()).value("threadId", wrapperReadThreadId);
+                tests::codex::inject(callbacks, Json{{"id", *id}, {"result", {{"thread", tests::codex::threadValue(threadId)}}}});
+            } else if (*method == "turn/start") {
+                tests::codex::inject(
+                    callbacks,
+                    Json{{"id", *id}, {"result", {{"turn", tests::codex::turnValue(wrapperThreadId, wrapperTurnId, "completed")}}}});
+            } else if (*method == "turn/interrupt") {
+                tests::codex::inject(callbacks, Json{{"id", *id}, {"result", Json::object()}});
             }
+        }
+
+        void exerciseExactWrapperProjection() {
+            expect(connectionA->receive(command(wrapperAcquireRequestId, frontend::ControllerAcquire{})).accepted(),
+                   "wrapper regression session acquires the BackendCore controller");
+            waitUntil(
+                "wrapper regression controller acquisition completes",
+                [this]() {
+                    return hasSuccessfulResponse(observerA, wrapperAcquireRequestId);
+                },
+                [this]() {
+                    frontend::ThreadList list;
+                    list.cursor = wrapperCursor;
+
+                    frontend::ThreadResume resume;
+                    resume.threadId = wrapperThreadId;
+
+                    frontend::TurnStart turnStart;
+                    turnStart.threadId = wrapperThreadId;
+                    turnStart.input = {frontend::TextInput{"Hello from the v1 wrapper regression"}};
+
+                    expect(
+                        connectionA->receive(command(wrapperThreadStartRequestId, frontend::ThreadStart{})).accepted() &&
+                            connectionA->receive(command(wrapperThreadResumeRequestId, std::move(resume))).accepted() &&
+                            connectionA->receive(command(wrapperThreadListRequestId, std::move(list))).accepted() &&
+                            connectionA->receive(command(wrapperTurnStartRequestId, std::move(turnStart))).accepted() &&
+                            connectionA
+                                ->receive(command(wrapperTurnInterruptRequestId, frontend::TurnInterrupt{wrapperThreadId, wrapperTurnId}))
+                                .accepted(),
+                        "the five non-read Frontend Protocol v1 provider commands remain accepted");
+
+                    waitUntil(
+                        "the five non-read exact provider response wrappers preserve the v1 result contract",
+                        [this]() {
+                            return response(observerA, wrapperThreadStartRequestId) != nullptr &&
+                                   response(observerA, wrapperThreadResumeRequestId) != nullptr &&
+                                   response(observerA, wrapperThreadListRequestId) != nullptr &&
+                                   response(observerA, wrapperTurnStartRequestId) != nullptr &&
+                                   response(observerA, wrapperTurnInterruptRequestId) != nullptr;
+                        },
+                        [this]() {
+                            verifyExactWrapperProjectionBeforeRead();
+                            expect(
+                                connectionA->receive(command(wrapperThreadReadRequestId, frontend::ThreadRead{wrapperReadThreadId, true}))
+                                    .accepted(),
+                                "thread.read remains accepted after the other exact-wrapper responses are delivered");
+                            waitUntil(
+                                "thread.read exact response wrapper preserves the v1 result contract",
+                                [this]() {
+                                    return response(observerA, wrapperThreadReadRequestId) != nullptr;
+                                },
+                                [this]() {
+                                    verifyExactThreadReadProjection();
+                                    transport->inject({{"method", "thread/deleted"}, {"params", {{"threadId", wrapperReadThreadId}}}});
+                                    waitUntil(
+                                        "the exact-wrapper fixture releases its retained thread before the capacity scenario",
+                                        [this]() {
+                                            return backendCore->snapshot().threads.empty();
+                                        },
+                                        [this]() {
+                                            afterTicks(8, [this]() {
+                                                emitExtensions();
+                                            });
+                                        });
+                                });
+                        });
+                });
+        }
+
+        void verifyExactWrapperProjectionBeforeRead() {
+            const auto exactThreadResult = [this](const char* requestId, const char* expectedThreadId, bool fullyLoaded) {
+                const frontend::Response* value = response(observerA, requestId);
+                return value != nullptr && value->ok && value->result.has_value() && value->result->size() == 1 &&
+                       value->result->contains("thread") && (*value->result)["thread"].is_object() &&
+                       (*value->result)["thread"].value("id", "") == expectedThreadId &&
+                       (*value->result)["thread"].value("fullyLoaded", !fullyLoaded) == fullyLoaded;
+            };
+            expect(exactThreadResult(wrapperThreadStartRequestId, wrapperThreadId, false) &&
+                       exactThreadResult(wrapperThreadResumeRequestId, wrapperThreadId, false),
+                   "thread start/resume exact result wrappers preserve the v1 envelope and summary-load semantics");
+
+            const frontend::Response* list = response(observerA, wrapperThreadListRequestId);
+            expect(list != nullptr && list->ok && list->result.has_value() && list->result->size() == 1 &&
+                       list->result->contains("threads") && (*list->result)["threads"].is_array() &&
+                       (*list->result)["threads"].size() == 1 && (*list->result)["threads"][0].value("id", "") == wrapperThreadId,
+                   "thread list exact result wrapper preserves the unchanged v1 page envelope");
+
+            const frontend::Response* turn = response(observerA, wrapperTurnStartRequestId);
+            expect(turn != nullptr && turn->ok && turn->result.has_value() && turn->result->size() == 1 && turn->result->contains("turn") &&
+                       (*turn->result)["turn"].is_object() && (*turn->result)["turn"].value("id", "") == wrapperTurnId,
+                   "turn start exact result wrapper projects only the unchanged v1 turn envelope");
+
+            const frontend::Response* interrupt = response(observerA, wrapperTurnInterruptRequestId);
+            expect(interrupt != nullptr && interrupt->ok && interrupt->result.has_value() && interrupt->result->empty(),
+                   "turn interrupt Unit result remains the unchanged empty v1 object");
+        }
+
+        void verifyExactThreadReadProjection() {
+            const frontend::Response* value = response(observerA, wrapperThreadReadRequestId);
+            expect(value != nullptr && value->ok && value->result.has_value() && value->result->size() == 1 &&
+                       value->result->contains("thread") && (*value->result)["thread"].is_object() &&
+                       (*value->result)["thread"].value("id", "") == wrapperReadThreadId &&
+                       (*value->result)["thread"].value("fullyLoaded", false),
+                   "thread read exact result wrapper preserves the v1 envelope and full-load semantics");
         }
 
         void emitBurst() {
@@ -784,6 +988,13 @@ namespace {
                                  {"turnId", turnId},
                                  {"item", {{"id", unknownItemId}, {"type", unknownItemType}, {"futureField", Json{{"value", 7}}}}},
                                  {"completedAtMs", unknownItemCompletedAtMs}}}});
+            std::int64_t legacyCompletedAtMs = 70;
+            for (const LegacyMetadataItemFixture& fixture : legacyMetadataItems) {
+                transport->inject(
+                    {{"method", "item/completed"},
+                     {"params",
+                      {{"threadId", threadId}, {"turnId", turnId}, {"item", fixture.item}, {"completedAtMs", legacyCompletedAtMs++}}}});
+            }
             transport->inject({{"method", "turn/completed"},
                                {"params", {{"threadId", threadId}, {"turn", tests::codex::turnValue(threadId, turnId, "completed")}}}});
 
@@ -799,7 +1010,8 @@ namespace {
                            hasCompletedItemUpdate(
                                observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) &&
                            hasCompletedItemUpdate(
-                               observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs);
+                               observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) &&
+                           hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB);
                 },
                 [this]() {
                     verifyBurst();
@@ -952,6 +1164,25 @@ namespace {
             });
         }
 
+        bool hasMetadataOnlyLegacyItemUpdates(const Observations& observations) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            return std::all_of(legacyMetadataItems.begin(), legacyMetadataItems.end(), [&](const LegacyMetadataItemFixture& fixture) {
+                return std::any_of(received.begin(), received.end(), [&](const frontend::FrontendEvent& event) {
+                    if (event.type != "item.updated" || event.data.value("threadId", "") != threadId ||
+                        event.data.value("turnId", "") != turnId) {
+                        return false;
+                    }
+                    const auto item = event.data.find("item");
+                    if (item == event.data.end() || !item->is_object() || item->value("id", "") != fixture.id ||
+                        item->value("type", "") != fixture.type) {
+                        return false;
+                    }
+                    const Json data = item->value("data", Json::object());
+                    return data == Json{{"codexType", fixture.type}};
+                });
+            });
+        }
+
         std::vector<frontend::FrontendEvent> burstEvents(const Observations& observations, std::size_t baseline) const {
             std::vector<frontend::FrontendEvent> received = events(observations);
             if (baseline >= received.size()) {
@@ -960,14 +1191,75 @@ namespace {
             return {received.begin() + static_cast<std::ptrdiff_t>(baseline), received.end()};
         }
 
-        bool hasEventAfter(const Observations& observations, std::size_t baseline, std::string_view type) const {
+        std::size_t eventCountAfter(const Observations& observations, std::size_t baseline, std::string_view type) const {
             const std::vector<frontend::FrontendEvent> received = events(observations);
-            return baseline < received.size() && std::any_of(
-                                                     received.begin() + static_cast<std::ptrdiff_t>(baseline),
-                                                     received.end(),
-                                                     [type](const frontend::FrontendEvent& event) {
-                                                         return event.type == type;
-                                                     });
+            if (baseline >= received.size()) {
+                return 0;
+            }
+            return static_cast<std::size_t>(std::count_if(
+                received.begin() + static_cast<std::ptrdiff_t>(baseline), received.end(), [type](const frontend::FrontendEvent& event) {
+                    return event.type == type;
+                }));
+        }
+
+        std::size_t resolvedExtensionCountAfter(const Observations& observations, std::size_t baseline) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            if (baseline >= received.size()) {
+                return 0;
+            }
+            return static_cast<std::size_t>(std::count_if(
+                received.begin() + static_cast<std::ptrdiff_t>(baseline), received.end(), [](const frontend::FrontendEvent& event) {
+                    return event.type == "codex.extension" && event.data.value("method", "") == "serverRequest/resolved";
+                }));
+        }
+
+        void verifyGenericPendingProjection(const Observations& observations, std::size_t baseline) {
+            struct ExpectedProjection {
+                std::string_view backendType;
+                std::optional<std::string_view> legacyMethod;
+            };
+            static constexpr std::array Expected{
+                ExpectedProjection{"apply_patch_approval", "applyPatchApproval"},
+                ExpectedProjection{"exec_command_approval", "execCommandApproval"},
+                ExpectedProjection{"permissions_approval", "item/permissions/requestApproval"},
+                ExpectedProjection{"attestation", std::nullopt},
+                ExpectedProjection{"dynamic_tool_call", std::nullopt},
+                ExpectedProjection{"mcp_elicitation", std::nullopt},
+            };
+
+            const backend::Snapshot snapshot = backendCore->snapshot();
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            const auto begin = received.begin() + static_cast<std::ptrdiff_t>(std::min(baseline, received.size()));
+            bool allGeneric = true;
+            for (const ExpectedProjection& expected : Expected) {
+                const auto pending = std::find_if(snapshot.pendingRequests.begin(), snapshot.pendingRequests.end(), [&](const auto& value) {
+                    return value.type == expected.backendType;
+                });
+                if (pending == snapshot.pendingRequests.end()) {
+                    allGeneric = false;
+                    continue;
+                }
+                const std::string id = std::to_string(pending->id.value());
+                const auto event = std::find_if(begin, received.end(), [&](const frontend::FrontendEvent& value) {
+                    return value.type == "request.pending" && value.data.contains("request") && value.data["request"].value("id", "") == id;
+                });
+                if (event == received.end()) {
+                    allGeneric = false;
+                    continue;
+                }
+                const Json request = event->data["request"];
+                const Json details = request.value("details", Json::object());
+                Json expectedLegacyDetails = pending->details;
+                expectedLegacyDetails.erase("summary");
+                const bool shapeMatches = expected.legacyMethod ? details.value("method", "") == *expected.legacyMethod &&
+                                                                      details == expectedLegacyDetails && !details.contains("summary")
+                                                                : details.empty();
+                allGeneric = allGeneric && request.value("type", "") == "unknown" && shapeMatches &&
+                             request.dump().find(expected.backendType) == std::string::npos;
+            }
+            expect(allGeneric,
+                   "six meaningful BackendCore request kinds retain the bounded redacted generic unknown-request shape in Frontend "
+                   "Protocol v1");
         }
 
         void verifyBurst() {
@@ -1058,6 +1350,8 @@ namespace {
                 unknownUpdate == receivedA.end() ? Json::object() : unknownUpdate->data.at("item").value("data", Json::object());
             expect(unknownData.is_object() && unknownData.value("codexType", "") == unknownItemType,
                    "the canonical frontend unknown item preserves its future discriminator");
+            expect(hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB),
+                   "all ten newly rich backend ThreadItem projections retain their metadata-only Frontend Protocol v1 payloads");
 
             const bool hasItemLifecycleExtension =
                 std::any_of(receivedA.begin(), receivedA.end(), [](const frontend::FrontendEvent& event) {
@@ -1097,7 +1391,94 @@ namespace {
                     };
                     expect(reflectsReplacement(snapshotA) && reflectsReplacement(snapshotB),
                            "capacity-driven eviction invalidates replay and synchronizes every v1 client to canonical retained state");
-                    verifyPendingInvalidation();
+                    verifyPendingCompatibility();
+                });
+        }
+
+        void verifyPendingCompatibility() {
+            pendingBaselineA = events(observerA).size();
+            pendingBaselineB = events(observerB).size();
+
+            transport->inject({{"method", "applyPatchApproval"},
+                               {"id", "v1-apply-request"},
+                               {"params",
+                                {{"callId", "v1-apply-call"},
+                                 {"conversationId", "v1-apply-thread"},
+                                 {"fileChanges", Json::object()},
+                                 {"grantRoot", nullptr},
+                                 {"reason", "v1 apply reason"}}}});
+            transport->inject({{"method", "execCommandApproval"},
+                               {"id", "v1-exec-request"},
+                               {"params",
+                                {{"approvalId", nullptr},
+                                 {"callId", "v1-exec-call"},
+                                 {"command", Json::array({"echo", "v1"})},
+                                 {"conversationId", "v1-exec-thread"},
+                                 {"cwd", "/synthetic/v1"},
+                                 {"parsedCmd", Json::array({{{"type", "unknown"}, {"cmd", "echo"}}})},
+                                 {"reason", nullptr}}}});
+            transport->inject({{"method", "item/permissions/requestApproval"},
+                               {"id", resolvedProviderRequestId},
+                               {"params",
+                                {{"cwd", "/synthetic/v1"},
+                                 {"environmentId", nullptr},
+                                 {"itemId", "v1-permissions-item"},
+                                 {"permissions", {{"fileSystem", nullptr}, {"network", {{"enabled", false}}}}},
+                                 {"reason", "v1 permissions reason"},
+                                 {"startedAtMs", 1},
+                                 {"threadId", resolvedThreadId},
+                                 {"turnId", "v1-permissions-turn"}}}});
+            transport->inject({{"method", "attestation/generate"}, {"id", "v1-attestation-request"}, {"params", Json::object()}});
+            transport->inject({{"method", "item/tool/call"},
+                               {"id", "v1-dynamic-tool-request"},
+                               {"params",
+                                {{"arguments", {{"safe", true}}},
+                                 {"callId", "v1-dynamic-call"},
+                                 {"namespace", nullptr},
+                                 {"threadId", "v1-dynamic-thread"},
+                                 {"tool", "v1_tool"},
+                                 {"turnId", "v1-dynamic-turn"}}}});
+            transport->inject({{"method", "mcpServer/elicitation/request"},
+                               {"id", "v1-mcp-request"},
+                               {"params",
+                                {{"_meta", Json::object()},
+                                 {"message", "Synthetic v1 elicitation"},
+                                 {"mode", "form"},
+                                 {"requestedSchema", {{"properties", Json::object()}, {"required", Json::array()}, {"type", "object"}}},
+                                 {"serverName", "v1-mcp"},
+                                 {"threadId", "v1-mcp-thread"},
+                                 {"turnId", nullptr}}}});
+
+            waitUntil(
+                "all six dedicated backend request kinds reach the v1 generic pending contract",
+                [this]() {
+                    return backendCore->snapshot().pendingRequests.size() == 6 &&
+                           eventCountAfter(observerA, pendingBaselineA, "request.pending") == 6 &&
+                           eventCountAfter(observerB, pendingBaselineB, "request.pending") == 6;
+                },
+                [this]() {
+                    verifyGenericPendingProjection(observerA, pendingBaselineA);
+                    verifyGenericPendingProjection(observerB, pendingBaselineB);
+
+                    resolvedBaselineA = events(observerA).size();
+                    resolvedBaselineB = events(observerB).size();
+                    transport->inject({{"method", "serverRequest/resolved"},
+                                       {"params", {{"requestId", resolvedProviderRequestId}, {"threadId", resolvedThreadId}}}});
+                    waitUntil(
+                        "matching serverRequest/resolved produces one v1 resolution without a duplicate extension",
+                        [this]() {
+                            return backendCore->snapshot().pendingRequests.size() == 5 &&
+                                   eventCountAfter(observerA, resolvedBaselineA, "request.resolved") == 1 &&
+                                   eventCountAfter(observerB, resolvedBaselineB, "request.resolved") == 1;
+                        },
+                        [this]() {
+                            expect(eventCountAfter(observerA, resolvedBaselineA, "request.resolved") == 1 &&
+                                       eventCountAfter(observerB, resolvedBaselineB, "request.resolved") == 1 &&
+                                       resolvedExtensionCountAfter(observerA, resolvedBaselineA) == 0 &&
+                                       resolvedExtensionCountAfter(observerB, resolvedBaselineB) == 0,
+                                   "one provider resolution becomes exactly one existing v1 request.resolved event per connection");
+                            verifyPendingInvalidation();
+                        });
                 });
         }
 
@@ -1106,36 +1487,26 @@ namespace {
             pendingBaselineB = events(observerB).size();
             transport->inject({{"method", "future/pending-invalidation"}, {"id", "pending-invalidation"}, {"params", Json::object()}});
             waitUntil(
-                "pending request reaches both frontend protocol sessions",
+                "unknown pending request reaches both frontend protocol sessions",
                 [this]() {
-                    return backendCore->snapshot().pendingRequests.size() == 1 &&
-                           hasEventAfter(observerA, pendingBaselineA, "request.pending") &&
-                           hasEventAfter(observerB, pendingBaselineB, "request.pending");
+                    return backendCore->snapshot().pendingRequests.size() == 6 &&
+                           eventCountAfter(observerA, pendingBaselineA, "request.pending") == 1 &&
+                           eventCountAfter(observerB, pendingBaselineB, "request.pending") == 1;
                 },
                 [this]() {
                     transport->callbacks.onError(Error{Error::Category::Transport, 101, "synthetic pending invalidation"});
                     waitUntil(
-                        "provider invalidation resolves the pending request for both frontend sessions",
+                        "provider invalidation resolves every retained request for both frontend sessions",
                         [this]() {
                             const backend::Snapshot snapshot = backendCore->snapshot();
                             return snapshot.provider.lifecycle == backend::ProviderLifecycle::Failed && snapshot.pendingRequests.empty() &&
-                                   hasEventAfter(observerA, pendingBaselineA, "request.resolved") &&
-                                   hasEventAfter(observerB, pendingBaselineB, "request.resolved");
+                                   eventCountAfter(observerA, pendingBaselineA, "request.resolved") == 6 &&
+                                   eventCountAfter(observerB, pendingBaselineB, "request.resolved") == 6;
                         },
                         [this]() {
-                            const auto ordered = [this](const Observations& observations, std::size_t baseline) {
-                                const std::vector<frontend::FrontendEvent> received = events(observations);
-                                const auto begin = received.begin() + static_cast<std::ptrdiff_t>(baseline);
-                                const auto pending = std::find_if(begin, received.end(), [](const auto& event) {
-                                    return event.type == "request.pending";
-                                });
-                                const auto resolved = std::find_if(begin, received.end(), [](const auto& event) {
-                                    return event.type == "request.resolved";
-                                });
-                                return pending != received.end() && resolved != received.end() && pending < resolved;
-                            };
-                            expect(ordered(observerA, pendingBaselineA) && ordered(observerB, pendingBaselineB),
-                                   "Frontend Protocol v1 preserves request.pending then request.resolved across provider invalidation");
+                            expect(eventCountAfter(observerA, pendingBaselineA, "request.resolved") == 6 &&
+                                       eventCountAfter(observerB, pendingBaselineB, "request.resolved") == 6,
+                                   "Frontend Protocol v1 retains one request.resolved event per invalidated pending occurrence");
                             adapter->close("burst test complete");
                             backendCore->stop();
                             waitUntil(
@@ -1193,6 +1564,7 @@ namespace {
         const std::string unknownItemType = "futureAdapterItem";
         static constexpr std::int64_t unknownItemStartedAtMs = 50;
         static constexpr std::int64_t unknownItemCompletedAtMs = 60;
+        const std::vector<LegacyMetadataItemFixture> legacyMetadataItems = legacyMetadataItemFixtures();
 
         tests::support::TestResult& result;
         std::shared_ptr<tests::codex::FakeTransportState> transport;
@@ -1213,7 +1585,23 @@ namespace {
         std::size_t baselineEventsB = 0;
         std::size_t pendingBaselineA = 0;
         std::size_t pendingBaselineB = 0;
+        std::size_t resolvedBaselineA = 0;
+        std::size_t resolvedBaselineB = 0;
+        static constexpr const char* wrapperAcquireRequestId = "wrapper-acquire";
+        static constexpr const char* wrapperThreadStartRequestId = "wrapper-thread-start";
+        static constexpr const char* wrapperThreadResumeRequestId = "wrapper-thread-resume";
+        static constexpr const char* wrapperThreadListRequestId = "wrapper-thread-list";
+        static constexpr const char* wrapperThreadReadRequestId = "wrapper-thread-read";
+        static constexpr const char* wrapperTurnStartRequestId = "wrapper-turn-start";
+        static constexpr const char* wrapperTurnInterruptRequestId = "wrapper-turn-interrupt";
+        static constexpr const char* wrapperCursor = "wrapper-page";
+        static constexpr const char* wrapperThreadId = "wrapper-thread";
+        static constexpr const char* wrapperReadThreadId = "wrapper-read-thread";
+        static constexpr const char* wrapperTurnId = "wrapper-turn";
+        static constexpr const char* resolvedProviderRequestId = "v1-permissions-request";
+        static constexpr const char* resolvedThreadId = "v1-permissions-thread";
         bool finished = false;
+        std::string waitingDescription = "not started";
     };
 
 } // namespace
@@ -1240,7 +1628,9 @@ int main(int argc, char* argv[]) {
             utils::Timeval({10, 0}));
         runner.start();
         const int eventLoopResult = core::SNodeC::start(utils::Timeval({12, 0}));
-        result.expectTrue(!timedOut, "frontend 1,000-delta scenario completes before the watchdog");
+        result.expectTrue(!timedOut,
+                          "frontend 1,000-delta scenario completes before the watchdog (last stage: " + runner.waitingStage() + "; " +
+                              runner.terminalProgress() + ")");
         result.expectTrue(runner.isFinished(), "frontend 1,000-delta scenario reaches a clean terminal state");
         result.expectEqual(0, eventLoopResult, "frontend adapter event loop exits cleanly");
 

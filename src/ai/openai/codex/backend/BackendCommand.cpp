@@ -7,9 +7,14 @@
 
 #include "ai/openai/codex/backend/BackendCommand.h"
 
+#include "ai/openai/codex/detail/ClientOperationCodec.h"
+
+#include <type_traits>
 #include <utility>
 
 namespace ai::openai::codex::backend {
+
+    static_assert(std::is_same_v<ProviderOperationValue, ai::openai::codex::detail::ClientOperationDecodedValue>);
 
     CommandResult CommandResult::succeeded(CommandValue value) {
         CommandResult result;

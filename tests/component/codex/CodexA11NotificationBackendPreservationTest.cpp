@@ -10,6 +10,7 @@
 #include "ai/openai/codex/typed/Events.h"
 #include "support/TestResult.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -43,6 +44,31 @@ namespace {
         snapshot.recentExtensions.clear();
         snapshot.omittedRecentExtensions = 0;
         return snapshot;
+    }
+
+    const backend::ProviderNotificationSnapshot* canonicalNotification(const backend::Snapshot& snapshot, const std::string& method) {
+        const std::array<const backend::ProviderDomainSnapshot*, 10> domains{{&snapshot.accounts,
+                                                                              &snapshot.models,
+                                                                              &snapshot.configuration,
+                                                                              &snapshot.conversations,
+                                                                              &snapshot.filesystem,
+                                                                              &snapshot.reviews,
+                                                                              &snapshot.integrations,
+                                                                              &snapshot.pluginsAndSkills,
+                                                                              &snapshot.mcp,
+                                                                              &snapshot.platform}};
+        const backend::ProviderNotificationSnapshot* match = nullptr;
+        for (const backend::ProviderDomainSnapshot* domain : domains) {
+            for (const backend::ProviderNotificationSnapshot& notification : domain->latestNotifications) {
+                if (notification.method == method) {
+                    if (match) {
+                        return nullptr;
+                    }
+                    match = &notification;
+                }
+            }
+        }
+        return match;
     }
 
     template <typename Notification>
@@ -94,9 +120,13 @@ namespace {
                           method + " remains observable in the bounded recent-extension state with raw and diagnostic data");
 
         const backend::Snapshot after = backend::makeSnapshot(state);
-        result.expectTrue(withoutExtensions(after) == before,
-                          method + " adds no canonical BackendState or snapshot semantics outside the existing extension path");
-        return translatedExactly && retainedExactly;
+        const backend::ProviderNotificationSnapshot* canonical = canonicalNotification(after, method);
+        const bool canonicalStateRetained = extension && canonical && extension->typedEvent &&
+                                            canonical->eventAlternative == extension->typedEvent->index() &&
+                                            canonical->stamp.freshness == backend::Freshness::Current && withoutExtensions(after) != before;
+        result.expectTrue(canonicalStateRetained,
+                          method + " updates its canonical typed notification state in addition to the preserved extension contract");
+        return translatedExactly && retainedExactly && canonicalStateRetained;
     }
 
     void testAllNewNotificationsRemainObservable(tests::support::TestResult& result) {
@@ -135,7 +165,7 @@ namespace {
 #undef CODEX_EXPECT_PRESERVED_NOTIFICATION
 
         result.expectTrue(sequence == 25 && exact == 25,
-                          "all 25 newly typed A1.1 notifications remain observable through the exact preservation path");
+                          "all 25 newly typed A1.1 notifications remain observable while gaining A1.6b canonical state");
     }
 
     void applyTranslated(backend::Reducer& reducer, backend::BackendState& state, typed::Event event) {
@@ -211,7 +241,8 @@ namespace {
             snapshot.recentExtensions.size() == 1 ? &snapshot.recentExtensions.front() : nullptr;
         const std::string encodedSafe = frontendSafe ? frontendSafe->payload.dump() : std::string{};
 
-        result.expectTrue(canonical && canonical->payload == raw.at("params") && canonical->payload.dump().find(accessToken) != std::string::npos,
+        result.expectTrue(canonical && canonical->payload == raw.at("params") &&
+                              canonical->payload.dump().find(accessToken) != std::string::npos,
                           "canonical bounded preservation retains the complete typed realtime params before frontend redaction");
         result.expectTrue(frontendSafe && frontendSafe->method == "thread/realtime/transcript/done" &&
                               frontendSafe->sensitiveFieldsRedacted && frontendSafe->payload.at("safe") == "visible" &&
