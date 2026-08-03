@@ -1,27 +1,79 @@
 #!/usr/bin/env python3
-"""Guard the pre-A1 Frontend Protocol v1 schema bytes."""
+"""Guard the legacy v1 schema bytes inside the additive A1.7 contract."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 from pathlib import Path
 
 
-PHASE_A0_SHA256 = "a27721164607b79a8b268c3adb035211a6efa82cb4645632b9b9a59302734c04"
+LEGACY_V1_SHA256 = "a27721164607b79a8b268c3adb035211a6efa82cb4645632b9b9a59302734c04"
+LEGACY_METHODS = (
+    "controller.acquire",
+    "controller.release",
+    "snapshot.get",
+    "events.replay",
+    "thread.start",
+    "thread.resume",
+    "thread.list",
+    "thread.read",
+    "turn.start",
+    "turn.interrupt",
+    "request.approval.respond",
+    "request.userInput.respond",
+    "request.authentication.respond",
+    "request.unknown.respond",
+    "request.unknown.reject",
+)
+
+
+def command_branches(schema: dict) -> list[dict]:
+    return schema["$defs"]["Command"]["allOf"][1]["oneOf"]
+
+
+def command_methods(schema: dict) -> tuple[str, ...]:
+    return tuple(
+        branch["properties"]["method"]["const"] for branch in command_branches(schema)
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--schema", type=Path, required=True)
+    parser.add_argument("--schema-template", type=Path)
     arguments = parser.parse_args()
 
-    digest = hashlib.sha256(arguments.schema.read_bytes()).hexdigest()
-    if digest != PHASE_A0_SHA256:
-        raise SystemExit(
-            "Frontend Protocol v1 schema bytes changed during A1.0: "
-            f"expected {PHASE_A0_SHA256}, got {digest}"
+    schema_template = arguments.schema_template
+    if schema_template is None:
+        repository = Path(__file__).resolve().parents[3]
+        schema_template = (
+            repository / "tools/frontend/frontend-protocol-v1.schema.template.json"
         )
+
+    template_bytes = schema_template.read_bytes()
+    digest = hashlib.sha256(template_bytes).hexdigest()
+    if digest != LEGACY_V1_SHA256:
+        raise SystemExit(
+            "legacy Frontend Protocol v1 schema template bytes changed: "
+            f"expected {LEGACY_V1_SHA256}, got {digest}"
+        )
+
+    template = json.loads(template_bytes)
+    generated = json.loads(arguments.schema.read_text(encoding="utf-8"))
+    if command_methods(template) != LEGACY_METHODS:
+        raise SystemExit("legacy Frontend Protocol v1 method contract changed")
+
+    generated_methods = command_methods(generated)
+    if len(generated_methods) != 105 or len(set(generated_methods)) != 105:
+        raise SystemExit("generated Frontend Protocol v1 schema is not 105 methods")
+    if generated_methods[: len(LEGACY_METHODS)] != LEGACY_METHODS:
+        raise SystemExit("generated schema changed the original 15 method order")
+    if command_branches(generated)[: len(LEGACY_METHODS)] != command_branches(
+        template
+    ):
+        raise SystemExit("generated schema changed an original method schema")
     return 0
 
 

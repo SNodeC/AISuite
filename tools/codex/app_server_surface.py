@@ -10795,11 +10795,49 @@ def registry_by_key(entries: Sequence[dict[str, Any]]) -> dict[tuple[str, str, s
 
 
 def frontend_registry_source(
-    manifest: dict[str, Any], registry_entries: Sequence[dict[str, Any]]
+    manifest: dict[str, Any],
+    registry_entries: Sequence[dict[str, Any]],
+    evidence: dict[str, Any] | None = None,
+    schema_root: Path = DEFAULT_PINNED_SCHEMA_ROOT,
 ) -> dict[str, Any]:
     """Build the committed downstream input without reparsing upstream sources."""
 
     registry = registry_by_key(registry_entries)
+    evidence = evidence if evidence is not None else load_a1_registry_evidence()
+    operation_contracts: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    for contract in evidence["operation_contracts"]["contracts"]:
+        source_key = contract["surface_key"]
+        key = (
+            source_key["category"],
+            source_key["domain"],
+            source_key["field"],
+            source_key["name"],
+        )
+        if key in operation_contracts:
+            raise SurfaceError(f"FrontendRegistryExportDuplicateOperationContract: {key}")
+        operation_contracts[key] = contract
+
+    def contract_schema(contract: dict[str, Any] | None, field: str) -> Any:
+        if contract is None or contract.get(field) is None:
+            return None
+        relative = Path(contract[field])
+        if relative.is_absolute() or ".." in relative.parts:
+            raise SurfaceError(
+                f"FrontendRegistryExportInvalidSchemaPath: {contract[field]}"
+            )
+        path = schema_root / relative
+        try:
+            schema = load_json(path)
+        except OSError as error:
+            raise SurfaceError(
+                f"unable to read frontend operation contract schema {path}: {error}"
+            ) from error
+        if not isinstance(schema, dict):
+            raise SurfaceError(
+                f"frontend operation contract schema is not an object: {path}"
+            )
+        return schema
+
     ledger = frontend_contract_review_ledger(manifest)
     rows: list[dict[str, Any]] = []
     for entry in ledger["reviewed"]:
@@ -10819,6 +10857,7 @@ def frontend_registry_source(
                 f"FrontendRegistryExportDecisionMismatch: {key} disagrees with production registry"
             )
         prior_exposure, prior_security = legacy_frontend_contract_decision(entry)
+        operation_contract = operation_contracts.get(key)
         if entry["stability"] == "experimental_only":
             rationale = "Experimental inventory is not exposed by frontend security policy."
         elif entry["category"] == "item_discriminator" and entry["domain"] == "ResponseItem":
@@ -10847,6 +10886,18 @@ def frontend_registry_source(
                     "resultKind": local["result_contract_kind"],
                     "evidenceKind": local["association_evidence_kind"],
                     "evidenceKey": local["association_evidence_key"],
+                    "parameterJsonSchema": contract_schema(
+                        operation_contract, "parameter_schema"
+                    ),
+                    "resultJsonSchema": contract_schema(
+                        operation_contract, "result_schema"
+                    ),
+                },
+                "parameterShape": {
+                    "type": entry["params"]["type"] if entry.get("params") else "Unit",
+                    "requiredFields": list(entry["params"].get("required_fields", ())) if entry.get("params") else [],
+                    "fields": list(entry["params"].get("fields", ())) if entry.get("params") else [],
+                    "propertyPaths": list(entry["params"].get("property_paths", ())) if entry.get("params") else [],
                 },
                 "priorCompatibilityExposure": prior_exposure,
                 "priorCompatibilitySecurity": prior_security,
@@ -11509,7 +11560,10 @@ def command_registry(arguments: argparse.Namespace) -> None:
 def command_frontend_registry(arguments: argparse.Namespace) -> None:
     manifest = load_json(arguments.manifest)
     registry_entries = parse_registry_data(arguments.registry)
-    generated = frontend_registry_source(manifest, registry_entries)
+    evidence = load_a1_registry_evidence(arguments.evidence_root)
+    generated = frontend_registry_source(
+        manifest, registry_entries, evidence, arguments.schema_root
+    )
     if arguments.check:
         committed = load_json(arguments.output)
         if committed != generated:
@@ -11890,6 +11944,12 @@ def parser() -> argparse.ArgumentParser:
     )
     frontend_registry.add_argument("--manifest", type=Path, required=True)
     frontend_registry.add_argument("--registry", type=Path, required=True)
+    frontend_registry.add_argument(
+        "--evidence-root", type=Path, default=DEFAULT_A1_EVIDENCE_ROOT
+    )
+    frontend_registry.add_argument(
+        "--schema-root", type=Path, default=DEFAULT_PINNED_SCHEMA_ROOT
+    )
     frontend_registry.add_argument("--output", type=Path, required=True)
     frontend_registry.add_argument("--check", action="store_true")
     frontend_registry.set_defaults(function=command_frontend_registry)
