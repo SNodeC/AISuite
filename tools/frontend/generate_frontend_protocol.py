@@ -11,14 +11,94 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
 
 class GenerationError(RuntimeError):
     pass
+
+
+RUNTIME_ASSERTION_KEYWORDS = frozenset(
+    {
+        "$ref",
+        "allOf",
+        "anyOf",
+        "oneOf",
+        "not",
+        "if",
+        "then",
+        "else",
+        "type",
+        "const",
+        "enum",
+        "properties",
+        "propertyNames",
+        "additionalProperties",
+        "required",
+        "minProperties",
+        "maxProperties",
+        "items",
+        "minItems",
+        "maxItems",
+        "uniqueItems",
+        "minLength",
+        "maxLength",
+        "pattern",
+        "minimum",
+        "maximum",
+        "format",
+        "x-aisuite-sensitiveFieldNamesForbidden",
+        "x-aisuite-forbiddenNormalizedPropertyNames",
+    }
+)
+
+STRUCTURAL_SCHEMA_KEYWORDS = frozenset({"$defs"})
+
+# The audit reports only the members of this reviewed annotation vocabulary
+# that are actually reachable in the generated runtime profile.
+STANDARD_ANNOTATION_KEYWORDS = frozenset(
+    {
+        "$schema",
+        "$id",
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "$comment",
+    }
+)
+CUSTOM_ANNOTATION_KEYWORDS = frozenset(
+    {
+        "x-aisuite-frontend-contract",
+        "x-aisuite-redactionClass",
+    }
+)
+SUPPORTED_NUMERIC_FORMATS = frozenset(
+    {"int32", "int64", "uint16", "uint32", "uint", "uint64"}
+)
+SCHEMA_TYPES = frozenset(
+    {"null", "boolean", "object", "array", "number", "integer", "string"}
+)
+
+
+@dataclass(frozen=True)
+class RuntimeSchemaAudit:
+    assertion_keywords: tuple[str, ...]
+    structural_keywords: tuple[str, ...]
+    annotation_keywords: tuple[str, ...]
+    numeric_formats: tuple[str, ...]
+    patterns: tuple[str, ...]
+    unique_item_schema_count: int
+    maximum_unique_item_cardinality: int
+    maximum_unique_item_comparisons: int
 
 
 CAPABILITIES = (
@@ -769,6 +849,379 @@ def bound_and_redact_result_schema(schema: Any, definition_name: str) -> dict[st
         SENSITIVE_RESULT_FIELD_NAMES
     )
     return bounded
+
+
+def _schema_pointer_token(token: str, reference: str) -> str:
+    decoded: list[str] = []
+    index = 0
+    while index < len(token):
+        character = token[index]
+        if character != "~":
+            decoded.append(character)
+            index += 1
+            continue
+        if index + 1 >= len(token) or token[index + 1] not in {"0", "1"}:
+            raise GenerationError(
+                f"runtime schema contains a malformed local reference {reference!r}"
+            )
+        decoded.append("~" if token[index + 1] == "0" else "/")
+        index += 2
+    return "".join(decoded)
+
+
+def _resolve_runtime_schema_reference(root: dict[str, Any], reference: str) -> Any:
+    if reference == "#":
+        return root
+    if not reference.startswith("#/"):
+        raise GenerationError(
+            f"runtime schema contains a non-local reference {reference!r}"
+        )
+    value: Any = root
+    for encoded in reference[2:].split("/"):
+        token = _schema_pointer_token(encoded, reference)
+        if isinstance(value, dict) and token in value:
+            value = value[token]
+        elif (
+            isinstance(value, list)
+            and token.isdigit()
+            and (token == "0" or not token.startswith("0"))
+            and int(token) < len(value)
+        ):
+            value = value[int(token)]
+        elif isinstance(value, list) and token.isdigit() and token.startswith("0"):
+            raise GenerationError(
+                f"runtime schema contains a malformed local reference {reference!r}"
+            )
+        else:
+            raise GenerationError(
+                f"runtime schema contains an unresolved local reference {reference!r}"
+            )
+    return value
+
+
+def _is_schema(value: Any) -> bool:
+    return isinstance(value, (bool, dict))
+
+
+def _non_negative_schema_size(value: Any, keyword: str, path: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise GenerationError(
+            f"runtime schema {path}/{keyword} must be a non-negative integer"
+        )
+    return value
+
+
+def _finite_enum_cardinality(
+    root: dict[str, Any], schema: Any, active_references: frozenset[str] = frozenset()
+) -> int | None:
+    if not isinstance(schema, dict):
+        return None
+    enumeration = schema.get("enum")
+    if isinstance(enumeration, list):
+        return len(enumeration)
+    reference = schema.get("$ref")
+    if not isinstance(reference, str) or reference in active_references:
+        return None
+    return _finite_enum_cardinality(
+        root,
+        _resolve_runtime_schema_reference(root, reference),
+        active_references | {reference},
+    )
+
+
+def audit_runtime_schema_profile(
+    schema: dict[str, Any], manifest: dict[str, Any]
+) -> RuntimeSchemaAudit:
+    """Audit the exact schema profile reachable by the production codec.
+
+    The published document root covers all message envelopes.  Method results
+    are also direct runtime validation roots even though response correlation
+    keeps their individual definitions out of the document-level ``oneOf``.
+    """
+
+    if not isinstance(schema, dict):
+        raise GenerationError("generated runtime schema root is not an object")
+    methods = manifest.get("methods")
+    if not isinstance(methods, list):
+        raise GenerationError("runtime schema audit requires the method manifest")
+
+    assertion_keywords: set[str] = set()
+    structural_keywords: set[str] = set()
+    annotation_keywords: set[str] = set()
+    numeric_formats: set[str] = set()
+    patterns: set[str] = set()
+    unique_item_bounds: list[int] = []
+    visited_nodes: set[int] = set()
+    known_keywords = (
+        RUNTIME_ASSERTION_KEYWORDS
+        | STRUCTURAL_SCHEMA_KEYWORDS
+        | STANDARD_ANNOTATION_KEYWORDS
+        | CUSTOM_ANNOTATION_KEYWORDS
+    )
+
+    def require_schema(value: Any, path: str) -> None:
+        if not _is_schema(value):
+            raise GenerationError(
+                f"runtime schema {path} must be an object or boolean schema"
+            )
+
+    def validate_string_array(value: Any, keyword: str, path: str) -> None:
+        if (
+            not isinstance(value, list)
+            or any(not isinstance(element, str) for element in value)
+            or len(set(value)) != len(value)
+        ):
+            raise GenerationError(
+                f"runtime schema {path}/{keyword} must be an array of unique strings"
+            )
+
+    def visit(node: Any, path: str) -> None:
+        require_schema(node, path)
+        if isinstance(node, bool) or id(node) in visited_nodes:
+            return
+        visited_nodes.add(id(node))
+
+        for keyword in node:
+            if keyword not in known_keywords:
+                if keyword.startswith("x-aisuite-"):
+                    raise GenerationError(
+                        f"runtime schema {path} contains an unreviewed custom AISuite keyword {keyword!r}"
+                    )
+                raise GenerationError(
+                    f"runtime schema {path} contains unsupported assertion keyword {keyword!r}"
+                )
+            if keyword in RUNTIME_ASSERTION_KEYWORDS:
+                assertion_keywords.add(keyword)
+            elif keyword in STRUCTURAL_SCHEMA_KEYWORDS:
+                structural_keywords.add(keyword)
+            else:
+                annotation_keywords.add(keyword)
+
+        definitions = node.get("$defs")
+        if "$defs" in node:
+            if not isinstance(definitions, dict):
+                raise GenerationError(f"runtime schema {path}/$defs must be an object")
+            for name, definition in definitions.items():
+                require_schema(definition, f"{path}/$defs/{name}")
+
+        reference = node.get("$ref")
+        if "$ref" in node:
+            if not isinstance(reference, str):
+                raise GenerationError(f"runtime schema {path}/$ref must be a string")
+            visit(_resolve_runtime_schema_reference(schema, reference), reference)
+
+        for keyword in ("allOf", "anyOf", "oneOf"):
+            alternatives = node.get(keyword)
+            if keyword not in node:
+                continue
+            if not isinstance(alternatives, list) or not alternatives:
+                raise GenerationError(
+                    f"runtime schema {path}/{keyword} must be a non-empty array of schemas"
+                )
+            for index, alternative in enumerate(alternatives):
+                visit(alternative, f"{path}/{keyword}/{index}")
+
+        for keyword in ("not", "if", "then", "else", "propertyNames", "items"):
+            child = node.get(keyword)
+            if keyword in node:
+                visit(child, f"{path}/{keyword}")
+        if ("then" in node or "else" in node) and "if" not in node:
+            raise GenerationError(
+                f"runtime schema {path} contains then/else without if"
+            )
+
+        properties = node.get("properties")
+        if "properties" in node:
+            if not isinstance(properties, dict):
+                raise GenerationError(
+                    f"runtime schema {path}/properties must be an object"
+                )
+            for name, child in properties.items():
+                visit(child, f"{path}/properties/{name}")
+
+        additional = node.get("additionalProperties")
+        if "additionalProperties" in node:
+            require_schema(additional, f"{path}/additionalProperties")
+            if isinstance(additional, dict):
+                visit(additional, f"{path}/additionalProperties")
+
+        schema_type = node.get("type")
+        if "type" in node:
+            if isinstance(schema_type, str):
+                valid_type = schema_type in SCHEMA_TYPES
+            else:
+                valid_type = (
+                    isinstance(schema_type, list)
+                    and bool(schema_type)
+                    and all(
+                        isinstance(value, str) and value in SCHEMA_TYPES
+                        for value in schema_type
+                    )
+                    and len(set(schema_type)) == len(schema_type)
+                )
+            if not valid_type:
+                raise GenerationError(
+                    f"runtime schema {path}/type has an invalid schema type"
+                )
+
+        enumeration = node.get("enum")
+        if "enum" in node:
+            if not isinstance(enumeration, list) or not enumeration:
+                raise GenerationError(
+                    f"runtime schema {path}/enum must be a non-empty array"
+                )
+            encoded_values = [
+                json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                for value in enumeration
+            ]
+            if len(set(encoded_values)) != len(encoded_values):
+                raise GenerationError(
+                    f"runtime schema {path}/enum contains duplicate values"
+                )
+
+        required = node.get("required")
+        if "required" in node:
+            validate_string_array(required, "required", path)
+
+        sizes: dict[str, int] = {}
+        for keyword in (
+            "minProperties",
+            "maxProperties",
+            "minItems",
+            "maxItems",
+            "minLength",
+            "maxLength",
+        ):
+            if keyword in node:
+                sizes[keyword] = _non_negative_schema_size(
+                    node[keyword], keyword, path
+                )
+        for minimum, maximum in (
+            ("minProperties", "maxProperties"),
+            ("minItems", "maxItems"),
+            ("minLength", "maxLength"),
+        ):
+            if minimum in sizes and maximum in sizes and sizes[minimum] > sizes[maximum]:
+                raise GenerationError(
+                    f"runtime schema {path} has {minimum} greater than {maximum}"
+                )
+
+        unique_items = node.get("uniqueItems")
+        if "uniqueItems" in node and not isinstance(unique_items, bool):
+            raise GenerationError(
+                f"runtime schema {path}/uniqueItems must be a boolean"
+            )
+        if unique_items is True:
+            possible_bounds = []
+            if "maxItems" in sizes:
+                possible_bounds.append(sizes["maxItems"])
+            item_cardinality = _finite_enum_cardinality(schema, node.get("items"))
+            if item_cardinality is not None:
+                possible_bounds.append(item_cardinality)
+            if not possible_bounds:
+                raise GenerationError(
+                    f"runtime schema {path} has unbounded uniqueItems cardinality"
+                )
+            unique_item_bounds.append(min(possible_bounds))
+
+        pattern = node.get("pattern")
+        if "pattern" in node:
+            if not isinstance(pattern, str):
+                raise GenerationError(f"runtime schema {path}/pattern must be a string")
+            try:
+                re.compile(pattern)
+            except re.error as error:
+                raise GenerationError(
+                    f"runtime schema {path}/pattern is malformed: {error}"
+                ) from error
+            patterns.add(pattern)
+
+        for keyword in ("minimum", "maximum"):
+            numeric_bound = node.get(keyword)
+            if keyword in node and (
+                isinstance(numeric_bound, bool)
+                or not isinstance(numeric_bound, (int, float))
+                or (isinstance(numeric_bound, float) and not math.isfinite(numeric_bound))
+            ):
+                raise GenerationError(
+                    f"runtime schema {path}/{keyword} must be a finite number"
+                )
+        if (
+            "minimum" in node
+            and "maximum" in node
+            and node["minimum"] > node["maximum"]
+        ):
+            raise GenerationError(
+                f"runtime schema {path} has minimum greater than maximum"
+            )
+
+        numeric_format = node.get("format")
+        if "format" in node:
+            if not isinstance(numeric_format, str):
+                raise GenerationError(f"runtime schema {path}/format must be a string")
+            if numeric_format not in SUPPORTED_NUMERIC_FORMATS:
+                raise GenerationError(
+                    f"runtime schema {path} uses unsupported numeric format {numeric_format!r}"
+                )
+            numeric_formats.add(numeric_format)
+
+        for keyword in (
+            "x-aisuite-sensitiveFieldNamesForbidden",
+            "x-aisuite-forbiddenNormalizedPropertyNames",
+        ):
+            if keyword in node:
+                validate_string_array(node[keyword], keyword, path)
+
+        for keyword in ("$schema", "$id", "title", "description", "$comment"):
+            if keyword in node and not isinstance(node[keyword], str):
+                raise GenerationError(
+                    f"runtime schema annotation {path}/{keyword} must be a string"
+                )
+        if "examples" in node and not isinstance(node["examples"], list):
+            raise GenerationError(
+                f"runtime schema annotation {path}/examples must be an array"
+            )
+        for keyword in ("deprecated", "readOnly", "writeOnly"):
+            if keyword in node and not isinstance(node[keyword], bool):
+                raise GenerationError(
+                    f"runtime schema annotation {path}/{keyword} must be a boolean"
+                )
+        if "x-aisuite-redactionClass" in node and not isinstance(
+            node["x-aisuite-redactionClass"], str
+        ):
+            raise GenerationError(
+                f"runtime schema annotation {path}/x-aisuite-redactionClass must be a string"
+            )
+        if "x-aisuite-frontend-contract" in node and not isinstance(
+            node["x-aisuite-frontend-contract"], dict
+        ):
+            raise GenerationError(
+                f"runtime schema annotation {path}/x-aisuite-frontend-contract must be an object"
+            )
+
+    visit(schema, "#")
+    for method in methods:
+        for field in ("parameterSchema", "resultSchema"):
+            reference = method.get(field)
+            if not isinstance(reference, str):
+                raise GenerationError(
+                    f"runtime schema audit found an invalid method {field} reference"
+                )
+            visit(_resolve_runtime_schema_reference(schema, reference), reference)
+
+    maximum_cardinality = max(unique_item_bounds, default=0)
+    return RuntimeSchemaAudit(
+        assertion_keywords=tuple(sorted(assertion_keywords)),
+        structural_keywords=tuple(sorted(structural_keywords)),
+        annotation_keywords=tuple(sorted(annotation_keywords)),
+        numeric_formats=tuple(sorted(numeric_formats)),
+        patterns=tuple(sorted(patterns)),
+        unique_item_schema_count=len(unique_item_bounds),
+        maximum_unique_item_cardinality=maximum_cardinality,
+        maximum_unique_item_comparisons=(
+            maximum_cardinality * (maximum_cardinality - 1) // 2
+        ),
+    )
 
 
 def legacy_result_schema(method: str) -> dict[str, Any]:
@@ -1654,6 +2107,7 @@ def generate_schema(
         "notificationMappings": 68,
         "threadItemMappings": 18,
     }
+    audit_runtime_schema_profile(schema, manifest)
     return schema
 
 

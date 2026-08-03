@@ -90,15 +90,37 @@ requests, and all 18 `ThreadItem` alternatives. Its frozen canonical-state
 coverage is 169/169 applicable entries: 73 stateful operations plus the 68
 notifications, 18 items, and ten requests. Exactly 13 application operations
 remain reasoned action-only results, and the 16 `ResponseItem` alternatives
-remain reasoned `NoRuntimeBackendStatePath`. Frontend Protocol v1 is not
-expanded. See the
+remain reasoned `NoRuntimeBackendStatePath`.
+
+A1.7a now freezes an additive Frontend Protocol v1 contract without changing
+its identity or version. The generated catalog contains the original 15
+runtime methods plus 90 additive definitions, for 105 total: seven
+frontend-native methods and 98 mappings to BackendCore. The owner-reviewed
+denominator is fixed at 148 formerly unresolved decisions plus 86 existing
+notification/item compatibility contracts, or 234 total, with zero decisions
+left unresolved. Capability advertisement distinguishes a method being
+defined, implemented by the current runtime, and permitted for a connection;
+the current server still accepts exactly the original 15 methods. Filesystem
+and arbitrary command-execution methods remain conditional and disabled by
+default, and A1.7a does not implement authentication, scope enforcement, or a
+new transport. All 68 stable notifications and all 18 stable `ThreadItem`
+alternatives retain their existing normalized or bounded/redacted compatibility
+paths while expanded projections remain capability-gated.
+
+The installed frontend surface adds the generated contract and security
+headers, `GeneratedProtocol.h` and `Security.h`. Installed header inventory is
+therefore 29 main + 7 backend + 9 frontend = 45 total. Project version `0.1.0`
+and all three Codex libraries' SOVERSION 2 remain unchanged. See the
 [A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the
 [A1.6b backend completion](docs/ai/openai/codex/a1-6b-backend-completeness.md),
+the [A1.7a frontend contract](docs/ai/openai/codex/a1-7a-frontend-contract.md),
 the [Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
 for initialization and canonical error behavior, and the
 [Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
-for the exact source-compatibility boundary. A1.7 remains responsible for a
-multi-transport frontend service, and provider-neutral architecture remains A2.
+for the exact source-compatibility boundary. A1.7b owns runtime authentication,
+scope projection, provider lifecycle exposure, and multi-transport service
+activation; A1.7c owns the C++ client SDK and Qt UI; A1.7d owns the TypeScript
+client SDK and browser UI. Provider-neutral architecture remains A2.
 
 AISuite validates current build and runtime compatibility with the installed
 SNode.C package. CI builds the current SNode.C `master` branch once, installs

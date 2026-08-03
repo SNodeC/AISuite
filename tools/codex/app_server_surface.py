@@ -15,6 +15,7 @@ import importlib.util
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
@@ -11426,6 +11427,8 @@ def render_security_document(
     registry = registry_by_key(registry_entries)
     ledger = frontend_contract_review_ledger(manifest)
     reviewed = ledger["reviewed"]
+    exposure_counts = Counter(registry[surface_key(entry)]["frontend_exposure"] for entry in reviewed)
+    security_counts = Counter(registry[surface_key(entry)]["frontend_security"] for entry in reviewed)
     lines = [
         "# Codex App Server frontend security decisions",
         "",
@@ -11440,6 +11443,52 @@ def render_security_document(
         "**0**. The 16 `ResponseItem` rows are genuine `NotApplicable` decisions backed by",
         "the A1.6 `NoRuntimeBackendStatePath` disposition; they do not shrink the denominator.",
         "",
+        "Protocol methods: **105** (**15** existing + **90** additive; **7** frontend-native + **98** non-native).",
+        "The current A1.7a runtime advertises and executes only the existing **15** methods.",
+        "Default-disabled schema-defined methods: **15** (ten filesystem/search/watch methods and five command-execution methods).",
+        "Experimental requests not exposed: **36**. ResponseItem rows genuinely NotApplicable: **16**.",
+        "Stable notification mappings: **68**. Stable ThreadItem mappings: **18**.",
+        "Compatibility decomposition: **14** normalized notifications + **54** legacy-extension notifications +",
+        "**8** normalized ThreadItems + **10** legacy-metadata ThreadItems = **86** reviewed compatibility contracts.",
+        "",
+        "## Final exposure-category totals",
+        "",
+        "| Exposure | Count |",
+        "|---|---:|",
+        *[
+            f"| `{name}` | {exposure_counts[name]} |"
+            for name in (
+                "DedicatedFrontendMethod",
+                "ConditionallyExposedFrontendMethod",
+                "DedicatedPendingRequestContract",
+                "ExistingEventContractApproved",
+                "DedicatedEventWithLegacyExtensionCompatibility",
+                "DedicatedItemWithLegacyMetadataCompatibility",
+                "NotExposedBySecurityPolicy",
+                "NotApplicable",
+            )
+        ],
+        "",
+        "## Final security-decision totals",
+        "",
+        "| Security decision | Count |",
+        "|---|---:|",
+        *[
+            f"| `{name}` | {security_counts[name]} |"
+            for name in (
+                "ObserverReadApproved",
+                "ControllerRequiredApproved",
+                "PrivilegedScopedApproved",
+                "ConditionalExplicitEnablementApproved",
+                "ParameterSensitiveApproved",
+                "ScopeProjectedStateEventApproved",
+                "NotExposedApproved",
+                "NotApplicable",
+            )
+        ],
+        "",
+        "## Reviewed identity decisions",
+        "",
         "| Identity | Stability | Prior compatibility exposure | Final exposure | Final security decision | Mapping | Scopes | Controller | Default | Compatibility / rationale |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
@@ -11449,7 +11498,7 @@ def render_security_document(
         policy = frontend_contract_policy(entry)
         prior_exposure, _ = legacy_frontend_contract_decision(entry)
         if entry["category"] == "client_request":
-            mapping = "none" if entry["stability"] == "experimental_only" else entry["name"].replace("/", ".")
+            mapping = "none" if entry["stability"] == "experimental_only" else provider_frontend_method(entry["name"])
         elif entry["category"] == "server_request":
             mapping = "pendingRequests.updated" if entry["stability"] == "stable" else "none"
         elif entry["category"] == "server_notification":

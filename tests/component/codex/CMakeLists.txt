@@ -1476,6 +1476,26 @@ set_tests_properties(
                TIMEOUT 10
 )
 
+snodec_add_test(
+    CodexFrontendSchemaValidatorTest CodexFrontendSchemaValidatorTest.cpp
+)
+target_link_libraries(
+    CodexFrontendSchemaValidatorTest PRIVATE snodec-test-support
+                                             AISuite::OpenAICodexFrontend
+)
+target_compile_features(CodexFrontendSchemaValidatorTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexFrontendSchemaValidatorTest
+    PRIVATE
+        CODEX_FRONTEND_GOLDEN_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
+)
+set_tests_properties(
+    CodexFrontendSchemaValidatorTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;protocol;codec;schema;validator;a1-7a"
+               TIMEOUT 20
+)
+
 snodec_add_test(CodexFrontendAdapterTest CodexFrontendAdapterTest.cpp)
 target_link_libraries(
     CodexFrontendAdapterTest

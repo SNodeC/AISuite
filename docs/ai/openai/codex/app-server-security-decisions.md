@@ -11,6 +11,42 @@ compatibility-contract identities = 234 reviewed identities**. Final unresolved:
 **0**. The 16 `ResponseItem` rows are genuine `NotApplicable` decisions backed by
 the A1.6 `NoRuntimeBackendStatePath` disposition; they do not shrink the denominator.
 
+Protocol methods: **105** (**15** existing + **90** additive; **7** frontend-native + **98** non-native).
+The current A1.7a runtime advertises and executes only the existing **15** methods.
+Default-disabled schema-defined methods: **15** (ten filesystem/search/watch methods and five command-execution methods).
+Experimental requests not exposed: **36**. ResponseItem rows genuinely NotApplicable: **16**.
+Stable notification mappings: **68**. Stable ThreadItem mappings: **18**.
+Compatibility decomposition: **14** normalized notifications + **54** legacy-extension notifications +
+**8** normalized ThreadItems + **10** legacy-metadata ThreadItems = **86** reviewed compatibility contracts.
+
+## Final exposure-category totals
+
+| Exposure | Count |
+|---|---:|
+| `DedicatedFrontendMethod` | 71 |
+| `ConditionallyExposedFrontendMethod` | 15 |
+| `DedicatedPendingRequestContract` | 10 |
+| `ExistingEventContractApproved` | 22 |
+| `DedicatedEventWithLegacyExtensionCompatibility` | 54 |
+| `DedicatedItemWithLegacyMetadataCompatibility` | 10 |
+| `NotExposedBySecurityPolicy` | 36 |
+| `NotApplicable` | 16 |
+
+## Final security-decision totals
+
+| Security decision | Count |
+|---|---:|
+| `ObserverReadApproved` | 26 |
+| `ControllerRequiredApproved` | 22 |
+| `PrivilegedScopedApproved` | 22 |
+| `ConditionalExplicitEnablementApproved` | 15 |
+| `ParameterSensitiveApproved` | 1 |
+| `ScopeProjectedStateEventApproved` | 96 |
+| `NotExposedApproved` | 36 |
+| `NotApplicable` | 16 |
+
+## Reviewed identity decisions
+
 | Identity | Stability | Prior compatibility exposure | Final exposure | Final security decision | Mapping | Scopes | Controller | Default | Compatibility / rationale |
 |---|---|---|---|---|---|---|---|---|---|
 | `client_request:ClientRequest:account/login/cancel` | stable | NotExposed | DedicatedFrontendMethod | PrivilegedScopedApproved | account.login.cancel | control, account_management | required | enabled | Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy. |
@@ -106,7 +142,7 @@ the A1.6 `NoRuntimeBackendStatePath` disposition; they do not shrink the denomin
 | `client_request:ClientRequest:thread/goal/get` | stable | NotExposed | DedicatedFrontendMethod | ObserverReadApproved | thread.goal.get | observe | not required | enabled | Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy. |
 | `client_request:ClientRequest:thread/goal/set` | stable | NotExposed | DedicatedFrontendMethod | ControllerRequiredApproved | thread.goal.set | control | required | enabled | Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy. |
 | `client_request:ClientRequest:thread/increment_elicitation` | experimental-only | NotExposed | NotExposedBySecurityPolicy | NotExposedApproved | none | control | required | disabled | Inventory-only experimental request; no frontend path is generated. |
-| `client_request:ClientRequest:thread/inject_items` | stable | NotExposed | DedicatedFrontendMethod | ControllerRequiredApproved | thread.inject_items | control | required | enabled | Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy. |
+| `client_request:ClientRequest:thread/inject_items` | stable | NotExposed | DedicatedFrontendMethod | ControllerRequiredApproved | thread.injectItems | control | required | enabled | Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy. |
 | `client_request:ClientRequest:thread/items/list` | experimental-only | NotExposed | NotExposedBySecurityPolicy | NotExposedApproved | none | control | required | disabled | Inventory-only experimental request; no frontend path is generated. |
 | `client_request:ClientRequest:thread/list` | stable | ExistingOperationSubset | DedicatedFrontendMethod | ObserverReadApproved | thread.list | observe | not required | enabled | Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy. |
 | `client_request:ClientRequest:thread/loaded/list` | stable | NotExposed | DedicatedFrontendMethod | ObserverReadApproved | thread.loaded.list | observe | not required | enabled | Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy. |

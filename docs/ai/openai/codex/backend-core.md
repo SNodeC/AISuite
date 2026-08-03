@@ -674,6 +674,8 @@ AISuite source include path, private header, real Codex credential, or fixed
 dependency commit.
 
 A1.6b remains inside the intentionally unreleased SOVERSION-2 development ABI
-boundary. Project version remains `0.1.0`, the installed public-header inventory
-remains 29 main, 7 backend, and 7 frontend headers, and no compatibility copy
-of the former flattened command-result API is installed.
+boundary. Project version remains `0.1.0`. A1.6b established the 29 main, 7
+backend, and 7 frontend header inventory; A1.7a subsequently adds only
+`frontend/Security.h` and `frontend/GeneratedProtocol.h`, making the current
+installed inventory 29 main, 7 backend, and 9 frontend headers (45 total). No
+compatibility copy of the former flattened command-result API is installed.
