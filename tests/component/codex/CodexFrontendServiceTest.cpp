@@ -24,6 +24,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -188,6 +189,7 @@ namespace {
     }
 
     constexpr std::uint64_t TrustedTestUserId = 4242;
+    constexpr std::string_view SparseSequenceRemoteToken = "sparse-sequence-bearer";
 
     frontend::FrontendPeerContext trustedPeer() {
         frontend::FrontendPeerContext peer;
@@ -300,10 +302,10 @@ namespace {
         result.expectTrue(drained.updates.size() == 1 && drained.updates.front().data["content"] == accumulated,
                           "coalescing preserves the exact final accumulated agent text");
 
-        frontend::EventJournal journal({64, 64U * 1024U, frontend::SequenceNumber{0}});
-        const auto appended = journal.append(drained.updates.front().type, drained.updates.front().data);
+        const frontend::FrontendEvent coalescedEvent{
+            frontend::SequenceNumber{1}, drained.updates.front().type, drained.updates.front().data, frontend::Json::object()};
         frontend::UpdateBatchBuilder batches({16, 16U * 1024U});
-        const auto built = batches.build({*appended.event});
+        const auto built = batches.build({coalescedEvent});
         result.expectTrue(built.success() && built.batches.size() == 1 && built.batches.front().batch.events.size() == 1 &&
                               built.batches.front().batch.events.size() < 1000,
                           "1,000 token deltas become one normalized frontend message, substantially below raw granularity");
@@ -423,7 +425,7 @@ namespace {
         result.expectTrue(verifiedLocalConnection.principal().has_value() && verifiedLocalConnection.principal()->localTrusted &&
                               verifiedLocalConnection.principal()->profile == "local_trusted" && verifiedLocalConnection.peer().localPeer &&
                               verifiedLocalConnection.peer().unixUserId == TrustedTestUserId,
-                          "verified peer identity and local_trusted principal are visible through secret-free diagnostics");
+                          "verified peer identity and local_trusted principal are visible through credential-free diagnostics");
 
         frontend::FrontendPeerContext wrongUnixPeer = trustedPeer();
         wrongUnixPeer.unixUserId = TrustedTestUserId + 1;
@@ -953,9 +955,9 @@ namespace {
 
         const frontend::Welcome* discovery = welcome(observations);
         result.expectTrue(discovery != nullptr && discovery->capabilities.has_value() && discovery->capabilities->defined.size() == 18 &&
-                              discovery->capabilities->implemented.size() == 8 &&
+                              discovery->capabilities->implemented.size() == 13 &&
                               discovery->capabilities->permitted == discovery->capabilities->implemented,
-                          "commit-3 Welcome distinguishes 18 definitions from eight implemented mechanisms before projection activation");
+                          "A1.7b Welcome distinguishes 18 definitions from thirteen implemented service mechanisms");
         result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 90 &&
                               discovery->permittedMethods == discovery->availableMethods &&
                               std::all_of(discovery->availableMethods->begin(),
@@ -1083,6 +1085,456 @@ namespace {
         scheduler.drain();
     }
 
+    class SparseSequenceRunner {
+    public:
+        explicit SparseSequenceRunner(tests::support::TestResult& result)
+            : result(result) {
+        }
+
+        void start(std::function<void()> onFinished) {
+            this->onFinished = std::move(onFinished);
+            transport = std::make_shared<tests::codex::FakeTransportState>();
+            tests::codex::installInitializingFake(transport, [this](const Json& message, const TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method != message.end() && method->is_string() && *method == "thread/list" && id != message.end()) {
+                    tests::codex::inject(
+                        callbacks,
+                        Json{{"id", *id}, {"result", {{"data", Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
+                }
+            });
+
+            backend::BackendCoreOptions options;
+            options.initialThreadListLimit = 1;
+            backendCore = std::make_unique<FakeBackendCore>(std::move(options), transport);
+            backendCore->start();
+            waitUntil(
+                "sparse-sequence fake provider reaches Ready before service subscription",
+                [this]() {
+                    return backendCore->isReady();
+                },
+                [this]() {
+                    startVisibleInterval();
+                });
+        }
+
+        [[nodiscard]] bool isFinished() const noexcept {
+            return finished;
+        }
+
+        [[nodiscard]] const std::string& waitingStage() const noexcept {
+            return waitingDescription;
+        }
+
+    private:
+        static void defer(std::function<void()> callback) {
+            core::EventReceiver::atNextTick(std::move(callback));
+        }
+
+        void expect(bool condition, const std::string& message) {
+            result.expectTrue(condition, message);
+        }
+
+        void
+        waitUntil(std::string description, std::function<bool()> predicate, std::function<void()> next, std::size_t remaining = 8'000) {
+            waitingDescription = description;
+            defer([this,
+                   description = std::move(description),
+                   predicate = std::move(predicate),
+                   next = std::move(next),
+                   remaining]() mutable {
+                if (finished) {
+                    return;
+                }
+                try {
+                    if (predicate()) {
+                        waitingDescription = "advancing after: " + description;
+                        next();
+                    } else if (remaining == 0) {
+                        expect(false, description);
+                        finish();
+                    } else {
+                        waitUntil(std::move(description), std::move(predicate), std::move(next), remaining - 1);
+                    }
+                } catch (...) {
+                    expect(false, "sparse-sequence runner contains callback exception at stage: " + description);
+                    finish();
+                }
+            });
+        }
+
+        void afterTicks(std::size_t count, std::function<void()> next) {
+            if (count == 0) {
+                next();
+                return;
+            }
+            defer([this, count, next = std::move(next)]() mutable {
+                afterTicks(count - 1, std::move(next));
+            });
+        }
+
+        frontend::FrontendServiceOptions serviceOptions(frontend::SequenceNumber initialSequence, std::size_t maxEntries) {
+            frontend::FrontendServiceOptions options;
+            enableVerifiedTestTrust(options);
+            options.journal = {maxEntries, 512U * 1024U, initialSequence};
+            options.batches = {16, 128U * 1024U};
+            options.authenticator = [](const frontend::FrontendPeerContext&,
+                                       const frontend::AuthenticationCredential& credential) -> frontend::AuthenticationResult {
+                const auto* bearer = std::get_if<frontend::BearerCredential>(&credential);
+                if (bearer == nullptr || bearer->token != SparseSequenceRemoteToken) {
+                    return frontend::AuthenticationFailure{frontend::AuthenticationFailureCode::AuthenticationFailed};
+                }
+                return frontend::AuthenticationSuccess{frontend::FrontendPrincipal{
+                    "sparse-default-remote",
+                    std::vector<frontend::FrontendScope>{frontend::DefaultRemoteScopes.begin(), frontend::DefaultRemoteScopes.end()},
+                    std::string(frontend::DefaultRemoteScopeProfile.name),
+                    false}};
+            };
+            return options;
+        }
+
+        static frontend::FrontendPeerContext remotePeer() {
+            frontend::FrontendPeerContext peer;
+            peer.transport = frontend::FrontendTransportKind::Ipv4;
+            peer.loopback = true;
+            peer.remoteAddress = "127.0.0.143";
+            return peer;
+        }
+
+        static frontend::ClientMessage remoteHello(std::optional<frontend::SequenceNumber> resumeAfter,
+                                                   std::vector<frontend::FrontendCapability> capabilities = {}) {
+            return frontend::Hello{resumeAfter,
+                                   frontend::Json::object(),
+                                   std::move(capabilities),
+                                   frontend::AuthenticationCredential{frontend::BearerCredential{std::string(SparseSequenceRemoteToken)}}};
+        }
+
+        static std::set<std::uint64_t> messageSequences(const Observations& observations, std::size_t begin, std::size_t end) {
+            std::set<std::uint64_t> sequences;
+            end = std::min(end, observations.messages.size());
+            for (std::size_t index = begin; index < end; ++index) {
+                if (const auto* batch = std::get_if<frontend::EventBatch>(&observations.messages[index])) {
+                    for (const frontend::FrontendEvent& event : batch->events) {
+                        sequences.insert(event.sequence.value());
+                    }
+                }
+            }
+            return sequences;
+        }
+
+        static std::optional<std::size_t> firstSync(const Observations& observations, std::size_t begin = 0) {
+            for (std::size_t index = begin; index < observations.messages.size(); ++index) {
+                if (std::holds_alternative<frontend::SyncComplete>(observations.messages[index])) {
+                    return index;
+                }
+            }
+            return std::nullopt;
+        }
+
+        static bool hasBatchRange(const Observations& observations,
+                                  std::size_t begin,
+                                  std::size_t end,
+                                  frontend::SequenceNumber from,
+                                  frontend::SequenceNumber to) {
+            end = std::min(end, observations.messages.size());
+            for (std::size_t index = begin; index < end; ++index) {
+                if (const auto* batch = std::get_if<frontend::EventBatch>(&observations.messages[index]);
+                    batch && batch->fromSequence == from && batch->toSequence == to) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void injectVisibleFirst() {
+            transport->inject({{"method", "configWarning"},
+                               {"params",
+                                {{"summary", "sparse visible first"},
+                                 {"details", "visible details"},
+                                 {"path", "/sparse/config.toml"},
+                                 {"range", nullptr}}}});
+        }
+
+        void injectHidden(std::string payload) {
+            transport->inject({{"method", "process/outputDelta"},
+                               {"params",
+                                {{"capReached", false},
+                                 {"deltaBase64", std::move(payload)},
+                                 {"processHandle", "sparse-process"},
+                                 {"stream", "stdout"}}}});
+        }
+
+        void injectVisibleLast() {
+            transport->inject(
+                {{"method", "guardianWarning"}, {"params", {{"message", "sparse visible last"}, {"threadId", "sparse-thread"}}}});
+        }
+
+        void startVisibleInterval() {
+            service = std::make_unique<frontend::FrontendService>(*backendCore, serviceOptions(frontend::SequenceNumber{37}, 32));
+            local.emplace(service->openConnection(trustedPeer(), callbacksFor(localObservations)));
+            const std::vector capabilities{frontend::FrontendCapability::DedicatedNotificationEvents,
+                                           frontend::FrontendCapability::ScopeProjectedState};
+            const frontend::Hello localHello{std::nullopt, frontend::Json::object(), capabilities, std::nullopt};
+            expect(local->receive(frontend::ClientMessage{localHello}).accepted(),
+                   "the local_trusted sparse-sequence observer authenticates");
+            waitUntil(
+                "local_trusted handshake completes after the initial provider projection",
+                [this]() {
+                    return local->helloComplete();
+                },
+                [this, capabilities]() {
+                    expect(service->currentSequence() == frontend::SequenceNumber{39},
+                           "the initial provider record and local_trusted session establish global cursor 39 (actual " +
+                               std::to_string(service->currentSequence().value()) + ")");
+                    remote.emplace(service->openConnection(remotePeer(), callbacksFor(remoteObservations)));
+                    expect(remote->receive(remoteHello(std::nullopt, capabilities)).accepted(),
+                           "the default_remote sparse-sequence observer authenticates");
+                    waitUntil(
+                        "default_remote handshake completes at the unchanged global cursor 40",
+                        [this]() {
+                            return remote->helloComplete();
+                        },
+                        [this]() {
+                            expect(service->currentSequence() == frontend::SequenceNumber{40},
+                                   "the default_remote session establishes global cursor 40 (actual " +
+                                       std::to_string(service->currentSequence().value()) + ")");
+                            localBaseline = localObservations.messages.size();
+                            remoteBaseline = remoteObservations.messages.size();
+                            injectVisibleFirst();
+                            waitUntil(
+                                "visible occurrence reaches global sequence 41",
+                                [this]() {
+                                    return service->currentSequence() == frontend::SequenceNumber{41};
+                                },
+                                [this]() {
+                                    injectHidden("c3BhcnNlLWhpZGRlbg==");
+                                    waitUntil(
+                                        "privileged-only occurrence reaches global sequence 42",
+                                        [this]() {
+                                            return service->currentSequence() == frontend::SequenceNumber{42};
+                                        },
+                                        [this]() {
+                                            injectVisibleLast();
+                                            waitUntil(
+                                                "second visible occurrence reaches global sequence 43",
+                                                [this]() {
+                                                    return service->currentSequence() == frontend::SequenceNumber{43};
+                                                },
+                                                [this]() {
+                                                    afterTicks(16, [this]() {
+                                                        verifyLiveAndReplay();
+                                                    });
+                                                });
+                                        });
+                                });
+                        });
+                });
+        }
+
+        void verifyLiveAndReplay() {
+            std::set<std::uint64_t> localLive = messageSequences(localObservations, localBaseline, localObservations.messages.size());
+            const std::set<std::uint64_t> remoteLive =
+                messageSequences(remoteObservations, remoteBaseline, remoteObservations.messages.size());
+            localLive.erase(40);
+            const auto render = [](const std::set<std::uint64_t>& sequences) {
+                std::string value;
+                for (const std::uint64_t sequence : sequences) {
+                    value += (value.empty() ? "" : ",") + std::to_string(sequence);
+                }
+                return value;
+            };
+            expect(localLive == std::set<std::uint64_t>{41, 42, 43} && remoteLive == std::set<std::uint64_t>{41, 43},
+                   "local_trusted sees 41/42/43 while default_remote accepts sparse live 41/43 with no fabricated 42 (local=" +
+                       render(localLive) + ", remote=" + render(remoteLive) + ")");
+
+            explicitReplayBaseline = remoteObservations.messages.size();
+            expect(remote->receive(command("sparse-explicit-replay", frontend::ReplayAfter{frontend::SequenceNumber{40}})).accepted(),
+                   "explicit events.replay accepts the global cursor before the sparse interval");
+            waitUntil(
+                "explicit sparse replay completes",
+                [this]() {
+                    return hasSuccessfulResponse(remoteObservations, "sparse-explicit-replay") &&
+                           firstSync(remoteObservations, explicitReplayBaseline).has_value();
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(remoteObservations, explicitReplayBaseline);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&remoteObservations.messages[syncIndex]);
+                    expect(complete && complete->sequence == frontend::SequenceNumber{43} &&
+                               messageSequences(remoteObservations, explicitReplayBaseline, syncIndex) == std::set<std::uint64_t>{41, 43} &&
+                               hasBatchRange(remoteObservations,
+                                             explicitReplayBaseline,
+                                             syncIndex,
+                                             frontend::SequenceNumber{41},
+                                             frontend::SequenceNumber{43}),
+                           "explicit replay preserves sparse 41/43 and sync.complete advances the global cursor to 43");
+                    startVisibleReconnect();
+                });
+        }
+
+        void startVisibleReconnect() {
+            reconnect.emplace(service->openConnection(remotePeer(), callbacksFor(reconnectObservations)));
+            expect(reconnect->receive(remoteHello(frontend::SequenceNumber{41})).accepted(),
+                   "a legacy default_remote reconnect resumes from visible global sequence 41");
+            waitUntil(
+                "legacy sparse reconnect completes",
+                [this]() {
+                    return firstSync(reconnectObservations).has_value();
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(reconnectObservations);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&reconnectObservations.messages[syncIndex]);
+                    expect(welcome(reconnectObservations) && welcome(reconnectObservations)->syncMode == frontend::SyncMode::Replay &&
+                               complete && complete->sequence == frontend::SequenceNumber{43} &&
+                               messageSequences(reconnectObservations, 0, syncIndex) == std::set<std::uint64_t>{43},
+                           "legacy reconnect after 41 replays visible 43 at the same information ceiling and exposes no hidden marker");
+                    beginHiddenInterval();
+                });
+        }
+
+        void beginHiddenInterval() {
+            reconnect.reset();
+            remote.reset();
+            local.reset();
+            service->close("visible sparse interval complete");
+            service.reset();
+            afterTicks(8, [this]() {
+                service = std::make_unique<frontend::FrontendService>(*backendCore, serviceOptions(frontend::SequenceNumber{50}, 2));
+                injectVisibleFirst();
+                waitUntil(
+                    "hidden-suffix visible anchor reaches global 51",
+                    [this]() {
+                        return service->currentSequence() == frontend::SequenceNumber{51};
+                    },
+                    [this]() {
+                        injectHidden("aGlkZGVuLXN1ZmZpeC0x");
+                        waitUntil(
+                            "first hidden suffix occurrence reaches global 52",
+                            [this]() {
+                                return service->currentSequence() == frontend::SequenceNumber{52};
+                            },
+                            [this]() {
+                                injectHidden("aGlkZGVuLXN1ZmZpeC0y");
+                                waitUntil(
+                                    "second hidden suffix occurrence reaches global 53",
+                                    [this]() {
+                                        return service->currentSequence() == frontend::SequenceNumber{53};
+                                    },
+                                    [this]() {
+                                        startHiddenSuffixReconnect();
+                                    });
+                            });
+                    });
+            });
+        }
+
+        void startHiddenSuffixReconnect() {
+            suffix.emplace(service->openConnection(remotePeer(), callbacksFor(suffixObservations)));
+            expect(suffix->receive(remoteHello(frontend::SequenceNumber{51})).accepted(),
+                   "default_remote reconnect accepts a global cursor before a fully hidden suffix");
+            waitUntil(
+                "hidden suffix advances sync and later session event remains usable",
+                [this]() {
+                    const auto sync = firstSync(suffixObservations);
+                    return sync.has_value() && service->currentSequence() >= frontend::SequenceNumber{54} &&
+                           messageSequences(suffixObservations, *sync + 1, suffixObservations.messages.size()).contains(54);
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(suffixObservations);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&suffixObservations.messages[syncIndex]);
+                    expect(welcome(suffixObservations) && welcome(suffixObservations)->syncMode == frontend::SyncMode::Replay && complete &&
+                               complete->sequence == frontend::SequenceNumber{53} &&
+                               messageSequences(suffixObservations, 0, syncIndex).empty() && suffix->isOpen(),
+                           "a nonempty hidden suffix emits no batch, sync.complete advances to 53, and visible 54 is accepted normally");
+                    startSnapshotFallback();
+                });
+        }
+
+        void startSnapshotFallback() {
+            fallback.emplace(service->openConnection(remotePeer(), callbacksFor(fallbackObservations)));
+            expect(fallback->receive(remoteHello(frontend::SequenceNumber{50})).accepted(),
+                   "a cursor below the replay floor requests synchronization without inferring visible loss");
+            waitUntil(
+                "sparse replay-gap snapshot fallback completes",
+                [this]() {
+                    return firstSync(fallbackObservations).has_value();
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(fallbackObservations);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&fallbackObservations.messages[syncIndex]);
+                    const frontend::Snapshot* snapshot = latestSnapshot(fallbackObservations);
+                    const bool exposesHiddenType = std::any_of(
+                        fallbackObservations.compactJson.begin(), fallbackObservations.compactJson.end(), [](const std::string& encoded) {
+                            return encoded.find("process.updated") != std::string::npos ||
+                                   encoded.find("process/outputDelta") != std::string::npos;
+                        });
+                    expect(welcome(fallbackObservations) && welcome(fallbackObservations)->syncMode == frontend::SyncMode::Snapshot &&
+                               snapshot && complete && snapshot->sequence == frontend::SequenceNumber{54} &&
+                               complete->sequence == frontend::SequenceNumber{54} && countSnapshots(fallbackObservations) == 1 &&
+                               messageSequences(fallbackObservations, 0, syncIndex).empty() && !exposesHiddenType,
+                           "an unavailable canonical interval uses one snapshot at cursor 54, never mixes replay, and discloses no hidden "
+                           "occurrence type (welcome=" +
+                               std::to_string(welcome(fallbackObservations) != nullptr) +
+                               ", snapshot=" + (snapshot ? std::to_string(snapshot->sequence.value()) : std::string("none")) +
+                               ", complete=" + (complete ? std::to_string(complete->sequence.value()) : std::string("none")) +
+                               ", snapshots=" + std::to_string(countSnapshots(fallbackObservations)) +
+                               ", pre-sync-events=" + std::to_string(messageSequences(fallbackObservations, 0, syncIndex).size()) +
+                               ", hidden-type=" + std::to_string(exposesHiddenType) + ")");
+                    finish();
+                });
+        }
+
+        void finish() {
+            if (finished || finishing) {
+                return;
+            }
+            finishing = true;
+            fallback.reset();
+            suffix.reset();
+            reconnect.reset();
+            remote.reset();
+            local.reset();
+            if (service) {
+                service->close("sparse-sequence runner complete");
+                service.reset();
+            }
+            if (backendCore) {
+                backendCore->stop();
+            }
+            afterTicks(8, [this]() {
+                backendCore.reset();
+                transport.reset();
+                finishing = false;
+                finished = true;
+                waitingDescription = "complete";
+                if (onFinished) {
+                    onFinished();
+                }
+            });
+        }
+
+        tests::support::TestResult& result;
+        std::function<void()> onFinished;
+        std::shared_ptr<tests::codex::FakeTransportState> transport;
+        std::unique_ptr<FakeBackendCore> backendCore;
+        std::unique_ptr<frontend::FrontendService> service;
+        std::optional<frontend::FrontendConnection> local;
+        std::optional<frontend::FrontendConnection> remote;
+        std::optional<frontend::FrontendConnection> reconnect;
+        std::optional<frontend::FrontendConnection> suffix;
+        std::optional<frontend::FrontendConnection> fallback;
+        Observations localObservations;
+        Observations remoteObservations;
+        Observations reconnectObservations;
+        Observations suffixObservations;
+        Observations fallbackObservations;
+        std::size_t localBaseline = 0;
+        std::size_t remoteBaseline = 0;
+        std::size_t explicitReplayBaseline = 0;
+        bool finishing = false;
+        bool finished = false;
+        std::string waitingDescription = "not started";
+    };
+
     class FrontendBurstRunner {
     public:
         explicit FrontendBurstRunner(tests::support::TestResult& result)
@@ -1115,8 +1567,16 @@ namespace {
 
             connectionA.emplace(service->openConnection(trustedPeer(), callbacksFor(observerA)));
             connectionB.emplace(service->openConnection(trustedPeer(), callbacksFor(observerB)));
-            expect(connectionA->receive(hello()).accepted() && connectionB->receive(hello()).accepted(),
-                   "both protocol sessions accept hello before the high-volume stream");
+            rangeLegacyConnection.emplace(service->openConnection(trustedPeer(), callbacksFor(rangeLegacyObserver)));
+            const frontend::Hello expandedHello{
+                std::nullopt,
+                frontend::Json::object(),
+                std::vector{frontend::FrontendCapability::DedicatedNotificationEvents},
+            };
+            expect(connectionA->receive(frontend::ClientMessage{expandedHello}).accepted() &&
+                       connectionB->receive(frontend::ClientMessage{expandedHello}).accepted() &&
+                       rangeLegacyConnection->receive(hello()).accepted(),
+                   "the two equivalent expanded sessions and dedicated legacy projection session accept hello");
 
             backendCore->start();
             waitUntil(
@@ -1124,10 +1584,10 @@ namespace {
                 [this]() {
                     const backend::Snapshot snapshot = backendCore->snapshot();
                     return backendCore->isReady() && snapshot.threadList.pagesLoaded == 1 && connectionA->helloComplete() &&
-                           connectionB->helloComplete();
+                           connectionB->helloComplete() && rangeLegacyConnection->helloComplete();
                 },
                 [this]() {
-                    exerciseExactWrapperProjection();
+                    exerciseCanonicalOccurrenceSequence();
                 });
         }
 
@@ -1236,6 +1696,128 @@ namespace {
             } else if (*method == "turn/interrupt") {
                 tests::codex::inject(callbacks, Json{{"id", *id}, {"result", Json::object()}});
             }
+        }
+
+        std::vector<frontend::FrontendEvent>
+        familyEventsAfter(const Observations& observations, std::size_t baseline, std::initializer_list<std::string_view> families) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            std::vector<frontend::FrontendEvent> selected;
+            for (auto iterator = received.begin() + static_cast<std::ptrdiff_t>(baseline); iterator != received.end(); ++iterator) {
+                if (std::find(families.begin(), families.end(), iterator->type) != families.end()) {
+                    selected.push_back(*iterator);
+                }
+            }
+            return selected;
+        }
+
+        std::vector<frontend::FrontendEvent>
+        legacyNotificationEventsAfter(const Observations& observations, std::size_t baseline, std::string_view method) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            std::vector<frontend::FrontendEvent> selected;
+            for (auto iterator = received.begin() + static_cast<std::ptrdiff_t>(baseline); iterator != received.end(); ++iterator) {
+                if (iterator->type == "codex.extension" && iterator->data.value("method", "") == method) {
+                    selected.push_back(*iterator);
+                }
+            }
+            return selected;
+        }
+
+        void exerciseCanonicalOccurrenceSequence() {
+            rangeBeforeConfig = service->currentSequence();
+            rangeExpandedBaseline = events(observerA).size();
+            rangeLegacyBaseline = events(rangeLegacyObserver).size();
+            transport->inject({{"method", "configWarning"},
+                               {"params",
+                                {{"summary", "synthetic config warning"},
+                                 {"details", "safe details"},
+                                 {"path", "/synthetic/config.toml"},
+                                 {"range", nullptr}}}});
+            waitUntil(
+                "configWarning reaches expanded and legacy projections from one canonical record",
+                [this]() {
+                    return familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"}).size() == 2 &&
+                           legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "configWarning").size() == 1;
+                },
+                [this]() {
+                    const std::vector<frontend::FrontendEvent> expanded =
+                        familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"});
+                    const std::vector<frontend::FrontendEvent> legacy =
+                        legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "configWarning");
+                    if (expanded.size() == 2) {
+                        configSequence = expanded[0].sequence;
+                    }
+                    expect(expanded.size() == 2 && expanded[0].type == "configuration.updated" && configSequence > rangeBeforeConfig &&
+                               expanded[1].type == "notice.added" && expanded[1].sequence == configSequence && legacy.size() == 1 &&
+                               legacy.front().sequence == configSequence && service->currentSequence() == configSequence,
+                           "one configWarning canonical record gives every authorized representation one occurrence sequence "
+                           "(before=" +
+                               std::to_string(rangeBeforeConfig.value()) + ", configuration=" + std::to_string(configSequence.value()) +
+                               ", notice=" + std::to_string(expanded[1].sequence.value()) +
+                               ", legacy=" + std::to_string(legacy.front().sequence.value()) +
+                               ", current=" + std::to_string(service->currentSequence().value()) + ")");
+                    replayAfterOccurrence();
+                });
+        }
+
+        void replayAfterOccurrence() {
+            rangeExpandedBaseline = events(observerA).size();
+            expect(connectionA->receive(command("occurrence-after", frontend::ReplayAfter{configSequence})).accepted(),
+                   "events.replay accepts the canonical multi-family occurrence sequence");
+            waitUntil(
+                "replay after the occurrence suppresses every family from that record",
+                [this]() {
+                    return hasSuccessfulResponse(observerA, "occurrence-after");
+                },
+                [this]() {
+                    expect(familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"}).empty(),
+                           "an occurrence cursor cannot partially replay one canonical record");
+                    replayBeforeOccurrence();
+                });
+        }
+
+        void replayBeforeOccurrence() {
+            rangeExpandedBaseline = events(observerA).size();
+            expect(connectionA->receive(command("occurrence-before", frontend::ReplayAfter{rangeBeforeConfig})).accepted(),
+                   "events.replay accepts the sequence immediately before a canonical multi-family occurrence");
+            waitUntil(
+                "replay before the occurrence emits both dedicated families atomically",
+                [this]() {
+                    return hasSuccessfulResponse(observerA, "occurrence-before") &&
+                           familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"}).size() == 2;
+                },
+                [this]() {
+                    const std::vector<frontend::FrontendEvent> replayed =
+                        familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"});
+                    expect(replayed.size() == 2 && replayed[0].sequence == configSequence && replayed[1].sequence == configSequence,
+                           "replay before the occurrence preserves both same-sequence families without duplicates");
+                    emitGuardianOccurrence();
+                });
+        }
+
+        void emitGuardianOccurrence() {
+            rangeExpandedBaseline = events(observerA).size();
+            rangeLegacyBaseline = events(rangeLegacyObserver).size();
+            transport->inject({{"method", "guardianWarning"},
+                               {"params", {{"message", "Synthetic guardian warning."}, {"threadId", "synthetic-thread"}}}});
+            waitUntil(
+                "guardianWarning reaches expanded and legacy projections from the next canonical record",
+                [this]() {
+                    return familyEventsAfter(observerA, rangeExpandedBaseline, {"reviews.updated", "notice.added"}).size() == 2 &&
+                           legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "guardianWarning").size() == 1;
+                },
+                [this]() {
+                    const std::vector<frontend::FrontendEvent> expanded =
+                        familyEventsAfter(observerA, rangeExpandedBaseline, {"reviews.updated", "notice.added"});
+                    const std::vector<frontend::FrontendEvent> legacy =
+                        legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "guardianWarning");
+                    expect(expanded.size() == 2 && expanded[0].type == "reviews.updated" &&
+                               expanded[0].sequence == frontend::SequenceNumber{configSequence.value() + 1} &&
+                               expanded[1].type == "notice.added" && expanded[1].sequence == expanded[0].sequence && legacy.size() == 1 &&
+                               legacy.front().sequence == expanded[0].sequence && service->currentSequence() == expanded[0].sequence,
+                           "the next guardianWarning occurrence advances once and shares that sequence across projections");
+                    rangeLegacyConnection.reset();
+                    exerciseExactWrapperProjection();
+                });
         }
 
         void exerciseExactWrapperProjection() {
@@ -1416,7 +1998,8 @@ namespace {
                                observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) &&
                            hasCompletedItemUpdate(
                                observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) &&
-                           hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB);
+                           hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB) &&
+                           hasTerminalTurnAfter(observerA, baselineEventsA) && hasTerminalTurnAfter(observerB, baselineEventsB);
                 },
                 [this]() {
                     verifyBurst();
@@ -1607,6 +2190,19 @@ namespace {
                 }));
         }
 
+        bool hasTerminalTurnAfter(const Observations& observations, std::size_t baseline) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            if (baseline >= received.size()) {
+                return false;
+            }
+            return std::any_of(
+                received.begin() + static_cast<std::ptrdiff_t>(baseline), received.end(), [this](const frontend::FrontendEvent& event) {
+                    const auto turn = event.data.find("turn");
+                    return event.type == "turn.upserted" && turn != event.data.end() && turn->is_object() &&
+                           turn->value("id", "") == turnId && turn->value("terminal", false);
+                });
+        }
+
         std::size_t resolvedExtensionCountAfter(const Observations& observations, std::size_t baseline) const {
             const std::vector<frontend::FrontendEvent> received = events(observations);
             if (baseline >= received.size()) {
@@ -1698,7 +2294,7 @@ namespace {
                     finalContentIndex = index;
                 }
                 const auto turn = event.data.find("turn");
-                if (event.type == "turn.updated" && turn != event.data.end() && turn->is_object() && turn->value("id", "") == turnId &&
+                if (event.type == "turn.upserted" && turn != event.data.end() && turn->is_object() && turn->value("id", "") == turnId &&
                     turn->value("terminal", false)) {
                     terminalTurnIndex = index;
                 }
@@ -1939,6 +2535,7 @@ namespace {
             }
             connectionA.reset();
             connectionB.reset();
+            rangeLegacyConnection.reset();
             service.reset();
             backendCore.reset();
             core::SNodeC::stop();
@@ -1977,8 +2574,10 @@ namespace {
         std::unique_ptr<frontend::FrontendService> service;
         std::optional<frontend::FrontendConnection> connectionA;
         std::optional<frontend::FrontendConnection> connectionB;
+        std::optional<frontend::FrontendConnection> rangeLegacyConnection;
         Observations observerA;
         Observations observerB;
+        Observations rangeLegacyObserver;
         std::string expectedText;
         const std::string extensionAccessToken = "wire-extension-access-token-must-not-leak";
         const std::string extensionSecretAnswer = "wire-extension-secret-answer-must-not-leak";
@@ -1992,6 +2591,10 @@ namespace {
         std::size_t pendingBaselineB = 0;
         std::size_t resolvedBaselineA = 0;
         std::size_t resolvedBaselineB = 0;
+        frontend::SequenceNumber rangeBeforeConfig;
+        frontend::SequenceNumber configSequence;
+        std::size_t rangeExpandedBaseline = 0;
+        std::size_t rangeLegacyBaseline = 0;
         static constexpr const char* wrapperAcquireRequestId = "wrapper-acquire";
         static constexpr const char* wrapperThreadStartRequestId = "wrapper-thread-start";
         static constexpr const char* wrapperThreadResumeRequestId = "wrapper-thread-resume";
@@ -2026,6 +2629,7 @@ int main(int argc, char* argv[]) {
         testSnapshotReplayBarrier(result);
         testCapacityOnlySnapshotFeedback(result);
         bool timedOut = false;
+        SparseSequenceRunner sparseRunner(result);
         FrontendBurstRunner runner(result);
         [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
             [&timedOut]() {
@@ -2033,11 +2637,15 @@ int main(int argc, char* argv[]) {
                 core::SNodeC::stop();
             },
             utils::Timeval({10, 0}));
-        runner.start();
+        sparseRunner.start([&runner]() {
+            runner.start();
+        });
         const int eventLoopResult = core::SNodeC::start(utils::Timeval({12, 0}));
         result.expectTrue(!timedOut,
-                          "frontend 1,000-delta scenario completes before the watchdog (last stage: " + runner.waitingStage() + "; " +
-                              runner.terminalProgress() + ")");
+                          "sparse-sequence and frontend 1,000-delta scenarios complete before the watchdog (sparse stage: " +
+                              sparseRunner.waitingStage() + "; burst stage: " + runner.waitingStage() + "; " + runner.terminalProgress() +
+                              ")");
+        result.expectTrue(sparseRunner.isFinished(), "sparse global-sequence scenario reaches a clean terminal state");
         result.expectTrue(runner.isFinished(), "frontend 1,000-delta scenario reaches a clean terminal state");
         result.expectEqual(0, eventLoopResult, "frontend service event loop exits cleanly");
 

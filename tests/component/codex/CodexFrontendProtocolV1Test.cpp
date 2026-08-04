@@ -26,6 +26,12 @@
 namespace {
     using namespace ai::openai::codex::frontend;
 
+    template <typename Journal>
+    concept HasLegacyEventAppend = requires(Journal& journal) { journal.append(std::string{}, Json::object(), Json::object()); };
+
+    template <typename Journal>
+    concept HasLegacyEventReplay = requires(const Journal& journal) { journal.replayAfter(SequenceNumber{}); };
+
     void expectClientRoundTrip(tests::support::TestResult& result, const ClientMessage& message, const std::string& description) {
         const auto encoded = Codec::encodeClient(message);
         result.expectTrue(encoded.hasValue(), description + " encodes");
@@ -250,14 +256,15 @@ namespace {
     }
 
     void testDefaultReplayHeadroom(tests::support::TestResult& result) {
-        EventJournal journal;
         constexpr std::size_t retainedSlackBytes = 32;
         constexpr std::size_t maximumPayloadBytes = 24U * 1024U;
         const std::size_t retainedTarget = DefaultJournalMaxBytes - retainedSlackBytes;
+        std::vector<FrontendEvent> retainedEvents;
+        std::size_t retainedBytes = 0;
 
-        while (journal.retainedBytes() < retainedTarget) {
-            const SequenceNumber next{journal.currentSequence().value() + 1};
-            const std::size_t remaining = retainedTarget - journal.retainedBytes();
+        while (retainedBytes < retainedTarget && retainedEvents.size() < DefaultJournalMaxEntries) {
+            const SequenceNumber next{retainedEvents.size() + 1};
+            const std::size_t remaining = retainedTarget - retainedBytes;
             const FrontendEvent empty{next,
                                       "item.content.updated",
                                       Json{{"itemId", "capacity-item"}, {"channel", "commandOutput"}, {"content", ""}},
@@ -269,29 +276,33 @@ namespace {
             }
 
             const std::size_t payloadBytes = std::min(maximumPayloadBytes, remaining - emptySize.value());
-            const JournalAppendResult appended = journal.append(
+            FrontendEvent event{
+                next,
                 "item.content.updated",
-                Json{{"itemId", "capacity-item"}, {"channel", "commandOutput"}, {"content", std::string(payloadBytes, 'x')}});
-            result.expectTrue(appended.retained() && appended.serializedBytes <= remaining,
-                              "capacity-test normalized event is retained without crossing the journal byte bound");
-            if (!appended.retained() || appended.serializedBytes > remaining) {
+                Json{{"itemId", "capacity-item"}, {"channel", "commandOutput"}, {"content", std::string(payloadBytes, 'x')}},
+                Json::object()};
+            const auto serializedBytes = Codec::serializedEventSize(event);
+            result.expectTrue(serializedBytes.hasValue() && serializedBytes.value() <= remaining,
+                              "capacity-test projected event fits without crossing the configured retention budget");
+            if (!serializedBytes || serializedBytes.value() > remaining) {
                 break;
             }
+            retainedBytes += serializedBytes.value();
+            retainedEvents.push_back(std::move(event));
         }
 
-        result.expectTrue(journal.retainedBytes() <= DefaultJournalMaxBytes && DefaultJournalMaxBytes - journal.retainedBytes() < 512 &&
-                              journal.retainedEntryCount() <= DefaultJournalMaxEntries,
-                          "default journal can be filled deterministically to within one small event of its 8 MiB bound");
+        result.expectTrue(retainedBytes <= DefaultJournalMaxBytes && DefaultJournalMaxBytes - retainedBytes < 512 &&
+                              retainedEvents.size() <= DefaultJournalMaxEntries,
+                          "a projected replay set can fill the default 8 MiB retention budget to within one small event");
 
-        const JournalReplayResult replay = journal.replayAfter(SequenceNumber{0});
-        const UpdateBatchResult batches = UpdateBatchBuilder{}.build(replay.events);
-        result.expectTrue(replay.status == JournalReplayStatus::Available && batches.success(),
-                          "the near-capacity journal remains a complete normalized replay");
+        const UpdateBatchResult batches = UpdateBatchBuilder{}.build(retainedEvents);
+        result.expectTrue(batches.success(), "the near-capacity projected event set remains a complete normalized replay");
 
         std::size_t queuedBytes = 0;
+        const SequenceNumber currentSequence = retainedEvents.empty() ? SequenceNumber{} : retainedEvents.back().sequence;
         const auto welcome = Codec::serializeServer(
-            ServerMessage{Welcome{"capacity-session", SessionRole::Observer, journal.currentSequence(), SyncMode::Replay, Json::object()}});
-        const auto complete = Codec::serializeServer(ServerMessage{SyncComplete{journal.currentSequence(), Json::object()}});
+            ServerMessage{Welcome{"capacity-session", SessionRole::Observer, currentSequence, SyncMode::Replay, Json::object()}});
+        const auto complete = Codec::serializeServer(ServerMessage{SyncComplete{currentSequence, Json::object()}});
         result.expectTrue(welcome.hasValue() && complete.hasValue(), "capacity-test replay control envelopes serialize");
         if (welcome && complete) {
             queuedBytes = welcome.value().size() + complete.value().size();
@@ -312,6 +323,8 @@ int main() {
     using namespace ai::openai::codex::frontend;
 
     static_assert(std::variant_size_v<CommandParameters> == 15, "A1.6b must not expand the Frontend Protocol v1 command surface");
+    static_assert(!HasLegacyEventAppend<EventJournal> && !HasLegacyEventReplay<EventJournal>,
+                  "EventJournal must expose only the FrontendService canonical authority");
 
     tests::support::TestResult result;
 
@@ -502,54 +515,22 @@ int main() {
         Json{{"protocol", ProtocolIdentity}, {"version", 1}, {"kind", "hello"}, {"futureField", Json{{"nested", true}}}});
     result.expectTrue(unknownField.hasValue(), "unknown non-conflicting fields are tolerated");
 
-    EventJournal journal({3, 4096, SequenceNumber(0)});
-    const auto first = journal.append("thread.updated", Json{{"id", "thread-1"}});
-    const auto second = journal.append("turn.updated", Json{{"id", "turn-1"}});
-    const auto third = journal.append("item.updated", Json{{"id", "item-1"}});
-    result.expectTrue(first.retained() && first.event->sequence == SequenceNumber(1), "journal starts at sequence one");
-    result.expectTrue(second.event->sequence == SequenceNumber(2) && third.event->sequence == SequenceNumber(3),
-                      "journal allocates strictly monotonic sequences");
-    const auto afterOne = journal.replayAfter(SequenceNumber(1));
-    result.expectTrue(afterOne.status == JournalReplayStatus::Available && afterOne.events.size() == 2 &&
-                          afterOne.events.front().sequence == SequenceNumber(2),
-                      "journal replays strictly after the requested sequence");
-    result.expectTrue(journal.replayAfter(journal.currentSequence()).events.empty(), "replay from current sequence is empty");
-    const std::vector<FrontendEvent> retainedCopy = journal.retainedEvents();
-    const auto fourth = journal.append("controller.changed", Json{{"sessionId", "7"}});
-    result.expectTrue(fourth.accepted(), "a fourth journal event is accepted before count eviction");
-    result.expectTrue(journal.retainedEntryCount() == 3 && journal.replayAfter(SequenceNumber(0)).requiresSnapshot(),
-                      "entry-count eviction creates an explicit replay gap");
-    result.expectTrue(retainedCopy.front().type == "thread.updated", "copies of retained events are not mutated by later eviction");
-
-    EventJournal byteJournal({16, 180, SequenceNumber(0)});
-    for (int index = 0; index < 6; ++index) {
-        const auto appended = byteJournal.append("item.content.updated", Json{{"text", std::string(40, static_cast<char>('a' + index))}});
-        result.expectTrue(appended.accepted(), "byte-bound journal accepts a bounded event");
-    }
-    result.expectTrue(byteJournal.retainedBytes() <= 180 && byteJournal.retainedEntryCount() < 6,
-                      "journal byte eviction enforces the configured total-byte bound");
-
-    EventJournal overflowJournal({1, 1024, SequenceNumber(std::numeric_limits<std::uint64_t>::max())});
-    result.expectTrue(overflowJournal.append("event", Json::object()).status == JournalAppendStatus::SequenceOverflow,
-                      "sequence overflow fails explicitly without wrapping");
-
     EventJournal barrierJournal({4, 4096, SequenceNumber(0)});
-    const auto beforeBarrier = barrierJournal.append("thread.updated", Json{{"id", "before-barrier"}});
     const SequenceNumber beforeBarrierSequence = barrierJournal.currentSequence();
-    result.expectTrue(beforeBarrier.accepted() && barrierJournal.invalidateReplay() &&
-                          barrierJournal.currentSequence() > beforeBarrierSequence &&
-                          barrierJournal.replayAfter(beforeBarrierSequence).requiresSnapshot() &&
-                          barrierJournal.replayAfter(barrierJournal.currentSequence()).status == JournalReplayStatus::Available,
-                      "replay invalidation advances a monotonic snapshot barrier and rejects stale current-sequence replay");
+    result.expectTrue(barrierJournal.invalidateReplay() && barrierJournal.currentSequence() > beforeBarrierSequence &&
+                          barrierJournal.oldestReplayableAfter() == barrierJournal.currentSequence() &&
+                          barrierJournal.retainedEntryCount() == 0 && barrierJournal.retainedBytes() == 0,
+                      "the public journal surface exposes diagnostics and replay invalidation but no alternate append authority");
     EventJournal exhaustedBarrier({1, 1024, SequenceNumber(std::numeric_limits<std::uint64_t>::max())});
     result.expectTrue(!exhaustedBarrier.invalidateReplay() &&
                           exhaustedBarrier.currentSequence() == SequenceNumber(std::numeric_limits<std::uint64_t>::max()) &&
-                          exhaustedBarrier.replayAfter(exhaustedBarrier.currentSequence()).requiresSnapshot(),
-                      "snapshot barrier exhaustion fails explicitly without wrapping and keeps replay unavailable");
+                          exhaustedBarrier.oldestReplayableAfter() == exhaustedBarrier.currentSequence(),
+                      "snapshot barrier exhaustion fails explicitly without wrapping");
 
     std::vector<FrontendEvent> batchEvents;
     for (std::uint64_t sequence = 1; sequence <= 7; ++sequence) {
-        batchEvents.push_back({SequenceNumber(sequence), "item.updated", Json{{"sequence", sequence}}, Json::object()});
+        batchEvents.push_back(
+            {SequenceNumber(sequence), "diagnostics.updated", Json{{"received", sequence}, {"recent", Json::array()}}, Json::object()});
     }
     UpdateBatchBuilder builder({3, 1024});
     const auto batches = builder.build(batchEvents);
@@ -564,9 +545,56 @@ int main() {
     }
     result.expectTrue(ordered, "bounded batching preserves stable sequence order and serialized-size bounds");
 
+    const auto noticeData = [](std::string summary) {
+        return Json{{"notice",
+                     {{"category", "warning"}, {"summary", std::move(summary)}, {"stamp", {{"generation", 1}, {"freshness", "current"}}}}}};
+    };
+    const std::vector<FrontendEvent> expandedOccurrences{
+        {SequenceNumber(8), "notice.added", noticeData("configuration changed"), Json::object()},
+        {SequenceNumber(8), "notice.added", noticeData("configuration details changed"), Json::object()},
+        {SequenceNumber(9), "notice.added", noticeData("diagnostics ready"), Json::object()},
+    };
+    const UpdateBatchResult atomicBatches = UpdateBatchBuilder({2, 4096}).build(expandedOccurrences);
+    result.expectTrue(atomicBatches.success() && atomicBatches.batches.size() == 2 && atomicBatches.batches[0].batch.events.size() == 2 &&
+                          atomicBatches.batches[0].batch.fromSequence == SequenceNumber(8) &&
+                          atomicBatches.batches[0].batch.toSequence == SequenceNumber(8) &&
+                          atomicBatches.batches[1].batch.events.size() == 1,
+                      "all expanded families for one canonical occurrence remain in one atomic same-sequence batch group");
+    if (atomicBatches.success() && !atomicBatches.batches.empty()) {
+        expectServerRoundTrip(result, ServerMessage{atomicBatches.batches.front().batch}, "same-sequence expanded occurrence batch");
+    }
+    const UpdateBatchResult unsplittable = UpdateBatchBuilder({1, 4096}).build(expandedOccurrences);
+    result.expectTrue(unsplittable.requiresSnapshot() && unsplittable.oversizedSequence == SequenceNumber(8),
+                      "an expanded occurrence that exceeds a batch bound falls back to snapshot instead of splitting");
+    const UpdateBatchResult repeatedExpanded =
+        UpdateBatchBuilder({4, 4096}).build({{SequenceNumber(8), "notice.added", noticeData("first entity"), Json::object()},
+                                             {SequenceNumber(8), "notice.added", noticeData("second entity"), Json::object()}});
+    const UpdateBatchResult duplicateLegacy =
+        UpdateBatchBuilder({4, 4096}).build({{SequenceNumber(8), "codex.extension", Json::object(), Json::object()},
+                                             {SequenceNumber(8), "item.updated", Json::object(), Json::object()}});
+    result.expectTrue(repeatedExpanded.success() && duplicateLegacy.status == UpdateBatchStatus::InvalidSequence,
+                      "equal sequences permit repeated expanded families for distinct entities but reject legacy representations");
+
+    const std::vector<FrontendEvent> mixedRepresentations{
+        {SequenceNumber(10), "notice.added", noticeData("safe notice"), Json::object()},
+        {SequenceNumber(11), "codex.extension", Json{{"method", "example"}, {"params", Json::object()}}, Json::object()},
+    };
+    const UpdateBatchResult representationBatches = UpdateBatchBuilder({8, 4096}).build(mixedRepresentations);
+    bool representationBatchesEncode = representationBatches.success() && representationBatches.batches.size() == 2;
+    for (const BoundedEventBatch& batch : representationBatches.batches) {
+        representationBatchesEncode = representationBatchesEncode && Codec::encodeServer(ServerMessage{batch.batch}).hasValue();
+    }
+    const EventBatch mixedBatch{SequenceNumber(10), SequenceNumber(11), mixedRepresentations, Json::object()};
+    const bool mixedRejected = !Codec::encodeServer(ServerMessage{mixedBatch}).hasValue();
+    result.expectTrue(representationBatchesEncode && mixedRejected,
+                      "batching separates legacy and expanded schema branches while each resulting wire batch remains valid "
+                      "(status=" +
+                          std::to_string(static_cast<int>(representationBatches.status)) +
+                          ", batches=" + std::to_string(representationBatches.batches.size()) + ", encoded=" +
+                          std::to_string(representationBatchesEncode) + ", mixedRejected=" + std::to_string(mixedRejected) + ")");
+
     UpdateBatchBuilder tinyBuilder({8, 120});
-    const auto oversized =
-        tinyBuilder.build({{SequenceNumber(1), "item.content.updated", Json{{"text", std::string(1024, 'x')}}, Json::object()}});
+    const auto oversized = tinyBuilder.build({{SequenceNumber(1), "notice.added", noticeData(std::string(1024, 'x')), Json::object()}});
     result.expectTrue(oversized.requiresSnapshot() && oversized.oversizedSequence == SequenceNumber(1),
                       "a single oversized update requests snapshot fallback");
 

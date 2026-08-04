@@ -174,24 +174,21 @@ namespace {
 
         const std::set<std::string_view> expectedMechanisms{
             "authenticated_frontend",
+            "complete_backend_domains",
             "complete_provider_operations",
             "complete_reverse_requests",
+            "complete_thread_items",
             "conditional_command_execution",
             "conditional_filesystem",
+            "dedicated_notification_events",
+            "dedicated_pending_requests",
             "method_discovery",
             "provider_lifecycle",
             "security_scopes",
-        };
-        const std::set<std::string_view> expectedPendingProjectionMechanisms{
-            "complete_backend_domains",
-            "complete_thread_items",
-            "dedicated_notification_events",
-            "dedicated_pending_requests",
             "scope_projected_state",
         };
         const std::set<std::string_view> expectedFutureProducts{"browser_ui", "cpp_client_sdk", "qt_ui", "typescript_client_sdk"};
         std::set<std::string_view> mechanisms;
-        std::set<std::string_view> pendingProjectionMechanisms;
         std::set<std::string_view> futureProducts;
         bool multiTransportStaticFalse = false;
         for (const generated::CapabilityMetadata& capability : generated::AllCapabilities) {
@@ -199,8 +196,6 @@ namespace {
                 mechanisms.insert(capability.key);
             } else if (capability.key == "multi_transport") {
                 multiTransportStaticFalse = true;
-            } else if (expectedPendingProjectionMechanisms.contains(capability.key)) {
-                pendingProjectionMechanisms.insert(capability.key);
             } else {
                 futureProducts.insert(capability.key);
             }
@@ -208,10 +203,9 @@ namespace {
 
         result.expectTrue(conditional == expectedConditional && legacy == expectedLegacy,
                           "the exact 15 default-disabled and exact 15 legacy-compatible method sets remain frozen independently");
-        result.expectTrue(mechanisms == expectedMechanisms && pendingProjectionMechanisms == expectedPendingProjectionMechanisms &&
-                              futureProducts == expectedFutureProducts && multiTransportStaticFalse,
-                          "commit 3 implements exactly eight mechanisms, leaves exactly five projection mechanisms for commit 4, keeps "
-                          "multi_transport runtime-topology derived, and keeps four future product capabilities false");
+        result.expectTrue(mechanisms == expectedMechanisms && futureProducts == expectedFutureProducts && multiTransportStaticFalse,
+                          "A1.7b implements exactly thirteen service mechanisms, keeps multi_transport runtime-topology derived, and "
+                          "keeps four future product capabilities false");
 
         const auto accountRead = generated::definedMethodFromString("account.read");
         const bool accountPolicy =
@@ -231,7 +225,7 @@ int main() {
     static_assert(generated::DefaultRemotePermittedMethodCount == 53);
     static_assert(generated::LocalTrustedPermittedMethodCount == 90);
     static_assert(generated::ProviderReadyRequiredMethodCount == 98);
-    static_assert(generated::ImplementedMechanismCapabilityCount == 8);
+    static_assert(generated::ImplementedMechanismCapabilityCount == 13);
     testCompleteAuthorizationMatrix(result);
     testIndependentOwnerCategoryDerivation(result);
     testFrozenSetsAndCapabilities(result);

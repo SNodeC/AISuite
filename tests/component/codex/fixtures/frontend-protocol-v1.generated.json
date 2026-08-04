@@ -3792,7 +3792,25 @@
         {
           "kind": "user_input",
           "pendingRequestId": "1",
-          "truncated": false
+          "questions": [
+            {
+              "id": "question-1",
+              "header": "Choose a mode",
+              "prompt": "Which safe mode should be used?",
+              "allowsFreeText": true,
+              "isSecret": true,
+              "options": [
+                {
+                  "label": "safe",
+                  "description": "Use the bounded safe mode.",
+                  "futureOptionHint": true
+                }
+              ],
+              "futureQuestionHint": "preserved"
+            }
+          ],
+          "truncated": false,
+          "autoResolutionMs": 60000
         },
         {
           "kind": "authentication",

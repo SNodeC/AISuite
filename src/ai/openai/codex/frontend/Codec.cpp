@@ -8,12 +8,14 @@
 #include "ai/openai/codex/frontend/Codec.h"
 
 #include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/frontend/detail/EventRepresentation.h"
 #include "ai/openai/codex/frontend/detail/GeneratedSchemaValidator.h"
 
 #include <algorithm>
 #include <exception>
 #include <initializer_list>
 #include <limits>
+#include <span>
 #include <type_traits>
 
 namespace ai::openai::codex::frontend {
@@ -68,6 +70,33 @@ namespace ai::openai::codex::frontend {
                      std::string(valueName) + " does not satisfy the generated frontend schema: " + validation.message);
             }
         }
+
+        bool eventBatchUsesOneRepresentation(std::span<const FrontendEvent> events) noexcept {
+            detail::EventRepresentation possible = detail::EventRepresentation::Either;
+            for (std::size_t index = 0; index < events.size(); ++index) {
+                possible = detail::intersectRepresentations(possible, detail::eventRepresentation(events[index].type));
+                if (index > 0 && events[index].sequence == events[index - 1].sequence) {
+                    possible = detail::intersectRepresentations(possible, detail::EventRepresentation::Expanded);
+                }
+                if (possible == detail::EventRepresentation::None) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // One canonical backend occurrence may expand into several A1.7 event
+        // families, including repeated family types for distinct entities.
+        // Equal sequence numbers are valid only inside a group of recognized
+        // expanded event types. Legacy events remain strictly increasing.
+        bool eventCanFollow(const FrontendEvent& previous, const FrontendEvent& candidate) noexcept {
+            if (candidate.sequence > previous.sequence) {
+                return true;
+            }
+            return candidate.sequence == previous.sequence && expandedEventTypeFromString(previous.type).has_value() &&
+                   expandedEventTypeFromString(candidate.type).has_value();
+        }
+
         const Json& requireObject(const Json& value, std::string_view field = "message") {
             if (!value.is_object()) {
                 fail(ErrorCode::InvalidField, std::string(field) + " must be an object");
@@ -983,6 +1012,54 @@ namespace ai::openai::codex::frontend {
             return encoded;
         }
 
+        ExpandedPendingRequestOption decodeExpandedPendingRequestOption(const Json& encoded) {
+            requireObject(encoded, "expanded pending-request option");
+            return ExpandedPendingRequestOption{requireString(encoded, "label", false),
+                                                requireString(encoded, "description", false),
+                                                extensionsOf(encoded, {"label", "description"})};
+        }
+
+        Json encodeExpandedPendingRequestOption(const ExpandedPendingRequestOption& option) {
+            Json encoded = withExtensions(option.extensions);
+            encoded["label"] = option.label;
+            encoded["description"] = option.description;
+            return encoded;
+        }
+
+        ExpandedPendingRequestQuestion decodeExpandedPendingRequestQuestion(const Json& encoded) {
+            requireObject(encoded, "expanded pending-request question");
+            ExpandedPendingRequestQuestion question;
+            question.id = requireString(encoded, "id", false);
+            question.header = requireString(encoded, "header", false);
+            question.prompt = requireString(encoded, "prompt", false);
+            question.allowsFreeText = requireBool(encoded, "allowsFreeText");
+            question.isSecret = requireBool(encoded, "isSecret");
+            const Json& options = requireMember(encoded, "options");
+            if (!options.is_array()) {
+                fail(ErrorCode::InvalidField, "expanded pending-request question options must be an array");
+            }
+            question.options.reserve(options.size());
+            for (const Json& option : options) {
+                question.options.push_back(decodeExpandedPendingRequestOption(option));
+            }
+            question.extensions = extensionsOf(encoded, {"id", "header", "prompt", "allowsFreeText", "isSecret", "options"});
+            return question;
+        }
+
+        Json encodeExpandedPendingRequestQuestion(const ExpandedPendingRequestQuestion& question) {
+            Json encoded = withExtensions(question.extensions);
+            encoded["id"] = question.id;
+            encoded["header"] = question.header;
+            encoded["prompt"] = question.prompt;
+            encoded["allowsFreeText"] = question.allowsFreeText;
+            encoded["isSecret"] = question.isSecret;
+            encoded["options"] = Json::array();
+            for (const ExpandedPendingRequestOption& option : question.options) {
+                encoded["options"].push_back(encodeExpandedPendingRequestOption(option));
+            }
+            return encoded;
+        }
+
         ExpandedPendingRequest decodeExpandedPendingRequest(const Json& encoded) {
             requireObject(encoded, "expanded pending request");
             const std::string kindName = requireString(encoded, "kind");
@@ -1000,15 +1077,47 @@ namespace ai::openai::codex::frontend {
             if (const auto details = encoded.find("details"); details != encoded.end()) {
                 request.details = requireObject(*details, "details");
             }
+            if (const auto questions = encoded.find("questions"); questions != encoded.end()) {
+                if (!questions->is_array()) {
+                    fail(ErrorCode::InvalidField, "expanded pending-request questions must be an array");
+                }
+                request.questions.emplace();
+                request.questions->reserve(questions->size());
+                for (const Json& question : *questions) {
+                    request.questions->push_back(decodeExpandedPendingRequestQuestion(question));
+                }
+            }
+            if (const auto resolution = encoded.find("autoResolutionMs"); resolution != encoded.end()) {
+                request.autoResolutionMs = unsignedInteger(*resolution, "autoResolutionMs");
+            }
+            const bool userInput = request.kind == PendingRequestKind::UserInput;
+            if (userInput != request.questions.has_value() || (!userInput && request.autoResolutionMs.has_value())) {
+                fail(ErrorCode::InvalidField,
+                     "expanded user-input pending requests alone may contain questions and autoResolutionMs, and questions are required");
+            }
             request.truncated = optionalBool(encoded, "truncated").value_or(false);
-            request.extensions =
-                extensionsOf(encoded, {"pendingRequestId", "kind", "threadId", "turnId", "itemId", "summary", "details", "truncated"});
+            request.extensions = extensionsOf(encoded,
+                                              {"pendingRequestId",
+                                               "kind",
+                                               "threadId",
+                                               "turnId",
+                                               "itemId",
+                                               "summary",
+                                               "details",
+                                               "questions",
+                                               "autoResolutionMs",
+                                               "truncated"});
             return request;
         }
 
         Json encodeExpandedPendingRequest(const ExpandedPendingRequest& request) {
             if (request.pendingRequestId.empty()) {
                 fail(ErrorCode::InvalidField, "expanded pendingRequestId must not be empty");
+            }
+            const bool userInput = request.kind == PendingRequestKind::UserInput;
+            if (userInput != request.questions.has_value() || (!userInput && request.autoResolutionMs.has_value())) {
+                fail(ErrorCode::InvalidField,
+                     "expanded user-input pending requests alone may contain questions and autoResolutionMs, and questions are required");
             }
             Json encoded = withExtensions(request.extensions);
             encoded["pendingRequestId"] = request.pendingRequestId;
@@ -1020,6 +1129,13 @@ namespace ai::openai::codex::frontend {
             if (request.details.has_value()) {
                 encoded["details"] = requireObject(*request.details, "details");
             }
+            if (request.questions.has_value()) {
+                encoded["questions"] = Json::array();
+                for (const ExpandedPendingRequestQuestion& question : *request.questions) {
+                    encoded["questions"].push_back(encodeExpandedPendingRequestQuestion(question));
+                }
+            }
+            addOptional(encoded, "autoResolutionMs", request.autoResolutionMs);
             encoded["truncated"] = request.truncated;
             return encoded;
         }
@@ -1314,8 +1430,9 @@ namespace ai::openai::codex::frontend {
                 batch.events.reserve(events.size());
                 for (const Json& event : events) {
                     FrontendEvent decoded = decodeEventImpl(event);
-                    if (!batch.events.empty() && decoded.sequence <= batch.events.back().sequence) {
-                        fail(ErrorCode::InvalidField, "event batch sequence numbers must be strictly increasing");
+                    if (!batch.events.empty() && !eventCanFollow(batch.events.back(), decoded)) {
+                        fail(ErrorCode::InvalidField,
+                             "event batch sequences must increase between occurrences; equal sequences require expanded event types");
                     }
                     batch.events.push_back(std::move(decoded));
                 }
@@ -1409,19 +1526,21 @@ namespace ai::openai::codex::frontend {
                         if (value.events.empty()) {
                             fail(ErrorCode::InvalidField, "event batch must not be empty");
                         }
+                        if (!eventBatchUsesOneRepresentation(value.events)) {
+                            fail(ErrorCode::InvalidField, "event batch must contain exactly one recognized representation family");
+                        }
                         Json encoded = envelope(kind::Events, value.extensions);
                         encoded["fromSequence"] = value.fromSequence.value();
                         encoded["toSequence"] = value.toSequence.value();
                         encoded["events"] = Json::array();
-                        SequenceNumber previous;
-                        bool first = true;
-                        for (const FrontendEvent& event : value.events) {
-                            if (!first && event.sequence <= previous) {
-                                fail(ErrorCode::InvalidField, "event batch sequence numbers must be strictly increasing");
+                        for (std::size_t index = 0; index < value.events.size(); ++index) {
+                            const FrontendEvent& event = value.events[index];
+                            if (index > 0 && !eventCanFollow(value.events[index - 1], event)) {
+                                fail(ErrorCode::InvalidField,
+                                     "event batch sequences must increase between occurrences; equal sequences require expanded event "
+                                     "types");
                             }
                             encoded["events"].push_back(encodeEventImpl(event));
-                            previous = event.sequence;
-                            first = false;
                         }
                         if (value.fromSequence != value.events.front().sequence || value.toSequence != value.events.back().sequence) {
                             fail(ErrorCode::InvalidField, "event batch range does not match its first and last events");

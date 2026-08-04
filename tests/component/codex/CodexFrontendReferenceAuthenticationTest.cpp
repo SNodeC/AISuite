@@ -246,7 +246,7 @@ int main() {
                           remotePrincipal->profile == "default_remote" && remotePrincipal->scopes.size() == 2 &&
                           diagnostics.bearerConfigured && diagnostics.remotePrincipalId == "configured-remote" &&
                           diagnostics.remoteProfile == "default_remote",
-                      "a correct bearer receives exactly the configured default_remote principal and secret-free diagnostics");
+                      "a correct bearer receives exactly the configured default_remote principal and credential-omitting diagnostics");
     result.expectTrue(diagnostics.remotePrincipalId.find("remote-reference-token") == std::string::npos &&
                           diagnostics.remoteProfile.find("remote-reference-token") == std::string::npos,
                       "reference-authenticator diagnostics never expose bearer material");

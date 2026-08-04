@@ -16,6 +16,8 @@
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/detail/BackendCommandMapper.h"
+#include "ai/openai/codex/frontend/detail/BackendProjectionBuilder.h"
+#include "ai/openai/codex/frontend/detail/FrontendProjection.h"
 #include "ai/openai/codex/frontend/detail/ProviderResultProjection.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
 #include "ai/openai/codex/typed/Threads.h"
@@ -31,6 +33,7 @@
 #include <cstdint>
 #include <deque>
 #include <exception>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <nlohmann/json.hpp>
@@ -230,7 +233,10 @@ namespace ai::openai::codex::frontend {
         }
 
         Json errorSnapshotJson(const backend::ErrorSnapshot& error) {
-            return Json{{"category", error.category}, {"code", error.code}, {"message", error.message}};
+            // Provider error text is not structured strongly enough to prove
+            // that it cannot contain credential material. Keep the stable
+            // category/code contract and use a deterministic safe summary.
+            return Json{{"category", error.category}, {"code", error.code}, {"message", "Codex App Server reported an error"}};
         }
 
         bool isFrontendV1MetadataOnlyItem(std::string_view type) noexcept {
@@ -539,6 +545,52 @@ namespace ai::openai::codex::frontend {
 
     } // namespace
 
+    namespace detail {
+
+        // EventJournal keeps canonical service records type-erased in private
+        // entries. This source-private friend restores the concrete type only
+        // for FrontendService's single append/replay projection path.
+        class CanonicalEventJournalAccess {
+        public:
+            struct AppendResult {
+                JournalAppendStatus status = JournalAppendStatus::EncodingFailure;
+                std::optional<SequenceNumber> sequence;
+
+                [[nodiscard]] bool accepted() const noexcept {
+                    return status == JournalAppendStatus::Appended || status == JournalAppendStatus::NotRetained;
+                }
+            };
+
+            struct ReplayResult {
+                JournalReplayStatus status = JournalReplayStatus::Gap;
+                SequenceNumber requestedAfter;
+                SequenceNumber oldestReplayableAfter;
+                SequenceNumber currentSequence;
+                std::vector<std::shared_ptr<const CanonicalEventRecord>> records;
+            };
+
+            static AppendResult
+            append(EventJournal& journal, const std::shared_ptr<CanonicalEventRecord>& record, std::size_t serializedBytes) noexcept {
+                const EventJournal::OpaqueAppendResult result = journal.appendOpaque(record, serializedBytes);
+                if (result.sequence.has_value()) {
+                    assignCanonicalSequence(*record, *result.sequence);
+                }
+                return {result.status, result.sequence};
+            }
+
+            static ReplayResult replayAfter(const EventJournal& journal, SequenceNumber sequence) {
+                const EventJournal::OpaqueReplayResult replay = journal.replayOpaqueAfter(sequence);
+                ReplayResult result{replay.status, replay.requestedAfter, replay.oldestReplayableAfter, replay.currentSequence, {}};
+                result.records.reserve(replay.records.size());
+                for (const std::shared_ptr<const void>& opaque : replay.records) {
+                    result.records.push_back(std::static_pointer_cast<const CanonicalEventRecord>(opaque));
+                }
+                return result;
+            }
+        };
+
+    } // namespace detail
+
     struct FrontendConnection::Control {
         std::weak_ptr<FrontendService::Impl> service;
         std::uint64_t localId = 0;
@@ -546,6 +598,7 @@ namespace ai::openai::codex::frontend {
         FrontendConnectionCallbacks callbacks;
         std::optional<backend::FrontendSession> backendSession;
         std::optional<FrontendPrincipal> principal;
+        std::vector<FrontendCapability> negotiatedCapabilities;
         std::deque<OutboundMessage> outbound;
         std::unordered_map<std::string, generated::MethodId> pendingRequests;
         std::size_t outboundBytes = 0;
@@ -892,29 +945,86 @@ namespace ai::openai::codex::frontend {
             return {closeConnection ? ConnectionReceiveStatus::Closing : ConnectionReceiveStatus::Rejected, std::move(returned)};
         }
 
-        Snapshot frontendSnapshot(const backend::Snapshot* supplied = nullptr) const {
-            const backend::Snapshot backendSnapshot = supplied != nullptr ? *supplied : backendCore->snapshot();
-            return Snapshot{journal.currentSequence(),
-                            backendSnapshotJson(backendSnapshot,
-                                                journal.currentSequence(),
-                                                journal.oldestReplayableAfter(),
-                                                journal.oldestRetainedSequence(),
-                                                journal.newestRetainedSequence()),
-                            Json::object()};
+        detail::FrontendProjectionContext projectionContext(const std::shared_ptr<FrontendConnection::Control>& control) const noexcept {
+            if (!control || !control->principal.has_value()) {
+                return {};
+            }
+            return detail::makeProjectionContext(*control->principal, control->negotiatedCapabilities);
         }
 
-        void enqueueSnapshot(const std::shared_ptr<FrontendConnection::Control>& control,
+        using CanonicalEventRecords = std::vector<std::shared_ptr<const detail::CanonicalEventRecord>>;
+
+        UpdateBatchResult buildProjectedBatches(const std::shared_ptr<FrontendConnection::Control>& control,
+                                                const CanonicalEventRecords& canonicalEvents,
+                                                std::optional<SequenceNumber> replayAfter = std::nullopt) const noexcept {
+            try {
+                std::vector<FrontendEvent> projected;
+                const detail::FrontendProjectionContext context = projectionContext(control);
+                for (const std::shared_ptr<const detail::CanonicalEventRecord>& record : canonicalEvents) {
+                    if (!record) {
+                        return {UpdateBatchStatus::EncodingFailure, {}, std::nullopt};
+                    }
+                    detail::EventProjection occurrence = detail::projectEvent(*record, context, replayAfter);
+                    projected.insert(projected.end(),
+                                     std::make_move_iterator(occurrence.events.begin()),
+                                     std::make_move_iterator(occurrence.events.end()));
+                }
+                if (projected.empty()) {
+                    return {UpdateBatchStatus::Success, {}, std::nullopt};
+                }
+                return batchBuilder.build(projected);
+            } catch (...) {
+                return {UpdateBatchStatus::EncodingFailure, {}, std::nullopt};
+            }
+        }
+
+        detail::CanonicalSnapshotRecord canonicalSnapshot(const backend::Snapshot& backendSnapshot) const {
+            Json legacy = backendSnapshotJson(backendSnapshot,
+                                              journal.currentSequence(),
+                                              journal.oldestReplayableAfter(),
+                                              journal.oldestRetainedSequence(),
+                                              journal.newestRetainedSequence());
+            legacy["frontendSequenceExhausted"] = sequenceExhausted;
+            detail::CanonicalSnapshotRecord record =
+                detail::makeCanonicalSnapshotRecord(std::move(legacy), backendSnapshot, journal.currentSequence());
+            record.expandedState.value["frontendSequenceExhausted"] = sequenceExhausted;
+            return record;
+        }
+
+        Snapshot frontendSnapshot(const std::shared_ptr<FrontendConnection::Control>& control,
+                                  const backend::Snapshot* supplied = nullptr) const {
+            const backend::Snapshot backendSnapshot = supplied != nullptr ? *supplied : backendCore->snapshot();
+            const detail::CanonicalSnapshotRecord record = canonicalSnapshot(backendSnapshot);
+            const auto projected = detail::projectSnapshot(record, projectionContext(control));
+            if (projected.has_value()) {
+                return projected->snapshot;
+            }
+            Json extensions = Json::object();
+            if (control && std::find(control->negotiatedCapabilities.begin(),
+                                     control->negotiatedCapabilities.end(),
+                                     FrontendCapability::ScopeProjectedState) != control->negotiatedCapabilities.end()) {
+                extensions["scopeProjection"] = {{"omittedFields", Json::array({"/"})}, {"redactedFields", Json::array()}};
+            }
+            return Snapshot{journal.currentSequence(), Json::object(), std::move(extensions)};
+        }
+
+        bool enqueueSnapshot(const std::shared_ptr<FrontendConnection::Control>& control,
                              const backend::Snapshot* supplied = nullptr) noexcept {
             try {
-                enqueue(control, ServerMessage{frontendSnapshot(supplied)});
+                return enqueue(control, ServerMessage{frontendSnapshot(control, supplied)});
             } catch (...) {
                 closeControl(control, "failed to create frontend snapshot");
+                return false;
             }
         }
 
         bool enqueueBatches(const std::shared_ptr<FrontendConnection::Control>& control,
-                            const std::vector<FrontendEvent>& events) noexcept {
-            const UpdateBatchResult built = batchBuilder.build(events);
+                            const CanonicalEventRecords& canonicalEvents,
+                            std::optional<SequenceNumber> replayAfter = std::nullopt) noexcept {
+            const UpdateBatchResult built = buildProjectedBatches(control, canonicalEvents, replayAfter);
+            if (built.requiresSnapshot()) {
+                return enqueueSnapshot(control);
+            }
             if (!built.success()) {
                 return false;
             }
@@ -1172,6 +1282,22 @@ namespace ai::openai::codex::frontend {
             return currentCapabilityAdvertisement(multiTransportEnabled()).implemented;
         }
 
+        std::vector<FrontendCapability> negotiatedCapabilities(const Hello& hello, const CapabilityAdvertisement& advertisement) const {
+            std::vector<FrontendCapability> negotiated;
+            if (!hello.capabilities.has_value()) {
+                return negotiated;
+            }
+            negotiated.reserve(hello.capabilities->size());
+            for (FrontendCapability capability : *hello.capabilities) {
+                if (std::find(advertisement.implemented.begin(), advertisement.implemented.end(), capability) !=
+                        advertisement.implemented.end() &&
+                    std::find(negotiated.begin(), negotiated.end(), capability) == negotiated.end()) {
+                    negotiated.push_back(capability);
+                }
+            }
+            return negotiated;
+        }
+
         void declareTransportFamily(FrontendTransportKind transport) {
             declaredTransports.insert(transport);
         }
@@ -1192,6 +1318,9 @@ namespace ai::openai::codex::frontend {
             if (!authenticate(control, hello)) {
                 return;
             }
+
+            const CapabilityAdvertisement handshakeAdvertisement = currentCapabilityAdvertisement(multiTransportEnabled());
+            control->negotiatedCapabilities = negotiatedCapabilities(hello, handshakeAdvertisement);
 
             flushNow();
             const std::weak_ptr<FrontendConnection::Control> weakControl = control;
@@ -1238,16 +1367,17 @@ namespace ai::openai::codex::frontend {
             }
 
             SyncMode syncMode = SyncMode::Snapshot;
-            std::vector<FrontendEvent> replayEvents;
+            CanonicalEventRecords replayRecords;
             bool replayUsable = false;
             if (hello.resumeAfter.has_value()) {
                 try {
-                    const JournalReplayResult replay = journal.replayAfter(*hello.resumeAfter);
+                    const detail::CanonicalEventJournalAccess::ReplayResult replay =
+                        detail::CanonicalEventJournalAccess::replayAfter(journal, *hello.resumeAfter);
                     if (replay.status == JournalReplayStatus::Available) {
-                        const UpdateBatchResult built = batchBuilder.build(replay.events);
-                        if (built.success()) {
+                        const UpdateBatchResult batches = buildProjectedBatches(control, replay.records, *hello.resumeAfter);
+                        if (batches.success()) {
                             syncMode = SyncMode::Replay;
-                            replayEvents = replay.events;
+                            replayRecords = replay.records;
                             replayUsable = true;
                         }
                     }
@@ -1259,7 +1389,7 @@ namespace ai::openai::codex::frontend {
             const std::string id = std::to_string(control->backendSession->id().value());
             Welcome welcome{id, SessionRole::Observer, journal.currentSequence(), syncMode, Json::object()};
             if (hello.capabilities.has_value()) {
-                welcome.capabilities = currentCapabilityAdvertisement(multiTransportEnabled());
+                welcome.capabilities = handshakeAdvertisement;
                 welcome.availableMethods = availableMethods();
                 welcome.permittedMethods = permittedMethods(*control->principal);
             }
@@ -1267,7 +1397,7 @@ namespace ai::openai::codex::frontend {
                 return;
             }
             if (replayUsable) {
-                if (!enqueueBatches(control, replayEvents)) {
+                if (!enqueueBatches(control, replayRecords, hello.resumeAfter)) {
                     closeControl(control, "failed to enqueue frontend replay");
                     return;
                 }
@@ -1594,7 +1724,8 @@ namespace ai::openai::codex::frontend {
                             return {ConnectionReceiveStatus::Accepted, std::nullopt};
                         case detail::NativeServiceAction::EventsReplay: {
                             flushNow();
-                            const JournalReplayResult replayResult = journal.replayAfter(SequenceNumber{native->replayAfter.value_or(0)});
+                            const detail::CanonicalEventJournalAccess::ReplayResult replayResult =
+                                detail::CanonicalEventJournalAccess::replayAfter(journal, SequenceNumber{native->replayAfter.value_or(0)});
                             if (replayResult.status == JournalReplayStatus::FutureSequence) {
                                 control->pendingRequests.erase(command.requestId);
                                 enqueueFailure(control,
@@ -1606,7 +1737,8 @@ namespace ai::openai::codex::frontend {
                             SyncMode mode = SyncMode::Snapshot;
                             UpdateBatchResult built;
                             if (replayResult.status == JournalReplayStatus::Available) {
-                                built = batchBuilder.build(replayResult.events);
+                                built =
+                                    buildProjectedBatches(control, replayResult.records, SequenceNumber{native->replayAfter.value_or(0)});
                                 if (built.success()) {
                                     mode = SyncMode::Replay;
                                 }
@@ -2158,13 +2290,21 @@ namespace ai::openai::codex::frontend {
             if (!journal.invalidateReplay()) {
                 sequenceExhausted = true;
             }
-            Json state = backendSnapshotJson(snapshot,
-                                             journal.currentSequence(),
-                                             journal.oldestReplayableAfter(),
-                                             journal.oldestRetainedSequence(),
-                                             journal.newestRetainedSequence());
-            state["frontendSequenceExhausted"] = sequenceExhausted;
-            broadcast(ServerMessage{Snapshot{journal.currentSequence(), std::move(state), Json::object()}});
+            std::vector<std::shared_ptr<FrontendConnection::Control>> recipients;
+            try {
+                recipients.reserve(connections.size());
+                for (const auto& [id, control] : connections) {
+                    (void) id;
+                    if (control->open && control->helloDone) {
+                        recipients.push_back(control);
+                    }
+                }
+            } catch (...) {
+                return;
+            }
+            for (const auto& control : recipients) {
+                enqueueSnapshot(control, &snapshot);
+            }
         }
 
         void scheduleFlush() noexcept {
@@ -2199,11 +2339,40 @@ namespace ai::openai::codex::frontend {
             }
         }
 
+        void broadcastCanonicalEvents(const CanonicalEventRecords& events) noexcept {
+            std::vector<std::shared_ptr<FrontendConnection::Control>> recipients;
+            try {
+                recipients.reserve(connections.size());
+                for (const auto& [id, control] : connections) {
+                    (void) id;
+                    if (control->open && control->helloDone) {
+                        recipients.push_back(control);
+                    }
+                }
+            } catch (...) {
+                return;
+            }
+            for (const auto& control : recipients) {
+                if (!enqueueBatches(control, events)) {
+                    closeControl(control, "failed to project or enqueue canonical frontend events");
+                }
+            }
+        }
+
         void broadcastSnapshot() noexcept {
             try {
-                Snapshot snapshot = frontendSnapshot();
-                snapshot.state["frontendSequenceExhausted"] = sequenceExhausted;
-                broadcast(ServerMessage{std::move(snapshot)});
+                const backend::Snapshot backendSnapshot = backendCore->snapshot();
+                std::vector<std::shared_ptr<FrontendConnection::Control>> recipients;
+                recipients.reserve(connections.size());
+                for (const auto& [id, control] : connections) {
+                    (void) id;
+                    if (control->open && control->helloDone) {
+                        recipients.push_back(control);
+                    }
+                }
+                for (const auto& control : recipients) {
+                    enqueueSnapshot(control, &backendSnapshot);
+                }
             } catch (...) {
             }
         }
@@ -2229,11 +2398,23 @@ namespace ai::openai::codex::frontend {
                         continue;
                     }
 
-                    std::vector<FrontendEvent> events;
+                    CanonicalEventRecords events;
                     events.reserve(dirty.updates.size());
                     bool snapshotFallback = false;
+                    const backend::Snapshot backendSnapshot = backendCore->snapshot();
                     for (DirtyUpdate& update : dirty.updates) {
-                        JournalAppendResult appended = journal.append(std::move(update.type), std::move(update.data), Json::object());
+                        auto record = std::make_shared<detail::CanonicalEventRecord>(
+                            detail::makeCanonicalEventRecord(std::move(update.type), std::move(update.data), backendSnapshot));
+                        const auto retainedBytes = detail::canonicalEventRetainedBytes(*record);
+                        if (!retainedBytes.has_value()) {
+                            if (!journal.invalidateReplay()) {
+                                sequenceExhausted = true;
+                            }
+                            snapshotFallback = true;
+                            break;
+                        }
+                        const detail::CanonicalEventJournalAccess::AppendResult appended =
+                            detail::CanonicalEventJournalAccess::append(journal, record, *retainedBytes);
                         if (appended.status == JournalAppendStatus::SequenceOverflow) {
                             sequenceExhausted = true;
                             (void) journal.invalidateReplay();
@@ -2245,14 +2426,14 @@ namespace ai::openai::codex::frontend {
                             snapshotFallback = true;
                             break;
                         }
-                        if (!appended.accepted() || !appended.event.has_value()) {
+                        if (!appended.accepted() || !appended.sequence.has_value() || record->sequence != appended.sequence) {
                             if (!journal.invalidateReplay()) {
                                 sequenceExhausted = true;
                             }
                             snapshotFallback = true;
                             break;
                         }
-                        events.push_back(std::move(*appended.event));
+                        events.push_back(std::move(record));
                     }
                     if (snapshotFallback) {
                         broadcastSnapshot();
@@ -2262,17 +2443,7 @@ namespace ai::openai::codex::frontend {
                         continue;
                     }
 
-                    const UpdateBatchResult built = batchBuilder.build(events);
-                    if (!built.success()) {
-                        if (!journal.invalidateReplay()) {
-                            sequenceExhausted = true;
-                        }
-                        broadcastSnapshot();
-                        continue;
-                    }
-                    for (const BoundedEventBatch& batch : built.batches) {
-                        broadcast(ServerMessage{batch.batch});
-                    }
+                    broadcastCanonicalEvents(events);
                 } catch (...) {
                     coalescer.clear();
                     if (!journal.invalidateReplay()) {

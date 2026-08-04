@@ -31,12 +31,13 @@
     "defaultAvailableMethods": 90,
     "defaultRemotePermittedMethods": 53,
     "localTrustedPermittedMethods": 90,
-    "implementedMechanismCapabilities": 8,
+    "implementedMechanismCapabilities": 13,
     "runtimeTopologyCapabilities": 1,
     "futureProductCapabilities": 4,
     "reviewedIdentities": 234,
     "notifications": 68,
-    "threadItems": 18
+    "threadItems": 18,
+    "pendingRequests": 10
   },
   "scopeProfiles": {
     "default_remote": [
@@ -111,7 +112,7 @@
     {
       "key": "complete_backend_domains",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
@@ -129,19 +130,19 @@
     {
       "key": "dedicated_pending_requests",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "dedicated_notification_events",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_thread_items",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
@@ -153,7 +154,7 @@
     {
       "key": "scope_projected_state",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7b"
     },
     {
@@ -5940,6 +5941,252 @@
       "capability": "complete_thread_items",
       "legacyCapabilityBehavior": "use legacy contract when capability is absent",
       "expandedCapabilityBehavior": "use bounded safe item projection when capability is present",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    }
+  ],
+  "pendingRequestMappings": [
+    {
+      "registryKey": "server_request:ServerRequest:method:item/commandExecution/requestApproval",
+      "providerMethod": "item/commandExecution/requestApproval",
+      "kind": "command_execution_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.approval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/fileChange/requestApproval",
+      "providerMethod": "item/fileChange/requestApproval",
+      "kind": "file_change_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.approval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/tool/requestUserInput",
+      "providerMethod": "item/tool/requestUserInput",
+      "kind": "user_input",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.userInput.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:account/chatgptAuthTokens/refresh",
+      "providerMethod": "account/chatgptAuthTokens/refresh",
+      "kind": "authentication",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.authentication.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:applyPatchApproval",
+      "providerMethod": "applyPatchApproval",
+      "kind": "apply_patch_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.applyPatchApproval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:execCommandApproval",
+      "providerMethod": "execCommandApproval",
+      "kind": "exec_command_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.execCommandApproval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/permissions/requestApproval",
+      "providerMethod": "item/permissions/requestApproval",
+      "kind": "permissions_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.permissionsApproval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:attestation/generate",
+      "providerMethod": "attestation/generate",
+      "kind": "attestation",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.attestation.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/tool/call",
+      "providerMethod": "item/tool/call",
+      "kind": "dynamic_tool_call",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.dynamicTool.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:mcpServer/elicitation/request",
+      "providerMethod": "mcpServer/elicitation/request",
+      "kind": "mcp_elicitation",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.mcpElicitation.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
       "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
     }
   ],

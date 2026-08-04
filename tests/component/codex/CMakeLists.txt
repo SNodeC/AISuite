@@ -1476,6 +1476,21 @@ set_tests_properties(
 )
 
 snodec_add_test(
+    CodexFrontendProjectionTest CodexFrontendProjectionTest.cpp
+)
+target_link_libraries(
+    CodexFrontendProjectionTest PRIVATE snodec-test-support
+                                        AISuite::OpenAICodexFrontend
+)
+target_compile_features(CodexFrontendProjectionTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendProjectionTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;projection;journal;a1-7b"
+               TIMEOUT 10
+)
+
+snodec_add_test(
     CodexFrontendCompleteCodecTest CodexFrontendCompleteCodecTest.cpp
 )
 target_link_libraries(

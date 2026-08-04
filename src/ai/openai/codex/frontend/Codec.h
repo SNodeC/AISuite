@@ -101,8 +101,8 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] static CodecResult<ExpandedFrontendEvent> decodeExpandedEvent(const Json& event) noexcept;
         [[nodiscard]] static CodecResult<Json> encodeExpandedEvent(const ExpandedFrontendEvent& event) noexcept;
 
-        // Event encoding excludes the surrounding event-batch envelope. It is
-        // public so EventJournal can enforce an exact retained-byte bound.
+        // Event encoding excludes the surrounding event-batch envelope. These
+        // helpers support exact projected replay and outbound capacity bounds.
         [[nodiscard]] static CodecResult<Json> encodeEvent(const FrontendEvent& event) noexcept;
         [[nodiscard]] static CodecResult<std::size_t> serializedEventSize(const FrontendEvent& event) noexcept;
     };

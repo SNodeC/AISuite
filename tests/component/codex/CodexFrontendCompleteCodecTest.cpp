@@ -258,6 +258,23 @@ namespace {
             result.expectTrue(decodedSnapshot.value().state.items->front().agentText.has_value() &&
                                   decodedSnapshot.value().state.items->front().data.has_value(),
                               "expanded ThreadItem value types retain bounded renderable content and safe detail fields");
+
+            const auto userInput = std::find_if(decodedSnapshot.value().state.pendingRequests->begin(),
+                                                decodedSnapshot.value().state.pendingRequests->end(),
+                                                [](const frontend::ExpandedPendingRequest& request) {
+                                                    return request.kind == frontend::PendingRequestKind::UserInput;
+                                                });
+            const bool completeUserInput = userInput != decodedSnapshot.value().state.pendingRequests->end() &&
+                                           userInput->questions.has_value() && userInput->questions->size() == 1 &&
+                                           userInput->autoResolutionMs == 60'000 && userInput->questions->front().id == "question-1" &&
+                                           userInput->questions->front().allowsFreeText && userInput->questions->front().isSecret &&
+                                           userInput->questions->front().options.size() == 1 &&
+                                           userInput->questions->front().options.front().label == "safe" &&
+                                           userInput->questions->front().extensions.at("futureQuestionHint") == "preserved" &&
+                                           userInput->questions->front().options.front().extensions.at("futureOptionHint") == true;
+            result.expectTrue(completeUserInput,
+                              "user-input pending requests retain bounded typed questions, options, the secret-input flag, "
+                              "auto-resolution metadata, and safe future fields without retaining an answer");
         }
 
         bool eventsRoundTrip = true;
@@ -290,6 +307,62 @@ namespace {
         const auto decodedCredentialSnapshot = frontend::Codec::decodeExpandedSnapshot(credentialSnapshot);
         result.expectTrue(!decodedCredentialSnapshot && decodedCredentialSnapshot.error().code == frontend::ErrorCode::InvalidField,
                           "expanded safe state rejects credential-named fields at every bounded detail-object boundary");
+
+        const auto userInputIndex = [&snapshotFixture]() -> std::optional<std::size_t> {
+            const auto& requests = snapshotFixture.at("state").at("pendingRequests");
+            for (std::size_t index = 0; index < requests.size(); ++index) {
+                if (requests.at(index).at("kind") == "user_input") {
+                    return index;
+                }
+            }
+            return std::nullopt;
+        }();
+        bool boundedUserInput = userInputIndex.has_value();
+        if (userInputIndex.has_value()) {
+            frontend::Json missingQuestions = snapshotFixture;
+            missingQuestions["state"]["pendingRequests"][*userInputIndex].erase("questions");
+            const auto missing = frontend::Codec::decodeExpandedSnapshot(missingQuestions);
+
+            frontend::Json misplacedQuestions = snapshotFixture;
+            misplacedQuestions["state"]["pendingRequests"][0]["questions"] =
+                snapshotFixture.at("state").at("pendingRequests").at(*userInputIndex).at("questions");
+            const auto misplaced = frontend::Codec::decodeExpandedSnapshot(misplacedQuestions);
+
+            frontend::Json credentialQuestion = snapshotFixture;
+            credentialQuestion["state"]["pendingRequests"][*userInputIndex]["questions"][0]["accessToken"] = "SYNTHETIC_SENTINEL";
+            const auto credential = frontend::Codec::decodeExpandedSnapshot(credentialQuestion);
+
+            frontend::Json tooManyQuestions = snapshotFixture;
+            const frontend::Json representativeQuestion =
+                tooManyQuestions.at("state").at("pendingRequests").at(*userInputIndex).at("questions").at(0);
+            tooManyQuestions["state"]["pendingRequests"][*userInputIndex]["questions"] = frontend::Json::array();
+            for (std::size_t index = 0; index < 65; ++index) {
+                frontend::Json question = representativeQuestion;
+                question["id"] = "question-" + std::to_string(index);
+                tooManyQuestions["state"]["pendingRequests"][*userInputIndex]["questions"].push_back(std::move(question));
+            }
+            const auto questionOverflow = frontend::Codec::decodeExpandedSnapshot(tooManyQuestions);
+
+            frontend::Json tooManyOptions = snapshotFixture;
+            const frontend::Json representativeOption =
+                tooManyOptions.at("state").at("pendingRequests").at(*userInputIndex).at("questions").at(0).at("options").at(0);
+            tooManyOptions["state"]["pendingRequests"][*userInputIndex]["questions"][0]["options"] = frontend::Json::array();
+            for (std::size_t index = 0; index < 65; ++index) {
+                frontend::Json option = representativeOption;
+                option["label"] = "option-" + std::to_string(index);
+                tooManyOptions["state"]["pendingRequests"][*userInputIndex]["questions"][0]["options"].push_back(std::move(option));
+            }
+            const auto optionOverflow = frontend::Codec::decodeExpandedSnapshot(tooManyOptions);
+
+            boundedUserInput = !missing && missing.error().code == frontend::ErrorCode::MissingField && !misplaced &&
+                               misplaced.error().code == frontend::ErrorCode::InvalidField && !credential &&
+                               credential.error().code == frontend::ErrorCode::InvalidField && !questionOverflow &&
+                               questionOverflow.error().code == frontend::ErrorCode::InvalidField && !optionOverflow &&
+                               optionOverflow.error().code == frontend::ErrorCode::InvalidField;
+        }
+        result.expectTrue(boundedUserInput,
+                          "the dedicated user-input contract requires questions only on user_input, bounds questions/options at 64, "
+                          "and rejects credential-shaped nested fields");
     }
 
     void testDiscoveryAndErrorExtensions(tests::support::TestResult& result) {

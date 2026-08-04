@@ -561,7 +561,11 @@ remain excluded.
 
 ## Normalized events
 
-An `events` message contains a strictly increasing, non-empty sequence:
+An `events` message contains a non-empty occurrence-ordered sequence. Sequence
+numbers increase strictly between canonical occurrences. Recognized expanded
+event families projected from one occurrence may repeat that occurrence's
+sequence as one atomic group; legacy events remain strictly increasing. The
+outer range exactly matches the first and last event.
 
 ```json
 {

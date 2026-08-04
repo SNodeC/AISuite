@@ -32636,6 +32636,75 @@
         "mcp_elicitation"
       ]
     },
+    "ExpandedPendingRequestOption": {
+      "type": "object",
+      "required": [
+        "label",
+        "description"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 16384
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/SafeDetailValue"
+      },
+      "maxProperties": 512,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      }
+    },
+    "ExpandedPendingRequestQuestion": {
+      "type": "object",
+      "required": [
+        "id",
+        "header",
+        "prompt",
+        "allowsFreeText",
+        "isSecret",
+        "options"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "header": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "prompt": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "allowsFreeText": {
+          "type": "boolean"
+        },
+        "isSecret": {
+          "type": "boolean"
+        },
+        "options": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/ExpandedPendingRequestOption"
+          }
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/SafeDetailValue"
+      },
+      "maxProperties": 512,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      }
+    },
     "ExpandedPendingRequestBase": {
       "type": "object",
       "required": [
@@ -32671,6 +32740,16 @@
         "details": {
           "$ref": "#/$defs/SafeDetailObject"
         },
+        "questions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/ExpandedPendingRequestQuestion"
+          }
+        },
+        "autoResolutionMs": {
+          "$ref": "#/$defs/UInt64"
+        },
         "truncated": {
           "type": "boolean"
         },
@@ -32701,6 +32780,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "command_execution_approval"
@@ -32720,6 +32821,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "file_change_approval"
@@ -32739,6 +32862,9 @@
             },
             {
               "type": "object",
+              "required": [
+                "questions"
+              ],
               "properties": {
                 "kind": {
                   "const": "user_input"
@@ -32758,6 +32884,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "authentication"
@@ -32777,6 +32925,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "apply_patch_approval"
@@ -32796,6 +32966,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "exec_command_approval"
@@ -32815,6 +33007,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "permissions_approval"
@@ -32834,6 +33048,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "attestation"
@@ -32853,6 +33089,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "dynamic_tool_call"
@@ -32872,6 +33130,28 @@
             },
             {
               "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "questions"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  },
+                  {
+                    "required": [
+                      "autoResolutionMs"
+                    ],
+                    "maxProperties": 512,
+                    "propertyNames": {
+                      "$ref": "#/$defs/SafePropertyName"
+                    }
+                  }
+                ]
+              },
               "properties": {
                 "kind": {
                   "const": "mcp_elicitation"
@@ -36709,7 +36989,8 @@
             "$ref": "#/$defs/SafePropertyName"
           }
         }
-      ]
+      ],
+      "description": "Expanded event sequences increase strictly between canonical occurrences. All recognized expanded families projected from one occurrence may repeat that occurrence sequence as one atomic group. The outer range agrees exactly with the first and last event."
     }
   },
   "x-aisuite-frontend-contract": {
@@ -36719,6 +37000,7 @@
     "runtimeAvailableMethods": 90,
     "reviewedIdentities": 234,
     "notificationMappings": 68,
-    "threadItemMappings": 18
+    "threadItemMappings": 18,
+    "pendingRequestMappings": 10
   }
 }

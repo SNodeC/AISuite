@@ -141,23 +141,11 @@ MECHANISM_CAPABILITIES = frozenset(
     }
 )
 
-# Commit 3 activates authentication, generated dispatch, all provider/reverse
-# handlers, conditional invocation policy, and provider lifecycle.  The five
-# projection mechanisms are deliberately activated with the canonical journal
-# in commit 4 so no intermediate review commit advertises a mechanism before
-# its runtime path exists.
-IMPLEMENTED_MECHANISM_CAPABILITIES = frozenset(
-    {
-        "method_discovery",
-        "security_scopes",
-        "complete_provider_operations",
-        "complete_reverse_requests",
-        "conditional_filesystem",
-        "conditional_command_execution",
-        "authenticated_frontend",
-        "provider_lifecycle",
-    }
-)
+# A1.7b implements every mechanism/build capability.  Runtime listener topology
+# remains separate: ``multi_transport`` is advertised only when more than one
+# distinct successfully bound transport family has been declared to the one
+# FrontendService.
+IMPLEMENTED_MECHANISM_CAPABILITIES = MECHANISM_CAPABILITIES
 
 FUTURE_CAPABILITIES = frozenset(
     {
@@ -323,6 +311,23 @@ REVERSE_PARAMETER_SHAPES = {
     "request.mcpElicitation.respond": (["pendingRequestId", "response"], ["pendingRequestId", "response"]),
     "request.known.reject": (["pendingRequestId", "error"], ["pendingRequestId", "error"]),
 }
+
+# The stable server-request inventory remains owned by the exported production
+# registry.  This table supplies only the product discriminator chosen by the
+# reviewed frontend contract; response method cardinality, scopes, redaction,
+# and compatibility policy are derived and cross-checked from that registry.
+PENDING_REQUEST_KINDS = (
+    ("item/commandExecution/requestApproval", "command_execution_approval"),
+    ("item/fileChange/requestApproval", "file_change_approval"),
+    ("item/tool/requestUserInput", "user_input"),
+    ("account/chatgptAuthTokens/refresh", "authentication"),
+    ("applyPatchApproval", "apply_patch_approval"),
+    ("execCommandApproval", "exec_command_approval"),
+    ("item/permissions/requestApproval", "permissions_approval"),
+    ("attestation/generate", "attestation"),
+    ("item/tool/call", "dynamic_tool_call"),
+    ("mcpServer/elicitation/request", "mcp_elicitation"),
+)
 
 SENSITIVE_PROVIDER_METHODS = frozenset(
     {
@@ -746,7 +751,7 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
     ]
     implemented_capabilities = {item["key"] for item in capabilities if item["implementedByCurrentRuntime"]}
     if implemented_capabilities != IMPLEMENTED_MECHANISM_CAPABILITIES:
-        raise GenerationError("A1.7b commit 3 must implement exactly eight mechanism/build capabilities")
+        raise GenerationError("A1.7b must implement exactly thirteen mechanism/build capabilities")
     if any(item["implementedByCurrentRuntime"] for item in capabilities if item["key"] in FUTURE_CAPABILITIES):
         raise GenerationError("A1.7b claims a future product capability as implemented")
     notifications = [
@@ -783,8 +788,87 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
         for row in rows
         if row["registryKey"]["category"] == "item_discriminator" and row["registryKey"]["domain"] == "ThreadItem"
     ]
-    if len(notifications) != 68 or len(items) != 18:
-        raise GenerationError("notification/item mappings must be 68/18")
+    pending_kind_by_method = dict(PENDING_REQUEST_KINDS)
+    stable_server_requests = [
+        row
+        for row in rows
+        if row["registryKey"]["category"] == "server_request"
+        and row["stability"] == "stable"
+    ]
+    pending_kind_order = {
+        method: index for index, (method, _) in enumerate(PENDING_REQUEST_KINDS)
+    }
+    stable_server_requests.sort(
+        key=lambda row: pending_kind_order.get(row["registryKey"]["name"], len(pending_kind_order))
+    )
+    stable_server_request_methods = {
+        row["registryKey"]["name"] for row in stable_server_requests
+    }
+    if (
+        len(pending_kind_by_method) != 10
+        or set(pending_kind_by_method) != stable_server_request_methods
+        or len(set(pending_kind_by_method.values())) != 10
+    ):
+        raise GenerationError(
+            "pending-request discriminator table must bijectively cover the ten stable server requests"
+        )
+    reverse_methods = {
+        row["method"]: row
+        for row in methods
+        if row["category"] == "reverse_response"
+    }
+    pending_requests = []
+    for row in stable_server_requests:
+        provider_method = row["registryKey"]["name"]
+        response_methods = row["mappings"]
+        if (
+            row["exposure"] != "DedicatedPendingRequestContract"
+            or row["securityDecision"] != "ScopeProjectedStateEventApproved"
+            or row["requiredScopes"] != ["observe"]
+            or row["redactionClass"] != "safe_pending_request"
+            or not response_methods
+            or any(method not in reverse_methods for method in response_methods)
+            or any(
+                registry_key(row) not in reverse_methods[method]["registryKeys"]
+                for method in response_methods
+            )
+        ):
+            raise GenerationError(
+                f"stable server request {provider_method!r} lacks its complete reviewed pending-request projection"
+            )
+        response_scope_sets = {
+            tuple(reverse_methods[method]["requiredScopes"])
+            for method in response_methods
+        }
+        controller_requirements = {
+            reverse_methods[method]["controllerRequired"]
+            for method in response_methods
+        }
+        if response_scope_sets != {("control", "sensitive_response")} or controller_requirements != {True}:
+            raise GenerationError(
+                f"stable server request {provider_method!r} response policy differs from the reviewed typed-request policy"
+            )
+        pending_requests.append(
+            {
+                "registryKey": registry_key(row),
+                "providerMethod": provider_method,
+                "kind": pending_kind_by_method[provider_method],
+                "finalExposure": row["exposure"],
+                "securityDecision": row["securityDecision"],
+                "legacyContract": row["compatibilityBehavior"],
+                "expandedEvent": "pendingRequests.updated",
+                "responseMethods": response_methods,
+                "presentationRequiredScopes": row["requiredScopes"],
+                "controllerRequiredForPresentation": row["controllerRequired"],
+                "responseRequiredScopes": ["control", "sensitive_response"],
+                "controllerRequiredForResponse": True,
+                "redactionClass": row["redactionClass"],
+                "capability": "dedicated_pending_requests",
+                "duplicateSuppression": "exactly_one_compatibility_representation_per_connection",
+            }
+        )
+    if len(notifications) != 68 or len(items) != 18 or len(pending_requests) != 10:
+        raise GenerationError("notification/item/pending-request mappings must be 68/18/10")
     excluded = [
         {
             "registryKey": registry_key(row),
@@ -836,12 +920,13 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
             "defaultAvailableMethods": 90,
             "defaultRemotePermittedMethods": 53,
             "localTrustedPermittedMethods": 90,
-            "implementedMechanismCapabilities": 8,
+            "implementedMechanismCapabilities": 13,
             "runtimeTopologyCapabilities": 1,
             "futureProductCapabilities": 4,
             "reviewedIdentities": 234,
             "notifications": 68,
             "threadItems": 18,
+            "pendingRequests": 10,
         },
         "scopeProfiles": {
             "default_remote": ["observe", "control"],
@@ -860,6 +945,7 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
         "methods": methods,
         "notificationMappings": notifications,
         "threadItemMappings": items,
+        "pendingRequestMappings": pending_requests,
         "nonExposedOrNotApplicable": excluded,
         "reviewedContracts": reviewed_contracts,
     }
@@ -961,6 +1047,22 @@ def secure_safe_object_extensions(schema: Any) -> Any:
         else set(schema_type or ())
     )
     if "object" in schema_types or "properties" in secured or "required" in secured:
+        properties = secured.get("properties", {})
+        if isinstance(properties, dict):
+            forbidden = {
+                re.sub(r"[^a-z0-9]", "", name.lower())
+                for name in SENSITIVE_RESULT_FIELD_NAMES
+            }
+            unsafe = sorted(
+                name
+                for name in properties
+                if re.sub(r"[^a-z0-9]", "", name.lower()) in forbidden
+            )
+            if unsafe:
+                raise GenerationError(
+                    "safe frontend projection declares credential-shaped known "
+                    f"properties: {', '.join(unsafe)}"
+                )
         secured.setdefault("maxProperties", 512)
         secured["propertyNames"] = copy_json(SAFE_PROPERTY_NAMES)
         if secured.get("additionalProperties") is True:
@@ -1757,18 +1859,35 @@ def generate_schema(
     }
     definitions["PendingRequestKind"] = {
         "type": "string",
-        "enum": [
-            "command_execution_approval",
-            "file_change_approval",
-            "user_input",
-            "authentication",
-            "apply_patch_approval",
-            "exec_command_approval",
-            "permissions_approval",
-            "attestation",
-            "dynamic_tool_call",
-            "mcp_elicitation",
-        ],
+        "enum": [mapping["kind"] for mapping in manifest["pendingRequestMappings"]],
+    }
+    definitions["ExpandedPendingRequestOption"] = {
+        "type": "object",
+        "required": ["label", "description"],
+        "properties": {
+            "label": bounded_string,
+            "description": bounded_string,
+        },
+        "additionalProperties": True,
+    }
+    definitions["ExpandedPendingRequestQuestion"] = {
+        "type": "object",
+        "required": ["id", "header", "prompt", "allowsFreeText", "isSecret", "options"],
+        "properties": {
+            "id": bounded_string,
+            "header": bounded_string,
+            "prompt": bounded_string,
+            "allowsFreeText": {"type": "boolean"},
+            # This flag describes the input control. Secret answers are never
+            # retained in the pending-request state or frontend journal.
+            "isSecret": {"type": "boolean"},
+            "options": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {"$ref": "#/$defs/ExpandedPendingRequestOption"},
+            },
+        },
+        "additionalProperties": True,
     }
     definitions["ExpandedPendingRequestBase"] = {
         "type": "object",
@@ -1781,6 +1900,12 @@ def generate_schema(
             "itemId": bounded_identifier,
             "summary": bounded_string,
             "details": {"$ref": "#/$defs/SafeDetailObject"},
+            "questions": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {"$ref": "#/$defs/ExpandedPendingRequestQuestion"},
+            },
+            "autoResolutionMs": {"$ref": "#/$defs/UInt64"},
             "truncated": {"type": "boolean"},
             "omittedFields": {
                 "type": "array",
@@ -1798,6 +1923,18 @@ def generate_schema(
                     {"$ref": "#/$defs/ExpandedPendingRequestBase"},
                     {
                         "type": "object",
+                        **(
+                            {"required": ["questions"]}
+                            if kind == "user_input"
+                            else {
+                                "not": {
+                                    "anyOf": [
+                                        {"required": ["questions"]},
+                                        {"required": ["autoResolutionMs"]},
+                                    ]
+                                }
+                            }
+                        ),
                         "properties": {"kind": {"const": kind}},
                     },
                 ]
@@ -2264,7 +2401,13 @@ def generate_schema(
                 },
                 "additionalProperties": True,
             },
-        ]
+        ],
+        "description": (
+            "Expanded event sequences increase strictly between canonical occurrences. "
+            "All recognized expanded families projected from one occurrence may repeat that "
+            "occurrence sequence as one atomic group. The outer range agrees exactly with the "
+            "first and last event."
+        ),
     }
     expanded_definition_names = set(definitions) - pre_expanded_definition_names
     for definition_name in expanded_definition_names:
@@ -2290,6 +2433,7 @@ def generate_schema(
         "reviewedIdentities": 234,
         "notificationMappings": 68,
         "threadItemMappings": 18,
+        "pendingRequestMappings": 10,
     }
     audit_runtime_schema_profile(schema, manifest)
     return schema
@@ -2331,7 +2475,7 @@ def generate_header(manifest: dict[str, Any]) -> str:
     lines.extend(["        Count", "    };", ""])
     lines.extend(
         [
-            "    enum class ProjectionFamily { ServerNotification, ThreadItem };",
+            "    enum class ProjectionFamily { ServerNotification, ThreadItem, PendingRequest };",
             "    enum class CompatibilityRepresentation { Legacy, Expanded };",
             "",
             "    struct MethodMetadata {",
@@ -2379,6 +2523,23 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "        std::string_view redactionClass;",
             "        Capability expansionCapability;",
             "    };",
+            "    struct PendingRequestProjectionMetadata {",
+            "        std::string_view registryKey;",
+            "        std::string_view providerMethod;",
+            "        std::string_view kind;",
+            "        std::string_view exposure;",
+            "        std::string_view securityDecision;",
+            "        std::string_view legacyContract;",
+            "        std::string_view expandedEvent;",
+            "        std::span<const std::string_view> responseMethods;",
+            "        std::span<const FrontendScope> presentationRequiredScopes;",
+            "        bool controllerRequiredForPresentation;",
+            "        std::span<const FrontendScope> responseRequiredScopes;",
+            "        bool controllerRequiredForResponse;",
+            "        std::string_view redactionClass;",
+            "        std::string_view duplicateSuppression;",
+            "        Capability expansionCapability;",
+            "    };",
             "",
             "    inline constexpr AuthenticationMetadata HelloAuthentication{\"authentication\", \"bearer\", 65536};",
             "",
@@ -2412,6 +2573,28 @@ def generate_header(manifest: dict[str, Any]) -> str:
                 f"    inline constexpr std::array<FrontendScope, {len(mapping['requiredScopes'])}> "
                 f"{family}Projection{index}Scopes{{{scopes}}};"
             )
+    for index, mapping in enumerate(manifest["pendingRequestMappings"]):
+        responses = ", ".join(q(value) for value in mapping["responseMethods"])
+        presentation_scopes = ", ".join(
+            f"FrontendScope::{SCOPE_ENUM[scope]}"
+            for scope in mapping["presentationRequiredScopes"]
+        )
+        response_scopes = ", ".join(
+            f"FrontendScope::{SCOPE_ENUM[scope]}"
+            for scope in mapping["responseRequiredScopes"]
+        )
+        lines.append(
+            f"    inline constexpr std::array<std::string_view, {len(mapping['responseMethods'])}> "
+            f"PendingRequestProjection{index}ResponseMethods{{{responses}}};"
+        )
+        lines.append(
+            f"    inline constexpr std::array<FrontendScope, {len(mapping['presentationRequiredScopes'])}> "
+            f"PendingRequestProjection{index}PresentationScopes{{{presentation_scopes}}};"
+        )
+        lines.append(
+            f"    inline constexpr std::array<FrontendScope, {len(mapping['responseRequiredScopes'])}> "
+            f"PendingRequestProjection{index}ResponseScopes{{{response_scopes}}};"
+        )
     lines.extend(["", f"    inline constexpr std::array<MethodMetadata, {len(methods)}> AllMethods{{{{"])
     for row in methods:
         lines.append(
@@ -2457,6 +2640,33 @@ def generate_header(manifest: dict[str, Any]) -> str:
                 )
             )
         lines.extend(["    }};", ""])
+    pending_requests = manifest["pendingRequestMappings"]
+    lines.append(
+        f"    inline constexpr std::array<PendingRequestProjectionMetadata, {len(pending_requests)}> AllPendingRequestProjections{{{{"
+    )
+    for index, mapping in enumerate(pending_requests):
+        lines.append(
+            "        {%s, %s, %s, %s, %s, %s, %s, PendingRequestProjection%dResponseMethods, "
+            "PendingRequestProjection%dPresentationScopes, %s, PendingRequestProjection%dResponseScopes, %s, %s, %s, Capability::%s},"
+            % (
+                q(mapping["registryKey"]),
+                q(mapping["providerMethod"]),
+                q(mapping["kind"]),
+                q(mapping["finalExposure"]),
+                q(mapping["securityDecision"]),
+                q(mapping["legacyContract"]),
+                q(mapping["expandedEvent"]),
+                index,
+                index,
+                str(mapping["controllerRequiredForPresentation"]).lower(),
+                index,
+                str(mapping["controllerRequiredForResponse"]).lower(),
+                q(mapping["redactionClass"]),
+                q(mapping["duplicateSuppression"]),
+                cpp_id(mapping["capability"]),
+            )
+        )
+    lines.extend(["    }};", ""])
     contracts = manifest["reviewedContracts"]
     lines.append(f"    inline constexpr std::array<ContractMetadata, {len(contracts)}> AllReviewedContracts{{{{")
     for row in contracts:
@@ -2508,6 +2718,16 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "        return representation == CompatibilityRepresentation::Expanded;",
             "    }",
             "",
+            "    [[nodiscard]] constexpr const PendingRequestProjectionMetadata* pendingRequestProjectionFromKind(std::string_view kind) noexcept {",
+            "        for (const auto& metadata : AllPendingRequestProjections) if (metadata.kind == kind) return &metadata;",
+            "        return nullptr;",
+            "    }",
+            "",
+            "    [[nodiscard]] constexpr const PendingRequestProjectionMetadata* pendingRequestProjectionFromProviderMethod(std::string_view method) noexcept {",
+            "        for (const auto& metadata : AllPendingRequestProjections) if (metadata.providerMethod == method) return &metadata;",
+            "        return nullptr;",
+            "    }",
+            "",
             "    consteval std::size_t countCategory(MethodCategory category) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.category == category; return count; }",
             "    consteval std::size_t countNative() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.frontendNative; return count; }",
             "    consteval std::size_t countImplemented() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.currentlyImplemented; return count; }",
@@ -2520,6 +2740,7 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "    consteval std::size_t countProviderReady() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.providerReadyRequired; return count; }",
             "    consteval std::size_t countImplementedCapabilities() { std::size_t count = 0; for (const auto& capability : AllCapabilities) count += capability.implementedByCurrentRuntime; return count; }",
             "    consteval bool uniqueMethods() { for (std::size_t i = 0; i < AllMethods.size(); ++i) for (std::size_t j = i + 1; j < AllMethods.size(); ++j) if (AllMethods[i].method == AllMethods[j].method) return false; return true; }",
+            "    consteval bool uniquePendingRequestProjections() { for (std::size_t i = 0; i < AllPendingRequestProjections.size(); ++i) for (std::size_t j = i + 1; j < AllPendingRequestProjections.size(); ++j) if (AllPendingRequestProjections[i].registryKey == AllPendingRequestProjections[j].registryKey || AllPendingRequestProjections[i].providerMethod == AllPendingRequestProjections[j].providerMethod || AllPendingRequestProjections[i].kind == AllPendingRequestProjections[j].kind) return false; return true; }",
             "",
             "    inline constexpr std::size_t MethodCount = AllMethods.size();",
             "    inline constexpr std::size_t FrontendNativeMethodCount = countNative();",
@@ -2560,10 +2781,12 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "    static_assert(PrivilegedProviderMethodCount == 22);",
             "    static_assert(ConditionalProviderMethodCount == 15);",
             "    static_assert(ParameterSensitiveProviderMethodCount == 1);",
-            "    static_assert(ImplementedMechanismCapabilityCount == 8);",
+            "    static_assert(ImplementedMechanismCapabilityCount == 13);",
             "    static_assert(ReviewedIdentityCount == 234);",
             "    static_assert(AllNotificationProjections.size() == 68);",
             "    static_assert(AllThreadItemProjections.size() == 18);",
+            "    static_assert(AllPendingRequestProjections.size() == 10);",
+            "    static_assert(uniquePendingRequestProjections());",
             "    static_assert(uniqueMethods());",
             "",
         ]
@@ -2993,6 +3216,25 @@ def generate_golden_fixtures(
     ]
     for request in expanded_snapshot["state"]["pendingRequests"]:
         request.setdefault("truncated", False)
+        if request["kind"] == "user_input":
+            request["questions"] = [
+                {
+                    "id": "question-1",
+                    "header": "Choose a mode",
+                    "prompt": "Which safe mode should be used?",
+                    "allowsFreeText": True,
+                    "isSecret": True,
+                    "options": [
+                        {
+                            "label": "safe",
+                            "description": "Use the bounded safe mode.",
+                            "futureOptionHint": True,
+                        }
+                    ],
+                    "futureQuestionHint": "preserved",
+                }
+            ]
+            request["autoResolutionMs"] = 60_000
     return {
         "generatedBy": "tools/frontend/generate_frontend_protocol.py",
         "counts": {"methods": 105, "expandedEvents": 25},

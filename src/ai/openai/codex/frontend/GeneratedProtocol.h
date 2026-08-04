@@ -149,7 +149,7 @@ namespace ai::openai::codex::frontend::generated {
         Count
     };
 
-    enum class ProjectionFamily { ServerNotification, ThreadItem };
+    enum class ProjectionFamily { ServerNotification, ThreadItem, PendingRequest };
     enum class CompatibilityRepresentation { Legacy, Expanded };
 
     struct MethodMetadata {
@@ -195,6 +195,23 @@ namespace ai::openai::codex::frontend::generated {
         std::span<const std::string_view> expandedMappings;
         std::span<const FrontendScope> requiredScopes;
         std::string_view redactionClass;
+        Capability expansionCapability;
+    };
+    struct PendingRequestProjectionMetadata {
+        std::string_view registryKey;
+        std::string_view providerMethod;
+        std::string_view kind;
+        std::string_view exposure;
+        std::string_view securityDecision;
+        std::string_view legacyContract;
+        std::string_view expandedEvent;
+        std::span<const std::string_view> responseMethods;
+        std::span<const FrontendScope> presentationRequiredScopes;
+        bool controllerRequiredForPresentation;
+        std::span<const FrontendScope> responseRequiredScopes;
+        bool controllerRequiredForResponse;
+        std::string_view redactionClass;
+        std::string_view duplicateSuppression;
         Capability expansionCapability;
     };
 
@@ -792,6 +809,36 @@ namespace ai::openai::codex::frontend::generated {
     inline constexpr std::array<FrontendScope, 1> ThreadItemProjection16Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> ThreadItemProjection17Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> ThreadItemProjection17Scopes{FrontendScope::Observe};
+    inline constexpr std::array<std::string_view, 1> PendingRequestProjection0ResponseMethods{"request.approval.respond"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection0PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection0ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 1> PendingRequestProjection1ResponseMethods{"request.approval.respond"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection1PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection1ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 2> PendingRequestProjection2ResponseMethods{"request.userInput.respond", "request.known.reject"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection2PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection2ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 1> PendingRequestProjection3ResponseMethods{"request.authentication.respond"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection3PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection3ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 1> PendingRequestProjection4ResponseMethods{"request.applyPatchApproval.respond"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection4PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection4ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 1> PendingRequestProjection5ResponseMethods{"request.execCommandApproval.respond"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection5PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection5ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 1> PendingRequestProjection6ResponseMethods{"request.permissionsApproval.respond"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection6PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection6ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 2> PendingRequestProjection7ResponseMethods{"request.attestation.respond", "request.known.reject"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection7PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection7ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 2> PendingRequestProjection8ResponseMethods{"request.dynamicTool.respond", "request.known.reject"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection8PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection8ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
+    inline constexpr std::array<std::string_view, 2> PendingRequestProjection9ResponseMethods{"request.mcpElicitation.respond", "request.known.reject"};
+    inline constexpr std::array<FrontendScope, 1> PendingRequestProjection9PresentationScopes{FrontendScope::Observe};
+    inline constexpr std::array<FrontendScope, 2> PendingRequestProjection9ResponseScopes{FrontendScope::Control, FrontendScope::SensitiveResponse};
 
     inline constexpr std::array<MethodMetadata, 105> AllMethods{{
         {MethodId::ControllerAcquire, "controller.acquire", MethodCategory::BackendControl, true, ControllerAcquireRegistryKeys, "", "ControllerAcquire", "ControllerAcquire", "#/$defs/ControllerAcquireParams", "#/$defs/ControllerAcquireResult", "ControllerResult", ControllerAcquireParameterFields, ControllerAcquireRequiredParameterFields, "DedicatedFrontendMethod", "ControllerRequiredApproved", ControllerAcquireScopes, false, false, true, true, true, false, false, false, "existing_v1", "method_discovery", "existing", "static"},
@@ -906,14 +953,14 @@ namespace ai::openai::codex::frontend::generated {
         {Capability::SecurityScopes, "security_scopes", true, true},
         {Capability::CompleteProviderOperations, "complete_provider_operations", true, true},
         {Capability::CompleteReverseRequests, "complete_reverse_requests", true, true},
-        {Capability::CompleteBackendDomains, "complete_backend_domains", true, false},
+        {Capability::CompleteBackendDomains, "complete_backend_domains", true, true},
         {Capability::ConditionalFilesystem, "conditional_filesystem", true, true},
         {Capability::ConditionalCommandExecution, "conditional_command_execution", true, true},
-        {Capability::DedicatedPendingRequests, "dedicated_pending_requests", true, false},
-        {Capability::DedicatedNotificationEvents, "dedicated_notification_events", true, false},
-        {Capability::CompleteThreadItems, "complete_thread_items", true, false},
+        {Capability::DedicatedPendingRequests, "dedicated_pending_requests", true, true},
+        {Capability::DedicatedNotificationEvents, "dedicated_notification_events", true, true},
+        {Capability::CompleteThreadItems, "complete_thread_items", true, true},
         {Capability::AuthenticatedFrontend, "authenticated_frontend", true, true},
-        {Capability::ScopeProjectedState, "scope_projected_state", true, false},
+        {Capability::ScopeProjectedState, "scope_projected_state", true, true},
         {Capability::ProviderLifecycle, "provider_lifecycle", true, true},
         {Capability::MultiTransport, "multi_transport", true, false},
         {Capability::CppClientSdk, "cpp_client_sdk", true, false},
@@ -1012,6 +1059,19 @@ namespace ai::openai::codex::frontend::generated {
         {"item_discriminator:ThreadItem:type:subAgentActivity", ProjectionFamily::ThreadItem, "DedicatedItemWithLegacyMetadataCompatibility", "ScopeProjectedStateEventApproved", "legacy_metadata_only", ThreadItemProjection15Mappings, ThreadItemProjection15Scopes, "bounded_safe_item", Capability::CompleteThreadItems},
         {"item_discriminator:ThreadItem:type:userMessage", ProjectionFamily::ThreadItem, "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "legacy_normalized", ThreadItemProjection16Mappings, ThreadItemProjection16Scopes, "bounded_safe_item", Capability::CompleteThreadItems},
         {"item_discriminator:ThreadItem:type:webSearch", ProjectionFamily::ThreadItem, "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "legacy_normalized", ThreadItemProjection17Mappings, ThreadItemProjection17Scopes, "bounded_safe_item", Capability::CompleteThreadItems},
+    }};
+
+    inline constexpr std::array<PendingRequestProjectionMetadata, 10> AllPendingRequestProjections{{
+        {"server_request:ServerRequest:method:item/commandExecution/requestApproval", "item/commandExecution/requestApproval", "command_execution_approval", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection0ResponseMethods, PendingRequestProjection0PresentationScopes, false, PendingRequestProjection0ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:item/fileChange/requestApproval", "item/fileChange/requestApproval", "file_change_approval", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection1ResponseMethods, PendingRequestProjection1PresentationScopes, false, PendingRequestProjection1ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:item/tool/requestUserInput", "item/tool/requestUserInput", "user_input", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection2ResponseMethods, PendingRequestProjection2PresentationScopes, false, PendingRequestProjection2ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:account/chatgptAuthTokens/refresh", "account/chatgptAuthTokens/refresh", "authentication", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection3ResponseMethods, PendingRequestProjection3PresentationScopes, false, PendingRequestProjection3ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:applyPatchApproval", "applyPatchApproval", "apply_patch_approval", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection4ResponseMethods, PendingRequestProjection4PresentationScopes, false, PendingRequestProjection4ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:execCommandApproval", "execCommandApproval", "exec_command_approval", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection5ResponseMethods, PendingRequestProjection5PresentationScopes, false, PendingRequestProjection5ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:item/permissions/requestApproval", "item/permissions/requestApproval", "permissions_approval", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection6ResponseMethods, PendingRequestProjection6PresentationScopes, false, PendingRequestProjection6ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:attestation/generate", "attestation/generate", "attestation", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection7ResponseMethods, PendingRequestProjection7PresentationScopes, false, PendingRequestProjection7ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:item/tool/call", "item/tool/call", "dynamic_tool_call", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection8ResponseMethods, PendingRequestProjection8PresentationScopes, false, PendingRequestProjection8ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
+        {"server_request:ServerRequest:method:mcpServer/elicitation/request", "mcpServer/elicitation/request", "mcp_elicitation", "DedicatedPendingRequestContract", "ScopeProjectedStateEventApproved", "legacy_generic_or_existing_dedicated", "pendingRequests.updated", PendingRequestProjection9ResponseMethods, PendingRequestProjection9PresentationScopes, false, PendingRequestProjection9ResponseScopes, true, "safe_pending_request", "exactly_one_compatibility_representation_per_connection", Capability::DedicatedPendingRequests},
     }};
 
     inline constexpr std::array<ContractMetadata, 234> AllReviewedContracts{{
@@ -1288,6 +1348,16 @@ namespace ai::openai::codex::frontend::generated {
         return representation == CompatibilityRepresentation::Expanded;
     }
 
+    [[nodiscard]] constexpr const PendingRequestProjectionMetadata* pendingRequestProjectionFromKind(std::string_view kind) noexcept {
+        for (const auto& metadata : AllPendingRequestProjections) if (metadata.kind == kind) return &metadata;
+        return nullptr;
+    }
+
+    [[nodiscard]] constexpr const PendingRequestProjectionMetadata* pendingRequestProjectionFromProviderMethod(std::string_view method) noexcept {
+        for (const auto& metadata : AllPendingRequestProjections) if (metadata.providerMethod == method) return &metadata;
+        return nullptr;
+    }
+
     consteval std::size_t countCategory(MethodCategory category) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.category == category; return count; }
     consteval std::size_t countNative() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.frontendNative; return count; }
     consteval std::size_t countImplemented() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.currentlyImplemented; return count; }
@@ -1300,6 +1370,7 @@ namespace ai::openai::codex::frontend::generated {
     consteval std::size_t countProviderReady() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.providerReadyRequired; return count; }
     consteval std::size_t countImplementedCapabilities() { std::size_t count = 0; for (const auto& capability : AllCapabilities) count += capability.implementedByCurrentRuntime; return count; }
     consteval bool uniqueMethods() { for (std::size_t i = 0; i < AllMethods.size(); ++i) for (std::size_t j = i + 1; j < AllMethods.size(); ++j) if (AllMethods[i].method == AllMethods[j].method) return false; return true; }
+    consteval bool uniquePendingRequestProjections() { for (std::size_t i = 0; i < AllPendingRequestProjections.size(); ++i) for (std::size_t j = i + 1; j < AllPendingRequestProjections.size(); ++j) if (AllPendingRequestProjections[i].registryKey == AllPendingRequestProjections[j].registryKey || AllPendingRequestProjections[i].providerMethod == AllPendingRequestProjections[j].providerMethod || AllPendingRequestProjections[i].kind == AllPendingRequestProjections[j].kind) return false; return true; }
 
     inline constexpr std::size_t MethodCount = AllMethods.size();
     inline constexpr std::size_t FrontendNativeMethodCount = countNative();
@@ -1340,10 +1411,12 @@ namespace ai::openai::codex::frontend::generated {
     static_assert(PrivilegedProviderMethodCount == 22);
     static_assert(ConditionalProviderMethodCount == 15);
     static_assert(ParameterSensitiveProviderMethodCount == 1);
-    static_assert(ImplementedMechanismCapabilityCount == 8);
+    static_assert(ImplementedMechanismCapabilityCount == 13);
     static_assert(ReviewedIdentityCount == 234);
     static_assert(AllNotificationProjections.size() == 68);
     static_assert(AllThreadItemProjections.size() == 18);
+    static_assert(AllPendingRequestProjections.size() == 10);
+    static_assert(uniquePendingRequestProjections());
     static_assert(uniqueMethods());
 
     template <MethodId Id>

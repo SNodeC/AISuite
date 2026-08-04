@@ -7,10 +7,6 @@
 
 #include "ai/openai/codex/frontend/EventJournal.h"
 
-#include "ai/openai/codex/frontend/Codec.h"
-
-#include <exception>
-#include <limits>
 #include <utility>
 
 namespace ai::openai::codex::frontend {
@@ -21,9 +17,9 @@ namespace ai::openai::codex::frontend {
         , replayFloor(config.initialSequence) {
     }
 
-    JournalAppendResult EventJournal::append(std::string type, Json data, Json extensions) noexcept {
+    EventJournal::OpaqueAppendResult EventJournal::appendOpaque(std::shared_ptr<const void> record, std::size_t serializedBytes) noexcept {
         try {
-            if (type.empty() || !data.is_object() || !extensions.is_object()) {
+            if (!record || serializedBytes == 0) {
                 return {JournalAppendStatus::InvalidEvent, std::nullopt, 0};
             }
             if (current == SequenceNumber::maximum()) {
@@ -31,14 +27,8 @@ namespace ai::openai::codex::frontend {
             }
 
             const SequenceNumber next(current.value() + 1);
-            FrontendEvent event{next, std::move(type), std::move(data), std::move(extensions)};
-            const auto encodedSize = Codec::serializedEventSize(event);
-            if (!encodedSize) {
-                return {JournalAppendStatus::EncodingFailure, std::nullopt, 0};
-            }
-
-            JournalAppendResult result{JournalAppendStatus::Appended, event, encodedSize.value()};
-            if (journalConfig.maxEntries == 0 || journalConfig.maxBytes == 0 || encodedSize.value() > journalConfig.maxBytes) {
+            OpaqueAppendResult result{JournalAppendStatus::Appended, next, serializedBytes};
+            if (journalConfig.maxEntries == 0 || journalConfig.maxBytes == 0 || serializedBytes > journalConfig.maxBytes) {
                 entries.clear();
                 byteCount = 0;
                 current = next;
@@ -47,24 +37,21 @@ namespace ai::openai::codex::frontend {
                 return result;
             }
 
-            // Push before evicting so allocation failure cannot leave a partly
-            // mutated journal. encodedSize <= maxBytes guarantees the final
-            // byte-count addition cannot overflow after eviction.
-            entries.push_back(Entry{event, encodedSize.value()});
+            entries.push_back(Entry{next, std::move(record), serializedBytes});
             current = next;
             while (entries.size() > 1 &&
-                   (entries.size() > journalConfig.maxEntries || byteCount > journalConfig.maxBytes - encodedSize.value())) {
+                   (entries.size() > journalConfig.maxEntries || byteCount > journalConfig.maxBytes - serializedBytes)) {
                 evictFront();
             }
-            byteCount += encodedSize.value();
+            byteCount += serializedBytes;
             return result;
         } catch (...) {
             return {JournalAppendStatus::EncodingFailure, std::nullopt, 0};
         }
     }
 
-    JournalReplayResult EventJournal::replayAfter(SequenceNumber sequence) const {
-        JournalReplayResult result;
+    EventJournal::OpaqueReplayResult EventJournal::replayOpaqueAfter(SequenceNumber sequence) const {
+        OpaqueReplayResult result;
         result.requestedAfter = sequence;
         result.oldestReplayableAfter = replayFloor;
         result.currentSequence = current;
@@ -80,9 +67,15 @@ namespace ai::openai::codex::frontend {
 
         result.status = JournalReplayStatus::Available;
         for (const Entry& entry : entries) {
-            if (entry.event.sequence > sequence) {
-                result.events.push_back(entry.event);
+            if (entry.sequence <= sequence) {
+                continue;
             }
+            if (!entry.opaqueRecord) {
+                result.status = JournalReplayStatus::Gap;
+                result.records.clear();
+                return result;
+            }
+            result.records.push_back(entry.opaqueRecord);
         }
         return result;
     }
@@ -117,14 +110,14 @@ namespace ai::openai::codex::frontend {
         if (entries.empty()) {
             return std::nullopt;
         }
-        return entries.front().event.sequence;
+        return entries.front().sequence;
     }
 
     std::optional<SequenceNumber> EventJournal::newestRetainedSequence() const noexcept {
         if (entries.empty()) {
             return std::nullopt;
         }
-        return entries.back().event.sequence;
+        return entries.back().sequence;
     }
 
     std::size_t EventJournal::retainedEntryCount() const noexcept {
@@ -135,20 +128,11 @@ namespace ai::openai::codex::frontend {
         return byteCount;
     }
 
-    std::vector<FrontendEvent> EventJournal::retainedEvents() const {
-        std::vector<FrontendEvent> result;
-        result.reserve(entries.size());
-        for (const Entry& entry : entries) {
-            result.push_back(entry.event);
-        }
-        return result;
-    }
-
     void EventJournal::evictFront() noexcept {
         if (entries.empty()) {
             return;
         }
-        replayFloor = entries.front().event.sequence;
+        replayFloor = entries.front().sequence;
         byteCount -= entries.front().serializedBytes;
         entries.pop_front();
     }

@@ -198,6 +198,59 @@ def validate_manifest_contract(generator, source: dict, manifest: dict) -> None:
             "A1.7b mechanism capability set changed"
         )
 
+    pending_requests = manifest.get("pendingRequestMappings")
+    expected_pending_kinds = dict(generator.PENDING_REQUEST_KINDS)
+    if not isinstance(pending_requests, list) or len(pending_requests) != 10:
+        raise generator.GenerationError(
+            "manifest pending-request projection must contain ten entries"
+        )
+    if (
+        {row.get("providerMethod") for row in pending_requests}
+        != set(expected_pending_kinds)
+        or {row.get("kind") for row in pending_requests}
+        != set(expected_pending_kinds.values())
+    ):
+        raise generator.GenerationError(
+            "manifest pending-request projection does not bijectively cover the stable request kinds"
+        )
+    stable_requests = {
+        generator.registry_key(row): row
+        for row in rows
+        if row["registryKey"]["category"] == "server_request"
+        and row["stability"] == "stable"
+    }
+    reverse_methods = {
+        row["method"]: row
+        for row in methods
+        if row["category"] == "reverse_response"
+    }
+    for mapping in pending_requests:
+        source_row = stable_requests.get(mapping.get("registryKey"))
+        response_methods = mapping.get("responseMethods")
+        if (
+            source_row is None
+            or mapping.get("kind")
+            != expected_pending_kinds[source_row["registryKey"]["name"]]
+            or mapping.get("finalExposure") != "DedicatedPendingRequestContract"
+            or mapping.get("securityDecision")
+            != "ScopeProjectedStateEventApproved"
+            or mapping.get("expandedEvent") != "pendingRequests.updated"
+            or response_methods != source_row["mappings"]
+            or any(method not in reverse_methods for method in response_methods)
+            or mapping.get("presentationRequiredScopes") != ["observe"]
+            or mapping.get("controllerRequiredForPresentation") is not False
+            or mapping.get("responseRequiredScopes")
+            != ["control", "sensitive_response"]
+            or mapping.get("controllerRequiredForResponse") is not True
+            or mapping.get("redactionClass") != "safe_pending_request"
+            or mapping.get("capability") != "dedicated_pending_requests"
+            or mapping.get("duplicateSuppression")
+            != "exactly_one_compatibility_representation_per_connection"
+        ):
+            raise generator.GenerationError(
+                "manifest pending-request projection differs from the reviewed registry response contract"
+            )
+
 
 def expect_manifest_failure(
     generator, source: dict, manifest: dict, needle: str
@@ -318,6 +371,7 @@ def validate_additive_schema_contract(
         "reviewedIdentities": 234,
         "notificationMappings": 68,
         "threadItemMappings": 18,
+        "pendingRequestMappings": 10,
     }
     if contract_metadata != expected_metadata:
         raise AssertionError(f"JSON Schema contract metadata changed: {contract_metadata}")
@@ -416,6 +470,70 @@ def validate_additive_schema_contract(
     if expanded_contract_counts != expected_expanded_counts:
         raise AssertionError(
             f"expanded snapshot/event schema counts changed: {expanded_contract_counts}"
+        )
+    if definitions["PendingRequestKind"]["enum"] != [
+        mapping["kind"] for mapping in manifest["pendingRequestMappings"]
+    ]:
+        raise AssertionError(
+            "expanded pending-request schema discriminators differ from generated projection metadata"
+        )
+    pending_question = definitions.get("ExpandedPendingRequestQuestion", {})
+    if (
+        pending_question.get("required")
+        != ["id", "header", "prompt", "allowsFreeText", "isSecret", "options"]
+        or "secret" in pending_question.get("properties", {})
+        or pending_question.get("properties", {}).get("isSecret")
+        != {"type": "boolean"}
+        or pending_question.get("properties", {})
+        .get("options", {})
+        .get("maxItems")
+        != 64
+    ):
+        raise AssertionError(
+            "dedicated user-input pending-request question schema changed"
+        )
+    for field in ("id", "header", "prompt"):
+        if pending_question["properties"][field] != {
+            "type": "string",
+            "maxLength": 16384,
+        }:
+            raise AssertionError(
+                "user-input question strings must preserve provider empty-string semantics while remaining bounded"
+            )
+    pending_base = definitions.get("ExpandedPendingRequestBase", {})
+    if (
+        pending_base.get("properties", {}).get("questions", {}).get("maxItems")
+        != 64
+        or pending_base.get("properties", {}).get("autoResolutionMs")
+        != {"$ref": "#/$defs/UInt64"}
+    ):
+        raise AssertionError(
+            "dedicated user-input pending-request bounds changed"
+        )
+    pending_branches = definitions.get("ExpandedPendingRequest", {}).get(
+        "oneOf", []
+    )
+    user_input_branches = [
+        branch
+        for branch in pending_branches
+        if branch.get("allOf", [{}, {}])[1]
+        .get("properties", {})
+        .get("kind", {})
+        .get("const")
+        == "user_input"
+    ]
+    if (
+        len(user_input_branches) != 1
+        or user_input_branches[0]["allOf"][1].get("required")
+        != ["questions"]
+        or any(
+            "not" not in branch["allOf"][1]
+            for branch in pending_branches
+            if branch is not user_input_branches[0]
+        )
+    ):
+        raise AssertionError(
+            "only user_input may carry the required dedicated question contract"
         )
     for name in (
         "ExpandedPendingRequest",
@@ -671,12 +789,13 @@ def main() -> int:
         "defaultAvailableMethods": 90,
         "defaultRemotePermittedMethods": 53,
         "localTrustedPermittedMethods": 90,
-        "implementedMechanismCapabilities": 8,
+        "implementedMechanismCapabilities": 13,
         "runtimeTopologyCapabilities": 1,
         "futureProductCapabilities": 4,
         "reviewedIdentities": 234,
         "notifications": 68,
         "threadItems": 18,
+        "pendingRequests": 10,
     }
     if counts != expected_counts:
         raise AssertionError(f"method/review denominator changed: {counts}")
@@ -766,7 +885,7 @@ def main() -> int:
         if capability["implementedByCurrentRuntime"]
     }
     if implemented_capabilities != generator.IMPLEMENTED_MECHANISM_CAPABILITIES:
-        raise AssertionError("the exact commit-3 mechanism/build capabilities changed")
+        raise AssertionError("the exact A1.7b mechanism/build capabilities changed")
 
     prefix_pairs = {
         (left, right)
@@ -1018,6 +1137,45 @@ def main() -> int:
     missing_legacy = copy.deepcopy(manifest)
     next(row for row in missing_legacy["methods"] if row["method"] == "thread.start")["legacyCompatibilityMethod"] = False
     expect_manifest_failure(generator, source, missing_legacy, "legacy compatibility method set changed")
+
+    # 28. The ten dedicated pending-request projections remain a bijection with
+    # the stable server-request registry and their exact typed response methods.
+    missing_pending_projection = copy.deepcopy(manifest)
+    missing_pending_projection["pendingRequestMappings"].pop()
+    expect_manifest_failure(
+        generator,
+        source,
+        missing_pending_projection,
+        "must contain ten entries",
+    )
+    wrong_pending_response = copy.deepcopy(manifest)
+    wrong_pending_response["pendingRequestMappings"][0]["responseMethods"] = [
+        "request.unknown.respond"
+    ]
+    expect_manifest_failure(
+        generator,
+        source,
+        wrong_pending_response,
+        "differs from the reviewed registry response contract",
+    )
+
+    try:
+        generator.secure_safe_object_extensions(
+            {
+                "type": "object",
+                "properties": {"secret": {"type": "boolean"}},
+                "additionalProperties": True,
+            }
+        )
+    except generator.GenerationError as error:
+        if "credential-shaped known properties" not in str(error):
+            raise AssertionError(
+                f"unexpected safe-projection property guard failure: {error}"
+            ) from error
+    else:
+        raise AssertionError(
+            "safe generated projections accepted a credential-shaped known property"
+        )
 
     # Runtime-schema assertions are closed over the exact C++ validator profile.
     unsupported_keyword = copy.deepcopy(schema_template)
