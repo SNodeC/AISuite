@@ -1693,6 +1693,7 @@ snodec_add_test(
     CodexFrontendNativeConfigurationTest
     CodexFrontendNativeConfigurationTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/Configuration.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendWebSecurity.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceInvocationPolicy.cpp
 )
@@ -1743,6 +1744,7 @@ snodec_add_test(
     CodexFrontendNativeConfigurationCliTest
     CodexFrontendNativeConfigurationCliTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/Configuration.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendWebSecurity.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceInvocationPolicy.cpp
 )
@@ -2332,3 +2334,200 @@ set_tests_properties(
         SKIP_RETURN_CODE 77
         TIMEOUT 10
 )
+snodec_add_test(
+    CodexFrontendWebConfigurationTest
+    CodexFrontendWebConfigurationTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/Configuration.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendWebSecurity.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceInvocationPolicy.cpp
+)
+target_include_directories(
+    CodexFrontendWebConfigurationTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(
+    CodexFrontendWebConfigurationTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexBackend
+            AISuite::OpenAICodexFrontend snodec::core
+)
+target_compile_definitions(
+    CodexFrontendWebConfigurationTest
+    PRIVATE
+        AISUITE_CODEX_TEST_TLS_CERT="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-cert.pem"
+        AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
+)
+if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
+    target_compile_definitions(
+        CodexFrontendWebConfigurationTest
+        PRIVATE AISUITE_CODEX_FRONTEND_WEBSOCKET=1
+    )
+endif()
+if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+    target_compile_definitions(
+        CodexFrontendWebConfigurationTest PRIVATE AISUITE_CODEX_FRONTEND_TLS=1
+    )
+endif()
+target_compile_features(CodexFrontendWebConfigurationTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendWebConfigurationTest
+    PROPERTIES
+        LABELS
+        "component;ai;openai;codex;frontend;web;configuration;security;a1-7b"
+        TIMEOUT 5
+)
+
+snodec_add_test(
+    CodexFrontendWebSecurityTest CodexFrontendWebSecurityTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendWebSecurity.cpp
+)
+target_include_directories(
+    CodexFrontendWebSecurityTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(CodexFrontendWebSecurityTest PRIVATE snodec-test-support)
+target_compile_features(CodexFrontendWebSecurityTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendWebSecurityTest
+    PROPERTIES LABELS "component;ai;openai;codex;frontend;web;security;a1-7b"
+               TIMEOUT 5
+)
+
+if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
+   AND TARGET snodec::http-server-express-legacy-in
+   AND TARGET snodec::http-client
+   AND TARGET codex-backend-web-adapter
+)
+    snodec_add_test(
+        CodexFrontendWebHttpIntegrationTest
+        CodexFrontendWebHttpIntegrationTest.cpp
+    )
+    target_include_directories(
+        CodexFrontendWebHttpIntegrationTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(
+        CodexFrontendWebHttpIntegrationTest
+        PRIVATE snodec-test-support
+                codex-backend-web-adapter
+                AISuite::OpenAICodexBackend
+                AISuite::OpenAICodexFrontend
+                snodec::http-server-express-legacy-in
+                snodec::http-client
+                snodec::core
+    )
+    target_compile_features(
+        CodexFrontendWebHttpIntegrationTest PRIVATE cxx_std_20
+    )
+    set_tests_properties(
+        CodexFrontendWebHttpIntegrationTest
+        PROPERTIES
+            LABELS
+            "component;integration;ai;openai;codex;frontend;http;express;static;origin;security"
+            SKIP_RETURN_CODE
+            77
+            TIMEOUT
+            15
+    )
+endif()
+
+if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
+   AND TARGET snodec::http-server-express-legacy-in
+   AND TARGET snodec::websocket-server
+   AND TARGET snodec::websocket-client
+   AND TARGET codex-backend-stream-adapter
+   AND TARGET codex-backend-web-adapter
+)
+    snodec_add_test(
+        CodexFrontendWebSocketIntegrationTest
+        CodexFrontendWebSocketIntegrationTest.cpp
+    )
+    target_include_directories(
+        CodexFrontendWebSocketIntegrationTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(
+        CodexFrontendWebSocketIntegrationTest
+        PRIVATE snodec-test-support
+                codex-backend-stream-adapter
+                codex-backend-web-adapter
+                codex-backend-runtime-bridge
+                AISuite::OpenAICodexBackend
+                AISuite::OpenAICodexFrontend
+                snodec::http-server-express-legacy-in
+                snodec::websocket-server
+                snodec::websocket-client
+                snodec::core
+    )
+    target_compile_features(
+        CodexFrontendWebSocketIntegrationTest PRIVATE cxx_std_20
+    )
+    add_dependencies(
+        CodexFrontendWebSocketIntegrationTest
+        codex-backend-websocket-subprotocol
+    )
+    set_tests_properties(
+        CodexFrontendWebSocketIntegrationTest
+        PROPERTIES
+            LABELS
+            "component;integration;ai;openai;codex;frontend;websocket;express;security"
+            SKIP_RETURN_CODE
+            77
+            ENVIRONMENT
+            "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
+            TIMEOUT
+            15
+    )
+endif()
+
+if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
+   AND AISUITE_ENABLE_CODEX_FRONTEND_TLS
+   AND TARGET snodec::http-server-express-tls-in
+   AND TARGET snodec::net-in-stream-tls
+   AND TARGET snodec::websocket-server
+   AND TARGET snodec::websocket-client
+   AND TARGET codex-backend-web-adapter
+)
+    snodec_add_test(
+        CodexFrontendWebSocketTlsIntegrationTest
+        CodexFrontendWebSocketTlsIntegrationTest.cpp
+    )
+    target_include_directories(
+        CodexFrontendWebSocketTlsIntegrationTest
+        PRIVATE ${PROJECT_SOURCE_DIR}/src
+    )
+    target_compile_definitions(
+        CodexFrontendWebSocketTlsIntegrationTest
+        PRIVATE
+            AISUITE_CODEX_TEST_TLS_CERT="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-cert.pem"
+            AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
+    )
+    target_link_libraries(
+        CodexFrontendWebSocketTlsIntegrationTest
+        PRIVATE snodec-test-support
+                codex-backend-web-adapter
+                codex-backend-runtime-bridge
+                AISuite::OpenAICodexBackend
+                AISuite::OpenAICodexFrontend
+                snodec::http-server-express-tls-in
+                snodec::net-in-stream-tls
+                snodec::websocket-server
+                snodec::websocket-client
+                snodec::core
+    )
+    target_compile_features(
+        CodexFrontendWebSocketTlsIntegrationTest PRIVATE cxx_std_20
+    )
+    add_dependencies(
+        CodexFrontendWebSocketTlsIntegrationTest
+        codex-backend-websocket-subprotocol
+    )
+    set_tests_properties(
+        CodexFrontendWebSocketTlsIntegrationTest
+        PROPERTIES
+            LABELS
+            "component;integration;ai;openai;codex;frontend;websocket;wss;tls;express;security"
+            SKIP_RETURN_CODE
+            77
+            ENVIRONMENT
+            "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
+            TIMEOUT
+            15
+    )
+endif()

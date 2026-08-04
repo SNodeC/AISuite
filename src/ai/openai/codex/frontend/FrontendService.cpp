@@ -1147,6 +1147,16 @@ namespace ai::openai::codex::frontend {
             }
         }
 
+        AuthenticationFailureCode recordPreAuthenticationFailure(const FrontendPeerContext& peer,
+                                                                 AuthenticationFailureCode failure) noexcept {
+            const std::string key = peerAdmissionKey(peer);
+            if (peerAuthenticationRateLimited(key) || peerAuthenticationAccountingFull(key)) {
+                return AuthenticationFailureCode::RateLimited;
+            }
+            recordFailedAuthentication(key);
+            return failure;
+        }
+
         bool authenticate(const std::shared_ptr<FrontendConnection::Control>& control, const Hello& hello) noexcept {
             if (!control || !control->open || control->authenticationAttempted) {
                 if (control && control->open) {
@@ -2642,6 +2652,14 @@ namespace ai::openai::codex::frontend {
             return {ConnectionReceiveStatus::Closed, std::move(error)};
         }
         return service->receiveError(control, std::move(error));
+    }
+
+    bool FrontendConnection::updatePeerContext(FrontendPeerContext peer) noexcept {
+        if (!control || !control->open || control->helloDone || control->authenticationAttempted) {
+            return false;
+        }
+        control->peer = std::move(peer);
+        return true;
     }
 
     void FrontendConnection::close(std::string reason) noexcept {

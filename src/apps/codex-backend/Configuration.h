@@ -16,9 +16,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace CLI {
     class Option;
@@ -36,7 +38,6 @@ namespace apps::codex_backend {
 
     struct SocketFrontendOptions {
         std::size_t maximumFrameSize = DEFAULT_MAXIMUM_FRAME_SIZE;
-        std::size_t maximumOutboundBytes = DEFAULT_MAXIMUM_OUTBOUND_BYTES;
     };
 
     class ProviderRecoveryConfiguration {
@@ -61,6 +62,7 @@ namespace apps::codex_backend {
         [[nodiscard]] std::string bearerTokenFile() const;
         [[nodiscard]] bool verifiedLocalTrustEnabled() const;
         [[nodiscard]] bool insecureLocalTrustOverride() const;
+        [[nodiscard]] bool allowInsecureRemote() const;
 
     private:
         CLI::Option* verifiedLocalTrustOption = nullptr;
@@ -68,74 +70,27 @@ namespace apps::codex_backend {
         CLI::Option* bearerTokenFileOption = nullptr;
         CLI::Option* remotePrincipalIdOption = nullptr;
         CLI::Option* remoteScopeProfileOption = nullptr;
+        CLI::Option* allowInsecureRemoteOption = nullptr;
     };
 
-    struct NativeFrontendListenerOptions {
-        bool unixEnabled = true;
-        bool ipv4Enabled = false;
-        std::string ipv4Address = "127.0.0.1";
-        std::uint16_t ipv4Port = 0;
-        bool ipv6Enabled = false;
-        std::string ipv6Address = "::1";
-        std::uint16_t ipv6Port = 0;
-        bool tlsIpv4Enabled = false;
-        std::string tlsIpv4Address = "127.0.0.1";
-        std::uint16_t tlsIpv4Port = 0;
-        std::string tlsIpv4Certificate;
-        std::string tlsIpv4PrivateKey;
-        bool tlsIpv6Enabled = false;
-        std::string tlsIpv6Address = "::1";
-        std::uint16_t tlsIpv6Port = 0;
-        std::string tlsIpv6Certificate;
-        std::string tlsIpv6PrivateKey;
-        bool rfcommEnabled = false;
-        std::string rfcommAddress = "00:00:00:00:00:00";
-        std::uint16_t rfcommChannel = 1;
-        bool rfcommTlsEnabled = false;
-        std::string rfcommTlsAddress = "00:00:00:00:00:00";
-        std::uint16_t rfcommTlsChannel = 1;
-        std::string rfcommTlsCertificate;
-        std::string rfcommTlsPrivateKey;
-        bool allowInsecureRemote = false;
+    struct FrontendWebOptions {
+        std::string endpoint = "/frontend";
+        std::optional<std::filesystem::path> staticRoot;
+        std::vector<std::string> allowedOrigins;
 
-        [[nodiscard]] std::size_t enabledListenerCount() const noexcept;
-        [[nodiscard]] bool remoteAuthenticationRequired() const noexcept;
         [[nodiscard]] std::optional<std::string> validationError() const;
     };
 
-    class NativeFrontendConfiguration {
+    class FrontendWebConfiguration {
     public:
-        NativeFrontendConfiguration();
+        FrontendWebConfiguration();
 
-        [[nodiscard]] NativeFrontendListenerOptions options() const;
+        [[nodiscard]] FrontendWebOptions options() const;
 
     private:
-        CLI::Option* unixEnabledOption = nullptr;
-        CLI::Option* ipv4EnabledOption = nullptr;
-        CLI::Option* ipv4AddressOption = nullptr;
-        CLI::Option* ipv4PortOption = nullptr;
-        CLI::Option* ipv6EnabledOption = nullptr;
-        CLI::Option* ipv6AddressOption = nullptr;
-        CLI::Option* ipv6PortOption = nullptr;
-        CLI::Option* tlsIpv4EnabledOption = nullptr;
-        CLI::Option* tlsIpv4AddressOption = nullptr;
-        CLI::Option* tlsIpv4PortOption = nullptr;
-        CLI::Option* tlsIpv4CertificateOption = nullptr;
-        CLI::Option* tlsIpv4PrivateKeyOption = nullptr;
-        CLI::Option* tlsIpv6EnabledOption = nullptr;
-        CLI::Option* tlsIpv6AddressOption = nullptr;
-        CLI::Option* tlsIpv6PortOption = nullptr;
-        CLI::Option* tlsIpv6CertificateOption = nullptr;
-        CLI::Option* tlsIpv6PrivateKeyOption = nullptr;
-        CLI::Option* rfcommEnabledOption = nullptr;
-        CLI::Option* rfcommAddressOption = nullptr;
-        CLI::Option* rfcommChannelOption = nullptr;
-        CLI::Option* rfcommTlsEnabledOption = nullptr;
-        CLI::Option* rfcommTlsAddressOption = nullptr;
-        CLI::Option* rfcommTlsChannelOption = nullptr;
-        CLI::Option* rfcommTlsCertificateOption = nullptr;
-        CLI::Option* rfcommTlsPrivateKeyOption = nullptr;
-        CLI::Option* allowInsecureRemoteOption = nullptr;
+        CLI::Option* endpointOption = nullptr;
+        CLI::Option* staticRootOption = nullptr;
+        CLI::Option* allowedOriginsOption = nullptr;
     };
 
     class FrontendRuntimeConfiguration {

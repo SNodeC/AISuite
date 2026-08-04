@@ -7,6 +7,7 @@
 
 #include "apps/codex-backend/Configuration.h"
 
+#include "apps/codex-backend/FrontendWebSecurity.h"
 #include "apps/codex-backend/ReferenceInvocationPolicy.h"
 #include "utils/Config.h"
 
@@ -19,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <unistd.h>
+#include <vector>
 
 namespace apps::codex_backend {
 
@@ -45,9 +47,21 @@ namespace apps::codex_backend {
                 root.addOption(std::move(name), std::move(description), std::move(type), defaultValue, CLI::TypeValidator<Value>()), true);
         }
 
-        bool regularReadableFile(const std::string& path) {
-            std::error_code error;
-            return !path.empty() && std::filesystem::is_regular_file(path, error) && !error && ::access(path.c_str(), R_OK) == 0;
+        std::vector<std::string> commaSeparatedValues(std::string_view value) {
+            std::vector<std::string> values;
+            if (value.empty()) {
+                return values;
+            }
+            std::size_t begin = 0;
+            while (begin <= value.size()) {
+                const std::size_t end = value.find(',', begin);
+                values.emplace_back(value.substr(begin, end == std::string_view::npos ? value.size() - begin : end - begin));
+                if (end == std::string_view::npos) {
+                    break;
+                }
+                begin = end + 1;
+            }
+            return values;
         }
 
     } // namespace
@@ -160,129 +174,53 @@ namespace apps::codex_backend {
         return insecureLocalTrustOverrideOption->as<bool>();
     }
 
-    std::size_t NativeFrontendListenerOptions::enabledListenerCount() const noexcept {
-        return static_cast<std::size_t>(unixEnabled) + static_cast<std::size_t>(ipv4Enabled) + static_cast<std::size_t>(ipv6Enabled) +
-               static_cast<std::size_t>(tlsIpv4Enabled) + static_cast<std::size_t>(tlsIpv6Enabled) +
-               static_cast<std::size_t>(rfcommEnabled) + static_cast<std::size_t>(rfcommTlsEnabled);
+    bool ReferenceAuthenticationConfiguration::allowInsecureRemote() const {
+        return allowInsecureRemoteOption->as<bool>();
     }
 
-    bool NativeFrontendListenerOptions::remoteAuthenticationRequired() const noexcept {
-        return ipv4Enabled || ipv6Enabled || tlsIpv4Enabled || tlsIpv6Enabled || rfcommEnabled || rfcommTlsEnabled;
-    }
+    std::optional<std::string> FrontendWebOptions::validationError() const {
+        if (!normalizedFrontendWebSocketEndpoint(endpoint)) {
+            return "the WebSocket frontend endpoint must be an exact normalized absolute path without a query or fragment";
+        }
+        if (staticRoot) {
+            std::error_code error;
+            const std::filesystem::path canonical = std::filesystem::canonical(*staticRoot, error);
+            if (error || !std::filesystem::is_directory(canonical, error) || error || canonical == canonical.root_path()) {
+                return "the configured frontend static root must be an existing canonical directory";
+            }
+        }
+        for (const std::string& origin : allowedOrigins) {
+            if (!normalizeWebOrigin(origin).has_value()) {
+                return "the frontend Origin allow-list must contain only normalized HTTP or HTTPS origins without wildcards";
+            }
+        }
 
-    std::optional<std::string> NativeFrontendListenerOptions::validationError() const {
-        if (ipv4Enabled && !allowInsecureRemote && !isLoopbackFrontendAddress(ipv4Address, false)) {
-            return "the plaintext IPv4 frontend requires a loopback bind or the explicit insecure-remote override";
-        }
-        if (ipv4Enabled && ipv4Port == 0) {
-            return "the enabled IPv4 frontend requires a nonzero configured port";
-        }
-        if (ipv6Enabled && !allowInsecureRemote && !isLoopbackFrontendAddress(ipv6Address, true)) {
-            return "the plaintext IPv6 frontend requires a loopback bind or the explicit insecure-remote override";
-        }
-        if (ipv6Enabled && ipv6Port == 0) {
-            return "the enabled IPv6 frontend requires a nonzero configured port";
-        }
-#if !defined(AISUITE_CODEX_FRONTEND_TLS)
-        if (tlsIpv4Enabled || tlsIpv6Enabled) {
-            return "TLS frontend listeners were enabled but TLS support was not compiled";
-        }
-#else
-        if (tlsIpv4Enabled && tlsIpv4Port == 0) {
-            return "the enabled IPv4 TLS frontend requires a nonzero configured port";
-        }
-        if (tlsIpv4Enabled && (!regularReadableFile(tlsIpv4Certificate) || !regularReadableFile(tlsIpv4PrivateKey))) {
-            return "the enabled IPv4 TLS frontend requires readable certificate and private-key files";
-        }
-        if (tlsIpv6Enabled && tlsIpv6Port == 0) {
-            return "the enabled IPv6 TLS frontend requires a nonzero configured port";
-        }
-        if (tlsIpv6Enabled && (!regularReadableFile(tlsIpv6Certificate) || !regularReadableFile(tlsIpv6PrivateKey))) {
-            return "the enabled IPv6 TLS frontend requires readable certificate and private-key files";
-        }
-#endif
-#if !defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-        if (rfcommEnabled || rfcommTlsEnabled) {
-            return "RFCOMM frontend listeners were enabled but RFCOMM support was not compiled";
-        }
-#else
-        if ((rfcommEnabled && (rfcommChannel == 0 || rfcommChannel > 30)) ||
-            (rfcommTlsEnabled && (rfcommTlsChannel == 0 || rfcommTlsChannel > 30))) {
-            return "RFCOMM frontend channels must be between 1 and 30";
-        }
-        if (rfcommTlsEnabled && (!regularReadableFile(rfcommTlsCertificate) || !regularReadableFile(rfcommTlsPrivateKey))) {
-            return "the enabled RFCOMM TLS frontend requires readable certificate and private-key files";
-        }
-#endif
         return std::nullopt;
     }
 
-    NativeFrontendConfiguration::NativeFrontendConfiguration() {
-        unixEnabledOption = configurableBoolean("--frontend-unix-enabled", "Enable the Unix JSONL frontend listener", true);
-        ipv4EnabledOption = configurableBoolean("--frontend-ipv4-enabled", "Enable the IPv4 JSONL frontend listener", false);
-        ipv4AddressOption = configurableString("--frontend-ipv4-address", "IPv4 JSONL frontend bind address", "127.0.0.1", "ADDRESS");
-        ipv4PortOption = configurableUnsigned<std::uint16_t>("--frontend-ipv4-port", "IPv4 JSONL frontend bind port", "PORT", 0);
-        ipv6EnabledOption = configurableBoolean("--frontend-ipv6-enabled", "Enable the IPv6 JSONL frontend listener", false);
-        ipv6AddressOption = configurableString("--frontend-ipv6-address", "IPv6 JSONL frontend bind address", "::1", "ADDRESS");
-        ipv6PortOption = configurableUnsigned<std::uint16_t>("--frontend-ipv6-port", "IPv6 JSONL frontend bind port", "PORT", 0);
-        tlsIpv4EnabledOption = configurableBoolean("--frontend-tls-ipv4-enabled", "Enable the IPv4 TLS JSONL frontend listener", false);
-        tlsIpv4AddressOption = configurableString("--frontend-tls-ipv4-address", "IPv4 TLS frontend bind address", "127.0.0.1", "ADDRESS");
-        tlsIpv4PortOption = configurableUnsigned<std::uint16_t>("--frontend-tls-ipv4-port", "IPv4 TLS frontend bind port", "PORT", 0);
-        tlsIpv4CertificateOption = configurableString("--frontend-tls-ipv4-certificate", "IPv4 TLS frontend certificate file", {}, "PATH");
-        tlsIpv4PrivateKeyOption = configurableString("--frontend-tls-ipv4-private-key", "IPv4 TLS frontend private-key file", {}, "PATH");
-        tlsIpv6EnabledOption = configurableBoolean("--frontend-tls-ipv6-enabled", "Enable the IPv6 TLS JSONL frontend listener", false);
-        tlsIpv6AddressOption = configurableString("--frontend-tls-ipv6-address", "IPv6 TLS frontend bind address", "::1", "ADDRESS");
-        tlsIpv6PortOption = configurableUnsigned<std::uint16_t>("--frontend-tls-ipv6-port", "IPv6 TLS frontend bind port", "PORT", 0);
-        tlsIpv6CertificateOption = configurableString("--frontend-tls-ipv6-certificate", "IPv6 TLS frontend certificate file", {}, "PATH");
-        tlsIpv6PrivateKeyOption = configurableString("--frontend-tls-ipv6-private-key", "IPv6 TLS frontend private-key file", {}, "PATH");
-        rfcommEnabledOption = configurableBoolean("--frontend-rfcomm-enabled", "Enable the RFCOMM JSONL frontend listener", false);
-        rfcommAddressOption =
-            configurableString("--frontend-rfcomm-address", "RFCOMM JSONL frontend bind address", "00:00:00:00:00:00", "ADDRESS");
-        rfcommChannelOption =
-            configurableUnsigned<std::uint16_t>("--frontend-rfcomm-channel", "RFCOMM JSONL frontend channel", "CHANNEL", 1);
-        rfcommTlsEnabledOption =
-            configurableBoolean("--frontend-rfcomm-tls-enabled", "Enable the RFCOMM TLS JSONL frontend listener", false);
-        rfcommTlsAddressOption =
-            configurableString("--frontend-rfcomm-tls-address", "RFCOMM TLS frontend bind address", "00:00:00:00:00:00", "ADDRESS");
-        rfcommTlsChannelOption =
-            configurableUnsigned<std::uint16_t>("--frontend-rfcomm-tls-channel", "RFCOMM TLS frontend channel", "CHANNEL", 1);
-        rfcommTlsCertificateOption =
-            configurableString("--frontend-rfcomm-tls-certificate", "RFCOMM TLS frontend certificate file", {}, "PATH");
-        rfcommTlsPrivateKeyOption =
-            configurableString("--frontend-rfcomm-tls-private-key", "RFCOMM TLS frontend private-key file", {}, "PATH");
-        allowInsecureRemoteOption =
-            configurableBoolean("--frontend-allow-insecure-remote",
-                                "Allow authenticated plaintext frontend listeners on non-loopback addresses (unsafe)",
-                                false);
+    FrontendWebConfiguration::FrontendWebConfiguration() {
+        endpointOption = configurableString(
+            "--frontend-websocket-endpoint", "Exact HTTP request path used for frontend WebSocket upgrades", "/frontend", "PATH");
+        staticRootOption = configurableString("--frontend-static-root", "Optional canonical root for static frontend assets", {}, "PATH");
+        allowedOriginsOption = configurableString("--frontend-websocket-allowed-origins",
+                                                  "Comma-separated explicit browser Origin allow-list (wildcards are forbidden)",
+                                                  {},
+                                                  "ORIGINS");
     }
 
-    NativeFrontendListenerOptions NativeFrontendConfiguration::options() const {
-        return {.unixEnabled = unixEnabledOption->as<bool>(),
-                .ipv4Enabled = ipv4EnabledOption->as<bool>(),
-                .ipv4Address = ipv4AddressOption->as<std::string>(),
-                .ipv4Port = ipv4PortOption->as<std::uint16_t>(),
-                .ipv6Enabled = ipv6EnabledOption->as<bool>(),
-                .ipv6Address = ipv6AddressOption->as<std::string>(),
-                .ipv6Port = ipv6PortOption->as<std::uint16_t>(),
-                .tlsIpv4Enabled = tlsIpv4EnabledOption->as<bool>(),
-                .tlsIpv4Address = tlsIpv4AddressOption->as<std::string>(),
-                .tlsIpv4Port = tlsIpv4PortOption->as<std::uint16_t>(),
-                .tlsIpv4Certificate = tlsIpv4CertificateOption->as<std::string>(),
-                .tlsIpv4PrivateKey = tlsIpv4PrivateKeyOption->as<std::string>(),
-                .tlsIpv6Enabled = tlsIpv6EnabledOption->as<bool>(),
-                .tlsIpv6Address = tlsIpv6AddressOption->as<std::string>(),
-                .tlsIpv6Port = tlsIpv6PortOption->as<std::uint16_t>(),
-                .tlsIpv6Certificate = tlsIpv6CertificateOption->as<std::string>(),
-                .tlsIpv6PrivateKey = tlsIpv6PrivateKeyOption->as<std::string>(),
-                .rfcommEnabled = rfcommEnabledOption->as<bool>(),
-                .rfcommAddress = rfcommAddressOption->as<std::string>(),
-                .rfcommChannel = rfcommChannelOption->as<std::uint16_t>(),
-                .rfcommTlsEnabled = rfcommTlsEnabledOption->as<bool>(),
-                .rfcommTlsAddress = rfcommTlsAddressOption->as<std::string>(),
-                .rfcommTlsChannel = rfcommTlsChannelOption->as<std::uint16_t>(),
-                .rfcommTlsCertificate = rfcommTlsCertificateOption->as<std::string>(),
-                .rfcommTlsPrivateKey = rfcommTlsPrivateKeyOption->as<std::string>(),
-                .allowInsecureRemote = allowInsecureRemoteOption->as<bool>()};
+    FrontendWebOptions FrontendWebConfiguration::options() const {
+        FrontendWebOptions webOptions{
+            .endpoint = endpointOption->as<std::string>(),
+            .staticRoot = std::nullopt,
+            .allowedOrigins = commaSeparatedValues(allowedOriginsOption->as<std::string>()),
+        };
+        const std::string configuredStaticRoot = staticRootOption->as<std::string>();
+        if (!configuredStaticRoot.empty()) {
+            std::error_code error;
+            const std::filesystem::path canonical = std::filesystem::canonical(configuredStaticRoot, error);
+            webOptions.staticRoot = error ? std::filesystem::path(configuredStaticRoot) : canonical;
+        }
+        return webOptions;
     }
 
     FrontendRuntimeConfiguration::FrontendRuntimeConfiguration() {

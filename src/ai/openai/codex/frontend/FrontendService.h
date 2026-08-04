@@ -113,6 +113,12 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] ConnectionReceiveResult receive(std::string_view compactJson) noexcept;
         [[nodiscard]] ConnectionReceiveResult receiveError(CodecError error) noexcept;
 
+        // Transport adapters may learn additional verified peer metadata
+        // (for example the HTTP Origin during a WebSocket upgrade) after
+        // accepting the transport but before protocol authentication. Peer
+        // facts are immutable once a Hello authentication attempt begins.
+        [[nodiscard]] bool updatePeerContext(FrontendPeerContext peer) noexcept;
+
         void close(std::string reason = "frontend connection closed") noexcept;
 
         [[nodiscard]] bool isOpen() const noexcept;

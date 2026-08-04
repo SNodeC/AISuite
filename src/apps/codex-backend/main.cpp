@@ -10,20 +10,45 @@
 #include "ai/openai/codex/stdio/Client.h"
 #include "apps/codex-backend/Configuration.h"
 #include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
-#include "apps/codex-backend/NativeIpFrontendServers.h"
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+#include "apps/codex-backend/FrontendRuntimeBridge.h"
+#include "apps/codex-backend/FrontendWebApplication.h"
+#endif
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-#include "apps/codex-backend/NativeRfcommFrontendServers.h"
+#include "net/rc/stream/legacy/SocketServer.h"
+#include "net/rc/stream/tls/SocketServer.h"
 #endif
 #include "apps/codex-backend/ReferenceAuthentication.h"
 #include "apps/codex-backend/UnixPeerCredentials.h"
 #include "core/SNodeC.h"
+#include "core/socket/State.h"
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+#include "express/legacy/in/WebApp.h"
+#include "express/legacy/in6/WebApp.h"
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+#include "express/tls/in/WebApp.h"
+#include "express/tls/in6/WebApp.h"
+#endif
+#include "web/http/ConfigHttpParser.h"
+#include "web/http/ConfigWebSocket.h"
+#include "web/http/server/ConfigHttpServer.h"
+#endif
+#include "net/in/SocketAddress.h"
+#include "net/in/stream/legacy/SocketServer.h"
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+#include "net/in/stream/tls/SocketServer.h"
+#endif
+#include "net/in6/SocketAddress.h"
+#include "net/in6/stream/legacy/SocketServer.h"
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+#include "net/in6/stream/tls/SocketServer.h"
+#endif
+#include "net/config/ConfigInstance.h"
 #include "net/un/stream/legacy/SocketServer.h"
 
 #include <cstdint>
-#include <functional>
 #include <iostream>
 #include <optional>
-#include <set>
 #include <string>
 #include <string_view>
 #include <sys/stat.h>
@@ -34,90 +59,35 @@
 namespace {
 
     using ai::openai::codex::frontend::FrontendTransportKind;
-    using apps::codex_backend::FrontendTransportBindDeclaration;
-
-    class ListenerStartupBarrier {
-    public:
-        ListenerStartupBarrier(std::set<std::string> expected, std::function<void()> ready)
-            : pending(std::move(expected))
-            , ready(std::move(ready)) {
-        }
-
-        void bound(std::string_view listener) {
-            if (failed || started) {
-                return;
-            }
-            pending.erase(std::string(listener));
-            if (pending.empty()) {
-                started = true;
-                ready();
-            }
-        }
-
-        void bindingFailed(std::string_view listener) {
-            if (started) {
-                // A listener that disappears after startup changes topology,
-                // but it does not replace or stop the single provider/backend.
-                return;
-            }
-            if (!failed) {
-                failed = true;
-                std::cerr << "codex-backend: required frontend listener failed before startup: " << listener << '\n';
-                core::SNodeC::stop();
-            }
-        }
-
-        [[nodiscard]] bool startupFailed() const noexcept {
-            return failed;
-        }
-
-    private:
-        std::set<std::string> pending;
-        std::function<void()> ready;
-        bool failed = false;
-        bool started = false;
-    };
 
     template <typename Address>
-    bool reportBoundListener(std::string_view listener,
-                             const Address& address,
-                             core::socket::State state,
-                             FrontendTransportBindDeclaration& declaration,
-                             ListenerStartupBarrier& barrier) {
-        if (!declaration.report(state)) {
-            std::cerr << "codex-backend: frontend listener " << listener << " is not bound at " << address.toString() << '\n';
-            barrier.bindingFailed(listener);
-            return false;
+    void reportListener(std::string_view name, const Address& address, const core::socket::State& state) {
+        if (state == core::socket::State::OK) {
+            std::cout << "codex-backend: frontend listener " << name << " bound at " << address.toString() << '\n';
+        } else if (state == core::socket::State::DISABLED) {
+            std::cout << "codex-backend: frontend listener " << name << " is disabled\n";
+        } else {
+            std::cerr << "codex-backend: frontend listener " << name << " failed: " << state.what() << '\n';
         }
-        barrier.bound(listener);
-        return true;
     }
 
-    std::set<std::string> enabledListenerNames(const apps::codex_backend::NativeFrontendListenerOptions& options) {
-        std::set<std::string> names;
-        if (options.unixEnabled) {
-            names.emplace("unix");
-        }
-        if (options.ipv4Enabled) {
-            names.emplace("ipv4");
-        }
-        if (options.ipv6Enabled) {
-            names.emplace("ipv6");
-        }
-        if (options.tlsIpv4Enabled) {
-            names.emplace("tls-ipv4");
-        }
-        if (options.tlsIpv6Enabled) {
-            names.emplace("tls-ipv6");
-        }
-        if (options.rfcommEnabled) {
-            names.emplace("rfcomm");
-        }
-        if (options.rfcommTlsEnabled) {
-            names.emplace("rfcomm-tls");
-        }
-        return names;
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+    void configureWebPolicy(net::config::ConfigInstance* config, std::size_t maximumMessageBytes) {
+        auto* http = config->getSubCommand<web::http::server::ConfigHttpServer>();
+        http->setMaximumPendingRequests(1)->setAllowChunkedTransfer(false)->setAllowPipelining(false);
+        http->getParserConfig()
+            ->setMaximumStartLineBytes(8192)
+            ->setMaximumHeaderLineBytes(8192)
+            ->setMaximumHeaderBytes(65536)
+            ->setMaximumHeaderFields(128)
+            ->setMaximumBodyBytes(1);
+        config->getSubCommand<web::http::ConfigWebSocket>()
+            ->setMaximumFrameBytes(maximumMessageBytes)
+            ->setMaximumMessageBytes(maximumMessageBytes)
+            ->setMaximumFragments(4096);
     }
+
+#endif
 
 } // namespace
 
@@ -125,22 +95,21 @@ int main(int argc, char* argv[]) {
     apps::codex_backend::ProviderRecoveryConfiguration recoveryConfiguration;
     apps::codex_backend::ReferenceAuthenticationConfiguration authenticationConfiguration;
     apps::codex_backend::FrontendRuntimeConfiguration frontendRuntimeConfiguration;
-    apps::codex_backend::NativeFrontendConfiguration nativeFrontendConfiguration;
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+    apps::codex_backend::FrontendWebConfiguration webConfiguration;
+#endif
     core::SNodeC::init(argc, argv);
 
     int result = 1;
     {
-        const apps::codex_backend::NativeFrontendListenerOptions nativeOptions = nativeFrontendConfiguration.options();
-        if (const std::optional<std::string> error = nativeOptions.validationError()) {
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        const apps::codex_backend::FrontendWebOptions webOptions = webConfiguration.options();
+        if (const std::optional<std::string> error = webOptions.validationError()) {
             std::cerr << "codex-backend: " << *error << '\n';
             core::SNodeC::free();
             return 1;
         }
-        if (nativeOptions.enabledListenerCount() == 0) {
-            std::cerr << "codex-backend: at least one frontend listener must be enabled\n";
-            core::SNodeC::free();
-            return 1;
-        }
+#endif
 
         ai::openai::codex::frontend::FrontendServiceOptions frontendOptions;
         if (const std::optional<std::string> error = frontendRuntimeConfiguration.apply(frontendOptions)) {
@@ -148,36 +117,18 @@ int main(int argc, char* argv[]) {
             core::SNodeC::free();
             return 1;
         }
-        const apps::codex_backend::SocketFrontendOptions streamBounds{.maximumFrameSize = frontendOptions.maximumInboundMessageBytes,
-                                                                      .maximumOutboundBytes =
-                                                                          apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES};
+        const apps::codex_backend::SocketFrontendOptions streamBounds{
+            .maximumFrameSize = frontendOptions.maximumInboundMessageBytes,
+        };
 
-        const std::string bearerTokenFile = authenticationConfiguration.bearerTokenFile();
-        if (nativeOptions.unixEnabled && authenticationConfiguration.verifiedLocalTrustEnabled() &&
-            !apps::codex_backend::unixPeerCredentialsSupported() && !authenticationConfiguration.insecureLocalTrustOverride()) {
-            std::cerr << "codex-backend: WARNING: OS Unix peer credentials are unavailable; verified local trust is disabled and bearer "
-                         "authentication is required\n";
-        }
-        if (apps::codex_backend::unixFrontendRequiresBearer(nativeOptions.unixEnabled,
-                                                            authenticationConfiguration.verifiedLocalTrustEnabled(),
-                                                            authenticationConfiguration.insecureLocalTrustOverride(),
-                                                            apps::codex_backend::unixPeerCredentialsSupported()) &&
-            bearerTokenFile.empty()) {
-            std::cerr << "codex-backend: the Unix frontend requires a protected bearer-token file when verified local trust is unavailable "
-                         "or disabled\n";
-            core::SNodeC::free();
-            return 1;
-        }
-        if (nativeOptions.remoteAuthenticationRequired() && bearerTokenFile.empty()) {
-            std::cerr << "codex-backend: every enabled remote frontend listener requires a protected bearer-token file\n";
-            core::SNodeC::free();
-            return 1;
-        }
-        if (nativeOptions.allowInsecureRemote && (nativeOptions.ipv4Enabled || nativeOptions.ipv6Enabled)) {
-            std::cerr << "codex-backend: WARNING: authenticated plaintext frontend binding outside loopback is explicitly enabled\n";
+        if (authenticationConfiguration.verifiedLocalTrustEnabled() && !apps::codex_backend::unixPeerCredentialsSupported() &&
+            !authenticationConfiguration.insecureLocalTrustOverride()) {
+            std::cerr << "codex-backend: WARNING: SNode.C reports Unix peer credentials unavailable; verified local trust is disabled and "
+                         "bearer authentication is required\n";
         }
 
         std::optional<apps::codex_backend::ProtectedBearerToken> bearerToken;
+        const std::string bearerTokenFile = authenticationConfiguration.bearerTokenFile();
         if (!bearerTokenFile.empty()) {
             apps::codex_backend::ProtectedTokenFileResult loadedToken = apps::codex_backend::loadProtectedBearerTokenFile(bearerTokenFile);
             if (auto* error = std::get_if<apps::codex_backend::ProtectedTokenFileError>(&loadedToken)) {
@@ -201,10 +152,18 @@ int main(int argc, char* argv[]) {
         if (frontendOptions.allowInsecureLocalTrust) {
             std::cerr << "codex-backend: WARNING: insecure Unix frontend local-trust override is enabled\n";
         }
+
         ai::openai::codex::backend::BackendCoreOptions backendOptions;
         backendOptions.recovery = recoveryConfiguration.options();
         ai::openai::codex::backend::BackendCore<ai::openai::codex::stdio::Client> backend(std::move(backendOptions));
         ai::openai::codex::frontend::FrontendService frontendService(backend, std::move(frontendOptions));
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        if (!apps::codex_backend::installFrontendRuntime(frontendService)) {
+            std::cerr << "codex-backend: failed to install the frontend runtime bridge\n";
+            core::SNodeC::free();
+            return 1;
+        }
+#endif
 
         apps::codex_backend::FrontendStreamSocketContextFactoryOptions unixStreamOptions;
         unixStreamOptions.transport = FrontendTransportKind::Unix;
@@ -216,163 +175,216 @@ int main(int argc, char* argv[]) {
         auto unixServer = net::un::stream::legacy::Server<apps::codex_backend::FrontendStreamSocketContextFactory>(
             "codex-backend",
             [](net::un::stream::legacy::config::ConfigSocketServer* config) {
-                // Preserve the established SNode.C --sun-path/config-file
-                // option as the authoritative Unix listener path.
                 config->Local::setSunPath(apps::codex_backend::defaultSocketPath());
+                config->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
             },
             frontendService,
             std::move(unixStreamOptions));
-        auto ipv4Server = apps::codex_backend::ipv4FrontendServer("codex-backend-ipv4", {}, frontendService, streamBounds);
-        auto ipv6Server = apps::codex_backend::ipv6FrontendServer("codex-backend-ipv6", {}, frontendService, streamBounds);
+        auto ipv4Server = net::in::stream::legacy::Server<apps::codex_backend::FrontendStreamSocketContextFactory>(
+            "codex-backend-ipv4",
+            [](net::in::stream::legacy::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Local::setHost("127.0.0.1");
+                config->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+            },
+            frontendService,
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions{
+                .transport = FrontendTransportKind::Ipv4, .socket = streamBounds, .resolvePeer = {}});
+        auto ipv6Server = net::in6::stream::legacy::Server<apps::codex_backend::FrontendStreamSocketContextFactory>(
+            "codex-backend-ipv6",
+            [](net::in6::stream::legacy::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Local::setHost("::1");
+                config->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+            },
+            frontendService,
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions{
+                .transport = FrontendTransportKind::Ipv6, .socket = streamBounds, .resolvePeer = {}});
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-        auto tlsIpv4Server = apps::codex_backend::ipv4TlsFrontendServer(
+        auto tlsIpv4Server = net::in::stream::tls::Server<apps::codex_backend::FrontendStreamSocketContextFactory>(
             "codex-backend-tls-ipv4",
-            [&nativeOptions](net::in::stream::tls::config::ConfigSocketServer* config) {
-                config->Tls::setCert(nativeOptions.tlsIpv4Certificate);
-                config->Tls::setCertKey(nativeOptions.tlsIpv4PrivateKey);
+            [](net::in::stream::tls::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Local::setHost("127.0.0.1");
+                config->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
             },
             frontendService,
-            streamBounds);
-        auto tlsIpv6Server = apps::codex_backend::ipv6TlsFrontendServer(
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions{
+                .transport = FrontendTransportKind::TcpTls, .socket = streamBounds, .resolvePeer = {}});
+        auto tlsIpv6Server = net::in6::stream::tls::Server<apps::codex_backend::FrontendStreamSocketContextFactory>(
             "codex-backend-tls-ipv6",
-            [&nativeOptions](net::in6::stream::tls::config::ConfigSocketServer* config) {
-                config->Tls::setCert(nativeOptions.tlsIpv6Certificate);
-                config->Tls::setCertKey(nativeOptions.tlsIpv6PrivateKey);
+            [](net::in6::stream::tls::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Local::setHost("::1");
+                config->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
             },
             frontendService,
-            streamBounds);
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions{
+                .transport = FrontendTransportKind::TcpTls, .socket = streamBounds, .resolvePeer = {}});
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-        auto rfcommServer = apps::codex_backend::rfcommFrontendServer("codex-backend-rfcomm", {}, frontendService, streamBounds);
-        auto rfcommTlsServer = apps::codex_backend::rfcommTlsFrontendServer(
+        auto rfcommServer = net::rc::stream::legacy::Server<apps::codex_backend::FrontendStreamSocketContextFactory>(
+            "codex-backend-rfcomm",
+            [](net::rc::stream::legacy::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+            },
+            frontendService,
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions{
+                .transport = FrontendTransportKind::Rfcomm, .socket = streamBounds, .resolvePeer = {}});
+        auto rfcommTlsServer = net::rc::stream::tls::Server<apps::codex_backend::FrontendStreamSocketContextFactory>(
             "codex-backend-rfcomm-tls",
-            [&nativeOptions](net::rc::stream::tls::config::ConfigSocketServer* config) {
-                config->Tls::setCert(nativeOptions.rfcommTlsCertificate);
-                config->Tls::setCertKey(nativeOptions.rfcommTlsPrivateKey);
+            [](net::rc::stream::tls::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
             },
             frontendService,
-            streamBounds);
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions{
+                .transport = FrontendTransportKind::RfcommTls, .socket = streamBounds, .resolvePeer = {}});
 #endif
 
-        // Every transport is selected by the application-level enable flags.
-        // Merely constructing an SNode.C server must therefore not make its
-        // configuration subcommand mandatory during the final bootstrap. The
-        // enabled listener is still required by ListenerStartupBarrier once
-        // listen() is requested below.
-        unixServer.getConfig()->Instance::forceUnrequired();
-        ipv4Server.getConfig()->Instance::forceUnrequired();
-        ipv6Server.getConfig()->Instance::forceUnrequired();
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        express::legacy::in::WebApp webSocketIpv4App("codex-backend-websocket-ipv4");
+        express::legacy::in6::WebApp webSocketIpv6App("codex-backend-websocket-ipv6");
+        webSocketIpv4App.getConfig()->Instance::setDisabled(true);
+        webSocketIpv4App.getConfig()->Local::setHost("127.0.0.1");
+        webSocketIpv4App.getConfig()->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+        configureWebPolicy(webSocketIpv4App.getConfig(), streamBounds.maximumFrameSize);
+        webSocketIpv6App.getConfig()->Instance::setDisabled(true);
+        webSocketIpv6App.getConfig()->Local::setHost("::1");
+        webSocketIpv6App.getConfig()->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+        configureWebPolicy(webSocketIpv6App.getConfig(), streamBounds.maximumFrameSize);
+        apps::codex_backend::FrontendWebApplication webSocketIpv4Application(frontendService,
+                                                                             {.endpoint = webOptions.endpoint,
+                                                                              .staticRoot = webOptions.staticRoot,
+                                                                              .allowedOrigins = webOptions.allowedOrigins,
+                                                                              .transport = FrontendTransportKind::WebSocket,
+                                                                              .encrypted = false});
+        apps::codex_backend::FrontendWebApplication webSocketIpv6Application(frontendService,
+                                                                             {.endpoint = webOptions.endpoint,
+                                                                              .staticRoot = webOptions.staticRoot,
+                                                                              .allowedOrigins = webOptions.allowedOrigins,
+                                                                              .transport = FrontendTransportKind::WebSocket,
+                                                                              .encrypted = false});
+        webSocketIpv4Application.configure(webSocketIpv4App);
+        webSocketIpv6Application.configure(webSocketIpv6App);
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-        tlsIpv4Server.getConfig()->Instance::forceUnrequired();
-        tlsIpv6Server.getConfig()->Instance::forceUnrequired();
+        express::tls::in::WebApp webSocketTlsIpv4App("codex-backend-wss-ipv4");
+        express::tls::in6::WebApp webSocketTlsIpv6App("codex-backend-wss-ipv6");
+        webSocketTlsIpv4App.getConfig()->Instance::setDisabled(true);
+        webSocketTlsIpv4App.getConfig()->Local::setHost("127.0.0.1");
+        webSocketTlsIpv4App.getConfig()->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+        configureWebPolicy(webSocketTlsIpv4App.getConfig(), streamBounds.maximumFrameSize);
+        webSocketTlsIpv6App.getConfig()->Instance::setDisabled(true);
+        webSocketTlsIpv6App.getConfig()->Local::setHost("::1");
+        webSocketTlsIpv6App.getConfig()->Connection::setMaximumWriteQueueBytes(apps::codex_backend::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+        configureWebPolicy(webSocketTlsIpv6App.getConfig(), streamBounds.maximumFrameSize);
+        apps::codex_backend::FrontendWebApplication webSocketTlsIpv4Application(frontendService,
+                                                                                {.endpoint = webOptions.endpoint,
+                                                                                 .staticRoot = webOptions.staticRoot,
+                                                                                 .allowedOrigins = webOptions.allowedOrigins,
+                                                                                 .transport = FrontendTransportKind::WebSocketTls,
+                                                                                 .encrypted = true});
+        apps::codex_backend::FrontendWebApplication webSocketTlsIpv6Application(frontendService,
+                                                                                {.endpoint = webOptions.endpoint,
+                                                                                 .staticRoot = webOptions.staticRoot,
+                                                                                 .allowedOrigins = webOptions.allowedOrigins,
+                                                                                 .transport = FrontendTransportKind::WebSocketTls,
+                                                                                 .encrypted = true});
+        webSocketTlsIpv4Application.configure(webSocketTlsIpv4App);
+        webSocketTlsIpv6Application.configure(webSocketTlsIpv6App);
 #endif
-#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-        rfcommServer.getConfig()->Instance::forceUnrequired();
-        rfcommTlsServer.getConfig()->Instance::forceUnrequired();
 #endif
 
-        FrontendTransportBindDeclaration unixDeclaration(frontendService, FrontendTransportKind::Unix);
-        FrontendTransportBindDeclaration ipv4Declaration(frontendService, FrontendTransportKind::Ipv4);
-        FrontendTransportBindDeclaration ipv6Declaration(frontendService, FrontendTransportKind::Ipv6);
-        FrontendTransportBindDeclaration tlsIpv4Declaration(frontendService, FrontendTransportKind::TcpTls);
-        FrontendTransportBindDeclaration tlsIpv6Declaration(frontendService, FrontendTransportKind::TcpTls);
-        FrontendTransportBindDeclaration rfcommDeclaration(frontendService, FrontendTransportKind::Rfcomm);
-        FrontendTransportBindDeclaration rfcommTlsDeclaration(frontendService, FrontendTransportKind::RfcommTls);
-        ListenerStartupBarrier startupBarrier(enabledListenerNames(nativeOptions), [&backend] {
-            backend.start();
-        });
-
-        if (nativeOptions.unixEnabled) {
-            unixServer.listen([&startupBarrier, &unixDeclaration](const net::un::SocketAddress& address, core::socket::State state) {
-                if (state != core::socket::State::OK) {
-                    static_cast<void>(unixDeclaration.report(state));
-                    startupBarrier.bindingFailed("unix");
-                    return;
-                }
+        unixServer.listen([](const net::un::SocketAddress& address, const core::socket::State& state) {
+            if (state == core::socket::State::OK) {
                 const std::string socketPath = address.getSunPath();
                 const bool ownerOnly =
                     !socketPath.empty() && ::chmod(socketPath.c_str(), S_IRUSR | S_IWUSR) == 0 &&
                     apps::codex_backend::verifyUnixListenerPath(socketPath, static_cast<std::uint64_t>(::geteuid())).verified;
                 if (!ownerOnly) {
                     std::cerr << "codex-backend: failed to secure the Unix frontend listener pathname\n";
-                    startupBarrier.bindingFailed("unix");
+                    core::SNodeC::stop();
                     return;
                 }
-                static_cast<void>(reportBoundListener("unix", address, state, unixDeclaration, startupBarrier));
-            });
-        }
-        if (nativeOptions.ipv4Enabled) {
-            ipv4Server.listen(
-                nativeOptions.ipv4Address,
-                nativeOptions.ipv4Port,
-                [&nativeOptions, &startupBarrier, &ipv4Declaration](const net::in::SocketAddress& address, core::socket::State state) {
-                    if (state == core::socket::State::OK && !nativeOptions.allowInsecureRemote &&
-                        !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), false)) {
-                        std::cerr << "codex-backend: rejected a non-loopback plaintext IPv4 frontend bind\n";
-                        startupBarrier.bindingFailed("ipv4");
-                        return;
-                    }
-                    static_cast<void>(reportBoundListener("ipv4", address, state, ipv4Declaration, startupBarrier));
-                });
-        }
-        if (nativeOptions.ipv6Enabled) {
-            ipv6Server.listen(
-                nativeOptions.ipv6Address,
-                nativeOptions.ipv6Port,
-                [&nativeOptions, &startupBarrier, &ipv6Declaration](const net::in6::SocketAddress& address, core::socket::State state) {
-                    if (state == core::socket::State::OK && !nativeOptions.allowInsecureRemote &&
-                        !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), true)) {
-                        std::cerr << "codex-backend: rejected a non-loopback plaintext IPv6 frontend bind\n";
-                        startupBarrier.bindingFailed("ipv6");
-                        return;
-                    }
-                    static_cast<void>(reportBoundListener("ipv6", address, state, ipv6Declaration, startupBarrier));
-                });
-        }
+            }
+            reportListener("unix", address, state);
+        });
+        ipv4Server.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in::SocketAddress& address,
+                                                                                              const core::socket::State& state) {
+            if (state == core::socket::State::OK && !allowInsecure &&
+                !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), false)) {
+                std::cerr << "codex-backend: rejected a non-loopback plaintext IPv4 frontend bind\n";
+                core::SNodeC::stop();
+                return;
+            }
+            reportListener("ipv4", address, state);
+        });
+        ipv6Server.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in6::SocketAddress& address,
+                                                                                              const core::socket::State& state) {
+            if (state == core::socket::State::OK && !allowInsecure &&
+                !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), true)) {
+                std::cerr << "codex-backend: rejected a non-loopback plaintext IPv6 frontend bind\n";
+                core::SNodeC::stop();
+                return;
+            }
+            reportListener("ipv6", address, state);
+        });
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-        if (nativeOptions.tlsIpv4Enabled) {
-            tlsIpv4Server.listen(nativeOptions.tlsIpv4Address,
-                                 nativeOptions.tlsIpv4Port,
-                                 [&startupBarrier, &tlsIpv4Declaration](const net::in::SocketAddress& address, core::socket::State state) {
-                                     static_cast<void>(reportBoundListener("tls-ipv4", address, state, tlsIpv4Declaration, startupBarrier));
-                                 });
-        }
-        if (nativeOptions.tlsIpv6Enabled) {
-            tlsIpv6Server.listen(nativeOptions.tlsIpv6Address,
-                                 nativeOptions.tlsIpv6Port,
-                                 [&startupBarrier, &tlsIpv6Declaration](const net::in6::SocketAddress& address, core::socket::State state) {
-                                     static_cast<void>(reportBoundListener("tls-ipv6", address, state, tlsIpv6Declaration, startupBarrier));
-                                 });
-        }
+        tlsIpv4Server.listen([](const net::in::SocketAddress& address, const core::socket::State& state) {
+            reportListener("tls-ipv4", address, state);
+        });
+        tlsIpv6Server.listen([](const net::in6::SocketAddress& address, const core::socket::State& state) {
+            reportListener("tls-ipv6", address, state);
+        });
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-        if (nativeOptions.rfcommEnabled) {
-            rfcommServer.listen(nativeOptions.rfcommAddress,
-                                static_cast<std::uint8_t>(nativeOptions.rfcommChannel),
-                                [&startupBarrier, &rfcommDeclaration](const net::rc::SocketAddress& address, core::socket::State state) {
-                                    static_cast<void>(reportBoundListener("rfcomm", address, state, rfcommDeclaration, startupBarrier));
-                                });
-        }
-        if (nativeOptions.rfcommTlsEnabled) {
-            rfcommTlsServer.listen(
-                nativeOptions.rfcommTlsAddress,
-                static_cast<std::uint8_t>(nativeOptions.rfcommTlsChannel),
-                [&startupBarrier, &rfcommTlsDeclaration](const net::rc::SocketAddress& address, core::socket::State state) {
-                    static_cast<void>(reportBoundListener("rfcomm-tls", address, state, rfcommTlsDeclaration, startupBarrier));
-                });
-        }
+        rfcommServer.listen([](const net::rc::SocketAddress& address, const core::socket::State& state) {
+            reportListener("rfcomm", address, state);
+        });
+        rfcommTlsServer.listen([](const net::rc::SocketAddress& address, const core::socket::State& state) {
+            reportListener("rfcomm-tls", address, state);
+        });
+#endif
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        webSocketIpv4App.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in::SocketAddress& address,
+                                                                                                    const core::socket::State& state) {
+            if (state == core::socket::State::OK && !allowInsecure &&
+                !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), false)) {
+                std::cerr << "codex-backend: rejected a non-loopback plaintext WebSocket bind\n";
+                core::SNodeC::stop();
+                return;
+            }
+            reportListener("websocket-ipv4", address, state);
+        });
+        webSocketIpv6App.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in6::SocketAddress& address,
+                                                                                                    const core::socket::State& state) {
+            if (state == core::socket::State::OK && !allowInsecure &&
+                !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), true)) {
+                std::cerr << "codex-backend: rejected a non-loopback plaintext WebSocket bind\n";
+                core::SNodeC::stop();
+                return;
+            }
+            reportListener("websocket-ipv6", address, state);
+        });
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+        webSocketTlsIpv4App.listen([](const net::in::SocketAddress& address, const core::socket::State& state) {
+            reportListener("wss-ipv4", address, state);
+        });
+        webSocketTlsIpv6App.listen([](const net::in6::SocketAddress& address, const core::socket::State& state) {
+            reportListener("wss-ipv6", address, state);
+        });
+#endif
 #endif
 
+        backend.start();
         result = core::SNodeC::start();
-        if (startupBarrier.startupFailed()) {
-            result = 1;
-        }
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        apps::codex_backend::uninstallFrontendRuntime(frontendService);
+#endif
         frontendService.close("codex-backend is stopping");
     }
 
-    // EventLoop::start performs the primary global shutdown. free() is
-    // intentionally repeated after listeners, FrontendService, and BackendCore
-    // have been destroyed; the SNode.C lifecycle makes cleanup idempotent.
     core::SNodeC::free();
     return result;
 }

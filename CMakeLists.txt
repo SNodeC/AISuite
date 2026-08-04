@@ -95,6 +95,21 @@ option(AISUITE_ENABLE_CODEX_FRONTEND_TLS
        ${AISUITE_CODEX_FRONTEND_TLS_DEFAULT}
 )
 
+set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT OFF)
+if(EXISTS "${snodec_DIR}/snodec_http-server_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_http-server-express_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_http-server-express-legacy-in_Targets.cmake"
+   AND EXISTS
+       "${snodec_DIR}/snodec_http-server-express-legacy-in6_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_websocket-server_Targets.cmake"
+)
+    set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT ON)
+endif()
+option(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
+       "Build Codex HTTP and WebSocket frontend transports"
+       ${AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT}
+)
+
 set(AISUITE_CODEX_FRONTEND_RFCOMM_DEFAULT OFF)
 if(EXISTS "${snodec_DIR}/snodec_net-rc-stream-legacy_Targets.cmake"
    AND EXISTS "${snodec_DIR}/snodec_net-rc-stream-tls_Targets.cmake"
@@ -117,6 +132,25 @@ if(AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS)
         list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS net-rc-stream-legacy
              net-rc-stream-tls
         )
+    endif()
+    if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
+        list(
+            APPEND
+            AISUITE_SNODEC_OPTIONAL_COMPONENTS
+            http-server
+            http-server-express
+            http-server-express-legacy-in
+            http-server-express-legacy-in6
+            websocket-server
+        )
+        if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+            list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS
+                 http-server-express-tls-in http-server-express-tls-in6
+            )
+        endif()
+        if(AISUITE_BUILD_TESTS)
+            list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS websocket-client)
+        endif()
     endif()
 endif()
 if(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
