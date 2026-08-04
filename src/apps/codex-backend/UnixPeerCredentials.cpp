@@ -7,6 +7,8 @@
 
 #include "apps/codex-backend/UnixPeerCredentials.h"
 
+#include "net/un/PeerCredentials.h"
+
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
@@ -17,6 +19,10 @@
 
 namespace apps::codex_backend {
 
+    bool unixPeerCredentialsSupported() noexcept {
+        return net::un::peerCredentials(-1).status != net::un::PeerCredentialsStatus::Unsupported;
+    }
+
     ai::openai::codex::frontend::FrontendPeerContext unixPeerContextFromFileDescriptor(int descriptor) noexcept {
         ai::openai::codex::frontend::FrontendPeerContext peer;
         peer.transport = ai::openai::codex::frontend::FrontendTransportKind::Unix;
@@ -25,24 +31,11 @@ namespace apps::codex_backend {
             return peer;
         }
 
-#if defined(__linux__) && defined(SO_PEERCRED)
-        struct ucred credentials{};
-        socklen_t size = sizeof(credentials);
-        if (::getsockopt(descriptor, SOL_SOCKET, SO_PEERCRED, &credentials, &size) == 0 && size == sizeof(credentials) &&
-            credentials.uid != static_cast<uid_t>(-1)) {
+        const net::un::PeerCredentials credentials = net::un::peerCredentials(descriptor);
+        if (credentials.status == net::un::PeerCredentialsStatus::Success) {
             peer.localPeer = true;
             peer.unixUserId = static_cast<std::uint64_t>(credentials.uid);
         }
-#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
-        uid_t userId = static_cast<uid_t>(-1);
-        gid_t groupId = static_cast<gid_t>(-1);
-        if (::getpeereid(descriptor, &userId, &groupId) == 0 && userId != static_cast<uid_t>(-1)) {
-            peer.localPeer = true;
-            peer.unixUserId = static_cast<std::uint64_t>(userId);
-        }
-#else
-        static_cast<void>(descriptor);
-#endif
         return peer;
     }
 

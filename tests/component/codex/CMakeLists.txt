@@ -1636,9 +1636,223 @@ snodec_add_test(
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
 )
+
+snodec_add_test(
+    CodexFrontendNativeTransportTest
+    CodexFrontendNativeTransportTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContext.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContextFactory.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
+)
+target_include_directories(
+    CodexFrontendNativeTransportTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(
+    CodexFrontendNativeTransportTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexBackend
+        AISuite::OpenAICodexFrontend
+        snodec::core
+        snodec::net-un-stream-legacy
+        snodec::net-in-stream-legacy
+        snodec::net-in6-stream-legacy
+)
+if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+    target_compile_definitions(
+        CodexFrontendNativeTransportTest
+        PRIVATE
+            AISUITE_CODEX_FRONTEND_TLS=1
+            AISUITE_CODEX_TEST_TLS_CERT="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-cert.pem"
+            AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
+    )
+    target_link_libraries(
+        CodexFrontendNativeTransportTest
+        PRIVATE snodec::net-in-stream-tls snodec::net-in6-stream-tls
+    )
+endif()
+if(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM)
+    target_compile_definitions(
+        CodexFrontendNativeTransportTest PRIVATE AISUITE_TEST_CODEX_FRONTEND_RFCOMM=1
+    )
+    target_link_libraries(
+        CodexFrontendNativeTransportTest
+        PRIVATE snodec::net-rc-stream-legacy snodec::net-rc-stream-tls
+    )
+endif()
+target_compile_features(CodexFrontendNativeTransportTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendNativeTransportTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;transport;stream;a1-7b"
+        TIMEOUT 20
+)
+
+snodec_add_test(
+    CodexFrontendNativeConfigurationTest
+    CodexFrontendNativeConfigurationTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/Configuration.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceInvocationPolicy.cpp
+)
+target_include_directories(
+    CodexFrontendNativeConfigurationTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(
+    CodexFrontendNativeConfigurationTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexBackend
+        AISuite::OpenAICodexFrontend
+        snodec::core
+)
+target_compile_definitions(
+    CodexFrontendNativeConfigurationTest
+    PRIVATE
+        CODEX_BACKEND_CONFIGURATION_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend/Configuration.cpp"
+        CODEX_BACKEND_MAIN_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend/main.cpp"
+        CODEX_BACKEND_STREAM_CONTEXT_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContext.cpp"
+        CODEX_BACKEND_UNIX_CREDENTIAL_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp"
+        AISUITE_CODEX_TEST_TLS_CERT="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-cert.pem"
+        AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
+)
+if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+    target_compile_definitions(
+        CodexFrontendNativeConfigurationTest
+        PRIVATE AISUITE_CODEX_FRONTEND_TLS=1
+    )
+endif()
+if(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM)
+    target_compile_definitions(
+        CodexFrontendNativeConfigurationTest
+        PRIVATE AISUITE_CODEX_FRONTEND_RFCOMM=1
+    )
+endif()
+target_compile_features(
+    CodexFrontendNativeConfigurationTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexFrontendNativeConfigurationTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;transport;configuration;security;a1-7b"
+        TIMEOUT 5
+)
+
+snodec_add_test(
+    CodexFrontendNativeConfigurationCliTest
+    CodexFrontendNativeConfigurationCliTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/Configuration.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceInvocationPolicy.cpp
+)
+target_include_directories(
+    CodexFrontendNativeConfigurationCliTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(
+    CodexFrontendNativeConfigurationCliTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexBackend
+        AISuite::OpenAICodexFrontend
+        snodec::core
+)
+target_compile_definitions(
+    CodexFrontendNativeConfigurationCliTest
+    PRIVATE
+        AISUITE_CODEX_TEST_TLS_CERT="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-cert.pem"
+        AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
+)
+if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+    target_compile_definitions(
+        CodexFrontendNativeConfigurationCliTest
+        PRIVATE AISUITE_CODEX_FRONTEND_TLS=1
+    )
+endif()
+if(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM)
+    target_compile_definitions(
+        CodexFrontendNativeConfigurationCliTest
+        PRIVATE AISUITE_CODEX_FRONTEND_RFCOMM=1
+    )
+endif()
+target_compile_features(
+    CodexFrontendNativeConfigurationCliTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexFrontendNativeConfigurationCliTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;transport;configuration;cli;security;a1-7b"
+        TIMEOUT 5
+)
+
+snodec_add_test(
+    CodexBackendReferenceInvocationPolicyTest
+    CodexBackendReferenceInvocationPolicyTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceInvocationPolicy.cpp
+)
+target_include_directories(
+    CodexBackendReferenceInvocationPolicyTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(
+    CodexBackendReferenceInvocationPolicyTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+)
+target_compile_features(
+    CodexBackendReferenceInvocationPolicyTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexBackendReferenceInvocationPolicyTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;configuration;security;policy;a1-7b"
+        TIMEOUT 5
+)
+
+snodec_add_test(
+    CodexBackendUnixCliCompatibilityTest
+    CodexBackendUnixCliCompatibilityTest.cpp
+)
+target_link_libraries(
+    CodexBackendUnixCliCompatibilityTest
+    PRIVATE
+        snodec-test-support
+        snodec::core
+        snodec::net-un-stream-legacy
+        snodec::net-in-stream-legacy
+        snodec::net-in6-stream-legacy
+)
+if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+    target_compile_definitions(
+        CodexBackendUnixCliCompatibilityTest
+        PRIVATE AISUITE_CODEX_FRONTEND_TLS=1
+    )
+    target_link_libraries(
+        CodexBackendUnixCliCompatibilityTest
+        PRIVATE snodec::net-in-stream-tls snodec::net-in6-stream-tls
+    )
+endif()
+if(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM)
+    target_compile_definitions(
+        CodexBackendUnixCliCompatibilityTest
+        PRIVATE AISUITE_CODEX_FRONTEND_RFCOMM=1
+    )
+    target_link_libraries(
+        CodexBackendUnixCliCompatibilityTest
+        PRIVATE snodec::net-rc-stream-legacy snodec::net-rc-stream-tls
+    )
+endif()
+target_compile_features(
+    CodexBackendUnixCliCompatibilityTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexBackendUnixCliCompatibilityTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;unix;configuration;compatibility;a1-7b"
+        TIMEOUT 5
+)
 target_link_libraries(
     CodexFrontendReferenceAuthenticationTest
     PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+            snodec::net-un-stream-legacy
 )
 target_include_directories(
     CodexFrontendReferenceAuthenticationTest PRIVATE ${PROJECT_SOURCE_DIR}/src
@@ -1756,7 +1970,7 @@ if(TARGET codex-backend-client-support)
                    SKIP_RETURN_CODE 77 TIMEOUT 10
     )
 
-    if(TARGET codex-backend-unix-adapter)
+    if(TARGET codex-backend-stream-adapter)
         snodec_add_test(
             CodexBackendClientRealBackendAcceptanceTest
             CodexBackendClientRealBackendAcceptanceTest.cpp
@@ -1764,7 +1978,7 @@ if(TARGET codex-backend-client-support)
         target_link_libraries(
             CodexBackendClientRealBackendAcceptanceTest
             PRIVATE snodec-test-support codex-backend-client-support
-                    codex-backend-unix-adapter AISuite::OpenAICodexBackend
+                    codex-backend-stream-adapter AISuite::OpenAICodexBackend
                     snodec::net-un-stream-legacy snodec::core
         )
         target_compile_features(
@@ -1840,8 +2054,8 @@ set_tests_properties(
 snodec_add_test(
     CodexBackendUnixAcceptanceTest
     CodexBackendUnixAcceptanceTest.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/CodexFrontendSocketContext.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/CodexFrontendSocketContextFactory.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContext.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContextFactory.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
 )

@@ -427,6 +427,15 @@ namespace {
                               verifiedLocalConnection.peer().unixUserId == TrustedTestUserId,
                           "verified peer identity and local_trusted principal are visible through credential-free diagnostics");
 
+        frontend::FrontendPeerContext spoofedLocalPeer = trustedPeer();
+        spoofedLocalPeer.transport = frontend::FrontendTransportKind::Ipv4;
+        spoofedLocalPeer.remoteAddress = "127.0.0.1:31999";
+        Observations spoofedLocal;
+        frontend::FrontendConnection spoofedLocalConnection = localService.openConnection(spoofedLocalPeer, callbacksFor(spoofedLocal));
+        result.expectTrue(spoofedLocalConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "verified local trust requires a Unix transport and cannot be manufactured by peer metadata alone");
+        scheduler.drain();
+
         frontend::FrontendPeerContext wrongUnixPeer = trustedPeer();
         wrongUnixPeer.unixUserId = TrustedTestUserId + 1;
         Observations wrongUnix;
@@ -459,7 +468,7 @@ namespace {
         frontend::FrontendPeerContext remote;
         remote.transport = frontend::FrontendTransportKind::Ipv4;
         remote.loopback = true;
-        remote.remoteAddress = "127.0.0.1";
+        remote.remoteAddress = "127.0.0.1:32000";
 
         const std::size_t sessionsBeforeMissingAuthentication = core.snapshot().sessions.size();
         Observations missing;
@@ -483,17 +492,21 @@ namespace {
                                                     std::nullopt,
                                                     frontend::AuthenticationCredential{frontend::BearerCredential{"wrong-token"}}}};
         for (std::size_t attempt = 0; attempt < 2; ++attempt) {
+            frontend::FrontendPeerContext reconnectingRemote = remote;
+            reconnectingRemote.remoteAddress = "127.0.0.1:" + std::to_string(32001 + attempt);
             Observations failed;
-            frontend::FrontendConnection connection = service.openConnection(remote, callbacksFor(failed));
+            frontend::FrontendConnection connection = service.openConnection(reconnectingRemote, callbacksFor(failed));
             result.expectTrue(connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
-                              "a wrong bearer consumes exactly one peer authentication attempt");
+                              "a wrong bearer consumes exactly one address authentication attempt across ephemeral ports");
             scheduler.drain();
             result.expectTrue(protocolError(failed, std::nullopt) != nullptr &&
                                   protocolError(failed, std::nullopt)->code == frontend::ErrorCode::AuthenticationFailed,
                               "wrong bearer rejection does not expose credential details");
         }
+        frontend::FrontendPeerContext limitedRemote = remote;
+        limitedRemote.remoteAddress = "127.0.0.1:32999";
         Observations limited;
-        frontend::FrontendConnection limitedConnection = service.openConnection(remote, callbacksFor(limited));
+        frontend::FrontendConnection limitedConnection = service.openConnection(limitedRemote, callbacksFor(limited));
         result.expectTrue(limitedConnection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
                           "the fourth peer attempt is terminal after three recorded failures");
         scheduler.drain();
@@ -501,8 +514,65 @@ namespace {
                               protocolError(limited, std::nullopt)->code == frontend::ErrorCode::RateLimited,
                           "the failed-authentication peer budget returns rate_limited without invoking BackendCore");
 
+        const std::array<std::string, 3> ipv6PeerForms{"::1", "[::1]:32001", "[::1]"};
+        for (const std::string& address : ipv6PeerForms) {
+            frontend::FrontendPeerContext reconnectingIpv6;
+            reconnectingIpv6.transport = frontend::FrontendTransportKind::Ipv6;
+            reconnectingIpv6.loopback = true;
+            reconnectingIpv6.remoteAddress = address;
+            Observations failed;
+            frontend::FrontendConnection connection = service.openConnection(reconnectingIpv6, callbacksFor(failed));
+            result.expectTrue(connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                              "raw and bracketed IPv6 peer forms share one authentication budget");
+            scheduler.drain();
+            result.expectTrue(protocolError(failed, std::nullopt) != nullptr &&
+                                  protocolError(failed, std::nullopt)->code == frontend::ErrorCode::AuthenticationFailed,
+                              "the first three IPv6 peer attempts retain the generic authentication failure");
+        }
+        frontend::FrontendPeerContext limitedIpv6;
+        limitedIpv6.transport = frontend::FrontendTransportKind::TcpTls;
+        limitedIpv6.encrypted = true;
+        limitedIpv6.loopback = true;
+        limitedIpv6.remoteAddress = "[::1]:32999";
+        Observations limitedIpv6Observations;
+        frontend::FrontendConnection limitedIpv6Connection =
+            service.openConnection(limitedIpv6, callbacksFor(limitedIpv6Observations));
+        result.expectTrue(limitedIpv6Connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "changing IPv6 presentation or transport encryption does not reset its peer budget");
+        scheduler.drain();
+        result.expectTrue(protocolError(limitedIpv6Observations, std::nullopt) != nullptr &&
+                              protocolError(limitedIpv6Observations, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "the canonical IPv6 admission key terminates with rate_limited");
+
+        for (std::size_t attempt = 0; attempt < 3; ++attempt) {
+            frontend::FrontendPeerContext reconnectingRfcomm;
+            reconnectingRfcomm.transport = frontend::FrontendTransportKind::Rfcomm;
+            reconnectingRfcomm.remoteAddress = "AA:BB:CC:DD:EE:FF:" + std::to_string(attempt + 1);
+            Observations failed;
+            frontend::FrontendConnection connection = service.openConnection(reconnectingRfcomm, callbacksFor(failed));
+            result.expectTrue(connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                              "a wrong RFCOMM bearer consumes one address attempt independently of its channel");
+            scheduler.drain();
+            result.expectTrue(protocolError(failed, std::nullopt) != nullptr &&
+                                  protocolError(failed, std::nullopt)->code == frontend::ErrorCode::AuthenticationFailed,
+                              "the first three RFCOMM address attempts retain the generic authentication failure");
+        }
+        frontend::FrontendPeerContext limitedRfcomm;
+        limitedRfcomm.transport = frontend::FrontendTransportKind::RfcommTls;
+        limitedRfcomm.encrypted = true;
+        limitedRfcomm.remoteAddress = "AA:BB:CC:DD:EE:FF:30";
+        Observations limitedRfcommObservations;
+        frontend::FrontendConnection limitedRfcommConnection =
+            service.openConnection(limitedRfcomm, callbacksFor(limitedRfcommObservations));
+        result.expectTrue(limitedRfcommConnection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "changing RFCOMM channel or encryption does not reset a Bluetooth-address admission budget");
+        scheduler.drain();
+        result.expectTrue(protocolError(limitedRfcommObservations, std::nullopt) != nullptr &&
+                              protocolError(limitedRfcommObservations, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "the shared RFCOMM address budget terminates with rate_limited");
+
         frontend::FrontendPeerContext otherRemote = remote;
-        otherRemote.remoteAddress = "127.0.0.2";
+        otherRemote.remoteAddress = "127.0.0.2:33000";
         Observations authenticated;
         frontend::FrontendConnection authenticatedConnection = service.openConnection(otherRemote, callbacksFor(authenticated));
         const auto goodHello =
@@ -513,27 +583,70 @@ namespace {
         result.expectTrue(authenticatedConnection.receive(goodHello).accepted(), "a valid bearer authenticates another peer");
         scheduler.drain();
         result.expectTrue(authenticatedConnection.helloComplete() && authenticatedConnection.sessionId().has_value() &&
-                              authenticatedConnection.principal().has_value() &&
+                              authenticatedConnection.principal().has_value() && authenticatedConnection.principal()->id == "remote-test" &&
                               authenticatedConnection.principal()->profile == "default_remote" &&
                               service.authenticatedConnectionCount() == 1 && service.unauthenticatedConnectionCount() == 0,
                           "authentication precedes BackendCore session creation and exposes only safe principal diagnostics");
+        result.expectTrue(authenticatedConnection.peer().remoteAddress == otherRemote.remoteAddress &&
+                              std::all_of(authenticated.compactJson.begin(),
+                                          authenticated.compactJson.end(),
+                                          [](const std::string& value) {
+                                              return value.find("test-token") == std::string::npos;
+                                          }),
+                          "peer and principal diagnostics preserve useful identity metadata without exposing the bearer credential");
 
-        service.declareTransportFamily(frontend::FrontendTransportKind::Unix);
-        const std::vector<frontend::FrontendCapability> singleFamilyCapabilities = service.implementedCapabilities();
-        service.declareTransportFamily(frontend::FrontendTransportKind::Ipv4);
-        const std::vector<frontend::FrontendCapability> multiFamilyCapabilities = service.implementedCapabilities();
-        result.expectTrue(
-            std::find(singleFamilyCapabilities.begin(), singleFamilyCapabilities.end(), frontend::FrontendCapability::MultiTransport) ==
-                    singleFamilyCapabilities.end() &&
-                std::find(multiFamilyCapabilities.begin(), multiFamilyCapabilities.end(), frontend::FrontendCapability::MultiTransport) !=
-                    multiFamilyCapabilities.end(),
-            "multi_transport follows distinct successfully declared listener families, not active connections");
+        const std::vector<frontend::FrontendCapability> runtimeCapabilities = service.implementedCapabilities();
+        std::vector<frontend::FrontendConnection> unixClients;
+        std::array<Observations, 4> unixClientObservations;
+        for (Observations& observations : unixClientObservations) {
+            unixClients.push_back(service.openConnection(trustedPeer(), callbacksFor(observations)));
+        }
+        result.expectTrue(runtimeCapabilities.size() == 13 && service.connectionCount() == 5 &&
+                              std::find(runtimeCapabilities.begin(),
+                                        runtimeCapabilities.end(),
+                                        frontend::FrontendCapability::MultiTransport) == runtimeCapabilities.end(),
+                          "the runtime reports thirteen mechanisms and never advertises the legacy multi_transport capability");
         const frontend::Welcome* firstWelcome = welcome(authenticated);
         result.expectTrue(firstWelcome && firstWelcome->capabilities &&
                               std::find(firstWelcome->capabilities->implemented.begin(),
                                         firstWelcome->capabilities->implemented.end(),
                                         frontend::FrontendCapability::MultiTransport) == firstWelcome->capabilities->implemented.end(),
-                          "an existing connection keeps the topology capability advertised during its handshake");
+                          "Welcome omits the legacy multi_transport capability");
+
+        frontend::FrontendPeerContext multiTopologyPeer = otherRemote;
+        multiTopologyPeer.remoteAddress = "127.0.0.3:34000";
+        Observations multiTopologyHandshake;
+        frontend::FrontendConnection multiTopologyConnection =
+            service.openConnection(multiTopologyPeer, callbacksFor(multiTopologyHandshake));
+        result.expectTrue(multiTopologyConnection.receive(goodHello).accepted(), "another connection can authenticate normally");
+        scheduler.drain();
+        const frontend::Welcome* initialMultiTopologyWelcome = welcome(multiTopologyHandshake);
+        result.expectTrue(initialMultiTopologyWelcome && initialMultiTopologyWelcome->capabilities &&
+                              std::find(initialMultiTopologyWelcome->capabilities->implemented.begin(),
+                                        initialMultiTopologyWelcome->capabilities->implemented.end(),
+                                        frontend::FrontendCapability::MultiTransport) ==
+                                  initialMultiTopologyWelcome->capabilities->implemented.end(),
+                          "new handshakes also omit multi_transport");
+        frontend::FrontendPeerContext reducedTopologyPeer = otherRemote;
+        reducedTopologyPeer.remoteAddress = "127.0.0.4:35000";
+        Observations reducedTopologyHandshake;
+        frontend::FrontendConnection reducedTopologyConnection =
+            service.openConnection(reducedTopologyPeer, callbacksFor(reducedTopologyHandshake));
+        result.expectTrue(reducedTopologyConnection.receive(goodHello).accepted(),
+                          "a connection can authenticate after one listener family disappears");
+        scheduler.drain();
+        const frontend::Welcome* reducedTopologyWelcome = welcome(reducedTopologyHandshake);
+        const frontend::Welcome* retainedMultiTopologyWelcome = welcome(multiTopologyHandshake);
+        result.expectTrue(
+            reducedTopologyWelcome && reducedTopologyWelcome->capabilities &&
+                std::find(reducedTopologyWelcome->capabilities->implemented.begin(),
+                          reducedTopologyWelcome->capabilities->implemented.end(),
+                          frontend::FrontendCapability::MultiTransport) == reducedTopologyWelcome->capabilities->implemented.end() &&
+                retainedMultiTopologyWelcome && retainedMultiTopologyWelcome->capabilities &&
+                std::find(retainedMultiTopologyWelcome->capabilities->implemented.begin(),
+                          retainedMultiTopologyWelcome->capabilities->implemented.end(),
+                          frontend::FrontendCapability::MultiTransport) == retainedMultiTopologyWelcome->capabilities->implemented.end(),
+            "all authenticated handshakes retain the same thirteen static mechanism capabilities");
 
         Observations timedOut;
         frontend::FrontendConnection timeoutConnection = service.openConnection(otherRemote, callbacksFor(timedOut));

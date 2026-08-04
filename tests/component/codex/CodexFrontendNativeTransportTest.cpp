@@ -1,0 +1,711 @@
+/*
+ * SNode.C - A Slim Toolkit for Network Communication
+ * Copyright (C) Volker Christian <me@vchrist.at>
+ *
+ * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
+ */
+
+#include "CodexBackendTestSupport.h"
+#include "ai/openai/codex/backend/BackendCore.h"
+#include "ai/openai/codex/frontend/Codec.h"
+#include "ai/openai/codex/frontend/Security.h"
+#include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
+#include "apps/codex-backend/JsonLineFramer.h"
+#include "apps/codex-backend/UnixPeerCredentials.h"
+#include "core/SNodeC.h"
+#include "core/socket/State.h"
+#include "core/socket/stream/SocketConnection.h"
+#include "core/socket/stream/SocketContext.h"
+#include "core/socket/stream/SocketContextFactory.h"
+#include "core/timer/Timer.h"
+#include "net/in/SocketAddress.h"
+#include "net/in/stream/legacy/SocketClient.h"
+#include "net/in/stream/legacy/SocketServer.h"
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+#include "net/in/stream/tls/SocketClient.h"
+#include "net/in/stream/tls/SocketServer.h"
+#endif
+#include "net/in6/SocketAddress.h"
+#include "net/in6/stream/legacy/SocketClient.h"
+#include "net/in6/stream/legacy/SocketServer.h"
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+#include "net/in6/stream/tls/SocketClient.h"
+#include "net/in6/stream/tls/SocketServer.h"
+#endif
+#if defined(AISUITE_TEST_CODEX_FRONTEND_RFCOMM)
+#include "net/rc/stream/legacy/SocketServer.h"
+#include "net/rc/stream/tls/SocketServer.h"
+#endif
+#include "net/un/SocketAddress.h"
+#include "net/un/stream/legacy/SocketClient.h"
+#include "net/un/stream/legacy/SocketServer.h"
+#include "support/TestResult.h"
+#include "utils/Timeval.h"
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <functional>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <utility>
+#include <variant>
+#include <vector>
+
+namespace {
+
+    namespace app = apps::codex_backend;
+    namespace backend = ai::openai::codex::backend;
+    namespace frontend = ai::openai::codex::frontend;
+
+    using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
+
+    constexpr std::string_view BearerToken = "a1-7b-native-loopback-token";
+
+    enum class ClientKind : std::size_t { Unix, Ipv4, Ipv6, Tls, Count };
+
+    constexpr std::size_t clientIndex(ClientKind kind) noexcept {
+        return static_cast<std::size_t>(kind);
+    }
+
+    constexpr std::size_t expectedClientCount() noexcept {
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+        return 4;
+#else
+        return 3;
+#endif
+    }
+
+    std::string_view clientName(ClientKind kind) noexcept {
+        switch (kind) {
+            case ClientKind::Unix:
+                return "Unix JSONL";
+            case ClientKind::Ipv4:
+                return "IPv4 JSONL";
+            case ClientKind::Ipv6:
+                return "IPv6 JSONL";
+            case ClientKind::Tls:
+                return "IPv6 TLS JSONL";
+            case ClientKind::Count:
+                break;
+        }
+        return "unknown native transport";
+    }
+
+    bool hasCapability(const std::vector<frontend::FrontendCapability>& capabilities, frontend::FrontendCapability expected) {
+        return std::find(capabilities.begin(), capabilities.end(), expected) != capabilities.end();
+    }
+
+    frontend::AuthenticationResult remoteAuthentication(const frontend::AuthenticationCredential& credential) {
+        const auto* bearer = std::get_if<frontend::BearerCredential>(&credential);
+        if (bearer == nullptr || bearer->token != BearerToken) {
+            return frontend::AuthenticationFailure{bearer == nullptr ? frontend::AuthenticationFailureCode::AuthenticationRequired
+                                                                     : frontend::AuthenticationFailureCode::AuthenticationFailed};
+        }
+        return frontend::AuthenticationSuccess{frontend::FrontendPrincipal{
+            "native-loopback",
+            std::vector<frontend::FrontendScope>(frontend::DefaultRemoteScopes.begin(), frontend::DefaultRemoteScopes.end()),
+            "default_remote",
+            false}};
+    }
+
+    struct ClientObservation {
+        std::size_t connected = 0;
+        std::size_t disconnected = 0;
+        std::size_t welcome = 0;
+        std::size_t snapshot = 0;
+        std::size_t syncComplete = 0;
+        std::size_t protocolErrors = 0;
+        bool advertisedMultiTransport = false;
+        std::size_t availableMethods = 0;
+        std::size_t permittedMethods = 0;
+    };
+
+    struct IntegrationState {
+        explicit IntegrationState(tests::support::TestResult& result)
+            : result(result) {
+        }
+
+        void listenFailed(ClientKind kind, const core::socket::State& state) {
+            ++listenFailures;
+            result.expectTrue(false, std::string(clientName(kind)) + " listener binds: " + state.what());
+            core::SNodeC::stop();
+        }
+
+        void connectResult(ClientKind kind, const core::socket::State& state) {
+            if (state == core::socket::State::OK) {
+                ++connectSuccesses;
+            } else {
+                ++connectFailures;
+                result.expectTrue(false, std::string(clientName(kind)) + " client connects: " + state.what());
+                core::SNodeC::stop();
+            }
+        }
+
+        void connected(ClientKind kind) {
+            ++clients[clientIndex(kind)].connected;
+        }
+
+        void disconnected(ClientKind kind) {
+            ++clients[clientIndex(kind)].disconnected;
+        }
+
+        void decoded(ClientKind kind, frontend::ServerMessage message) {
+            ClientObservation& observation = clients[clientIndex(kind)];
+            if (const auto* welcome = std::get_if<frontend::Welcome>(&message)) {
+                ++observation.welcome;
+                observation.availableMethods = welcome->availableMethods ? welcome->availableMethods->size() : 0;
+                observation.permittedMethods = welcome->permittedMethods ? welcome->permittedMethods->size() : 0;
+                observation.advertisedMultiTransport = welcome->capabilities && hasCapability(welcome->capabilities->implemented,
+                                                                                              frontend::FrontendCapability::MultiTransport);
+            } else if (std::holds_alternative<frontend::Snapshot>(message)) {
+                ++observation.snapshot;
+            } else if (std::holds_alternative<frontend::SyncComplete>(message)) {
+                if (observation.syncComplete == 0) {
+                    ++completedClients;
+                }
+                ++observation.syncComplete;
+                if (completedClients == expectedClientCount()) {
+                    completed = true;
+                    core::SNodeC::stop();
+                }
+            } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
+                ++observation.protocolErrors;
+                result.expectTrue(false, std::string(clientName(kind)) + " receives no protocol error");
+                core::SNodeC::stop();
+            }
+        }
+
+        void decodeFailed(ClientKind kind, std::string message) {
+            ++decodeFailures;
+            result.expectTrue(false, std::string(clientName(kind)) + " decode failed: " + std::move(message));
+            core::SNodeC::stop();
+        }
+
+        void recordAuthenticatedPeer(const frontend::FrontendPeerContext& peer) {
+            authenticatedPeers.push_back(peer);
+        }
+
+        tests::support::TestResult& result;
+        std::array<ClientObservation, clientIndex(ClientKind::Count)> clients{};
+        std::vector<frontend::FrontendPeerContext> authenticatedPeers;
+        std::optional<frontend::FrontendPeerContext> verifiedUnixPeer;
+        std::size_t listenSuccesses = 0;
+        std::size_t listenFailures = 0;
+        std::size_t connectSuccesses = 0;
+        std::size_t connectFailures = 0;
+        std::size_t decodeFailures = 0;
+        std::size_t completedClients = 0;
+        bool topologyObservedBeforeClients = false;
+        bool completed = false;
+        bool timedOut = false;
+    };
+
+    class FrontendProtocolClientContext final : public core::socket::stream::SocketContext {
+    public:
+        FrontendProtocolClientContext(core::socket::stream::SocketConnection* connection, IntegrationState& state, ClientKind kind)
+            : core::socket::stream::SocketContext(connection)
+            , state(state)
+            , kind(kind) {
+        }
+
+    private:
+        void onConnected() override {
+            state.connected(kind);
+            frontend::Hello hello;
+            hello.capabilities = std::vector{frontend::FrontendCapability::MethodDiscovery, frontend::FrontendCapability::SecurityScopes};
+            if (kind != ClientKind::Unix || !app::unixPeerCredentialsSupported()) {
+                hello.authentication = frontend::AuthenticationCredential{frontend::BearerCredential{std::string(BearerToken)}};
+            }
+            const auto encoded = frontend::Codec::serializeClient(frontend::ClientMessage{std::move(hello)});
+            if (!encoded) {
+                state.decodeFailed(kind, "Hello serialization failed: " + encoded.error().message);
+                return;
+            }
+            std::string frame = encoded.value();
+            frame.push_back('\n');
+            sendToPeer(frame.data(), frame.size());
+        }
+
+        void onDisconnected() override {
+            state.disconnected(kind);
+        }
+
+        std::size_t onReceivedFromPeer() override {
+            std::array<char, 16 * 1024> bytes{};
+            const std::size_t size = readFromPeer(bytes.data(), bytes.size());
+            receiveBuffer.append(bytes.data(), size);
+            while (true) {
+                const std::size_t delimiter = receiveBuffer.find('\n');
+                if (delimiter == std::string::npos) {
+                    break;
+                }
+                std::string frame = receiveBuffer.substr(0, delimiter);
+                receiveBuffer.erase(0, delimiter + 1);
+                if (!frame.empty() && frame.back() == '\r') {
+                    frame.pop_back();
+                }
+                const auto decoded = frontend::Codec::decodeServer(std::string_view(frame));
+                if (!decoded) {
+                    state.decodeFailed(kind, decoded.error().message);
+                    return size;
+                }
+                state.decoded(kind, decoded.value());
+            }
+            return size;
+        }
+
+        bool onSignal([[maybe_unused]] int signum) override {
+            return true;
+        }
+
+        IntegrationState& state;
+        ClientKind kind;
+        std::string receiveBuffer;
+    };
+
+    class FrontendProtocolClientFactory final : public core::socket::stream::SocketContextFactory {
+    public:
+        FrontendProtocolClientFactory(IntegrationState& state, ClientKind kind)
+            : state(state)
+            , kind(kind) {
+        }
+
+        core::socket::stream::SocketContext* create(core::socket::stream::SocketConnection* connection) override {
+            return new FrontendProtocolClientContext(connection, state, kind);
+        }
+
+    private:
+        IntegrationState& state;
+        ClientKind kind;
+    };
+
+    std::string unixSocketPath() {
+        return "/tmp/aisuite-a1-7b-native-" + std::to_string(::getpid()) + ".sock";
+    }
+
+    void expectTransportFacts(tests::support::TestResult& result) {
+        result.expectTrue(app::isJsonLineStreamTransport(frontend::FrontendTransportKind::Unix) &&
+                              app::isJsonLineStreamTransport(frontend::FrontendTransportKind::Ipv4) &&
+                              app::isJsonLineStreamTransport(frontend::FrontendTransportKind::Ipv6) &&
+                              app::isJsonLineStreamTransport(frontend::FrontendTransportKind::TcpTls) &&
+                              app::isJsonLineStreamTransport(frontend::FrontendTransportKind::Rfcomm) &&
+                              app::isJsonLineStreamTransport(frontend::FrontendTransportKind::RfcommTls) &&
+                              !app::isJsonLineStreamTransport(frontend::FrontendTransportKind::WebSocket) &&
+                              !app::isJsonLineStreamTransport(frontend::FrontendTransportKind::WebSocketTls),
+                          "Unix, IP, TLS, and RFCOMM use one JSONL stream boundary while WebSocket does not");
+        result.expectTrue(!app::isEncryptedTransport(frontend::FrontendTransportKind::Ipv4) &&
+                              !app::isEncryptedTransport(frontend::FrontendTransportKind::Ipv6) &&
+                              app::isEncryptedTransport(frontend::FrontendTransportKind::TcpTls) &&
+                              !app::isEncryptedTransport(frontend::FrontendTransportKind::Rfcomm) &&
+                              app::isEncryptedTransport(frontend::FrontendTransportKind::RfcommTls),
+                          "encryption metadata is fixed by the successfully bound native listener family");
+
+        std::vector<std::string> frames;
+        app::JsonLineFramer framer(64);
+        const auto first = framer.push("{\"one\":1}\r", [&frames](std::string frame) {
+            frames.push_back(std::move(frame));
+        });
+        const auto second = framer.push("\n{\"two\":2}\n", [&frames](std::string frame) {
+            frames.push_back(std::move(frame));
+        });
+        result.expectTrue(first == app::JsonLineFramer::Result::Accepted && second == app::JsonLineFramer::Result::Accepted &&
+                              frames == std::vector<std::string>{"{\"one\":1}", "{\"two\":2}"},
+                          "the shared native stream framer preserves fragmentation, CRLF tolerance, and multiple frames per read");
+    }
+
+    void expectTransportCapabilityIsNotAdvertised(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        FakeBackendCore backend({}, transport);
+        frontend::FrontendServiceOptions options;
+        options.maxUnauthenticatedConnections = 8;
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        frontend::FrontendService service(backend, std::move(options));
+        std::vector<frontend::FrontendConnection> connections;
+        for (std::size_t index = 0; index < 6; ++index) {
+            frontend::FrontendPeerContext peer;
+            peer.transport = frontend::FrontendTransportKind::Unix;
+            connections.push_back(service.openConnection(std::move(peer), {{}, {}}));
+        }
+        result.expectTrue(service.connectionCount() == 6 && service.implementedCapabilities().size() == 13 &&
+                              !hasCapability(service.implementedCapabilities(), frontend::FrontendCapability::MultiTransport),
+                          "connections do not affect the thirteen static mechanism capabilities and multi_transport is not advertised");
+        for (frontend::FrontendConnection& connection : connections) {
+            connection.close();
+        }
+    }
+
+#if defined(AISUITE_TEST_CODEX_FRONTEND_RFCOMM)
+    void expectRfcommComposition(tests::support::TestResult& result, frontend::FrontendService& service) {
+        app::FrontendStreamSocketContextFactory rfcommFactory(
+            service, app::FrontendStreamSocketContextFactoryOptions{frontend::FrontendTransportKind::Rfcomm, {}, {}});
+        app::FrontendStreamSocketContextFactory rfcommTlsFactory(
+            service, app::FrontendStreamSocketContextFactoryOptions{frontend::FrontendTransportKind::RfcommTls, {}, {}});
+        result.expectTrue(rfcommFactory.serviceIdentity() == &service && rfcommTlsFactory.serviceIdentity() == &service &&
+                              rfcommFactory.transport() == frontend::FrontendTransportKind::Rfcomm &&
+                              rfcommTlsFactory.transport() == frontend::FrontendTransportKind::RfcommTls,
+                          "legacy and TLS RFCOMM factories borrow the same FrontendService and preserve peer transport facts");
+
+        auto rfcommServer = net::rc::stream::legacy::Server<app::FrontendStreamSocketContextFactory>(
+            "a1-7b-rfcomm-composition",
+            [](net::rc::stream::legacy::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Local::setBtAddress("00:00:00:00:00:00")->setChannel(7);
+                config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+            },
+            service,
+            app::FrontendStreamSocketContextFactoryOptions{
+                .transport = frontend::FrontendTransportKind::Rfcomm, .socket = {}, .resolvePeer = {}});
+        auto rfcommTlsServer = net::rc::stream::tls::Server<app::FrontendStreamSocketContextFactory>(
+            "a1-7b-rfcomm-tls-composition",
+            [](net::rc::stream::tls::config::ConfigSocketServer* config) {
+                config->Instance::setDisabled(true);
+                config->Local::setBtAddress("00:00:00:00:00:00")->setChannel(8);
+                config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+            },
+            service,
+            app::FrontendStreamSocketContextFactoryOptions{
+                .transport = frontend::FrontendTransportKind::RfcommTls, .socket = {}, .resolvePeer = {}});
+        rfcommServer.getConfig()->Instance::forceUnrequired();
+        rfcommTlsServer.getConfig()->Instance::forceUnrequired();
+        result.expectTrue(rfcommServer.getConfig()->Local::getBtAddress() == "00:00:00:00:00:00" &&
+                              rfcommServer.getConfig()->Local::getChannel() == 7 && rfcommTlsServer.getConfig()->Local::getChannel() == 8,
+                          "RFCOMM legacy/TLS configuration and factory construction are deterministic without Bluetooth hardware");
+
+        const frontend::FrontendPeerContext legacyPeer =
+            app::streamPeerContextFromFileDescriptor(-1, frontend::FrontendTransportKind::Rfcomm);
+        const frontend::FrontendPeerContext tlsPeer =
+            app::streamPeerContextFromFileDescriptor(-1, frontend::FrontendTransportKind::RfcommTls);
+        result.expectTrue(legacyPeer.transport == frontend::FrontendTransportKind::Rfcomm && !legacyPeer.encrypted &&
+                              !legacyPeer.localPeer && tlsPeer.transport == frontend::FrontendTransportKind::RfcommTls &&
+                              tlsPeer.encrypted && !tlsPeer.localPeer,
+                          "RFCOMM peer propagation never treats Bluetooth pairing as frontend authentication");
+        std::cout << "RFCOMM runtime hardware exchange not run: ordinary validation has no deterministic virtual Bluetooth controller; "
+                     "component discovery, link, configuration, framing, peer metadata, and shared-service composition were verified.\n";
+    }
+#endif
+
+    int runNativeLoopbackIntegration(int argc, char* argv[], tests::support::TestResult& result) {
+        const std::string socketPath = unixSocketPath();
+        std::remove(socketPath.c_str());
+        IntegrationState state(result);
+
+        core::SNodeC::init(argc, argv);
+        int eventLoopResult = 1;
+        {
+            const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+            FakeBackendCore backend({}, transport);
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            serviceOptions.authenticator = [&state](const frontend::FrontendPeerContext& peer,
+                                                    const frontend::AuthenticationCredential& credential) {
+                state.recordAuthenticatedPeer(peer);
+                return remoteAuthentication(credential);
+            };
+            frontend::FrontendService service(backend, std::move(serviceOptions));
+
+            app::FrontendStreamSocketContextFactory unixFactory(
+                service,
+                app::FrontendStreamSocketContextFactoryOptions{
+                    frontend::FrontendTransportKind::Unix, {}, [&state](core::socket::stream::SocketConnection& connection) {
+                        frontend::FrontendPeerContext peer =
+                            app::verifiedUnixPeerContextFromFileDescriptor(connection.getFd(), static_cast<std::uint64_t>(::geteuid()));
+                        state.verifiedUnixPeer = peer;
+                        return peer;
+                    }});
+            app::FrontendStreamSocketContextFactory ipv4Factory(
+                service, app::FrontendStreamSocketContextFactoryOptions{frontend::FrontendTransportKind::Ipv4, {}, {}});
+            app::FrontendStreamSocketContextFactory ipv6Factory(
+                service, app::FrontendStreamSocketContextFactoryOptions{frontend::FrontendTransportKind::Ipv6, {}, {}});
+            result.expectTrue(unixFactory.serviceIdentity() == &service && ipv4Factory.serviceIdentity() == &service &&
+                                  ipv6Factory.serviceIdentity() == &service,
+                              "Unix, IPv4, and IPv6 listener factories borrow one application-owned FrontendService");
+
+            auto unixServer = net::un::stream::legacy::Server<app::FrontendStreamSocketContextFactory>(
+                "a1-7b-native-unix-server",
+                [&socketPath](net::un::stream::legacy::config::ConfigSocketServer* config) {
+                    config->Local::setSunPath(socketPath);
+                },
+                service,
+                app::FrontendStreamSocketContextFactoryOptions{
+                    frontend::FrontendTransportKind::Unix, {}, [&state](core::socket::stream::SocketConnection& connection) {
+                        frontend::FrontendPeerContext peer =
+                            app::verifiedUnixPeerContextFromFileDescriptor(connection.getFd(), static_cast<std::uint64_t>(::geteuid()));
+                        state.verifiedUnixPeer = peer;
+                        return peer;
+                    }});
+            auto ipv4Server = net::in::stream::legacy::Server<app::FrontendStreamSocketContextFactory>(
+                "a1-7b-native-ipv4-server",
+                [](net::in::stream::legacy::config::ConfigSocketServer* config) {
+                    config->Instance::setDisabled(false);
+                    config->Local::setHost("127.0.0.1")->setPort(0);
+                    config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+                },
+                service,
+                app::FrontendStreamSocketContextFactoryOptions{
+                    .transport = frontend::FrontendTransportKind::Ipv4, .socket = {}, .resolvePeer = {}});
+            auto ipv6Server = net::in6::stream::legacy::Server<app::FrontendStreamSocketContextFactory>(
+                "a1-7b-native-ipv6-server",
+                [](net::in6::stream::legacy::config::ConfigSocketServer* config) {
+                    config->Instance::setDisabled(false);
+                    config->Local::setHost("::1")->setPort(0);
+                    config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+                },
+                service,
+                app::FrontendStreamSocketContextFactoryOptions{
+                    .transport = frontend::FrontendTransportKind::Ipv6, .socket = {}, .resolvePeer = {}});
+
+            using UnixClient = net::un::stream::legacy::SocketClient<FrontendProtocolClientFactory, IntegrationState&, ClientKind>;
+            using Ipv4Client = net::in::stream::legacy::SocketClient<FrontendProtocolClientFactory, IntegrationState&, ClientKind>;
+            using Ipv6Client = net::in6::stream::legacy::SocketClient<FrontendProtocolClientFactory, IntegrationState&, ClientKind>;
+            UnixClient unixClient("a1-7b-native-unix-client", state, ClientKind::Unix);
+            Ipv4Client ipv4Client("a1-7b-native-ipv4-client", state, ClientKind::Ipv4);
+            Ipv6Client ipv6Client("a1-7b-native-ipv6-client", state, ClientKind::Ipv6);
+
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+            app::FrontendStreamSocketContextFactory tlsFactory(
+                service, app::FrontendStreamSocketContextFactoryOptions{frontend::FrontendTransportKind::TcpTls, {}, {}});
+            result.expectTrue(tlsFactory.serviceIdentity() == &service,
+                              "the TLS listener factory borrows the same application-owned FrontendService");
+            auto ipv4TlsServer = net::in::stream::tls::Server<app::FrontendStreamSocketContextFactory>(
+                "a1-7b-native-ipv4-tls-server",
+                [](net::in::stream::tls::config::ConfigSocketServer* config) {
+                    config->Instance::setDisabled(false);
+                    config->Local::setHost("127.0.0.1")->setPort(0);
+                    config->setCert(AISUITE_CODEX_TEST_TLS_CERT);
+                    config->setCertKey(AISUITE_CODEX_TEST_TLS_KEY);
+                    config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+                },
+                service,
+                app::FrontendStreamSocketContextFactoryOptions{
+                    .transport = frontend::FrontendTransportKind::TcpTls, .socket = {}, .resolvePeer = {}});
+            auto ipv6TlsServer = net::in6::stream::tls::Server<app::FrontendStreamSocketContextFactory>(
+                "a1-7b-native-ipv6-tls-server",
+                [](net::in6::stream::tls::config::ConfigSocketServer* config) {
+                    config->Instance::setDisabled(false);
+                    config->Local::setHost("::1")->setPort(0);
+                    config->setCert(AISUITE_CODEX_TEST_TLS_CERT);
+                    config->setCertKey(AISUITE_CODEX_TEST_TLS_KEY);
+                    config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
+                },
+                service,
+                app::FrontendStreamSocketContextFactoryOptions{
+                    .transport = frontend::FrontendTransportKind::TcpTls, .socket = {}, .resolvePeer = {}});
+            using Ipv4TlsClient = net::in::stream::tls::SocketClient<FrontendProtocolClientFactory, IntegrationState&, ClientKind>;
+            using Ipv6TlsClient = net::in6::stream::tls::SocketClient<FrontendProtocolClientFactory, IntegrationState&, ClientKind>;
+            Ipv4TlsClient ipv4TlsClient("a1-7b-native-ipv4-tls-client", state, ClientKind::Tls);
+            Ipv6TlsClient ipv6TlsClient("a1-7b-native-ipv6-tls-client", state, ClientKind::Tls);
+            ipv4TlsClient.getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
+            ipv4TlsClient.getConfig()->setCaCertAcceptUnknown(false);
+            ipv4TlsClient.getConfig()->setSni("localhost");
+            ipv6TlsClient.getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
+            ipv6TlsClient.getConfig()->setCaCertAcceptUnknown(false);
+            ipv6TlsClient.getConfig()->setSni("localhost");
+#endif
+
+            unixServer.getConfig()->Instance::forceUnrequired();
+            ipv4Server.getConfig()->Instance::forceUnrequired();
+            ipv6Server.getConfig()->Instance::forceUnrequired();
+            unixClient.getConfig()->Instance::forceUnrequired();
+            ipv4Client.getConfig()->Instance::forceUnrequired();
+            ipv6Client.getConfig()->Instance::forceUnrequired();
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+            ipv4TlsServer.getConfig()->Instance::forceUnrequired();
+            ipv6TlsServer.getConfig()->Instance::forceUnrequired();
+            ipv4TlsClient.getConfig()->Instance::forceUnrequired();
+            ipv6TlsClient.getConfig()->Instance::forceUnrequired();
+#endif
+
+            std::optional<net::un::SocketAddress> unixAddress;
+            std::optional<net::in::SocketAddress> ipv4Address;
+            std::optional<net::in6::SocketAddress> ipv6Address;
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+            std::optional<net::in::SocketAddress> ipv4TlsAddress;
+            std::optional<net::in6::SocketAddress> ipv6TlsAddress;
+#endif
+            bool connecting = false;
+            auto connectAllWhenBound = [&] {
+                if (connecting || state.listenSuccesses != activeKinds.size()) {
+                    return;
+                }
+                connecting = true;
+                state.topologyObservedBeforeClients =
+                    service.connectionCount() == 0 && service.implementedCapabilities().size() == 13 &&
+                    !hasCapability(service.implementedCapabilities(), frontend::FrontendCapability::MultiTransport);
+
+                unixClient.connect(*unixAddress, [&state](const net::un::SocketAddress&, core::socket::State status) {
+                    state.connectResult(ClientKind::Unix, status);
+                });
+                ipv4Client.connect(*ipv4Address, [&state](const net::in::SocketAddress&, core::socket::State status) {
+                    state.connectResult(ClientKind::Ipv4, status);
+                });
+                if (hasIpv6Loopback) {
+                    ipv6Client.connect(*ipv6Address, [&state](const net::in6::SocketAddress&, core::socket::State status) {
+                        state.connectResult(ClientKind::Ipv6, status);
+                    });
+                }
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+                if (hasIpv6Loopback) {
+                    ipv6TlsClient.connect(*ipv6TlsAddress, [&state](const net::in6::SocketAddress&, core::socket::State status) {
+                        state.connectResult(ClientKind::Tls, status);
+                    });
+                } else {
+                    ipv4TlsClient.connect(*ipv4TlsAddress, [&state](const net::in::SocketAddress&, core::socket::State status) {
+                        state.connectResult(ClientKind::Tls, status);
+                    });
+                }
+#endif
+            };
+
+            unixServer.listen([&](const net::un::SocketAddress& address, core::socket::State status) {
+                if (status != core::socket::State::OK || ::chmod(socketPath.c_str(), S_IRUSR | S_IWUSR) != 0) {
+                    state.listenFailed(ClientKind::Unix, status);
+                    return;
+                }
+                unixAddress = address;
+                ++state.listenSuccesses;
+                connectAllWhenBound();
+            });
+            ipv4Server.listen([&](const net::in::SocketAddress& address, core::socket::State status) {
+                if (status != core::socket::State::OK) {
+                    state.listenFailed(ClientKind::Ipv4, status);
+                    return;
+                }
+                ipv4Address = net::in::SocketAddress("127.0.0.1", address.getPort());
+                ++state.listenSuccesses;
+                connectAllWhenBound();
+            });
+            if (hasIpv6Loopback) {
+                ipv6Server.listen([&](const net::in6::SocketAddress& address, core::socket::State status) {
+                    if (status != core::socket::State::OK) {
+                        state.listenFailed(ClientKind::Ipv6, status);
+                        return;
+                    }
+                    ipv6Address = net::in6::SocketAddress("::1", address.getPort());
+                    ++state.listenSuccesses;
+                    connectAllWhenBound();
+                });
+            }
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+            if (hasIpv6Loopback) {
+                ipv6TlsServer.listen([&](const net::in6::SocketAddress& address, core::socket::State status) {
+                    if (status != core::socket::State::OK) {
+                        state.listenFailed(ClientKind::Tls, status);
+                        return;
+                    }
+                    ipv6TlsAddress = net::in6::SocketAddress("::1", address.getPort());
+                    ++state.listenSuccesses;
+                    connectAllWhenBound();
+                });
+            } else {
+                ipv4TlsServer.listen([&](const net::in::SocketAddress& address, core::socket::State status) {
+                    if (status != core::socket::State::OK) {
+                        state.listenFailed(ClientKind::Tls, status);
+                        return;
+                    }
+                    ipv4TlsAddress = net::in::SocketAddress("127.0.0.1", address.getPort());
+                    ++state.listenSuccesses;
+                    connectAllWhenBound();
+                });
+            }
+#endif
+
+#if defined(AISUITE_TEST_CODEX_FRONTEND_RFCOMM)
+            expectRfcommComposition(result, service);
+#endif
+
+            [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
+                [&state] {
+                    state.timedOut = true;
+                    core::SNodeC::stop();
+                },
+                utils::Timeval({8, 0}));
+            eventLoopResult = core::SNodeC::start(utils::Timeval({10, 0}));
+
+            result.expectTrue(state.topologyObservedBeforeClients,
+                              "native listeners share one service while multi_transport remains unadvertised before clients connect");
+            result.expectTrue(!state.timedOut && state.completed,
+                              "all real native SNode.C loopback clients finish Frontend Protocol v1 synchronization before timeout");
+            result.expectTrue(eventLoopResult == 0 && state.listenFailures == 0 && state.listenSuccesses == expectedClientCount() &&
+                                  state.connectFailures == 0 && state.connectSuccesses == expectedClientCount() &&
+                                  state.decodeFailures == 0,
+                              "Unix, IPv4, IPv6, and configured TLS listeners bind/connect/decode without transport-local failures");
+
+            for (std::size_t index = 0; index < expectedClientCount(); ++index) {
+                const ClientObservation& observation = state.clients[index];
+                const ClientKind kind = static_cast<ClientKind>(index);
+                result.expectTrue(
+                    observation.connected == 1 && observation.welcome == 1 && observation.snapshot == 1 && observation.syncComplete == 1 &&
+                        observation.protocolErrors == 0 && !observation.advertisedMultiTransport && observation.availableMethods == 90,
+                    std::string(clientName(kind)) + " carries one Hello/Welcome/snapshot/sync exchange over the shared FrontendService");
+                const std::size_t expectedPermitted = kind == ClientKind::Unix && app::unixPeerCredentialsSupported() ? 90U : 53U;
+                result.expectTrue(observation.permittedMethods == expectedPermitted,
+                                  std::string(clientName(kind)) + " receives the principal-specific 90/90 or 53/90 method ceiling");
+            }
+
+            const bool expectedVerifiedUnix =
+                state.verifiedUnixPeer.has_value() && state.verifiedUnixPeer->transport == frontend::FrontendTransportKind::Unix &&
+                state.verifiedUnixPeer->localPeer && state.verifiedUnixPeer->unixUserId == static_cast<std::uint64_t>(::geteuid());
+            const bool expectedUnverifiedUnix =
+                state.verifiedUnixPeer.has_value() && !state.verifiedUnixPeer->localPeer && !state.verifiedUnixPeer->unixUserId.has_value();
+            result.expectTrue(app::unixPeerCredentialsSupported() ? expectedVerifiedUnix : expectedUnverifiedUnix,
+                              "the accepted Unix getFd path verifies credentials when supported and otherwise remains untrusted");
+            const std::size_t expectedAuthenticatedPeers = expectedClientCount() - (app::unixPeerCredentialsSupported() ? 1U : 0U);
+            result.expectTrue(state.authenticatedPeers.size() == expectedAuthenticatedPeers,
+                              "verified Unix trust bypasses bearer authentication only on platforms with peer credentials");
+            const bool everyRemotePeerBounded =
+                std::all_of(state.authenticatedPeers.begin(), state.authenticatedPeers.end(), [](const auto& peer) {
+                    return peer.transport == frontend::FrontendTransportKind::Unix ||
+                           (peer.remoteAddress.has_value() && peer.remoteAddress->size() <= 256 && peer.loopback && !peer.localPeer &&
+                            !peer.unixUserId.has_value());
+                });
+            const bool sawIpv4 = std::any_of(state.authenticatedPeers.begin(), state.authenticatedPeers.end(), [](const auto& peer) {
+                return peer.transport == frontend::FrontendTransportKind::Ipv4 && !peer.encrypted;
+            });
+            const bool sawIpv6 = std::any_of(state.authenticatedPeers.begin(), state.authenticatedPeers.end(), [](const auto& peer) {
+                return peer.transport == frontend::FrontendTransportKind::Ipv6 && !peer.encrypted;
+            });
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+            const bool sawTls = std::any_of(state.authenticatedPeers.begin(), state.authenticatedPeers.end(), [](const auto& peer) {
+                return peer.transport == frontend::FrontendTransportKind::TcpTls && peer.encrypted && peer.remoteAddress.has_value() &&
+                       peer.remoteAddress->find("::1") != std::string::npos;
+            });
+#else
+            const bool sawTls = true;
+#endif
+            result.expectTrue(
+                everyRemotePeerBounded && sawIpv4 && sawIpv6 && sawTls,
+                "real accepted IPv4, IPv6, and pinned-CA IPv6 TLS connections propagate bounded loopback facts without false local trust");
+        }
+
+        core::SNodeC::free();
+        std::remove(socketPath.c_str());
+        return eventLoopResult;
+    }
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+    tests::support::TestResult result;
+
+    if (tests::support::shouldSkipRootWithoutSNodeCGroup()) {
+        tests::support::printRootWithoutSNodeCGroupSkipMessage("CodexFrontendNativeTransportTest");
+        return tests::support::cTestSkipReturnCode;
+    }
+
+    expectTransportFacts(result);
+    expectTransportCapabilityIsNotAdvertised(result);
+    static_cast<void>(runNativeLoopbackIntegration(argc, argv, result));
+    return result.processResult();
+}

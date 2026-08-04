@@ -12,6 +12,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <fcntl.h>
+#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -189,20 +190,34 @@ namespace apps::codex_backend {
         return ProtectedBearerToken(std::move(value));
     }
 
+    std::optional<std::vector<ai::openai::codex::frontend::FrontendScope>> referenceScopesForProfile(std::string_view profile) {
+        using ai::openai::codex::frontend::DefaultRemoteScopeProfile;
+        using ai::openai::codex::frontend::LocalTrustedScopeProfile;
+
+        if (profile == DefaultRemoteScopeProfile.name) {
+            return std::vector(DefaultRemoteScopeProfile.scopes.begin(), DefaultRemoteScopeProfile.scopes.end());
+        }
+        if (profile == LocalTrustedScopeProfile.name) {
+            return std::vector(LocalTrustedScopeProfile.scopes.begin(), LocalTrustedScopeProfile.scopes.end());
+        }
+        return std::nullopt;
+    }
+
     ReferenceAuthenticationOptions defaultReferenceAuthenticationOptions() {
         ReferenceAuthenticationOptions options;
-        options.remoteScopes.assign(ai::openai::codex::frontend::DefaultRemoteScopes.begin(),
-                                    ai::openai::codex::frontend::DefaultRemoteScopes.end());
+        options.remoteScopes = *referenceScopesForProfile(options.remoteProfile);
         return options;
     }
 
     ReferenceAuthenticator::ReferenceAuthenticator(std::optional<ProtectedBearerToken> bearerToken, ReferenceAuthenticationOptions options)
         : bearerToken(std::move(bearerToken))
         , options(std::move(options)) {
-        if (this->options.remoteScopes.empty()) {
-            this->options.remoteScopes.assign(ai::openai::codex::frontend::DefaultRemoteScopes.begin(),
-                                              ai::openai::codex::frontend::DefaultRemoteScopes.end());
+        const std::optional<std::vector<ai::openai::codex::frontend::FrontendScope>> profileScopes =
+            referenceScopesForProfile(this->options.remoteProfile);
+        if (!profileScopes) {
+            throw std::invalid_argument("unsupported reference authentication scope profile");
         }
+        this->options.remoteScopes = *profileScopes;
     }
 
     AuthenticationResult

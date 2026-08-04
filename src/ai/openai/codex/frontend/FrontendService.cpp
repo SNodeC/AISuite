@@ -65,7 +65,7 @@ namespace ai::openai::codex::frontend {
         template <typename T>
         concept ProviderOperationResult = VariantContains<std::remove_cvref_t<T>, backend::ProviderOperationValue>::value;
 
-        CapabilityAdvertisement currentCapabilityAdvertisement(bool multiTransport) {
+        CapabilityAdvertisement currentCapabilityAdvertisement() {
             CapabilityAdvertisement advertisement;
             for (const generated::CapabilityMetadata& metadata : generated::AllCapabilities) {
                 const auto capability = frontendCapabilityFromString(metadata.key);
@@ -73,8 +73,7 @@ namespace ai::openai::codex::frontend {
                     continue;
                 }
                 advertisement.defined.push_back(*capability);
-                const bool implemented =
-                    metadata.implementedByCurrentRuntime || (*capability == FrontendCapability::MultiTransport && multiTransport);
+                const bool implemented = metadata.implementedByCurrentRuntime;
                 if (implemented) {
                     advertisement.implemented.push_back(*capability);
                     advertisement.permitted.push_back(*capability);
@@ -140,39 +139,77 @@ namespace ai::openai::codex::frontend {
             return "frontend authentication failed";
         }
 
-        std::string peerAdmissionKey(const FrontendPeerContext& peer) {
-            if (peer.remoteAddress.has_value()) {
-                return std::string(toString(peer.transport)) + ":address:" + *peer.remoteAddress;
+        std::string_view addressWithoutEphemeralPort(std::string_view address) noexcept {
+            if (address.starts_with('[')) {
+                const std::size_t closingBracket = address.find(']');
+                if (closingBracket == address.size() - 1) {
+                    return address.substr(1, closingBracket - 1);
+                }
+                if (closingBracket != std::string_view::npos && closingBracket + 1 < address.size() && address[closingBracket + 1] == ':') {
+                    const std::string_view port = address.substr(closingBracket + 2);
+                    if (!port.empty() && std::all_of(port.begin(), port.end(), [](char character) {
+                            return character >= '0' && character <= '9';
+                        })) {
+                        return address.substr(1, closingBracket - 1);
+                    }
+                }
+                return address;
             }
-            if (peer.unixUserId.has_value()) {
-                return std::string(toString(peer.transport)) + ":uid:" + std::to_string(*peer.unixUserId);
+
+            const std::size_t separator = address.rfind(':');
+            if (separator != std::string_view::npos && address.find(':') == separator) {
+                const std::string_view port = address.substr(separator + 1);
+                if (!port.empty() && std::all_of(port.begin(), port.end(), [](char character) {
+                        return character >= '0' && character <= '9';
+                    })) {
+                    return address.substr(0, separator);
+                }
             }
-            return std::string(toString(peer.transport)) + ":anonymous";
+            return address;
         }
 
-        enum class RuntimeTransportFamily { Unix, Tcp, Tls, WebSocket, WebSocketTls, Rfcomm, RfcommTls, InMemory };
+        bool isHexadecimalDigit(char character) noexcept {
+            return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f') ||
+                   (character >= 'A' && character <= 'F');
+        }
 
-        RuntimeTransportFamily runtimeTransportFamily(FrontendTransportKind kind) noexcept {
-            switch (kind) {
-                case FrontendTransportKind::Unix:
-                    return RuntimeTransportFamily::Unix;
-                case FrontendTransportKind::Ipv4:
-                case FrontendTransportKind::Ipv6:
-                    return RuntimeTransportFamily::Tcp;
-                case FrontendTransportKind::TcpTls:
-                    return RuntimeTransportFamily::Tls;
-                case FrontendTransportKind::WebSocket:
-                    return RuntimeTransportFamily::WebSocket;
-                case FrontendTransportKind::WebSocketTls:
-                    return RuntimeTransportFamily::WebSocketTls;
-                case FrontendTransportKind::Rfcomm:
-                    return RuntimeTransportFamily::Rfcomm;
-                case FrontendTransportKind::RfcommTls:
-                    return RuntimeTransportFamily::RfcommTls;
-                case FrontendTransportKind::InMemory:
-                    return RuntimeTransportFamily::InMemory;
+        std::string_view rfcommAddressWithoutChannel(std::string_view address) noexcept {
+            constexpr std::size_t BluetoothAddressSize = 17;
+            if (address.size() < BluetoothAddressSize) {
+                return address;
             }
-            return RuntimeTransportFamily::InMemory;
+            for (std::size_t index = 0; index < BluetoothAddressSize; ++index) {
+                const bool separator = index % 3 == 2;
+                if ((separator && address[index] != ':') || (!separator && !isHexadecimalDigit(address[index]))) {
+                    return address;
+                }
+            }
+            if (address.size() == BluetoothAddressSize) {
+                return address;
+            }
+            if (address[BluetoothAddressSize] != ':') {
+                return address;
+            }
+            const std::string_view channel = address.substr(BluetoothAddressSize + 1);
+            if (channel.empty() || !std::all_of(channel.begin(), channel.end(), [](char character) {
+                    return character >= '0' && character <= '9';
+                })) {
+                return address;
+            }
+            return address.substr(0, BluetoothAddressSize);
+        }
+
+        std::string peerAdmissionKey(const FrontendPeerContext& peer) {
+            if (peer.remoteAddress.has_value()) {
+                const bool rfcomm = peer.transport == FrontendTransportKind::Rfcomm || peer.transport == FrontendTransportKind::RfcommTls;
+                const std::string_view address =
+                    rfcomm ? rfcommAddressWithoutChannel(*peer.remoteAddress) : addressWithoutEphemeralPort(*peer.remoteAddress);
+                return "address:" + std::string(address);
+            }
+            if (peer.unixUserId.has_value()) {
+                return "unix:uid:" + std::to_string(*peer.unixUserId);
+            }
+            return std::string(toString(peer.transport)) + ":anonymous";
         }
 
         std::uint64_t saturatingMultiply(std::size_t left, std::uint64_t right) noexcept {
@@ -1267,19 +1304,8 @@ namespace ai::openai::codex::frontend {
             return result;
         }
 
-        bool multiTransportEnabled() const noexcept {
-            std::set<RuntimeTransportFamily> families;
-            for (FrontendTransportKind transport : declaredTransports) {
-                const RuntimeTransportFamily family = runtimeTransportFamily(transport);
-                if (family != RuntimeTransportFamily::InMemory) {
-                    families.insert(family);
-                }
-            }
-            return families.size() > 1;
-        }
-
         std::vector<FrontendCapability> implementedCapabilities() const {
-            return currentCapabilityAdvertisement(multiTransportEnabled()).implemented;
+            return currentCapabilityAdvertisement().implemented;
         }
 
         std::vector<FrontendCapability> negotiatedCapabilities(const Hello& hello, const CapabilityAdvertisement& advertisement) const {
@@ -1296,10 +1322,6 @@ namespace ai::openai::codex::frontend {
                 }
             }
             return negotiated;
-        }
-
-        void declareTransportFamily(FrontendTransportKind transport) {
-            declaredTransports.insert(transport);
         }
 
         void synchronize(const std::shared_ptr<FrontendConnection::Control>& control, const Hello& hello) noexcept {
@@ -1319,7 +1341,7 @@ namespace ai::openai::codex::frontend {
                 return;
             }
 
-            const CapabilityAdvertisement handshakeAdvertisement = currentCapabilityAdvertisement(multiTransportEnabled());
+            const CapabilityAdvertisement handshakeAdvertisement = currentCapabilityAdvertisement();
             control->negotiatedCapabilities = negotiatedCapabilities(hello, handshakeAdvertisement);
 
             flushNow();
@@ -2503,7 +2525,6 @@ namespace ai::openai::codex::frontend {
         backend::BackendObserverSubscription observer;
         std::map<std::uint64_t, std::shared_ptr<FrontendConnection::Control>> connections;
         std::map<std::string, FailedAuthenticationWindow> failedAuthentications;
-        std::set<FrontendTransportKind> declaredTransports;
         std::uint64_t nextConnectionId = 0;
         std::uint64_t nextFailureWindowGeneration = 0;
         std::size_t unauthenticatedConnections = 0;
@@ -2682,10 +2703,9 @@ namespace ai::openai::codex::frontend {
         return impl ? impl->openConnection(std::move(peer), std::move(callbacks)) : FrontendConnection{};
     }
 
-    void FrontendService::declareTransportFamily(FrontendTransportKind transport) {
-        if (impl) {
-            impl->declareTransportFamily(transport);
-        }
+    AuthenticationFailureCode FrontendService::recordPreAuthenticationFailure(const FrontendPeerContext& peer,
+                                                                              AuthenticationFailureCode failure) noexcept {
+        return impl ? impl->recordPreAuthenticationFailure(peer, failure) : AuthenticationFailureCode::RateLimited;
     }
 
     void FrontendService::flush() {
@@ -2747,11 +2767,6 @@ namespace ai::openai::codex::frontend {
 
     std::vector<FrontendMethod> FrontendService::permittedMethods(const FrontendPrincipal& principal) const {
         return impl ? impl->permittedMethods(principal) : std::vector<FrontendMethod>{};
-    }
-
-    std::vector<FrontendTransportKind> FrontendService::enabledTransportFamilies() const {
-        return impl ? std::vector<FrontendTransportKind>{impl->declaredTransports.begin(), impl->declaredTransports.end()}
-                    : std::vector<FrontendTransportKind>{};
     }
 
     std::vector<FrontendCapability> FrontendService::implementedCapabilities() const {

@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <sys/socket.h>
@@ -24,6 +25,7 @@
 #include <unistd.h>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace {
 
@@ -102,6 +104,23 @@ int main() {
                           !app::constantTimeEqual("same-value", "same-value-longer") && !app::constantTimeEqual("same-value", "same"),
                       "the constant-time helper compares all content and length differences without early equality shortcuts");
 
+    result.expectTrue(
+        !app::unixFrontendRequiresBearer(false, false, false, false) && !app::unixFrontendRequiresBearer(true, true, false, true) &&
+            !app::unixFrontendRequiresBearer(true, false, true, false) && app::unixFrontendRequiresBearer(true, false, false, true) &&
+            app::unixFrontendRequiresBearer(true, true, false, false),
+        "Unix admission requires bearer authentication exactly when neither verified peer trust nor the explicit insecure "
+        "override can authenticate the enabled listener");
+
+    const auto defaultRemoteScopes = app::referenceScopesForProfile("default_remote");
+    const auto explicitLocalTrustedScopes = app::referenceScopesForProfile("local_trusted");
+    result.expectTrue(defaultRemoteScopes &&
+                          *defaultRemoteScopes == std::vector(frontend::DefaultRemoteScopes.begin(), frontend::DefaultRemoteScopes.end()) &&
+                          explicitLocalTrustedScopes &&
+                          *explicitLocalTrustedScopes ==
+                              std::vector(frontend::LocalTrustedScopes.begin(), frontend::LocalTrustedScopes.end()) &&
+                          !app::referenceScopesForProfile("unknown_profile"),
+                      "the reference policy maps only the two frozen built-in scope profiles and rejects unknown profile names");
+
     const std::filesystem::path missingPath = temporary.get() / "missing.token";
     const app::ProtectedTokenFileResult missing = app::loadProtectedBearerTokenFile(missingPath);
     result.expectTrue(std::holds_alternative<app::ProtectedTokenFileError>(missing) &&
@@ -157,9 +176,15 @@ int main() {
     result.expectTrue(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, unixPair.data()) == 0,
                       "a deterministic accepted-Unix-socket pair is created");
     const frontend::FrontendPeerContext verifiedPeer = app::unixPeerContextFromFileDescriptor(unixPair[0]);
-    result.expectTrue(verifiedPeer.transport == frontend::FrontendTransportKind::Unix && verifiedPeer.localPeer &&
-                          verifiedPeer.unixUserId == static_cast<std::uint64_t>(::geteuid()),
-                      "SO_PEERCRED populates both localPeer and the verified effective Unix user ID");
+    if (app::unixPeerCredentialsSupported()) {
+        result.expectTrue(verifiedPeer.transport == frontend::FrontendTransportKind::Unix && verifiedPeer.localPeer &&
+                              verifiedPeer.unixUserId == static_cast<std::uint64_t>(::geteuid()),
+                          "the platform peer-credential API populates both localPeer and the verified effective Unix user ID");
+    } else {
+        result.expectTrue(verifiedPeer.transport == frontend::FrontendTransportKind::Unix && !verifiedPeer.localPeer &&
+                              !verifiedPeer.unixUserId.has_value(),
+                          "a platform without a peer-credential API keeps an otherwise valid Unix socket untrusted");
+    }
     const frontend::FrontendPeerContext unavailablePeer = app::unixPeerContextFromFileDescriptor(-1);
     result.expectTrue(unavailablePeer.transport == frontend::FrontendTransportKind::Unix && !unavailablePeer.localPeer &&
                           !unavailablePeer.unixUserId.has_value(),
@@ -194,8 +219,13 @@ int main() {
     const int acceptedSocket = connected ? ::accept(listeningSocket, nullptr, nullptr) : -1;
     const frontend::FrontendPeerContext fullyVerifiedPeer =
         app::verifiedUnixPeerContextFromFileDescriptor(acceptedSocket, static_cast<std::uint64_t>(::geteuid()));
-    result.expectTrue(fullyVerifiedPeer.localPeer && fullyVerifiedPeer.unixUserId == static_cast<std::uint64_t>(::geteuid()),
-                      "an accepted same-user peer becomes local only after its owner-only listener pathname also verifies");
+    if (app::unixPeerCredentialsSupported()) {
+        result.expectTrue(fullyVerifiedPeer.localPeer && fullyVerifiedPeer.unixUserId == static_cast<std::uint64_t>(::geteuid()),
+                          "an accepted same-user peer becomes local only after its owner-only listener pathname also verifies");
+    } else {
+        result.expectTrue(!fullyVerifiedPeer.localPeer && !fullyVerifiedPeer.unixUserId,
+                          "an owner-only listener cannot substitute for unavailable peer credentials");
+    }
 
     result.expectTrue(::chmod(socketPath.c_str(), S_IRUSR | S_IWUSR | S_IRGRP) == 0 &&
                           app::verifyUnixListenerPath(socketPath, static_cast<std::uint64_t>(::geteuid())).failure ==
@@ -214,6 +244,7 @@ int main() {
     }
 
     frontend::FrontendPeerContext wrongPeer = verifiedPeer;
+    wrongPeer.localPeer = true;
     wrongPeer.unixUserId = static_cast<std::uint64_t>(::geteuid()) + 1;
     result.expectTrue(wrongPeer.localPeer && wrongPeer.unixUserId != static_cast<std::uint64_t>(::geteuid()),
                       "a verified but different Unix identity remains distinguishable for FrontendService policy");
@@ -250,6 +281,30 @@ int main() {
     result.expectTrue(diagnostics.remotePrincipalId.find("remote-reference-token") == std::string::npos &&
                           diagnostics.remoteProfile.find("remote-reference-token") == std::string::npos,
                       "reference-authenticator diagnostics never expose bearer material");
+
+    app::ReferenceAuthenticationOptions elevatedOptions = app::defaultReferenceAuthenticationOptions();
+    elevatedOptions.remotePrincipalId = "explicit-elevated-remote";
+    elevatedOptions.remoteProfile = "local_trusted";
+    app::ReferenceAuthenticator elevatedAuthenticator(loadToken(bearerPath), std::move(elevatedOptions));
+    const frontend::AuthenticationResult elevatedRemote =
+        elevatedAuthenticator.authenticate(remotePeer, frontend::BearerCredential{"remote-reference-token"});
+    const frontend::FrontendPrincipal* elevatedPrincipal = successPrincipal(elevatedRemote);
+    result.expectTrue(elevatedPrincipal && elevatedPrincipal->id == "explicit-elevated-remote" &&
+                          elevatedPrincipal->profile == "local_trusted" && !elevatedPrincipal->localTrusted &&
+                          elevatedPrincipal->scopes ==
+                              std::vector(frontend::LocalTrustedScopes.begin(), frontend::LocalTrustedScopes.end()),
+                      "an explicitly selected local_trusted scope profile grants the frozen twelve scopes to the remote principal without "
+                      "misrepresenting transport trust");
+
+    bool unknownProfileRejected = false;
+    try {
+        app::ReferenceAuthenticationOptions unknownOptions = app::defaultReferenceAuthenticationOptions();
+        unknownOptions.remoteProfile = "unknown_profile";
+        [[maybe_unused]] app::ReferenceAuthenticator invalidAuthenticator(std::nullopt, std::move(unknownOptions));
+    } catch (const std::invalid_argument& error) {
+        unknownProfileRejected = std::string_view(error.what()) == "unsupported reference authentication scope profile";
+    }
+    result.expectTrue(unknownProfileRejected, "the reference authenticator rejects an unknown profile instead of silently changing scopes");
 
     return result.processResult();
 }

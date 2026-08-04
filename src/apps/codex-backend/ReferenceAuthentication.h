@@ -79,7 +79,17 @@ namespace apps::codex_backend {
         std::string remoteProfile = "default_remote";
     };
 
+    [[nodiscard]] std::optional<std::vector<ai::openai::codex::frontend::FrontendScope>>
+    referenceScopesForProfile(std::string_view profile);
+
     [[nodiscard]] ReferenceAuthenticationOptions defaultReferenceAuthenticationOptions();
+
+    [[nodiscard]] constexpr bool unixFrontendRequiresBearer(bool unixEnabled,
+                                                            bool verifiedLocalTrustEnabled,
+                                                            bool insecureLocalTrustOverride,
+                                                            bool peerCredentialsSupported) noexcept {
+        return unixEnabled && !insecureLocalTrustOverride && !(verifiedLocalTrustEnabled && peerCredentialsSupported);
+    }
 
     struct ReferenceAuthenticationDiagnostics {
         bool bearerConfigured = false;

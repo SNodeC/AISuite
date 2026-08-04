@@ -148,7 +148,12 @@ namespace ai::openai::codex::frontend {
         ~FrontendService();
 
         [[nodiscard]] FrontendConnection openConnection(FrontendPeerContext peer, FrontendConnectionCallbacks callbacks);
-        void declareTransportFamily(FrontendTransportKind transport);
+        // Transport admission checks that necessarily precede protocol Hello
+        // (for example Origin and transport-security policy) still consume
+        // the service-owned per-peer authentication budget. No frontend or
+        // BackendCore session is created by this operation.
+        [[nodiscard]] AuthenticationFailureCode recordPreAuthenticationFailure(const FrontendPeerContext& peer,
+                                                                               AuthenticationFailureCode failure) noexcept;
         void flush();
         void close(std::string reason = "frontend service closed") noexcept;
 
@@ -163,7 +168,6 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] std::vector<FrontendMethod> implementedMethods() const;
         [[nodiscard]] std::vector<FrontendMethod> availableMethods() const;
         [[nodiscard]] std::vector<FrontendMethod> permittedMethods(const FrontendPrincipal& principal) const;
-        [[nodiscard]] std::vector<FrontendTransportKind> enabledTransportFamilies() const;
         [[nodiscard]] std::vector<FrontendCapability> implementedCapabilities() const;
         [[nodiscard]] EventJournalConfig journalConfig() const noexcept;
         [[nodiscard]] UpdateBatchConfig batchConfig() const noexcept;

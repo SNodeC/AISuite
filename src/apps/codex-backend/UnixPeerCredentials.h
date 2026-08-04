@@ -24,6 +24,11 @@ namespace apps::codex_backend {
         bool operator==(const UnixListenerTrustResult&) const = default;
     };
 
+    // Reports whether this build has an operating-system peer-credential API.
+    // Runtime extraction may still fail for an individual descriptor, which
+    // remains untrusted.
+    [[nodiscard]] bool unixPeerCredentialsSupported() noexcept;
+
     // Returns a Unix peer context whose localPeer bit is true only when the
     // operating system supplied verified credentials for the accepted socket.
     [[nodiscard]] ai::openai::codex::frontend::FrontendPeerContext unixPeerContextFromFileDescriptor(int descriptor) noexcept;

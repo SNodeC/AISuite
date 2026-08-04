@@ -15,8 +15,9 @@
 #include "apps/codex-backend-client/CommandParser.h"
 #include "apps/codex-backend-client/Presenter.h"
 #include "apps/codex-backend-client/StdinReader.h"
-#include "apps/codex-backend/CodexFrontendSocketContextFactory.h"
 #include "apps/codex-backend/Configuration.h"
+#include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
+#include "apps/codex-backend/UnixPeerCredentials.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
@@ -332,12 +333,18 @@ namespace {
             FakeBackendCore backendCore(backendOptions, transport);
             frontend::FrontendServiceOptions serviceOptions;
             serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            serviceOptions.allowInsecureLocalTrust = !apps::codex_backend::unixPeerCredentialsSupported();
             frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
-            apps::codex_backend::SocketFrontendOptions frontendOptions;
-            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions frontendOptions;
+            frontendOptions.transport = frontend::FrontendTransportKind::Unix;
+            frontendOptions.resolvePeer = [](core::socket::stream::SocketConnection& connection) {
+                return apps::codex_backend::verifiedUnixPeerContextFromFileDescriptor(connection.getFd(),
+                                                                                      static_cast<std::uint64_t>(::geteuid()));
+            };
+            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::FrontendStreamSocketContextFactory,
                                                                  frontend::FrontendService&,
-                                                                 apps::codex_backend::SocketFrontendOptions>;
+                                                                 apps::codex_backend::FrontendStreamSocketContextFactoryOptions>;
             Server server("codex-client-thread-workflow-server", frontendService, std::move(frontendOptions));
             server.getConfig()->Instance::forceUnrequired();
             backendCore.start();
@@ -570,7 +577,6 @@ namespace {
                     lifecycle.connectionFailed("thread-workflow Unix listener could not be secured");
                     return;
                 }
-                frontendService.declareTransportFamily(frontend::FrontendTransportKind::Unix);
                 ++listenSuccessCount;
                 serverListening = true;
                 startInputWhenReady();
@@ -804,12 +810,18 @@ int main(int argc, char* argv[]) {
             FakeBackendCore backendCore(backendOptions, transport);
             frontend::FrontendServiceOptions serviceOptions;
             serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            serviceOptions.allowInsecureLocalTrust = !apps::codex_backend::unixPeerCredentialsSupported();
             frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
-            apps::codex_backend::SocketFrontendOptions frontendOptions;
-            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions frontendOptions;
+            frontendOptions.transport = frontend::FrontendTransportKind::Unix;
+            frontendOptions.resolvePeer = [](core::socket::stream::SocketConnection& connection) {
+                return apps::codex_backend::verifiedUnixPeerContextFromFileDescriptor(connection.getFd(),
+                                                                                      static_cast<std::uint64_t>(::geteuid()));
+            };
+            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::FrontendStreamSocketContextFactory,
                                                                  frontend::FrontendService&,
-                                                                 apps::codex_backend::SocketFrontendOptions>;
+                                                                 apps::codex_backend::FrontendStreamSocketContextFactoryOptions>;
             Server server("codex-client-real-backend-server", frontendService, std::move(frontendOptions));
             server.getConfig()->Instance::forceUnrequired();
 
@@ -1096,7 +1108,6 @@ int main(int argc, char* argv[]) {
                     lifecycle.connectionFailed("real FrontendService Unix listener could not be secured");
                     return;
                 }
-                frontendService.declareTransportFamily(frontend::FrontendTransportKind::Unix);
                 ++listenSuccessCount;
                 serverListening = true;
                 startInteractiveInputWhenHydrated();
