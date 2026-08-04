@@ -31,6 +31,7 @@ namespace apps::codex_backend {
     public:
         CodexFrontendSocketContext(core::socket::stream::SocketConnection* socketConnection,
                                    ai::openai::codex::frontend::FrontendService& service,
+                                   ai::openai::codex::frontend::FrontendPeerContext peer,
                                    SocketFrontendOptions options);
 
     private:
@@ -46,6 +47,7 @@ namespace apps::codex_backend {
         void rejectFrame(ai::openai::codex::frontend::ErrorCode code, std::string message) noexcept;
 
         ai::openai::codex::frontend::FrontendService& service;
+        ai::openai::codex::frontend::FrontendPeerContext peer;
         SocketFrontendOptions options;
         JsonLineFramer framer;
         ai::openai::codex::frontend::FrontendConnection frontendConnection;

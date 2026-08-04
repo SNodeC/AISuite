@@ -41,6 +41,7 @@
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <sys/stat.h>
 #include <type_traits>
 #include <unistd.h>
 #include <utility>
@@ -329,7 +330,9 @@ namespace {
             backend::BackendCoreOptions backendOptions;
             backendOptions.initialThreadListLimit = 1;
             FakeBackendCore backendCore(backendOptions, transport);
-            frontend::FrontendService frontendService(backendCore);
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
             apps::codex_backend::SocketFrontendOptions frontendOptions;
             using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
@@ -563,6 +566,11 @@ namespace {
                     lifecycle.connectionFailed("thread-workflow real FrontendService Unix server failed to listen");
                     return;
                 }
+                if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0) {
+                    lifecycle.connectionFailed("thread-workflow Unix listener could not be secured");
+                    return;
+                }
+                frontendService.declareTransportFamily(frontend::FrontendTransportKind::Unix);
                 ++listenSuccessCount;
                 serverListening = true;
                 startInputWhenReady();
@@ -794,7 +802,9 @@ int main(int argc, char* argv[]) {
             backend::BackendCoreOptions backendOptions;
             backendOptions.initialThreadListLimit = LargeThreadCount;
             FakeBackendCore backendCore(backendOptions, transport);
-            frontend::FrontendService frontendService(backendCore);
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
             apps::codex_backend::SocketFrontendOptions frontendOptions;
             using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
@@ -1082,6 +1092,11 @@ int main(int argc, char* argv[]) {
                     lifecycle.connectionFailed("real FrontendService Unix server failed to listen");
                     return;
                 }
+                if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0) {
+                    lifecycle.connectionFailed("real FrontendService Unix listener could not be secured");
+                    return;
+                }
+                frontendService.declareTransportFamily(frontend::FrontendTransportKind::Unix);
                 ++listenSuccessCount;
                 serverListening = true;
                 startInteractiveInputWhenHydrated();

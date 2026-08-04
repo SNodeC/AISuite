@@ -34,6 +34,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <utility>
 #include <variant>
@@ -967,7 +968,9 @@ int main(int argc, char* argv[]) {
             backendOptions.initialThreadListLimit = 2;
             backendOptions.maxEventsPerCallback = 512;
             FakeBackendCore backendCore(backendOptions, transport);
-            frontend::FrontendService frontendService(backendCore);
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
             apps::codex_backend::SocketFrontendOptions frontendOptions;
             frontendOptions.maximumFrameSize = MaximumFrameSize;
@@ -1023,8 +1026,13 @@ int main(int argc, char* argv[]) {
                 }
             });
 
-            server.listen(path, [&scenario](const net::un::SocketAddress&, core::socket::State state) {
+            server.listen(path, [&scenario, &frontendService, &path](const net::un::SocketAddress&, core::socket::State state) {
                 if (state == core::socket::State::OK) {
+                    if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0) {
+                        scenario.listenFailed();
+                        return;
+                    }
+                    frontendService.declareTransportFamily(frontend::FrontendTransportKind::Unix);
                     scenario.listenReady();
                 } else {
                     scenario.listenFailed();

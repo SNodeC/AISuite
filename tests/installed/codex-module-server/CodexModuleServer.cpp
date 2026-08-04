@@ -74,7 +74,10 @@ namespace {
 
     private:
         void onConnected() override {
-            connection = adapter.openConnection({.onMessage =
+            codex::frontend::FrontendPeerContext peer;
+            peer.transport = codex::frontend::FrontendTransportKind::Unix;
+            connection = adapter.openConnection(std::move(peer),
+                                                {.onMessage =
                                                      [this](const codex::frontend::OutboundMessage& message) {
                                                          sendToPeer(message.compactJson.data(), message.compactJson.size());
                                                          static constexpr char newline = '\n';
@@ -131,7 +134,12 @@ int main(int argc, char* argv[]) {
     const std::filesystem::path socketPath = std::filesystem::current_path() / "aisuite-module-consumer.sock";
     {
         codex::backend::BackendCore<codex::stdio::Client> backend;
-        codex::frontend::FrontendService adapter(backend);
+        codex::frontend::FrontendServiceOptions frontendOptions;
+        // The isolated installed-package consumer has no production trust
+        // policy. Make its local-only compile/run fixture explicit instead of
+        // relying on the transport kind as implicit authentication.
+        frontendOptions.allowInsecureLocalTrust = true;
+        codex::frontend::FrontendService adapter(backend, std::move(frontendOptions));
         auto server = net::un::stream::legacy::Server<ModuleSocketContextFactory>(
             "aisuite-installed-module-server",
             [&socketPath](net::un::stream::legacy::config::ConfigSocketServer* config) {

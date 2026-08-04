@@ -8,6 +8,10 @@ add_library(
     Configuration.h
     JsonLineFramer.cpp
     JsonLineFramer.h
+    ReferenceAuthentication.cpp
+    ReferenceAuthentication.h
+    UnixPeerCredentials.cpp
+    UnixPeerCredentials.h
 )
 target_include_directories(
     codex-backend-unix-adapter PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"

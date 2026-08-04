@@ -14,15 +14,18 @@
 #include "ai/openai/codex/frontend/EventJournal.h"
 #include "ai/openai/codex/frontend/Messages.h"
 #include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/frontend/Security.h"
 #include "ai/openai/codex/frontend/UpdateBatch.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace ai::openai::codex::frontend {
 
@@ -44,6 +47,10 @@ namespace ai::openai::codex::frontend {
         Closed onClosed;
     };
 
+    using FrontendTimerCancellation = std::function<void()>;
+    using FrontendTimerScheduler = std::function<FrontendTimerCancellation(std::uint64_t delayMs, std::function<void()> callback)>;
+    using FrontendAuthenticator = std::function<AuthenticationResult(const FrontendPeerContext&, const AuthenticationCredential&)>;
+
     struct FrontendServiceOptions {
         EventJournalConfig journal;
         UpdateBatchConfig batches;
@@ -51,7 +58,25 @@ namespace ai::openai::codex::frontend {
         std::size_t maxOutboundMessagesPerConnection = DefaultFrontendServiceMaxOutboundMessages;
         std::size_t maxOutboundBytesPerConnection = DefaultFrontendServiceMaxOutboundBytes;
         std::size_t maxMessagesPerDelivery = DefaultFrontendServiceMaxMessagesPerDelivery;
+        std::size_t maxConnections = 128;
+        std::size_t maxUnauthenticatedConnections = 16;
+        std::uint64_t handshakeTimeoutMs = 10000;
+        std::size_t maximumInboundMessageBytes = 1024U * 1024U;
+        std::size_t maxInboundMessagesPerSecond = 50;
+        std::size_t maxInboundBurst = 100;
+        std::size_t maxOutstandingCommandsPerConnection = 256;
+        std::size_t maximumFailedAuthenticationsPerPeer = 3;
+        std::uint64_t failedAuthenticationWindowMs = 60000;
+        bool allowVerifiedLocalTrust = true;
+        bool allowInsecureLocalTrust = false;
+        std::optional<std::uint64_t> trustedLocalUserId;
+        bool enableFilesystemReadMethods = false;
+        bool enableFilesystemWriteMethods = false;
+        bool enableCommandExecutionMethods = false;
+        FrontendAuthenticator authenticator;
         std::function<void(std::function<void()>)> scheduler;
+        FrontendTimerScheduler timerScheduler;
+        std::function<std::uint64_t()> monotonicClockMs;
     };
 
     enum class ConnectionReceiveStatus { Accepted, Rejected, Closing, Closed };
@@ -88,6 +113,8 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] bool isOpen() const noexcept;
         [[nodiscard]] bool helloComplete() const noexcept;
         [[nodiscard]] std::optional<std::string> sessionId() const;
+        [[nodiscard]] std::optional<FrontendPrincipal> principal() const;
+        [[nodiscard]] FrontendPeerContext peer() const;
         [[nodiscard]] std::size_t queuedMessages() const noexcept;
         [[nodiscard]] std::size_t queuedBytes() const noexcept;
 
@@ -115,7 +142,8 @@ namespace ai::openai::codex::frontend {
 
         ~FrontendService();
 
-        [[nodiscard]] FrontendConnection openConnection(FrontendConnectionCallbacks callbacks);
+        [[nodiscard]] FrontendConnection openConnection(FrontendPeerContext peer, FrontendConnectionCallbacks callbacks);
+        void declareTransportFamily(FrontendTransportKind transport);
         void flush();
         void close(std::string reason = "frontend service closed") noexcept;
 
@@ -123,6 +151,15 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] bool flushScheduled() const noexcept;
         [[nodiscard]] SequenceNumber currentSequence() const noexcept;
         [[nodiscard]] std::size_t connectionCount() const noexcept;
+        [[nodiscard]] std::size_t unauthenticatedConnectionCount() const noexcept;
+        [[nodiscard]] std::size_t authenticatedConnectionCount() const noexcept;
+        [[nodiscard]] std::optional<std::string> currentController() const;
+        [[nodiscard]] std::vector<FrontendMethod> definedMethods() const;
+        [[nodiscard]] std::vector<FrontendMethod> implementedMethods() const;
+        [[nodiscard]] std::vector<FrontendMethod> availableMethods() const;
+        [[nodiscard]] std::vector<FrontendMethod> permittedMethods(const FrontendPrincipal& principal) const;
+        [[nodiscard]] std::vector<FrontendTransportKind> enabledTransportFamilies() const;
+        [[nodiscard]] std::vector<FrontendCapability> implementedCapabilities() const;
         [[nodiscard]] EventJournalConfig journalConfig() const noexcept;
         [[nodiscard]] UpdateBatchConfig batchConfig() const noexcept;
 

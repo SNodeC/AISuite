@@ -145,6 +145,9 @@
                 "$ref": "#/$defs/FrontendCapability"
               },
               "uniqueItems": true
+            },
+            "authentication": {
+              "$ref": "#/$defs/HelloAuthentication"
             }
           },
           "additionalProperties": true
@@ -32008,6 +32011,24 @@
         }
       },
       "additionalProperties": true
+    },
+    "HelloAuthentication": {
+      "type": "object",
+      "required": [
+        "scheme",
+        "token"
+      ],
+      "properties": {
+        "scheme": {
+          "const": "bearer"
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      },
+      "additionalProperties": false
     },
     "SafePropertyName": {
       "not": {

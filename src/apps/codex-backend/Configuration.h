@@ -11,6 +11,7 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "apps/codex-backend/JsonLineFramer.h"
+#include "apps/codex-backend/ReferenceAuthentication.h"
 
 #include <cstddef>
 #include <string>
@@ -46,6 +47,23 @@ namespace apps::codex_backend {
         CLI::Option* initialDelayOption = nullptr;
         CLI::Option* maximumDelayOption = nullptr;
         CLI::Option* multiplierOption = nullptr;
+    };
+
+    class ReferenceAuthenticationConfiguration {
+    public:
+        ReferenceAuthenticationConfiguration();
+
+        [[nodiscard]] ReferenceAuthenticationOptions options() const;
+        [[nodiscard]] std::string bearerTokenFile() const;
+        [[nodiscard]] bool verifiedLocalTrustEnabled() const;
+        [[nodiscard]] bool insecureLocalTrustOverride() const;
+
+    private:
+        CLI::Option* verifiedLocalTrustOption = nullptr;
+        CLI::Option* insecureLocalTrustOverrideOption = nullptr;
+        CLI::Option* bearerTokenFileOption = nullptr;
+        CLI::Option* remotePrincipalIdOption = nullptr;
+        CLI::Option* remoteScopeProfileOption = nullptr;
     };
 
     std::string defaultSocketPath();

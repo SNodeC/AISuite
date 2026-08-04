@@ -681,6 +681,13 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
             "default_remote": ["observe", "control"],
             "local_trusted": list(SCOPE_ENUM),
         },
+        "helloAuthentication": {
+            "optional": True,
+            "credentialLocation": "hello.authentication",
+            "schemes": ["bearer"],
+            "secretFields": ["token"],
+            "legacyHelloWithoutCredentialRemainsValid": True,
+        },
         "capabilities": capabilities,
         "eventFamilies": list(EVENT_FAMILIES),
         "methods": methods,
@@ -1428,12 +1435,22 @@ def generate_schema(
         "additionalProperties": True,
     }
 
+    definitions["HelloAuthentication"] = {
+        "type": "object",
+        "required": ["scheme", "token"],
+        "properties": {
+            "scheme": {"const": "bearer"},
+            "token": {"type": "string", "minLength": 1, "maxLength": 65536},
+        },
+        "additionalProperties": False,
+    }
     hello_properties = definitions["Hello"]["allOf"][1]["properties"]
     hello_properties["capabilities"] = {
         "type": "array",
         "items": {"$ref": "#/$defs/FrontendCapability"},
         "uniqueItems": True,
     }
+    hello_properties["authentication"] = {"$ref": "#/$defs/HelloAuthentication"}
     welcome_properties = definitions["Welcome"]["allOf"][1]["properties"]
     welcome_properties.update(
         {
@@ -2179,6 +2196,7 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "    };",
             "",
             "    struct CapabilityMetadata { Capability id; std::string_view key; bool defined; bool implementedByCurrentRuntime; };",
+            "    struct AuthenticationMetadata { std::string_view helloField; std::string_view bearerScheme; std::size_t maximumBearerTokenBytes; };",
             "    struct ContractMetadata { std::string_view registryKey; std::string_view exposure; std::string_view securityDecision; std::string_view mappings; std::string_view redactionClass; std::string_view compatibilityBehavior; bool controllerRequired; bool defaultEnabled; };",
             "    struct ProjectionMetadata {",
             "        std::string_view registryKey;",
@@ -2191,6 +2209,8 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "        std::string_view redactionClass;",
             "        Capability expansionCapability;",
             "    };",
+            "",
+            "    inline constexpr AuthenticationMetadata HelloAuthentication{\"authentication\", \"bearer\", 65536};",
             "",
         ]
     )

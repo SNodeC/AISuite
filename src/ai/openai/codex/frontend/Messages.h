@@ -8,6 +8,8 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_MESSAGES_H
 #define AI_OPENAI_CODEX_FRONTEND_MESSAGES_H
 
+#include "ai/openai/codex/frontend/Security.h"
+
 #include <compare>
 #include <cstdint>
 #include <limits>
@@ -292,15 +294,18 @@ namespace ai::openai::codex::frontend {
         std::optional<SequenceNumber> resumeAfter;
         Json extensions = Json::object();
         std::optional<std::vector<FrontendCapability>> capabilities;
+        std::optional<AuthenticationCredential> authentication;
 
         Hello() = default;
 
         Hello(std::optional<SequenceNumber> resumeAfter,
               Json extensions = Json::object(),
-              std::optional<std::vector<FrontendCapability>> capabilities = std::nullopt)
+              std::optional<std::vector<FrontendCapability>> capabilities = std::nullopt,
+              std::optional<AuthenticationCredential> authentication = std::nullopt)
             : resumeAfter(resumeAfter)
             , extensions(std::move(extensions))
-            , capabilities(std::move(capabilities)) {
+            , capabilities(std::move(capabilities))
+            , authentication(std::move(authentication)) {
         }
 
         bool operator==(const Hello&) const = default;

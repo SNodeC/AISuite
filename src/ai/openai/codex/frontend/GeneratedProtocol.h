@@ -181,6 +181,7 @@ namespace ai::openai::codex::frontend::generated {
     };
 
     struct CapabilityMetadata { Capability id; std::string_view key; bool defined; bool implementedByCurrentRuntime; };
+    struct AuthenticationMetadata { std::string_view helloField; std::string_view bearerScheme; std::size_t maximumBearerTokenBytes; };
     struct ContractMetadata { std::string_view registryKey; std::string_view exposure; std::string_view securityDecision; std::string_view mappings; std::string_view redactionClass; std::string_view compatibilityBehavior; bool controllerRequired; bool defaultEnabled; };
     struct ProjectionMetadata {
         std::string_view registryKey;
@@ -193,6 +194,8 @@ namespace ai::openai::codex::frontend::generated {
         std::string_view redactionClass;
         Capability expansionCapability;
     };
+
+    inline constexpr AuthenticationMetadata HelloAuthentication{"authentication", "bearer", 65536};
 
     inline constexpr std::array<std::string_view, 0> ControllerAcquireRegistryKeys{};
     inline constexpr std::array<FrontendScope, 1> ControllerAcquireScopes{FrontendScope::Control};

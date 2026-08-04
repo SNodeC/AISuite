@@ -32,9 +32,11 @@ namespace apps::codex_backend {
 
     CodexFrontendSocketContext::CodexFrontendSocketContext(core::socket::stream::SocketConnection* socketConnection,
                                                            ai::openai::codex::frontend::FrontendService& service,
+                                                           ai::openai::codex::frontend::FrontendPeerContext peer,
                                                            SocketFrontendOptions options)
         : core::socket::stream::SocketContext(socketConnection)
         , service(service)
+        , peer(std::move(peer))
         , options(options)
         , framer(options.maximumFrameSize)
         , lifetime(std::make_shared<Lifetime>()) {
@@ -45,7 +47,8 @@ namespace apps::codex_backend {
         try {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             frontendConnection =
-                service.openConnection(FrontendConnectionCallbacks{[weakLifetime](const OutboundMessage& message) {
+                service.openConnection(peer,
+                                       FrontendConnectionCallbacks{[weakLifetime](const OutboundMessage& message) {
                                                                        const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                                        return locked && locked->context && locked->context->send(message);
                                                                    },

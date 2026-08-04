@@ -317,6 +317,56 @@ int main() {
 
     expectClientRoundTrip(result, ClientMessage{Hello{}}, "hello without replay position");
     expectClientRoundTrip(result, ClientMessage{Hello{SequenceNumber(123), Json{{"future", true}}}}, "hello with replay position");
+    const auto legacyHelloBytes = Codec::serializeClient(ClientMessage{Hello{}});
+    result.expectTrue(legacyHelloBytes.hasValue() &&
+                          legacyHelloBytes.value() == R"({"kind":"hello","protocol":"snodec.codex-frontend","version":1})",
+                      "an omitted authentication credential preserves the original Hello bytes");
+
+    constexpr std::string_view BearerSentinel = "A17B_SYNTHETIC_BEARER_SENTINEL";
+    const Hello authenticatedHello{
+        SequenceNumber{123},
+        Json{{"future", true}},
+        std::vector<FrontendCapability>{FrontendCapability::AuthenticatedFrontend},
+        AuthenticationCredential{BearerCredential{std::string(BearerSentinel)}},
+    };
+    expectClientRoundTrip(result, ClientMessage{authenticatedHello}, "hello with additive bearer authentication");
+    const auto encodedAuthenticatedHello = Codec::encodeClient(ClientMessage{authenticatedHello});
+    result.expectTrue(encodedAuthenticatedHello.hasValue() && encodedAuthenticatedHello.value().at("authentication") ==
+                                                                  Json{{"scheme", "bearer"}, {"token", std::string(BearerSentinel)}},
+                      "the bearer credential is serialized only in the inbound Hello authentication member");
+    const auto decodedAuthenticatedHello = encodedAuthenticatedHello ? Codec::decodeClient(encodedAuthenticatedHello.value())
+                                                                     : CodecResult<ClientMessage>{encodedAuthenticatedHello.error()};
+    const auto* decodedHello = decodedAuthenticatedHello ? std::get_if<Hello>(&decodedAuthenticatedHello.value()) : nullptr;
+    const auto* decodedCredential =
+        decodedHello && decodedHello->authentication ? std::get_if<BearerCredential>(&*decodedHello->authentication) : nullptr;
+    result.expectTrue(decodedCredential && decodedCredential->token == BearerSentinel,
+                      "the typed Hello retains the bearer credential for transport-neutral authentication");
+
+    const auto wrongAuthenticationScheme =
+        Codec::decodeClient(Json{{"protocol", ProtocolIdentity},
+                                 {"version", ProtocolVersion},
+                                 {"kind", "hello"},
+                                 {"authentication", Json{{"scheme", "future"}, {"token", std::string(BearerSentinel)}}}});
+    result.expectTrue(!wrongAuthenticationScheme && wrongAuthenticationScheme.error().code == ErrorCode::InvalidField &&
+                          wrongAuthenticationScheme.error().message.find(BearerSentinel) == std::string::npos,
+                      "an unsupported Hello authentication scheme is rejected without leaking the credential");
+    const auto malformedAuthentication = Codec::decodeClient(Json{{"protocol", ProtocolIdentity},
+                                                                  {"version", ProtocolVersion},
+                                                                  {"kind", "hello"},
+                                                                  {"authentication", Json{{"scheme", "bearer"}, {"token", 7}}}});
+    result.expectTrue(!malformedAuthentication && malformedAuthentication.error().code == ErrorCode::InvalidField,
+                      "a malformed Hello bearer credential is rejected by the generated schema");
+
+    bool transportKindsRoundTrip = true;
+    for (const FrontendTransportKind kind : FrontendTransportKinds) {
+        transportKindsRoundTrip = transportKindsRoundTrip && frontendTransportKindFromString(toString(kind)) == kind;
+    }
+    bool authenticationFailuresRoundTrip = true;
+    for (const AuthenticationFailureCode code : AuthenticationFailureCodes) {
+        authenticationFailuresRoundTrip = authenticationFailuresRoundTrip && authenticationFailureCodeFromString(toString(code)) == code;
+    }
+    result.expectTrue(transportKindsRoundTrip && authenticationFailuresRoundTrip,
+                      "transport and structured authentication failure values have stable exhaustive spellings");
 
     std::vector<Command> commands;
     commands.push_back(command("controller-acquire", ControllerAcquire{}));

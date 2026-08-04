@@ -136,6 +136,34 @@ namespace {
         std::deque<std::function<void()>> callbacks;
     };
 
+    class ManualTimerScheduler {
+    public:
+        struct Entry {
+            std::uint64_t delayMs = 0;
+            std::function<void()> callback;
+            std::shared_ptr<bool> active;
+        };
+
+        frontend::FrontendTimerCancellation schedule(std::uint64_t delayMs, std::function<void()> callback) {
+            auto active = std::make_shared<bool>(true);
+            entries.push_back({delayMs, std::move(callback), active});
+            return [active] {
+                *active = false;
+            };
+        }
+
+        bool fire(std::size_t index) {
+            if (index >= entries.size() || !*entries[index].active) {
+                return false;
+            }
+            *entries[index].active = false;
+            entries[index].callback();
+            return true;
+        }
+
+        std::vector<Entry> entries;
+    };
+
     struct Observations {
         std::vector<frontend::ServerMessage> messages;
         std::vector<std::string> compactJson;
@@ -157,6 +185,25 @@ namespace {
 
     frontend::ClientMessage hello(std::optional<frontend::SequenceNumber> resumeAfter = std::nullopt) {
         return frontend::Hello{resumeAfter, frontend::Json::object()};
+    }
+
+    constexpr std::uint64_t TrustedTestUserId = 4242;
+
+    frontend::FrontendPeerContext trustedPeer() {
+        frontend::FrontendPeerContext peer;
+        peer.transport = frontend::FrontendTransportKind::Unix;
+        peer.loopback = true;
+        peer.localPeer = true;
+        peer.unixUserId = TrustedTestUserId;
+        return peer;
+    }
+
+    void enableVerifiedTestTrust(frontend::FrontendServiceOptions& options) {
+        options.trustedLocalUserId = TrustedTestUserId;
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
     }
 
     frontend::ClientMessage command(std::string requestId, frontend::CommandParameters parameters) {
@@ -186,7 +233,7 @@ namespace {
         return value && !value->ok && value->error && value->error->code == code;
     }
 
-    const frontend::ProtocolErrorMessage* protocolError(const Observations& observations, const std::string& requestId) {
+    const frontend::ProtocolErrorMessage* protocolError(const Observations& observations, const std::optional<std::string>& requestId) {
         for (const frontend::ServerMessage& message : observations.messages) {
             if (const auto* value = std::get_if<frontend::ProtocolErrorMessage>(&message); value && value->requestId == requestId) {
                 return value;
@@ -327,6 +374,286 @@ namespace {
                           "dirty-entity capacity is bounded and degrades to a snapshot instead of growing");
     }
 
+    void testAuthenticationAdmissionAndTopology(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        ManualScheduler scheduler;
+        ManualTimerScheduler timers;
+        std::uint64_t clockMs = 1000;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(backendOptions, transport);
+
+        frontend::FrontendServiceOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [&timers](std::uint64_t delayMs, std::function<void()> callback) {
+            return timers.schedule(delayMs, std::move(callback));
+        };
+        options.monotonicClockMs = [&clockMs] {
+            return clockMs;
+        };
+        options.maximumFailedAuthenticationsPerPeer = 3;
+        options.failedAuthenticationWindowMs = 60000;
+        options.authenticator = [](const frontend::FrontendPeerContext&, const frontend::AuthenticationCredential& credential) {
+            if (const auto* bearer = std::get_if<frontend::BearerCredential>(&credential); bearer && bearer->token == "test-token") {
+                return frontend::AuthenticationResult{frontend::AuthenticationSuccess{frontend::FrontendPrincipal{
+                    "remote-test",
+                    std::vector<frontend::FrontendScope>{frontend::FrontendScope::Observe, frontend::FrontendScope::Control},
+                    "default_remote",
+                    false}}};
+            }
+            return frontend::AuthenticationResult{frontend::AuthenticationFailure{
+                std::holds_alternative<frontend::NoCredential>(credential) ? frontend::AuthenticationFailureCode::AuthenticationRequired
+                                                                           : frontend::AuthenticationFailureCode::AuthenticationFailed}};
+        };
+        frontend::FrontendService service(core, options);
+
+        frontend::FrontendServiceOptions localOptions = options;
+        localOptions.authenticator = {};
+        localOptions.trustedLocalUserId = TrustedTestUserId;
+        frontend::FrontendService localService(core, localOptions);
+        Observations verifiedLocal;
+        frontend::FrontendConnection verifiedLocalConnection = localService.openConnection(trustedPeer(), callbacksFor(verifiedLocal));
+        result.expectTrue(verifiedLocalConnection.receive(hello()).accepted(),
+                          "verified same-user Unix trust accepts the original credential-free Hello");
+        scheduler.drain();
+        result.expectTrue(verifiedLocalConnection.principal().has_value() && verifiedLocalConnection.principal()->localTrusted &&
+                              verifiedLocalConnection.principal()->profile == "local_trusted" && verifiedLocalConnection.peer().localPeer &&
+                              verifiedLocalConnection.peer().unixUserId == TrustedTestUserId,
+                          "verified peer identity and local_trusted principal are visible through secret-free diagnostics");
+
+        frontend::FrontendPeerContext wrongUnixPeer = trustedPeer();
+        wrongUnixPeer.unixUserId = TrustedTestUserId + 1;
+        Observations wrongUnix;
+        frontend::FrontendConnection wrongUnixConnection = localService.openConnection(wrongUnixPeer, callbacksFor(wrongUnix));
+        result.expectTrue(wrongUnixConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "a wrong verified Unix peer identity does not inherit local trust");
+        scheduler.drain();
+        frontend::FrontendPeerContext missingUnixCredentials = trustedPeer();
+        missingUnixCredentials.localPeer = false;
+        missingUnixCredentials.unixUserId.reset();
+        Observations missingUnix;
+        frontend::FrontendConnection missingUnixConnection = localService.openConnection(missingUnixCredentials, callbacksFor(missingUnix));
+        result.expectTrue(missingUnixConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "missing Unix peer credentials never silently become trusted");
+        scheduler.drain();
+
+        frontend::FrontendServiceOptions overrideOptions = localOptions;
+        overrideOptions.allowInsecureLocalTrust = true;
+        frontend::FrontendService overrideService(core, overrideOptions);
+        Observations overriddenLocal;
+        frontend::FrontendConnection overriddenConnection =
+            overrideService.openConnection(missingUnixCredentials, callbacksFor(overriddenLocal));
+        result.expectTrue(overriddenConnection.receive(hello()).accepted(),
+                          "the explicit insecure Unix trust override is the only credential-free fallback");
+        scheduler.drain();
+        result.expectTrue(overriddenConnection.principal().has_value() && overriddenConnection.principal()->localTrusted &&
+                              overriddenConnection.principal()->id == "insecure-local-override",
+                          "insecure override remains structurally distinguishable from verified local trust");
+
+        frontend::FrontendPeerContext remote;
+        remote.transport = frontend::FrontendTransportKind::Ipv4;
+        remote.loopback = true;
+        remote.remoteAddress = "127.0.0.1";
+
+        const std::size_t sessionsBeforeMissingAuthentication = core.snapshot().sessions.size();
+        Observations missing;
+        frontend::FrontendConnection missingConnection = service.openConnection(remote, callbacksFor(missing));
+        result.expectTrue(missingConnection.isOpen() && service.unauthenticatedConnectionCount() == 1 &&
+                              service.authenticatedConnectionCount() == 0 && !missingConnection.sessionId().has_value(),
+                          "opening a transport connection consumes only unauthenticated admission capacity");
+        result.expectTrue(missingConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "a remote Hello without a bearer credential is rejected terminally");
+        result.expectTrue(!missingConnection.sessionId().has_value() &&
+                              core.snapshot().sessions.size() == sessionsBeforeMissingAuthentication,
+                          "failed authentication creates no BackendCore session or controller state");
+        scheduler.drain();
+        result.expectTrue(!missingConnection.isOpen() && protocolError(missing, std::nullopt) != nullptr &&
+                              protocolError(missing, std::nullopt)->code == frontend::ErrorCode::AuthenticationRequired,
+                          "missing authentication emits one bounded authentication_required error and closes");
+
+        const auto badHello =
+            frontend::ClientMessage{frontend::Hello{std::nullopt,
+                                                    frontend::Json::object(),
+                                                    std::nullopt,
+                                                    frontend::AuthenticationCredential{frontend::BearerCredential{"wrong-token"}}}};
+        for (std::size_t attempt = 0; attempt < 2; ++attempt) {
+            Observations failed;
+            frontend::FrontendConnection connection = service.openConnection(remote, callbacksFor(failed));
+            result.expectTrue(connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                              "a wrong bearer consumes exactly one peer authentication attempt");
+            scheduler.drain();
+            result.expectTrue(protocolError(failed, std::nullopt) != nullptr &&
+                                  protocolError(failed, std::nullopt)->code == frontend::ErrorCode::AuthenticationFailed,
+                              "wrong bearer rejection does not expose credential details");
+        }
+        Observations limited;
+        frontend::FrontendConnection limitedConnection = service.openConnection(remote, callbacksFor(limited));
+        result.expectTrue(limitedConnection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "the fourth peer attempt is terminal after three recorded failures");
+        scheduler.drain();
+        result.expectTrue(protocolError(limited, std::nullopt) != nullptr &&
+                              protocolError(limited, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "the failed-authentication peer budget returns rate_limited without invoking BackendCore");
+
+        frontend::FrontendPeerContext otherRemote = remote;
+        otherRemote.remoteAddress = "127.0.0.2";
+        Observations authenticated;
+        frontend::FrontendConnection authenticatedConnection = service.openConnection(otherRemote, callbacksFor(authenticated));
+        const auto goodHello =
+            frontend::ClientMessage{frontend::Hello{std::nullopt,
+                                                    frontend::Json::object(),
+                                                    std::vector{frontend::FrontendCapability::MethodDiscovery},
+                                                    frontend::AuthenticationCredential{frontend::BearerCredential{"test-token"}}}};
+        result.expectTrue(authenticatedConnection.receive(goodHello).accepted(), "a valid bearer authenticates another peer");
+        scheduler.drain();
+        result.expectTrue(authenticatedConnection.helloComplete() && authenticatedConnection.sessionId().has_value() &&
+                              authenticatedConnection.principal().has_value() &&
+                              authenticatedConnection.principal()->profile == "default_remote" &&
+                              service.authenticatedConnectionCount() == 1 && service.unauthenticatedConnectionCount() == 0,
+                          "authentication precedes BackendCore session creation and exposes only safe principal diagnostics");
+
+        service.declareTransportFamily(frontend::FrontendTransportKind::Unix);
+        const std::vector<frontend::FrontendCapability> singleFamilyCapabilities = service.implementedCapabilities();
+        service.declareTransportFamily(frontend::FrontendTransportKind::Ipv4);
+        const std::vector<frontend::FrontendCapability> multiFamilyCapabilities = service.implementedCapabilities();
+        result.expectTrue(
+            std::find(singleFamilyCapabilities.begin(), singleFamilyCapabilities.end(), frontend::FrontendCapability::MultiTransport) ==
+                    singleFamilyCapabilities.end() &&
+                std::find(multiFamilyCapabilities.begin(), multiFamilyCapabilities.end(), frontend::FrontendCapability::MultiTransport) !=
+                    multiFamilyCapabilities.end(),
+            "multi_transport follows distinct successfully declared listener families, not active connections");
+        const frontend::Welcome* firstWelcome = welcome(authenticated);
+        result.expectTrue(firstWelcome && firstWelcome->capabilities &&
+                              std::find(firstWelcome->capabilities->implemented.begin(),
+                                        firstWelcome->capabilities->implemented.end(),
+                                        frontend::FrontendCapability::MultiTransport) == firstWelcome->capabilities->implemented.end(),
+                          "an existing connection keeps the topology capability advertised during its handshake");
+
+        Observations timedOut;
+        frontend::FrontendConnection timeoutConnection = service.openConnection(otherRemote, callbacksFor(timedOut));
+        const std::size_t timeoutIndex = timers.entries.size() - 1;
+        result.expectTrue(timers.entries[timeoutIndex].delayMs == 10000 && timers.fire(timeoutIndex),
+                          "the configured handshake deadline uses the injected event-loop timer seam");
+        scheduler.drain();
+        result.expectTrue(!timeoutConnection.isOpen() && !timeoutConnection.sessionId().has_value() &&
+                              protocolError(timedOut, std::nullopt) != nullptr &&
+                              protocolError(timedOut, std::nullopt)->code == frontend::ErrorCode::AuthenticationRequired,
+                          "handshake timeout closes only the unauthenticated connection without a BackendCore session");
+
+        frontend::FrontendServiceOptions capacityOptions = options;
+        capacityOptions.maxUnauthenticatedConnections = 1;
+        capacityOptions.maxConnections = 1;
+        frontend::FrontendService capacityService(core, capacityOptions);
+        Observations capacityA;
+        Observations capacityB;
+        frontend::FrontendConnection admitted = capacityService.openConnection(otherRemote, callbacksFor(capacityA));
+        frontend::FrontendConnection rejected = capacityService.openConnection(otherRemote, callbacksFor(capacityB));
+        result.expectTrue(admitted.isOpen() && !rejected.isOpen() && capacityService.connectionCount() == 1,
+                          "connection and unauthenticated admission reject only the excess connection");
+
+        frontend::FrontendServiceOptions outstandingOptions = options;
+        outstandingOptions.maxOutstandingCommandsPerConnection = 1;
+        frontend::FrontendService outstandingService(core, outstandingOptions);
+        Observations outstandingObservations;
+        frontend::FrontendConnection outstandingConnection =
+            outstandingService.openConnection(otherRemote, callbacksFor(outstandingObservations));
+        result.expectTrue(outstandingConnection.receive(goodHello).accepted(), "outstanding-command test authenticates normally");
+        scheduler.drain();
+        result.expectTrue(outstandingConnection.receive(command("pending-one", frontend::ThreadStart{})).accepted() &&
+                              outstandingConnection.receive(command("pending-two", frontend::ThreadStart{})).status ==
+                                  frontend::ConnectionReceiveStatus::Rejected,
+                          "one pending request consumes the configured outstanding-command capacity");
+        scheduler.drain();
+        result.expectTrue(responseHasError(outstandingObservations, "pending-two", frontend::ErrorCode::CapacityExceeded),
+                          "outstanding-command overflow returns capacity_exceeded without affecting the service");
+
+        frontend::FrontendServiceOptions rateOptions = options;
+        rateOptions.maxInboundBurst = 1;
+        rateOptions.maxInboundMessagesPerSecond = 1;
+        frontend::FrontendService rateService(core, rateOptions);
+        Observations rateObservations;
+        frontend::FrontendConnection rateConnection = rateService.openConnection(otherRemote, callbacksFor(rateObservations));
+        result.expectTrue(rateConnection.receive(goodHello).accepted(), "the initial rate token admits Hello");
+        result.expectTrue(rateConnection.receive(command("too-fast", frontend::SnapshotGet{})).status ==
+                              frontend::ConnectionReceiveStatus::Closing,
+                          "the next message without token refill is rate limited deterministically");
+        scheduler.drain();
+        result.expectTrue(!rateConnection.isOpen(), "rate-limit closure is connection-local and reusable service state remains valid");
+
+        frontend::FrontendServiceOptions frameOptions = options;
+        frameOptions.maximumInboundMessageBytes = 8;
+        frontend::FrontendService frameService(core, frameOptions);
+        Observations frameObservations;
+        frontend::FrontendConnection frameConnection = frameService.openConnection(otherRemote, callbacksFor(frameObservations));
+        result.expectTrue(frameConnection.receive(std::string_view{"{\"oversized\":true}"}).status ==
+                              frontend::ConnectionReceiveStatus::Closing,
+                          "the transport-neutral frame bound rejects input before decoding or authentication");
+        scheduler.drain();
+        result.expectTrue(protocolError(frameObservations, std::nullopt) != nullptr &&
+                              protocolError(frameObservations, std::nullopt)->code == frontend::ErrorCode::FrameTooLarge,
+                          "oversized input reports frame_too_large without method-policy disclosure");
+
+        frontend::FrontendServiceOptions preAuthenticationOptions = options;
+        frontend::FrontendService preAuthenticationService(core, preAuthenticationOptions);
+        Observations preAuthenticationObservations;
+        frontend::FrontendConnection preAuthenticationConnection =
+            preAuthenticationService.openConnection(otherRemote, callbacksFor(preAuthenticationObservations));
+        result.expectTrue(preAuthenticationConnection
+                                  .receive(frontend::Json{{"protocol", frontend::ProtocolIdentity},
+                                                          {"version", frontend::ProtocolVersion},
+                                                          {"kind", "command"},
+                                                          {"requestId", "pre-auth-sensitive"},
+                                                          {"method", "command.exec"},
+                                                          {"params", frontend::Json{{"credential", "synthetic-secret-sentinel"}}}})
+                                  .status == frontend::ConnectionReceiveStatus::Closing,
+                          "pre-authentication command decoding is terminal without policy inspection");
+        scheduler.drain();
+        const frontend::ProtocolErrorMessage* preAuthenticationError = protocolError(preAuthenticationObservations, std::nullopt);
+        result.expectTrue(preAuthenticationError != nullptr && preAuthenticationError->code == frontend::ErrorCode::InvalidField &&
+                              preAuthenticationError->message == "frontend handshake message is invalid" &&
+                              preAuthenticationError->requestId == std::nullopt &&
+                              preAuthenticationObservations.compactJson.end() ==
+                                  std::find_if(preAuthenticationObservations.compactJson.begin(),
+                                               preAuthenticationObservations.compactJson.end(),
+                                               [](const std::string& encoded) {
+                                                   return encoded.find("command.exec") != std::string::npos ||
+                                                          encoded.find("synthetic-secret-sentinel") != std::string::npos;
+                                               }),
+                          "pre-authentication errors expose neither method existence, request correlation, nor parameter data");
+
+        frontend::FrontendServiceOptions accountingOptions = options;
+        accountingOptions.maxConnections = 1;
+        frontend::FrontendService accountingService(core, accountingOptions);
+        Observations firstPeerFailure;
+        frontend::FrontendConnection firstPeer = accountingService.openConnection(remote, callbacksFor(firstPeerFailure));
+        result.expectTrue(firstPeer.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "the bounded failed-peer table records its first address");
+        scheduler.drain();
+        Observations secondPeerFailure;
+        frontend::FrontendConnection secondPeer = accountingService.openConnection(otherRemote, callbacksFor(secondPeerFailure));
+        result.expectTrue(secondPeer.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "a new address is rejected when failed-peer accounting is full");
+        scheduler.drain();
+        result.expectTrue(protocolError(secondPeerFailure, std::nullopt) != nullptr &&
+                              protocolError(secondPeerFailure, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "failed-authentication peer accounting remains bounded by service connection capacity");
+
+        accountingService.close();
+        preAuthenticationService.close();
+        frameService.close();
+        rateService.close();
+        outstandingService.close();
+        capacityService.close();
+        overrideService.close();
+        localService.close();
+        service.close();
+        scheduler.drain();
+    }
+
     void testServiceHandshakeRolesReplayAndIsolation(tests::support::TestResult& result) {
         const auto transport = std::make_shared<tests::codex::FakeTransportState>();
         ManualScheduler scheduler;
@@ -338,6 +665,7 @@ namespace {
         FakeBackendCore core(backendOptions, transport);
 
         frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
         serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
@@ -349,8 +677,8 @@ namespace {
 
         Observations observerA;
         Observations observerB;
-        frontend::FrontendConnection connectionA = service.openConnection(callbacksFor(observerA));
-        frontend::FrontendConnection connectionB = service.openConnection(callbacksFor(observerB));
+        frontend::FrontendConnection connectionA = service.openConnection(trustedPeer(), callbacksFor(observerA));
+        frontend::FrontendConnection connectionB = service.openConnection(trustedPeer(), callbacksFor(observerB));
         result.expectTrue(connectionA.receive(hello()).accepted() && connectionB.receive(hello()).accepted() &&
                               observerA.messages.empty() && observerB.messages.empty(),
                           "hello output is asynchronous for every transport-neutral connection");
@@ -453,7 +781,7 @@ namespace {
         result.expectTrue(connectionB.isOpen(), "controller disconnect leaves another observer and BackendCore running");
 
         Observations replayed;
-        frontend::FrontendConnection replayConnection = service.openConnection(callbacksFor(replayed));
+        frontend::FrontendConnection replayConnection = service.openConnection(trustedPeer(), callbacksFor(replayed));
         result.expectTrue(replayConnection.receive(hello(resumePosition)).accepted(),
                           "a reconnect may request replay after its last sequence");
         scheduler.drain();
@@ -523,7 +851,7 @@ namespace {
                           "future events.replay returns invalid_command without synchronization payload or BackendCore transition");
 
         Observations snapshotFallback;
-        frontend::FrontendConnection oldReconnect = service.openConnection(callbacksFor(snapshotFallback));
+        frontend::FrontendConnection oldReconnect = service.openConnection(trustedPeer(), callbacksFor(snapshotFallback));
         result.expectTrue(oldReconnect.receive(hello(frontend::SequenceNumber{0})).accepted(),
                           "an old reconnect position is accepted for synchronization planning");
         scheduler.drain();
@@ -532,7 +860,7 @@ namespace {
                           "journal eviction deterministically falls back to one complete snapshot");
 
         Observations badClient;
-        frontend::FrontendConnection beforeHello = service.openConnection(callbacksFor(badClient));
+        frontend::FrontendConnection beforeHello = service.openConnection(trustedPeer(), callbacksFor(badClient));
         result.expectTrue(beforeHello.receive(command("too-early", frontend::SnapshotGet{})).status ==
                               frontend::ConnectionReceiveStatus::Closing,
                           "a command before hello is rejected and closes only that frontend after its error");
@@ -542,7 +870,8 @@ namespace {
         result.expectTrue(!beforeHello.isOpen() && connectionB.isOpen(), "pre-hello protocol failure is isolated from healthy clients");
 
         Observations slow;
-        frontend::FrontendConnection slowObserver = service.openConnection({[&slow](const frontend::OutboundMessage& message) {
+        frontend::FrontendConnection slowObserver = service.openConnection(trustedPeer(),
+                                                                           {[&slow](const frontend::OutboundMessage& message) {
                                                                                 slow.messages.push_back(message.message);
                                                                                 return false;
                                                                             },
@@ -557,7 +886,8 @@ namespace {
 
         Observations throwing;
         frontend::FrontendConnection throwingObserver =
-            service.openConnection({[&throwing](const frontend::OutboundMessage&) -> bool {
+            service.openConnection(trustedPeer(),
+                                   {[&throwing](const frontend::OutboundMessage&) -> bool {
                                         throwing.messages.emplace_back(frontend::ProtocolErrorMessage{});
                                         throw std::runtime_error("intentional frontend transport failure");
                                     },
@@ -571,7 +901,8 @@ namespace {
 
         Observations selfClosing;
         std::optional<frontend::FrontendConnection> selfClosingConnection;
-        selfClosingConnection.emplace(service.openConnection({[&selfClosingConnection](const frontend::OutboundMessage&) {
+        selfClosingConnection.emplace(service.openConnection(trustedPeer(),
+                                                             {[&selfClosingConnection](const frontend::OutboundMessage&) {
                                                                   selfClosingConnection->close("closed during delivery");
                                                                   return true;
                                                               },
@@ -601,13 +932,14 @@ namespace {
         FakeBackendCore core(backendOptions, transport);
 
         frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
         serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
         frontend::FrontendService service(core, serviceOptions);
 
         Observations observations;
-        frontend::FrontendConnection connection = service.openConnection(callbacksFor(observations));
+        frontend::FrontendConnection connection = service.openConnection(trustedPeer(), callbacksFor(observations));
         const frontend::Hello discoveryHello{
             std::nullopt,
             frontend::Json::object(),
@@ -662,6 +994,7 @@ namespace {
         FakeBackendCore core(backendOptions, transport);
 
         frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
         serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
@@ -669,7 +1002,7 @@ namespace {
         frontend::FrontendService service(core, serviceOptions);
 
         Observations initial;
-        frontend::FrontendConnection initialConnection = service.openConnection(callbacksFor(initial));
+        frontend::FrontendConnection initialConnection = service.openConnection(trustedPeer(), callbacksFor(initial));
         result.expectTrue(initialConnection.receive(hello()).accepted(), "replay-barrier client completes an initial hello");
         scheduler.drain();
 
@@ -681,7 +1014,7 @@ namespace {
                           "an explicit snapshot does not advance or invalidate replay continuity");
 
         Observations unchangedReplay;
-        frontend::FrontendConnection unchangedReplayConnection = service.openConnection(callbacksFor(unchangedReplay));
+        frontend::FrontendConnection unchangedReplayConnection = service.openConnection(trustedPeer(), callbacksFor(unchangedReplay));
         result.expectTrue(unchangedReplayConnection.receive(hello(unchangedSequence)).accepted(),
                           "an unchanged-state reconnect requests replay at the current sequence");
         scheduler.drain();
@@ -697,7 +1030,7 @@ namespace {
                           "dirty-entity overflow advances the frontend synchronization barrier monotonically");
 
         Observations staleReconnect;
-        frontend::FrontendConnection staleConnection = service.openConnection(callbacksFor(staleReconnect));
+        frontend::FrontendConnection staleConnection = service.openConnection(trustedPeer(), callbacksFor(staleReconnect));
         result.expectTrue(staleConnection.receive(hello(beforeFallback)).accepted(),
                           "a stale client may reconnect from the sequence immediately before snapshot fallback");
         scheduler.drain();
@@ -725,6 +1058,7 @@ namespace {
         FakeBackendCore core(std::move(backendOptions), transport);
 
         frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
         serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
@@ -770,6 +1104,7 @@ namespace {
             backendCore = std::make_unique<FakeBackendCore>(std::move(backendOptions), transport);
 
             frontend::FrontendServiceOptions serviceOptions;
+            enableVerifiedTestTrust(serviceOptions);
             serviceOptions.journal = {128, 2U * 1024U * 1024U, frontend::SequenceNumber{0}};
             serviceOptions.batches = {8, 128U * 1024U};
             serviceOptions.coalescer = {64};
@@ -778,8 +1113,8 @@ namespace {
             serviceOptions.maxMessagesPerDelivery = 4;
             service = std::make_unique<frontend::FrontendService>(*backendCore, std::move(serviceOptions));
 
-            connectionA.emplace(service->openConnection(callbacksFor(observerA)));
-            connectionB.emplace(service->openConnection(callbacksFor(observerB)));
+            connectionA.emplace(service->openConnection(trustedPeer(), callbacksFor(observerA)));
+            connectionB.emplace(service->openConnection(trustedPeer(), callbacksFor(observerB)));
             expect(connectionA->receive(hello()).accepted() && connectionB->receive(hello()).accepted(),
                    "both protocol sessions accept hello before the high-volume stream");
 
@@ -1685,6 +2020,7 @@ int main(int argc, char* argv[]) {
     } else {
         core::SNodeC::init(argc, argv);
         testCoalescingAndBounds(result);
+        testAuthenticationAdmissionAndTopology(result);
         testServiceHandshakeRolesReplayAndIsolation(result);
         testCapabilityDiscoveryHandshake(result);
         testSnapshotReplayBarrier(result);

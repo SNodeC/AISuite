@@ -60,6 +60,62 @@ namespace apps::codex_backend {
                 .multiplier = multiplierOption->as<std::uint32_t>()};
     }
 
+    ReferenceAuthenticationConfiguration::ReferenceAuthenticationConfiguration() {
+        auto& root = utils::Config::configRoot;
+
+        verifiedLocalTrustOption =
+            root.setConfigurable(root.addFlag("--frontend-unix-verified-local-trust{true}",
+                                              "Allow owner-only Unix listeners to authenticate verified same-user peers",
+                                              "BOOL",
+                                              "true",
+                                              CLI::IsMember({"true", "false"})),
+                                 true);
+        insecureLocalTrustOverrideOption =
+            root.setConfigurable(root.addFlag("--frontend-unix-insecure-local-trust{false}",
+                                              "Explicitly trust Unix peers when OS peer credentials are unavailable (unsafe)",
+                                              "BOOL",
+                                              "false",
+                                              CLI::IsMember({"true", "false"})),
+                                 true);
+        bearerTokenFileOption = root.setConfigurable(root.addOption("--frontend-bearer-token-file",
+                                                                    "Protected file containing the remote frontend bearer token",
+                                                                    "PATH",
+                                                                    std::string{},
+                                                                    CLI::Validator{}),
+                                                     true);
+        remotePrincipalIdOption = root.setConfigurable(root.addOption("--frontend-remote-principal-id",
+                                                                      "Principal identifier assigned after bearer authentication",
+                                                                      "ID",
+                                                                      std::string{"remote"},
+                                                                      CLI::Validator{}),
+                                                       true);
+        remoteScopeProfileOption = root.setConfigurable(root.addOption("--frontend-remote-scope-profile",
+                                                                       "Scope profile assigned after bearer authentication",
+                                                                       "PROFILE",
+                                                                       std::string{"default_remote"},
+                                                                       CLI::IsMember({"default_remote"})),
+                                                        true);
+    }
+
+    ReferenceAuthenticationOptions ReferenceAuthenticationConfiguration::options() const {
+        ReferenceAuthenticationOptions authenticationOptions = defaultReferenceAuthenticationOptions();
+        authenticationOptions.remotePrincipalId = remotePrincipalIdOption->as<std::string>();
+        authenticationOptions.remoteProfile = remoteScopeProfileOption->as<std::string>();
+        return authenticationOptions;
+    }
+
+    std::string ReferenceAuthenticationConfiguration::bearerTokenFile() const {
+        return bearerTokenFileOption->as<std::string>();
+    }
+
+    bool ReferenceAuthenticationConfiguration::verifiedLocalTrustEnabled() const {
+        return verifiedLocalTrustOption->as<bool>();
+    }
+
+    bool ReferenceAuthenticationConfiguration::insecureLocalTrustOverride() const {
+        return insecureLocalTrustOverrideOption->as<bool>();
+    }
+
     std::string defaultSocketPath() {
         const char* runtimeDirectory = std::getenv("XDG_RUNTIME_DIR");
         if (runtimeDirectory != nullptr && *runtimeDirectory != '\0') {

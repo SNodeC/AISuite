@@ -276,6 +276,37 @@ namespace ai::openai::codex::frontend {
             return encoded;
         }
 
+        std::optional<AuthenticationCredential> optionalAuthenticationCredential(const Json& object, std::string_view field) {
+            const auto member = object.find(std::string(field));
+            if (member == object.end()) {
+                return std::nullopt;
+            }
+            validateGeneratedSchema("#/$defs/HelloAuthentication", *member, "hello authentication");
+            requireObject(*member, "hello authentication");
+            if (requireString(*member, "scheme") != generated::HelloAuthentication.bearerScheme) {
+                fail(ErrorCode::InvalidField, "hello authentication uses an unsupported scheme");
+            }
+            std::string token = requireString(*member, "token");
+            if (token.size() > generated::HelloAuthentication.maximumBearerTokenBytes || token.find('\0') != std::string::npos) {
+                fail(ErrorCode::InvalidField, "hello authentication token is invalid");
+            }
+            return AuthenticationCredential{BearerCredential{std::move(token)}};
+        }
+
+        Json encodeAuthenticationCredential(const AuthenticationCredential& credential) {
+            const auto* bearer = std::get_if<BearerCredential>(&credential);
+            if (bearer == nullptr) {
+                fail(ErrorCode::InvalidField, "an absent hello credential must be omitted");
+            }
+            Json encoded{{"scheme", generated::HelloAuthentication.bearerScheme}, {"token", bearer->token}};
+            validateGeneratedSchema("#/$defs/HelloAuthentication", encoded, "hello authentication");
+            if (bearer->token.size() > generated::HelloAuthentication.maximumBearerTokenBytes ||
+                bearer->token.find('\0') != std::string::npos) {
+                fail(ErrorCode::InvalidField, "hello authentication token is invalid");
+            }
+            return encoded;
+        }
+
         std::optional<std::vector<FrontendMethod>> optionalMethods(const Json& object, std::string_view field) {
             const auto encoded = optionalStringArray(object, field);
             if (!encoded.has_value()) {
@@ -603,8 +634,9 @@ namespace ai::openai::codex::frontend {
             const std::string messageKind = validateEnvelope(message);
             if (messageKind == kind::Hello) {
                 return Hello{optionalSequence(message, "resumeAfter"),
-                             extensionsOf(message, {"protocol", "version", "kind", "resumeAfter", "capabilities"}),
-                             optionalCapabilities(message, "capabilities")};
+                             extensionsOf(message, {"protocol", "version", "kind", "resumeAfter", "capabilities", "authentication"}),
+                             optionalCapabilities(message, "capabilities"),
+                             optionalAuthenticationCredential(message, "authentication")};
             }
             if (messageKind == kind::Command) {
                 Command command;
@@ -780,6 +812,9 @@ namespace ai::openai::codex::frontend {
                         }
                         if (value.capabilities.has_value()) {
                             result["capabilities"] = encodeCapabilities(*value.capabilities);
+                        }
+                        if (value.authentication.has_value()) {
+                            result["authentication"] = encodeAuthenticationCredential(*value.authentication);
                         }
                         return result;
                     } else {

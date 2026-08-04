@@ -51,6 +51,17 @@
       "unknown_request_response"
     ]
   },
+  "helloAuthentication": {
+    "optional": true,
+    "credentialLocation": "hello.authentication",
+    "schemes": [
+      "bearer"
+    ],
+    "secretFields": [
+      "token"
+    ],
+    "legacyHelloWithoutCredentialRemainsValid": true
+  },
   "capabilities": [
     {
       "key": "method_discovery",

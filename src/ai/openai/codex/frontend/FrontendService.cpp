@@ -20,15 +20,20 @@
 #include "ai/openai/codex/typed/Turns.h"
 #include "ai/openai/codex/typed/Types.h"
 #include "core/EventReceiver.h"
+#include "core/timer/Timer.h"
+#include "utils/Timeval.h"
 
+#include <algorithm>
 #include <array>
 #include <charconv>
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <exception>
 #include <limits>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <set>
 #include <system_error>
 #include <type_traits>
 #include <unordered_set>
@@ -57,7 +62,7 @@ namespace ai::openai::codex::frontend {
         template <typename T>
         concept ProviderOperationResult = VariantContains<std::remove_cvref_t<T>, backend::ProviderOperationValue>::value;
 
-        CapabilityAdvertisement currentCapabilityAdvertisement() {
+        CapabilityAdvertisement currentCapabilityAdvertisement(bool multiTransport) {
             CapabilityAdvertisement advertisement;
             for (const generated::CapabilityMetadata& metadata : generated::AllCapabilities) {
                 const auto capability = frontendCapabilityFromString(metadata.key);
@@ -65,7 +70,9 @@ namespace ai::openai::codex::frontend {
                     continue;
                 }
                 advertisement.defined.push_back(*capability);
-                if (metadata.implementedByCurrentRuntime) {
+                const bool implemented =
+                    metadata.implementedByCurrentRuntime || (*capability == FrontendCapability::MultiTransport && multiTransport);
+                if (implemented) {
                     advertisement.implemented.push_back(*capability);
                     advertisement.permitted.push_back(*capability);
                 }
@@ -73,15 +80,106 @@ namespace ai::openai::codex::frontend {
             return advertisement;
         }
 
-        std::vector<FrontendMethod> currentRuntimeMethods() {
-            std::vector<FrontendMethod> methods;
-            methods.reserve(generated::ExistingMethodCount);
-            for (const generated::MethodMetadata& metadata : generated::AllMethods) {
-                if (metadata.currentlyImplemented) {
-                    methods.emplace_back(metadata.method);
-                }
+        bool hasScope(const FrontendPrincipal& principal, FrontendScope scope) noexcept {
+            return std::find(principal.scopes.begin(), principal.scopes.end(), scope) != principal.scopes.end();
+        }
+
+        bool hasRequiredScopes(const FrontendPrincipal& principal, std::span<const FrontendScope> required) noexcept {
+            return std::all_of(required.begin(), required.end(), [&](FrontendScope scope) {
+                return hasScope(principal, scope);
+            });
+        }
+
+        bool validPrincipal(const FrontendPrincipal& principal) noexcept {
+            if (principal.id.empty() || principal.profile.empty() || principal.scopes.size() > LocalTrustedScopes.size()) {
+                return false;
             }
-            return methods;
+            std::array<bool, LocalTrustedScopes.size()> seen{};
+            for (FrontendScope scope : principal.scopes) {
+                const std::size_t index = static_cast<std::size_t>(scope);
+                if (index >= seen.size() || seen[index]) {
+                    return false;
+                }
+                seen[index] = true;
+            }
+            return true;
+        }
+
+        ErrorCode frontendErrorCode(AuthenticationFailureCode code) noexcept {
+            switch (code) {
+                case AuthenticationFailureCode::AuthenticationRequired:
+                    return ErrorCode::AuthenticationRequired;
+                case AuthenticationFailureCode::AuthenticationFailed:
+                    return ErrorCode::AuthenticationFailed;
+                case AuthenticationFailureCode::OriginRejected:
+                    return ErrorCode::OriginRejected;
+                case AuthenticationFailureCode::TransportSecurityRequired:
+                    return ErrorCode::TransportSecurityRequired;
+                case AuthenticationFailureCode::RateLimited:
+                    return ErrorCode::RateLimited;
+            }
+            return ErrorCode::AuthenticationFailed;
+        }
+
+        std::string authenticationErrorMessage(AuthenticationFailureCode code) {
+            switch (code) {
+                case AuthenticationFailureCode::AuthenticationRequired:
+                    return "frontend authentication is required";
+                case AuthenticationFailureCode::AuthenticationFailed:
+                    return "frontend authentication failed";
+                case AuthenticationFailureCode::OriginRejected:
+                    return "frontend origin is not permitted";
+                case AuthenticationFailureCode::TransportSecurityRequired:
+                    return "frontend transport security is required";
+                case AuthenticationFailureCode::RateLimited:
+                    return "frontend authentication rate limit exceeded";
+            }
+            return "frontend authentication failed";
+        }
+
+        std::string peerAdmissionKey(const FrontendPeerContext& peer) {
+            if (peer.remoteAddress.has_value()) {
+                return std::string(toString(peer.transport)) + ":address:" + *peer.remoteAddress;
+            }
+            if (peer.unixUserId.has_value()) {
+                return std::string(toString(peer.transport)) + ":uid:" + std::to_string(*peer.unixUserId);
+            }
+            return std::string(toString(peer.transport)) + ":anonymous";
+        }
+
+        enum class RuntimeTransportFamily { Unix, Tcp, Tls, WebSocket, WebSocketTls, Rfcomm, RfcommTls, InMemory };
+
+        RuntimeTransportFamily runtimeTransportFamily(FrontendTransportKind kind) noexcept {
+            switch (kind) {
+                case FrontendTransportKind::Unix:
+                    return RuntimeTransportFamily::Unix;
+                case FrontendTransportKind::Ipv4:
+                case FrontendTransportKind::Ipv6:
+                    return RuntimeTransportFamily::Tcp;
+                case FrontendTransportKind::TcpTls:
+                    return RuntimeTransportFamily::Tls;
+                case FrontendTransportKind::WebSocket:
+                    return RuntimeTransportFamily::WebSocket;
+                case FrontendTransportKind::WebSocketTls:
+                    return RuntimeTransportFamily::WebSocketTls;
+                case FrontendTransportKind::Rfcomm:
+                    return RuntimeTransportFamily::Rfcomm;
+                case FrontendTransportKind::RfcommTls:
+                    return RuntimeTransportFamily::RfcommTls;
+                case FrontendTransportKind::InMemory:
+                    return RuntimeTransportFamily::InMemory;
+            }
+            return RuntimeTransportFamily::InMemory;
+        }
+
+        std::uint64_t saturatingMultiply(std::size_t left, std::uint64_t right) noexcept {
+            if (left == 0 || right == 0) {
+                return 0;
+            }
+            if (left > std::numeric_limits<std::uint64_t>::max() / right) {
+                return std::numeric_limits<std::uint64_t>::max();
+            }
+            return static_cast<std::uint64_t>(left) * right;
         }
 
         std::string backendLifecycleName(backend::ProviderLifecycle lifecycle) {
@@ -633,13 +731,19 @@ namespace ai::openai::codex::frontend {
     struct FrontendConnection::Control {
         std::weak_ptr<FrontendService::Impl> service;
         std::uint64_t localId = 0;
+        FrontendPeerContext peer;
         FrontendConnectionCallbacks callbacks;
         std::optional<backend::FrontendSession> backendSession;
+        std::optional<FrontendPrincipal> principal;
         std::deque<OutboundMessage> outbound;
         std::unordered_set<std::string> pendingRequestIds;
         std::size_t outboundBytes = 0;
+        std::uint64_t rateTokens = 0;
+        std::uint64_t lastRateRefillMs = 0;
+        FrontendTimerCancellation handshakeTimer;
         bool open = true;
         bool helloDone = false;
+        bool authenticationAttempted = false;
         bool deliveryScheduled = false;
         bool closeAfterDelivery = false;
         bool closedNotified = false;
@@ -647,6 +751,12 @@ namespace ai::openai::codex::frontend {
 
     class FrontendService::Impl : public std::enable_shared_from_this<FrontendService::Impl> {
     public:
+        struct FailedAuthenticationWindow {
+            std::size_t failures = 0;
+            std::uint64_t generation = 0;
+            FrontendTimerCancellation expiration;
+        };
+
         Impl(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions options)
             : backendCore(&backend)
             , serviceOptions(std::move(options))
@@ -656,6 +766,25 @@ namespace ai::openai::codex::frontend {
             if (!serviceOptions.scheduler) {
                 serviceOptions.scheduler = [](std::function<void()> callback) {
                     core::EventReceiver::atNextTick(callback);
+                };
+            }
+            if (!serviceOptions.monotonicClockMs) {
+                serviceOptions.monotonicClockMs = [] {
+                    return static_cast<std::uint64_t>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+                };
+            }
+            if (!serviceOptions.timerScheduler) {
+                serviceOptions.timerScheduler = [](std::uint64_t delayMs, std::function<void()> callback) {
+                    auto timer = std::make_shared<std::optional<core::timer::Timer>>();
+                    timer->emplace(
+                        core::timer::Timer::singleshotTimer(std::move(callback), utils::Timeval(static_cast<double>(delayMs) / 1000.0)));
+                    return [timer]() mutable {
+                        if (timer && timer->has_value()) {
+                            timer->value().cancel();
+                            timer->reset();
+                        }
+                    };
                 };
             }
         }
@@ -675,8 +804,10 @@ namespace ai::openai::codex::frontend {
                                                   }});
         }
 
-        FrontendConnection openConnection(FrontendConnectionCallbacks callbacks) {
-            if (!open) {
+        FrontendConnection openConnection(FrontendPeerContext peer, FrontendConnectionCallbacks callbacks) {
+            if (!open || serviceOptions.maxConnections == 0 || connections.size() >= serviceOptions.maxConnections ||
+                serviceOptions.maxUnauthenticatedConnections == 0 ||
+                unauthenticatedConnections >= serviceOptions.maxUnauthenticatedConnections) {
                 return FrontendConnection{};
             }
             if (nextConnectionId == std::numeric_limits<std::uint64_t>::max()) {
@@ -685,9 +816,67 @@ namespace ai::openai::codex::frontend {
             auto control = std::make_shared<FrontendConnection::Control>();
             control->service = shared_from_this();
             control->localId = ++nextConnectionId;
+            control->peer = std::move(peer);
             control->callbacks = std::move(callbacks);
+            control->lastRateRefillMs = nowMs();
+            control->rateTokens = saturatingMultiply(serviceOptions.maxInboundBurst, 1000);
             connections.emplace(control->localId, control);
+            if (unauthenticatedConnections < std::numeric_limits<std::size_t>::max()) {
+                ++unauthenticatedConnections;
+            }
+            scheduleHandshakeTimeout(control);
             return FrontendConnection(std::move(control));
+        }
+
+        std::uint64_t nowMs() const noexcept {
+            try {
+                return serviceOptions.monotonicClockMs();
+            } catch (...) {
+                return 0;
+            }
+        }
+
+        void cancelTimer(FrontendTimerCancellation& cancellation) noexcept {
+            FrontendTimerCancellation callback = std::move(cancellation);
+            cancellation = {};
+            if (callback) {
+                try {
+                    callback();
+                } catch (...) {
+                }
+            }
+        }
+
+        void scheduleHandshakeTimeout(const std::shared_ptr<FrontendConnection::Control>& control) noexcept {
+            if (!control || serviceOptions.handshakeTimeoutMs == 0) {
+                closeControl(control, "frontend handshake capacity is zero");
+                return;
+            }
+            const std::weak_ptr<Impl> weakSelf = shared_from_this();
+            const std::weak_ptr<FrontendConnection::Control> weakControl = control;
+            try {
+                control->handshakeTimer = serviceOptions.timerScheduler(serviceOptions.handshakeTimeoutMs, [weakSelf, weakControl] {
+                    if (const std::shared_ptr<Impl> self = weakSelf.lock()) {
+                        self->schedule([weakSelf, weakControl] {
+                            const std::shared_ptr<Impl> lockedSelf = weakSelf.lock();
+                            const std::shared_ptr<FrontendConnection::Control> lockedControl = weakControl.lock();
+                            if (lockedSelf && lockedControl && lockedControl->open && !lockedControl->helloDone) {
+                                lockedSelf->enqueueProtocolError(
+                                    lockedControl,
+                                    CodecError{ErrorCode::AuthenticationRequired,
+                                               "frontend authentication did not complete before the handshake deadline",
+                                               true,
+                                               {},
+                                               std::nullopt,
+                                               std::nullopt},
+                                    true);
+                            }
+                        });
+                    }
+                });
+            } catch (...) {
+                closeControl(control, "failed to schedule frontend handshake timeout");
+            }
         }
 
         void schedule(std::function<void()> callback) noexcept {
@@ -801,11 +990,19 @@ namespace ai::openai::codex::frontend {
             control->outbound.clear();
             control->outboundBytes = 0;
             control->pendingRequestIds.clear();
+            cancelTimer(control->handshakeTimer);
             control->deliveryScheduled = false;
             control->closeAfterDelivery = false;
             if (control->backendSession.has_value()) {
                 control->backendSession->close(reason);
                 control->backendSession.reset();
+            }
+            if (control->principal.has_value()) {
+                if (authenticatedConnections != 0) {
+                    --authenticatedConnections;
+                }
+            } else if (unauthenticatedConnections != 0) {
+                --unauthenticatedConnections;
             }
             connections.erase(control->localId);
 
@@ -819,6 +1016,14 @@ namespace ai::openai::codex::frontend {
                     }
                 });
             }
+        }
+
+        std::size_t unauthenticatedConnectionCount() const noexcept {
+            return unauthenticatedConnections;
+        }
+
+        std::size_t authenticatedConnectionCount() const noexcept {
+            return authenticatedConnections;
         }
 
         void enqueueProtocolError(const std::shared_ptr<FrontendConnection::Control>& control,
@@ -845,6 +1050,29 @@ namespace ai::openai::codex::frontend {
             }
             if (control->closeAfterDelivery) {
                 return {ConnectionReceiveStatus::Closing, std::move(error)};
+            }
+
+            // Before authentication, retain only envelope- and admission-level
+            // diagnostics. In particular, a codec failure while decoding a
+            // command must not disclose whether its method or parameters are
+            // defined by the privileged protocol surface.
+            if (!control->principal.has_value()) {
+                switch (error.code) {
+                    case ErrorCode::MalformedJson:
+                    case ErrorCode::WrongProtocol:
+                    case ErrorCode::UnsupportedVersion:
+                    case ErrorCode::FrameTooLarge:
+                    case ErrorCode::RateLimited:
+                    case ErrorCode::AuthenticationRequired:
+                    case ErrorCode::AuthenticationFailed:
+                    case ErrorCode::OriginRejected:
+                    case ErrorCode::TransportSecurityRequired:
+                        break;
+                    default:
+                        error = CodecError{
+                            ErrorCode::InvalidField, "frontend handshake message is invalid", true, {}, std::nullopt, std::nullopt};
+                        break;
+                }
             }
             const bool closeConnection = !control->helloDone || error.closeConnection || error.code == ErrorCode::MalformedJson ||
                                          error.code == ErrorCode::WrongProtocol || error.code == ErrorCode::UnsupportedVersion;
@@ -887,6 +1115,220 @@ namespace ai::openai::codex::frontend {
             return true;
         }
 
+        bool verifiedLocalTrust(const FrontendPeerContext& peer) const noexcept {
+            return serviceOptions.allowVerifiedLocalTrust && peer.transport == FrontendTransportKind::Unix &&
+                   serviceOptions.trustedLocalUserId.has_value() && peer.localPeer && peer.unixUserId.has_value() &&
+                   *peer.unixUserId == *serviceOptions.trustedLocalUserId;
+        }
+
+        bool insecureLocalTrust(const FrontendPeerContext& peer) const noexcept {
+            return serviceOptions.allowInsecureLocalTrust && peer.transport == FrontendTransportKind::Unix;
+        }
+
+        FrontendPrincipal localTrustedPrincipal(const FrontendPeerContext& peer, bool verified) const {
+            FrontendPrincipal principal;
+            principal.id =
+                verified && peer.unixUserId.has_value() ? "unix-user-" + std::to_string(*peer.unixUserId) : "insecure-local-override";
+            principal.scopes.assign(LocalTrustedScopes.begin(), LocalTrustedScopes.end());
+            principal.profile = std::string(LocalTrustedScopeProfile.name);
+            principal.localTrusted = true;
+            return principal;
+        }
+
+        bool peerAuthenticationRateLimited(const std::string& key) const noexcept {
+            if (serviceOptions.maximumFailedAuthenticationsPerPeer == 0 || serviceOptions.failedAuthenticationWindowMs == 0) {
+                return true;
+            }
+            const auto found = failedAuthentications.find(key);
+            return found != failedAuthentications.end() && found->second.failures >= serviceOptions.maximumFailedAuthenticationsPerPeer;
+        }
+
+        bool peerAuthenticationAccountingFull(const std::string& key) const noexcept {
+            return !failedAuthentications.contains(key) && failedAuthentications.size() >= serviceOptions.maxConnections;
+        }
+
+        void expireFailedAuthentication(std::string key, std::uint64_t generation) noexcept {
+            const auto found = failedAuthentications.find(key);
+            if (found != failedAuthentications.end() && found->second.generation == generation) {
+                found->second.expiration = {};
+                failedAuthentications.erase(found);
+            }
+        }
+
+        void recordFailedAuthentication(const std::string& key) noexcept {
+            if (serviceOptions.maximumFailedAuthenticationsPerPeer == 0 || serviceOptions.failedAuthenticationWindowMs == 0) {
+                return;
+            }
+            FailedAuthenticationWindow& window = failedAuthentications[key];
+            if (window.failures < std::numeric_limits<std::size_t>::max()) {
+                ++window.failures;
+            }
+            if (window.generation != 0) {
+                return;
+            }
+            if (nextFailureWindowGeneration < std::numeric_limits<std::uint64_t>::max()) {
+                ++nextFailureWindowGeneration;
+            }
+            window.generation = std::max<std::uint64_t>(1, nextFailureWindowGeneration);
+            const std::uint64_t generation = window.generation;
+            const std::weak_ptr<Impl> weakSelf = shared_from_this();
+            try {
+                window.expiration = serviceOptions.timerScheduler(serviceOptions.failedAuthenticationWindowMs, [weakSelf, key, generation] {
+                    if (const std::shared_ptr<Impl> self = weakSelf.lock()) {
+                        self->schedule([weakSelf, key, generation] {
+                            if (const std::shared_ptr<Impl> locked = weakSelf.lock()) {
+                                locked->expireFailedAuthentication(key, generation);
+                            }
+                        });
+                    }
+                });
+            } catch (...) {
+                // Failing closed is safer than silently discarding the peer
+                // admission budget when the event-loop timer cannot be armed.
+                window.failures = serviceOptions.maximumFailedAuthenticationsPerPeer;
+            }
+        }
+
+        bool authenticate(const std::shared_ptr<FrontendConnection::Control>& control, const Hello& hello) noexcept {
+            if (!control || !control->open || control->authenticationAttempted) {
+                if (control && control->open) {
+                    enqueueProtocolError(control,
+                                         CodecError{ErrorCode::AuthenticationFailed,
+                                                    "frontend authentication may only be attempted once",
+                                                    true,
+                                                    {},
+                                                    std::nullopt,
+                                                    std::nullopt},
+                                         true);
+                }
+                return false;
+            }
+            control->authenticationAttempted = true;
+
+            const std::string admissionKey = peerAdmissionKey(control->peer);
+            if (peerAuthenticationRateLimited(admissionKey) || peerAuthenticationAccountingFull(admissionKey)) {
+                enqueueProtocolError(control,
+                                     CodecError{ErrorCode::RateLimited,
+                                                authenticationErrorMessage(AuthenticationFailureCode::RateLimited),
+                                                true,
+                                                {},
+                                                std::nullopt,
+                                                std::nullopt},
+                                     true);
+                return false;
+            }
+
+            AuthenticationResult result = AuthenticationFailure{AuthenticationFailureCode::AuthenticationRequired};
+            const bool verified = verifiedLocalTrust(control->peer);
+            if (verified || insecureLocalTrust(control->peer)) {
+                result = AuthenticationSuccess{localTrustedPrincipal(control->peer, verified)};
+            } else if (serviceOptions.authenticator) {
+                try {
+                    result = serviceOptions.authenticator(control->peer,
+                                                          hello.authentication.value_or(AuthenticationCredential{NoCredential{}}));
+                } catch (...) {
+                    result = AuthenticationFailure{AuthenticationFailureCode::AuthenticationFailed};
+                }
+            }
+
+            if (const auto* success = std::get_if<AuthenticationSuccess>(&result); success && validPrincipal(success->principal)) {
+                control->principal = success->principal;
+                if (unauthenticatedConnections != 0) {
+                    --unauthenticatedConnections;
+                }
+                if (authenticatedConnections < std::numeric_limits<std::size_t>::max()) {
+                    ++authenticatedConnections;
+                }
+                cancelTimer(control->handshakeTimer);
+                return true;
+            }
+
+            const AuthenticationFailureCode code = std::holds_alternative<AuthenticationFailure>(result)
+                                                       ? std::get<AuthenticationFailure>(result).code
+                                                       : AuthenticationFailureCode::AuthenticationFailed;
+            recordFailedAuthentication(admissionKey);
+            enqueueProtocolError(
+                control, CodecError{frontendErrorCode(code), authenticationErrorMessage(code), true, {}, std::nullopt, std::nullopt}, true);
+            return false;
+        }
+
+        bool deploymentEnabled(const generated::MethodMetadata& metadata) const noexcept {
+            if (metadata.defaultEnabled) {
+                return true;
+            }
+            if (metadata.capability == "conditional_command_execution") {
+                return serviceOptions.enableCommandExecutionMethods;
+            }
+            if (metadata.capability == "conditional_filesystem") {
+                return std::find(metadata.requiredScopes.begin(), metadata.requiredScopes.end(), FrontendScope::FilesystemWrite) !=
+                               metadata.requiredScopes.end()
+                           ? serviceOptions.enableFilesystemWriteMethods
+                           : serviceOptions.enableFilesystemReadMethods;
+            }
+            return false;
+        }
+
+        std::vector<FrontendMethod> definedMethods() const {
+            std::vector<FrontendMethod> result;
+            result.reserve(generated::AllMethods.size());
+            for (const generated::MethodMetadata& metadata : generated::AllMethods) {
+                result.emplace_back(metadata.method);
+            }
+            return result;
+        }
+
+        std::vector<FrontendMethod> implementedMethods() const {
+            std::vector<FrontendMethod> result;
+            for (const generated::MethodMetadata& metadata : generated::AllMethods) {
+                if (metadata.currentlyImplemented) {
+                    result.emplace_back(metadata.method);
+                }
+            }
+            return result;
+        }
+
+        std::vector<FrontendMethod> availableMethods() const {
+            std::vector<FrontendMethod> result;
+            for (const generated::MethodMetadata& metadata : generated::AllMethods) {
+                if (metadata.currentlyImplemented && deploymentEnabled(metadata)) {
+                    result.emplace_back(metadata.method);
+                }
+            }
+            return result;
+        }
+
+        std::vector<FrontendMethod> permittedMethods(const FrontendPrincipal& principal) const {
+            std::vector<FrontendMethod> result;
+            if (!validPrincipal(principal)) {
+                return result;
+            }
+            for (const generated::MethodMetadata& metadata : generated::AllMethods) {
+                if (metadata.currentlyImplemented && deploymentEnabled(metadata) && hasRequiredScopes(principal, metadata.requiredScopes)) {
+                    result.emplace_back(metadata.method);
+                }
+            }
+            return result;
+        }
+
+        bool multiTransportEnabled() const noexcept {
+            std::set<RuntimeTransportFamily> families;
+            for (FrontendTransportKind transport : declaredTransports) {
+                const RuntimeTransportFamily family = runtimeTransportFamily(transport);
+                if (family != RuntimeTransportFamily::InMemory) {
+                    families.insert(family);
+                }
+            }
+            return families.size() > 1;
+        }
+
+        std::vector<FrontendCapability> implementedCapabilities() const {
+            return currentCapabilityAdvertisement(multiTransportEnabled()).implemented;
+        }
+
+        void declareTransportFamily(FrontendTransportKind transport) {
+            declaredTransports.insert(transport);
+        }
+
         void synchronize(const std::shared_ptr<FrontendConnection::Control>& control, const Hello& hello) noexcept {
             if (!control->open || control->helloDone) {
                 enqueueProtocolError(control,
@@ -897,6 +1339,10 @@ namespace ai::openai::codex::frontend {
                                                 std::nullopt,
                                                 std::nullopt},
                                      false);
+                return;
+            }
+
+            if (!authenticate(control, hello)) {
                 return;
             }
 
@@ -966,9 +1412,9 @@ namespace ai::openai::codex::frontend {
             const std::string id = std::to_string(control->backendSession->id().value());
             Welcome welcome{id, SessionRole::Observer, journal.currentSequence(), syncMode, Json::object()};
             if (hello.capabilities.has_value()) {
-                welcome.capabilities = currentCapabilityAdvertisement();
-                welcome.availableMethods = currentRuntimeMethods();
-                welcome.permittedMethods = welcome.availableMethods;
+                welcome.capabilities = currentCapabilityAdvertisement(multiTransportEnabled());
+                welcome.availableMethods = availableMethods();
+                welcome.permittedMethods = permittedMethods(*control->principal);
             }
             if (!enqueue(control, ServerMessage{std::move(welcome)})) {
                 return;
@@ -994,6 +1440,37 @@ namespace ai::openai::codex::frontend {
                                                     CommandError{code, std::move(message), std::move(details), Json::object()})});
         }
 
+        bool inboundFrameAdmissible(std::size_t bytes) const noexcept {
+            return serviceOptions.maximumInboundMessageBytes != 0 && bytes <= serviceOptions.maximumInboundMessageBytes;
+        }
+
+        bool consumeInboundAdmission(const std::shared_ptr<FrontendConnection::Control>& control) noexcept {
+            if (!control || serviceOptions.maxInboundMessagesPerSecond == 0 || serviceOptions.maxInboundBurst == 0) {
+                return false;
+            }
+            const std::uint64_t now = nowMs();
+            const std::uint64_t elapsed = now >= control->lastRateRefillMs ? now - control->lastRateRefillMs : 0;
+            if (elapsed != 0) {
+                const std::uint64_t rate = static_cast<std::uint64_t>(serviceOptions.maxInboundMessagesPerSecond);
+                const std::uint64_t added =
+                    elapsed > std::numeric_limits<std::uint64_t>::max() / rate ? std::numeric_limits<std::uint64_t>::max() : elapsed * rate;
+                const std::uint64_t capacity = saturatingMultiply(serviceOptions.maxInboundBurst, 1000);
+                control->rateTokens =
+                    added > capacity - std::min(capacity, control->rateTokens) ? capacity : std::min(capacity, control->rateTokens) + added;
+                control->lastRateRefillMs = now;
+            }
+            if (control->rateTokens < 1000) {
+                return false;
+            }
+            control->rateTokens -= 1000;
+            return true;
+        }
+
+        ConnectionReceiveResult
+        receiveFrameError(const std::shared_ptr<FrontendConnection::Control>& control, ErrorCode code, std::string message) noexcept {
+            return receiveError(control, CodecError{code, std::move(message), true, {}, std::nullopt, std::nullopt});
+        }
+
         ConnectionReceiveResult receive(const std::shared_ptr<FrontendConnection::Control>& control,
                                         const ClientMessage& message) noexcept {
             if (!open || !control || !control->open) {
@@ -1002,6 +1479,9 @@ namespace ai::openai::codex::frontend {
             if (control->closeAfterDelivery) {
                 return {ConnectionReceiveStatus::Closing, std::nullopt};
             }
+            if (!consumeInboundAdmission(control)) {
+                return receiveFrameError(control, ErrorCode::RateLimited, "frontend inbound message rate limit exceeded");
+            }
             try {
                 if (const auto* hello = std::get_if<Hello>(&message)) {
                     if (control->helloDone) {
@@ -1009,18 +1489,31 @@ namespace ai::openai::codex::frontend {
                         return receiveError(control, std::move(error));
                     }
                     synchronize(control, *hello);
-                    return {control->open ? ConnectionReceiveStatus::Accepted : ConnectionReceiveStatus::Closing, std::nullopt};
+                    return {control->open && !control->closeAfterDelivery ? ConnectionReceiveStatus::Accepted
+                                                                          : ConnectionReceiveStatus::Closing,
+                            std::nullopt};
                 }
 
                 const Command& command = std::get<Command>(message);
                 if (!control->helloDone) {
-                    CodecError error{
-                        ErrorCode::InvalidCommand, "the first frontend message must be hello", true, {}, command.requestId, std::nullopt};
+                    CodecError error{ErrorCode::AuthenticationRequired,
+                                     "frontend authentication must complete before commands are accepted",
+                                     true,
+                                     {},
+                                     command.requestId,
+                                     std::nullopt};
                     return receiveError(control, std::move(error));
                 }
                 if (control->pendingRequestIds.contains(command.requestId)) {
                     enqueueFailure(
                         control, command.requestId, ErrorCode::DuplicateRequestId, "requestId is already pending in this frontend session");
+                    return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                }
+
+                if (serviceOptions.maxOutstandingCommandsPerConnection == 0 ||
+                    control->pendingRequestIds.size() >= serviceOptions.maxOutstandingCommandsPerConnection) {
+                    enqueueFailure(
+                        control, command.requestId, ErrorCode::CapacityExceeded, "frontend outstanding command capacity exceeded");
                     return {ConnectionReceiveStatus::Rejected, std::nullopt};
                 }
 
@@ -1672,6 +2165,11 @@ namespace ai::openai::codex::frontend {
                 closeControl(control, reason);
             }
             connections.clear();
+            for (auto& [key, window] : failedAuthentications) {
+                (void) key;
+                cancelTimer(window.expiration);
+            }
+            failedAuthentications.clear();
         }
 
         bool isOpen() const noexcept {
@@ -1693,7 +2191,12 @@ namespace ai::openai::codex::frontend {
         EventCoalescer coalescer;
         backend::BackendObserverSubscription observer;
         std::map<std::uint64_t, std::shared_ptr<FrontendConnection::Control>> connections;
+        std::map<std::string, FailedAuthenticationWindow> failedAuthentications;
+        std::set<FrontendTransportKind> declaredTransports;
         std::uint64_t nextConnectionId = 0;
+        std::uint64_t nextFailureWindowGeneration = 0;
+        std::size_t unauthenticatedConnections = 0;
+        std::size_t authenticatedConnections = 0;
         bool open = true;
         bool flushCallbackPending = false;
         bool flushing = false;
@@ -1745,6 +2248,18 @@ namespace ai::openai::codex::frontend {
         if (control->closeAfterDelivery) {
             return {ConnectionReceiveStatus::Closing, std::nullopt};
         }
+        const auto service = control->service.lock();
+        if (!service) {
+            control->open = false;
+            return {ConnectionReceiveStatus::Closed, std::nullopt};
+        }
+        try {
+            if (!service->inboundFrameAdmissible(message.dump().size())) {
+                return service->receiveFrameError(control, ErrorCode::FrameTooLarge, "frontend inbound message exceeds frame capacity");
+            }
+        } catch (...) {
+            return service->receiveFrameError(control, ErrorCode::MalformedJson, "frontend inbound JSON could not be measured");
+        }
         const auto decoded = Codec::decodeClient(message);
         if (!decoded) {
             return receiveError(decoded.error());
@@ -1758,6 +2273,14 @@ namespace ai::openai::codex::frontend {
         }
         if (control->closeAfterDelivery) {
             return {ConnectionReceiveStatus::Closing, std::nullopt};
+        }
+        const auto service = control->service.lock();
+        if (!service) {
+            control->open = false;
+            return {ConnectionReceiveStatus::Closed, std::nullopt};
+        }
+        if (!service->inboundFrameAdmissible(compactJson.size())) {
+            return service->receiveFrameError(control, ErrorCode::FrameTooLarge, "frontend inbound message exceeds frame capacity");
         }
         const auto decoded = Codec::decodeClient(compactJson);
         if (!decoded) {
@@ -1811,6 +2334,14 @@ namespace ai::openai::codex::frontend {
         return std::to_string(control->backendSession->id().value());
     }
 
+    std::optional<FrontendPrincipal> FrontendConnection::principal() const {
+        return control && control->open ? control->principal : std::nullopt;
+    }
+
+    FrontendPeerContext FrontendConnection::peer() const {
+        return control ? control->peer : FrontendPeerContext{};
+    }
+
     std::size_t FrontendConnection::queuedMessages() const noexcept {
         return control ? control->outbound.size() : 0;
     }
@@ -1828,8 +2359,14 @@ namespace ai::openai::codex::frontend {
         close();
     }
 
-    FrontendConnection FrontendService::openConnection(FrontendConnectionCallbacks callbacks) {
-        return impl ? impl->openConnection(std::move(callbacks)) : FrontendConnection{};
+    FrontendConnection FrontendService::openConnection(FrontendPeerContext peer, FrontendConnectionCallbacks callbacks) {
+        return impl ? impl->openConnection(std::move(peer), std::move(callbacks)) : FrontendConnection{};
+    }
+
+    void FrontendService::declareTransportFamily(FrontendTransportKind transport) {
+        if (impl) {
+            impl->declareTransportFamily(transport);
+        }
     }
 
     void FrontendService::flush() {
@@ -1859,6 +2396,47 @@ namespace ai::openai::codex::frontend {
 
     std::size_t FrontendService::connectionCount() const noexcept {
         return impl ? impl->connectionCount() : 0;
+    }
+
+    std::size_t FrontendService::unauthenticatedConnectionCount() const noexcept {
+        return impl ? impl->unauthenticatedConnectionCount() : 0;
+    }
+
+    std::size_t FrontendService::authenticatedConnectionCount() const noexcept {
+        return impl ? impl->authenticatedConnectionCount() : 0;
+    }
+
+    std::optional<std::string> FrontendService::currentController() const {
+        if (!impl) {
+            return std::nullopt;
+        }
+        const std::optional<backend::SessionId> controller = impl->backendCore->snapshot().controller;
+        return controller ? std::optional<std::string>{std::to_string(controller->value())} : std::nullopt;
+    }
+
+    std::vector<FrontendMethod> FrontendService::definedMethods() const {
+        return impl ? impl->definedMethods() : std::vector<FrontendMethod>{};
+    }
+
+    std::vector<FrontendMethod> FrontendService::implementedMethods() const {
+        return impl ? impl->implementedMethods() : std::vector<FrontendMethod>{};
+    }
+
+    std::vector<FrontendMethod> FrontendService::availableMethods() const {
+        return impl ? impl->availableMethods() : std::vector<FrontendMethod>{};
+    }
+
+    std::vector<FrontendMethod> FrontendService::permittedMethods(const FrontendPrincipal& principal) const {
+        return impl ? impl->permittedMethods(principal) : std::vector<FrontendMethod>{};
+    }
+
+    std::vector<FrontendTransportKind> FrontendService::enabledTransportFamilies() const {
+        return impl ? std::vector<FrontendTransportKind>{impl->declaredTransports.begin(), impl->declaredTransports.end()}
+                    : std::vector<FrontendTransportKind>{};
+    }
+
+    std::vector<FrontendCapability> FrontendService::implementedCapabilities() const {
+        return impl ? impl->implementedCapabilities() : std::vector<FrontendCapability>{};
     }
 
     EventJournalConfig FrontendService::journalConfig() const noexcept {

@@ -296,9 +296,16 @@ namespace {
         });
 
         FakeBackendCore backendCore(transport);
-        frontend::FrontendService adapter(backendCore);
+        frontend::FrontendServiceOptions frontendOptions;
+        frontendOptions.trustedLocalUserId = 42;
+        frontend::FrontendService adapter(backendCore, std::move(frontendOptions));
         std::vector<frontend::OutboundMessage> outbound;
-        frontend::FrontendConnection connection = adapter.openConnection({[&outbound](const frontend::OutboundMessage& message) {
+        frontend::FrontendPeerContext peer;
+        peer.transport = frontend::FrontendTransportKind::Unix;
+        peer.localPeer = true;
+        peer.unixUserId = 42;
+        frontend::FrontendConnection connection = adapter.openConnection(std::move(peer),
+                                                                         {[&outbound](const frontend::OutboundMessage& message) {
                                                                               outbound.push_back(message);
                                                                               return true;
                                                                           },

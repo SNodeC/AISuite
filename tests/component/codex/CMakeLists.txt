@@ -1526,6 +1526,29 @@ set_tests_properties(
                SKIP_RETURN_CODE 77 TIMEOUT 5
 )
 
+snodec_add_test(
+    CodexFrontendReferenceAuthenticationTest
+    CodexFrontendReferenceAuthenticationTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
+)
+target_link_libraries(
+    CodexFrontendReferenceAuthenticationTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+)
+target_include_directories(
+    CodexFrontendReferenceAuthenticationTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_compile_features(
+    CodexFrontendReferenceAuthenticationTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexFrontendReferenceAuthenticationTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;authentication;unix;security;a1-7b"
+               TIMEOUT 5
+)
+
 if(TARGET codex-backend-client-support)
     snodec_add_test(
         CodexBackendClientCommandTest CodexBackendClientCommandTest.cpp
@@ -1716,6 +1739,7 @@ snodec_add_test(
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/CodexFrontendSocketContext.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/CodexFrontendSocketContextFactory.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
 )
 target_include_directories(
     CodexBackendUnixAcceptanceTest PRIVATE ${PROJECT_SOURCE_DIR}/src

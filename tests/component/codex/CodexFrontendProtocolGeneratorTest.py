@@ -266,6 +266,28 @@ def validate_additive_schema_contract(
         "uniqueItems": True,
     }:
         raise AssertionError("hello capability negotiation is no longer additive")
+    if "authentication" in hello["required"] or hello["properties"].get(
+        "authentication"
+    ) != {"$ref": "#/$defs/HelloAuthentication"}:
+        raise AssertionError("hello bearer authentication is no longer additive")
+    if definitions.get("HelloAuthentication") != {
+        "type": "object",
+        "required": ["scheme", "token"],
+        "properties": {
+            "scheme": {"const": "bearer"},
+            "token": {"type": "string", "minLength": 1, "maxLength": 65536},
+        },
+        "additionalProperties": False,
+    }:
+        raise AssertionError("hello bearer authentication schema changed")
+    if manifest.get("helloAuthentication") != {
+        "optional": True,
+        "credentialLocation": "hello.authentication",
+        "schemes": ["bearer"],
+        "secretFields": ["token"],
+        "legacyHelloWithoutCredentialRemainsValid": True,
+    }:
+        raise AssertionError("hello authentication manifest metadata changed")
 
     welcome = definitions["Welcome"]["allOf"][1]
     discovery_fields = {
