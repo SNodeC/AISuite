@@ -8,8 +8,8 @@
 #include "CodexBackendTestSupport.h"
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/backend/Snapshot.h"
-#include "ai/openai/codex/frontend/BackendAdapter.h"
 #include "ai/openai/codex/frontend/EventCoalescer.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -327,7 +327,7 @@ namespace {
                           "dirty-entity capacity is bounded and degrades to a snapshot instead of growing");
     }
 
-    void testAdapterHandshakeRolesReplayAndIsolation(tests::support::TestResult& result) {
+    void testServiceHandshakeRolesReplayAndIsolation(tests::support::TestResult& result) {
         const auto transport = std::make_shared<tests::codex::FakeTransportState>();
         ManualScheduler scheduler;
         backend::BackendCoreOptions backendOptions;
@@ -337,20 +337,20 @@ namespace {
         backendOptions.maxEventsPerCallback = 128;
         FakeBackendCore core(backendOptions, transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        adapterOptions.journal = {8, 128U * 1024U, frontend::SequenceNumber{0}};
-        adapterOptions.batches = {8, 32U * 1024U};
-        adapterOptions.maxOutboundMessagesPerConnection = 64;
-        adapterOptions.maxOutboundBytesPerConnection = 512U * 1024U;
-        frontend::BackendAdapter adapter(core, adapterOptions);
+        serviceOptions.journal = {8, 128U * 1024U, frontend::SequenceNumber{0}};
+        serviceOptions.batches = {8, 32U * 1024U};
+        serviceOptions.maxOutboundMessagesPerConnection = 64;
+        serviceOptions.maxOutboundBytesPerConnection = 512U * 1024U;
+        frontend::FrontendService service(core, serviceOptions);
 
         Observations observerA;
         Observations observerB;
-        frontend::FrontendConnection connectionA = adapter.openConnection(callbacksFor(observerA));
-        frontend::FrontendConnection connectionB = adapter.openConnection(callbacksFor(observerB));
+        frontend::FrontendConnection connectionA = service.openConnection(callbacksFor(observerA));
+        frontend::FrontendConnection connectionB = service.openConnection(callbacksFor(observerB));
         result.expectTrue(connectionA.receive(hello()).accepted() && connectionB.receive(hello()).accepted() &&
                               observerA.messages.empty() && observerB.messages.empty(),
                           "hello output is asynchronous for every transport-neutral connection");
@@ -363,10 +363,10 @@ namespace {
         result.expectTrue(connectionA.helloComplete() && connectionB.helloComplete() && connectionA.sessionId() != connectionB.sessionId(),
                           "successful hello exposes stable distinct backend session IDs");
 
-        const frontend::SequenceNumber journalSequenceBeforeReplay = adapter.currentSequence();
+        const frontend::SequenceNumber journalSequenceBeforeReplay = service.currentSequence();
         backend::FrontendSession replayMutationSession = core.openSession({});
         scheduler.drain();
-        const frontend::SequenceNumber journalSequenceAfterMutation = adapter.currentSequence();
+        const frontend::SequenceNumber journalSequenceAfterMutation = service.currentSequence();
         const backend::SequenceNumber backendSequenceBeforeReplay = core.snapshot().sequence;
         const std::size_t messagesBeforeReplay = observerA.messages.size();
         result.expectTrue(connectionA.receive(command("journal-replay", frontend::ReplayAfter{journalSequenceBeforeReplay})).accepted(),
@@ -447,13 +447,13 @@ namespace {
         result.expectTrue(!eventsA.empty() && !eventsB.empty() && ordered,
                           "multiple observers receive normalized frontend batches in strict sequence order");
 
-        const frontend::SequenceNumber resumePosition = adapter.currentSequence();
+        const frontend::SequenceNumber resumePosition = service.currentSequence();
         connectionA.close("controller A disconnected");
         scheduler.drain();
         result.expectTrue(connectionB.isOpen(), "controller disconnect leaves another observer and BackendCore running");
 
         Observations replayed;
-        frontend::FrontendConnection replayConnection = adapter.openConnection(callbacksFor(replayed));
+        frontend::FrontendConnection replayConnection = service.openConnection(callbacksFor(replayed));
         result.expectTrue(replayConnection.receive(hello(resumePosition)).accepted(),
                           "a reconnect may request replay after its last sequence");
         scheduler.drain();
@@ -494,7 +494,7 @@ namespace {
             } else if (std::holds_alternative<frontend::EventBatch>(message)) {
                 gapEmittedEvents = true;
             } else if (const auto* complete = std::get_if<frontend::SyncComplete>(&message);
-                       complete && complete->sequence == adapter.currentSequence()) {
+                       complete && complete->sequence == service.currentSequence()) {
                 gapCompleteIndex = index;
             }
         }
@@ -506,7 +506,7 @@ namespace {
 
         const backend::SequenceNumber backendSequenceBeforeFutureReplay = core.snapshot().sequence;
         const std::size_t messagesBeforeFutureReplay = observerB.messages.size();
-        const frontend::SequenceNumber futureSequence{adapter.currentSequence().value() + 1};
+        const frontend::SequenceNumber futureSequence{service.currentSequence().value() + 1};
         result.expectTrue(connectionB.receive(command("future-replay", frontend::ReplayAfter{futureSequence})).status ==
                               frontend::ConnectionReceiveStatus::Rejected,
                           "events.replay rejects a future frontend sequence");
@@ -523,7 +523,7 @@ namespace {
                           "future events.replay returns invalid_command without synchronization payload or BackendCore transition");
 
         Observations snapshotFallback;
-        frontend::FrontendConnection oldReconnect = adapter.openConnection(callbacksFor(snapshotFallback));
+        frontend::FrontendConnection oldReconnect = service.openConnection(callbacksFor(snapshotFallback));
         result.expectTrue(oldReconnect.receive(hello(frontend::SequenceNumber{0})).accepted(),
                           "an old reconnect position is accepted for synchronization planning");
         scheduler.drain();
@@ -532,7 +532,7 @@ namespace {
                           "journal eviction deterministically falls back to one complete snapshot");
 
         Observations badClient;
-        frontend::FrontendConnection beforeHello = adapter.openConnection(callbacksFor(badClient));
+        frontend::FrontendConnection beforeHello = service.openConnection(callbacksFor(badClient));
         result.expectTrue(beforeHello.receive(command("too-early", frontend::SnapshotGet{})).status ==
                               frontend::ConnectionReceiveStatus::Closing,
                           "a command before hello is rejected and closes only that frontend after its error");
@@ -542,7 +542,7 @@ namespace {
         result.expectTrue(!beforeHello.isOpen() && connectionB.isOpen(), "pre-hello protocol failure is isolated from healthy clients");
 
         Observations slow;
-        frontend::FrontendConnection slowObserver = adapter.openConnection({[&slow](const frontend::OutboundMessage& message) {
+        frontend::FrontendConnection slowObserver = service.openConnection({[&slow](const frontend::OutboundMessage& message) {
                                                                                 slow.messages.push_back(message.message);
                                                                                 return false;
                                                                             },
@@ -557,7 +557,7 @@ namespace {
 
         Observations throwing;
         frontend::FrontendConnection throwingObserver =
-            adapter.openConnection({[&throwing](const frontend::OutboundMessage&) -> bool {
+            service.openConnection({[&throwing](const frontend::OutboundMessage&) -> bool {
                                         throwing.messages.emplace_back(frontend::ProtocolErrorMessage{});
                                         throw std::runtime_error("intentional frontend transport failure");
                                     },
@@ -571,7 +571,7 @@ namespace {
 
         Observations selfClosing;
         std::optional<frontend::FrontendConnection> selfClosingConnection;
-        selfClosingConnection.emplace(adapter.openConnection({[&selfClosingConnection](const frontend::OutboundMessage&) {
+        selfClosingConnection.emplace(service.openConnection({[&selfClosingConnection](const frontend::OutboundMessage&) {
                                                                   selfClosingConnection->close("closed during delivery");
                                                                   return true;
                                                               },
@@ -585,10 +585,10 @@ namespace {
 
         replayMutationSession.close();
         scheduler.drain();
-        adapter.close("adapter test complete");
+        service.close("service test complete");
         scheduler.drain();
-        result.expectTrue(!adapter.isOpen() && !connectionB.isOpen() && !replayConnection.isOpen() && !oldReconnect.isOpen(),
-                          "adapter shutdown detaches every frontend without destroying BackendCore");
+        result.expectTrue(!service.isOpen() && !connectionB.isOpen() && !replayConnection.isOpen() && !oldReconnect.isOpen(),
+                          "service shutdown detaches every frontend without destroying BackendCore");
     }
 
     void testCapabilityDiscoveryHandshake(tests::support::TestResult& result) {
@@ -600,14 +600,14 @@ namespace {
         };
         FakeBackendCore core(backendOptions, transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        frontend::BackendAdapter adapter(core, adapterOptions);
+        frontend::FrontendService service(core, serviceOptions);
 
         Observations observations;
-        frontend::FrontendConnection connection = adapter.openConnection(callbacksFor(observations));
+        frontend::FrontendConnection connection = service.openConnection(callbacksFor(observations));
         const frontend::Hello discoveryHello{
             std::nullopt,
             frontend::Json::object(),
@@ -661,27 +661,27 @@ namespace {
         };
         FakeBackendCore core(backendOptions, transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        adapterOptions.coalescer = {1};
-        frontend::BackendAdapter adapter(core, adapterOptions);
+        serviceOptions.coalescer = {1};
+        frontend::FrontendService service(core, serviceOptions);
 
         Observations initial;
-        frontend::FrontendConnection initialConnection = adapter.openConnection(callbacksFor(initial));
+        frontend::FrontendConnection initialConnection = service.openConnection(callbacksFor(initial));
         result.expectTrue(initialConnection.receive(hello()).accepted(), "replay-barrier client completes an initial hello");
         scheduler.drain();
 
-        const frontend::SequenceNumber unchangedSequence = adapter.currentSequence();
+        const frontend::SequenceNumber unchangedSequence = service.currentSequence();
         result.expectTrue(initialConnection.receive(command("unchanged-snapshot", frontend::SnapshotGet{})).accepted(),
                           "an explicit unchanged-state snapshot request is accepted");
         scheduler.drain();
-        result.expectTrue(adapter.currentSequence() == unchangedSequence && hasSuccessfulResponse(initial, "unchanged-snapshot"),
+        result.expectTrue(service.currentSequence() == unchangedSequence && hasSuccessfulResponse(initial, "unchanged-snapshot"),
                           "an explicit snapshot does not advance or invalidate replay continuity");
 
         Observations unchangedReplay;
-        frontend::FrontendConnection unchangedReplayConnection = adapter.openConnection(callbacksFor(unchangedReplay));
+        frontend::FrontendConnection unchangedReplayConnection = service.openConnection(callbacksFor(unchangedReplay));
         result.expectTrue(unchangedReplayConnection.receive(hello(unchangedSequence)).accepted(),
                           "an unchanged-state reconnect requests replay at the current sequence");
         scheduler.drain();
@@ -689,15 +689,15 @@ namespace {
                               countSnapshots(unchangedReplay) == 0,
                           "unchanged state remains replayable without a redundant snapshot");
 
-        const frontend::SequenceNumber beforeFallback = adapter.currentSequence();
+        const frontend::SequenceNumber beforeFallback = service.currentSequence();
         backend::FrontendSession dirtySessionA = core.openSession({});
         backend::FrontendSession dirtySessionB = core.openSession({});
         scheduler.drain();
-        result.expectTrue(adapter.currentSequence() > beforeFallback,
+        result.expectTrue(service.currentSequence() > beforeFallback,
                           "dirty-entity overflow advances the frontend synchronization barrier monotonically");
 
         Observations staleReconnect;
-        frontend::FrontendConnection staleConnection = adapter.openConnection(callbacksFor(staleReconnect));
+        frontend::FrontendConnection staleConnection = service.openConnection(callbacksFor(staleReconnect));
         result.expectTrue(staleConnection.receive(hello(beforeFallback)).accepted(),
                           "a stale client may reconnect from the sequence immediately before snapshot fallback");
         scheduler.drain();
@@ -710,7 +710,7 @@ namespace {
         initialConnection.close();
         dirtySessionB.close();
         dirtySessionA.close();
-        adapter.close("replay barrier test complete");
+        service.close("replay barrier test complete");
         scheduler.drain();
     }
 
@@ -724,11 +724,11 @@ namespace {
         backendOptions.capacity.maxSnapshotBytes = 1;
         FakeBackendCore core(std::move(backendOptions), transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        frontend::BackendAdapter adapter(core, std::move(adapterOptions));
+        frontend::FrontendService service(core, std::move(serviceOptions));
 
         const backend::Snapshot first = core.snapshot();
         scheduler.drain(64);
@@ -745,7 +745,7 @@ namespace {
                               stable.capacity.snapshotOmissions == 1 && scheduler.pending() == 0,
                           "repeated snapshots at one canonical revision account mandatory-envelope omission only once");
 
-        adapter.close("capacity feedback test complete");
+        service.close("capacity feedback test complete");
         scheduler.drain();
     }
 
@@ -769,17 +769,17 @@ namespace {
             backendOptions.capacity.maxRetainedThreads = 1;
             backendCore = std::make_unique<FakeBackendCore>(std::move(backendOptions), transport);
 
-            frontend::BackendAdapterOptions adapterOptions;
-            adapterOptions.journal = {128, 2U * 1024U * 1024U, frontend::SequenceNumber{0}};
-            adapterOptions.batches = {8, 128U * 1024U};
-            adapterOptions.coalescer = {64};
-            adapterOptions.maxOutboundMessagesPerConnection = maxOutboundMessages;
-            adapterOptions.maxOutboundBytesPerConnection = maxOutboundBytes;
-            adapterOptions.maxMessagesPerDelivery = 4;
-            adapter = std::make_unique<frontend::BackendAdapter>(*backendCore, std::move(adapterOptions));
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.journal = {128, 2U * 1024U * 1024U, frontend::SequenceNumber{0}};
+            serviceOptions.batches = {8, 128U * 1024U};
+            serviceOptions.coalescer = {64};
+            serviceOptions.maxOutboundMessagesPerConnection = maxOutboundMessages;
+            serviceOptions.maxOutboundBytesPerConnection = maxOutboundBytes;
+            serviceOptions.maxMessagesPerDelivery = 4;
+            service = std::make_unique<frontend::FrontendService>(*backendCore, std::move(serviceOptions));
 
-            connectionA.emplace(adapter->openConnection(callbacksFor(observerA)));
-            connectionB.emplace(adapter->openConnection(callbacksFor(observerB)));
+            connectionA.emplace(service->openConnection(callbacksFor(observerA)));
+            connectionB.emplace(service->openConnection(callbacksFor(observerB)));
             expect(connectionA->receive(hello()).accepted() && connectionB->receive(hello()).accepted(),
                    "both protocol sessions accept hello before the high-volume stream");
 
@@ -1012,7 +1012,7 @@ namespace {
             baselineMessagesB = observerB.messages.size();
             baselineEventsA = events(observerA).size();
             baselineEventsB = events(observerB).size();
-            baselineSequence = adapter->currentSequence();
+            baselineSequence = service->currentSequence();
 
             transport->inject(
                 {{"method", "turn/started"}, {"params", {{"threadId", threadId}, {"turn", tests::codex::turnValue(threadId, turnId)}}}});
@@ -1352,7 +1352,7 @@ namespace {
                                   [](const frontend::FrontendEvent& left, const frontend::FrontendEvent& right) {
                                       return left.sequence < right.sequence;
                                   }) &&
-                       adapter->currentSequence() > baselineSequence,
+                       service->currentSequence() > baselineSequence,
                    "coalesced burst updates retain strict frontend sequence order");
             std::optional<std::size_t> finalContentIndex;
             std::optional<std::size_t> terminalTurnIndex;
@@ -1369,7 +1369,7 @@ namespace {
                 }
             }
             expect(finalContentIndex.has_value() && terminalTurnIndex.has_value() && *finalContentIndex < *terminalTurnIndex,
-                   "adapter emits final item.content.updated before terminal turn.updated when turn.started was already dirty");
+                   "service emits final item.content.updated before terminal turn.updated when turn.started was already dirty");
             expect(latestFrontendText(observerA) == expectedText && latestFrontendText(observerB) == expectedText,
                    "coalescing preserves exact final text for every protocol session");
 
@@ -1412,7 +1412,7 @@ namespace {
                 userMessageData.dump().size() <= backend::MaxSerializedUserMessageDataBytes &&
                 !userMessageItem.value("contentTruncated", true) && userMessageItem.value("droppedContentBytes", std::uint64_t{1}) == 0;
             expect(userMessageDataPreserved,
-                   "Decoder through BackendAdapter preserves a bounded array prefix and independent user-message truncation metadata");
+                   "Decoder through FrontendService preserves a bounded array prefix and independent user-message truncation metadata");
             const auto unknownUpdate = std::find_if(receivedA.begin(), receivedA.end(), [&](const frontend::FrontendEvent& event) {
                 return isCompletedItemUpdate(event, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs);
             });
@@ -1577,10 +1577,10 @@ namespace {
                             expect(eventCountAfter(observerA, pendingBaselineA, "request.resolved") == 6 &&
                                        eventCountAfter(observerB, pendingBaselineB, "request.resolved") == 6,
                                    "Frontend Protocol v1 retains one request.resolved event per invalidated pending occurrence");
-                            adapter->close("burst test complete");
+                            service->close("burst test complete");
                             backendCore->stop();
                             waitUntil(
-                                "burst BackendCore reaches Stopped after adapter isolation checks",
+                                "burst BackendCore reaches Stopped after service isolation checks",
                                 [this]() {
                                     return backendCore->snapshot().provider.lifecycle == backend::ProviderLifecycle::Stopped;
                                 },
@@ -1596,15 +1596,15 @@ namespace {
                 return;
             }
             finished = true;
-            if (adapter) {
-                adapter->close("frontend burst runner finished");
+            if (service) {
+                service->close("frontend burst runner finished");
             }
             if (backendCore) {
                 backendCore->stop();
             }
             connectionA.reset();
             connectionB.reset();
-            adapter.reset();
+            service.reset();
             backendCore.reset();
             core::SNodeC::stop();
         }
@@ -1631,7 +1631,7 @@ namespace {
         static constexpr std::int64_t userMessageStartedAtMs = 30;
         static constexpr std::int64_t userMessageCompletedAtMs = 40;
         const std::string unknownItemId = "unknown-item-burst";
-        const std::string unknownItemType = "futureAdapterItem";
+        const std::string unknownItemType = "futureServiceItem";
         static constexpr std::int64_t unknownItemStartedAtMs = 50;
         static constexpr std::int64_t unknownItemCompletedAtMs = 60;
         const std::vector<LegacyMetadataItemFixture> legacyMetadataItems = legacyMetadataItemFixtures();
@@ -1639,7 +1639,7 @@ namespace {
         tests::support::TestResult& result;
         std::shared_ptr<tests::codex::FakeTransportState> transport;
         std::unique_ptr<FakeBackendCore> backendCore;
-        std::unique_ptr<frontend::BackendAdapter> adapter;
+        std::unique_ptr<frontend::FrontendService> service;
         std::optional<frontend::FrontendConnection> connectionA;
         std::optional<frontend::FrontendConnection> connectionB;
         Observations observerA;
@@ -1681,11 +1681,11 @@ int main(int argc, char* argv[]) {
     int returnCode = tests::support::cTestSkipReturnCode;
 
     if (tests::support::shouldSkipRootWithoutSNodeCGroup()) {
-        tests::support::printRootWithoutSNodeCGroupSkipMessage("CodexFrontendAdapterTest");
+        tests::support::printRootWithoutSNodeCGroupSkipMessage("CodexFrontendServiceTest");
     } else {
         core::SNodeC::init(argc, argv);
         testCoalescingAndBounds(result);
-        testAdapterHandshakeRolesReplayAndIsolation(result);
+        testServiceHandshakeRolesReplayAndIsolation(result);
         testCapabilityDiscoveryHandshake(result);
         testSnapshotReplayBarrier(result);
         testCapacityOnlySnapshotFeedback(result);
@@ -1703,7 +1703,7 @@ int main(int argc, char* argv[]) {
                           "frontend 1,000-delta scenario completes before the watchdog (last stage: " + runner.waitingStage() + "; " +
                               runner.terminalProgress() + ")");
         result.expectTrue(runner.isFinished(), "frontend 1,000-delta scenario reaches a clean terminal state");
-        result.expectEqual(0, eventLoopResult, "frontend adapter event loop exits cleanly");
+        result.expectEqual(0, eventLoopResult, "frontend service event loop exits cleanly");
 
         core::SNodeC::free();
         returnCode = result.processResult();

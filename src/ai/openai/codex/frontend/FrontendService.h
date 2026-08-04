@@ -5,8 +5,8 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#ifndef AI_OPENAI_CODEX_FRONTEND_BACKENDADAPTER_H
-#define AI_OPENAI_CODEX_FRONTEND_BACKENDADAPTER_H
+#ifndef AI_OPENAI_CODEX_FRONTEND_FRONTENDSERVICE_H
+#define AI_OPENAI_CODEX_FRONTEND_FRONTENDSERVICE_H
 
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
@@ -44,13 +44,13 @@ namespace ai::openai::codex::frontend {
         Closed onClosed;
     };
 
-    struct BackendAdapterOptions {
+    struct FrontendServiceOptions {
         EventJournalConfig journal;
         UpdateBatchConfig batches;
         EventCoalescerConfig coalescer;
-        std::size_t maxOutboundMessagesPerConnection = DefaultAdapterMaxOutboundMessages;
-        std::size_t maxOutboundBytesPerConnection = DefaultAdapterMaxOutboundBytes;
-        std::size_t maxMessagesPerDelivery = DefaultAdapterMaxMessagesPerDelivery;
+        std::size_t maxOutboundMessagesPerConnection = DefaultFrontendServiceMaxOutboundMessages;
+        std::size_t maxOutboundBytesPerConnection = DefaultFrontendServiceMaxOutboundBytes;
+        std::size_t maxMessagesPerDelivery = DefaultFrontendServiceMaxMessagesPerDelivery;
         std::function<void(std::function<void()>)> scheduler;
     };
 
@@ -65,7 +65,7 @@ namespace ai::openai::codex::frontend {
         }
     };
 
-    class BackendAdapter;
+    class FrontendService;
 
     class FrontendConnection {
     public:
@@ -92,7 +92,7 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] std::size_t queuedBytes() const noexcept;
 
     private:
-        friend class BackendAdapter;
+        friend class FrontendService;
         struct Control;
 
         explicit FrontendConnection(std::shared_ptr<Control> control) noexcept;
@@ -100,24 +100,24 @@ namespace ai::openai::codex::frontend {
         std::shared_ptr<Control> control;
     };
 
-    class BackendAdapter {
+    class FrontendService {
     public:
         template <typename ClientT>
-        explicit BackendAdapter(backend::BackendCore<ClientT>& backend, BackendAdapterOptions options = {})
-            : BackendAdapter(backend.implementation(), std::move(options)) {
+        explicit FrontendService(backend::BackendCore<ClientT>& backend, FrontendServiceOptions options = {})
+            : FrontendService(backend.implementation(), std::move(options)) {
         }
 
-        BackendAdapter(const BackendAdapter&) = delete;
-        BackendAdapter(BackendAdapter&&) = delete;
+        FrontendService(const FrontendService&) = delete;
+        FrontendService(FrontendService&&) = delete;
 
-        BackendAdapter& operator=(const BackendAdapter&) = delete;
-        BackendAdapter& operator=(BackendAdapter&&) = delete;
+        FrontendService& operator=(const FrontendService&) = delete;
+        FrontendService& operator=(FrontendService&&) = delete;
 
-        ~BackendAdapter();
+        ~FrontendService();
 
         [[nodiscard]] FrontendConnection openConnection(FrontendConnectionCallbacks callbacks);
         void flush();
-        void close(std::string reason = "frontend adapter closed") noexcept;
+        void close(std::string reason = "frontend service closed") noexcept;
 
         [[nodiscard]] bool isOpen() const noexcept;
         [[nodiscard]] bool flushScheduled() const noexcept;
@@ -129,7 +129,7 @@ namespace ai::openai::codex::frontend {
     private:
         friend class FrontendConnection;
 
-        explicit BackendAdapter(backend::detail::BackendCoreRuntime& backend, BackendAdapterOptions options);
+        explicit FrontendService(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions options);
 
         class Impl;
         std::shared_ptr<Impl> impl;
@@ -137,4 +137,4 @@ namespace ai::openai::codex::frontend {
 
 } // namespace ai::openai::codex::frontend
 
-#endif // AI_OPENAI_CODEX_FRONTEND_BACKENDADAPTER_H
+#endif // AI_OPENAI_CODEX_FRONTEND_FRONTENDSERVICE_H

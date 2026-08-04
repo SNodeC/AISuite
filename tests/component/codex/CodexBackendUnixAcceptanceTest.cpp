@@ -967,14 +967,15 @@ int main(int argc, char* argv[]) {
             backendOptions.initialThreadListLimit = 2;
             backendOptions.maxEventsPerCallback = 512;
             FakeBackendCore backendCore(backendOptions, transport);
+            frontend::FrontendService frontendService(backendCore);
 
             apps::codex_backend::SocketFrontendOptions frontendOptions;
             frontendOptions.maximumFrameSize = MaximumFrameSize;
             frontendOptions.maximumOutboundBytes = 2U * 1024U * 1024U;
             const net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
-                                                        FakeBackendCore&,
+                                                        frontend::FrontendService&,
                                                         apps::codex_backend::SocketFrontendOptions>
-                server("codex-backend-acceptance-server", backendCore, std::move(frontendOptions));
+                server("codex-backend-acceptance-server", frontendService, std::move(frontendOptions));
             server.getConfig()->Instance::forceUnrequired();
 
             AcceptanceScenario scenario(result, backendCore, transport);

@@ -23,7 +23,7 @@
 #include <utility>
 
 namespace ai::openai::codex::frontend {
-    class BackendAdapter;
+    class FrontendService;
 }
 
 namespace ai::openai::codex::backend {
@@ -159,7 +159,7 @@ namespace ai::openai::codex::backend {
         }
 
     private:
-        friend class ai::openai::codex::frontend::BackendAdapter;
+        friend class ai::openai::codex::frontend::FrontendService;
 
         [[nodiscard]] detail::BackendCoreRuntime& implementation() noexcept {
             return runtime;

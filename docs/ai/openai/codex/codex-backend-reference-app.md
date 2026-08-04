@@ -17,7 +17,7 @@ ai::openai::codex::stdio::Client
                   ↓
              BackendCore
                   ↓
-      frontend::BackendAdapter
+      frontend::FrontendService
                   ↓
 net::un::stream::legacy::SocketServer
                   ↓
@@ -104,7 +104,7 @@ The helper yields a
 `net::un::stream::legacy::SocketServer<CodexFrontendSocketContextFactory,
 BackendCore<stdio::Client>&>`. The factory derives from
 `core::socket::stream::SocketContextFactory`, owns one reusable
-`frontend::BackendAdapter`, and constructs one
+`frontend::FrontendService`, and constructs one
 `CodexFrontendSocketContext` per accepted socket.
 
 `main()` performs this ordering:
@@ -423,7 +423,7 @@ connection open.
 
 ## Coalescing and outbound backpressure
 
-The factory's shared `BackendAdapter` subscribes once to BackendCore. Raw text,
+The factory's shared `FrontendService` subscribes once to BackendCore. Raw text,
 reasoning, and command-output deltas have already accumulated in canonical
 state before the adapter sees their backend transition. The adapter marks the
 specific entity/channel dirty, schedules only one next-tick flush, replaces
@@ -434,7 +434,7 @@ events and 8 MiB, never the raw token stream.
 
 There are two independent per-client backpressure boundaries:
 
-- `BackendAdapter` allows at most 512 queued protocol messages and 11 MiB of
+- `FrontendService` allows at most 512 queued protocol messages and 11 MiB of
   compact serialized JSON per connection, delivering at most 64 messages in
   one event-loop callback;
 - `CodexFrontendSocketContext` allows at most 13 MiB outstanding in that Unix

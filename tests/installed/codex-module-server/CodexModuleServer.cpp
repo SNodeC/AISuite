@@ -9,7 +9,7 @@
 #include <ai/openai/codex/backend/BackendCore.h>
 #include <ai/openai/codex/backend/BackendState.h>
 #include <ai/openai/codex/backend/Snapshot.h>
-#include <ai/openai/codex/frontend/BackendAdapter.h>
+#include <ai/openai/codex/frontend/FrontendService.h>
 #include <ai/openai/codex/frontend/GeneratedProtocol.h>
 #include <ai/openai/codex/frontend/Security.h>
 #include <ai/openai/codex/stdio/Client.h>
@@ -67,7 +67,7 @@ namespace {
 
     class ModuleSocketContext final : public core::socket::stream::SocketContext {
     public:
-        ModuleSocketContext(core::socket::stream::SocketConnection* socketConnection, codex::frontend::BackendAdapter& adapter)
+        ModuleSocketContext(core::socket::stream::SocketConnection* socketConnection, codex::frontend::FrontendService& adapter)
             : core::socket::stream::SocketContext(socketConnection)
             , adapter(adapter) {
         }
@@ -101,13 +101,13 @@ namespace {
             return true;
         }
 
-        codex::frontend::BackendAdapter& adapter;
+        codex::frontend::FrontendService& adapter;
         codex::frontend::FrontendConnection connection;
     };
 
     class ModuleSocketContextFactory final : public core::socket::stream::SocketContextFactory {
     public:
-        explicit ModuleSocketContextFactory(codex::frontend::BackendAdapter& adapter)
+        explicit ModuleSocketContextFactory(codex::frontend::FrontendService& adapter)
             : adapter(adapter) {
         }
 
@@ -116,7 +116,7 @@ namespace {
         }
 
     private:
-        codex::frontend::BackendAdapter& adapter;
+        codex::frontend::FrontendService& adapter;
     };
 } // namespace
 
@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
     const std::filesystem::path socketPath = std::filesystem::current_path() / "aisuite-module-consumer.sock";
     {
         codex::backend::BackendCore<codex::stdio::Client> backend;
-        codex::frontend::BackendAdapter adapter(backend);
+        codex::frontend::FrontendService adapter(backend);
         auto server = net::un::stream::legacy::Server<ModuleSocketContextFactory>(
             "aisuite-installed-module-server",
             [&socketPath](net::un::stream::legacy::config::ConfigSocketServer* config) {

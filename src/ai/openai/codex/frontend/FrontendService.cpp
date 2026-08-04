@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex/frontend/BackendAdapter.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 
 #include "ai/openai/codex/Protocol.h"
 #include "ai/openai/codex/backend/BackendCommand.h"
@@ -502,136 +502,136 @@ namespace ai::openai::codex::frontend {
 
         BackendCommandMapping mapBackendCommand(const CommandParameters& parameters) {
             return std::visit(
-                Overloaded{
-                    [](const ControllerAcquire&) -> BackendCommandMapping {
-                        return backend::ControllerAcquire{};
-                    },
-                    [](const ControllerRelease&) -> BackendCommandMapping {
-                        return backend::ControllerRelease{};
-                    },
-                    [](const SnapshotGet&) -> BackendCommandMapping {
-                        return backend::SnapshotGet{};
-                    },
-                    [](const ReplayAfter&) -> BackendCommandMapping {
-                        return CommandMappingError{"events.replay is owned by the frontend journal"};
-                    },
-                    [](const ThreadStart& value) -> BackendCommandMapping {
-                        typed::ThreadStartParams params;
-                        params.cwd = value.cwd;
-                        if (value.model.has_value()) {
-                            params.model = typed::ModelId{*value.model};
-                        }
-                        params.modelProvider = value.modelProvider;
-                        if (value.approvalPolicy.has_value()) {
-                            params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
-                        }
-                        if (value.sandboxMode.has_value()) {
-                            params.sandbox = typed::SandboxMode{*value.sandboxMode};
-                        }
-                        params.ephemeral = value.ephemeral;
-                        return backend::ThreadStart{std::move(params)};
-                    },
-                    [](const ThreadResume& value) -> BackendCommandMapping {
-                        typed::ThreadResumeParams params;
-                        params.threadId = typed::ThreadId{value.threadId};
-                        params.cwd = value.cwd;
-                        if (value.model.has_value()) {
-                            params.model = typed::ModelId{*value.model};
-                        }
-                        params.modelProvider = value.modelProvider;
-                        if (value.approvalPolicy.has_value()) {
-                            params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
-                        }
-                        if (value.sandboxMode.has_value()) {
-                            params.sandbox = typed::SandboxMode{*value.sandboxMode};
-                        }
-                        return backend::ThreadResume{std::move(params)};
-                    },
-                    [](const ThreadList& value) -> BackendCommandMapping {
-                        typed::ThreadListParams params;
-                        params.cursor = value.cursor;
-                        params.limit = value.limit;
-                        params.archived = value.archived;
-                        params.searchTerm = value.searchTerm;
-                        return backend::ThreadList{std::move(params)};
-                    },
-                    [](const ThreadRead& value) -> BackendCommandMapping {
-                        return backend::ThreadRead{typed::ThreadReadParams{typed::ThreadId{value.threadId}, value.includeTurns}};
-                    },
-                    [](const TurnStart& value) -> BackendCommandMapping {
-                        backend::TurnStart start;
-                        start.params.threadId = typed::ThreadId{value.threadId};
-                        start.params.input.reserve(value.input.size());
-                        for (const TurnInput& input : value.input) {
-                            start.params.input.push_back(typedTurnInput(input));
-                        }
-                        start.params.cwd = value.cwd;
-                        if (value.model.has_value()) {
-                            start.params.model = typed::ModelId{*value.model};
-                        }
-                        if (value.reasoningEffort.has_value()) {
-                            start.params.effort = typed::ReasoningEffort{*value.reasoningEffort};
-                        }
-                        if (value.approvalPolicy.has_value()) {
-                            start.params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
-                        }
-                        if (value.sandboxPolicy.has_value()) {
-                            start.params.sandboxPolicy = typedSandboxPolicy(*value.sandboxPolicy);
-                        }
-                        return start;
-                    },
-                    [](const TurnInterrupt& value) -> BackendCommandMapping {
-                        return backend::TurnInterrupt{
-                            typed::TurnInterruptParams{typed::ThreadId{value.threadId}, typed::TurnId{value.turnId}}};
-                    },
-                    [](const ApprovalRespond& value) -> BackendCommandMapping {
-                        const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                        if (!requestId.has_value()) {
-                            return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                        }
-                        return backend::ApprovalRespond{*requestId, typed::ApprovalDecision{value.decision}};
-                    },
-                    [](const UserInputRespond& value) -> BackendCommandMapping {
-                        const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                        if (!requestId.has_value()) {
-                            return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                        }
-                        std::vector<typed::UserInputAnswer> answers;
-                        answers.reserve(value.answers.size());
-                        for (const UserInputAnswer& answer : value.answers) {
-                            answers.push_back({answer.questionId, answer.answers});
-                        }
-                        return backend::UserInputRespond{*requestId, std::move(answers)};
-                    },
-                    [](const AuthenticationRespond& value) -> BackendCommandMapping {
-                        const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                        if (!requestId.has_value()) {
-                            return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                        }
-                        return backend::AuthenticationRespond{
-                            *requestId, typed::AuthenticationResponse{value.accessToken, value.chatgptAccountId, value.chatgptPlanType}};
-                    },
-                    [](const UnknownRequestRespond& value) -> BackendCommandMapping {
-                        const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                        if (!requestId.has_value()) {
-                            return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                        }
-                        return backend::UnknownRequestRespondRaw{*requestId, value.result};
-                    },
-                    [](const UnknownRequestReject& value) -> BackendCommandMapping {
-                        const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                        if (!requestId.has_value()) {
-                            return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                        }
-                        return backend::UnknownRequestReject{*requestId, ProtocolError{value.code, value.message, value.data}};
-                    }},
+                Overloaded{[](const ControllerAcquire&) -> BackendCommandMapping {
+                               return backend::ControllerAcquire{};
+                           },
+                           [](const ControllerRelease&) -> BackendCommandMapping {
+                               return backend::ControllerRelease{};
+                           },
+                           [](const SnapshotGet&) -> BackendCommandMapping {
+                               return backend::SnapshotGet{};
+                           },
+                           [](const ReplayAfter&) -> BackendCommandMapping {
+                               return CommandMappingError{"events.replay is owned by the frontend journal"};
+                           },
+                           [](const ThreadStart& value) -> BackendCommandMapping {
+                               typed::ThreadStartParams params;
+                               params.cwd = value.cwd;
+                               if (value.model.has_value()) {
+                                   params.model = typed::ModelId{*value.model};
+                               }
+                               params.modelProvider = value.modelProvider;
+                               if (value.approvalPolicy.has_value()) {
+                                   params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
+                               }
+                               if (value.sandboxMode.has_value()) {
+                                   params.sandbox = typed::SandboxMode{*value.sandboxMode};
+                               }
+                               params.ephemeral = value.ephemeral;
+                               return backend::ThreadStart{std::move(params)};
+                           },
+                           [](const ThreadResume& value) -> BackendCommandMapping {
+                               typed::ThreadResumeParams params;
+                               params.threadId = typed::ThreadId{value.threadId};
+                               params.cwd = value.cwd;
+                               if (value.model.has_value()) {
+                                   params.model = typed::ModelId{*value.model};
+                               }
+                               params.modelProvider = value.modelProvider;
+                               if (value.approvalPolicy.has_value()) {
+                                   params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
+                               }
+                               if (value.sandboxMode.has_value()) {
+                                   params.sandbox = typed::SandboxMode{*value.sandboxMode};
+                               }
+                               return backend::ThreadResume{std::move(params)};
+                           },
+                           [](const ThreadList& value) -> BackendCommandMapping {
+                               typed::ThreadListParams params;
+                               params.cursor = value.cursor;
+                               params.limit = value.limit;
+                               params.archived = value.archived;
+                               params.searchTerm = value.searchTerm;
+                               return backend::ThreadList{std::move(params)};
+                           },
+                           [](const ThreadRead& value) -> BackendCommandMapping {
+                               return backend::ThreadRead{typed::ThreadReadParams{typed::ThreadId{value.threadId}, value.includeTurns}};
+                           },
+                           [](const TurnStart& value) -> BackendCommandMapping {
+                               backend::TurnStart start;
+                               start.params.threadId = typed::ThreadId{value.threadId};
+                               start.params.input.reserve(value.input.size());
+                               for (const TurnInput& input : value.input) {
+                                   start.params.input.push_back(typedTurnInput(input));
+                               }
+                               start.params.cwd = value.cwd;
+                               if (value.model.has_value()) {
+                                   start.params.model = typed::ModelId{*value.model};
+                               }
+                               if (value.reasoningEffort.has_value()) {
+                                   start.params.effort = typed::ReasoningEffort{*value.reasoningEffort};
+                               }
+                               if (value.approvalPolicy.has_value()) {
+                                   start.params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
+                               }
+                               if (value.sandboxPolicy.has_value()) {
+                                   start.params.sandboxPolicy = typedSandboxPolicy(*value.sandboxPolicy);
+                               }
+                               return start;
+                           },
+                           [](const TurnInterrupt& value) -> BackendCommandMapping {
+                               return backend::TurnInterrupt{
+                                   typed::TurnInterruptParams{typed::ThreadId{value.threadId}, typed::TurnId{value.turnId}}};
+                           },
+                           [](const ApprovalRespond& value) -> BackendCommandMapping {
+                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
+                               if (!requestId.has_value()) {
+                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
+                               }
+                               return backend::ApprovalRespond{*requestId, typed::ApprovalDecision{value.decision}};
+                           },
+                           [](const UserInputRespond& value) -> BackendCommandMapping {
+                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
+                               if (!requestId.has_value()) {
+                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
+                               }
+                               std::vector<typed::UserInputAnswer> answers;
+                               answers.reserve(value.answers.size());
+                               for (const UserInputAnswer& answer : value.answers) {
+                                   answers.push_back({answer.questionId, answer.answers});
+                               }
+                               return backend::UserInputRespond{*requestId, std::move(answers)};
+                           },
+                           [](const AuthenticationRespond& value) -> BackendCommandMapping {
+                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
+                               if (!requestId.has_value()) {
+                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
+                               }
+                               return backend::AuthenticationRespond{
+                                   *requestId,
+                                   typed::AuthenticationResponse{value.accessToken, value.chatgptAccountId, value.chatgptPlanType}};
+                           },
+                           [](const UnknownRequestRespond& value) -> BackendCommandMapping {
+                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
+                               if (!requestId.has_value()) {
+                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
+                               }
+                               return backend::UnknownRequestRespondRaw{*requestId, value.result};
+                           },
+                           [](const UnknownRequestReject& value) -> BackendCommandMapping {
+                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
+                               if (!requestId.has_value()) {
+                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
+                               }
+                               return backend::UnknownRequestReject{*requestId, ProtocolError{value.code, value.message, value.data}};
+                           }},
                 parameters);
         }
 
     } // namespace
 
     struct FrontendConnection::Control {
-        std::weak_ptr<BackendAdapter::Impl> adapter;
+        std::weak_ptr<FrontendService::Impl> service;
         std::uint64_t localId = 0;
         FrontendConnectionCallbacks callbacks;
         std::optional<backend::FrontendSession> backendSession;
@@ -645,16 +645,16 @@ namespace ai::openai::codex::frontend {
         bool closedNotified = false;
     };
 
-    class BackendAdapter::Impl : public std::enable_shared_from_this<BackendAdapter::Impl> {
+    class FrontendService::Impl : public std::enable_shared_from_this<FrontendService::Impl> {
     public:
-        Impl(backend::detail::BackendCoreRuntime& backend, BackendAdapterOptions options)
+        Impl(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions options)
             : backendCore(&backend)
-            , adapterOptions(std::move(options))
-            , journal(adapterOptions.journal)
-            , batchBuilder(adapterOptions.batches)
-            , coalescer(adapterOptions.coalescer) {
-            if (!adapterOptions.scheduler) {
-                adapterOptions.scheduler = [](std::function<void()> callback) {
+            , serviceOptions(std::move(options))
+            , journal(serviceOptions.journal)
+            , batchBuilder(serviceOptions.batches)
+            , coalescer(serviceOptions.coalescer) {
+            if (!serviceOptions.scheduler) {
+                serviceOptions.scheduler = [](std::function<void()> callback) {
                     core::EventReceiver::atNextTick(callback);
                 };
             }
@@ -683,7 +683,7 @@ namespace ai::openai::codex::frontend {
                 return FrontendConnection{};
             }
             auto control = std::make_shared<FrontendConnection::Control>();
-            control->adapter = shared_from_this();
+            control->service = shared_from_this();
             control->localId = ++nextConnectionId;
             control->callbacks = std::move(callbacks);
             connections.emplace(control->localId, control);
@@ -692,7 +692,7 @@ namespace ai::openai::codex::frontend {
 
         void schedule(std::function<void()> callback) noexcept {
             try {
-                adapterOptions.scheduler(callback);
+                serviceOptions.scheduler(callback);
             } catch (...) {
                 // Preserve ordered asynchronous delivery even when an
                 // injected scheduler rejects a callback.
@@ -715,10 +715,10 @@ namespace ai::openai::codex::frontend {
                 return false;
             }
             const std::size_t size = serialized.value().size();
-            if (adapterOptions.maxOutboundMessagesPerConnection == 0 ||
-                control->outbound.size() >= adapterOptions.maxOutboundMessagesPerConnection ||
-                size > adapterOptions.maxOutboundBytesPerConnection ||
-                control->outboundBytes > adapterOptions.maxOutboundBytesPerConnection - size) {
+            if (serviceOptions.maxOutboundMessagesPerConnection == 0 ||
+                control->outbound.size() >= serviceOptions.maxOutboundMessagesPerConnection ||
+                size > serviceOptions.maxOutboundBytesPerConnection ||
+                control->outboundBytes > serviceOptions.maxOutboundBytesPerConnection - size) {
                 closeControl(control, "frontend outbound backpressure limit exceeded");
                 return false;
             }
@@ -754,7 +754,7 @@ namespace ai::openai::codex::frontend {
             if (!control->open) {
                 return;
             }
-            const std::size_t deliveryLimit = adapterOptions.maxMessagesPerDelivery;
+            const std::size_t deliveryLimit = serviceOptions.maxMessagesPerDelivery;
             if (deliveryLimit == 0) {
                 closeControl(control, "frontend delivery limit is zero");
                 return;
@@ -1687,7 +1687,7 @@ namespace ai::openai::codex::frontend {
         }
 
         backend::detail::BackendCoreRuntime* backendCore;
-        BackendAdapterOptions adapterOptions;
+        FrontendServiceOptions serviceOptions;
         EventJournal journal;
         UpdateBatchBuilder batchBuilder;
         EventCoalescer coalescer;
@@ -1730,12 +1730,12 @@ namespace ai::openai::codex::frontend {
         if (control->closeAfterDelivery) {
             return {ConnectionReceiveStatus::Closing, std::nullopt};
         }
-        const auto adapter = control->adapter.lock();
-        if (!adapter) {
+        const auto service = control->service.lock();
+        if (!service) {
             control->open = false;
             return {ConnectionReceiveStatus::Closed, std::nullopt};
         }
-        return adapter->receive(control, message);
+        return service->receive(control, message);
     }
 
     ConnectionReceiveResult FrontendConnection::receive(const Json& message) noexcept {
@@ -1773,20 +1773,20 @@ namespace ai::openai::codex::frontend {
         if (control->closeAfterDelivery) {
             return {ConnectionReceiveStatus::Closing, std::move(error)};
         }
-        const auto adapter = control->adapter.lock();
-        if (!adapter) {
+        const auto service = control->service.lock();
+        if (!service) {
             control->open = false;
             return {ConnectionReceiveStatus::Closed, std::move(error)};
         }
-        return adapter->receiveError(control, std::move(error));
+        return service->receiveError(control, std::move(error));
     }
 
     void FrontendConnection::close(std::string reason) noexcept {
         if (!control) {
             return;
         }
-        if (const auto adapter = control->adapter.lock()) {
-            adapter->closeControl(control, std::move(reason));
+        if (const auto service = control->service.lock()) {
+            service->closeControl(control, std::move(reason));
         } else {
             control->open = false;
             control->outbound.clear();
@@ -1819,53 +1819,53 @@ namespace ai::openai::codex::frontend {
         return control ? control->outboundBytes : 0;
     }
 
-    BackendAdapter::BackendAdapter(backend::detail::BackendCoreRuntime& backend, BackendAdapterOptions options)
+    FrontendService::FrontendService(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions options)
         : impl(std::make_shared<Impl>(backend, std::move(options))) {
         impl->initialize();
     }
 
-    BackendAdapter::~BackendAdapter() {
+    FrontendService::~FrontendService() {
         close();
     }
 
-    FrontendConnection BackendAdapter::openConnection(FrontendConnectionCallbacks callbacks) {
+    FrontendConnection FrontendService::openConnection(FrontendConnectionCallbacks callbacks) {
         return impl ? impl->openConnection(std::move(callbacks)) : FrontendConnection{};
     }
 
-    void BackendAdapter::flush() {
+    void FrontendService::flush() {
         if (impl) {
             impl->flushNow();
         }
     }
 
-    void BackendAdapter::close(std::string reason) noexcept {
+    void FrontendService::close(std::string reason) noexcept {
         if (impl) {
             impl->shutdown(std::move(reason));
             impl.reset();
         }
     }
 
-    bool BackendAdapter::isOpen() const noexcept {
+    bool FrontendService::isOpen() const noexcept {
         return impl && impl->isOpen();
     }
 
-    bool BackendAdapter::flushScheduled() const noexcept {
+    bool FrontendService::flushScheduled() const noexcept {
         return impl && impl->isFlushScheduled();
     }
 
-    SequenceNumber BackendAdapter::currentSequence() const noexcept {
+    SequenceNumber FrontendService::currentSequence() const noexcept {
         return impl ? impl->journal.currentSequence() : SequenceNumber{};
     }
 
-    std::size_t BackendAdapter::connectionCount() const noexcept {
+    std::size_t FrontendService::connectionCount() const noexcept {
         return impl ? impl->connectionCount() : 0;
     }
 
-    EventJournalConfig BackendAdapter::journalConfig() const noexcept {
+    EventJournalConfig FrontendService::journalConfig() const noexcept {
         return impl ? impl->journal.config() : EventJournalConfig{};
     }
 
-    UpdateBatchConfig BackendAdapter::batchConfig() const noexcept {
+    UpdateBatchConfig FrontendService::batchConfig() const noexcept {
         return impl ? impl->batchBuilder.config() : UpdateBatchConfig{};
     }
 

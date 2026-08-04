@@ -777,7 +777,7 @@ Protocol v1 defines JSON values, not record framing or a socket. The reference
 application uses compact newline-delimited JSON, documented in
 [Codex backend reference application](codex-backend-reference-app.md). An
 in-process consumer, future WebSocket adapter, or other transport can use the
-same `Codec` and `BackendAdapter` without inheriting JSONL.
+same `Codec` and `FrontendService` without inheriting JSONL.
 
 The original frontend slice did not implement provider recovery. A1.6a added
 event-loop-native provider recovery to the reference backend without changing

@@ -31,10 +31,10 @@ namespace apps::codex_backend {
     };
 
     CodexFrontendSocketContext::CodexFrontendSocketContext(core::socket::stream::SocketConnection* socketConnection,
-                                                           ai::openai::codex::frontend::BackendAdapter& adapter,
+                                                           ai::openai::codex::frontend::FrontendService& service,
                                                            SocketFrontendOptions options)
         : core::socket::stream::SocketContext(socketConnection)
-        , adapter(adapter)
+        , service(service)
         , options(options)
         , framer(options.maximumFrameSize)
         , lifetime(std::make_shared<Lifetime>()) {
@@ -45,14 +45,14 @@ namespace apps::codex_backend {
         try {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             frontendConnection =
-                adapter.openConnection(FrontendConnectionCallbacks{[weakLifetime](const OutboundMessage& message) {
+                service.openConnection(FrontendConnectionCallbacks{[weakLifetime](const OutboundMessage& message) {
                                                                        const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                                        return locked && locked->context && locked->context->send(message);
                                                                    },
                                                                    [weakLifetime](const std::string& reason) {
                                                                        const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                                        if (locked && locked->context) {
-                                                                           locked->context->adapterClosed(reason);
+                                                                           locked->context->serviceClosed(reason);
                                                                        }
                                                                    }});
         } catch (const std::exception& exception) {
@@ -90,7 +90,7 @@ namespace apps::codex_backend {
                     inputBlocked = true;
                 } else if (receiveResult.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closed) {
                     inputBlocked = true;
-                    adapterClosed("frontend connection already closed");
+                    serviceClosed("frontend connection already closed");
                 }
             });
             if (frameResult == JsonLineFramer::Result::FrameTooLarge) {
@@ -135,7 +135,7 @@ namespace apps::codex_backend {
         }
     }
 
-    void CodexFrontendSocketContext::adapterClosed([[maybe_unused]] const std::string& reason) noexcept {
+    void CodexFrontendSocketContext::serviceClosed([[maybe_unused]] const std::string& reason) noexcept {
         if (disconnecting) {
             return;
         }
@@ -164,7 +164,7 @@ namespace apps::codex_backend {
         if (result.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closing) {
             inputBlocked = true;
         } else if (result.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closed) {
-            adapterClosed("frontend protocol error");
+            serviceClosed("frontend protocol error");
         }
     }
 

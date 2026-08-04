@@ -13,7 +13,7 @@ namespace apps::codex_backend {
 
     core::socket::stream::SocketContext*
     CodexFrontendSocketContextFactory::create(core::socket::stream::SocketConnection* socketConnection) {
-        return new CodexFrontendSocketContext(socketConnection, adapter, options);
+        return new CodexFrontendSocketContext(socketConnection, service, options);
     }
 
 } // namespace apps::codex_backend

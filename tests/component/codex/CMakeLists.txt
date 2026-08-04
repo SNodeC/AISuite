@@ -1496,16 +1496,16 @@ set_tests_properties(
                TIMEOUT 20
 )
 
-snodec_add_test(CodexFrontendAdapterTest CodexFrontendAdapterTest.cpp)
+snodec_add_test(CodexFrontendServiceTest CodexFrontendServiceTest.cpp)
 target_link_libraries(
-    CodexFrontendAdapterTest
+    CodexFrontendServiceTest
     PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
 )
-target_compile_features(CodexFrontendAdapterTest PRIVATE cxx_std_20)
+target_compile_features(CodexFrontendServiceTest PRIVATE cxx_std_20)
 set_tests_properties(
-    CodexFrontendAdapterTest
+    CodexFrontendServiceTest
     PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;adapter;coalescing;session"
+               "component;ai;openai;codex;frontend;service;coalescing;session"
                SKIP_RETURN_CODE 77 TIMEOUT 15
 )
 

@@ -302,8 +302,8 @@ namespace {
             queuedBytes += batch.serializedBytes;
         }
         const std::size_t queuedMessages = batches.batches.size() + 2;
-        result.expectTrue(boundedBatches && queuedBytes > DefaultJournalMaxBytes && queuedBytes <= DefaultAdapterMaxOutboundBytes &&
-                              queuedMessages <= DefaultAdapterMaxOutboundMessages,
+        result.expectTrue(boundedBatches && queuedBytes > DefaultJournalMaxBytes && queuedBytes <= DefaultFrontendServiceMaxOutboundBytes &&
+                              queuedMessages <= DefaultFrontendServiceMaxOutboundMessages,
                           "default adapter headroom accepts exact batch/control overhead for a near-8 MiB retained replay");
     }
 } // namespace
@@ -346,9 +346,8 @@ int main() {
     commands.push_back(command("user-input", UserInputRespond{"42", {{"question-1", {"answer"}}}}));
     commands.push_back(command("authentication", AuthenticationRespond{"43", "secret-token", "account", "plus"}));
     commands.push_back(command("unknown-response", UnknownRequestRespond{"44", Json{{"accepted", false}}}));
-    commands.push_back(command(
-        "unknown-reject",
-        UnknownRequestReject{"45", -32001, "unsupported", std::optional<Json>{Json{{"reason", "test"}}}}));
+    commands.push_back(
+        command("unknown-reject", UnknownRequestReject{"45", -32001, "unsupported", std::optional<Json>{Json{{"reason", "test"}}}}));
 
     for (const Command& value : commands) {
         expectClientRoundTrip(result, ClientMessage{value}, "command " + value.requestId);

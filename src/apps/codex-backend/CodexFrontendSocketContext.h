@@ -8,7 +8,7 @@
 #ifndef APPS_CODEX_BACKEND_CODEXFRONTENDSOCKETCONTEXT_H
 #define APPS_CODEX_BACKEND_CODEXFRONTENDSOCKETCONTEXT_H
 
-#include "ai/openai/codex/frontend/BackendAdapter.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "apps/codex-backend/Configuration.h"
 #include "apps/codex-backend/JsonLineFramer.h"
 #include "core/socket/stream/SocketContext.h"
@@ -30,7 +30,7 @@ namespace apps::codex_backend {
     class CodexFrontendSocketContext final : public core::socket::stream::SocketContext {
     public:
         CodexFrontendSocketContext(core::socket::stream::SocketConnection* socketConnection,
-                                   ai::openai::codex::frontend::BackendAdapter& adapter,
+                                   ai::openai::codex::frontend::FrontendService& service,
                                    SocketFrontendOptions options);
 
     private:
@@ -42,10 +42,10 @@ namespace apps::codex_backend {
         bool onSignal(int signum) override;
 
         bool send(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
-        void adapterClosed(const std::string& reason) noexcept;
+        void serviceClosed(const std::string& reason) noexcept;
         void rejectFrame(ai::openai::codex::frontend::ErrorCode code, std::string message) noexcept;
 
-        ai::openai::codex::frontend::BackendAdapter& adapter;
+        ai::openai::codex::frontend::FrontendService& service;
         SocketFrontendOptions options;
         JsonLineFramer framer;
         ai::openai::codex::frontend::FrontendConnection frontendConnection;

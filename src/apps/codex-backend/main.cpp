@@ -6,6 +6,7 @@
  */
 
 #include "ai/openai/codex/backend/BackendCore.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "ai/openai/codex/stdio/Client.h"
 #include "apps/codex-backend/CodexFrontendSocketContextFactory.h"
 #include "apps/codex-backend/Configuration.h"
@@ -24,6 +25,7 @@ int main(int argc, char* argv[]) {
         ai::openai::codex::backend::BackendCoreOptions backendOptions;
         backendOptions.recovery = recoveryConfiguration.options();
         ai::openai::codex::backend::BackendCore<ai::openai::codex::stdio::Client> backend(std::move(backendOptions));
+        ai::openai::codex::frontend::FrontendService frontendService(backend);
 
         auto socketServer = net::un::stream::legacy::Server<apps::codex_backend::CodexFrontendSocketContextFactory>(
             "codex-backend",
@@ -32,7 +34,7 @@ int main(int argc, char* argv[]) {
                 // the ordinary SNode.C --sun-path/config-file option authoritative.
                 config->Local::setSunPath(apps::codex_backend::defaultSocketPath());
             },
-            backend);
+            frontendService);
         socketServer.listen([&backend](const net::un::SocketAddress& address, core::socket::State state) {
             if (state != core::socket::State::OK) {
                 std::cerr << "codex-backend: failed to listen on Unix socket " << address.toString() << '\n';

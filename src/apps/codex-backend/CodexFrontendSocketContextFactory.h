@@ -8,8 +8,7 @@
 #ifndef APPS_CODEX_BACKEND_CODEXFRONTENDSOCKETCONTEXTFACTORY_H
 #define APPS_CODEX_BACKEND_CODEXFRONTENDSOCKETCONTEXTFACTORY_H
 
-#include "ai/openai/codex/backend/BackendCore.h"
-#include "ai/openai/codex/frontend/BackendAdapter.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "apps/codex-backend/Configuration.h"
 #include "core/socket/stream/SocketContextFactory.h"
 
@@ -19,17 +18,16 @@ namespace apps::codex_backend {
 
     class CodexFrontendSocketContextFactory final : public core::socket::stream::SocketContextFactory {
     public:
-        template <typename ClientT>
-        explicit CodexFrontendSocketContextFactory(ai::openai::codex::backend::BackendCore<ClientT>& backend,
+        explicit CodexFrontendSocketContextFactory(ai::openai::codex::frontend::FrontendService& service,
                                                    SocketFrontendOptions options = {})
-            : adapter(backend)
+            : service(service)
             , options(std::move(options)) {
         }
 
         core::socket::stream::SocketContext* create(core::socket::stream::SocketConnection* socketConnection) override;
 
     private:
-        ai::openai::codex::frontend::BackendAdapter adapter;
+        ai::openai::codex::frontend::FrontendService& service;
         SocketFrontendOptions options;
     };
 

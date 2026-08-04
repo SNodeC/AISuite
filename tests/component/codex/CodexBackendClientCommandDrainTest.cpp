@@ -402,7 +402,7 @@ namespace {
         const frontend::TurnStart* turn = sentParameters<frontend::TurnStart>(harness.sent, 1);
         result.expectTrue(harness.sent.size() == 2 && turn != nullptr && turn->threadId == "thread-fallback" && harness.exitRequests == 0 &&
                               harness.controller.pendingResponseCount() == 1,
-                          "BackendAdapter's threadId fallback is handed to TurnStart and EOF waits for its response");
+                          "FrontendService's threadId fallback is handed to TurnStart and EOF waits for its response");
 
         harness.controller.receive(response("pipe-new-turn"));
         result.expectTrue(harness.sent.size() == 3 && sentParameters<frontend::ThreadList>(harness.sent, 2) != nullptr &&

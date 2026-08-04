@@ -32,7 +32,7 @@ namespace ai::openai::codex::frontend {
     inline constexpr std::size_t DefaultBatchMaxEvents = 64;
     inline constexpr std::size_t DefaultBatchMaxBytes = 256 * 1024;
     inline constexpr std::size_t DefaultMaxDirtyEntities = 4096;
-    inline constexpr std::size_t DefaultAdapterMaxOutboundMessages = 512;
+    inline constexpr std::size_t DefaultFrontendServiceMaxOutboundMessages = 512;
 
     // Journal byte accounting measures compact event objects. Replaying them
     // adds an events-envelope and separators. At most one envelope is needed
@@ -43,23 +43,23 @@ namespace ai::openai::codex::frontend {
     // adapter instead of being rejected by its own backpressure boundary.
     inline constexpr std::size_t DefaultReplayEnvelopeHeadroomPerEntry = 512;
     inline constexpr std::size_t DefaultReplayControlHeadroomBytes = 64 * 1024;
-    inline constexpr std::size_t DefaultAdapterMaxOutboundBytes = 11 * 1024 * 1024;
-    inline constexpr std::size_t DefaultAdapterMaxMessagesPerDelivery = 64;
+    inline constexpr std::size_t DefaultFrontendServiceMaxOutboundBytes = 11 * 1024 * 1024;
+    inline constexpr std::size_t DefaultFrontendServiceMaxMessagesPerDelivery = 64;
 
-    static_assert(DefaultAdapterMaxOutboundBytes >= DefaultJournalMaxBytes +
-                                                        DefaultJournalMaxEntries * DefaultReplayEnvelopeHeadroomPerEntry +
-                                                        DefaultReplayControlHeadroomBytes);
+    static_assert(DefaultFrontendServiceMaxOutboundBytes >= DefaultJournalMaxBytes +
+                                                                DefaultJournalMaxEntries * DefaultReplayEnvelopeHeadroomPerEntry +
+                                                                DefaultReplayControlHeadroomBytes);
 
     inline constexpr std::size_t kDefaultJournalMaxEntries = DefaultJournalMaxEntries;
     inline constexpr std::size_t kDefaultJournalMaxBytes = DefaultJournalMaxBytes;
     inline constexpr std::size_t kDefaultBatchMaxEvents = DefaultBatchMaxEvents;
     inline constexpr std::size_t kDefaultBatchMaxBytes = DefaultBatchMaxBytes;
     inline constexpr std::size_t kDefaultMaxDirtyEntities = DefaultMaxDirtyEntities;
-    inline constexpr std::size_t kDefaultAdapterMaxOutboundMessages = DefaultAdapterMaxOutboundMessages;
+    inline constexpr std::size_t kDefaultFrontendServiceMaxOutboundMessages = DefaultFrontendServiceMaxOutboundMessages;
     inline constexpr std::size_t kDefaultReplayEnvelopeHeadroomPerEntry = DefaultReplayEnvelopeHeadroomPerEntry;
     inline constexpr std::size_t kDefaultReplayControlHeadroomBytes = DefaultReplayControlHeadroomBytes;
-    inline constexpr std::size_t kDefaultAdapterMaxOutboundBytes = DefaultAdapterMaxOutboundBytes;
-    inline constexpr std::size_t kDefaultAdapterMaxMessagesPerDelivery = DefaultAdapterMaxMessagesPerDelivery;
+    inline constexpr std::size_t kDefaultFrontendServiceMaxOutboundBytes = DefaultFrontendServiceMaxOutboundBytes;
+    inline constexpr std::size_t kDefaultFrontendServiceMaxMessagesPerDelivery = DefaultFrontendServiceMaxMessagesPerDelivery;
 
     namespace kind {
         inline constexpr std::string_view Hello = "hello";

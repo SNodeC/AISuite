@@ -59,7 +59,7 @@ namespace apps::codex_backend_client {
                 }
             }
 
-            // BackendAdapter normally returns the normalized thread snapshot
+            // FrontendService normally returns the normalized thread snapshot
             // above. It deliberately falls back to threadId when the just-
             // completed thread is not present in its current snapshot.
             const auto id = result->find("threadId");
