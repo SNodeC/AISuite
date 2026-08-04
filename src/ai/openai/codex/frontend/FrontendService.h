@@ -50,6 +50,8 @@ namespace ai::openai::codex::frontend {
     using FrontendTimerCancellation = std::function<void()>;
     using FrontendTimerScheduler = std::function<FrontendTimerCancellation(std::uint64_t delayMs, std::function<void()> callback)>;
     using FrontendAuthenticator = std::function<AuthenticationResult(const FrontendPeerContext&, const AuthenticationCredential&)>;
+    using FrontendInvocationPolicy =
+        std::function<bool(const FrontendPrincipal&, std::string_view method, const Json& validatedParameters)>;
 
     struct FrontendServiceOptions {
         EventJournalConfig journal;
@@ -73,6 +75,9 @@ namespace ai::openai::codex::frontend {
         bool enableFilesystemReadMethods = false;
         bool enableFilesystemWriteMethods = false;
         bool enableCommandExecutionMethods = false;
+        FrontendInvocationPolicy filesystemReadPolicy;
+        FrontendInvocationPolicy filesystemWritePolicy;
+        FrontendInvocationPolicy commandExecutionPolicy;
         FrontendAuthenticator authenticator;
         std::function<void(std::function<void()>)> scheduler;
         FrontendTimerScheduler timerScheduler;

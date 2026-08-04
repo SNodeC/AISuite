@@ -10,6 +10,7 @@ parses vendored schema, Rust, TypeScript, or an installed Codex binary.
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import math
 import re
@@ -122,12 +123,44 @@ CAPABILITIES = (
     "qt_ui",
 )
 
-FUTURE_CAPABILITIES = frozenset(
+MECHANISM_CAPABILITIES = frozenset(
     {
+        "method_discovery",
+        "security_scopes",
+        "complete_provider_operations",
+        "complete_reverse_requests",
+        "complete_backend_domains",
+        "conditional_filesystem",
+        "conditional_command_execution",
+        "dedicated_pending_requests",
+        "dedicated_notification_events",
+        "complete_thread_items",
         "authenticated_frontend",
         "scope_projected_state",
         "provider_lifecycle",
-        "multi_transport",
+    }
+)
+
+# Commit 3 activates authentication, generated dispatch, all provider/reverse
+# handlers, conditional invocation policy, and provider lifecycle.  The five
+# projection mechanisms are deliberately activated with the canonical journal
+# in commit 4 so no intermediate review commit advertises a mechanism before
+# its runtime path exists.
+IMPLEMENTED_MECHANISM_CAPABILITIES = frozenset(
+    {
+        "method_discovery",
+        "security_scopes",
+        "complete_provider_operations",
+        "complete_reverse_requests",
+        "conditional_filesystem",
+        "conditional_command_execution",
+        "authenticated_frontend",
+        "provider_lifecycle",
+    }
+)
+
+FUTURE_CAPABILITIES = frozenset(
+    {
         "cpp_client_sdk",
         "typescript_client_sdk",
         "browser_ui",
@@ -191,6 +224,7 @@ NATIVE_METHODS = (
         "controllerRequired": False,
         "security": "ControllerRequiredApproved",
         "capability": "method_discovery",
+        "resultType": "ControllerResult",
     },
     {
         "id": "ControllerRelease",
@@ -201,6 +235,7 @@ NATIVE_METHODS = (
         "controllerRequired": True,
         "security": "ControllerRequiredApproved",
         "capability": "method_discovery",
+        "resultType": "ControllerResult",
     },
     {
         "id": "SnapshotGet",
@@ -211,6 +246,7 @@ NATIVE_METHODS = (
         "controllerRequired": False,
         "security": "PublicSynchronizationApproved",
         "capability": "method_discovery",
+        "resultType": "SnapshotSyncResult",
     },
     {
         "id": "EventsReplay",
@@ -221,6 +257,7 @@ NATIVE_METHODS = (
         "controllerRequired": False,
         "security": "PublicSynchronizationApproved",
         "capability": "method_discovery",
+        "resultType": "ReplayResult",
     },
     {
         "id": "ProviderStart",
@@ -231,6 +268,7 @@ NATIVE_METHODS = (
         "controllerRequired": True,
         "security": "PrivilegedScopedApproved",
         "capability": "provider_lifecycle",
+        "resultType": "Unit",
     },
     {
         "id": "ProviderStop",
@@ -241,6 +279,7 @@ NATIVE_METHODS = (
         "controllerRequired": True,
         "security": "PrivilegedScopedApproved",
         "capability": "provider_lifecycle",
+        "resultType": "Unit",
     },
     {
         "id": "ProviderRestart",
@@ -251,6 +290,7 @@ NATIVE_METHODS = (
         "controllerRequired": True,
         "security": "PrivilegedScopedApproved",
         "capability": "provider_lifecycle",
+        "resultType": "Unit",
     },
 )
 
@@ -441,14 +481,17 @@ def provider_methods(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "serviceAction": "",
                 "parameterSchema": schema_name(method_id, "Params"),
                 "resultSchema": schema_name(method_id, "Result"),
+                "resultType": row["operationContract"]["resultType"],
                 "parameterFields": row["parameterShape"]["fields"],
                 "requiredParameterFields": row["parameterShape"]["requiredFields"],
                 "exposure": row["exposure"],
                 "securityDecision": row["securityDecision"],
                 "requiredScopes": scopes,
                 "controllerRequired": row["controllerRequired"],
+                "providerReadyRequired": True,
                 "defaultEnabled": row["defaultEnabled"],
-                "currentlyImplemented": mappings[0] in EXISTING_METHODS,
+                "currentlyImplemented": True,
+                "legacyCompatibilityMethod": mappings[0] in EXISTING_METHODS,
                 "observerAvailability": "observe" in scopes and not row["controllerRequired"],
                 "sensitiveResult": mappings[0] in SENSITIVE_PROVIDER_METHODS,
                 "largeResult": mappings[0] in LARGE_PROVIDER_METHODS,
@@ -465,6 +508,115 @@ def provider_methods(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if len(result) != 86 or len({row["method"] for row in result}) != 86:
         raise GenerationError("provider method mapping must be a collision-free 86-row bijection")
     return result
+
+
+def validate_runtime_authorization(
+    rows: list[dict[str, Any]],
+    methods: list[dict[str, Any]],
+    default_remote_scopes: Sequence[str],
+) -> dict[str, int]:
+    """Freeze A1.7b method availability through two independent authorities."""
+
+    if len(methods) != 105:
+        raise GenerationError("A1.7b authorization inventory must contain 105 defined methods")
+    if sum(bool(row.get("currentlyImplemented")) for row in methods) != 105:
+        raise GenerationError("A1.7b runtime must implement all 105 defined methods")
+    legacy = tuple(row["method"] for row in methods if row.get("legacyCompatibilityMethod"))
+    if legacy != EXISTING_METHODS:
+        raise GenerationError("the original 15-method legacy compatibility set changed")
+
+    available = [row for row in methods if row["currentlyImplemented"] and row["defaultEnabled"]]
+    if len(available) != 90:
+        raise GenerationError("A1.7b default available-method denominator must remain 90")
+
+    default_scope_set = set(default_remote_scopes)
+    if default_scope_set != {"observe", "control"}:
+        raise GenerationError("A1.7b default remote scopes must remain exactly observe and control")
+    local_scope_set = set(SCOPE_ENUM)
+    default_permitted = [row for row in available if set(row["requiredScopes"]) <= default_scope_set]
+    local_permitted = [row for row in available if set(row["requiredScopes"]) <= local_scope_set]
+    if len(default_permitted) != 53:
+        raise GenerationError("A1.7b default_remote permitted numerator must remain 53 of 90")
+    if len(local_permitted) != 90:
+        raise GenerationError("A1.7b local_trusted permitted numerator must remain 90 of 90")
+
+    privileged_provider = [
+        row
+        for row in available
+        if row["category"] == "provider_operation" and row["securityDecision"] == "PrivilegedScopedApproved"
+    ]
+    reverse = [row for row in available if row["category"] == "reverse_response"]
+    lifecycle = [row for row in available if row["category"] == "provider_lifecycle"]
+    if (len(privileged_provider), len(reverse), len(lifecycle)) != (22, 12, 3):
+        raise GenerationError("A1.7b default_remote exclusion decomposition must remain 22 privileged + 12 reverse + 3 lifecycle")
+    if len(default_permitted) + len(privileged_provider) + len(reverse) + len(lifecycle) != len(available):
+        raise GenerationError("A1.7b default_remote permission arithmetic must remain 53 + 37 = 90")
+    provider_ready = [row for row in methods if row["providerReadyRequired"]]
+    if len(provider_ready) != 98 or any(
+        row["category"] not in {"provider_operation", "reverse_response"} for row in provider_ready
+    ) or any(
+        not row["providerReadyRequired"]
+        for row in methods
+        if row["category"] in {"provider_operation", "reverse_response"}
+    ):
+        raise GenerationError("provider readiness must apply to exactly 86 provider operations and 12 reverse methods")
+
+    # Independent derivation B starts from the owner-reviewed registry rows,
+    # rather than consuming the generated final permitted method set.
+    stable_operations = [
+        row
+        for row in rows
+        if row["registryKey"]["category"] == "client_request"
+        and row["stability"] == "stable"
+        and row["registryKey"]["name"] != "initialize"
+    ]
+    security_counts = collections.Counter(row["securityDecision"] for row in stable_operations)
+    expected_security_counts = {
+        "ObserverReadApproved": 26,
+        "ControllerRequiredApproved": 22,
+        "PrivilegedScopedApproved": 22,
+        "ConditionalExplicitEnablementApproved": 15,
+        "ParameterSensitiveApproved": 1,
+    }
+    if len(stable_operations) != 86 or dict(security_counts) != expected_security_counts:
+        raise GenerationError("owner-reviewed operation categories must remain 26/22/22/15/1 across 86 operations")
+    registry_reachable_operations = (
+        security_counts["ObserverReadApproved"]
+        + security_counts["ControllerRequiredApproved"]
+        + security_counts["ParameterSensitiveApproved"]
+    )
+    reachable_non_lifecycle_native = sum(
+        row["frontendNative"]
+        and row["category"] != "provider_lifecycle"
+        and set(row["requiredScopes"]) <= default_scope_set
+        for row in methods
+    )
+    if registry_reachable_operations != 49 or reachable_non_lifecycle_native != 4:
+        raise GenerationError("independent default_remote derivation must remain 49 operations + 4 native methods")
+    if registry_reachable_operations + reachable_non_lifecycle_native != len(default_permitted):
+        raise GenerationError("independent default_remote derivations disagree")
+
+    for row in methods:
+        if row["category"] == "reverse_response" and "sensitive_response" not in row["requiredScopes"] and \
+                "unknown_request_response" not in row["requiredScopes"]:
+            raise GenerationError("every reverse method must retain its sensitive-response scope")
+        if row["category"] == "provider_lifecycle" and set(row["requiredScopes"]) <= default_scope_set:
+            raise GenerationError("provider lifecycle methods cannot enter default_remote")
+
+    return {
+        "defined": 105,
+        "implemented": 105,
+        "legacyCompatibility": 15,
+        "available": 90,
+        "defaultRemotePermitted": 53,
+        "localTrustedPermitted": 90,
+        "privilegedProviderExcluded": 22,
+        "reverseExcluded": 12,
+        "lifecycleExcluded": 3,
+        "registryReachableOperations": 49,
+        "reachableFrontendNative": 4,
+        "providerReadyRequired": 98,
+    }
 
 
 def method_manifest(source: dict[str, Any]) -> list[dict[str, Any]]:
@@ -490,14 +642,17 @@ def method_manifest(source: dict[str, Any]) -> list[dict[str, Any]]:
                 "serviceAction": native["serviceAction"],
                 "parameterSchema": schema_name(native["id"], "Params"),
                 "resultSchema": schema_name(native["id"], "Result"),
+                "resultType": native["resultType"],
                 "parameterFields": ["after"] if native["method"] == "events.replay" else [],
                 "requiredParameterFields": ["after"] if native["method"] == "events.replay" else [],
                 "exposure": "DedicatedFrontendMethod",
                 "securityDecision": native["security"],
                 "requiredScopes": native["scopes"],
                 "controllerRequired": native["controllerRequired"],
+                "providerReadyRequired": False,
                 "defaultEnabled": True,
-                "currentlyImplemented": existing,
+                "currentlyImplemented": True,
+                "legacyCompatibilityMethod": existing,
                 "observerAvailability": native["scopes"] == ["observe"],
                 "sensitiveResult": False,
                 "largeResult": native["method"] == "snapshot.get",
@@ -530,14 +685,17 @@ def method_manifest(source: dict[str, Any]) -> list[dict[str, Any]]:
                 "serviceAction": "",
                 "parameterSchema": schema_name(method_id, "Params"),
                 "resultSchema": schema_name(method_id, "Result"),
+                "resultType": "Unit",
                 "parameterFields": REVERSE_PARAMETER_SHAPES[method][0],
                 "requiredParameterFields": REVERSE_PARAMETER_SHAPES[method][1],
                 "exposure": "DedicatedFrontendMethod",
                 "securityDecision": "PrivilegedScopedApproved",
                 "requiredScopes": ["control", "unknown_request_response" if unknown else "sensitive_response"],
                 "controllerRequired": True,
+                "providerReadyRequired": True,
                 "defaultEnabled": True,
-                "currentlyImplemented": existing,
+                "currentlyImplemented": True,
+                "legacyCompatibilityMethod": existing,
                 "observerAvailability": False,
                 "sensitiveResult": True,
                 "largeResult": False,
@@ -564,21 +722,19 @@ def method_manifest(source: dict[str, Any]) -> list[dict[str, Any]]:
         raise GenerationError("exactly 12 reverse methods are required")
     if sum(row["category"] == "provider_lifecycle" for row in methods) != 3:
         raise GenerationError("exactly three lifecycle methods are required")
-    if sum(row["currentlyImplemented"] for row in methods) != 15:
-        raise GenerationError("A1.7a runtime availability must remain exactly 15")
-    if any(row["currentlyImplemented"] for row in methods[15:]):
-        raise GenerationError("an additive method was activated before A1.7b")
+    validate_runtime_authorization(rows, methods, source["defaultRemoteScopes"])
     return methods
 
 
 def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
     rows = validate_source(source)
     methods = method_manifest(source)
+    authorization = validate_runtime_authorization(rows, methods, source["defaultRemoteScopes"])
     capabilities = [
         {
             "key": key,
             "defined": True,
-            "implementedByCurrentRuntime": key in {"method_discovery", "security_scopes"},
+            "implementedByCurrentRuntime": key in IMPLEMENTED_MECHANISM_CAPABILITIES,
             "futurePhase": (
                 "A1.7b" if key in {"authenticated_frontend", "scope_projected_state", "provider_lifecycle", "multi_transport"}
                 else "A1.7c" if key in {"cpp_client_sdk", "qt_ui"}
@@ -588,8 +744,11 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
         }
         for key in CAPABILITIES
     ]
+    implemented_capabilities = {item["key"] for item in capabilities if item["implementedByCurrentRuntime"]}
+    if implemented_capabilities != IMPLEMENTED_MECHANISM_CAPABILITIES:
+        raise GenerationError("A1.7b commit 3 must implement exactly eight mechanism/build capabilities")
     if any(item["implementedByCurrentRuntime"] for item in capabilities if item["key"] in FUTURE_CAPABILITIES):
-        raise GenerationError("A1.7a claims a future capability as implemented")
+        raise GenerationError("A1.7b claims a future product capability as implemented")
     notifications = [
         {
             "registryKey": registry_key(row),
@@ -672,7 +831,14 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
             "providerLifecycleMethods": 3,
             "providerOperationMethods": 86,
             "reverseMethods": 12,
-            "currentRuntimeMethods": 15,
+            "currentRuntimeMethods": 105,
+            "implementedMethods": 105,
+            "defaultAvailableMethods": 90,
+            "defaultRemotePermittedMethods": 53,
+            "localTrustedPermittedMethods": 90,
+            "implementedMechanismCapabilities": 8,
+            "runtimeTopologyCapabilities": 1,
+            "futureProductCapabilities": 4,
             "reviewedIdentities": 234,
             "notifications": 68,
             "threadItems": 18,
@@ -688,6 +854,7 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
             "secretFields": ["token"],
             "legacyHelloWithoutCredentialRemainsValid": True,
         },
+        "authorization": authorization,
         "capabilities": capabilities,
         "eventFamilies": list(EVENT_FAMILIES),
         "methods": methods,
@@ -2119,7 +2286,7 @@ def generate_schema(
         "methods": 105,
         "existingMethods": 15,
         "additiveMethods": 90,
-        "runtimeAvailableMethods": 15,
+        "runtimeAvailableMethods": 90,
         "reviewedIdentities": 234,
         "notificationMappings": 68,
         "threadItemMappings": 18,
@@ -2178,14 +2345,17 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "        std::string_view serviceAction;",
             "        std::string_view parameterSchema;",
             "        std::string_view resultSchema;",
+            "        std::string_view resultType;",
             "        std::span<const std::string_view> parameterFields;",
             "        std::span<const std::string_view> requiredParameterFields;",
             "        std::string_view exposure;",
             "        std::string_view securityDecision;",
             "        std::span<const FrontendScope> requiredScopes;",
             "        bool controllerRequired;",
+            "        bool providerReadyRequired;",
             "        bool defaultEnabled;",
             "        bool currentlyImplemented;",
+            "        bool legacyCompatibilityMethod;",
             "        bool observerAvailability;",
             "        bool sensitiveResult;",
             "        bool largeResult;",
@@ -2245,12 +2415,12 @@ def generate_header(manifest: dict[str, Any]) -> str:
     lines.extend(["", f"    inline constexpr std::array<MethodMetadata, {len(methods)}> AllMethods{{{{"])
     for row in methods:
         lines.append(
-            "        {MethodId::%s, %s, MethodCategory::%s, %s, %sRegistryKeys, %s, %s, %s, %s, %s, %sParameterFields, %sRequiredParameterFields, %s, %s, %sScopes, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s},"
+            "        {MethodId::%s, %s, MethodCategory::%s, %s, %sRegistryKeys, %s, %s, %s, %s, %s, %s, %sParameterFields, %sRequiredParameterFields, %s, %s, %sScopes, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s},"
             % (
                 row["id"], q(row["method"]), category_cpp(row["category"]), str(row["frontendNative"]).lower(), row["id"],
-                q(row["genericContractKey"]), q(row["backendCommand"]), q(row["serviceAction"]), q(row["parameterSchema"]), q(row["resultSchema"]),
-                row["id"], row["id"], q(row["exposure"]), q(row["securityDecision"]), row["id"], str(row["controllerRequired"]).lower(), str(row["defaultEnabled"]).lower(),
-                str(row["currentlyImplemented"]).lower(), str(row["observerAvailability"]).lower(), str(row["sensitiveResult"]).lower(), str(row["largeResult"]).lower(),
+                q(row["genericContractKey"]), q(row["backendCommand"]), q(row["serviceAction"]), q(row["parameterSchema"]), q(row["resultSchema"]), q(row["resultType"]),
+                row["id"], row["id"], q(row["exposure"]), q(row["securityDecision"]), row["id"], str(row["controllerRequired"]).lower(), str(row["providerReadyRequired"]).lower(), str(row["defaultEnabled"]).lower(),
+                str(row["currentlyImplemented"]).lower(), str(row["legacyCompatibilityMethod"]).lower(), str(row["observerAvailability"]).lower(), str(row["sensitiveResult"]).lower(), str(row["largeResult"]).lower(),
                 q(row["compatibilityStatus"]), q(row["capability"]), q(row["implementationPhase"]), q(row["parameterPolicy"]),
             )
         )
@@ -2316,6 +2486,11 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "        return std::nullopt;",
             "    }",
             "",
+            "    [[nodiscard]] constexpr std::optional<MethodId> legacyMethodFromString(std::string_view value) noexcept {",
+            "        for (const auto& method : AllMethods) if (method.legacyCompatibilityMethod && method.method == value) return method.id;",
+            "        return std::nullopt;",
+            "    }",
+            "",
             "    [[nodiscard]] constexpr CompatibilityRepresentation selectCompatibilityRepresentation(",
             "        const ProjectionMetadata& metadata,",
             "        std::span<const Capability> negotiatedCapabilities) noexcept {",
@@ -2336,26 +2511,56 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "    consteval std::size_t countCategory(MethodCategory category) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.category == category; return count; }",
             "    consteval std::size_t countNative() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.frontendNative; return count; }",
             "    consteval std::size_t countImplemented() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.currentlyImplemented; return count; }",
+            "    consteval std::size_t countLegacy() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.legacyCompatibilityMethod; return count; }",
+            "    consteval bool profileContains(std::span<const FrontendScope> profile, FrontendScope required) { for (FrontendScope scope : profile) if (scope == required) return true; return false; }",
+            "    consteval bool staticallyPermitted(const MethodMetadata& method, std::span<const FrontendScope> profile) { for (FrontendScope required : method.requiredScopes) if (!profileContains(profile, required)) return false; return true; }",
+            "    consteval std::size_t countAvailable() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.currentlyImplemented && method.defaultEnabled; return count; }",
+            "    consteval std::size_t countPermitted(std::span<const FrontendScope> profile) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.currentlyImplemented && method.defaultEnabled && staticallyPermitted(method, profile); return count; }",
+            "    consteval std::size_t countProviderSecurity(std::string_view decision) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.category == MethodCategory::ProviderOperation && method.securityDecision == decision; return count; }",
+            "    consteval std::size_t countProviderReady() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.providerReadyRequired; return count; }",
+            "    consteval std::size_t countImplementedCapabilities() { std::size_t count = 0; for (const auto& capability : AllCapabilities) count += capability.implementedByCurrentRuntime; return count; }",
             "    consteval bool uniqueMethods() { for (std::size_t i = 0; i < AllMethods.size(); ++i) for (std::size_t j = i + 1; j < AllMethods.size(); ++j) if (AllMethods[i].method == AllMethods[j].method) return false; return true; }",
             "",
             "    inline constexpr std::size_t MethodCount = AllMethods.size();",
             "    inline constexpr std::size_t FrontendNativeMethodCount = countNative();",
             "    inline constexpr std::size_t NonNativeMethodCount = MethodCount - FrontendNativeMethodCount;",
-            "    inline constexpr std::size_t ExistingMethodCount = countImplemented();",
+            "    inline constexpr std::size_t ImplementedMethodCount = countImplemented();",
+            "    inline constexpr std::size_t ExistingMethodCount = countLegacy();",
             "    inline constexpr std::size_t AdditiveMethodCount = MethodCount - ExistingMethodCount;",
+            "    inline constexpr std::size_t DefaultAvailableMethodCount = countAvailable();",
+            "    inline constexpr std::size_t DefaultRemotePermittedMethodCount = countPermitted(DefaultRemoteScopes);",
+            "    inline constexpr std::size_t LocalTrustedPermittedMethodCount = countPermitted(LocalTrustedScopes);",
             "    inline constexpr std::size_t ProviderOperationMethodCount = countCategory(MethodCategory::ProviderOperation);",
             "    inline constexpr std::size_t ReverseMethodCount = countCategory(MethodCategory::ReverseResponse);",
             "    inline constexpr std::size_t ProviderLifecycleMethodCount = countCategory(MethodCategory::ProviderLifecycle);",
+            "    inline constexpr std::size_t ProviderReadyRequiredMethodCount = countProviderReady();",
+            "    inline constexpr std::size_t ObserverReadProviderMethodCount = countProviderSecurity(\"ObserverReadApproved\");",
+            "    inline constexpr std::size_t ControllerRequiredProviderMethodCount = countProviderSecurity(\"ControllerRequiredApproved\");",
+            "    inline constexpr std::size_t PrivilegedProviderMethodCount = countProviderSecurity(\"PrivilegedScopedApproved\");",
+            "    inline constexpr std::size_t ConditionalProviderMethodCount = countProviderSecurity(\"ConditionalExplicitEnablementApproved\");",
+            "    inline constexpr std::size_t ParameterSensitiveProviderMethodCount = countProviderSecurity(\"ParameterSensitiveApproved\");",
+            "    inline constexpr std::size_t ImplementedMechanismCapabilityCount = countImplementedCapabilities();",
             "    inline constexpr std::size_t ReviewedIdentityCount = AllReviewedContracts.size();",
             "",
             "    static_assert(MethodCount == 105);",
             "    static_assert(FrontendNativeMethodCount == 7);",
             "    static_assert(NonNativeMethodCount == 98);",
+            "    static_assert(ImplementedMethodCount == 105);",
             "    static_assert(ExistingMethodCount == 15);",
             "    static_assert(AdditiveMethodCount == 90);",
+            "    static_assert(DefaultAvailableMethodCount == 90);",
+            "    static_assert(DefaultRemotePermittedMethodCount == 53);",
+            "    static_assert(LocalTrustedPermittedMethodCount == 90);",
             "    static_assert(ProviderOperationMethodCount == 86);",
             "    static_assert(ReverseMethodCount == 12);",
             "    static_assert(ProviderLifecycleMethodCount == 3);",
+            "    static_assert(ProviderReadyRequiredMethodCount == 98);",
+            "    static_assert(ObserverReadProviderMethodCount == 26);",
+            "    static_assert(ControllerRequiredProviderMethodCount == 22);",
+            "    static_assert(PrivilegedProviderMethodCount == 22);",
+            "    static_assert(ConditionalProviderMethodCount == 15);",
+            "    static_assert(ParameterSensitiveProviderMethodCount == 1);",
+            "    static_assert(ImplementedMechanismCapabilityCount == 8);",
             "    static_assert(ReviewedIdentityCount == 234);",
             "    static_assert(AllNotificationProjections.size() == 68);",
             "    static_assert(AllThreadItemProjections.size() == 18);",

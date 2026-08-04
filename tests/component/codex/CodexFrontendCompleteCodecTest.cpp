@@ -157,6 +157,30 @@ namespace {
         result.expectTrue(!conflictResult && conflictResult.error().code == frontend::ErrorCode::InvalidField,
                           "parameter extensions cannot shadow a schema-defined field");
 
+        frontend::Json sandboxConflict{{"protocol", frontend::ProtocolIdentity},
+                                       {"version", frontend::ProtocolVersion},
+                                       {"kind", "command"},
+                                       {"requestId", "sandbox-conflict"},
+                                       {"method", "thread.start"},
+                                       {"params", {{"sandbox", "readOnly"}, {"sandboxMode", "readOnly"}}}};
+        const auto rejectedSandboxConflict = frontend::Codec::decodeDefinedCommand(sandboxConflict);
+        result.expectTrue(!rejectedSandboxConflict && rejectedSandboxConflict.error().code == frontend::ErrorCode::InvalidField,
+                          "the canonical sandbox field and legacy sandboxMode alias cannot conflict");
+
+        frontend::Json effortConflict{{"protocol", frontend::ProtocolIdentity},
+                                      {"version", frontend::ProtocolVersion},
+                                      {"kind", "command"},
+                                      {"requestId", "effort-conflict"},
+                                      {"method", "turn.start"},
+                                      {"params",
+                                       {{"threadId", "thread-1"},
+                                        {"input", {{{"type", "text"}, {"text", "hello"}}}},
+                                        {"effort", "medium"},
+                                        {"reasoningEffort", "medium"}}}};
+        const auto rejectedEffortConflict = frontend::Codec::decodeDefinedCommand(effortConflict);
+        result.expectTrue(!rejectedEffortConflict && rejectedEffortConflict.error().code == frontend::ErrorCode::InvalidField,
+                          "the canonical effort field and legacy reasoningEffort alias cannot conflict");
+
         frontend::Json wrongType = missingRequired;
         wrongType["params"] = {{"threadId", 7}};
         const auto malformedType = frontend::Codec::decodeDefinedCommand(wrongType);

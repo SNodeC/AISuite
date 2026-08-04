@@ -78,9 +78,9 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] static CodecResult<ClientMessage> decodeClient(const Json& message) noexcept;
         [[nodiscard]] static CodecResult<ClientMessage> decodeClient(std::string_view message) noexcept;
         // The complete additive-v1 command codec is deliberately separate
-        // from decodeClient().  The latter remains the production runtime
-        // gate for the original 15 methods until A1.7b installs
-        // authentication and scope enforcement.
+        // from decodeClient(). The latter preserves the original 15-method
+        // compatibility model; FrontendService uses this tagged command model
+        // after authentication and runtime policy checks.
         [[nodiscard]] static CodecResult<generated::DefinedCommand> decodeDefinedCommand(const Json& message) noexcept;
         [[nodiscard]] static CodecResult<generated::DefinedCommand> decodeDefinedCommand(std::string_view message) noexcept;
         [[nodiscard]] static CodecResult<ServerMessage> decodeServer(const Json& message) noexcept;

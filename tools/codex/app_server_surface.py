@@ -10839,6 +10839,42 @@ def frontend_registry_source(
             )
         return schema
 
+    def top_level_object_shape(schema: Any) -> tuple[set[str], set[str]]:
+        """Derive possible and universally required top-level fields.
+
+        The committed provider surface predates the frontend's tagged-union
+        parameter model and records only direct/allOf properties. The frontend
+        export must also retain the union branch fields so its generated
+        method-tagged JSON value does not demote known provider parameters to
+        compatibility extensions.
+        """
+
+        if not isinstance(schema, dict):
+            return set(), set()
+        properties = schema.get("properties")
+        fields = set(properties) if isinstance(properties, dict) else set()
+        encoded_required = schema.get("required")
+        required = (
+            set(encoded_required)
+            if isinstance(encoded_required, list)
+            and all(isinstance(value, str) for value in encoded_required)
+            else set()
+        )
+        all_of = schema.get("allOf")
+        if isinstance(all_of, list):
+            for part in all_of:
+                part_fields, part_required = top_level_object_shape(part)
+                fields.update(part_fields)
+                required.update(part_required)
+        for keyword in ("oneOf", "anyOf"):
+            alternatives = schema.get(keyword)
+            if isinstance(alternatives, list) and alternatives:
+                shapes = [top_level_object_shape(part) for part in alternatives]
+                for part_fields, _ in shapes:
+                    fields.update(part_fields)
+                required.update(set.intersection(*(part_required for _, part_required in shapes)))
+        return fields, required
+
     ledger = frontend_contract_review_ledger(manifest)
     rows: list[dict[str, Any]] = []
     for entry in ledger["reviewed"]:
@@ -10859,6 +10895,11 @@ def frontend_registry_source(
             )
         prior_exposure, prior_security = legacy_frontend_contract_decision(entry)
         operation_contract = operation_contracts.get(key)
+        parameter_schema = contract_schema(operation_contract, "parameter_schema")
+        parameter_fields, parameter_required = top_level_object_shape(parameter_schema)
+        if not parameter_fields and entry.get("params"):
+            parameter_fields = set(entry["params"].get("fields", ()))
+            parameter_required = set(entry["params"].get("required_fields", ()))
         if entry["stability"] == "experimental_only":
             rationale = "Experimental inventory is not exposed by frontend security policy."
         elif entry["category"] == "item_discriminator" and entry["domain"] == "ResponseItem":
@@ -10887,17 +10928,15 @@ def frontend_registry_source(
                     "resultKind": local["result_contract_kind"],
                     "evidenceKind": local["association_evidence_kind"],
                     "evidenceKey": local["association_evidence_key"],
-                    "parameterJsonSchema": contract_schema(
-                        operation_contract, "parameter_schema"
-                    ),
+                    "parameterJsonSchema": parameter_schema,
                     "resultJsonSchema": contract_schema(
                         operation_contract, "result_schema"
                     ),
                 },
                 "parameterShape": {
                     "type": entry["params"]["type"] if entry.get("params") else "Unit",
-                    "requiredFields": list(entry["params"].get("required_fields", ())) if entry.get("params") else [],
-                    "fields": list(entry["params"].get("fields", ())) if entry.get("params") else [],
+                    "requiredFields": sorted(parameter_required),
+                    "fields": sorted(parameter_fields),
                     "propertyPaths": list(entry["params"].get("property_paths", ())) if entry.get("params") else [],
                 },
                 "priorCompatibilityExposure": prior_exposure,

@@ -1,7 +1,8 @@
 set(AI_OPENAI_CODEX_FRONTEND_CPP
     FrontendService.cpp Codec.cpp EventCoalescer.cpp EventJournal.cpp
     Messages.cpp UpdateBatch.cpp
-    detail/GeneratedSchemaValidator.cpp
+    detail/BackendCommandMapper.cpp detail/GeneratedSchemaValidator.cpp
+    detail/ProviderResultProjection.cpp
 )
 set(AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
     FrontendService.h Codec.h EventCoalescer.h EventJournal.h GeneratedProtocol.h

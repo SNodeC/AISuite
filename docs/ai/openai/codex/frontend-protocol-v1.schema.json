@@ -36716,7 +36716,7 @@
     "methods": 105,
     "existingMethods": 15,
     "additiveMethods": 90,
-    "runtimeAvailableMethods": 15,
+    "runtimeAvailableMethods": 90,
     "reviewedIdentities": 234,
     "notificationMappings": 68,
     "threadItemMappings": 18

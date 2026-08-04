@@ -15,6 +15,8 @@
 #include "ai/openai/codex/backend/FrontendSession.h"
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/frontend/detail/BackendCommandMapper.h"
+#include "ai/openai/codex/frontend/detail/ProviderResultProjection.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
@@ -25,7 +27,6 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <chrono>
 #include <cstdint>
 #include <deque>
@@ -34,9 +35,8 @@
 #include <map>
 #include <nlohmann/json.hpp>
 #include <set>
-#include <system_error>
 #include <type_traits>
-#include <unordered_set>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -511,220 +511,31 @@ namespace ai::openai::codex::frontend {
             return ErrorCode::InternalError;
         }
 
-        std::optional<backend::PendingRequestId> parsePendingRequestId(std::string_view encoded) {
-            std::uint64_t value = 0;
-            const auto result = std::from_chars(encoded.data(), encoded.data() + encoded.size(), value);
-            if (encoded.empty() || result.ec != std::errc() || result.ptr != encoded.data() + encoded.size() || value == 0) {
-                return std::nullopt;
+        std::string_view frontendCommandErrorMessage(backend::CommandErrorCode code) noexcept {
+            switch (code) {
+                case backend::CommandErrorCode::PermissionDenied:
+                    return "frontend command was denied";
+                case backend::CommandErrorCode::InvalidCommand:
+                    return "frontend command is invalid";
+                case backend::CommandErrorCode::NotFound:
+                    return "frontend command target was not found";
+                case backend::CommandErrorCode::Conflict:
+                    return "frontend command conflicts with current state";
+                case backend::CommandErrorCode::LocalSubmissionFailure:
+                    return "frontend command could not be submitted";
+                case backend::CommandErrorCode::TypedDecodingFailure:
+                    return "frontend command result could not be decoded";
+                case backend::CommandErrorCode::RemoteAppServerError:
+                    return "Codex App Server rejected the command";
+                case backend::CommandErrorCode::Cancelled:
+                    return "frontend command was cancelled";
+                case backend::CommandErrorCode::BackendUnavailable:
+                    return "Codex App Server is unavailable";
             }
-            return backend::PendingRequestId(value);
+            return "frontend command failed";
         }
 
-        typed::TurnInput typedTurnInput(const TurnInput& input) {
-            return std::visit(
-                []<typename Input>(const Input& value) -> typed::TurnInput {
-                    using T = std::remove_cvref_t<Input>;
-                    if constexpr (std::is_same_v<T, TextInput>) {
-                        typed::TextInput result;
-                        result.text = value.text;
-                        return result;
-                    } else if constexpr (std::is_same_v<T, ImageUrlInput>) {
-                        typed::ImageUrlInput result;
-                        result.url = value.url;
-                        if (value.detail.has_value()) {
-                            result.detail = typed::ImageDetail{*value.detail};
-                        }
-                        return result;
-                    } else if constexpr (std::is_same_v<T, LocalImageInput>) {
-                        typed::LocalImageInput result;
-                        result.path = value.path;
-                        if (value.detail.has_value()) {
-                            result.detail = typed::ImageDetail{*value.detail};
-                        }
-                        return result;
-                    } else if constexpr (std::is_same_v<T, SkillInput>) {
-                        typed::SkillInput result;
-                        result.name = value.name;
-                        result.path = value.path;
-                        return result;
-                    } else {
-                        typed::MentionInput result;
-                        result.name = value.name;
-                        result.path = value.path;
-                        return result;
-                    }
-                },
-                input);
-        }
-
-        typed::SandboxPolicy typedSandboxPolicy(const SandboxPolicy& policy) {
-            if (policy.type == "dangerFullAccess") {
-                return typed::DangerFullAccessSandboxPolicy{};
-            }
-            if (policy.type == "readOnly") {
-                typed::ReadOnlySandboxPolicy result;
-                if (policy.networkAccess.has_value()) {
-                    result.networkAccess = std::get<bool>(*policy.networkAccess);
-                }
-                return result;
-            }
-            if (policy.type == "externalSandbox") {
-                typed::ExternalSandboxPolicy result;
-                if (policy.networkAccess.has_value()) {
-                    result.networkAccess = typed::NetworkAccess{std::get<std::string>(*policy.networkAccess)};
-                }
-                return result;
-            }
-            typed::WorkspaceWriteSandboxPolicy result;
-            if (!policy.writableRoots.empty()) {
-                std::vector<typed::AbsolutePath> roots;
-                roots.reserve(policy.writableRoots.size());
-                for (const std::string& root : policy.writableRoots) {
-                    roots.emplace_back(root);
-                }
-                result.writableRoots = std::move(roots);
-            }
-            if (policy.networkAccess.has_value()) {
-                result.networkAccess = std::get<bool>(*policy.networkAccess);
-            }
-            result.excludeTmpdirEnvVar = policy.excludeTmpdirEnvVar;
-            result.excludeSlashTmp = policy.excludeSlashTmp;
-            return result;
-        }
-
-        struct CommandMappingError {
-            std::string message;
-        };
-
-        using BackendCommandMapping = std::variant<backend::BackendCommand, CommandMappingError>;
-
-        BackendCommandMapping mapBackendCommand(const CommandParameters& parameters) {
-            return std::visit(
-                Overloaded{[](const ControllerAcquire&) -> BackendCommandMapping {
-                               return backend::ControllerAcquire{};
-                           },
-                           [](const ControllerRelease&) -> BackendCommandMapping {
-                               return backend::ControllerRelease{};
-                           },
-                           [](const SnapshotGet&) -> BackendCommandMapping {
-                               return backend::SnapshotGet{};
-                           },
-                           [](const ReplayAfter&) -> BackendCommandMapping {
-                               return CommandMappingError{"events.replay is owned by the frontend journal"};
-                           },
-                           [](const ThreadStart& value) -> BackendCommandMapping {
-                               typed::ThreadStartParams params;
-                               params.cwd = value.cwd;
-                               if (value.model.has_value()) {
-                                   params.model = typed::ModelId{*value.model};
-                               }
-                               params.modelProvider = value.modelProvider;
-                               if (value.approvalPolicy.has_value()) {
-                                   params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
-                               }
-                               if (value.sandboxMode.has_value()) {
-                                   params.sandbox = typed::SandboxMode{*value.sandboxMode};
-                               }
-                               params.ephemeral = value.ephemeral;
-                               return backend::ThreadStart{std::move(params)};
-                           },
-                           [](const ThreadResume& value) -> BackendCommandMapping {
-                               typed::ThreadResumeParams params;
-                               params.threadId = typed::ThreadId{value.threadId};
-                               params.cwd = value.cwd;
-                               if (value.model.has_value()) {
-                                   params.model = typed::ModelId{*value.model};
-                               }
-                               params.modelProvider = value.modelProvider;
-                               if (value.approvalPolicy.has_value()) {
-                                   params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
-                               }
-                               if (value.sandboxMode.has_value()) {
-                                   params.sandbox = typed::SandboxMode{*value.sandboxMode};
-                               }
-                               return backend::ThreadResume{std::move(params)};
-                           },
-                           [](const ThreadList& value) -> BackendCommandMapping {
-                               typed::ThreadListParams params;
-                               params.cursor = value.cursor;
-                               params.limit = value.limit;
-                               params.archived = value.archived;
-                               params.searchTerm = value.searchTerm;
-                               return backend::ThreadList{std::move(params)};
-                           },
-                           [](const ThreadRead& value) -> BackendCommandMapping {
-                               return backend::ThreadRead{typed::ThreadReadParams{typed::ThreadId{value.threadId}, value.includeTurns}};
-                           },
-                           [](const TurnStart& value) -> BackendCommandMapping {
-                               backend::TurnStart start;
-                               start.params.threadId = typed::ThreadId{value.threadId};
-                               start.params.input.reserve(value.input.size());
-                               for (const TurnInput& input : value.input) {
-                                   start.params.input.push_back(typedTurnInput(input));
-                               }
-                               start.params.cwd = value.cwd;
-                               if (value.model.has_value()) {
-                                   start.params.model = typed::ModelId{*value.model};
-                               }
-                               if (value.reasoningEffort.has_value()) {
-                                   start.params.effort = typed::ReasoningEffort{*value.reasoningEffort};
-                               }
-                               if (value.approvalPolicy.has_value()) {
-                                   start.params.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{*value.approvalPolicy}};
-                               }
-                               if (value.sandboxPolicy.has_value()) {
-                                   start.params.sandboxPolicy = typedSandboxPolicy(*value.sandboxPolicy);
-                               }
-                               return start;
-                           },
-                           [](const TurnInterrupt& value) -> BackendCommandMapping {
-                               return backend::TurnInterrupt{
-                                   typed::TurnInterruptParams{typed::ThreadId{value.threadId}, typed::TurnId{value.turnId}}};
-                           },
-                           [](const ApprovalRespond& value) -> BackendCommandMapping {
-                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                               if (!requestId.has_value()) {
-                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                               }
-                               return backend::ApprovalRespond{*requestId, typed::ApprovalDecision{value.decision}};
-                           },
-                           [](const UserInputRespond& value) -> BackendCommandMapping {
-                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                               if (!requestId.has_value()) {
-                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                               }
-                               std::vector<typed::UserInputAnswer> answers;
-                               answers.reserve(value.answers.size());
-                               for (const UserInputAnswer& answer : value.answers) {
-                                   answers.push_back({answer.questionId, answer.answers});
-                               }
-                               return backend::UserInputRespond{*requestId, std::move(answers)};
-                           },
-                           [](const AuthenticationRespond& value) -> BackendCommandMapping {
-                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                               if (!requestId.has_value()) {
-                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                               }
-                               return backend::AuthenticationRespond{
-                                   *requestId,
-                                   typed::AuthenticationResponse{value.accessToken, value.chatgptAccountId, value.chatgptPlanType}};
-                           },
-                           [](const UnknownRequestRespond& value) -> BackendCommandMapping {
-                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                               if (!requestId.has_value()) {
-                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                               }
-                               return backend::UnknownRequestRespondRaw{*requestId, value.result};
-                           },
-                           [](const UnknownRequestReject& value) -> BackendCommandMapping {
-                               const auto requestId = parsePendingRequestId(value.pendingRequestId);
-                               if (!requestId.has_value()) {
-                                   return CommandMappingError{"pendingRequestId must be a non-zero unsigned decimal integer"};
-                               }
-                               return backend::UnknownRequestReject{*requestId, ProtocolError{value.code, value.message, value.data}};
-                           }},
-                parameters);
-        }
+        class ResultCapacityFailure final : public std::exception {};
 
     } // namespace
 
@@ -736,7 +547,7 @@ namespace ai::openai::codex::frontend {
         std::optional<backend::FrontendSession> backendSession;
         std::optional<FrontendPrincipal> principal;
         std::deque<OutboundMessage> outbound;
-        std::unordered_set<std::string> pendingRequestIds;
+        std::unordered_map<std::string, generated::MethodId> pendingRequests;
         std::size_t outboundBytes = 0;
         std::uint64_t rateTokens = 0;
         std::uint64_t lastRateRefillMs = 0;
@@ -989,7 +800,7 @@ namespace ai::openai::codex::frontend {
             control->open = false;
             control->outbound.clear();
             control->outboundBytes = 0;
-            control->pendingRequestIds.clear();
+            control->pendingRequests.clear();
             cancelTimer(control->handshakeTimer);
             control->deliveryScheduled = false;
             control->closeAfterDelivery = false;
@@ -1257,15 +1068,51 @@ namespace ai::openai::codex::frontend {
                 return true;
             }
             if (metadata.capability == "conditional_command_execution") {
-                return serviceOptions.enableCommandExecutionMethods;
+                return serviceOptions.enableCommandExecutionMethods && static_cast<bool>(serviceOptions.commandExecutionPolicy);
             }
             if (metadata.capability == "conditional_filesystem") {
                 return std::find(metadata.requiredScopes.begin(), metadata.requiredScopes.end(), FrontendScope::FilesystemWrite) !=
                                metadata.requiredScopes.end()
-                           ? serviceOptions.enableFilesystemWriteMethods
-                           : serviceOptions.enableFilesystemReadMethods;
+                           ? serviceOptions.enableFilesystemWriteMethods && static_cast<bool>(serviceOptions.filesystemWritePolicy)
+                           : serviceOptions.enableFilesystemReadMethods && static_cast<bool>(serviceOptions.filesystemReadPolicy);
             }
             return false;
+        }
+
+        bool conditionalInvocationAllowed(const generated::MethodMetadata& metadata,
+                                          const FrontendPrincipal& principal,
+                                          const Json& validatedParameters) const noexcept {
+            const FrontendInvocationPolicy* policy = nullptr;
+            if (metadata.capability == "conditional_command_execution") {
+                policy = &serviceOptions.commandExecutionPolicy;
+            } else if (metadata.capability == "conditional_filesystem") {
+                policy = std::find(metadata.requiredScopes.begin(), metadata.requiredScopes.end(), FrontendScope::FilesystemWrite) !=
+                                 metadata.requiredScopes.end()
+                             ? &serviceOptions.filesystemWritePolicy
+                             : &serviceOptions.filesystemReadPolicy;
+            }
+            if (policy == nullptr) {
+                return true;
+            }
+            try {
+                return static_cast<bool>(*policy) && (*policy)(principal, metadata.method, validatedParameters);
+            } catch (...) {
+                return false;
+            }
+        }
+
+        void refreshLifecycleAction(const backend::ProviderSnapshot& provider) noexcept {
+            if (!lifecycleActionInFlight.has_value()) {
+                return;
+            }
+            const bool complete =
+                *lifecycleActionInFlight == detail::NativeServiceAction::ProviderStop
+                    ? provider.lifecycle == backend::ProviderLifecycle::Stopped ||
+                          (provider.lifecycle == backend::ProviderLifecycle::Failed && !provider.desiredRunning)
+                    : provider.lifecycle == backend::ProviderLifecycle::Ready || provider.lifecycle == backend::ProviderLifecycle::Failed;
+            if (complete) {
+                lifecycleActionInFlight.reset();
+            }
         }
 
         std::vector<FrontendMethod> definedMethods() const {
@@ -1472,14 +1319,15 @@ namespace ai::openai::codex::frontend {
         }
 
         ConnectionReceiveResult receive(const std::shared_ptr<FrontendConnection::Control>& control,
-                                        const ClientMessage& message) noexcept {
+                                        const ClientMessage& message,
+                                        bool consumeAdmission = true) noexcept {
             if (!open || !control || !control->open) {
                 return {ConnectionReceiveStatus::Closed, std::nullopt};
             }
             if (control->closeAfterDelivery) {
                 return {ConnectionReceiveStatus::Closing, std::nullopt};
             }
-            if (!consumeInboundAdmission(control)) {
+            if (consumeAdmission && !consumeInboundAdmission(control)) {
                 return receiveFrameError(control, ErrorCode::RateLimited, "frontend inbound message rate limit exceeded");
             }
             try {
@@ -1500,81 +1348,366 @@ namespace ai::openai::codex::frontend {
                                      "frontend authentication must complete before commands are accepted",
                                      true,
                                      {},
-                                     command.requestId,
+                                     std::nullopt,
                                      std::nullopt};
                     return receiveError(control, std::move(error));
                 }
-                if (control->pendingRequestIds.contains(command.requestId)) {
+                const CodecResult<Json> encoded = Codec::encodeClient(ClientMessage{command});
+                if (!encoded) {
+                    return receiveError(control, encoded.error());
+                }
+                const CodecResult<generated::DefinedCommand> decoded = Codec::decodeDefinedCommand(encoded.value());
+                if (!decoded) {
+                    return receiveError(control, decoded.error());
+                }
+                return receiveDefined(control, decoded.value(), false);
+            } catch (const std::exception&) {
+                CodecError error{ErrorCode::InternalError, "failed to process frontend message", false, {}, std::nullopt, std::nullopt};
+                return receiveError(control, std::move(error));
+            } catch (...) {
+                CodecError error{ErrorCode::InternalError,
+                                 "failed to process frontend message: unknown local exception",
+                                 false,
+                                 {},
+                                 std::nullopt,
+                                 std::nullopt};
+                return receiveError(control, std::move(error));
+            }
+        }
+
+        ConnectionReceiveResult receiveJson(const std::shared_ptr<FrontendConnection::Control>& control, const Json& message) noexcept {
+            if (!open || !control || !control->open) {
+                return {ConnectionReceiveStatus::Closed, std::nullopt};
+            }
+            if (control->closeAfterDelivery) {
+                return {ConnectionReceiveStatus::Closing, std::nullopt};
+            }
+            if (!consumeInboundAdmission(control)) {
+                return receiveFrameError(control, ErrorCode::RateLimited, "frontend inbound message rate limit exceeded");
+            }
+
+            // Perform only transport-independent envelope checks before
+            // authentication. In particular, do not reveal method existence,
+            // deployment policy, or parameter diagnostics to an unauthenticated
+            // peer.
+            if (!message.is_object()) {
+                return receiveError(
+                    control,
+                    CodecError{ErrorCode::InvalidField, "frontend message envelope is invalid", false, {}, std::nullopt, std::nullopt});
+            }
+            const auto protocol = message.find("protocol");
+            const auto version = message.find("version");
+            const auto messageKind = message.find("kind");
+            if (protocol == message.end() || !protocol->is_string() || version == message.end() ||
+                !(version->is_number_unsigned() || version->is_number_integer()) || messageKind == message.end() ||
+                !messageKind->is_string()) {
+                return receiveError(
+                    control,
+                    CodecError{ErrorCode::InvalidField, "frontend message envelope is invalid", false, {}, std::nullopt, std::nullopt});
+            }
+            if (protocol->get_ref<const std::string&>() != ProtocolIdentity) {
+                return receiveError(
+                    control,
+                    CodecError{ErrorCode::WrongProtocol, "unsupported frontend protocol identity", true, {}, std::nullopt, std::nullopt});
+            }
+            bool supportedVersion = false;
+            if (version->is_number_unsigned()) {
+                supportedVersion = version->get<std::uint64_t>() == ProtocolVersion;
+            } else {
+                const std::int64_t signedVersion = version->get<std::int64_t>();
+                supportedVersion = signedVersion >= 0 && static_cast<std::uint64_t>(signedVersion) == ProtocolVersion;
+            }
+            if (!supportedVersion) {
+                return receiveError(control,
+                                    CodecError{ErrorCode::UnsupportedVersion,
+                                               "unsupported frontend protocol version",
+                                               true,
+                                               {SupportedProtocolVersions.begin(), SupportedProtocolVersions.end()},
+                                               std::nullopt,
+                                               std::nullopt});
+            }
+
+            const std::string& kindName = messageKind->get_ref<const std::string&>();
+            if (kindName == kind::Hello) {
+                const CodecResult<ClientMessage> decoded = Codec::decodeClient(message);
+                if (!decoded) {
+                    return receiveError(control, decoded.error());
+                }
+                return receive(control, decoded.value(), false);
+            }
+            if (!control->helloDone || !control->principal.has_value()) {
+                return receiveError(control,
+                                    CodecError{ErrorCode::AuthenticationRequired,
+                                               "frontend authentication must complete before commands are accepted",
+                                               true,
+                                               {},
+                                               std::nullopt,
+                                               std::nullopt});
+            }
+            if (kindName != kind::Command) {
+                return receiveError(
+                    control,
+                    CodecError{
+                        ErrorCode::UnknownKind, "unknown authenticated frontend message kind", false, {}, std::nullopt, std::nullopt});
+            }
+
+            const auto method = message.find("method");
+            const auto requestId = message.find("requestId");
+            if (method == message.end() || !method->is_string() || requestId == message.end() || !requestId->is_string() ||
+                requestId->get_ref<const std::string&>().empty()) {
+                return receiveError(
+                    control,
+                    CodecError{ErrorCode::InvalidCommand, "frontend command envelope is invalid", false, {}, std::nullopt, std::nullopt});
+            }
+            const std::string& requestIdValue = requestId->get_ref<const std::string&>();
+            const std::optional<generated::MethodId> methodId = generated::definedMethodFromString(method->get_ref<const std::string&>());
+            if (!methodId.has_value()) {
+                return receiveError(
+                    control,
+                    CodecError{ErrorCode::UnknownMethod, "unknown frontend command method", false, {}, requestIdValue, std::nullopt});
+            }
+            const generated::MethodMetadata* metadata = methodMetadata(*methodId);
+            if (metadata == nullptr || !metadata->currentlyImplemented || !deploymentEnabled(*metadata)) {
+                return receiveError(
+                    control,
+                    CodecError{
+                        ErrorCode::UnknownMethod, "frontend command method is unavailable", false, {}, requestIdValue, std::nullopt});
+            }
+
+            // Full method-schema validation occurs only after exact method,
+            // implementation, and deployment checks.
+            const CodecResult<generated::DefinedCommand> decoded = Codec::decodeDefinedCommand(message);
+            if (!decoded) {
+                CodecError error = decoded.error();
+                error.requestId = requestIdValue;
+                return receiveError(control, std::move(error));
+            }
+            return receiveDefined(control, decoded.value(), false);
+        }
+
+        const generated::MethodMetadata* methodMetadata(generated::MethodId method) const noexcept {
+            const std::size_t index = static_cast<std::size_t>(method);
+            return index < generated::AllMethods.size() ? &generated::AllMethods[index] : nullptr;
+        }
+
+        ConnectionReceiveResult receiveDefined(const std::shared_ptr<FrontendConnection::Control>& control,
+                                               const generated::DefinedCommand& command,
+                                               bool consumeAdmission = true) noexcept {
+            if (!open || !control || !control->open) {
+                return {ConnectionReceiveStatus::Closed, std::nullopt};
+            }
+            if (control->closeAfterDelivery) {
+                return {ConnectionReceiveStatus::Closing, std::nullopt};
+            }
+            if (consumeAdmission && !consumeInboundAdmission(control)) {
+                return receiveFrameError(control, ErrorCode::RateLimited, "frontend inbound message rate limit exceeded");
+            }
+            if (!control->helloDone || !control->principal.has_value()) {
+                return receiveError(control,
+                                    CodecError{ErrorCode::AuthenticationRequired,
+                                               "frontend authentication must complete before commands are accepted",
+                                               true,
+                                               {},
+                                               std::nullopt,
+                                               std::nullopt});
+            }
+
+            try {
+                const generated::MethodId method = generated::commandMethod(command.parameters);
+                const generated::MethodMetadata* metadata = methodMetadata(method);
+                if (metadata == nullptr || !metadata->currentlyImplemented || !deploymentEnabled(*metadata)) {
+                    enqueueFailure(control, command.requestId, ErrorCode::UnknownMethod, "frontend command method is unavailable");
+                    return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                }
+                const CodecResult<Json> validatedCommand = Codec::encodeDefinedCommand(command);
+                if (!validatedCommand) {
+                    CodecError error = validatedCommand.error();
+                    error.requestId = command.requestId;
+                    return receiveError(control, std::move(error));
+                }
+                bool controllerRequired = metadata->controllerRequired;
+                bool scopeAllowed = hasRequiredScopes(*control->principal, metadata->requiredScopes);
+                if (method == generated::MethodId::AccountRead) {
+                    const Json& params = std::visit(
+                        [](const auto& value) -> const Json& {
+                            return value.value;
+                        },
+                        command.parameters);
+                    const bool refreshToken = params.contains("refreshToken") && params.at("refreshToken").get<bool>();
+                    if (refreshToken) {
+                        scopeAllowed = hasScope(*control->principal, FrontendScope::Control) &&
+                                       hasScope(*control->principal, FrontendScope::AccountManagement);
+                        controllerRequired = true;
+                    }
+                }
+                if (!conditionalInvocationAllowed(*metadata, *control->principal, validatedCommand.value().at("params"))) {
+                    enqueueFailure(
+                        control, command.requestId, ErrorCode::PermissionDenied, "frontend deployment policy denied the command");
+                    return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                }
+                if (!scopeAllowed) {
+                    enqueueFailure(control, command.requestId, ErrorCode::PermissionDenied, "frontend principal lacks a required scope");
+                    return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                }
+                if (controllerRequired &&
+                    (!control->backendSession.has_value() || control->backendSession->role() != backend::SessionRole::Controller)) {
+                    enqueueFailure(control, command.requestId, ErrorCode::PermissionDenied, "the current controller is required");
+                    return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                }
+                if (metadata->providerReadyRequired && !backendCore->isReady()) {
+                    enqueueFailure(control, command.requestId, ErrorCode::BackendUnavailable, "the Codex App Server is not ready");
+                    return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                }
+                if (control->pendingRequests.contains(command.requestId)) {
                     enqueueFailure(
                         control, command.requestId, ErrorCode::DuplicateRequestId, "requestId is already pending in this frontend session");
                     return {ConnectionReceiveStatus::Rejected, std::nullopt};
                 }
-
                 if (serviceOptions.maxOutstandingCommandsPerConnection == 0 ||
-                    control->pendingRequestIds.size() >= serviceOptions.maxOutstandingCommandsPerConnection) {
+                    control->pendingRequests.size() >= serviceOptions.maxOutstandingCommandsPerConnection) {
                     enqueueFailure(
                         control, command.requestId, ErrorCode::CapacityExceeded, "frontend outstanding command capacity exceeded");
                     return {ConnectionReceiveStatus::Rejected, std::nullopt};
                 }
 
-                control->pendingRequestIds.insert(command.requestId);
-                if (std::holds_alternative<SnapshotGet>(command.parameters)) {
-                    flushNow();
-                    control->pendingRequestIds.erase(command.requestId);
-                    enqueue(control,
-                            ServerMessage{Response::success(command.requestId, Json{{"sequence", journal.currentSequence().value()}})});
-                    enqueueSnapshot(control);
-                    enqueue(control, ServerMessage{SyncComplete{journal.currentSequence(), Json::object()}});
-                    return {ConnectionReceiveStatus::Accepted, std::nullopt};
-                }
-                if (const auto* replay = std::get_if<ReplayAfter>(&command.parameters)) {
-                    flushNow();
-                    const JournalReplayResult replayResult = journal.replayAfter(replay->after);
-                    control->pendingRequestIds.erase(command.requestId);
-                    if (replayResult.status == JournalReplayStatus::FutureSequence) {
-                        enqueueFailure(
-                            control, command.requestId, ErrorCode::InvalidCommand, "events.replay cannot start after the current sequence");
-                        return {ConnectionReceiveStatus::Rejected, std::nullopt};
-                    }
-
-                    SyncMode mode = SyncMode::Snapshot;
-                    UpdateBatchResult built;
-                    if (replayResult.status == JournalReplayStatus::Available) {
-                        built = batchBuilder.build(replayResult.events);
-                        if (built.success()) {
-                            mode = SyncMode::Replay;
-                        }
-                    }
-                    enqueue(control,
-                            ServerMessage{Response::success(
-                                command.requestId, Json{{"syncMode", toString(mode)}, {"sequence", journal.currentSequence().value()}})});
-                    if (mode == SyncMode::Replay) {
-                        for (const BoundedEventBatch& batch : built.batches) {
-                            enqueue(control, ServerMessage{batch.batch});
-                        }
-                    } else {
-                        enqueueSnapshot(control);
-                    }
-                    enqueue(control, ServerMessage{SyncComplete{journal.currentSequence(), Json::object()}});
-                    return {ConnectionReceiveStatus::Accepted, std::nullopt};
-                }
-
-                const BackendCommandMapping mapping = mapBackendCommand(command.parameters);
-                if (const auto* mappingError = std::get_if<CommandMappingError>(&mapping)) {
-                    control->pendingRequestIds.erase(command.requestId);
-                    enqueueFailure(control, command.requestId, ErrorCode::InvalidCommand, mappingError->message);
+                detail::DefinedCommandMapping mapping = detail::mapDefinedCommand(command);
+                if (const auto* error = std::get_if<detail::BackendCommandMappingError>(&mapping)) {
+                    (void) error;
+                    enqueueFailure(
+                        control, command.requestId, ErrorCode::InternalError, "generated frontend command mapping is inconsistent");
                     return {ConnectionReceiveStatus::Rejected, std::nullopt};
                 }
+                control->pendingRequests.emplace(command.requestId, method);
+
+                const auto completeServiceAction = [this, control, requestId = command.requestId](Json result) {
+                    control->pendingRequests.erase(requestId);
+                    enqueue(control, ServerMessage{Response::success(requestId, std::move(result))});
+                };
+
+                if (const auto* native = std::get_if<detail::NativeCommandMapping>(&mapping)) {
+                    switch (native->action) {
+                        case detail::NativeServiceAction::SnapshotGet:
+                            flushNow();
+                            completeServiceAction(Json{{"sequence", journal.currentSequence().value()}});
+                            enqueueSnapshot(control);
+                            enqueue(control, ServerMessage{SyncComplete{journal.currentSequence(), Json::object()}});
+                            return {ConnectionReceiveStatus::Accepted, std::nullopt};
+                        case detail::NativeServiceAction::EventsReplay: {
+                            flushNow();
+                            const JournalReplayResult replayResult = journal.replayAfter(SequenceNumber{native->replayAfter.value_or(0)});
+                            if (replayResult.status == JournalReplayStatus::FutureSequence) {
+                                control->pendingRequests.erase(command.requestId);
+                                enqueueFailure(control,
+                                               command.requestId,
+                                               ErrorCode::InvalidCommand,
+                                               "events.replay cannot start after the current sequence");
+                                return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                            }
+                            SyncMode mode = SyncMode::Snapshot;
+                            UpdateBatchResult built;
+                            if (replayResult.status == JournalReplayStatus::Available) {
+                                built = batchBuilder.build(replayResult.events);
+                                if (built.success()) {
+                                    mode = SyncMode::Replay;
+                                }
+                            }
+                            completeServiceAction(Json{{"syncMode", toString(mode)}, {"sequence", journal.currentSequence().value()}});
+                            if (mode == SyncMode::Replay) {
+                                for (const BoundedEventBatch& batch : built.batches) {
+                                    enqueue(control, ServerMessage{batch.batch});
+                                }
+                            } else {
+                                enqueueSnapshot(control);
+                            }
+                            enqueue(control, ServerMessage{SyncComplete{journal.currentSequence(), Json::object()}});
+                            return {ConnectionReceiveStatus::Accepted, std::nullopt};
+                        }
+                        case detail::NativeServiceAction::ControllerAcquire:
+                            mapping = backend::BackendCommand{backend::ControllerAcquire{}};
+                            break;
+                        case detail::NativeServiceAction::ControllerRelease:
+                            mapping = backend::BackendCommand{backend::ControllerRelease{}};
+                            break;
+                        case detail::NativeServiceAction::ProviderStart:
+                        case detail::NativeServiceAction::ProviderStop:
+                        case detail::NativeServiceAction::ProviderRestart: {
+                            const detail::NativeServiceAction action = native->action;
+                            const backend::ProviderSnapshot provider = backendCore->snapshot().provider;
+                            refreshLifecycleAction(provider);
+                            if (lifecycleActionInFlight.has_value()) {
+                                control->pendingRequests.erase(command.requestId);
+                                enqueueFailure(control,
+                                               command.requestId,
+                                               ErrorCode::Conflict,
+                                               "another provider lifecycle action is still in progress");
+                                return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                            }
+                            const bool validState =
+                                action == detail::NativeServiceAction::ProviderStart
+                                    ? provider.lifecycle == backend::ProviderLifecycle::Stopped && !provider.desiredRunning
+                                : action == detail::NativeServiceAction::ProviderStop
+                                    ? provider.lifecycle != backend::ProviderLifecycle::Stopped &&
+                                          provider.lifecycle != backend::ProviderLifecycle::Stopping
+                                    : provider.lifecycle != backend::ProviderLifecycle::Stopping;
+                            if (!validState) {
+                                control->pendingRequests.erase(command.requestId);
+                                enqueueFailure(control,
+                                               command.requestId,
+                                               ErrorCode::Conflict,
+                                               "provider lifecycle action is not valid in the current state");
+                                return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                            }
+                            lifecycleActionInFlight = action;
+                            try {
+                                switch (action) {
+                                    case detail::NativeServiceAction::ProviderStart:
+                                        backendCore->start();
+                                        break;
+                                    case detail::NativeServiceAction::ProviderStop:
+                                        backendCore->stop();
+                                        break;
+                                    case detail::NativeServiceAction::ProviderRestart:
+                                        backendCore->restart();
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            } catch (...) {
+                                lifecycleActionInFlight.reset();
+                                control->pendingRequests.erase(command.requestId);
+                                enqueueFailure(
+                                    control, command.requestId, ErrorCode::InternalError, "provider lifecycle action failed locally");
+                                return {ConnectionReceiveStatus::Rejected, std::nullopt};
+                            }
+
+                            // BackendCore accepts the action synchronously so
+                            // transport closure cannot cancel provider state.
+                            // Only its correlated response remains callback-last.
+                            const std::weak_ptr<Impl> weakSelf = shared_from_this();
+                            const std::weak_ptr<FrontendConnection::Control> weakControl = control;
+                            const std::string requestId = command.requestId;
+                            schedule([weakSelf, weakControl, requestId] {
+                                const auto self = weakSelf.lock();
+                                const auto locked = weakControl.lock();
+                                if (!self || !locked || !locked->open || !locked->pendingRequests.erase(requestId)) {
+                                    return;
+                                }
+                                self->enqueue(locked, ServerMessage{Response::success(requestId, Json::object())});
+                            });
+                            return {ConnectionReceiveStatus::Accepted, std::nullopt};
+                        }
+                    }
+                }
+
                 if (!control->backendSession.has_value() || !control->backendSession->isOpen()) {
-                    control->pendingRequestIds.erase(command.requestId);
+                    control->pendingRequests.erase(command.requestId);
                     enqueueFailure(control, command.requestId, ErrorCode::BackendUnavailable, "backend frontend session is closed");
                     return {ConnectionReceiveStatus::Rejected, std::nullopt};
                 }
-
                 backend::CommandSubmission submission =
                     control->backendSession->submit(command.requestId, std::get<backend::BackendCommand>(mapping));
                 if (!submission) {
-                    control->pendingRequestIds.erase(command.requestId);
+                    control->pendingRequests.erase(command.requestId);
                     ErrorCode code = ErrorCode::LocalSubmissionFailure;
                     switch (submission.error) {
                         case backend::SubmissionError::None:
@@ -1588,33 +1721,21 @@ namespace ai::openai::codex::frontend {
                             code = ErrorCode::DuplicateRequestId;
                             break;
                         case backend::SubmissionError::QueueFull:
-                            code = ErrorCode::LocalSubmissionFailure;
+                            code = ErrorCode::CapacityExceeded;
                             break;
                     }
-                    enqueueFailure(control, command.requestId, code, submission.message);
+                    enqueueFailure(control, command.requestId, code, "frontend command submission failed");
                     return {ConnectionReceiveStatus::Rejected, std::nullopt};
                 }
                 return {ConnectionReceiveStatus::Accepted, std::nullopt};
-            } catch (const std::exception& exception) {
-                CodecError error{ErrorCode::InternalError,
-                                 std::string("failed to process frontend message: ") + exception.what(),
-                                 false,
-                                 {},
-                                 std::nullopt,
-                                 std::nullopt};
-                return receiveError(control, std::move(error));
             } catch (...) {
-                CodecError error{ErrorCode::InternalError,
-                                 "failed to process frontend message: unknown local exception",
-                                 false,
-                                 {},
-                                 std::nullopt,
-                                 std::nullopt};
-                return receiveError(control, std::move(error));
+                control->pendingRequests.erase(command.requestId);
+                enqueueFailure(control, command.requestId, ErrorCode::InternalError, "failed to dispatch frontend command");
+                return {ConnectionReceiveStatus::Rejected, std::nullopt};
             }
         }
 
-        Json commandValueJson(const backend::CommandValue& value) const {
+        Json legacyCommandValueJson(const backend::CommandValue& value) const {
             const backend::Snapshot currentSnapshot = backendCore->snapshot();
             return std::visit(
                 Overloaded{[](const std::monostate&) {
@@ -1678,29 +1799,46 @@ namespace ai::openai::codex::frontend {
                 value);
         }
 
+        Json commandValueJson(generated::MethodId method, const backend::CommandValue& value) const {
+            const detail::ProviderResultProjection projection =
+                detail::projectProviderResult(method, value, serviceOptions.maxOutboundBytesPerConnection);
+            switch (projection.status) {
+                case detail::ProviderResultProjectionStatus::Success:
+                    return projection.value;
+                case detail::ProviderResultProjectionStatus::LegacyProjectionRequired:
+                case detail::ProviderResultProjectionStatus::NotProviderResult:
+                    return legacyCommandValueJson(value);
+                case detail::ProviderResultProjectionStatus::ResultTypeMismatch:
+                case detail::ProviderResultProjectionStatus::InvalidResult:
+                    throw std::logic_error("backend result does not satisfy its generated frontend result contract");
+                case detail::ProviderResultProjectionStatus::ResultTooLarge:
+                    throw ResultCapacityFailure{};
+            }
+            throw std::logic_error("unknown provider result projection status");
+        }
+
         void onCommandCompleted(const std::shared_ptr<FrontendConnection::Control>& control,
                                 const backend::CommandCompletion& completion) noexcept {
-            if (!control->pendingRequestIds.erase(completion.requestId)) {
+            const auto pending = control->pendingRequests.find(completion.requestId);
+            if (pending == control->pendingRequests.end()) {
                 return;
             }
+            const generated::MethodId method = pending->second;
+            control->pendingRequests.erase(pending);
             try {
                 if (completion.result.error.has_value()) {
                     const backend::CommandError& error = *completion.result.error;
-                    Json details = error.details;
-                    if (error.remoteCode.has_value()) {
-                        if (!details.is_object()) {
-                            details = Json{{"details", details}};
-                        }
-                        details["remoteCode"] = *error.remoteCode;
-                    }
-                    enqueueFailure(control,
-                                   completion.requestId,
-                                   frontendErrorCode(error.code),
-                                   error.message,
-                                   details.is_null() ? std::nullopt : std::optional<Json>{std::move(details)});
+                    enqueueFailure(
+                        control, completion.requestId, frontendErrorCode(error.code), std::string(frontendCommandErrorMessage(error.code)));
                 } else {
-                    enqueue(control, ServerMessage{Response::success(completion.requestId, commandValueJson(completion.result.value))});
+                    enqueue(control,
+                            ServerMessage{Response::success(completion.requestId, commandValueJson(method, completion.result.value))});
                 }
+            } catch (const ResultCapacityFailure&) {
+                enqueueFailure(control,
+                               completion.requestId,
+                               ErrorCode::CapacityExceeded,
+                               "frontend command result exceeds the configured outbound capacity");
             } catch (...) {
                 enqueueFailure(control, completion.requestId, ErrorCode::InternalError, "failed to normalize backend command completion");
             }
@@ -1995,6 +2133,7 @@ namespace ai::openai::codex::frontend {
             }
             try {
                 const backend::Snapshot snapshot = backendCore->snapshot();
+                refreshLifecycleAction(snapshot.provider);
                 bool immediate = false;
                 for (const backend::SequencedBackendEvent& event : events) {
                     immediate = normalizeEvent(event, snapshot) || immediate;
@@ -2014,6 +2153,7 @@ namespace ai::openai::codex::frontend {
             if (!open) {
                 return;
             }
+            refreshLifecycleAction(snapshot.provider);
             coalescer.clear();
             if (!journal.invalidateReplay()) {
                 sequenceExhausted = true;
@@ -2202,6 +2342,7 @@ namespace ai::openai::codex::frontend {
         bool flushing = false;
         bool flushAgain = false;
         bool sequenceExhausted = false;
+        std::optional<detail::NativeServiceAction> lifecycleActionInFlight;
     };
 
     FrontendConnection::FrontendConnection() noexcept = default;
@@ -2238,6 +2379,17 @@ namespace ai::openai::codex::frontend {
             control->open = false;
             return {ConnectionReceiveStatus::Closed, std::nullopt};
         }
+        const CodecResult<Json> encoded = Codec::encodeClient(message);
+        if (!encoded) {
+            return receiveError(encoded.error());
+        }
+        try {
+            if (!service->inboundFrameAdmissible(encoded.value().dump().size())) {
+                return service->receiveFrameError(control, ErrorCode::FrameTooLarge, "frontend inbound message exceeds frame capacity");
+            }
+        } catch (...) {
+            return service->receiveFrameError(control, ErrorCode::InvalidField, "frontend inbound message could not be measured");
+        }
         return service->receive(control, message);
     }
 
@@ -2260,11 +2412,7 @@ namespace ai::openai::codex::frontend {
         } catch (...) {
             return service->receiveFrameError(control, ErrorCode::MalformedJson, "frontend inbound JSON could not be measured");
         }
-        const auto decoded = Codec::decodeClient(message);
-        if (!decoded) {
-            return receiveError(decoded.error());
-        }
-        return receive(decoded.value());
+        return service->receiveJson(control, message);
     }
 
     ConnectionReceiveResult FrontendConnection::receive(std::string_view compactJson) noexcept {
@@ -2282,11 +2430,11 @@ namespace ai::openai::codex::frontend {
         if (!service->inboundFrameAdmissible(compactJson.size())) {
             return service->receiveFrameError(control, ErrorCode::FrameTooLarge, "frontend inbound message exceeds frame capacity");
         }
-        const auto decoded = Codec::decodeClient(compactJson);
-        if (!decoded) {
-            return receiveError(decoded.error());
+        const Json parsed = Json::parse(compactJson.begin(), compactJson.end(), nullptr, false);
+        if (parsed.is_discarded()) {
+            return receiveError(CodecError{ErrorCode::MalformedJson, "message is not valid JSON", false, {}, std::nullopt, std::nullopt});
         }
-        return receive(decoded.value());
+        return service->receiveJson(control, parsed);
     }
 
     ConnectionReceiveResult FrontendConnection::receiveError(CodecError error) noexcept {

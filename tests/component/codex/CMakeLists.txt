@@ -1437,7 +1437,7 @@ target_compile_features(CodexFrontendContractMetadataTest PRIVATE cxx_std_20)
 set_tests_properties(
     CodexFrontendContractMetadataTest
     PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;protocol;security;a1-7a"
+               "component;ai;openai;codex;frontend;protocol;security;a1-7a;a1-7b"
                TIMEOUT 10
 )
 
@@ -1458,6 +1458,24 @@ set_tests_properties(
 )
 
 snodec_add_test(
+    CodexFrontendRuntimeBackendMappingTest
+    CodexFrontendRuntimeBackendMappingTest.cpp
+)
+target_link_libraries(
+    CodexFrontendRuntimeBackendMappingTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
+)
+target_compile_features(
+    CodexFrontendRuntimeBackendMappingTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexFrontendRuntimeBackendMappingTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;runtime;backend-mapping;a1-7b"
+               TIMEOUT 10
+)
+
+snodec_add_test(
     CodexFrontendCompleteCodecTest CodexFrontendCompleteCodecTest.cpp
 )
 target_link_libraries(
@@ -1474,6 +1492,77 @@ set_tests_properties(
     CodexFrontendCompleteCodecTest
     PROPERTIES LABELS "component;ai;openai;codex;frontend;protocol;codec;a1-7a"
                TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexFrontendProviderResultProjectionTest
+    CodexFrontendProviderResultProjectionTest.cpp
+)
+target_link_libraries(
+    CodexFrontendProviderResultProjectionTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+)
+target_compile_features(
+    CodexFrontendProviderResultProjectionTest PRIVATE cxx_std_20
+)
+target_compile_definitions(
+    CodexFrontendProviderResultProjectionTest
+    PRIVATE
+        CODEX_FRONTEND_GOLDEN_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
+)
+set_tests_properties(
+    CodexFrontendProviderResultProjectionTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;service;provider-results;a1-7b"
+               TIMEOUT 15
+)
+
+snodec_add_test(
+    CodexFrontendAuthorizationMetadataTest
+    CodexFrontendAuthorizationMetadataTest.cpp
+)
+target_link_libraries(
+    CodexFrontendAuthorizationMetadataTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+)
+target_compile_features(
+    CodexFrontendAuthorizationMetadataTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexFrontendAuthorizationMetadataTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;service;authorization;metadata;a1-7b"
+               TIMEOUT 10
+)
+
+snodec_add_test(
+    CodexFrontendRuntimeActivationTest CodexFrontendRuntimeActivationTest.cpp
+)
+target_link_libraries(
+    CodexFrontendRuntimeActivationTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
+)
+target_compile_features(CodexFrontendRuntimeActivationTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendRuntimeActivationTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;service;runtime;authorization;a1-7b"
+               TIMEOUT 15
+)
+
+snodec_add_test(
+    CodexFrontendRuntimeSecurityTest CodexFrontendRuntimeSecurityTest.cpp
+)
+target_link_libraries(
+    CodexFrontendRuntimeSecurityTest
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
+)
+target_compile_features(CodexFrontendRuntimeSecurityTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendRuntimeSecurityTest
+    PROPERTIES LABELS
+               "component;ai;openai;codex;frontend;service;runtime;security;a1-7b"
+               TIMEOUT 15
 )
 
 snodec_add_test(

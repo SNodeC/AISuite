@@ -16,6 +16,11 @@
 
 namespace ai::openai::codex::detail {
 
+    // Private request-parameter building block shared by the typed facade and
+    // the transport-neutral frontend command mapper.
+    std::optional<typed::ExternalAgentConfigMigrationItem> decodeExternalAgentConfigMigrationItem(const Json& value,
+                                                                                                  std::string& error) noexcept;
+
     std::optional<Json> encodeExternalAgentConfigDetectParams(const typed::ExternalAgentConfigDetectParams& value,
                                                               std::string& error) noexcept;
     std::optional<Json> encodeExternalAgentConfigImportParams(const typed::ExternalAgentConfigImportParams& value,

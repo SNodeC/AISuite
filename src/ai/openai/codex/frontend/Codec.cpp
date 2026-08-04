@@ -567,6 +567,13 @@ namespace ai::openai::codex::frontend {
 
         void validateDefinedParameters(const generated::MethodMetadata& metadata, const Json& params) {
             validateGeneratedSchema(metadata.parameterSchema, params, "params");
+            if ((metadata.id == generated::MethodId::ThreadStart || metadata.id == generated::MethodId::ThreadResume) &&
+                params.contains("sandbox") && params.contains("sandboxMode")) {
+                fail(ErrorCode::InvalidField, "sandbox and sandboxMode cannot both be present");
+            }
+            if (metadata.id == generated::MethodId::TurnStart && params.contains("effort") && params.contains("reasoningEffort")) {
+                fail(ErrorCode::InvalidField, "effort and reasoningEffort cannot both be present");
+            }
         }
 
         generated::DefinedCommand decodeDefinedCommandImpl(const Json& message) {

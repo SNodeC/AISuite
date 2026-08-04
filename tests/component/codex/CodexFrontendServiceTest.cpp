@@ -563,8 +563,8 @@ namespace {
             outstandingService.openConnection(otherRemote, callbacksFor(outstandingObservations));
         result.expectTrue(outstandingConnection.receive(goodHello).accepted(), "outstanding-command test authenticates normally");
         scheduler.drain();
-        result.expectTrue(outstandingConnection.receive(command("pending-one", frontend::ThreadStart{})).accepted() &&
-                              outstandingConnection.receive(command("pending-two", frontend::ThreadStart{})).status ==
+        result.expectTrue(outstandingConnection.receive(command("pending-one", frontend::ControllerAcquire{})).accepted() &&
+                              outstandingConnection.receive(command("pending-two", frontend::ControllerAcquire{})).status ==
                                   frontend::ConnectionReceiveStatus::Rejected,
                           "one pending request consumes the configured outstanding-command capacity");
         scheduler.drain();
@@ -613,8 +613,9 @@ namespace {
                           "pre-authentication command decoding is terminal without policy inspection");
         scheduler.drain();
         const frontend::ProtocolErrorMessage* preAuthenticationError = protocolError(preAuthenticationObservations, std::nullopt);
-        result.expectTrue(preAuthenticationError != nullptr && preAuthenticationError->code == frontend::ErrorCode::InvalidField &&
-                              preAuthenticationError->message == "frontend handshake message is invalid" &&
+        result.expectTrue(preAuthenticationError != nullptr &&
+                              preAuthenticationError->code == frontend::ErrorCode::AuthenticationRequired &&
+                              preAuthenticationError->message == "frontend authentication must complete before commands are accepted" &&
                               preAuthenticationError->requestId == std::nullopt &&
                               preAuthenticationObservations.compactJson.end() ==
                                   std::find_if(preAuthenticationObservations.compactJson.begin(),
@@ -731,8 +732,9 @@ namespace {
                           "observer A submits explicit controller acquisition");
         result.expectTrue(!connectionA.receive(command("acquire-a", frontend::ControllerAcquire{})).accepted(),
                           "duplicate still-pending requestId is rejected locally");
-        result.expectTrue(connectionB.receive(command("observer-mutate", frontend::ThreadStart{})).accepted(),
-                          "observer mutation is accepted for one correlated permission response");
+        result.expectTrue(connectionB.receive(command("observer-mutate", frontend::ThreadStart{})).status ==
+                              frontend::ConnectionReceiveStatus::Rejected,
+                          "observer mutation is denied before BackendCore submission with one correlated response");
         scheduler.drain();
         result.expectTrue(hasSuccessfulResponse(observerA, "acquire-a"),
                           "controller acquisition completes successfully without duplicate backend completion");
@@ -751,15 +753,15 @@ namespace {
 
         const std::string secretSentinel = "frontend-auth-secret-must-not-leak";
         result.expectTrue(
-            connectionA.receive(command("auth-secret", frontend::AuthenticationRespond{"999", secretSentinel, "account", "plus"}))
-                .accepted(),
-            "controller submits an authentication response without exposing its secret in the server contract");
+            connectionA.receive(command("auth-secret", frontend::AuthenticationRespond{"999", secretSentinel, "account", "plus"})).status ==
+                frontend::ConnectionReceiveStatus::Rejected,
+            "reverse responses require provider readiness without exposing their secret in the server contract");
         scheduler.drain();
         const bool secretLeaked =
             std::any_of(observerA.compactJson.begin(), observerA.compactJson.end(), [&secretSentinel](const auto& json) {
                 return json.find(secretSentinel) != std::string::npos;
             });
-        result.expectTrue(responseHasError(observerA, "auth-secret", frontend::ErrorCode::NotFound) && !secretLeaked,
+        result.expectTrue(responseHasError(observerA, "auth-secret", frontend::ErrorCode::BackendUnavailable) && !secretLeaked,
                           "server output never serializes an authentication access token from a frontend command");
 
         const std::vector<frontend::FrontendEvent> allEventsA = events(observerA);
@@ -951,18 +953,17 @@ namespace {
 
         const frontend::Welcome* discovery = welcome(observations);
         result.expectTrue(discovery != nullptr && discovery->capabilities.has_value() && discovery->capabilities->defined.size() == 18 &&
-                              discovery->capabilities->implemented == std::vector{frontend::FrontendCapability::MethodDiscovery,
-                                                                                  frontend::FrontendCapability::SecurityScopes} &&
+                              discovery->capabilities->implemented.size() == 8 &&
                               discovery->capabilities->permitted == discovery->capabilities->implemented,
-                          "capability-aware welcome distinguishes all defined capabilities from the two implemented contract features");
-        result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 15 &&
+                          "commit-3 Welcome distinguishes 18 definitions from eight implemented mechanisms before projection activation");
+        result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 90 &&
                               discovery->permittedMethods == discovery->availableMethods &&
                               std::all_of(discovery->availableMethods->begin(),
                                           discovery->availableMethods->end(),
                                           [](const frontend::FrontendMethod& method) {
                                               return frontend::generated::runtimeMethodFromString(method).has_value();
                                           }),
-                          "the A1.7a runtime advertises and permits exactly its original 15 methods");
+                          "the local_trusted A1.7b runtime advertises and permits all 90 deployment-enabled methods");
 
         const std::size_t providerSubmissions = transport->outgoing.size();
         const frontend::ConnectionReceiveResult unavailable = connection.receive(frontend::Json{
@@ -970,18 +971,17 @@ namespace {
             {"version", frontend::ProtocolVersion},
             {"kind", "command"},
             {"requestId", "defined-but-unavailable"},
-            {"method", "provider.start"},
-            {"params", frontend::Json::object()},
+            {"method", "fs.readFile"},
+            {"params", frontend::Json{{"path", 7}}},
         });
         result.expectTrue(unavailable.status == frontend::ConnectionReceiveStatus::Rejected,
-                          "an A1.7a-defined method outside the legacy runtime set is rejected");
+                          "a defined but deployment-disabled method is rejected before its parameter schema is inspected");
         scheduler.drain();
         const frontend::ProtocolErrorMessage* unavailableError = protocolError(observations, "defined-but-unavailable");
         result.expectTrue(unavailableError != nullptr && unavailableError->code == frontend::ErrorCode::UnknownMethod &&
                               !unavailableError->closeConnection && connection.isOpen() && observations.closeReasons.empty(),
-                          "defined-but-unavailable methods return unknown_method without closing the established connection");
-        result.expectTrue(transport->outgoing.size() == providerSubmissions,
-                          "none of the 90 additive methods reaches BackendCore before A1.7b security enforcement");
+                          "deployment-disabled methods return unknown_method without closing the established connection");
+        result.expectTrue(transport->outgoing.size() == providerSubmissions, "disabled conditional methods never reach BackendCore");
     }
 
     void testSnapshotReplayBarrier(tests::support::TestResult& result) {
