@@ -11340,8 +11340,12 @@ def render_coverage_document(
             "`NoRuntimeBackendStatePath` rationale.",
             "",
             "The A1.7a registry resolves all 234 reviewed frontend-contract identities.",
-            "Definition in the additive v1 contract does not by itself imply runtime",
-            "implementation, deployment enablement, or principal permission.",
+            "A1.7b handler implementation, deployment availability, and built-in scope-profile",
+            "permission are emitted and mechanically guarded by the downstream",
+            "`frontend-protocol-v1.manifest.json`; this owner-reviewed registry report does",
+            "not duplicate that runtime-status authority.",
+            "Definition, handler implementation, deployment enablement, static principal",
+            "permission, and invocation-time readiness remain distinct runtime concepts.",
             "",
             "## Pinned artifacts",
             "",
@@ -11483,7 +11487,9 @@ def render_security_document(
         "the A1.6 `NoRuntimeBackendStatePath` disposition; they do not shrink the denominator.",
         "",
         "Protocol methods: **105** (**15** existing + **90** additive; **7** frontend-native + **98** non-native).",
-        "The current A1.7a runtime advertises and executes only the existing **15** methods.",
+        "A1.7b handler implementation, deployment availability, and built-in scope-profile permission are",
+        "mechanically recorded by the downstream `frontend-protocol-v1.manifest.json`; this owner-decision",
+        "record deliberately does not duplicate those runtime-status fields.",
         "Default-disabled schema-defined methods: **15** (ten filesystem/search/watch methods and five command-execution methods).",
         "Experimental requests not exposed: **36**. ResponseItem rows genuinely NotApplicable: **16**.",
         "Stable notification mappings: **68**. Stable ThreadItem mappings: **18**.",
@@ -11553,7 +11559,7 @@ def render_security_document(
         elif prior_exposure in {"ExistingEventSubset", "GenericExtension", "ExistingUnknownItemSubset"}:
             rationale = "Legacy bytes retained; expanded-capability projection is duplicate-suppressed."
         else:
-            rationale = "Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy."
+            rationale = "Owner-approved A1.7a schema-defined v1 contract; A1.7b runtime status is tracked by downstream generated method metadata."
         lines.append(
             "| "
             + " | ".join(

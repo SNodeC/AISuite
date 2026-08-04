@@ -2,14 +2,16 @@
 
 A1.7a completes and freezes the owner-approved additive Frontend Protocol v1
 contract. It preserves protocol identity `snodec.codex-frontend`, version `1`,
-the eight message kinds, and every existing field and method meaning. It does
-not activate the additive command/state/event surface at runtime.
+the eight message kinds, and every existing field and method meaning. At its
+landing it did not activate the additive command/state/event surface at
+runtime.
 
 Authentication, authorization enforcement, connection-specific scope
 projection, `FrontendService`, additional listeners/transports, and provider
-lifecycle exposure remain A1.7b work. A1.7a therefore must not be read as a
-claim that remote authentication, TLS, WebSocket, IPv4/IPv6, RFCOMM, or any UI
-is implemented.
+lifecycle exposure were intentionally deferred to A1.7b. They are documented
+in the [A1.7b FrontendService report](a1-7b-frontend-service.md). This A1.7a
+report remains the authority for the frozen contract and must not be read as a
+claim that those runtime features belonged to A1.7a or that a UI exists.
 
 ## Verified prerequisite
 
@@ -64,12 +66,13 @@ The complete reverse set is `request.approval.respond`,
 `BackendCommand` alternative for every one of the 86 provider and 12 reverse
 methods without placing that converter on the production dispatch path.
 
-The current production runtime continues accepting exactly the original 15
-methods. All 90 additive methods are contract definitions whose generated
-metadata says `currentlyImplemented: false`. Exact-name lookup rejects
-prefixes and suffixes, so related names such as `command.exec` and
-`command.exec.resize` remain distinct. Definition does not imply runtime
-availability, deployment enablement, or permission.
+The runtime that landed with A1.7a accepted exactly the original 15 methods;
+all 90 additive methods were contract definitions whose metadata said
+`currentlyImplemented: false`. A1.7b subsequently supplies all 105 handlers
+while keeping 15 conditional methods deployment-disabled by default. Exact-name
+lookup rejects prefixes and suffixes, so related names such as `command.exec`
+and `command.exec.resize` remain distinct. Definition still does not imply
+deployment enablement, permission, or invocation readiness.
 
 ## Fixed review denominator
 
@@ -149,10 +152,13 @@ cpp_client_sdk                   typescript_client_sdk
 browser_ui                       qt_ui
 ```
 
-A1.7a generated metadata marks only `method_discovery` and `security_scopes` as
-implemented by the current runtime. All other capability names are defined for
-stable negotiation but remain unimplemented until their owning phase. A
-defined capability or method is never treated as automatically permitted.
+A1.7a generated metadata marked only `method_discovery` and `security_scopes`
+as implemented by its landing runtime. A1.7b implements 13 service mechanisms.
+The `multi_transport` identity remains defined for v1 compatibility but is not
+implemented or advertised because SNode.C owns listener lifecycle and AISuite
+keeps no duplicate transport registry. Future product capabilities remain
+false. A defined capability or method is never treated as automatically
+permitted.
 
 ## Security profiles
 
@@ -221,10 +227,11 @@ receive the legacy projection for the same provider occurrence. This
 duplicate-suppression rule preserves existing bytes for legacy connections
 while allowing later capability-gated expansion.
 
-A1.7a defines and mechanically checks these mappings; it does not activate the
-expanded events, state, or pending-request contracts in the current runtime.
-No raw provider JSON, occurrence token, authentication token, secret answer,
-unbounded content, or binary payload becomes a safe frontend projection.
+A1.7a defines and mechanically checks these mappings. A1.7b activates them
+through one mandatory per-principal projection path while retaining the
+legacy paths without duplication. No raw provider JSON, occurrence token,
+authentication token, secret answer, unbounded content, or binary payload
+becomes a safe frontend projection.
 
 ## Schema, C++ values, and compatibility guards
 
@@ -245,7 +252,7 @@ time, while each payload remains a `nlohmann::json` value. These types provide
 exact method correlation, generated metadata, schema validation, and wire
 conformance; they are not yet the ergonomic domain-typed C++ application API.
 
-A1.7c owns `AISuite::OpenAICodexFrontendClient`: domain-oriented façades,
+A1.7c-1 owns `AISuite::OpenAICodexFrontendClient`: domain-oriented façades,
 callback-last asynchronous operations, typed client-side state,
 replay/reconnection, and stable application workflows that do not require raw
 JSON. The A1.7a method tags and 105-alternative parameter/result variants remain
@@ -314,9 +321,10 @@ rule. Known fields are still validated, and unknown values still pass the
 applicable safe-name, sensitive-field, nesting, size, and nested-value checks.
 In particular, generated `additionalProperties: false` closes the published
 schema for general validators but is deliberately not used by the AISuite C++
-runtime to reject safe additive v1 fields. A1.7b still owns network admission,
+runtime to reject safe additive v1 fields. A1.7b owns network admission,
 the frontend frame bound, rate limiting, authentication, and connection-scope
-enforcement.
+enforcement; those runtime features are implemented and documented by the
+subsequent A1.7b milestone, not by this A1.7a contract milestone.
 
 The five additive error-code strings are `authentication_required`,
 `authentication_failed`, `origin_rejected`, `transport_security_required`, and
@@ -351,18 +359,23 @@ frontend    9
 total      45
 ```
 
+A1.7b subsequently replaces `BackendAdapter.h` with `FrontendService.h`
+without an alias, so the 9/45 counts remain unchanged.
+
 Project version remains `0.1.0`. All three Codex libraries remain on the
 intentionally unreleased SOVERSION 2 boundary. No compatibility library or ABI
 version 3 is introduced.
 
-## Remaining A1.7 ownership
+## Subsequent A1.7 ownership
 
 - A1.7b: authenticated and scope-enforcing `FrontendService`, per-connection
-  capability/state projection, runtime activation of approved methods and
-  mappings, provider lifecycle exposure, and multi-transport composition;
-- A1.7c: C++ client SDK and Qt UI;
-- A1.7d: TypeScript client SDK and browser UI.
+  capability/state projection, all approved handlers and mappings, provider
+  lifecycle exposure, and multi-transport composition;
+- A1.7c-1: C++ Frontend SDK and `codex-backend-client` migration;
+- A1.7c-2: migration of the existing `codex-ui` into the canonical standalone
+  AI IDE, immediately after A1.7c-1 with no additional intervening PR;
+- A1.7d: TypeScript Frontend SDK and browser frontend.
 
-A1.7a starts none of those runtime or product deliverables. Persistence,
+A1.7a itself started none of those runtime or product deliverables. Persistence,
 multiple controllers, forced takeover, and provider-neutral architecture are
 also outside this contract milestone; provider-neutral work remains A2.

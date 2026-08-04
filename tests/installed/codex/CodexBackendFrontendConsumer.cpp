@@ -7,6 +7,7 @@
 
 #include <ai/openai/codex/backend/BackendCore.h>
 #include <ai/openai/codex/frontend/Codec.h>
+#include <ai/openai/codex/frontend/FrontendService.h>
 #include <ai/openai/codex/frontend/GeneratedProtocol.h>
 #include <ai/openai/codex/frontend/Messages.h>
 #include <ai/openai/codex/frontend/Protocol.h>
@@ -14,7 +15,10 @@
 #include <ai/openai/codex/stdio/Client.h>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -75,6 +79,11 @@ int main() {
     using ai::openai::codex::backend::BackendCore;
     using namespace ai::openai::codex::frontend;
 
+    static_assert(!std::is_copy_constructible_v<FrontendConnection>);
+    static_assert(!std::is_copy_assignable_v<FrontendConnection>);
+    static_assert(std::is_move_constructible_v<FrontendConnection>);
+    static_assert(std::is_move_assignable_v<FrontendConnection>);
+
     static_assert(ProtocolVersion == std::uint32_t{1});
     static_assert(ProtocolIdentity == std::string_view{"snodec.codex-frontend"});
     static_assert(generated::MethodCount == 105);
@@ -88,6 +97,34 @@ int main() {
     static_assert(method::ThreadStart == std::string_view{"thread.start"});
 
     BackendCore<ai::openai::codex::stdio::Client> backend;
+    FrontendServiceOptions serviceOptions;
+    serviceOptions.scheduler = [](std::function<void()> callback) {
+        callback();
+    };
+    serviceOptions.timerScheduler = [](std::uint64_t, std::function<void()>) -> FrontendTimerCancellation {
+        return [] {
+        };
+    };
+    FrontendService service{backend, std::move(serviceOptions)};
+    auto connection = service.openConnection(
+        FrontendPeerContext{
+            .transport = FrontendTransportKind::InMemory,
+            .encrypted = true,
+            .loopback = true,
+            .localPeer = true,
+        },
+        FrontendConnectionCallbacks{
+            .onMessage =
+                [](const OutboundMessage&) {
+                    return true;
+                },
+            .onClosed =
+                [](const std::string&) {
+                },
+        });
     const auto decoded = Codec::decodeClient(std::string_view{"{}"});
-    return backend.isReady() || decoded.hasValue() || !exerciseInstalledFrontendContract() ? 1 : 0;
+    const bool installedServiceReady = service.isOpen() && connection.isOpen() && service.connectionCount() == 1 &&
+                                       service.unauthenticatedConnectionCount() == 1 && service.authenticatedConnectionCount() == 0 &&
+                                       connection.peer().transport == FrontendTransportKind::InMemory;
+    return backend.isReady() || decoded.hasValue() || !exerciseInstalledFrontendContract() || !installedServiceReady ? 1 : 0;
 }

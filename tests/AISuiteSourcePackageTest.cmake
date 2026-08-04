@@ -67,6 +67,22 @@ foreach(required
     src/ai/openai/codex/typed/Plugins.h
     src/ai/openai/codex/typed/Skills.h
     src/ai/openai/codex/typed/WindowsSandbox.h
+    src/ai/openai/codex/frontend/FrontendService.cpp
+    src/ai/openai/codex/frontend/FrontendService.h
+    src/apps/codex-backend/Configuration.cpp
+    src/apps/codex-backend/FrontendRuntimeBridge.cpp
+    src/apps/codex-backend/FrontendRuntimeBridge.h
+    src/apps/codex-backend/FrontendStreamSocketContext.cpp
+    src/apps/codex-backend/FrontendWebApplication.h
+    src/apps/codex-backend/FrontendWebApplication.cpp
+    src/apps/codex-backend/FrontendWebSecurity.cpp
+    src/apps/codex-backend/FrontendWebSecurity.h
+    src/apps/codex-backend/FrontendWebSocketSubProtocol.cpp
+    src/apps/codex-backend/FrontendWebSocketSubProtocol.h
+    src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.cpp
+    src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.h
+    src/apps/codex-backend/ReferenceAuthentication.cpp
+    src/apps/codex-backend/UnixPeerCredentials.cpp
     src/apps/codex-backend/main.cpp
     src/apps/codex-backend-client/main.cpp
     tools/codex/app_server_surface.py
@@ -92,18 +108,35 @@ foreach(required
     tests/installed/codex/CodexApiConsumer.cpp
     tests/installed/codex/CodexApiExample.cpp
     tests/installed/codex/CodexApplicationProjectionConsumer.cpp
+    tests/installed/codex/CodexBackendFrontendConsumer.cpp
     tests/installed/codex/SNodeInstalledCoreConsumer.cpp
     tests/installed/codex-module-server/CMakeLists.txt
     tests/installed/codex-module-server/CodexModuleServer.cpp
     docs/ai/openai/codex/a1-4-user-facing-integrations.md
     docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md
     docs/ai/openai/codex/a1-6a-backend-foundation.md
+    docs/ai/openai/codex/a1-7b-frontend-service.md
     docs/ai/openai/codex/a1-final-abi-transition.md
 )
     if(NOT EXISTS "${root}/${required}")
         message(
             FATAL_ERROR
                 "CodexPolicySourcePackageMismatch: source package missing ${required}"
+        )
+    endif()
+endforeach()
+
+foreach(
+    forbidden
+    src/ai/openai/codex/frontend/BackendAdapter.cpp
+    src/ai/openai/codex/frontend/BackendAdapter.h
+    src/ai/openai/codex/frontend/FrontendClient.cpp
+    src/ai/openai/codex/frontend/FrontendClient.h
+)
+    if(EXISTS "${root}/${forbidden}")
+        message(
+            FATAL_ERROR
+                "CodexPolicySourcePackageMismatch: source package contains obsolete or future-phase frontend API ${forbidden}"
         )
     endif()
 endforeach()

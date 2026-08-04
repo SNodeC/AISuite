@@ -2936,6 +2936,15 @@ def test_generated_artifacts(
     generated_coverage = tool.render_coverage_document(
         manifest, registry_entries, provenance
     )
+    if (
+        "A1.7b handler implementation, deployment availability"
+        not in generated_coverage
+        or "`frontend-protocol-v1.manifest.json`"
+        not in generated_coverage
+    ):
+        raise AssertionError(
+            "generated coverage document does not preserve the downstream runtime-status authority"
+        )
     if generated_coverage != coverage_path.read_text(encoding="utf-8"):
         raise AssertionError("generated App Server coverage document is stale")
     generated_security = tool.render_security_document(manifest, registry_entries)
@@ -2945,9 +2954,15 @@ def test_generated_artifacts(
         not in generated_security
         or "Complete reviewed denominator: **234**." not in generated_security
         or "Final unresolved decisions: **0**." not in generated_security
+        or "A1.7b handler implementation, deployment availability"
+        not in generated_security
+        or "`frontend-protocol-v1.manifest.json`"
+        not in generated_security
+        or "current A1.7a runtime" in generated_security
+        or "runtime activation follows A1.7a" in generated_security
     ):
         raise AssertionError(
-            "generated owner decision record does not report the fixed 148 + 86 = 234 review and zero final unresolved"
+            "generated owner decision record does not preserve the fixed review and downstream runtime-status authority"
         )
     if generated_security != security_path.read_text(encoding="utf-8"):
         raise AssertionError("generated owner security worksheet is stale")

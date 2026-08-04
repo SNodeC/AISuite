@@ -535,8 +535,7 @@ namespace {
         limitedIpv6.loopback = true;
         limitedIpv6.remoteAddress = "[::1]:32999";
         Observations limitedIpv6Observations;
-        frontend::FrontendConnection limitedIpv6Connection =
-            service.openConnection(limitedIpv6, callbacksFor(limitedIpv6Observations));
+        frontend::FrontendConnection limitedIpv6Connection = service.openConnection(limitedIpv6, callbacksFor(limitedIpv6Observations));
         result.expectTrue(limitedIpv6Connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
                           "changing IPv6 presentation or transport encryption does not reset its peer budget");
         scheduler.drain();

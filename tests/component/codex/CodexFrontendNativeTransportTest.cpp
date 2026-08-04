@@ -44,6 +44,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -51,9 +52,12 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utility>
@@ -76,12 +80,15 @@ namespace {
         return static_cast<std::size_t>(kind);
     }
 
-    constexpr std::size_t expectedClientCount() noexcept {
+    std::vector<ClientKind> activeClientKinds(bool ipv6LoopbackAvailable) {
+        std::vector<ClientKind> kinds{ClientKind::Unix, ClientKind::Ipv4};
+        if (ipv6LoopbackAvailable) {
+            kinds.push_back(ClientKind::Ipv6);
+        }
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-        return 4;
-#else
-        return 3;
+        kinds.push_back(ClientKind::Tls);
 #endif
+        return kinds;
     }
 
     std::string_view clientName(ClientKind kind) noexcept {
@@ -93,7 +100,7 @@ namespace {
             case ClientKind::Ipv6:
                 return "IPv6 JSONL";
             case ClientKind::Tls:
-                return "IPv6 TLS JSONL";
+                return "TLS JSONL";
             case ClientKind::Count:
                 break;
         }
@@ -130,8 +137,9 @@ namespace {
     };
 
     struct IntegrationState {
-        explicit IntegrationState(tests::support::TestResult& result)
-            : result(result) {
+        IntegrationState(tests::support::TestResult& result, std::size_t expectedClients)
+            : result(result)
+            , expectedClients(expectedClients) {
         }
 
         void listenFailed(ClientKind kind, const core::socket::State& state) {
@@ -173,7 +181,7 @@ namespace {
                     ++completedClients;
                 }
                 ++observation.syncComplete;
-                if (completedClients == expectedClientCount()) {
+                if (completedClients == expectedClients) {
                     completed = true;
                     core::SNodeC::stop();
                 }
@@ -204,6 +212,7 @@ namespace {
         std::size_t connectFailures = 0;
         std::size_t decodeFailures = 0;
         std::size_t completedClients = 0;
+        std::size_t expectedClients = 0;
         bool topologyObservedBeforeClients = false;
         bool completed = false;
         bool timedOut = false;
@@ -290,6 +299,66 @@ namespace {
 
     std::string unixSocketPath() {
         return "/tmp/aisuite-a1-7b-native-" + std::to_string(::getpid()) + ".sock";
+    }
+
+    bool expectedIpv6ResolverAbsence(int error) noexcept {
+        if (error == EAI_NONAME || error == EAI_FAMILY) {
+            return true;
+        }
+#if defined(EAI_ADDRFAMILY)
+        if (error == EAI_ADDRFAMILY) {
+            return true;
+        }
+#endif
+        return false;
+    }
+
+    bool expectedIpv6SocketAbsence(int error) noexcept {
+        return error == EAFNOSUPPORT || error == EPROTONOSUPPORT || error == EADDRNOTAVAIL;
+    }
+
+    bool ipv6LoopbackAvailable(tests::support::TestResult& result) {
+        try {
+            net::in6::SocketAddress address("::1", 0);
+            address.init({.aiFlags = AI_PASSIVE | AI_NUMERICHOST, .aiSockType = SOCK_STREAM, .aiProtocol = IPPROTO_TCP});
+        } catch (const core::socket::SocketAddress::BadSocketAddress& error) {
+            if (expectedIpv6ResolverAbsence(error.getErrnum())) {
+                std::cout << "IPv6 live loopback not run: SNode.C AI_ADDRCONFIG cannot resolve ::1 without a configured "
+                             "non-loopback IPv6 address; IPv6 build, configuration, and factory coverage remains active.\n";
+                return false;
+            }
+            result.expectTrue(false, std::string("unexpected IPv6 resolver failure: ") + error.what());
+            return false;
+        }
+
+        const int descriptor = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+        if (descriptor < 0) {
+            if (expectedIpv6SocketAbsence(errno)) {
+                std::cout << "IPv6 live loopback not run: the platform has no usable IPv6 stream socket; IPv6 build, configuration, "
+                             "and factory coverage remains active.\n";
+                return false;
+            }
+            result.expectTrue(false, "unexpected IPv6 socket probe failure");
+            return false;
+        }
+
+        sockaddr_in6 loopback{};
+        loopback.sin6_family = AF_INET6;
+        loopback.sin6_addr = in6addr_loopback;
+        loopback.sin6_port = 0;
+        const int bindResult = ::bind(descriptor, reinterpret_cast<const sockaddr*>(&loopback), sizeof(loopback));
+        const int bindError = errno;
+        ::close(descriptor);
+        if (bindResult == 0) {
+            return true;
+        }
+        if (expectedIpv6SocketAbsence(bindError)) {
+            std::cout << "IPv6 live loopback not run: the platform cannot bind ::1; IPv6 build, configuration, and factory coverage "
+                         "remains active.\n";
+            return false;
+        }
+        result.expectTrue(false, "unexpected IPv6 bind probe failure");
+        return false;
     }
 
     void expectTransportFacts(tests::support::TestResult& result) {
@@ -399,7 +468,9 @@ namespace {
     int runNativeLoopbackIntegration(int argc, char* argv[], tests::support::TestResult& result) {
         const std::string socketPath = unixSocketPath();
         std::remove(socketPath.c_str());
-        IntegrationState state(result);
+        const bool hasIpv6Loopback = ipv6LoopbackAvailable(result);
+        const std::vector<ClientKind> activeKinds = activeClientKinds(hasIpv6Loopback);
+        IntegrationState state(result, activeKinds.size());
 
         core::SNodeC::init(argc, argv);
         int eventLoopResult = 1;
@@ -429,7 +500,8 @@ namespace {
             app::FrontendStreamSocketContextFactory ipv6Factory(
                 service, app::FrontendStreamSocketContextFactoryOptions{frontend::FrontendTransportKind::Ipv6, {}, {}});
             result.expectTrue(unixFactory.serviceIdentity() == &service && ipv4Factory.serviceIdentity() == &service &&
-                                  ipv6Factory.serviceIdentity() == &service,
+                                  ipv6Factory.serviceIdentity() == &service &&
+                                  ipv6Factory.transport() == frontend::FrontendTransportKind::Ipv6,
                               "Unix, IPv4, and IPv6 listener factories borrow one application-owned FrontendService");
 
             auto unixServer = net::un::stream::legacy::Server<app::FrontendStreamSocketContextFactory>(
@@ -637,14 +709,13 @@ namespace {
                               "native listeners share one service while multi_transport remains unadvertised before clients connect");
             result.expectTrue(!state.timedOut && state.completed,
                               "all real native SNode.C loopback clients finish Frontend Protocol v1 synchronization before timeout");
-            result.expectTrue(eventLoopResult == 0 && state.listenFailures == 0 && state.listenSuccesses == expectedClientCount() &&
-                                  state.connectFailures == 0 && state.connectSuccesses == expectedClientCount() &&
-                                  state.decodeFailures == 0,
-                              "Unix, IPv4, IPv6, and configured TLS listeners bind/connect/decode without transport-local failures");
+            result.expectTrue(eventLoopResult == 0 && state.listenFailures == 0 && state.listenSuccesses == activeKinds.size() &&
+                                  state.connectFailures == 0 && state.connectSuccesses == activeKinds.size() && state.decodeFailures == 0,
+                              "Unix, IPv4, pinned-CA TLS, and available IPv6 listeners bind/connect/decode without transport-local "
+                              "failures");
 
-            for (std::size_t index = 0; index < expectedClientCount(); ++index) {
-                const ClientObservation& observation = state.clients[index];
-                const ClientKind kind = static_cast<ClientKind>(index);
+            for (const ClientKind kind : activeKinds) {
+                const ClientObservation& observation = state.clients[clientIndex(kind)];
                 result.expectTrue(
                     observation.connected == 1 && observation.welcome == 1 && observation.snapshot == 1 && observation.syncComplete == 1 &&
                         observation.protocolErrors == 0 && !observation.advertisedMultiTransport && observation.availableMethods == 90,
@@ -661,7 +732,7 @@ namespace {
                 state.verifiedUnixPeer.has_value() && !state.verifiedUnixPeer->localPeer && !state.verifiedUnixPeer->unixUserId.has_value();
             result.expectTrue(app::unixPeerCredentialsSupported() ? expectedVerifiedUnix : expectedUnverifiedUnix,
                               "the accepted Unix getFd path verifies credentials when supported and otherwise remains untrusted");
-            const std::size_t expectedAuthenticatedPeers = expectedClientCount() - (app::unixPeerCredentialsSupported() ? 1U : 0U);
+            const std::size_t expectedAuthenticatedPeers = activeKinds.size() - (app::unixPeerCredentialsSupported() ? 1U : 0U);
             result.expectTrue(state.authenticatedPeers.size() == expectedAuthenticatedPeers,
                               "verified Unix trust bypasses bearer authentication only on platforms with peer credentials");
             const bool everyRemotePeerBounded =
@@ -679,14 +750,15 @@ namespace {
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
             const bool sawTls = std::any_of(state.authenticatedPeers.begin(), state.authenticatedPeers.end(), [](const auto& peer) {
                 return peer.transport == frontend::FrontendTransportKind::TcpTls && peer.encrypted && peer.remoteAddress.has_value() &&
-                       peer.remoteAddress->find("::1") != std::string::npos;
+                       peer.loopback;
             });
 #else
             const bool sawTls = true;
 #endif
             result.expectTrue(
-                everyRemotePeerBounded && sawIpv4 && sawIpv6 && sawTls,
-                "real accepted IPv4, IPv6, and pinned-CA IPv6 TLS connections propagate bounded loopback facts without false local trust");
+                everyRemotePeerBounded && sawIpv4 && sawIpv6 == hasIpv6Loopback && sawTls,
+                "real accepted IPv4, available IPv6, and pinned-CA TLS connections propagate bounded loopback facts without false "
+                "local trust");
         }
 
         core::SNodeC::free();

@@ -168,6 +168,53 @@ class CodexPolicyMutationTest(unittest.TestCase):
                 "CodexPolicyPublicHeaderInventoryMismatch",
             )
 
+    def test_frontend_service_header_substitution_is_rejected(self) -> None:
+        with self.temporary_codex_tree() as directory:
+            root = Path(directory)
+            frontend = root / "src/ai/openai/codex/frontend"
+            cmake = frontend / "CMakeLists.txt"
+            source = cmake.read_text(encoding="utf-8")
+            marker = "    FrontendService.h Codec.h"
+            self.assertEqual(1, source.count(marker))
+            shutil.copy2(
+                frontend / "FrontendService.h",
+                frontend / "BackendAdapter.h",
+            )
+            cmake.write_text(
+                source.replace(
+                    marker,
+                    "    BackendAdapter.h Codec.h",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            self.run_tree_policy(
+                self.public_header_policy,
+                root,
+                "CodexPolicyPublicHeaderInventoryMismatch",
+            )
+
+    def test_public_backend_adapter_alias_is_rejected(self) -> None:
+        with self.temporary_codex_tree() as directory:
+            root = Path(directory)
+            header = root / "src/ai/openai/codex/frontend/FrontendService.h"
+            source = header.read_text(encoding="utf-8")
+            marker = "} // namespace ai::openai::codex::frontend"
+            self.assertEqual(1, source.count(marker))
+            header.write_text(
+                source.replace(
+                    marker,
+                    "    using BackendAdapter = FrontendService;\n\n" + marker,
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            self.run_tree_policy(
+                self.public_header_policy,
+                root,
+                "CodexPolicyPublicHeaderInventoryMismatch",
+            )
+
     def test_pragma_once_is_rejected(self) -> None:
         with self.temporary_codex_tree() as directory:
             root = Path(directory)

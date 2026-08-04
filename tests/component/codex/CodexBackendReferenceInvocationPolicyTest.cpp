@@ -69,8 +69,7 @@ int main() {
     std::filesystem::create_directories(prefixSibling, filesystemError);
     filesystemError.clear();
     std::filesystem::create_directory_symlink(outside, allowed / "escape", filesystemError);
-    result.expectTrue(!filesystemError && std::filesystem::is_symlink(allowed / "escape"),
-                      "the symlink-escape fixture is created");
+    result.expectTrue(!filesystemError && std::filesystem::is_symlink(allowed / "escape"), "the symlink-escape fixture is created");
 
     const app::ReferenceInvocationPolicy policy({
         .filesystemRoots = {allowed},
@@ -95,12 +94,12 @@ int main() {
                           !policy.allowsFilesystemWrite(
                               "fs.copy", {{"sourcePath", (allowed / "nested").string()}, {"destinationPath", outside.string()}}),
                       "copy policy checks both sourcePath and destinationPath");
-    result.expectTrue(policy.allowsFilesystemRead(
-                          "fuzzyFileSearch", {{"query", "needle"}, {"roots", frontend::Json::array({allowed.string()})}}) &&
-                          !policy.allowsFilesystemRead(
-                              "fuzzyFileSearch", {{"query", "needle"}, {"roots", frontend::Json::array({allowed.string(), outside.string()})}}) &&
-                          !policy.allowsFilesystemRead("fuzzyFileSearch", {{"query", "needle"}, {"roots", frontend::Json::array()}}),
-                      "fuzzy search requires a nonempty set of roots wholly inside the allowlist");
+    result.expectTrue(
+        policy.allowsFilesystemRead("fuzzyFileSearch", {{"query", "needle"}, {"roots", frontend::Json::array({allowed.string()})}}) &&
+            !policy.allowsFilesystemRead("fuzzyFileSearch",
+                                         {{"query", "needle"}, {"roots", frontend::Json::array({allowed.string(), outside.string()})}}) &&
+            !policy.allowsFilesystemRead("fuzzyFileSearch", {{"query", "needle"}, {"roots", frontend::Json::array()}}),
+        "fuzzy search requires a nonempty set of roots wholly inside the allowlist");
     result.expectTrue(policy.allowsFilesystemRead("fs.unwatch", {{"watchId", "watch-1"}}) &&
                           !policy.allowsFilesystemRead("fs.unwatch", frontend::Json::object()) &&
                           !policy.allowsFilesystemRead("fs.unknown", {{"path", allowed.string()}}),
@@ -111,49 +110,45 @@ int main() {
                           !policy.allowsCommandExecution("command.exec", {{"command", frontend::Json::array()}}) &&
                           !policy.allowsCommandExecution("command.exec", {{"command", frontend::Json::array({"/usr/bin/printf-extra"})}}),
                       "command.exec requires nonempty argv and an exact argv[0] allowlist match");
-    result.expectTrue(policy.allowsCommandExecution(
-                          "command.exec", {{"command", frontend::Json::array({"/usr/bin/printf"})}, {"cwd", allowed.string()}}) &&
+    result.expectTrue(policy.allowsCommandExecution("command.exec",
+                                                    {{"command", frontend::Json::array({"/usr/bin/printf"})}, {"cwd", allowed.string()}}) &&
                           !policy.allowsCommandExecution(
                               "command.exec", {{"command", frontend::Json::array({"/usr/bin/printf"})}, {"cwd", outside.string()}}),
                       "command working directories remain inside configured filesystem roots");
     result.expectTrue(
-        policy.allowsCommandExecution("command.exec",
-                                      {{"command", frontend::Json::array({"/usr/bin/printf"})},
-                                       {"sandboxPolicy", {{"type", "workspaceWrite"},
-                                                          {"writableRoots", frontend::Json::array({(allowed / "nested").string()})}}}}) &&
-            !policy.allowsCommandExecution("command.exec",
-                                           {{"command", frontend::Json::array({"/usr/bin/printf"})},
-                                            {"sandboxPolicy", {{"type", "workspaceWrite"},
-                                                               {"writableRoots", frontend::Json::array({outside.string()})}}}}),
+        policy.allowsCommandExecution(
+            "command.exec",
+            {{"command", frontend::Json::array({"/usr/bin/printf"})},
+             {"sandboxPolicy", {{"type", "workspaceWrite"}, {"writableRoots", frontend::Json::array({(allowed / "nested").string()})}}}}) &&
+            !policy.allowsCommandExecution(
+                "command.exec",
+                {{"command", frontend::Json::array({"/usr/bin/printf"})},
+                 {"sandboxPolicy", {{"type", "workspaceWrite"}, {"writableRoots", frontend::Json::array({outside.string()})}}}}),
         "workspace sandbox writableRoots are projected through the same canonical root policy");
 
-    result.expectTrue(policy.allowsCommandExecution("command.exec.resize",
-                                                    {{"processId", "process-1"}, {"size", {{"cols", 80}, {"rows", 24}}}}) &&
-                          policy.allowsCommandExecution("command.exec.write", {{"processId", "process-1"}, {"deltaBase64", "YQ=="}}) &&
-                          policy.allowsCommandExecution("command.exec.terminate", {{"processId", "process-1"}}) &&
-                          !policy.allowsCommandExecution("command.exec.resize", {{"processId", "process-1"}}),
-                      "schema-valid process follow-ups pass while BackendCore retains authoritative process correlation");
+    result.expectTrue(
+        policy.allowsCommandExecution("command.exec.resize", {{"processId", "process-1"}, {"size", {{"cols", 80}, {"rows", 24}}}}) &&
+            policy.allowsCommandExecution("command.exec.write", {{"processId", "process-1"}, {"deltaBase64", "YQ=="}}) &&
+            policy.allowsCommandExecution("command.exec.terminate", {{"processId", "process-1"}}) &&
+            !policy.allowsCommandExecution("command.exec.resize", {{"processId", "process-1"}}),
+        "schema-valid process follow-ups pass while BackendCore retains authoritative process correlation");
     result.expectTrue(policy.allowsCommandExecution("thread.shellCommand", {{"threadId", "thread-1"}, {"command", "printf safe"}}) &&
-                          !policy.allowsCommandExecution("thread.shellCommand",
-                                                        {{"threadId", "thread-1"}, {"command", "printf safe "}}) &&
-                          !policy.allowsCommandExecution("thread.shellCommand",
-                                                        {{"threadId", "thread-1"}, {"command", "printf unsafe"}}),
+                          !policy.allowsCommandExecution("thread.shellCommand", {{"threadId", "thread-1"}, {"command", "printf safe "}}) &&
+                          !policy.allowsCommandExecution("thread.shellCommand", {{"threadId", "thread-1"}, {"command", "printf unsafe"}}),
                       "thread shell commands require an exact full-string allowlist match");
 
     result.expectTrue(constructorRejects({.filesystemRoots = {std::filesystem::path{"/"}}, .commands = {}}) &&
                           constructorRejects({.filesystemRoots = {std::filesystem::path{"relative"}}, .commands = {}}) &&
-                          constructorRejects(
-                              {.filesystemRoots = {}, .commands = {.executables = {"*"}, .shellCommands = {}}}) &&
-                          constructorRejects(
-                              {.filesystemRoots = {}, .commands = {.executables = {}, .shellCommands = {""}}}),
+                          constructorRejects({.filesystemRoots = {}, .commands = {.executables = {"*"}, .shellCommands = {}}}) &&
+                          constructorRejects({.filesystemRoots = {}, .commands = {.executables = {}, .shellCommands = {""}}}),
                       "filesystem-wide, relative, wildcard, and empty allowlist entries cannot create an allow-all policy");
 
     const app::ReferenceInvocationPolicy denyByDefault({});
-    result.expectTrue(!denyByDefault.allowsFilesystemRead("fs.readFile", {{"path", allowed.string()}}) &&
-                          !denyByDefault.allowsCommandExecution("command.exec", permittedExec) &&
-                          !denyByDefault.allowsCommandExecution(
-                              "thread.shellCommand", {{"threadId", "thread-1"}, {"command", "printf safe"}}),
-                      "empty explicit allowlists deny new filesystem and command invocations");
+    result.expectTrue(
+        !denyByDefault.allowsFilesystemRead("fs.readFile", {{"path", allowed.string()}}) &&
+            !denyByDefault.allowsCommandExecution("command.exec", permittedExec) &&
+            !denyByDefault.allowsCommandExecution("thread.shellCommand", {{"threadId", "thread-1"}, {"command", "printf safe"}}),
+        "empty explicit allowlists deny new filesystem and command invocations");
 
     return result.processResult();
 }

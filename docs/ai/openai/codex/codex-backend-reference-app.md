@@ -1,11 +1,11 @@
 # Codex backend reference application
 
 `codex-backend` is the first canonical AISuite-on-SNode.C server composition
-and a small local reference application for
+and a reference application for
 [Codex Frontend Protocol v1](frontend-protocol-v1.md). It owns one local Codex
-App Server client and accepts several frontend clients on a Unix-domain stream
-socket. It is an adapter and example, not a second backend implementation or a
-production daemon. The companion
+App Server client, one BackendCore, one FrontendService, and a configured set of
+Unix/TCP/TLS/WebSocket/WSS/RFCOMM listeners. It is a composition and reference
+policy, not a second backend implementation. The companion
 [`codex-backend-client`](../../../../src/apps/codex-backend-client/README.md) is a
 small terminal and diagnostic client for that frontend protocol.
 
@@ -15,40 +15,40 @@ The concrete transport is intentionally confined to
 ```text
 ai::openai::codex::stdio::Client
                   ↓
-             BackendCore
+          one BackendCore
                   ↓
-      frontend::FrontendService
+       one FrontendService
                   ↓
-net::un::stream::legacy::SocketServer
-                  ↓
-       compact JSONL clients
+       mandatory projection
+       ├─ Unix JSONL
+       ├─ IPv4/IPv6 JSONL and TLS JSONL
+       ├─ WebSocket and WSS JSON
+       └─ RFCOMM and RFCOMM-TLS JSONL
 ```
 
 Reusable `ai-openai-codex-backend` code has no socket dependency, and reusable
-`ai-openai-codex-frontend` code has no Unix or JSONL dependency. Unix-domain
-applications and staged server compositions link the canonical
-`snodec::net-un-stream-legacy` target. Reusable libraries require
-`snodec::core`, while an installed library-only AISuite consumer does not
-require the Unix transport component. That boundary keeps future transports
-from depending on a Unix socket path or `SocketContext`.
+`ai-openai-codex-frontend` code has no SNode.C transport or JSONL dependency.
+Application-private factories link only the exact installed SNode.C components
+for their enabled transports. A library-only AISuite consumer requires
+`snodec::core` but does not inherit Unix, IP, TLS, HTTP, WebSocket, or RFCOMM.
 
 The owned BackendCore implements all 86 stable Codex application operations,
 all ten stable provider requests, and canonical state for all 68 stable
-notifications and 18 `ThreadItem` alternatives. The reference application's
-Frontend Protocol v1 mapping deliberately remains smaller. Backend completion
-does not create new socket methods or authorize remote access to the complete
-trusted in-process API. See the
+notifications and 18 `ThreadItem` alternatives. FrontendService implements the
+complete 105-method v1 catalog through the A1.7a generated mappings, but
+authentication, deployment gates, scopes, controller ownership, provider
+readiness, and capacity still determine whether one invocation may proceed.
+See the
 [A1.6b backend completion](a1-6b-backend-completeness.md) for the exact
 provider/backend boundary.
 
-## A1.7a contract versus current runtime
+## A1.7b runtime policy
 
 A1.7a freezes an additive v1 catalog of 105 methods: the original 15 plus 90
-new definitions. Seven are frontend-native and 98 map to BackendCore (86
-provider operations plus 12 reverse response/rejection commands). This
-reference application's runtime dispatch remains exactly the original 15.
-Defining an additive method does not make it available on the Unix socket,
-enabled by deployment policy, or permitted for a connection.
+additive definitions. Seven are frontend-native and 98 map to BackendCore (86
+provider operations plus 12 reverse response/rejection commands). A1.7b
+implements all 105 handlers. The 15 conditional filesystem and command methods
+remain off by default, so the default available catalog is 90.
 
 The frozen review population is 148 formerly unresolved decisions plus 86
 existing notification/item compatibility contracts, or 234 identities, with
@@ -57,10 +57,10 @@ denominator.
 
 Optional hello/welcome discovery fields distinguish capabilities that are
 defined, implemented, and permitted, and distinguish available methods from
-connection-permitted methods. The 18-name capability vocabulary is complete,
-but A1.7a runtime metadata marks only method discovery and security scopes as
-implemented; it does not claim authenticated frontend, scope-projected state,
-provider-lifecycle exposure, or multi-transport support.
+connection-permitted methods. The service advertises 13 mechanism
+capabilities. The generated `multi_transport` identity remains defined for v1
+compatibility, but this application keeps no duplicate listener registry and
+does not advertise it; SNode.C owns listener configuration and lifecycle.
 
 The default remote scope profile is exactly `observe` plus `control`. The local
 trusted profile contains those and the ten additional scopes
@@ -69,54 +69,66 @@ trusted profile contains those and the ten additional scopes
 `extension_management`, `mcp_invoke`, `sensitive_response`, and
 `unknown_request_response`. Scope possession and controller ownership are
 independent. A controller still needs every method scope; a principal with
-`control` scope does not become controller automatically.
+`control` scope does not become controller automatically. With default gates,
+`default_remote` is permitted 53/90 and `local_trusted` 90/90. The remote
+exclusion is exactly 22 privileged provider operations, 12 reverse methods,
+and three provider-lifecycle methods.
 
 Filesystem access and arbitrary command execution are conditional and
 default-disabled. `account.read` is an observer operation only when
 `refreshToken` is absent or false; `refreshToken=true` additionally requires
-`control`, `account_management`, and current controller ownership. These are
-frozen contract decisions for A1.7b enforcement, not authentication or
-authorization already supplied by this local reference application.
+`control`, `account_management`, and current controller ownership.
+FrontendService enforces this after schema validation.
 
 Compatibility remains complete and duplicate-free: all 68 stable
 notifications retain either their existing normalized path or bounded/redacted
 `codex.extension`, and all 18 stable `ThreadItem` alternatives retain their
-existing normalized or metadata-only path. Capability-gated expanded mappings
-are defined, but one provider occurrence must use either the legacy or expanded
-projection for a connection, never both.
+existing normalized or metadata-only path. Expanded mappings cover those
+families, ten pending-request kinds, and 25 event families. Mandatory scope
+filtering occurs before legacy/expanded selection, and one provider occurrence
+uses one representation for a connection, never both.
 
 ## Composition and lifetime
 
-The listener uses the actual SNode.C legacy helper:
+The application owns the service above every listener factory:
 
 ```cpp
 ai::openai::codex::backend::BackendCore<
     ai::openai::codex::stdio::Client
 > backend;
 
+ai::openai::codex::frontend::FrontendServiceOptions options;
+ai::openai::codex::frontend::FrontendService service(backend, options);
+apps::codex_backend::FrontendStreamSocketContextFactoryOptions factoryOptions;
+
 auto socketServer =
     net::un::stream::legacy::Server<
-        apps::codex_backend::CodexFrontendSocketContextFactory
-    >("codex-backend", configure, backend);
+        apps::codex_backend::FrontendStreamSocketContextFactory
+    >("codex-backend", configure, service, factoryOptions);
 ```
 
-The helper yields a
-`net::un::stream::legacy::SocketServer<CodexFrontendSocketContextFactory,
-BackendCore<stdio::Client>&>`. The factory derives from
-`core::socket::stream::SocketContextFactory`, owns one reusable
-`frontend::FrontendService`, and constructs one
-`CodexFrontendSocketContext` per accepted socket.
+Every stream/WebSocket factory borrows this same service. Each accepted context
+owns one move-only `FrontendConnection`. No factory constructs a BackendCore,
+FrontendService, EventJournal, controller registry, or authorization policy.
+FrontendService subscribes to BackendCore once and owns one global controller,
+sequence, canonical journal, connection universe, and projection policy.
 
 `main()` performs this ordering:
 
 1. initialize `core::SNodeC`;
-2. directly construct `backend::BackendCore<stdio::Client>`;
-3. create and listen with the Unix socket server;
-4. start `BackendCore`, then enter the SNode.C event loop;
-5. destroy the socket server and all contexts;
-6. destroy `BackendCore`, whose non-template runtime stops before its directly
+2. load and validate AISuite policy configuration and the protected
+   bearer-token file while SNode.C owns listener configuration;
+3. construct `backend::BackendCore<stdio::Client>`;
+4. construct one `frontend::FrontendService` borrowing it;
+5. install the application-private non-owning WebSocket runtime bridge;
+6. construct named SNode.C listeners and Express routes borrowing that service;
+7. call each listener's normal `listen()` lifecycle;
+8. start `BackendCore`, then enter the SNode.C event loop;
+9. close accepted frontend connections and uninstall the runtime bridge;
+10. destroy FrontendService;
+11. destroy `BackendCore`, whose non-template runtime stops before its directly
    owned App Server client is destroyed; and
-7. perform the final idempotent `core::SNodeC::free()` cleanup.
+12. perform the final idempotent `core::SNodeC::free()` cleanup.
 
 This construction order prevents an accepted context from outliving the
 backend. Frontend callbacks additionally use weak lifetime gates. Disconnecting
@@ -126,6 +138,15 @@ Codex App Server. Provider failure or restart likewise retains frontend
 sessions and controller ownership. The explicit `start()`, `stop()`, and
 `restart()` API controls the provider independently of backend-service
 lifetime.
+
+SNode.C instance configuration is the sole listener configuration authority:
+disabled/enabled state, host, port, Unix path, TLS material, RFCOMM address and
+channel, connection settings, and write-queue limits live there. Listener
+callbacks report success, disabled state, or error. AISuite maintains neither a
+cross-listener startup transaction nor transport bind bookkeeping. The Unix,
+IPv4, IPv6, IPv4/IPv6 TLS, RFCOMM, and RFCOMM-TLS server templates are all
+constructed explicitly in `main.cpp`, with their SNode.C configuration lambdas
+at the call sites; no AISuite listener-construction wrapper remains.
 
 ## Build and install
 
@@ -137,7 +158,7 @@ cmake -S . -B build \
   -DAISUITE_BUILD_APPS=ON \
   -DAISUITE_BUILD_TESTS=ON \
   -DCMAKE_PREFIX_PATH=/path/to/installed/snodec
-cmake --build build --parallel --target codex-backend codex-backend-client
+cmake --build build --parallel 28 --target codex-backend codex-backend-client
 ```
 
 With a conventional single-configuration generator, run the in-tree binaries
@@ -153,13 +174,43 @@ Ordinary library builds may set `-DAISUITE_BUILD_APPS=OFF`; the exported
 `AISuite::OpenAICodexBackend` and `AISuite::OpenAICodexFrontend` components
 remain independently reusable.
 All three Codex libraries remain in the intentionally unreleased SOVERSION-2
-development boundary; A1.7a does not change project version `0.1.0`.
-A1.7a installs exactly two additional frontend headers,
-`GeneratedProtocol.h` and `Security.h`, so installed inventory is 29 main,
-seven backend, and nine frontend headers, or 45 total.
+development boundary; A1.7b does not change project version `0.1.0`.
+`FrontendService.h` replaces `BackendAdapter.h` without changing the installed
+inventory: 29 main, seven backend, and nine frontend headers, or 45 total.
 The executable also requires the `codex` command expected by the existing
-stdio client. Authentication and quota are properties of that local Codex
-installation, not of the frontend protocol.
+stdio client. Authentication and quota for that provider are separate from
+frontend authentication.
+
+Optional application transport support is selected with
+`AISUITE_ENABLE_CODEX_FRONTEND_TLS`,
+`AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET`, and
+`AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM`. The implementation consumes the exact
+installed SNode.C targets below (subject to the corresponding build option and
+platform support):
+
+```text
+snodec::core
+snodec::net-un-stream-legacy
+snodec::net-in-stream-legacy
+snodec::net-in6-stream-legacy
+snodec::net-in-stream-tls
+snodec::net-in6-stream-tls
+snodec::net-rc-stream-legacy
+snodec::net-rc-stream-tls
+snodec::http-server
+snodec::http-server-express
+snodec::http-server-express-legacy-in
+snodec::http-server-express-legacy-in6
+snodec::http-server-express-tls-in
+snodec::http-server-express-tls-in6
+snodec::websocket-server
+snodec::websocket-client
+```
+
+`snodec::websocket-client` is used by the deterministic WebSocket integration
+tests.
+None of those application-only targets leaks into the reusable frontend
+library.
 
 Start the server and client in separate terminals. The client sends `hello`
 automatically and provides typed synchronization, controller, thread, and turn
@@ -170,11 +221,13 @@ codex-backend
 codex-backend-client
 ```
 
-The staged module-consumer test separately finds SNode.C components `core` and
-`net-un-stream-legacy` plus AISuite, then builds a minimal Unix server with
-`BackendCore<stdio::Client>` and the public frontend adapter. It links only the
-three `AISuite::OpenAICodex*` targets plus `snodec::core` and
-`snodec::net-un-stream-legacy`, and uses no source-tree or private headers.
+The staged installed frontend-consumer test separately finds AISuite and
+constructs `BackendCore<stdio::Client>`, public `FrontendService`, and an
+in-memory `FrontendConnection` using only installed headers and imported
+AISuite targets. It uses no source-tree or private headers.
+
+The separate installed module-server consumer continues to exercise the
+application-only `snodec::net-un-stream-legacy` composition boundary.
 
 ## Provider recovery configuration
 
@@ -225,8 +278,9 @@ acquire
 release
 ```
 
-These remain the existing v1 command subset. A1.6b's additional BackendCore
-commands are not mapped into this protocol. The adapter projects the exact
+These remain the existing client's 15-command UI subset; A1.7b does not migrate
+the client to the complete method catalog. FrontendService nevertheless maps
+all 105 protocol methods. For legacy compatibility it projects the exact
 `ThreadStartResponse`, `ThreadResumeResponse`, and `ThreadReadResponse` wrappers
 back to the existing `result.thread` JSON, `TurnStartResponse` to the existing
 `result.turn`, `ThreadListResponse` to the existing page JSON, and
@@ -235,9 +289,10 @@ results does not change current reference-client response bytes or fields.
 
 Trusted in-process BackendCore observers may invoke a reviewed set of
 read-only operations, including filesystem metadata, directory, and file
-reads. That policy does not authorize any corresponding Frontend Protocol v1
-method. A1.7a freezes those frontend methods as conditional and default-off;
-A1.7b owns authenticated runtime enablement and enforcement.
+reads. That policy does not authorize a frontend invocation. A1.7b keeps those
+frontend methods conditional and default-off; an enabled invocation still
+requires generated scopes, provider readiness, controller policy where
+applicable, and the configured safe path policy.
 
 Frontend sessions begin as observers, and the client does not acquire
 controller ownership automatically. `start`, `resume`, `new`, and `turn`
@@ -303,6 +358,50 @@ unsuccessfully, reports that the thread was created, and preserves its ID in
 the diagnostic. Disconnects and send failures during either stage likewise
 produce a deterministic failure rather than silently completing the compound
 command.
+
+## Frontend authentication and listener configuration
+
+The default listener set is Unix JSONL only. It uses mode `0600` and grants
+`local_trusted` only after the accepted socket descriptor reports the service
+effective UID and the bound socket path is an owner-only socket owned by that
+UID. Unix transport type by itself does not grant trust. If verified peer
+credentials are unavailable or disabled, a protected bearer-token file is
+required unless the operator explicitly enables the separately warned insecure
+local-trust override.
+
+Remote and untrusted listeners always require bearer authentication in Hello.
+`--frontend-bearer-token-file` names the protected file; no option accepts the
+token bytes directly. `--frontend-remote-principal-id` and
+`--frontend-remote-scope-profile` configure the reference principal. The
+default profile is `default_remote` (`observe`, `control`). Token-file errors
+and diagnostics report structure only, never token material.
+
+Native listener options are grouped under `--frontend-unix-*`,
+`--frontend-ipv4-*`, `--frontend-ipv6-*`, `--frontend-tls-ipv4-*`,
+`--frontend-tls-ipv6-*`, `--frontend-rfcomm-*`, and
+`--frontend-rfcomm-tls-*`. Plain IP defaults to loopback and disabled. TLS
+listeners require certificate and private-key paths. RFCOMM is optional and
+Bluetooth pairing is not frontend authentication.
+
+Web options are grouped under `--frontend-websocket-ipv4-*`,
+`--frontend-websocket-ipv6-*`, `--frontend-wss-ipv4-*`, and
+`--frontend-wss-ipv6-*`. `--frontend-websocket-endpoint` defaults to the exact
+path `/frontend`; `--frontend-websocket-allowed-origins` adds normalized Origin
+entries, and `--frontend-static-root` optionally enables the bounded static
+file policy. The default browser policy is same-origin. A native WebSocket
+client may omit Origin but still authenticates in Hello. Non-loopback
+plaintext requires `--frontend-allow-insecure-remote` and remains
+authenticated.
+
+Deployment gates are `--frontend-filesystem-read-enabled`,
+`--frontend-filesystem-write-enabled`, and
+`--frontend-command-execution-enabled`. Filesystem access additionally uses
+`--frontend-filesystem-root`; command policy uses explicit executable/shell
+allow-lists. Connection, unauthenticated, handshake, message-size/rate/burst,
+outstanding-command, and failed-authentication bounds have corresponding
+`--frontend-max-*`, `--frontend-maximum-message-bytes`, and
+`--frontend-failed-authentication-window-ms` options. Zero remains zero
+capacity.
 
 ## Socket path
 
@@ -392,13 +491,71 @@ printf '%s\n' \
 When `XDG_RUNTIME_DIR` is absent, substitute the UID-bearing fallback path;
 the shorthand command above intentionally does not guess it.
 
+## WebSocket and static HTTP policy
+
+SNode.C's HTTP parser and server enforce the request resource profile: 8 KiB
+start and header lines, 64 KiB aggregate headers, 128 fields, a one-byte
+decoded-body ceiling, one pending request, and disabled chunked transfer and
+pipelining. Zero means unlimited in SNode.C and is intentionally not used.
+Express rejects the one-byte boundary and every other non-empty static or
+WebSocket-upgrade body; larger bodies receive 413 before route dispatch.
+Middleware retains AISuite's method, Origin,
+credential-channel, endpoint, and request semantics. No BackendCore frontend
+session exists before Hello authentication.
+
+WebSocket listeners use one complete compact JSON object per text message,
+without JSONL newline framing. SNode.C owns upgrade, fragmentation, configured
+message limits, framing, and transport writer backpressure. The dynamically
+loaded AISuite server subprotocol is exactly `codex`, separate from the
+Frontend Protocol identity `snodec.codex-frontend`; it opens a
+FrontendConnection only after a successful upgrade, forwards text JSON, and
+rejects binary messages. Credential-bearing URL/query/cookie/Authorization
+channels are rejected before upgrade, and bearer material remains confined to
+the first protocol Hello.
+
+The default endpoint is exactly `/frontend`. Browser Origin comparison uses
+normalized scheme, host, and effective port and defaults to same-origin. A
+configured allow-list may add origins; `*` is not a valid default. Native
+clients without Origin continue only to bearer authentication. Plaintext
+non-loopback browser admission is rejected unless the operator explicitly
+enables insecure remote transport, and WSS never downgrades to plaintext.
+
+Without a configured static root, ordinary HTTP requests return 404 while the
+WebSocket endpoint remains usable. A configured root is canonicalized and
+retained as an open directory descriptor; files are served only through a
+bounded component-by-component no-follow open relative to that descriptor.
+Replacing the configured pathname after startup cannot redirect the service.
+Repeated encoded traversal, dot segments, backslashes, NULs, directories,
+symlink escape, unrecognized MIME types, and files beyond the configured
+maximum asset size are denied. GET passes the final descriptor returned by the
+secure walk to SNode.C 2.0's `FileReader::adopt()` and attaches it with
+`Response::pipe()`. It never buffers the complete asset or reopens the
+authorized pathname. Before a successful pipe, an application guard stops the
+reader on a false return or exception; after success, SNode.C owns descriptor
+streaming, disposal, and connection-local backpressure. The descriptor is
+closed exactly once on either path.
+`HEAD` sends the exact representation length without a body and closes its
+temporary descriptor after establishing the response metadata. Static responses
+send a CSP containing `frame-ancestors 'none'`,
+`X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`.
+AISuite never logs bearer tokens, credentials, raw Hello messages, or
+Authorization values. Framework logging remains SNode.C configuration;
+operators must disable payload tracing in production.
+
 ## Handshake and commands
 
 The context opens a transport-neutral `FrontendConnection` when the socket is
-accepted, but no backend `FrontendSession` exists until a valid hello. Send:
+accepted, but no backend `FrontendSession` exists until authentication
+succeeds. A verified local Unix client may retain the original Hello:
 
 ```json
 {"protocol":"snodec.codex-frontend","version":1,"kind":"hello","resumeAfter":41}
+```
+
+An untrusted or remote client sends the bearer only in Hello:
+
+```json
+{"protocol":"snodec.codex-frontend","version":1,"kind":"hello","authentication":{"scheme":"bearer","token":"secret bytes"},"resumeAfter":41}
 ```
 
 The server sends `welcome`, replay batches or a snapshot, and
@@ -409,41 +566,49 @@ separate correlated command:
 {"protocol":"snodec.codex-frontend","version":1,"kind":"command","requestId":"role-1","method":"controller.acquire","params":{}}
 ```
 
-Other observers remain connected and receive the same ordered normalized
-event batches. An observer can list/read threads and synchronize, but receives
-`permission_denied` for thread/turn mutation or request answers. See the
+Other observers remain connected and receive the same globally sequenced
+canonical occurrences projected for their own scopes. An observer can
+list/read threads and synchronize, but receives `permission_denied` for a
+controller-required invocation. See the
 [v1 protocol document](frontend-protocol-v1.md) and its
 [JSON Schema](frontend-protocol-v1.schema.json) for every envelope and method.
 
-Messages before hello, malformed JSON, unsupported protocol versions, unknown
-kinds, and command validation failures never reach the raw Codex protocol. A
-pre-hello error and identity/version/framing error close that client after a
+Messages before authenticated Hello, malformed JSON, unsupported protocol
+versions, unknown kinds, and command validation failures never reach the raw
+Codex protocol. Pre-authentication failures reveal no privileged method,
+parameter, provider, or deployment detail and close that client after a
 bounded `protocol.error`. Post-handshake command errors normally keep the
 connection open.
 
 ## Coalescing and outbound backpressure
 
-The factory's shared `FrontendService` subscribes once to BackendCore. Raw text,
+The application-owned `FrontendService` subscribes once to BackendCore. Raw text,
 reasoning, and command-output deltas have already accumulated in canonical
-state before the adapter sees their backend transition. The adapter marks the
+state before the service sees their backend transition. The service marks the
 specific entity/channel dirty, schedules only one next-tick flush, replaces
 obsolete intermediate state for the same key, and emits normalized events in
 batches of at most 64 events and 256 KiB by default. Terminal and interactive
-updates flush immediately. The replay journal holds at most 4,096 normalized
-events and 8 MiB, never the raw token stream.
+updates flush immediately. The replay journal holds at most 4,096 bounded
+canonical records and 8 MiB, never the raw token stream or a
+connection-specific serialized projection. Before retention, AISuite removes
+known structured authentication and credential-bearing fields, reviewed
+secret-response fields, and unsafe raw provider envelopes. Arbitrary bounded
+user/model/tool/process/command-output text remains potentially sensitive; it
+may remain canonical and is filtered per principal for snapshot, live, and
+replay rather than subjected to unreliable heuristic secret scanning.
 
 There are two independent per-client backpressure boundaries:
 
 - `FrontendService` allows at most 512 queued protocol messages and 11 MiB of
   compact serialized JSON per connection, delivering at most 64 messages in
   one event-loop callback;
-- `CodexFrontendSocketContext` allows at most 13 MiB outstanding in that Unix
-  connection's socket writer, including the newline framing byte.
+- each reference stream/WebSocket context allows at most 13 MiB outstanding in
+  that connection's writer, including transport framing where applicable.
 
 The limits intentionally have headroom in dependency order: the 8 MiB journal
-counts event objects, the 11 MiB adapter queue also accommodates bounded replay
-batch and synchronization envelopes, and the 13 MiB Unix writer additionally
-accommodates JSONL framing and data already handed off by the adapter. Thus a
+counts canonical records, the 11 MiB service queue also accommodates bounded
+replay batch and synchronization envelopes, and the 13 MiB writer additionally
+accommodates framing and data already handed off by the service. Thus a
 new Unix connection can replay a full default journal without being rejected
 solely because downstream accounting includes envelope overhead. All three
 limits remain finite. Deployments that customize one limit must adjust the
@@ -451,31 +616,40 @@ downstream limits consistently; a complete snapshot is one separate message
 and a configured writer too small for it closes only that frontend.
 
 No unbounded application queue is added. If either boundary cannot accept the
-next message, the adapter closes that frontend, clears its queued data, and
+next message, the service closes that frontend, clears its queued data, and
 detaches its session. A throwing send callback has the same local effect. One
 slow observer cannot add data to the controller's queue, delay another client,
 stop BackendCore, or stop the App Server. A disconnected controller releases
 its role; pending approvals, user-input prompts, authentication requests, and
 unknown requests remain pending and are never automatically answered.
 
-All receive, delivery, coalescing, and cleanup work runs through the SNode.C
-event loop. The application adds no `std::thread`, blocking descriptor I/O,
-direct `fork()`/`vfork()`, or blocking `waitpid()`.
+All receive, delivery, coalescing, timer, and cleanup work runs through the
+SNode.C event loop. The application adds no `std::thread`, sleep, polling loop,
+future, or coroutine lifecycle.
+
+HTTP admission adds no third output queue. WebSocket frames use the transport
+writer's existing finite accounting; static responses use a descriptor source
+with one bounded chunk and the HTTP pipe's suspend/resume lifecycle. The
+accepted HTTP socket keeps its service-owned unauthenticated reservation until
+transport teardown (or transfers it to the upgraded context), so slow
+pre-Hello connections remain inside the same total, unauthenticated, and
+handshake-timeout limits as every other frontend.
 
 ## Shutdown and operational limits
 
-Stopping the global SNode.C loop closes accepted contexts and the listening
-socket before BackendCore is destroyed. The listener removes its own socket
-and lock nodes on clean shutdown, subject to inode-identity checks. BackendCore
-then stops the stdio App Server client, whose existing nonblocking lifecycle
-owns child termination and reaping.
+Stopping the global SNode.C loop closes accepted contexts and listeners before
+FrontendService and BackendCore are destroyed. The Unix listener removes its
+own socket and lock nodes on clean shutdown, subject to inode-identity checks.
+BackendCore then stops the stdio App Server client, whose existing nonblocking
+lifecycle owns child termination and reaping.
 
-This application is deliberately local and minimal. Apart from its explicit
-provider-recovery configuration, it adds no daemon or production-service policy
-(even though generic framework-wide CLI options may appear in SNode.C help),
-frontend-user authentication, TLS, systemd socket activation, or
-snapshot/replay persistence. Unix filesystem permissions and the
-runtime-directory policy are the local access boundary.
+The default deployment is deliberately conservative: only Unix JSONL is
+enabled, verified same-user trust is required for credential-free Hello, all
+remote listeners are off, and all 15 conditional methods are off. TLS,
+WebSocket, WSS, RFCOMM, Origin, static-root, bearer, and runtime-limit policies
+are available only through explicit configuration and build support. The
+service does not add durable authenticated-session or snapshot/journal disk
+persistence.
 
 No credentialed real-backend integration is registered in this milestone:
 `SNODEC_RUN_CODEX_BACKEND_INTEGRATION=1` is therefore documented as a proposed
@@ -483,17 +657,14 @@ gate, not an implemented test switch. The ordinary deterministic suite uses a
 fake App Server and requires no credentials, quota, network service, or real
 model turn.
 
-A1.7a defines the complete additive contract but intentionally leaves runtime
-service expansion deferred. No IPv4, IPv6, RFCOMM, WebSocket, Qt UI, browser
-frontend, UI-product migration, remote authentication, multi-controller
-policy, or forced controller takeover is implemented here. A1.7b owns the
-authenticated, scope-projecting `FrontendService`, approved additive runtime
-methods/events/state, provider lifecycle exposure, and multi-transport
-composition. A1.7c owns the C++ client SDK and Qt UI. A1.7d owns the TypeScript
-client SDK and browser UI.
+A1.7b implements authenticated Unix, IPv4/IPv6 JSONL, TLS JSONL, WebSocket,
+WSS, optional RFCOMM composition, provider lifecycle, and scope-projected
+state. It intentionally does not add a C++ client SDK, migrate the existing
+client or UI, provide browser assets, add multiple controllers, or permit
+forced takeover.
 
-The frozen ownership remains one `BackendCore`, one shared frontend journal,
-and multiple future transport factories. Those factories must share one replay
-sequence and retain Protocol v1's state reduction, coalescing, bounded
-batching, replay fallback, and slow-client isolation. Provider-neutral
-architecture remains A2.
+A1.7c-1 is the next PR and implements the C++ Frontend SDK plus
+`codex-backend-client` migration. A1.7c-2 immediately follows and migrates the
+existing `codex-ui` into the canonical standalone AI IDE. No additional PR is
+inserted before `codex-ui`. A1.7d owns the TypeScript Frontend SDK and browser
+frontend. Provider-neutral architecture remains A2.

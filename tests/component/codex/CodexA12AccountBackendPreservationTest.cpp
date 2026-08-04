@@ -253,7 +253,13 @@ namespace {
         result.expectTrue(retained && retained->method == updated.method && retained->payload == updated.params,
                           "BackendCore receives the typed account notification as exact params-only extension state");
 
-        const backend::ExtensionSnapshot expected = retained ? backend::makeExtensionSnapshot(*retained) : backend::ExtensionSnapshot{};
+        const backend::ExtensionSnapshot snapshotProjection =
+            retained ? backend::makeExtensionSnapshot(*retained) : backend::ExtensionSnapshot{};
+        const codex::Json canonicalExpectedParams{
+            {"authMode", "chatgpt"}, {"planType", "plus"}, {"nested", codex::Json::object()}, {"safe", "visible"}};
+        result.expectTrue(snapshotProjection.sensitiveFieldsRedacted && snapshotProjection.payload.contains("nested") &&
+                              snapshotProjection.payload.at("nested").value("accessToken", "") == "[redacted]",
+                          "Backend snapshot sanitization replaces the credential value before canonical journal filtering");
         const frontend::OutboundMessage* encodedBatch = nullptr;
         const frontend::FrontendEvent* encodedEvent = nullptr;
         for (const frontend::OutboundMessage& message : outbound) {
@@ -268,14 +274,15 @@ namespace {
         }
 
         const bool exactFrontendParams =
-            encodedEvent && retained && encodedEvent->data.value("params", codex::Json{}) == expected.payload &&
+            encodedEvent && retained && encodedEvent->data.value("params", codex::Json{}) == canonicalExpectedParams &&
             encodedEvent->data.value("sensitiveFieldsRedacted", false) && encodedEvent->data.at("params").value("safe", "") == "visible" &&
+            !encodedEvent->data.at("params").at("nested").contains("accessToken") &&
             encodedEvent->data.at("params").dump().find(SyntheticNotificationSecret) == std::string::npos &&
             encodedEvent->data.at("params").dump().find("futureEnvelopeOnly") == std::string::npos &&
             !encodedEvent->data.at("params").contains("jsonrpc") && !encodedEvent->data.at("params").contains("method");
         result.expectTrue(
             exactFrontendParams,
-            "actual frontend codex.extension.params equals recursively sanitized notification params and contains no envelope fields");
+            "actual frontend codex.extension.params equals the canonical credential-field-free projection and contains no envelope fields");
 
         codex::Json compact;
         if (encodedBatch) {
