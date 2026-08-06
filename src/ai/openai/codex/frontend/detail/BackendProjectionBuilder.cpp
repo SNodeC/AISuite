@@ -1219,6 +1219,17 @@ namespace ai::openai::codex::frontend::detail {
                     if (const auto channel = legacyData.find("channel"); channel != legacyData.end() && channel->is_string()) {
                         result["channel"] = boundedText(channel->get_ref<const std::string&>(), 256);
                     }
+                    if (const auto truncated = legacyData.find("contentTruncated");
+                        truncated != legacyData.end() && truncated->is_boolean()) {
+                        result["contentTruncated"] = truncated->get<bool>();
+                    }
+                    if (const auto dropped = legacyData.find("droppedContentBytes"); dropped != legacyData.end()) {
+                        if (dropped->is_number_unsigned()) {
+                            result["droppedContentBytes"] = dropped->get<std::uint64_t>();
+                        } else if (dropped->is_number_integer() && dropped->get<std::int64_t>() >= 0) {
+                            result["droppedContentBytes"] = static_cast<std::uint64_t>(dropped->get<std::int64_t>());
+                        }
+                    }
                     return result;
                 }
                 case ExpandedEventType::PendingRequestsUpdated: {
@@ -1272,14 +1283,21 @@ namespace ai::openai::codex::frontend::detail {
                                                                  {"stamp", stampJson({})},
                                                                  {"stateUnavailable", true}}
                                                           : noticeJson(snapshot.notices.back())}};
-                case ExpandedEventType::ActivityUpdated:
+                case ExpandedEventType::ActivityUpdated: {
+                    if (!snapshot.activities.empty()) {
+                        return Json{{"activity", activityJson(snapshot.activities.back())}};
+                    }
+                    static constexpr std::array identityNames{
+                        std::string_view{"key"}, std::string_view{"activityId"}, std::string_view{"subjectId"}};
+                    const std::string identity = findNamedString(legacyData, identityNames).value_or("unavailable");
                     return Json{{"activity",
-                                 snapshot.activities.empty() ? Json{{"kind", "unknown"},
-                                                                    {"lifecycle", "unknown"},
-                                                                    {"active", false},
-                                                                    {"stamp", stampJson({})},
-                                                                    {"stateUnavailable", true}}
-                                                             : activityJson(snapshot.activities.back())}};
+                                 Json{{"key", identity},
+                                      {"kind", "unknown"},
+                                      {"lifecycle", "unknown"},
+                                      {"active", false},
+                                      {"stamp", stampJson({})},
+                                      {"stateUnavailable", true}}}};
+                }
                 case ExpandedEventType::CapacityUpdated:
                     return Json{{"capacity", capacityJson(snapshot)}};
                 case ExpandedEventType::DiagnosticsUpdated:

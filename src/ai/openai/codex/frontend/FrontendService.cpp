@@ -1424,6 +1424,11 @@ namespace ai::openai::codex::frontend {
                 welcome.capabilities = handshakeAdvertisement;
                 welcome.availableMethods = availableMethods();
                 welcome.permittedMethods = permittedMethods(*control->principal);
+                Json permittedScopes = Json::array();
+                for (const FrontendScope scope : control->principal->scopes) {
+                    permittedScopes.push_back(std::string(toString(scope)));
+                }
+                welcome.extensions["permittedScopes"] = std::move(permittedScopes);
             }
             if (!enqueue(control, ServerMessage{std::move(welcome)})) {
                 return;
