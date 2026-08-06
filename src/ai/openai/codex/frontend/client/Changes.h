@@ -29,31 +29,90 @@ namespace ai::openai::codex::frontend::client {
     struct CursorAdvancedChange {
         frontend::SequenceNumber sequence{};
     };
-    struct ProviderChanged {
+    struct ProviderUpdatedChange {
         ProviderState state;
     };
-    struct ControllerChanged {
+    struct ControllerUpdatedChange {
         ControllerState state;
     };
-    struct EntityChanged {
-        std::string domain;
-        std::string id;
+    struct SessionsUpdatedChange {};
+    struct ThreadUpsertedChange {
+        typed::ThreadId threadId;
     };
-    struct ItemContentReplaced {
-        std::string itemId;
-        std::string channel;
+    struct ThreadRemovedChange {
+        typed::ThreadId threadId;
     };
-    struct DiagnosticChanged {
-        DiagnosticState diagnostic;
+    struct TurnUpsertedChange {
+        typed::TurnId turnId;
+    };
+    struct ItemUpsertedChange {
+        typed::ItemId itemId;
+    };
+    struct ItemContentReplacedChange {
+        typed::ItemId itemId;
+        ItemContentChannel channel = ItemContentChannel::AgentText;
+    };
+    struct PendingRequestsUpdatedChange {};
+    struct AccountUpdatedChange {};
+    struct ModelsUpdatedChange {};
+    struct ConfigurationUpdatedChange {};
+    struct ProcessUpdatedChange {
+        ProcessHandle processHandle;
+    };
+    struct FilesystemWatchUpdatedChange {
+        typed::FsWatchId watchId;
+    };
+    struct FuzzySearchUpdatedChange {
+        FuzzySearchSessionId sessionId;
+    };
+    struct ReviewsUpdatedChange {};
+    struct IntegrationsUpdatedChange {};
+    struct PluginsUpdatedChange {};
+    struct SkillsUpdatedChange {};
+    struct McpUpdatedChange {};
+    struct PlatformUpdatedChange {};
+    struct NoticeAddedChange {
+        std::optional<std::uint64_t> occurrence;
+    };
+    struct ActivityUpdatedChange {
+        ActivityKey key;
+    };
+    struct CapacityUpdatedChange {};
+    struct DiagnosticUpdatedChange {
+        std::optional<std::uint64_t> received;
+    };
+    struct CompatibilityExtensionChange {
+        std::string type;
     };
 
     using Change = std::variant<StateReplacedChange,
                                 CursorAdvancedChange,
-                                ProviderChanged,
-                                ControllerChanged,
-                                EntityChanged,
-                                ItemContentReplaced,
-                                DiagnosticChanged>;
+                                ProviderUpdatedChange,
+                                ControllerUpdatedChange,
+                                SessionsUpdatedChange,
+                                ThreadUpsertedChange,
+                                ThreadRemovedChange,
+                                TurnUpsertedChange,
+                                ItemUpsertedChange,
+                                ItemContentReplacedChange,
+                                PendingRequestsUpdatedChange,
+                                AccountUpdatedChange,
+                                ModelsUpdatedChange,
+                                ConfigurationUpdatedChange,
+                                ProcessUpdatedChange,
+                                FilesystemWatchUpdatedChange,
+                                FuzzySearchUpdatedChange,
+                                ReviewsUpdatedChange,
+                                IntegrationsUpdatedChange,
+                                PluginsUpdatedChange,
+                                SkillsUpdatedChange,
+                                McpUpdatedChange,
+                                PlatformUpdatedChange,
+                                NoticeAddedChange,
+                                ActivityUpdatedChange,
+                                CapacityUpdatedChange,
+                                DiagnosticUpdatedChange,
+                                CompatibilityExtensionChange>;
 
     struct StateUpdate {
         State state;

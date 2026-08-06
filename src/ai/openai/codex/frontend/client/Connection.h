@@ -2,6 +2,7 @@
 #define AI_OPENAI_CODEX_FRONTEND_CLIENT_CONNECTION_H
 
 #include "ai/openai/codex/frontend/Codec.h"
+#include "ai/openai/codex/frontend/client/Export.h"
 #include "ai/openai/codex/frontend/client/Transport.h"
 
 #include <cstdint>
@@ -19,7 +20,7 @@ namespace ai::openai::codex::frontend::client {
         std::optional<TransportError> error;
     };
 
-    class Connection {
+    class AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT Connection {
     public:
         Connection() noexcept;
         Connection(const Connection&) = delete;
@@ -40,8 +41,8 @@ namespace ai::openai::codex::frontend::client {
 
     private:
         friend class Client;
-        struct Control;
-        explicit Connection(std::shared_ptr<Control> control) noexcept;
+        struct AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT Control;
+        AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT explicit Connection(std::shared_ptr<Control> control) noexcept;
         std::shared_ptr<Control> control;
     };
 

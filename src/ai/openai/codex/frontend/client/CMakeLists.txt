@@ -1,4 +1,8 @@
-set(AI_OPENAI_CODEX_FRONTEND_CLIENT_CPP BindingMetadata.cpp)
+set(
+    AI_OPENAI_CODEX_FRONTEND_CLIENT_CPP
+    BindingMetadata.cpp
+    Client.cpp
+)
 set(
     AI_OPENAI_CODEX_FRONTEND_CLIENT_PUBLIC_H
     Accounts.h
