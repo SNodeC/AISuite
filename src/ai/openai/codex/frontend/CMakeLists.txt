@@ -44,3 +44,7 @@ install(
     FILES ${AI_OPENAI_CODEX_FRONTEND_PUBLIC_H}
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/frontend
 )
+
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    add_subdirectory(client)
+endif()
