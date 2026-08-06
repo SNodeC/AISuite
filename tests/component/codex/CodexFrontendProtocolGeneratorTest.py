@@ -656,6 +656,13 @@ def main() -> int:
     validate_exact_dispatch(generator, generated_header)
     schema_template = json.loads(args.schema_template.read_text(encoding="utf-8"))
     generated_schema = generator.generate_schema(schema_template, manifest, source)
+    command_exec = generated_schema["$defs"]["CommandExecParams"]["properties"][
+        "command"
+    ]
+    if command_exec.get("minItems") != 1:
+        raise AssertionError(
+            "command.exec must enforce its documented non-empty argv invariant"
+        )
     if generated_schema != json.loads(args.schema.read_text(encoding="utf-8")):
         raise AssertionError("committed frontend JSON Schema is stale")
     if generator.generate_schema_data(generated_schema) != args.schema_data.read_text(
@@ -665,6 +672,15 @@ def main() -> int:
     generated_fixtures = generator.generate_golden_fixtures(
         generated_schema, manifest
     )
+    command_exec_fixture = next(
+        row
+        for row in generated_fixtures["methods"]
+        if row["method"] == "command.exec"
+    )
+    if not command_exec_fixture["minimalParams"]["command"]:
+        raise AssertionError(
+            "command.exec generated fixtures must exercise a non-empty argv"
+        )
     if generated_fixtures != json.loads(args.fixtures.read_text(encoding="utf-8")):
         raise AssertionError("committed frontend golden fixtures are stale")
     if (

@@ -196,6 +196,13 @@ namespace ai::openai::codex::frontend::detail {
         }
 
         typed::AskForApproval askForApproval(const Json& value) {
+            if (value.is_string()) {
+                // ApprovalPolicy is the provider protocol's open scalar
+                // compatibility value.  Preserve future non-empty frontend
+                // values in that encodable alternative rather than decoding
+                // them into the intentionally non-encodable Unknown variant.
+                return typed::ApprovalPolicy{value.get<std::string>()};
+            }
             return decodedConversation(ai::openai::codex::detail::decodeAskForApproval(value));
         }
 

@@ -160,6 +160,8 @@ namespace ai::openai::codex::frontend {
         // BackendCore session is created by this operation.
         [[nodiscard]] AuthenticationFailureCode recordPreAuthenticationFailure(const FrontendPeerContext& peer,
                                                                                AuthenticationFailureCode failure) noexcept;
+        void declareTransportFamily(FrontendTransportKind transport);
+        void withdrawTransportFamily(FrontendTransportKind transport) noexcept;
         void flush();
         void close(std::string reason = "frontend service closed") noexcept;
 
@@ -174,6 +176,7 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] std::vector<FrontendMethod> implementedMethods() const;
         [[nodiscard]] std::vector<FrontendMethod> availableMethods() const;
         [[nodiscard]] std::vector<FrontendMethod> permittedMethods(const FrontendPrincipal& principal) const;
+        [[nodiscard]] std::vector<FrontendTransportKind> enabledTransportFamilies() const;
         [[nodiscard]] std::vector<FrontendCapability> implementedCapabilities() const;
         [[nodiscard]] EventJournalConfig journalConfig() const noexcept;
         [[nodiscard]] UpdateBatchConfig batchConfig() const noexcept;

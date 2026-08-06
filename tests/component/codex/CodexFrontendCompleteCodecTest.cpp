@@ -187,6 +187,16 @@ namespace {
         result.expectTrue(!malformedType && malformedType.error().code == frontend::ErrorCode::InvalidField,
                           "complete command decoding applies schema field types rather than only checking field presence");
 
+        frontend::Json emptyCommandExec = missingRequired;
+        emptyCommandExec["method"] = "command.exec";
+        emptyCommandExec["params"] = {{"command", frontend::Json::array()}};
+        const auto rejectedEmptyCommandExec = frontend::Codec::decodeDefinedCommand(emptyCommandExec);
+        emptyCommandExec["params"]["command"].push_back("true");
+        const auto acceptedCommandExec = frontend::Codec::decodeDefinedCommand(emptyCommandExec);
+        result.expectTrue(!rejectedEmptyCommandExec && rejectedEmptyCommandExec.error().code == frontend::ErrorCode::InvalidField &&
+                              acceptedCommandExec,
+                          "command.exec enforces its documented non-empty argv invariant at the generated schema boundary");
+
         const auto modelList = generated::definedMethodFromString("model.list");
         const bool rejectsMalformedResult = modelList.has_value() && [&modelList] {
             const auto malformedResult = frontend::Codec::decodeDefinedResult(*modelList, frontend::Json::array());

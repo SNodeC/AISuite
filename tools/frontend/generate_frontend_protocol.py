@@ -165,6 +165,15 @@ PROVIDER_PARAMETER_MIN_ITEMS = {
     "command.exec": {"command": 1},
 }
 
+# The provider registry description already states that command/exec rejects an
+# empty argv vector, but the pinned upstream JSON Schema omitted the matching
+# assertion.  Frontend Protocol validates that stable application invariant at
+# its own boundary instead of admitting a command the typed provider codec must
+# reject later.
+PROVIDER_PARAMETER_MIN_ITEMS = {
+    "command.exec": {"command": 1},
+}
+
 EXISTING_METHODS = (
     "controller.acquire",
     "controller.release",

@@ -4975,7 +4975,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "minItems": 1
         },
         "cwd": {
           "description": "Optional working directory. Defaults to the server cwd.",

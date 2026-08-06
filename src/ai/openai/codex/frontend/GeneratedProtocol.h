@@ -183,7 +183,8 @@ namespace ai::openai::codex::frontend::generated {
         std::string_view parameterPolicy;
     };
 
-    struct CapabilityMetadata { Capability id; std::string_view key; bool defined; bool implementedByCurrentRuntime; };
+    enum class CapabilityCategory { StaticMechanism, ConditionalTopology, Product };
+    struct CapabilityMetadata { Capability id; std::string_view key; CapabilityCategory category; bool defined; bool implementedByCurrentRuntime; };
     struct AuthenticationMetadata { std::string_view helloField; std::string_view bearerScheme; std::size_t maximumBearerTokenBytes; };
     struct ContractMetadata { std::string_view registryKey; std::string_view exposure; std::string_view securityDecision; std::string_view mappings; std::string_view redactionClass; std::string_view compatibilityBehavior; bool controllerRequired; bool defaultEnabled; };
     struct ProjectionMetadata {
@@ -949,24 +950,24 @@ namespace ai::openai::codex::frontend::generated {
     }};
 
     inline constexpr std::array<CapabilityMetadata, 18> AllCapabilities{{
-        {Capability::MethodDiscovery, "method_discovery", true, true},
-        {Capability::SecurityScopes, "security_scopes", true, true},
-        {Capability::CompleteProviderOperations, "complete_provider_operations", true, true},
-        {Capability::CompleteReverseRequests, "complete_reverse_requests", true, true},
-        {Capability::CompleteBackendDomains, "complete_backend_domains", true, true},
-        {Capability::ConditionalFilesystem, "conditional_filesystem", true, true},
-        {Capability::ConditionalCommandExecution, "conditional_command_execution", true, true},
-        {Capability::DedicatedPendingRequests, "dedicated_pending_requests", true, true},
-        {Capability::DedicatedNotificationEvents, "dedicated_notification_events", true, true},
-        {Capability::CompleteThreadItems, "complete_thread_items", true, true},
-        {Capability::AuthenticatedFrontend, "authenticated_frontend", true, true},
-        {Capability::ScopeProjectedState, "scope_projected_state", true, true},
-        {Capability::ProviderLifecycle, "provider_lifecycle", true, true},
-        {Capability::MultiTransport, "multi_transport", true, false},
-        {Capability::CppClientSdk, "cpp_client_sdk", true, false},
-        {Capability::TypescriptClientSdk, "typescript_client_sdk", true, false},
-        {Capability::BrowserUi, "browser_ui", true, false},
-        {Capability::QtUi, "qt_ui", true, false},
+        {Capability::MethodDiscovery, "method_discovery", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::SecurityScopes, "security_scopes", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::CompleteProviderOperations, "complete_provider_operations", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::CompleteReverseRequests, "complete_reverse_requests", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::CompleteBackendDomains, "complete_backend_domains", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::ConditionalFilesystem, "conditional_filesystem", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::ConditionalCommandExecution, "conditional_command_execution", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::DedicatedPendingRequests, "dedicated_pending_requests", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::DedicatedNotificationEvents, "dedicated_notification_events", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::CompleteThreadItems, "complete_thread_items", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::AuthenticatedFrontend, "authenticated_frontend", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::ScopeProjectedState, "scope_projected_state", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::ProviderLifecycle, "provider_lifecycle", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::MultiTransport, "multi_transport", CapabilityCategory::ConditionalTopology, true, false},
+        {Capability::CppClientSdk, "cpp_client_sdk", CapabilityCategory::Product, true, false},
+        {Capability::TypescriptClientSdk, "typescript_client_sdk", CapabilityCategory::Product, true, false},
+        {Capability::BrowserUi, "browser_ui", CapabilityCategory::Product, true, false},
+        {Capability::QtUi, "qt_ui", CapabilityCategory::Product, true, false},
     }};
 
     inline constexpr std::array<ProjectionMetadata, 68> AllNotificationProjections{{
@@ -1368,7 +1369,7 @@ namespace ai::openai::codex::frontend::generated {
     consteval std::size_t countPermitted(std::span<const FrontendScope> profile) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.currentlyImplemented && method.defaultEnabled && staticallyPermitted(method, profile); return count; }
     consteval std::size_t countProviderSecurity(std::string_view decision) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.category == MethodCategory::ProviderOperation && method.securityDecision == decision; return count; }
     consteval std::size_t countProviderReady() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.providerReadyRequired; return count; }
-    consteval std::size_t countImplementedCapabilities() { std::size_t count = 0; for (const auto& capability : AllCapabilities) count += capability.implementedByCurrentRuntime; return count; }
+    consteval std::size_t countImplementedMechanismCapabilities() { std::size_t count = 0; for (const auto& capability : AllCapabilities) count += capability.category == CapabilityCategory::StaticMechanism && capability.implementedByCurrentRuntime; return count; }
     consteval bool uniqueMethods() { for (std::size_t i = 0; i < AllMethods.size(); ++i) for (std::size_t j = i + 1; j < AllMethods.size(); ++j) if (AllMethods[i].method == AllMethods[j].method) return false; return true; }
     consteval bool uniquePendingRequestProjections() { for (std::size_t i = 0; i < AllPendingRequestProjections.size(); ++i) for (std::size_t j = i + 1; j < AllPendingRequestProjections.size(); ++j) if (AllPendingRequestProjections[i].registryKey == AllPendingRequestProjections[j].registryKey || AllPendingRequestProjections[i].providerMethod == AllPendingRequestProjections[j].providerMethod || AllPendingRequestProjections[i].kind == AllPendingRequestProjections[j].kind) return false; return true; }
 
@@ -1390,7 +1391,7 @@ namespace ai::openai::codex::frontend::generated {
     inline constexpr std::size_t PrivilegedProviderMethodCount = countProviderSecurity("PrivilegedScopedApproved");
     inline constexpr std::size_t ConditionalProviderMethodCount = countProviderSecurity("ConditionalExplicitEnablementApproved");
     inline constexpr std::size_t ParameterSensitiveProviderMethodCount = countProviderSecurity("ParameterSensitiveApproved");
-    inline constexpr std::size_t ImplementedMechanismCapabilityCount = countImplementedCapabilities();
+    inline constexpr std::size_t ImplementedMechanismCapabilityCount = countImplementedMechanismCapabilities();
     inline constexpr std::size_t ReviewedIdentityCount = AllReviewedContracts.size();
 
     static_assert(MethodCount == 105);

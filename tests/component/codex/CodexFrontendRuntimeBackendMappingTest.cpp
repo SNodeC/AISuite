@@ -9,6 +9,8 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/detail/ApprovalCodec.h"
 #include "ai/openai/codex/detail/McpReverseRequestCodec.h"
+#include "ai/openai/codex/detail/ThreadCodec.h"
+#include "ai/openai/codex/detail/TurnCodec.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/detail/BackendCommandMapper.h"
@@ -123,18 +125,7 @@ namespace {
     }
 
     Json providerValidFixtureParams(const Json& params) {
-        Json value = params;
-        if (value.contains("approvalPolicy")) {
-            // The original v1 compatibility schema intentionally accepts future non-empty approval-policy strings. The typed
-            // provider encoder only submits stable AskForApproval alternatives, so use one stable discriminator for the wire audit.
-            value["approvalPolicy"] = "on-request";
-        }
-        if (value.contains("command") && value["command"].is_array() && value["command"].empty()) {
-            // CommandExec's provider codec requires one argv element even though the additive frontend schema retains the
-            // original empty-array compatibility fixture. Exercise the actual typed submission path with the smallest stable argv.
-            value["command"].push_back("x");
-        }
-        return value;
+        return params;
     }
 
     bool expectedNativeAction(generated::MethodId id, mapping::NativeServiceAction action) {
@@ -610,10 +601,14 @@ namespace {
         const auto threadStartMapping = mapFixture(fixtures, "thread.start");
         const auto* threadStartCommand = std::get_if<backend::BackendCommand>(&threadStartMapping);
         const auto* threadStart = threadStartCommand ? std::get_if<backend::ThreadStart>(threadStartCommand) : nullptr;
+        const auto* futureApproval = threadStart != nullptr && threadStart->params.approvalPolicy.hasValue()
+                                         ? std::get_if<typed::ApprovalPolicy>(&*threadStart->params.approvalPolicy)
+                                         : nullptr;
         result.expectTrue(threadStart != nullptr && threadStart->params.cwd.hasValue() && *threadStart->params.cwd == "x" &&
                               threadStart->params.sandbox.hasValue() && threadStart->params.sandbox->value == "x" &&
-                              threadStart->params.ephemeral.hasValue() && !*threadStart->params.ephemeral,
-                          "legacy thread.start aliases retain their exact typed provider values");
+                              threadStart->params.ephemeral.hasValue() && !*threadStart->params.ephemeral && futureApproval != nullptr &&
+                              futureApproval->value == "x",
+                          "legacy thread.start aliases and future scalar approval policy retain exact typed provider values");
 
         const auto turnStartMapping = mapFixture(fixtures, "turn.start");
         const auto* turnStartCommand = std::get_if<backend::BackendCommand>(&turnStartMapping);
@@ -643,6 +638,108 @@ namespace {
             approval ? ai::openai::codex::detail::encodeReviewDecision(approval->response.decision, encodeError) : std::nullopt;
         result.expectTrue(approval != nullptr && approval->requestId.value() == 1 && encodedDecision == std::optional<Json>{"approved"},
                           "dedicated reverse mapping retains the pending occurrence and exact typed response union");
+    }
+
+    void testTypedLegacyMethodBoundary(tests::support::TestResult& result) {
+        typed::ThreadStartParams startParams;
+        startParams.approvalsReviewer = typed::OptionalNullable<typed::ApprovalsReviewer>::withValue(typed::ApprovalsReviewer::user());
+        startParams.baseInstructions = typed::OptionalNullable<std::string>::withValue("base instructions");
+        startParams.sandbox = typed::OptionalNullable<typed::SandboxMode>::withValue(typed::SandboxMode::readOnly());
+        startParams.sessionStartSource = typed::OptionalNullable<typed::ThreadStartSource>::withValue(typed::ThreadStartSource::startup());
+
+        std::string error;
+        const std::optional<Json> encodedStart = ai::openai::codex::detail::encodeThreadStartParams(startParams, error);
+        const auto decodedStart = decode("thread.start", encodedStart.value_or(Json::array()));
+        const auto mappedStart = decodedStart ? mapping::mapDefinedCommand(decodedStart.value())
+                                              : mapping::DefinedCommandMapping{mapping::BackendCommandMappingError{error}};
+        const auto* startCommand = std::get_if<backend::BackendCommand>(&mappedStart);
+        const auto* start = startCommand ? std::get_if<backend::ThreadStart>(startCommand) : nullptr;
+        const bool modernStartFieldsAreDefined =
+            decodedStart && parameterValue(decodedStart.value()).contains("approvalsReviewer") &&
+            parameterValue(decodedStart.value()).contains("baseInstructions") && parameterValue(decodedStart.value()).contains("sandbox") &&
+            parameterValue(decodedStart.value()).contains("sessionStartSource") && decodedStart.value().parameterExtensions.empty();
+        result.expectTrue(modernStartFieldsAreDefined && start != nullptr && start->params.approvalsReviewer.hasValue() &&
+                              start->params.approvalsReviewer->value == "user" && start->params.baseInstructions.hasValue() &&
+                              *start->params.baseInstructions == "base instructions" && start->params.sandbox.hasValue() &&
+                              start->params.sandbox->value == "read-only" && start->params.sessionStartSource.hasValue() &&
+                              start->params.sessionStartSource->value == "startup",
+                          "typed thread.start modern fields remain defined parameters and reach the exact backend command");
+
+        typed::ThreadListParams listParams;
+        listParams.sourceKinds = typed::OptionalNullable<std::vector<typed::ThreadSourceKind>>::withValue(
+            {typed::ThreadSourceKind::cli(), typed::ThreadSourceKind::vscode()});
+        listParams.cwd = typed::OptionalNullable<typed::ThreadListCwdFilter>::withValue(
+            typed::ThreadListCwdFilter{std::vector<std::string>{"/one", "/two"}});
+        listParams.sortDirection = typed::OptionalNullable<typed::SortDirection>::withValue(typed::SortDirection::ascending());
+        listParams.useStateDbOnly = true;
+        const std::optional<Json> encodedList = ai::openai::codex::detail::encodeThreadListParams(listParams, error);
+        const auto decodedList = decode("thread.list", encodedList.value_or(Json::array()));
+        const auto mappedList = decodedList ? mapping::mapDefinedCommand(decodedList.value())
+                                            : mapping::DefinedCommandMapping{mapping::BackendCommandMappingError{error}};
+        const auto* listCommand = std::get_if<backend::BackendCommand>(&mappedList);
+        const auto* list = listCommand ? std::get_if<backend::ThreadList>(listCommand) : nullptr;
+        const bool modernListFieldsAreDefined =
+            decodedList && parameterValue(decodedList.value()).contains("sourceKinds") &&
+            parameterValue(decodedList.value()).contains("cwd") && parameterValue(decodedList.value()).contains("sortDirection") &&
+            parameterValue(decodedList.value()).contains("useStateDbOnly") && decodedList.value().parameterExtensions.empty();
+        result.expectTrue(modernListFieldsAreDefined && list != nullptr && list->params.sourceKinds.hasValue() &&
+                              list->params.sourceKinds->size() == 2 && list->params.cwd.hasValue() &&
+                              std::holds_alternative<std::vector<std::string>>(list->params.cwd->value) &&
+                              list->params.sortDirection.hasValue() && list->params.sortDirection->value == "asc" &&
+                              list->params.useStateDbOnly == std::optional<bool>{true},
+                          "typed thread.list modern filters remain defined parameters and reach the exact backend command");
+
+        typed::TurnStartParams turnParams;
+        turnParams.threadId = typed::ThreadId{"thread-modern"};
+        typed::TextInput input;
+        input.text = "hello";
+        turnParams.input.emplace_back(std::move(input));
+        turnParams.effort = typed::OptionalNullable<typed::ReasoningEffort>::withValue(typed::ReasoningEffort::high());
+        turnParams.personality = typed::OptionalNullable<typed::Personality>::withValue(typed::Personality::friendly());
+        const std::optional<Json> encodedTurn = ai::openai::codex::detail::encodeTurnStartParams(turnParams, error);
+        const auto decodedTurn = decode("turn.start", encodedTurn.value_or(Json::array()));
+        const auto mappedTurn = decodedTurn ? mapping::mapDefinedCommand(decodedTurn.value())
+                                            : mapping::DefinedCommandMapping{mapping::BackendCommandMappingError{error}};
+        const auto* turnCommand = std::get_if<backend::BackendCommand>(&mappedTurn);
+        const auto* turn = turnCommand ? std::get_if<backend::TurnStart>(turnCommand) : nullptr;
+        const bool modernTurnFieldsAreDefined = decodedTurn && parameterValue(decodedTurn.value()).contains("effort") &&
+                                                parameterValue(decodedTurn.value()).contains("personality") &&
+                                                decodedTurn.value().parameterExtensions.empty();
+        result.expectTrue(modernTurnFieldsAreDefined && turn != nullptr && turn->params.effort.hasValue() &&
+                              turn->params.effort->value == "high" && turn->params.personality.hasValue() &&
+                              turn->params.personality->value == "friendly",
+                          "typed turn.start effort and other modern fields remain defined parameters and reach the exact backend command");
+
+        const auto legacyStart = decode("thread.start", Json{{"sandboxMode", "workspace-write"}});
+        const auto legacyTurn = decode("turn.start",
+                                       Json{{"threadId", "thread-legacy"},
+                                            {"input", Json::array({Json{{"type", "text"}, {"text", "hello"}}})},
+                                            {"reasoningEffort", "medium"}});
+        const auto mappedLegacyStart = legacyStart ? mapping::mapDefinedCommand(legacyStart.value())
+                                                   : mapping::DefinedCommandMapping{mapping::BackendCommandMappingError{""}};
+        const auto mappedLegacyTurn = legacyTurn ? mapping::mapDefinedCommand(legacyTurn.value())
+                                                 : mapping::DefinedCommandMapping{mapping::BackendCommandMappingError{""}};
+        const auto* legacyStartCommand = std::get_if<backend::BackendCommand>(&mappedLegacyStart);
+        const auto* legacyStartValue = legacyStartCommand ? std::get_if<backend::ThreadStart>(legacyStartCommand) : nullptr;
+        const auto* legacyTurnCommand = std::get_if<backend::BackendCommand>(&mappedLegacyTurn);
+        const auto* legacyTurnValue = legacyTurnCommand ? std::get_if<backend::TurnStart>(legacyTurnCommand) : nullptr;
+        result.expectTrue(legacyStart && legacyTurn && legacyStart.value().parameterExtensions.contains("sandboxMode") &&
+                              !parameterValue(legacyStart.value()).contains("sandboxMode") &&
+                              legacyTurn.value().parameterExtensions.contains("reasoningEffort") &&
+                              !parameterValue(legacyTurn.value()).contains("reasoningEffort") && legacyStartValue != nullptr &&
+                              legacyStartValue->params.sandbox.hasValue() && legacyStartValue->params.sandbox->value == "workspace-write" &&
+                              legacyTurnValue != nullptr && legacyTurnValue->params.effort.hasValue() &&
+                              legacyTurnValue->params.effort->value == "medium",
+                          "sandboxMode and reasoningEffort remain compatibility-only aliases merged into canonical typed fields");
+
+        typed::ThreadStartParams granularParams;
+        granularParams.approvalPolicy = typed::OptionalNullable<typed::AskForApproval>::withValue(
+            typed::GranularAskForApproval{{true, true, false, true, false}, Json::object(), {}});
+        const std::optional<Json> encodedGranular = ai::openai::codex::detail::encodeThreadStartParams(granularParams, error);
+        const auto rejectedGranular = decode("thread.start", encodedGranular.value_or(Json::array()));
+        result.expectTrue(encodedGranular && encodedGranular->at("approvalPolicy").is_object() && !rejectedGranular &&
+                              rejectedGranular.error().code == frontend::ErrorCode::InvalidField,
+                          "the legacy frontend approvalPolicy schema rejects a granular typed value locally instead of dropping it");
     }
 
     void testAliasConflicts(tests::support::TestResult& result, const Json& fixtures) {
@@ -692,6 +789,7 @@ int main(int argc, char* argv[]) {
         testCompleteTable(result, fixtures);
         testReverseValueParity(result, fixtures);
         testExactValues(result, fixtures);
+        testTypedLegacyMethodBoundary(result);
         testAliasConflicts(result, fixtures);
         testSafeFailure(result);
 

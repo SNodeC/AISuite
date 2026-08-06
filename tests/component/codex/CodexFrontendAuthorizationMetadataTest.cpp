@@ -6,6 +6,7 @@
  */
 
 #include "ai/openai/codex/frontend/GeneratedProtocol.h"
+#include "ai/openai/codex/frontend/detail/FrontendCapabilities.h"
 #include "support/TestResult.h"
 
 #include <array>
@@ -187,25 +188,44 @@ namespace {
             "security_scopes",
             "scope_projected_state",
         };
-        const std::set<std::string_view> expectedFutureProducts{"browser_ui", "cpp_client_sdk", "qt_ui", "typescript_client_sdk"};
+        const std::set<std::string_view> expectedProducts{"browser_ui", "cpp_client_sdk", "qt_ui", "typescript_client_sdk"};
         std::set<std::string_view> mechanisms;
-        std::set<std::string_view> futureProducts;
-        bool multiTransportStaticFalse = false;
+        std::set<std::string_view> products;
+        std::set<std::string_view> topology;
         for (const generated::CapabilityMetadata& capability : generated::AllCapabilities) {
-            if (capability.implementedByCurrentRuntime) {
-                mechanisms.insert(capability.key);
-            } else if (capability.key == "multi_transport") {
-                multiTransportStaticFalse = true;
-            } else {
-                futureProducts.insert(capability.key);
+            switch (capability.category) {
+                case generated::CapabilityCategory::StaticMechanism:
+                    mechanisms.insert(capability.key);
+                    break;
+                case generated::CapabilityCategory::ConditionalTopology:
+                    topology.insert(capability.key);
+                    break;
+                case generated::CapabilityCategory::Product:
+                    products.insert(capability.key);
+                    break;
             }
         }
 
         result.expectTrue(conditional == expectedConditional && legacy == expectedLegacy,
                           "the exact 15 default-disabled and exact 15 legacy-compatible method sets remain frozen independently");
-        result.expectTrue(mechanisms == expectedMechanisms && futureProducts == expectedFutureProducts && multiTransportStaticFalse,
-                          "A1.7b implements exactly thirteen service mechanisms, keeps multi_transport runtime-topology derived, and "
-                          "keeps four future product capabilities false");
+        result.expectTrue(mechanisms == expectedMechanisms && products == expectedProducts &&
+                              topology == std::set<std::string_view>{"multi_transport"},
+                          "capability taxonomy independently classifies thirteen static mechanisms, multi_transport topology, and four "
+                          "product capabilities regardless of current implementation truth");
+
+        const auto sdkSingle = ai::openai::codex::frontend::detail::computeCapabilities(true, 1);
+        const auto sdkMultiple = ai::openai::codex::frontend::detail::computeCapabilities(true, 2);
+        const auto noSdkSingle = ai::openai::codex::frontend::detail::computeCapabilities(false, 1);
+        const auto noSdkMultiple = ai::openai::codex::frontend::detail::computeCapabilities(false, 2);
+        result.expectTrue(sdkSingle.staticMechanisms == 13 && sdkSingle.conditionalTopology == 0 && sdkSingle.implementedProducts == 1 &&
+                              sdkSingle.advertisement.implemented.size() == 14 && sdkMultiple.staticMechanisms == 13 &&
+                              sdkMultiple.conditionalTopology == 1 && sdkMultiple.implementedProducts == 1 &&
+                              sdkMultiple.advertisement.implemented.size() == 15 && noSdkSingle.staticMechanisms == 13 &&
+                              noSdkSingle.conditionalTopology == 0 && noSdkSingle.implementedProducts == 0 &&
+                              noSdkSingle.advertisement.implemented.size() == 13 && noSdkMultiple.staticMechanisms == 13 &&
+                              noSdkMultiple.conditionalTopology == 1 && noSdkMultiple.implementedProducts == 0 &&
+                              noSdkMultiple.advertisement.implemented.size() == 14,
+                          "build-derived SDK truth and topology-derived multi_transport produce the exact four capability totals");
 
         const auto accountRead = generated::definedMethodFromString("account.read");
         const bool accountPolicy =
