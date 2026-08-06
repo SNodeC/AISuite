@@ -9,6 +9,8 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <limits>
+#include <span>
 #include <string>
 #include <unistd.h>
 
@@ -21,6 +23,28 @@ namespace apps::codex_backend_client {
         }
 
         return (std::filesystem::path("/tmp") / ("snodec-codex-backend-" + std::to_string(::getuid()) + ".sock")).string();
+    }
+
+    bool OutgoingTransportPreflight::accepted() const noexcept {
+        return enabledCount == 1 && selectedIndex.has_value();
+    }
+
+    OutgoingTransportPreflight preflightOutgoingTransports(std::span<const bool> disabledStates) noexcept {
+        OutgoingTransportPreflight result;
+        for (std::size_t index = 0; index < disabledStates.size(); ++index) {
+            if (disabledStates[index]) {
+                continue;
+            }
+            if (result.enabledCount != std::numeric_limits<std::size_t>::max()) {
+                ++result.enabledCount;
+            }
+            if (result.enabledCount == 1) {
+                result.selectedIndex = index;
+            } else {
+                result.selectedIndex.reset();
+            }
+        }
+        return result;
     }
 
 } // namespace apps::codex_backend_client

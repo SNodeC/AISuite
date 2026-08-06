@@ -1,38 +1,23 @@
 /*
- * SNode.C - A Slim Toolkit for Network Communication
- * Copyright (C) Volker Christian <me@vchrist.at>
- *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
 #ifndef APPS_CODEX_BACKEND_CLIENT_COMMANDDRAINCONTROLLER_H
 #define APPS_CODEX_BACKEND_CLIENT_COMMANDDRAINCONTROLLER_H
 
-#include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/client/Client.h"
+#include "apps/codex-backend-client/CommandParser.h"
 
 #include <cstddef>
 #include <deque>
 #include <functional>
-#include <list>
 #include <optional>
 #include <string>
 #include <variant>
 
 namespace apps::codex_backend_client {
 
-    struct NewCommand;
-
-    struct ResponsePresentation {
-        enum class Kind { Generic, ThreadStart, ThreadResume, TurnStart, NewThreadStart, NewTurnStart };
-
-        Kind kind = Kind::Generic;
-        std::optional<std::string> threadId;
-
-        bool operator==(const ResponsePresentation&) const = default;
-    };
-
     struct CommandDrainCallbacks {
-        std::function<bool(const ai::openai::codex::frontend::ClientMessage&)> send;
         std::function<void()> requestExit;
         std::function<void(std::string)> reportFailure;
     };
@@ -44,17 +29,14 @@ namespace apps::codex_backend_client {
         enum class Outcome { Running, Success, Failure };
         enum class NewStage { None, Queued, AwaitingThreadStartResponse, WaitingToSubmitTurn, AwaitingTurnStartResponse };
 
-        explicit CommandDrainController(CommandDrainCallbacks callbacks = {});
+        CommandDrainController(ai::openai::codex::frontend::client::Client& sdk, CommandDrainCallbacks callbacks = {});
 
-        [[nodiscard]] bool enqueue(ai::openai::codex::frontend::ClientMessage message);
+        [[nodiscard]] bool enqueue(RemoteCommand command);
         [[nodiscard]] bool enqueue(NewCommand command);
-
-        void connected();
-        std::optional<ResponsePresentation> receive(const ai::openai::codex::frontend::ServerMessage& message);
+        void connectionStateChanged(ai::openai::codex::frontend::client::ConnectionState state);
         void inputEof();
         void inputFailed(std::string message);
         void connectionFailed(std::string message);
-        void protocolFailed(std::string message);
         void disconnected();
         void quit();
 
@@ -69,51 +51,29 @@ namespace apps::codex_backend_client {
         [[nodiscard]] NewStage newStage() const noexcept;
 
     private:
-        enum class PendingKind { Ordinary, NewThreadStart, NewTurnStart };
-
         struct QueuedNewCommand {
-            std::string threadStartRequestId;
-            std::string turnStartRequestId;
-            ai::openai::codex::frontend::ThreadStart options;
+            ai::openai::codex::typed::ThreadStartParams options;
             std::string prompt;
         };
+        using QueuedEntry = std::variant<RemoteCommand, QueuedNewCommand>;
 
-        using QueuedEntry = std::variant<ai::openai::codex::frontend::ClientMessage, QueuedNewCommand>;
-
-        struct ActiveNewCommand {
-            QueuedNewCommand command;
-            NewStage stage = NewStage::AwaitingThreadStartResponse;
-            std::optional<std::string> threadId;
-        };
-
-        struct PendingCommand {
-            std::string requestId;
-            bool responsePending = true;
-            bool waitForSyncOnSuccess = false;
-            bool syncPending = false;
-            PendingKind kind = PendingKind::Ordinary;
-            ResponsePresentation presentation;
-        };
-
-        [[nodiscard]] bool sendNow(const ai::openai::codex::frontend::ClientMessage& message, PendingKind kind = PendingKind::Ordinary);
-        [[nodiscard]] bool requestIdIsPending(const std::string& requestId) const noexcept;
+        [[nodiscard]] bool submit(RemoteCommand command);
+        [[nodiscard]] bool submitNew(QueuedNewCommand command);
         void flushQueued();
-        [[nodiscard]] std::optional<ResponsePresentation> completeResponse(const ai::openai::codex::frontend::Response& response);
-        void completeSync();
-        [[nodiscard]] bool submitActiveNewTurn();
-        void removeCompletedCommands();
+        void operationCompleted(bool succeeded, const std::optional<ai::openai::codex::frontend::client::Error>& error);
+        void synchronizationCompleted(
+            const ai::openai::codex::frontend::client::OperationResult<ai::openai::codex::frontend::client::SynchronizationResult>& result);
         void maybeCompleteDrain();
         void finish(Outcome outcome);
         void fail(std::string message);
-        void failForActiveNew(std::string message);
 
+        ai::openai::codex::frontend::client::Client& sdk;
         CommandDrainCallbacks callbacks;
         SessionState currentSessionState = SessionState::Connecting;
         InputState currentInputState = InputState::Reading;
         Outcome currentOutcome = Outcome::Running;
         std::deque<QueuedEntry> queuedMessages;
-        std::list<PendingCommand> pendingCommands;
-        std::optional<ActiveNewCommand> activeNewCommand;
+        NewStage currentNewStage = NewStage::None;
         std::string currentFailureReason;
     };
 

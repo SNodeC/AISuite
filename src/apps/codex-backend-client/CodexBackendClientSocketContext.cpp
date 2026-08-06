@@ -7,20 +7,18 @@
 
 #include "apps/codex-backend-client/CodexBackendClientSocketContext.h"
 
-#include "ai/openai/codex/frontend/Codec.h"
 #include "apps/codex-backend-client/ClientConnection.h"
+#include "core/socket/stream/QueueResult.h"
+#include "core/socket/stream/SocketConnection.h"
 
 #include <array>
 #include <exception>
-#include <nlohmann/json.hpp>
-#include <optional>
 #include <string_view>
 #include <utility>
-#include <variant>
 
 namespace apps::codex_backend_client {
 
-    namespace frontend = ai::openai::codex::frontend;
+    namespace sdk = ai::openai::codex::frontend::client;
 
     CodexBackendClientSocketContext::CodexBackendClientSocketContext(core::socket::stream::SocketConnection* socketConnection,
                                                                      ClientConnection& connection,
@@ -32,15 +30,6 @@ namespace apps::codex_backend_client {
     }
 
     void CodexBackendClientSocketContext::onConnected() {
-        const frontend::ClientMessage hello = frontend::Hello{std::nullopt, frontend::Json::object()};
-        if (!send(hello)) {
-            frontend::CodecError error;
-            error.code = frontend::ErrorCode::InternalError;
-            error.message = "failed to send the frontend hello";
-            error.closeConnection = true;
-            fail(std::move(error));
-            return;
-        }
         connection.didConnect(*this);
     }
 
@@ -64,24 +53,12 @@ namespace apps::codex_backend_client {
                 }
             });
             if (result == JsonLineFramer::Result::FrameTooLarge && !disconnecting) {
-                frontend::CodecError error;
-                error.code = frontend::ErrorCode::FrameTooLarge;
-                error.message = "frontend server JSONL frame exceeds the configured maximum size";
-                error.closeConnection = true;
-                fail(std::move(error));
+                fail("frontend server JSONL frame exceeds the configured maximum size");
             }
         } catch (const std::exception& exception) {
-            frontend::CodecError error;
-            error.code = frontend::ErrorCode::InternalError;
-            error.message = std::string("frontend frame handling failed: ") + exception.what();
-            error.closeConnection = true;
-            fail(std::move(error));
+            fail(std::string("frontend frame handling failed: ") + exception.what());
         } catch (...) {
-            frontend::CodecError error;
-            error.code = frontend::ErrorCode::InternalError;
-            error.message = "frontend frame handling failed";
-            error.closeConnection = true;
-            fail(std::move(error));
+            fail("frontend frame handling failed");
         }
         return size;
     }
@@ -91,33 +68,30 @@ namespace apps::codex_backend_client {
         return true;
     }
 
-    bool CodexBackendClientSocketContext::send(const frontend::ClientMessage& message) noexcept {
+    sdk::SendResult CodexBackendClientSocketContext::send(sdk::OutboundMessage message) noexcept {
         if (disconnecting) {
-            return false;
+            return {sdk::SendStatus::Closed, sdk::TransportError{"frontend transport is closing", true}};
         }
         try {
-            const auto serialized = frontend::Codec::serializeClient(message);
-            if (!serialized) {
-                frontend::CodecError error = serialized.error();
-                connection.didReceiveError(*this, error);
-                return false;
-            }
-            std::string frame = serialized.value();
+            std::string frame = std::move(message.compactJson);
             frame.push_back('\n');
-            sendToPeer(frame.data(), frame.size());
-            return true;
-        } catch (const std::exception& exception) {
-            frontend::CodecError error;
-            error.code = frontend::ErrorCode::InternalError;
-            error.message = std::string("failed to send frontend message: ") + exception.what();
-            connection.didReceiveError(*this, error);
+            core::socket::stream::SocketConnection* const socketConnection = getSocketConnection();
+            if (socketConnection == nullptr) {
+                return {sdk::SendStatus::Closed, sdk::TransportError{"frontend transport is closed", true}};
+            }
+            switch (socketConnection->trySendToPeer(frame)) {
+                case core::socket::stream::QueueResult::Queued:
+                    return {sdk::SendStatus::Accepted, std::nullopt};
+                case core::socket::stream::QueueResult::WouldExceedLimit:
+                    return {sdk::SendStatus::Backpressure, sdk::TransportError{"frontend transport writer queue is full", true}};
+                case core::socket::stream::QueueResult::Closed:
+                case core::socket::stream::QueueResult::ShutdownInProgress:
+                    return {sdk::SendStatus::Closed, sdk::TransportError{"frontend transport is closed", true}};
+            }
         } catch (...) {
-            frontend::CodecError error;
-            error.code = frontend::ErrorCode::InternalError;
-            error.message = "failed to send frontend message";
-            connection.didReceiveError(*this, error);
+            return {sdk::SendStatus::Failed, sdk::TransportError{"failed to queue frontend message", true}};
         }
-        return false;
+        return {sdk::SendStatus::Failed, sdk::TransportError{"unknown frontend queue result", false}};
     }
 
     void CodexBackendClientSocketContext::disconnect() noexcept {
@@ -132,28 +106,14 @@ namespace apps::codex_backend_client {
     }
 
     void CodexBackendClientSocketContext::handleFrame(std::string frame) noexcept {
-        auto decoded = frontend::Codec::decodeServer(std::string_view(frame));
-        if (!decoded) {
-            frontend::CodecError error = std::move(decoded).error();
-            error.closeConnection = true;
-            fail(std::move(error));
-            return;
-        }
-
-        frontend::ServerMessage message = std::move(decoded).value();
-        const bool closeConnection = std::holds_alternative<frontend::ProtocolErrorMessage>(message) &&
-                                     std::get<frontend::ProtocolErrorMessage>(message).closeConnection;
-        connection.didReceive(*this, message);
-        if (closeConnection) {
-            disconnect();
-        }
+        connection.didReceive(*this, std::move(frame));
     }
 
-    void CodexBackendClientSocketContext::fail(frontend::CodecError error) noexcept {
+    void CodexBackendClientSocketContext::fail(std::string error) noexcept {
         if (disconnecting) {
             return;
         }
-        connection.didReceiveError(*this, error);
+        connection.didFail(*this, std::move(error));
         disconnect();
     }
 

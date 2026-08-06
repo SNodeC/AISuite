@@ -7,14 +7,9 @@
 
 #include "apps/codex-backend-client/CommandParser.h"
 
-#include "ai/openai/codex/frontend/Codec.h"
-
 #include <algorithm>
 #include <charconv>
 #include <cstddef>
-#include <limits>
-#include <map>
-#include <nlohmann/json.hpp>
 #include <optional>
 #include <system_error>
 #include <utility>
@@ -25,6 +20,16 @@ namespace apps::codex_backend_client {
     namespace {
 
         namespace frontend = ai::openai::codex::frontend;
+        namespace typed = ai::openai::codex::typed;
+
+        struct ParsedThreadOptions {
+            std::optional<std::string> cwd;
+            std::optional<std::string> model;
+            std::optional<std::string> modelProvider;
+            std::optional<std::string> approvalPolicy;
+            std::optional<std::string> sandboxMode;
+            bool ephemeral = false;
+        };
 
         bool isSpace(char value) noexcept {
             return value == ' ' || value == '\t' || value == '\r' || value == '\n' || value == '\f' || value == '\v';
@@ -74,7 +79,7 @@ namespace apps::codex_backend_client {
 
         bool parseThreadOption(std::string_view option,
                                std::string_view& remainder,
-                               frontend::ThreadStart& parsed,
+                               ParsedThreadOptions& parsed,
                                bool allowEphemeral,
                                std::vector<std::string_view>& seen,
                                std::string& error) {
@@ -120,7 +125,7 @@ namespace apps::codex_backend_client {
         }
 
         bool parseThreadOptions(std::string_view& remainder,
-                                frontend::ThreadStart& parsed,
+                                ParsedThreadOptions& parsed,
                                 bool allowEphemeral,
                                 bool stopAtSeparator,
                                 bool& separatorSeen,
@@ -151,11 +156,51 @@ namespace apps::codex_backend_client {
             return std::string(command) + ": " + std::move(detail) + "; enter 'help' for command syntax";
         }
 
-    } // namespace
+        typed::ThreadStartParams threadStartParams(ParsedThreadOptions options) {
+            typed::ThreadStartParams result;
+            if (options.cwd) {
+                result.cwd = std::move(*options.cwd);
+            }
+            if (options.model) {
+                result.model = typed::ModelId{std::move(*options.model)};
+            }
+            if (options.modelProvider) {
+                result.modelProvider = std::move(*options.modelProvider);
+            }
+            if (options.approvalPolicy) {
+                result.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{std::move(*options.approvalPolicy)}};
+            }
+            if (options.sandboxMode) {
+                result.sandbox = typed::SandboxMode{std::move(*options.sandboxMode)};
+            }
+            if (options.ephemeral) {
+                result.ephemeral = true;
+            }
+            return result;
+        }
 
-    CommandParser::CommandParser(std::string requestIdPrefix)
-        : requestIdPrefix(requestIdPrefix.empty() ? "client" : std::move(requestIdPrefix)) {
-    }
+        typed::ThreadResumeParams threadResumeParams(typed::ThreadId threadId, ParsedThreadOptions options) {
+            typed::ThreadResumeParams result;
+            result.threadId = std::move(threadId);
+            if (options.cwd) {
+                result.cwd = std::move(*options.cwd);
+            }
+            if (options.model) {
+                result.model = typed::ModelId{std::move(*options.model)};
+            }
+            if (options.modelProvider) {
+                result.modelProvider = std::move(*options.modelProvider);
+            }
+            if (options.approvalPolicy) {
+                result.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy{std::move(*options.approvalPolicy)}};
+            }
+            if (options.sandboxMode) {
+                result.sandbox = typed::SandboxMode{std::move(*options.sandboxMode)};
+            }
+            return result;
+        }
+
+    } // namespace
 
     ParsedCommand CommandParser::parse(std::string_view line) {
         line = trim(line);
@@ -180,35 +225,29 @@ namespace apps::codex_backend_client {
             return WatchCommand{value == "on"};
         }
 
-        const auto send = [this](frontend::CommandParameters parameters) -> ParsedCommand {
-            std::string requestId = allocateRequestId();
-            if (requestId.empty()) {
-                return usageError("frontend request ID space is exhausted");
-            }
-            return SendCommand{
-                frontend::Command{std::move(requestId), std::move(parameters), frontend::Json::object(), frontend::Json::object()}};
-        };
-
         if (name == "snapshot") {
-            return remainder.empty() ? send(frontend::SnapshotGet{}) : ParsedCommand{usageError("usage: snapshot")};
+            return remainder.empty() ? ParsedCommand{RemoteCommand{SnapshotCommand{}}} : ParsedCommand{usageError("usage: snapshot")};
         }
         if (name == "acquire") {
-            return remainder.empty() ? send(frontend::ControllerAcquire{}) : ParsedCommand{usageError("usage: acquire")};
+            return remainder.empty() ? ParsedCommand{RemoteCommand{ControllerAcquireCommand{}}}
+                                     : ParsedCommand{usageError("usage: acquire")};
         }
         if (name == "release") {
-            return remainder.empty() ? send(frontend::ControllerRelease{}) : ParsedCommand{usageError("usage: release")};
+            return remainder.empty() ? ParsedCommand{RemoteCommand{ControllerReleaseCommand{}}}
+                                     : ParsedCommand{usageError("usage: release")};
         }
         if (name == "threads") {
-            return remainder.empty() ? send(frontend::ThreadList{}) : ParsedCommand{usageError("usage: threads")};
+            return remainder.empty() ? ParsedCommand{RemoteCommand{ThreadListCommand{typed::ThreadListParams{}}}}
+                                     : ParsedCommand{usageError("usage: threads")};
         }
         if (name == "start") {
-            frontend::ThreadStart start;
+            ParsedThreadOptions start;
             bool separatorSeen = false;
             std::string error;
             if (!parseThreadOptions(remainder, start, true, false, separatorSeen, error)) {
                 return usageError(commandUsage(name, std::move(error)));
             }
-            return send(std::move(start));
+            return RemoteCommand{ThreadStartCommand{threadStartParams(std::move(start))}};
         }
         if (name == "resume") {
             const std::string_view threadId = takeWord(remainder);
@@ -216,28 +255,21 @@ namespace apps::codex_backend_client {
                 return usageError("usage: resume <thread-id> [thread-resume-options]");
             }
 
-            frontend::ThreadStart options;
+            ParsedThreadOptions options;
             bool separatorSeen = false;
             std::string error;
             if (!parseThreadOptions(remainder, options, false, false, separatorSeen, error)) {
                 return usageError(commandUsage(name, std::move(error)));
             }
 
-            frontend::ThreadResume resume;
-            resume.threadId = std::string(threadId);
-            resume.cwd = std::move(options.cwd);
-            resume.model = std::move(options.model);
-            resume.modelProvider = std::move(options.modelProvider);
-            resume.approvalPolicy = std::move(options.approvalPolicy);
-            resume.sandboxMode = std::move(options.sandboxMode);
-            return send(std::move(resume));
+            return RemoteCommand{ThreadResumeCommand{threadResumeParams(typed::ThreadId{std::string(threadId)}, std::move(options))}};
         }
         if (name == "new") {
             if (remainder.empty()) {
                 return usageError("usage: new [thread-start-options] -- <prompt> | new <prompt>");
             }
 
-            frontend::ThreadStart options;
+            ParsedThreadOptions options;
             std::string prompt;
             std::string_view probe = remainder;
             const std::string_view first = takeWord(probe);
@@ -259,11 +291,7 @@ namespace apps::codex_backend_client {
                 prompt = std::string(text);
             }
 
-            const auto requestIds = allocateRequestIdPair();
-            if (!requestIds.has_value()) {
-                return usageError("frontend request ID space cannot allocate two IDs for new");
-            }
-            return NewCommand{requestIds->first, requestIds->second, std::move(options), std::move(prompt)};
+            return NewCommand{threadStartParams(std::move(options)), std::move(prompt)};
         }
         if (name == "replay") {
             const std::string_view value = takeWord(remainder);
@@ -271,14 +299,14 @@ namespace apps::codex_backend_client {
             if (!remainder.empty() || !sequence.has_value()) {
                 return usageError("usage: replay <sequence>");
             }
-            return send(frontend::ReplayAfter{frontend::SequenceNumber(*sequence)});
+            return RemoteCommand{ReplayCommand{frontend::SequenceNumber(*sequence)}};
         }
         if (name == "read") {
             const std::string_view threadId = takeWord(remainder);
             if (threadId.empty() || !remainder.empty()) {
                 return usageError("usage: read <thread-id>");
             }
-            return send(frontend::ThreadRead{std::string(threadId), std::nullopt});
+            return RemoteCommand{ThreadReadCommand{typed::ThreadReadParams{typed::ThreadId{std::string(threadId)}, std::nullopt}}};
         }
         if (name == "turn") {
             const std::string_view threadId = takeWord(remainder);
@@ -287,10 +315,12 @@ namespace apps::codex_backend_client {
                 return usageError("usage: turn <thread-id> <prompt>");
             }
 
-            frontend::TurnStart turn;
-            turn.threadId = std::string(threadId);
-            turn.input.emplace_back(frontend::TextInput{std::string(text), frontend::Json::object()});
-            return send(std::move(turn));
+            typed::TurnStartParams turn;
+            turn.threadId = typed::ThreadId{std::string(threadId)};
+            typed::TextInput input;
+            input.text = std::string(text);
+            turn.input.emplace_back(std::move(input));
+            return RemoteCommand{TurnStartCommand{std::move(turn)}};
         }
         if (name == "interrupt") {
             const std::string_view threadId = takeWord(remainder);
@@ -298,7 +328,8 @@ namespace apps::codex_backend_client {
             if (threadId.empty() || turnId.empty() || !remainder.empty()) {
                 return usageError("usage: interrupt <thread-id> <turn-id>");
             }
-            return send(frontend::TurnInterrupt{std::string(threadId), std::string(turnId)});
+            return RemoteCommand{TurnInterruptCommand{
+                typed::TurnInterruptParams{typed::ThreadId{std::string(threadId)}, typed::TurnId{std::string(turnId)}}}};
         }
         if (name == "raw") {
             if (remainder.empty()) {
@@ -306,14 +337,19 @@ namespace apps::codex_backend_client {
             }
 
             frontend::Json encoded = frontend::Json::parse(remainder.begin(), remainder.end(), nullptr, false);
-            if (encoded.is_discarded()) {
+            if (encoded.is_discarded() || !encoded.is_object()) {
                 return usageError("raw frontend message is not valid JSON");
             }
-            auto decoded = frontend::Codec::decodeClient(encoded);
-            if (!decoded) {
-                return usageError("raw frontend message rejected: " + decoded.error().message);
+            const auto method = encoded.find("method");
+            const auto params = encoded.find("params");
+            if (method == encoded.end() || !method->is_string() || params == encoded.end() || !params->is_object()) {
+                return usageError("raw frontend command requires a known method and an object params value");
             }
-            return SendCommand{std::move(decoded).value()};
+            const auto methodId = frontend::generated::definedMethodFromString(method->get<std::string>());
+            if (!methodId) {
+                return usageError("raw frontend command uses an unknown method");
+            }
+            return RemoteCommand{RawCommand{frontend::generated::makeParameters(*methodId, *params)}};
         }
 
         return usageError("unknown command '" + std::string(name) + "'; enter 'help' for available commands");
@@ -346,37 +382,6 @@ namespace apps::codex_backend_client {
                "  raw <json>\n"
                "  watch on\n"
                "  watch off";
-    }
-
-    std::string CommandParser::allocateRequestId() {
-        if (requestIdsExhausted) {
-            return {};
-        }
-
-        const std::string requestId = requestIdPrefix + "-" + std::to_string(nextRequestId);
-        if (nextRequestId == std::numeric_limits<std::uint64_t>::max()) {
-            requestIdsExhausted = true;
-        } else {
-            ++nextRequestId;
-        }
-        return requestId;
-    }
-
-    std::optional<std::pair<std::string, std::string>> CommandParser::allocateRequestIdPair() {
-        if (requestIdsExhausted || nextRequestId == std::numeric_limits<std::uint64_t>::max()) {
-            return std::nullopt;
-        }
-
-        const std::uint64_t firstSequence = nextRequestId;
-        const std::uint64_t secondSequence = firstSequence + 1;
-        std::pair<std::string, std::string> requestIds{requestIdPrefix + "-" + std::to_string(firstSequence),
-                                                       requestIdPrefix + "-" + std::to_string(secondSequence)};
-        if (secondSequence == std::numeric_limits<std::uint64_t>::max()) {
-            requestIdsExhausted = true;
-        } else {
-            nextRequestId = secondSequence + 1;
-        }
-        return requestIds;
     }
 
 } // namespace apps::codex_backend_client

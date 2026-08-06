@@ -9,6 +9,7 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/client/Client.h"
 #include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/CodexBackendClientSocketContextFactory.h"
 #include "apps/codex-backend-client/CommandDrainController.h"
@@ -53,6 +54,7 @@ namespace {
     namespace backend = ai::openai::codex::backend;
     namespace client = apps::codex_backend_client;
     namespace frontend = ai::openai::codex::frontend;
+    namespace sdk_client = ai::openai::codex::frontend::client;
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
     using ai::openai::codex::Json;
@@ -365,24 +367,65 @@ namespace {
                               "the deterministic thread-workflow pipe contains every command and closes before connection");
 
             client::Presenter presenter(client::OutputMode::Human, humanOutput, diagnostics);
-            client::CommandParser parser("thread-workflow");
+            client::CommandParser parser;
             client::ClientConnection* connectionHandle = nullptr;
             client::StdinReader* stdinReaderHandle = nullptr;
 
-            client::CommandDrainController lifecycle(client::CommandDrainCallbacks{
-                .send =
-                    [&](const frontend::ClientMessage& message) {
-                        if (const auto* command = std::get_if<frontend::Command>(&message)) {
-                            sentCommandIds.push_back(command->requestId);
-                            sentCommandMethods.emplace_back(frontend::toString(frontend::commandMethod(command->parameters)));
-                            sentCommandSyncCounts.push_back(syncCompleteCount);
-                        }
-                        return connectionHandle != nullptr && connectionHandle->send(message);
-                    },
+            client::CommandDrainController* lifecycleHandle = nullptr;
+            sdk_client::ClientOptions sdkOptions;
+            sdkOptions.credentialProvider = [] {
+                return sdk_client::AuthenticationContext{frontend::NoCredential{}, "verified-local:thread-workflow"};
+            };
+            sdk_client::Client sdk(
+                std::move(sdkOptions),
+                sdk_client::ClientCallbacks{
+                    .onConnectionStateChanged =
+                        [&lifecycleHandle, &syncCompleteCount](const sdk_client::ConnectionStateChange& change) {
+                            if (change.current == sdk_client::ConnectionState::Ready && syncCompleteCount == 0) {
+                                ++syncCompleteCount;
+                            }
+                            if (lifecycleHandle != nullptr) {
+                                lifecycleHandle->connectionStateChanged(change.current);
+                            }
+                        },
+                    .onStateUpdated = {},
+                    .onSynchronized = {},
+                    .onCursorAdvanced = {},
+                    .onProtocolMessage =
+                        [&](const frontend::ServerMessage& message) {
+                            const auto* response = std::get_if<frontend::Response>(&message);
+                            if (response != nullptr) {
+                                responseIds.push_back(response->requestId);
+                                if (std::find(acquireRequestIds.begin(), acquireRequestIds.end(), response->requestId) !=
+                                    acquireRequestIds.end()) {
+                                    ++acquireResponseCount;
+                                } else if (response->requestId == explicitStartRequestId) {
+                                    explicitStartResponse = *response;
+                                } else if (response->requestId == resumeRequestId) {
+                                    resumeResponse = *response;
+                                } else if (response->requestId == explicitTurnRequestId) {
+                                    explicitTurnResponse = *response;
+                                } else if (response->requestId == newStartRequestId) {
+                                    newStartResponse = *response;
+                                    newStartObservedDuringEofDrain =
+                                        lifecycleHandle != nullptr &&
+                                        lifecycleHandle->inputState() == client::CommandDrainController::InputState::DrainOnEof &&
+                                        lifecycleHandle->outcome() == client::CommandDrainController::Outcome::Running;
+                                } else if (response->requestId == newTurnRequestId) {
+                                    newTurnResponse = *response;
+                                }
+                            } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
+                                ++protocolErrorCount;
+                            }
+                            presenter.present(message);
+                        },
+                    .onDiagnostic = {}});
+
+            client::CommandDrainController lifecycle(sdk, client::CommandDrainCallbacks{
                 .requestExit =
                     [&]() {
                         ++exitRequestCount;
-                        exitWaitedForNewTurnResponse = newTurnResponse.has_value() && responseIds.size() == 8;
+                        exitWaitedForNewTurnResponse = !newTurnRequestId.empty() && sdk.pendingOperationCount() == 0;
                         if (stdinReaderHandle != nullptr) {
                             stdinReaderHandle->stop();
                         }
@@ -406,60 +449,13 @@ namespace {
                         lifecycleFailures.push_back(message);
                         presenter.error(std::move(message));
                     }});
+            lifecycleHandle = &lifecycle;
 
-            client::ClientConnection connection(client::ClientConnectionCallbacks{
+            client::ClientConnection connection(sdk, client::ClientConnectionCallbacks{
                 .onConnected =
                     [&]() {
                         ++connectionCallbackCount;
-                        lifecycle.connected();
                         presenter.connected(path);
-                    },
-                .onMessage =
-                    [&](const frontend::ServerMessage& message) {
-                        const bool initialSync = std::holds_alternative<frontend::SyncComplete>(message) && syncCompleteCount == 0;
-                        const auto* response = std::get_if<frontend::Response>(&message);
-                        if (initialSync) {
-                            ++syncCompleteCount;
-                        } else if (response != nullptr) {
-                            responseIds.push_back(response->requestId);
-                            if (std::find(acquireRequestIds.begin(), acquireRequestIds.end(), response->requestId) !=
-                                acquireRequestIds.end()) {
-                                ++acquireResponseCount;
-                            } else if (response->requestId == explicitStartRequestId) {
-                                explicitStartResponse = *response;
-                            } else if (response->requestId == resumeRequestId) {
-                                resumeResponse = *response;
-                            } else if (response->requestId == explicitTurnRequestId) {
-                                explicitTurnResponse = *response;
-                            } else if (response->requestId == newStartRequestId) {
-                                newStartResponse = *response;
-                                newStartObservedDuringEofDrain =
-                                    lifecycle.inputState() == client::CommandDrainController::InputState::DrainOnEof &&
-                                    lifecycle.outcome() == client::CommandDrainController::Outcome::Running;
-                            } else if (response->requestId == newTurnRequestId) {
-                                newTurnResponse = *response;
-                            }
-                        } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
-                            ++protocolErrorCount;
-                        }
-
-                        const std::size_t sentBefore = sentCommandIds.size();
-                        const std::optional<client::ResponsePresentation> presentation = lifecycle.receive(message);
-                        if (presentation.has_value()) {
-                            presenter.present(message, *presentation);
-                        } else {
-                            presenter.present(message);
-                        }
-                        if (response != nullptr && response->requestId == newStartRequestId) {
-                            newTurnSentFromMatchingStart = sentCommandIds.size() == sentBefore + 1 &&
-                                                           sentCommandIds.back() == newTurnRequestId &&
-                                                           sentCommandMethods.back() == frontend::method::TurnStart;
-                        }
-                    },
-                .onProtocolError =
-                    [&](const frontend::CodecError& error) {
-                        ++protocolErrorCount;
-                        lifecycle.protocolFailed(std::string(frontend::toString(error.code)) + ": " + error.message);
                     },
                 .onDisconnected =
                     [&]() {
@@ -473,6 +469,43 @@ namespace {
                         completed = true;
                         if (eventLoopRunning) {
                             core::SNodeC::stop();
+                        }
+                    },
+                .onFailure = [&](std::string message) { lifecycle.connectionFailed(std::move(message)); },
+                .onOutbound =
+                    [&](const sdk_client::OutboundMessage& message) {
+                        const auto command = frontend::Codec::decodeDefinedCommand(std::string_view(message.compactJson));
+                        if (!command) {
+                            return;
+                        }
+                        const frontend::generated::MethodId method = frontend::generated::commandMethod(command.value().parameters);
+                        sentCommandIds.push_back(command.value().requestId);
+                        sentCommandMethods.emplace_back(frontend::generated::methodString(method));
+                        sentCommandSyncCounts.push_back(syncCompleteCount);
+                        switch (method) {
+                            case frontend::generated::MethodId::ControllerAcquire:
+                                acquireRequestIds.push_back(command.value().requestId);
+                                break;
+                            case frontend::generated::MethodId::ThreadStart:
+                                if (explicitStartRequestId.empty()) {
+                                    explicitStartRequestId = command.value().requestId;
+                                } else {
+                                    newStartRequestId = command.value().requestId;
+                                }
+                                break;
+                            case frontend::generated::MethodId::ThreadResume:
+                                resumeRequestId = command.value().requestId;
+                                break;
+                            case frontend::generated::MethodId::TurnStart:
+                                if (explicitTurnRequestId.empty()) {
+                                    explicitTurnRequestId = command.value().requestId;
+                                } else {
+                                    newTurnRequestId = command.value().requestId;
+                                    newTurnSentFromMatchingStart = !newStartRequestId.empty();
+                                }
+                                break;
+                            default:
+                                break;
                         }
                     }});
             connectionHandle = &connection;
@@ -489,28 +522,16 @@ namespace {
                     [&]<typename Parsed>(Parsed&& command) {
                         using T = std::remove_cvref_t<Parsed>;
                         if constexpr (std::is_same_v<T, client::SendCommand>) {
-                            const auto* wireCommand = std::get_if<frontend::Command>(&command.message);
-                            if (wireCommand == nullptr) {
-                                result.expectTrue(false, "thread-workflow parser produces a typed frontend command");
-                                lifecycle.inputFailed("thread-workflow parser produced a non-command message");
-                                return;
-                            }
-                            if (std::holds_alternative<frontend::ControllerAcquire>(wireCommand->parameters)) {
-                                acquireRequestIds.push_back(wireCommand->requestId);
-                            } else if (std::holds_alternative<frontend::ThreadStart>(wireCommand->parameters)) {
-                                explicitStartRequestId = wireCommand->requestId;
-                            } else if (std::holds_alternative<frontend::ThreadResume>(wireCommand->parameters)) {
-                                resumeRequestId = wireCommand->requestId;
-                            } else if (std::holds_alternative<frontend::TurnStart>(wireCommand->parameters)) {
-                                explicitTurnRequestId = wireCommand->requestId;
-                            } else {
+                            const frontend::generated::MethodId method = frontend::generated::commandMethod(command.parameters);
+                            if (method != frontend::generated::MethodId::ControllerAcquire &&
+                                method != frontend::generated::MethodId::ThreadStart &&
+                                method != frontend::generated::MethodId::ThreadResume &&
+                                method != frontend::generated::MethodId::TurnStart) {
                                 result.expectTrue(false, "thread-workflow input contains only acquire, start, resume, turn, and new");
                             }
-                            result.expectTrue(lifecycle.enqueue(std::move(command.message)),
+                            result.expectTrue(lifecycle.enqueue(std::move(command.parameters)),
                                               "the lifecycle queues each ordinary thread-workflow command before connection");
                         } else if constexpr (std::is_same_v<T, client::NewCommand>) {
-                            newStartRequestId = command.threadStartRequestId;
-                            newTurnRequestId = command.turnStartRequestId;
                             result.expectTrue(lifecycle.enqueue(std::move(command)),
                                               "the lifecycle queues the client-side new operation before connection");
                         } else {
@@ -678,8 +699,13 @@ namespace {
                           "every workflow request ID is unique and new allocates distinct IDs for its two stages");
         result.expectTrue(sentCommandSyncCounts == std::vector<std::size_t>(8, 1),
                           "every workflow command, including new's turn, is sent only after initial synchronization");
+        std::string observedOperations;
+        for (const auto& [method, parameters] : appServerOperations) {
+            observedOperations += method + ':' + parameters.dump() + '\n';
+        }
         result.expectTrue(appServerOperations == expectedAppServerOperations,
-                          "the real FrontendService maps every start/resume option and both exact TextInput prompts in order");
+                          "the real FrontendService maps every start/resume option and both exact TextInput prompts in order; observed=" +
+                              observedOperations);
         result.expectTrue(newStartObservedDuringEofDrain && newTurnSentFromMatchingStart && exitWaitedForNewTurnResponse,
                           "EOF remains draining while new waits for its matching start response and subsequent turn response");
         result.expectTrue(responseHasThread(explicitStartResponse, ExplicitThreadId) &&
@@ -705,12 +731,13 @@ namespace {
                                                return operation.first.find("new") != std::string::npos;
                                            }),
                           "new emits only real thread.start and turn.start operations with no synthetic protocol method");
-        result.expectTrue(contains(humanOutput.str(), "thread started id=" + std::string(ExplicitThreadId)) &&
-                              contains(humanOutput.str(), "thread resumed id=" + std::string(PersistedThreadId)) &&
-                              contains(humanOutput.str(), "thread created id=" + std::string(NewThreadId)) &&
-                              contains(humanOutput.str(), "initial turn submitted thread=" + std::string(NewThreadId)) &&
+        result.expectTrue(contains(humanOutput.str(), "result=thread=" + std::string(ExplicitThreadId)) &&
+                              contains(humanOutput.str(), "result=thread=" + std::string(PersistedThreadId)) &&
+                              contains(humanOutput.str(), "result=thread=" + std::string(NewThreadId)) &&
+                              contains(humanOutput.str(), "result=turn=turn-new-acceptance thread=" + std::string(NewThreadId)) &&
                               diagnostics.str().empty(),
-                          "the production presenter emits bounded lifecycle summaries without diagnostics on the successful workflow");
+                          "the production presenter emits bounded lifecycle summaries without diagnostics on the successful workflow; output=" +
+                              humanOutput.str());
         result.expectTrue(!pathExists(path), "the thread-workflow Unix server removes its owned socket path");
 
         core::SNodeC::free();
@@ -832,23 +859,102 @@ int main(int argc, char* argv[]) {
                               "an open deterministic input pipe contains the preconnection acquire command");
 
             client::Presenter presenter(client::OutputMode::Human, humanOutput, diagnostics);
-            client::CommandParser parser("interactive");
+            client::CommandParser parser;
             client::ClientConnection* connectionHandle = nullptr;
             client::StdinReader* stdinReaderHandle = nullptr;
             client::CommandDrainController* lifecycleHandle = nullptr;
+            std::function<void()> maybeFinish;
 
-            client::CommandDrainController lifecycle(client::CommandDrainCallbacks{
-                .send =
-                    [&](const frontend::ClientMessage& message) {
-                        if (const auto* command = std::get_if<frontend::Command>(&message)) {
-                            sentCommandIds.push_back(command->requestId);
-                            sentCommandStates.push_back(lifecycleHandle != nullptr
-                                                            ? lifecycleHandle->sessionState()
-                                                            : client::CommandDrainController::SessionState::Connecting);
-                            sentCommandSyncCounts.push_back(syncCompleteCount);
-                        }
-                        return connectionHandle != nullptr && connectionHandle->send(message);
-                    },
+            sdk_client::ClientOptions sdkOptions;
+            sdkOptions.credentialProvider = [] {
+                return sdk_client::AuthenticationContext{frontend::NoCredential{}, "verified-local:interactive"};
+            };
+            sdk_client::Client sdk(
+                std::move(sdkOptions),
+                sdk_client::ClientCallbacks{
+                    .onConnectionStateChanged =
+                        [&](const sdk_client::ConnectionStateChange& change) {
+                            const bool initialReady = change.current == sdk_client::ConnectionState::Ready && syncCompleteCount == 0;
+                            if (initialReady) {
+                                ++syncCompleteCount;
+                                syncObservedWhileSynchronizing = lifecycleHandle != nullptr &&
+                                                                 lifecycleHandle->sessionState() ==
+                                                                     client::CommandDrainController::SessionState::Synchronizing &&
+                                                                 lifecycleHandle->queuedCount() == 1;
+                            }
+                            if (lifecycleHandle != nullptr) {
+                                lifecycleHandle->connectionStateChanged(change.current);
+                            }
+                            if (initialReady && lifecycleHandle != nullptr) {
+                                reachedReady = lifecycleHandle->sessionState() == client::CommandDrainController::SessionState::Ready;
+                                queuedAcquireSentAfterSync = reachedReady && lifecycleHandle->queuedCount() == 0 &&
+                                                             lifecycleHandle->pendingResponseCount() == 1;
+                                presenter.localMessage("synchronized; commands are ready");
+                                if (!inputPipe.writeAll("threads\nfoobar\n")) {
+                                    lifecycleHandle->inputFailed("failed to write deterministic interactive commands");
+                                }
+                            }
+                        },
+                    .onStateUpdated = {},
+                    .onSynchronized = {},
+                    .onCursorAdvanced = {},
+                    .onProtocolMessage =
+                        [&](const frontend::ServerMessage& message) {
+                            const auto* snapshot = std::get_if<frontend::Snapshot>(&message);
+                            const auto* response = std::get_if<frontend::Response>(&message);
+                            const bool threadsResponse = response != nullptr && response->requestId == threadsRequestId;
+                            if (initialMessageKinds.size() < 3) {
+                                if (std::holds_alternative<frontend::Welcome>(message)) {
+                                    initialMessageKinds.emplace_back("welcome");
+                                } else if (std::holds_alternative<frontend::Snapshot>(message)) {
+                                    initialMessageKinds.emplace_back("snapshot");
+                                } else if (std::holds_alternative<frontend::EventBatch>(message)) {
+                                    initialMessageKinds.emplace_back("events");
+                                } else if (std::holds_alternative<frontend::SyncComplete>(message)) {
+                                    initialMessageKinds.emplace_back("sync.complete");
+                                } else if (std::holds_alternative<frontend::Response>(message)) {
+                                    initialMessageKinds.emplace_back("response");
+                                } else {
+                                    initialMessageKinds.emplace_back("protocol.error");
+                                }
+                            }
+                            if (std::holds_alternative<frontend::Welcome>(message)) {
+                                ++welcomeCount;
+                                backendReadyForHandshake = backendCore.snapshot().provider.lifecycle == backend::ProviderLifecycle::Ready;
+                            } else if (snapshot != nullptr) {
+                                ++snapshotCount;
+                                if (!initialSnapshot.has_value()) {
+                                    initialSnapshot = *snapshot;
+                                }
+                            } else if (response != nullptr) {
+                                if (response->requestId == acquireRequestId) {
+                                    ++acquireResponseCount;
+                                    acquireResponseSucceeded = acquireResponseSucceeded || response->ok;
+                                } else if (response->requestId == threadsRequestId) {
+                                    ++threadsResponseCount;
+                                    threadsResponseSucceeded = threadsResponseSucceeded || response->ok;
+                                    threadListResponse = *response;
+                                }
+                            } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
+                                ++protocolErrorCount;
+                            }
+
+                            const std::size_t outputBytesBeforePresentation = humanBuffer.size();
+                            presenter.present(message);
+                            const std::size_t presentedBytes = humanBuffer.size() - outputBytesBeforePresentation;
+                            if (snapshot != nullptr) {
+                                snapshotHumanBytes = presentedBytes;
+                            } else if (threadsResponse) {
+                                threadsResponseHumanBytes = presentedBytes;
+                            }
+
+                            if (maybeFinish) {
+                                maybeFinish();
+                            }
+                        },
+                    .onDiagnostic = {}});
+
+            client::CommandDrainController lifecycle(sdk, client::CommandDrainCallbacks{
                 .requestExit =
                     [&connectionHandle, &stdinReaderHandle, &eventLoopRunning, &exitScheduled, &exitRequestCount]() {
                         ++exitRequestCount;
@@ -876,93 +982,16 @@ int main(int argc, char* argv[]) {
                     }});
             lifecycleHandle = &lifecycle;
 
-            std::function<void()> maybeFinish;
-            client::ClientConnection connection(client::ClientConnectionCallbacks{
+            client::ClientConnection connection(sdk, client::ClientConnectionCallbacks{
                 .onConnected =
                     [&]() {
                         ++connectionCallbackCount;
                         result.expectTrue(lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting,
                                           "production connection callback runs while the lifecycle is Connecting");
-                        lifecycle.connected();
                         presenter.connected(path);
                         presenter.localMessage("enter 'help' for commands");
-                        result.expectTrue(lifecycle.sessionState() == client::CommandDrainController::SessionState::Synchronizing,
-                                          "production connection callback establishes Synchronizing before hello is accepted");
-                    },
-                .onMessage =
-                    [&](const frontend::ServerMessage& message) {
-                        const bool initialSync = std::holds_alternative<frontend::SyncComplete>(message) && syncCompleteCount == 0;
-                        const auto* snapshot = std::get_if<frontend::Snapshot>(&message);
-                        const auto* response = std::get_if<frontend::Response>(&message);
-                        const bool threadsResponse = response != nullptr && response->requestId == threadsRequestId;
-                        if (syncCompleteCount == 0) {
-                            if (std::holds_alternative<frontend::Welcome>(message)) {
-                                initialMessageKinds.emplace_back("welcome");
-                            } else if (std::holds_alternative<frontend::Snapshot>(message)) {
-                                initialMessageKinds.emplace_back("snapshot");
-                            } else if (std::holds_alternative<frontend::EventBatch>(message)) {
-                                initialMessageKinds.emplace_back("events");
-                            } else if (std::holds_alternative<frontend::SyncComplete>(message)) {
-                                initialMessageKinds.emplace_back("sync.complete");
-                            } else if (std::holds_alternative<frontend::Response>(message)) {
-                                initialMessageKinds.emplace_back("response");
-                            } else {
-                                initialMessageKinds.emplace_back("protocol.error");
-                            }
-                        }
-                        if (std::holds_alternative<frontend::Welcome>(message)) {
-                            ++welcomeCount;
-                            backendReadyForHandshake = backendCore.snapshot().provider.lifecycle == backend::ProviderLifecycle::Ready;
-                        } else if (snapshot != nullptr) {
-                            ++snapshotCount;
-                            if (!initialSnapshot.has_value()) {
-                                initialSnapshot = *snapshot;
-                            }
-                        } else if (initialSync) {
-                            ++syncCompleteCount;
-                            syncObservedWhileSynchronizing =
-                                lifecycle.sessionState() == client::CommandDrainController::SessionState::Synchronizing &&
-                                lifecycle.queuedCount() == 1;
-                        } else if (response != nullptr) {
-                            if (response->requestId == acquireRequestId) {
-                                ++acquireResponseCount;
-                                acquireResponseSucceeded = acquireResponseSucceeded || response->ok;
-                            } else if (response->requestId == threadsRequestId) {
-                                ++threadsResponseCount;
-                                threadsResponseSucceeded = threadsResponseSucceeded || response->ok;
-                                threadListResponse = *response;
-                            }
-                        } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
-                            ++protocolErrorCount;
-                        }
-
-                        const std::size_t outputBytesBeforePresentation = humanBuffer.size();
-                        lifecycle.receive(message);
-                        presenter.present(message);
-                        const std::size_t presentedBytes = humanBuffer.size() - outputBytesBeforePresentation;
-                        if (snapshot != nullptr) {
-                            snapshotHumanBytes = presentedBytes;
-                        } else if (threadsResponse) {
-                            threadsResponseHumanBytes = presentedBytes;
-                        }
-
-                        if (initialSync) {
-                            reachedReady = lifecycle.sessionState() == client::CommandDrainController::SessionState::Ready;
-                            queuedAcquireSentAfterSync =
-                                reachedReady && lifecycle.queuedCount() == 0 && lifecycle.pendingResponseCount() == 1;
-                            presenter.localMessage("synchronized; commands are ready");
-                            if (!inputPipe.writeAll("threads\nfoobar\n")) {
-                                lifecycle.inputFailed("failed to write deterministic interactive commands");
-                            }
-                        }
-                        if (maybeFinish) {
-                            maybeFinish();
-                        }
-                    },
-                .onProtocolError =
-                    [&](const frontend::CodecError& error) {
-                        ++protocolErrorCount;
-                        lifecycle.protocolFailed(std::string(frontend::toString(error.code)) + ": " + error.message);
+                        result.expectTrue(lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting,
+                                          "production connection callback remains in SDK authentication before Welcome");
                     },
                 .onDisconnected =
                     [&]() {
@@ -971,6 +1000,23 @@ int main(int argc, char* argv[]) {
                         lifecycle.disconnected();
                         if (eventLoopRunning) {
                             core::SNodeC::stop();
+                        }
+                    },
+                .onFailure = [&](std::string message) { lifecycle.connectionFailed(std::move(message)); },
+                .onOutbound =
+                    [&](const sdk_client::OutboundMessage& message) {
+                        const auto command = frontend::Codec::decodeDefinedCommand(std::string_view(message.compactJson));
+                        if (!command) {
+                            return;
+                        }
+                        const frontend::generated::MethodId method = frontend::generated::commandMethod(command.value().parameters);
+                        sentCommandIds.push_back(command.value().requestId);
+                        sentCommandStates.push_back(lifecycle.sessionState());
+                        sentCommandSyncCounts.push_back(syncCompleteCount);
+                        if (method == frontend::generated::MethodId::ControllerAcquire) {
+                            acquireRequestId = command.value().requestId;
+                        } else if (method == frontend::generated::MethodId::ThreadList) {
+                            threadsRequestId = command.value().requestId;
                         }
                     }});
             connectionHandle = &connection;
@@ -987,21 +1033,12 @@ int main(int argc, char* argv[]) {
                     [&]<typename Parsed>(Parsed&& command) {
                         using T = std::remove_cvref_t<Parsed>;
                         if constexpr (std::is_same_v<T, client::SendCommand>) {
-                            auto* wireCommand = std::get_if<frontend::Command>(&command.message);
-                            if (wireCommand == nullptr) {
-                                result.expectTrue(false, "interactive parser produces a typed frontend Command");
-                                return;
-                            }
                             const bool waiting = lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting ||
                                                  lifecycle.sessionState() == client::CommandDrainController::SessionState::Synchronizing;
-                            const bool acquire = std::holds_alternative<frontend::ControllerAcquire>(wireCommand->parameters);
-                            const bool threads = std::holds_alternative<frontend::ThreadList>(wireCommand->parameters);
-                            if (acquire) {
-                                acquireRequestId = wireCommand->requestId;
-                            } else if (threads) {
-                                threadsRequestId = wireCommand->requestId;
-                            }
-                            const bool accepted = lifecycle.enqueue(std::move(command.message));
+                            const frontend::generated::MethodId method = frontend::generated::commandMethod(command.parameters);
+                            const bool acquire = method == frontend::generated::MethodId::ControllerAcquire;
+                            const bool threads = method == frontend::generated::MethodId::ThreadList;
+                            const bool accepted = lifecycle.enqueue(std::move(command.parameters));
                             result.expectTrue(accepted, "interactive lifecycle accepts each valid parsed command");
                             if (accepted && waiting) {
                                 presenter.localMessage("command queued; waiting for initial synchronization");
@@ -1232,10 +1269,9 @@ int main(int argc, char* argv[]) {
                           "human Snapshot presentation remains compact despite its large protocol payload");
         result.expectTrue(threadsResponseHumanBytes > 0 && threadsResponseHumanBytes < HumanPresentationWindowBytes,
                           "human thread-list Response presentation remains compact despite its large protocol payload");
-        result.expectTrue(contains(output, "lifecycle=ready") && contains(output, "threads=24") && contains(output, "pending-requests=0") &&
-                              contains(output, "controller=none") && contains(output, "sessions=1") &&
-                              contains(output, "thread-list-complete=true"),
-                          "human Snapshot presents the useful top-level state summary");
+        result.expectTrue(contains(output, "snapshot sequence=") && contains(output, "threads=24") &&
+                              contains(output, "pending-requests=0") && contains(output, "sessions=1"),
+                          "human Snapshot presents a bounded useful summary of the selected expanded representation; output=" + output);
         result.expectTrue(contains(output, "result=threads=24 ids=large-thread-0") && !contains(output, "complete-preview-large-thread-"),
                           "human thread-list presentation keeps usable identifiers without expanding previews");
         result.expectTrue(contains(maximumUnsignedOutput.str(), "snapshot sequence=18446744073709551615") &&

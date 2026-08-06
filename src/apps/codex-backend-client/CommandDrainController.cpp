@@ -1,531 +1,260 @@
 /*
- * SNode.C - A Slim Toolkit for Network Communication
- * Copyright (C) Volker Christian <me@vchrist.at>
- *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
 #include "apps/codex-backend-client/CommandDrainController.h"
 
-#include "apps/codex-backend-client/CommandParser.h"
+#include "ai/openai/codex/frontend/client/Controller.h"
+#include "ai/openai/codex/frontend/client/Synchronization.h"
+#include "ai/openai/codex/frontend/client/Threads.h"
+#include "ai/openai/codex/frontend/client/Turns.h"
 
-#include <algorithm>
-#include <exception>
-#include <map>
-#include <nlohmann/json.hpp>
-#include <optional>
-#include <string_view>
+#include <type_traits>
 #include <utility>
-#include <variant>
-#include <vector>
 
 namespace apps::codex_backend_client {
+    namespace frontend = ai::openai::codex::frontend;
+    namespace sdk_client = ai::openai::codex::frontend::client;
+    namespace typed = ai::openai::codex::typed;
 
-    namespace {
-        namespace frontend = ai::openai::codex::frontend;
-
-        bool waitsForSync(const frontend::Command& command) noexcept {
-            return std::holds_alternative<frontend::SnapshotGet>(command.parameters) ||
-                   std::holds_alternative<frontend::ReplayAfter>(command.parameters);
-        }
-
-        ResponsePresentation presentationFor(const frontend::Command& command) {
-            ResponsePresentation presentation;
-            if (std::holds_alternative<frontend::ThreadStart>(command.parameters)) {
-                presentation.kind = ResponsePresentation::Kind::ThreadStart;
-            } else if (const auto* resume = std::get_if<frontend::ThreadResume>(&command.parameters)) {
-                presentation.kind = ResponsePresentation::Kind::ThreadResume;
-                presentation.threadId = resume->threadId;
-            } else if (const auto* turn = std::get_if<frontend::TurnStart>(&command.parameters)) {
-                presentation.kind = ResponsePresentation::Kind::TurnStart;
-                presentation.threadId = turn->threadId;
-            }
-            return presentation;
-        }
-
-        std::optional<std::string> threadIdFromResult(const std::optional<frontend::Json>& result) {
-            if (!result.has_value() || !result->is_object()) {
-                return std::nullopt;
-            }
-
-            const auto thread = result->find("thread");
-            if (thread != result->end() && thread->is_object()) {
-                const auto id = thread->find("id");
-                if (id != thread->end() && id->is_string()) {
-                    std::string value = id->get<std::string>();
-                    if (!value.empty()) {
-                        return value;
-                    }
-                }
-            }
-
-            // FrontendService normally returns the normalized thread snapshot
-            // above. It deliberately falls back to threadId when the just-
-            // completed thread is not present in its current snapshot.
-            const auto id = result->find("threadId");
-            if (id != result->end() && id->is_string()) {
-                std::string value = id->get<std::string>();
-                if (!value.empty()) {
-                    return value;
-                }
-            }
-            return std::nullopt;
-        }
-
-        std::string responseFailure(std::string_view operation, const frontend::Response& response) {
-            std::string failure(operation);
-            failure += " failed";
-            if (response.error.has_value()) {
-                failure += ": ";
-                failure += frontend::toString(response.error->code);
-                if (!response.error->message.empty()) {
-                    failure += ": ";
-                    failure += response.error->message;
-                }
-            } else {
-                failure += " without error details";
-            }
-            return failure;
-        }
-    } // namespace
-
-    CommandDrainController::CommandDrainController(CommandDrainCallbacks callbacks)
-        : callbacks(std::move(callbacks)) {
+    CommandDrainController::CommandDrainController(sdk_client::Client& sdk, CommandDrainCallbacks callbacks)
+        : sdk(sdk)
+        , callbacks(std::move(callbacks)) {
     }
 
-    bool CommandDrainController::enqueue(frontend::ClientMessage message) {
+    bool CommandDrainController::enqueue(RemoteCommand command) {
         if (currentOutcome != Outcome::Running || currentInputState != InputState::Reading) {
             return false;
         }
-
-        if (currentSessionState != SessionState::Ready || activeNewCommand.has_value() || !queuedMessages.empty()) {
-            queuedMessages.push_back(std::move(message));
-            if (currentSessionState == SessionState::Ready && !activeNewCommand.has_value()) {
-                flushQueued();
-            }
-            return currentOutcome == Outcome::Running;
-        }
-
-        if (const auto* command = std::get_if<frontend::Command>(&message); command != nullptr && requestIdIsPending(command->requestId)) {
-            queuedMessages.push_back(std::move(message));
+        if (currentSessionState != SessionState::Ready || !queuedMessages.empty() || currentNewStage != NewStage::None) {
+            queuedMessages.emplace_back(std::move(command));
             return true;
         }
-
-        const bool sent = sendNow(message);
-        maybeCompleteDrain();
-        return sent;
+        return submit(std::move(command));
     }
 
     bool CommandDrainController::enqueue(NewCommand command) {
         if (currentOutcome != Outcome::Running || currentInputState != InputState::Reading) {
             return false;
         }
-
-        queuedMessages.emplace_back(QueuedNewCommand{std::move(command.threadStartRequestId),
-                                                     std::move(command.turnStartRequestId),
-                                                     std::move(command.options),
-                                                     std::move(command.prompt)});
-        if (currentSessionState == SessionState::Ready && !activeNewCommand.has_value()) {
+        queuedMessages.emplace_back(QueuedNewCommand{std::move(command.options), std::move(command.prompt)});
+        currentNewStage = NewStage::Queued;
+        if (currentSessionState == SessionState::Ready) {
             flushQueued();
         }
-        maybeCompleteDrain();
         return currentOutcome == Outcome::Running;
     }
 
-    void CommandDrainController::connected() {
-        if (currentOutcome != Outcome::Running || currentSessionState != SessionState::Connecting) {
-            return;
+    void CommandDrainController::connectionStateChanged(sdk_client::ConnectionState state) {
+        switch (state) {
+            case sdk_client::ConnectionState::Connecting:
+            case sdk_client::ConnectionState::Authenticating:
+                currentSessionState = SessionState::Connecting;
+                break;
+            case sdk_client::ConnectionState::Synchronizing:
+                currentSessionState = SessionState::Synchronizing;
+                break;
+            case sdk_client::ConnectionState::Ready:
+                currentSessionState = SessionState::Ready;
+                flushQueued();
+                break;
+            case sdk_client::ConnectionState::Closing:
+                currentSessionState = SessionState::Closing;
+                break;
+            case sdk_client::ConnectionState::Disconnected:
+            case sdk_client::ConnectionState::Closed:
+                disconnected();
+                break;
         }
-        currentSessionState = SessionState::Synchronizing;
     }
 
-    std::optional<ResponsePresentation> CommandDrainController::receive(const frontend::ServerMessage& message) {
-        if (currentOutcome != Outcome::Running) {
-            return std::nullopt;
-        }
+    bool CommandDrainController::submit(RemoteCommand command) {
+        const auto operationHandler = [this](const auto& result) {
+            operationCompleted(static_cast<bool>(result), result.error);
+        };
+        const auto synchronizationHandler = [this](const sdk_client::OperationResult<sdk_client::SynchronizationResult>& result) {
+            synchronizationCompleted(result);
+        };
 
-        if (const auto* protocolError = std::get_if<frontend::ProtocolErrorMessage>(&message)) {
-            const bool matchesActiveNew = activeNewCommand.has_value() && protocolError->requestId.has_value() &&
-                                          ((activeNewCommand->stage == NewStage::AwaitingThreadStartResponse &&
-                                            *protocolError->requestId == activeNewCommand->command.threadStartRequestId) ||
-                                           (activeNewCommand->stage == NewStage::AwaitingTurnStartResponse &&
-                                            *protocolError->requestId == activeNewCommand->command.turnStartRequestId));
-            if (currentInputState == InputState::DrainOnEof || protocolError->closeConnection || matchesActiveNew) {
-                failForActiveNew("frontend protocol error: " + protocolError->message);
-            }
-            return std::nullopt;
-        }
-
-        if (const auto* response = std::get_if<frontend::Response>(&message)) {
-            return completeResponse(*response);
-        }
-
-        if (!std::holds_alternative<frontend::SyncComplete>(message)) {
-            return std::nullopt;
-        }
-
-        if (currentSessionState == SessionState::Synchronizing) {
-            currentSessionState = SessionState::Ready;
-            flushQueued();
-            maybeCompleteDrain();
-            return std::nullopt;
-        }
-
-        if (currentSessionState == SessionState::Ready) {
-            completeSync();
-        }
-        return std::nullopt;
-    }
-
-    void CommandDrainController::inputEof() {
-        if (currentOutcome != Outcome::Running || currentInputState != InputState::Reading) {
-            return;
-        }
-        currentInputState = InputState::DrainOnEof;
-        maybeCompleteDrain();
-    }
-
-    void CommandDrainController::inputFailed(std::string message) {
-        failForActiveNew(std::move(message));
-    }
-
-    void CommandDrainController::connectionFailed(std::string message) {
-        failForActiveNew(std::move(message));
-    }
-
-    void CommandDrainController::protocolFailed(std::string message) {
-        failForActiveNew(std::move(message));
-    }
-
-    void CommandDrainController::disconnected() {
-        if (currentSessionState == SessionState::Closed) {
-            return;
-        }
-        if (currentOutcome == Outcome::Running) {
-            failForActiveNew(currentInputState == InputState::DrainOnEof ? "frontend connection closed before command draining completed"
-                                                                         : "frontend connection closed unexpectedly");
-        }
-        currentSessionState = SessionState::Closed;
-    }
-
-    void CommandDrainController::quit() {
-        if (currentOutcome != Outcome::Running) {
-            return;
-        }
-        currentInputState = InputState::ImmediateQuit;
-        finish(Outcome::Success);
-    }
-
-    CommandDrainController::SessionState CommandDrainController::sessionState() const noexcept {
-        return currentSessionState;
-    }
-
-    CommandDrainController::InputState CommandDrainController::inputState() const noexcept {
-        return currentInputState;
-    }
-
-    CommandDrainController::Outcome CommandDrainController::outcome() const noexcept {
-        return currentOutcome;
-    }
-
-    bool CommandDrainController::failed() const noexcept {
-        return currentOutcome == Outcome::Failure;
-    }
-
-    const std::string& CommandDrainController::failureReason() const noexcept {
-        return currentFailureReason;
-    }
-
-    std::size_t CommandDrainController::queuedCount() const noexcept {
-        return queuedMessages.size();
-    }
-
-    std::size_t CommandDrainController::pendingResponseCount() const noexcept {
-        return static_cast<std::size_t>(std::count_if(pendingCommands.begin(), pendingCommands.end(), [](const PendingCommand& pending) {
-            return pending.responsePending;
-        }));
-    }
-
-    std::size_t CommandDrainController::pendingSyncCount() const noexcept {
-        return static_cast<std::size_t>(std::count_if(pendingCommands.begin(), pendingCommands.end(), [](const PendingCommand& pending) {
-            return pending.syncPending;
-        }));
-    }
-
-    CommandDrainController::NewStage CommandDrainController::newStage() const noexcept {
-        if (activeNewCommand.has_value()) {
-            return activeNewCommand->stage;
-        }
-        const bool queued = std::any_of(queuedMessages.begin(), queuedMessages.end(), [](const QueuedEntry& entry) {
-            return std::holds_alternative<QueuedNewCommand>(entry);
-        });
-        return queued ? NewStage::Queued : NewStage::None;
-    }
-
-    bool CommandDrainController::sendNow(const frontend::ClientMessage& message, PendingKind kind) {
-        std::list<PendingCommand>::iterator tracked = pendingCommands.end();
-        if (const auto* command = std::get_if<frontend::Command>(&message)) {
-            ResponsePresentation presentation = presentationFor(*command);
-            if (kind == PendingKind::NewThreadStart) {
-                presentation.kind = ResponsePresentation::Kind::NewThreadStart;
-            } else if (kind == PendingKind::NewTurnStart) {
-                presentation.kind = ResponsePresentation::Kind::NewTurnStart;
-            }
-            tracked = pendingCommands.insert(
-                pendingCommands.end(),
-                PendingCommand{command->requestId, true, waitsForSync(*command), false, kind, std::move(presentation)});
-        }
-
-        bool sent = false;
-        try {
-            sent = callbacks.send && callbacks.send(message);
-        } catch (const std::exception& exception) {
-            if (tracked != pendingCommands.end()) {
-                pendingCommands.erase(tracked);
-            }
-            const std::string failure = "failed to send frontend message: " + std::string(exception.what());
-            if (kind == PendingKind::Ordinary) {
-                fail(failure);
-            } else {
-                failForActiveNew(failure);
-            }
-            return false;
-        } catch (...) {
-            if (tracked != pendingCommands.end()) {
-                pendingCommands.erase(tracked);
-            }
-            if (kind == PendingKind::Ordinary) {
-                fail("failed to send frontend message");
-            } else {
-                failForActiveNew("failed to send frontend message");
-            }
-            return false;
-        }
-
-        if (!sent) {
-            if (tracked != pendingCommands.end()) {
-                pendingCommands.erase(tracked);
-            }
-            if (kind == PendingKind::Ordinary) {
-                fail("failed to send frontend message");
-            } else {
-                failForActiveNew("failed to send frontend message");
-            }
+        const sdk_client::Submission submission = std::visit(
+            [this, &operationHandler, &synchronizationHandler]<typename Command>(Command&& typedCommand) -> sdk_client::Submission {
+                using T = std::remove_cvref_t<Command>;
+                if constexpr (std::is_same_v<T, SnapshotCommand>) {
+                    return sdk.synchronization().snapshot(synchronizationHandler);
+                } else if constexpr (std::is_same_v<T, ReplayCommand>) {
+                    return sdk.synchronization().replay(typedCommand.after, synchronizationHandler);
+                } else if constexpr (std::is_same_v<T, ControllerAcquireCommand>) {
+                    return sdk.controller().acquire(operationHandler);
+                } else if constexpr (std::is_same_v<T, ControllerReleaseCommand>) {
+                    return sdk.controller().release(operationHandler);
+                } else if constexpr (std::is_same_v<T, ThreadListCommand>) {
+                    return sdk.threads().list(std::move(typedCommand.parameters), operationHandler);
+                } else if constexpr (std::is_same_v<T, ThreadStartCommand>) {
+                    return sdk.threads().start(std::move(typedCommand.parameters), operationHandler);
+                } else if constexpr (std::is_same_v<T, ThreadResumeCommand>) {
+                    return sdk.threads().resume(std::move(typedCommand.parameters), operationHandler);
+                } else if constexpr (std::is_same_v<T, ThreadReadCommand>) {
+                    return sdk.threads().read(std::move(typedCommand.parameters), operationHandler);
+                } else if constexpr (std::is_same_v<T, TurnStartCommand>) {
+                    return sdk.turns().start(std::move(typedCommand.parameters), operationHandler);
+                } else if constexpr (std::is_same_v<T, TurnInterruptCommand>) {
+                    return sdk.turns().interrupt(std::move(typedCommand.parameters), operationHandler);
+                } else {
+                    static_assert(std::is_same_v<T, RawCommand>);
+                    return sdk.submit(std::move(typedCommand.parameters), operationHandler);
+                }
+            },
+            std::move(command));
+        if (!submission) {
+            fail(submission.error ? submission.error->message : "frontend SDK rejected the command");
             return false;
         }
         return true;
     }
 
-    bool CommandDrainController::requestIdIsPending(const std::string& requestId) const noexcept {
-        return std::any_of(pendingCommands.begin(), pendingCommands.end(), [&requestId](const PendingCommand& pending) {
-            return pending.requestId == requestId;
-        });
+    bool CommandDrainController::submitNew(QueuedNewCommand command) {
+        currentNewStage = NewStage::AwaitingThreadStartResponse;
+        const sdk_client::Submission submission = sdk.threads().start(
+            std::move(command.options),
+            [this, prompt = std::move(command.prompt)](const sdk_client::OperationResult<sdk_client::ThreadStartResult>& result) mutable {
+                if (!result || !result.value) {
+                    fail(result.error ? result.error->message : "new thread.start failed");
+                    return;
+                }
+                currentNewStage = NewStage::WaitingToSubmitTurn;
+
+                typed::TurnStartParams turn;
+                turn.threadId = result.value->threadId;
+                typed::TextInput input;
+                input.text = std::move(prompt);
+                turn.input.emplace_back(std::move(input));
+                currentNewStage = NewStage::AwaitingTurnStartResponse;
+                const sdk_client::Submission turnSubmission =
+                    sdk.turns().start(std::move(turn), [this](const sdk_client::OperationResult<sdk_client::TurnStartResult>& turnResult) {
+                        if (!turnResult) {
+                            fail(turnResult.error ? turnResult.error->message : "new turn.start failed");
+                            return;
+                        }
+                        currentNewStage = NewStage::None;
+                        flushQueued();
+                        maybeCompleteDrain();
+                    });
+                if (!turnSubmission) {
+                    fail(turnSubmission.error ? turnSubmission.error->message : "frontend SDK rejected new turn.start");
+                    return;
+                }
+            });
+        if (!submission) {
+            fail(submission.error ? submission.error->message : "frontend SDK rejected new thread.start");
+            return false;
+        }
+        return true;
     }
 
     void CommandDrainController::flushQueued() {
-        while (currentOutcome == Outcome::Running && currentSessionState == SessionState::Ready && !activeNewCommand.has_value() &&
-               !queuedMessages.empty()) {
-            if (auto* message = std::get_if<frontend::ClientMessage>(&queuedMessages.front())) {
-                const auto* command = std::get_if<frontend::Command>(message);
-                if (command != nullptr && requestIdIsPending(command->requestId)) {
-                    // Raw commands may deliberately reuse an ID. Serialize that
-                    // reuse so response correlation stays deterministic.
+        while (currentOutcome == Outcome::Running && currentSessionState == SessionState::Ready &&
+               (currentNewStage == NewStage::None || currentNewStage == NewStage::Queued) && !queuedMessages.empty()) {
+            QueuedEntry next = std::move(queuedMessages.front());
+            queuedMessages.pop_front();
+            if (auto* command = std::get_if<RemoteCommand>(&next)) {
+                if (!submit(std::move(*command)))
                     return;
-                }
-
-                frontend::ClientMessage next = std::move(*message);
-                queuedMessages.pop_front();
-                if (!sendNow(next)) {
-                    return;
-                }
-                continue;
-            }
-
-            auto* queuedNew = std::get_if<QueuedNewCommand>(&queuedMessages.front());
-            if (queuedNew == nullptr || requestIdIsPending(queuedNew->threadStartRequestId)) {
+            } else if (!submitNew(std::move(std::get<QueuedNewCommand>(next)))) {
                 return;
             }
+        }
+        maybeCompleteDrain();
+    }
 
-            QueuedNewCommand command = std::move(*queuedNew);
-            queuedMessages.pop_front();
-            activeNewCommand.emplace(ActiveNewCommand{std::move(command), NewStage::AwaitingThreadStartResponse, std::nullopt});
-
-            frontend::Command start{activeNewCommand->command.threadStartRequestId,
-                                    activeNewCommand->command.options,
-                                    frontend::Json::object(),
-                                    frontend::Json::object()};
-            static_cast<void>(sendNow(frontend::ClientMessage{std::move(start)}, PendingKind::NewThreadStart));
-            // A compound command remains the active queue head until both
-            // protocol operations complete. Later input cannot bypass it.
+    void CommandDrainController::operationCompleted(bool succeeded, const std::optional<sdk_client::Error>& error) {
+        if (!succeeded && currentInputState == InputState::DrainOnEof) {
+            fail(error ? error->message : "frontend operation failed");
             return;
         }
-    }
-
-    std::optional<ResponsePresentation> CommandDrainController::completeResponse(const frontend::Response& response) {
-        const auto found = std::find_if(pendingCommands.begin(), pendingCommands.end(), [&response](const PendingCommand& pending) {
-            return pending.responsePending && pending.requestId == response.requestId;
-        });
-        if (found == pendingCommands.end()) {
-            if (currentInputState == InputState::DrainOnEof) {
-                failForActiveNew("received an uncorrelated frontend response while draining: " + response.requestId);
-            }
-            return std::nullopt;
-        }
-
-        const PendingKind kind = found->kind;
-        ResponsePresentation presentation = found->presentation;
-        found->responsePending = false;
-        found->syncPending = response.ok && found->waitForSyncOnSuccess;
-        removeCompletedCommands();
-
-        if (kind == PendingKind::NewThreadStart) {
-            if (!activeNewCommand.has_value() || activeNewCommand->stage != NewStage::AwaitingThreadStartResponse) {
-                fail("received a thread.start response without its active new command");
-                return presentation;
-            }
-            if (!response.ok) {
-                failForActiveNew(responseFailure("thread.start", response));
-                return presentation;
-            }
-
-            const std::optional<std::string> threadId = threadIdFromResult(response.result);
-            if (!threadId.has_value()) {
-                presentation.kind = ResponsePresentation::Kind::Generic;
-                failForActiveNew("successful thread.start response did not contain a non-empty thread ID");
-                return presentation;
-            }
-
-            activeNewCommand->threadId = *threadId;
-            activeNewCommand->stage = NewStage::WaitingToSubmitTurn;
-            presentation.threadId = *threadId;
-            static_cast<void>(submitActiveNewTurn());
-            maybeCompleteDrain();
-            return presentation;
-        }
-
-        if (kind == PendingKind::NewTurnStart) {
-            if (!activeNewCommand.has_value() || activeNewCommand->stage != NewStage::AwaitingTurnStartResponse ||
-                !activeNewCommand->threadId.has_value()) {
-                fail("received a turn.start response without its active new command");
-                return presentation;
-            }
-            presentation.threadId = activeNewCommand->threadId;
-            if (!response.ok) {
-                failForActiveNew(responseFailure("turn.start", response));
-                return presentation;
-            }
-
-            activeNewCommand.reset();
-            flushQueued();
-            maybeCompleteDrain();
-            return presentation;
-        }
-
-        if (response.ok && (presentation.kind == ResponsePresentation::Kind::ThreadStart ||
-                            presentation.kind == ResponsePresentation::Kind::ThreadResume)) {
-            if (const std::optional<std::string> threadId = threadIdFromResult(response.result); threadId.has_value()) {
-                presentation.threadId = *threadId;
-            }
-        }
-        static_cast<void>(submitActiveNewTurn());
-        flushQueued();
         maybeCompleteDrain();
-        return presentation;
     }
 
-    void CommandDrainController::completeSync() {
-        const auto found = std::find_if(pendingCommands.begin(), pendingCommands.end(), [](const PendingCommand& pending) {
-            return pending.syncPending;
-        });
-        if (found != pendingCommands.end()) {
-            found->syncPending = false;
-            removeCompletedCommands();
-            static_cast<void>(submitActiveNewTurn());
-            flushQueued();
+    void CommandDrainController::synchronizationCompleted(const sdk_client::OperationResult<sdk_client::SynchronizationResult>& result) {
+        if (!result) {
+            fail(result.error ? result.error->message : "frontend synchronization failed");
+            return;
         }
         maybeCompleteDrain();
     }
 
-    bool CommandDrainController::submitActiveNewTurn() {
-        if (!activeNewCommand.has_value() || activeNewCommand->stage != NewStage::WaitingToSubmitTurn) {
-            return true;
+    void CommandDrainController::inputEof() {
+        if (currentOutcome == Outcome::Running && currentInputState == InputState::Reading) {
+            currentInputState = InputState::DrainOnEof;
+            maybeCompleteDrain();
         }
-        if (!activeNewCommand->threadId.has_value()) {
-            failForActiveNew("cannot submit the initial turn without a created thread ID");
-            return false;
-        }
-        if (requestIdIsPending(activeNewCommand->command.turnStartRequestId)) {
-            return true;
-        }
-
-        frontend::TurnStart turn;
-        turn.threadId = *activeNewCommand->threadId;
-        turn.input.emplace_back(frontend::TextInput{activeNewCommand->command.prompt, frontend::Json::object()});
-        frontend::Command command{
-            activeNewCommand->command.turnStartRequestId, std::move(turn), frontend::Json::object(), frontend::Json::object()};
-        activeNewCommand->stage = NewStage::AwaitingTurnStartResponse;
-        return sendNow(frontend::ClientMessage{std::move(command)}, PendingKind::NewTurnStart);
     }
-
-    void CommandDrainController::removeCompletedCommands() {
-        pendingCommands.remove_if([](const PendingCommand& pending) {
-            return !pending.responsePending && !pending.syncPending;
-        });
+    void CommandDrainController::inputFailed(std::string message) {
+        fail(std::move(message));
     }
-
-    void CommandDrainController::maybeCompleteDrain() {
-        if (currentOutcome == Outcome::Running && currentInputState == InputState::DrainOnEof &&
-            currentSessionState == SessionState::Ready && queuedMessages.empty() && pendingCommands.empty() &&
-            !activeNewCommand.has_value()) {
+    void CommandDrainController::connectionFailed(std::string message) {
+        fail(std::move(message));
+    }
+    void CommandDrainController::disconnected() {
+        if (currentSessionState == SessionState::Closed)
+            return;
+        currentSessionState = SessionState::Closed;
+        if (currentOutcome == Outcome::Running)
+            fail("frontend connection closed unexpectedly");
+    }
+    void CommandDrainController::quit() {
+        if (currentOutcome == Outcome::Running) {
+            currentInputState = InputState::ImmediateQuit;
             finish(Outcome::Success);
         }
     }
 
-    void CommandDrainController::finish(Outcome outcome) {
-        if (currentOutcome != Outcome::Running) {
-            return;
-        }
-        currentOutcome = outcome;
-        currentSessionState = SessionState::Closing;
-        try {
-            if (callbacks.requestExit) {
-                callbacks.requestExit();
-            }
-        } catch (...) {
+    void CommandDrainController::maybeCompleteDrain() {
+        if (currentOutcome == Outcome::Running && currentInputState == InputState::DrainOnEof && queuedMessages.empty() &&
+            sdk.pendingOperationCount() == 0 && currentNewStage == NewStage::None) {
+            finish(Outcome::Success);
         }
     }
-
+    void CommandDrainController::finish(Outcome value) {
+        currentOutcome = value;
+        currentSessionState = SessionState::Closing;
+        if (callbacks.requestExit)
+            callbacks.requestExit();
+    }
     void CommandDrainController::fail(std::string message) {
-        if (currentOutcome != Outcome::Running) {
+        if (currentOutcome != Outcome::Running)
             return;
-        }
         currentFailureReason = std::move(message);
-        currentOutcome = Outcome::Failure;
-        currentSessionState = SessionState::Closing;
-        try {
-            if (callbacks.reportFailure) {
-                callbacks.reportFailure(currentFailureReason);
-            }
-        } catch (...) {
-        }
-        try {
-            if (callbacks.requestExit) {
-                callbacks.requestExit();
-            }
-        } catch (...) {
-        }
+        if (callbacks.reportFailure)
+            callbacks.reportFailure(currentFailureReason);
+        finish(Outcome::Failure);
     }
 
-    void CommandDrainController::failForActiveNew(std::string message) {
-        if (activeNewCommand.has_value()) {
-            if (activeNewCommand->threadId.has_value()) {
-                fail("thread created id=" + *activeNewCommand->threadId + ", but initial turn failed: " + message);
-            } else {
-                fail("new thread creation failed: " + message);
-            }
-            return;
-        }
-        fail(std::move(message));
+    CommandDrainController::SessionState CommandDrainController::sessionState() const noexcept {
+        return currentSessionState;
+    }
+    CommandDrainController::InputState CommandDrainController::inputState() const noexcept {
+        return currentInputState;
+    }
+    CommandDrainController::Outcome CommandDrainController::outcome() const noexcept {
+        return currentOutcome;
+    }
+    bool CommandDrainController::failed() const noexcept {
+        return currentOutcome == Outcome::Failure;
+    }
+    const std::string& CommandDrainController::failureReason() const noexcept {
+        return currentFailureReason;
+    }
+    std::size_t CommandDrainController::queuedCount() const noexcept {
+        return queuedMessages.size();
+    }
+    std::size_t CommandDrainController::pendingResponseCount() const noexcept {
+        return sdk.pendingOperationCount();
+    }
+    std::size_t CommandDrainController::pendingSyncCount() const noexcept {
+        return currentSessionState == SessionState::Synchronizing ? 1U : 0U;
+    }
+    CommandDrainController::NewStage CommandDrainController::newStage() const noexcept {
+        return currentNewStage;
     }
 
 } // namespace apps::codex_backend_client

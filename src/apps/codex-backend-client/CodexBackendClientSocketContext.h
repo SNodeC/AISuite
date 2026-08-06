@@ -8,7 +8,7 @@
 #ifndef APPS_CODEX_BACKEND_CLIENT_CODEXBACKENDCLIENTSOCKETCONTEXT_H
 #define APPS_CODEX_BACKEND_CLIENT_CODEXBACKENDCLIENTSOCKETCONTEXT_H
 
-#include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/client/Transport.h"
 #include "apps/codex-backend-client/JsonLineFramer.h"
 #include "core/socket/stream/SocketContext.h"
 
@@ -41,10 +41,11 @@ namespace apps::codex_backend_client {
         std::size_t onReceivedFromPeer() override;
         bool onSignal(int signum) override;
 
-        [[nodiscard]] bool send(const ai::openai::codex::frontend::ClientMessage& message) noexcept;
+        [[nodiscard]] ai::openai::codex::frontend::client::SendResult
+        send(ai::openai::codex::frontend::client::OutboundMessage message) noexcept;
         void disconnect() noexcept;
         void handleFrame(std::string frame) noexcept;
-        void fail(ai::openai::codex::frontend::CodecError error) noexcept;
+        void fail(std::string error) noexcept;
 
         ClientConnection& connection;
         JsonLineFramer framer;

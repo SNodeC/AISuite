@@ -1,4 +1,18 @@
 add_library(
+    codex-reference-authentication STATIC
+    ReferenceAuthentication.cpp
+    ReferenceAuthentication.h
+)
+target_include_directories(
+    codex-reference-authentication
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+)
+target_compile_features(codex-reference-authentication PUBLIC cxx_std_20)
+target_link_libraries(
+    codex-reference-authentication PUBLIC AISuite::OpenAICodexFrontend
+)
+
+add_library(
     codex-backend-stream-adapter STATIC
     Configuration.cpp
     Configuration.h
@@ -10,8 +24,6 @@ add_library(
     FrontendWebSecurity.h
     JsonLineFramer.cpp
     JsonLineFramer.h
-    ReferenceAuthentication.cpp
-    ReferenceAuthentication.h
     ReferenceInvocationPolicy.cpp
     ReferenceInvocationPolicy.h
     UnixPeerCredentials.cpp
@@ -24,7 +36,7 @@ target_include_directories(
 target_compile_features(codex-backend-stream-adapter PUBLIC cxx_std_20)
 target_link_libraries(
     codex-backend-stream-adapter
-    PUBLIC AISuite::OpenAICodexFrontend snodec::net-un-stream-legacy
+    PUBLIC AISuite::OpenAICodexFrontend codex-reference-authentication snodec::net-un-stream-legacy
            snodec::net-in-stream-legacy snodec::net-in6-stream-legacy
     PRIVATE snodec::core
 )

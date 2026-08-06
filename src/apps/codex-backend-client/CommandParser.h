@@ -8,7 +8,11 @@
 #ifndef APPS_CODEX_BACKEND_CLIENT_COMMANDPARSER_H
 #define APPS_CODEX_BACKEND_CLIENT_COMMANDPARSER_H
 
+#include "ai/openai/codex/frontend/GeneratedProtocol.h"
 #include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/typed/Threads.h"
+#include "ai/openai/codex/typed/Turns.h"
 
 #include <cstdint>
 #include <iterator>
@@ -38,19 +42,58 @@ namespace apps::codex_backend_client {
         bool operator==(const WatchCommand&) const = default;
     };
 
-    struct SendCommand {
-        ai::openai::codex::frontend::ClientMessage message;
+    struct SnapshotCommand {};
 
-        bool operator==(const SendCommand&) const = default;
+    struct ReplayCommand {
+        ai::openai::codex::frontend::SequenceNumber after;
     };
 
-    struct NewCommand {
-        std::string threadStartRequestId;
-        std::string turnStartRequestId;
-        ai::openai::codex::frontend::ThreadStart options;
-        std::string prompt;
+    struct ControllerAcquireCommand {};
+    struct ControllerReleaseCommand {};
 
-        bool operator==(const NewCommand&) const = default;
+    struct ThreadListCommand {
+        ai::openai::codex::typed::ThreadListParams parameters;
+    };
+
+    struct ThreadStartCommand {
+        ai::openai::codex::typed::ThreadStartParams parameters;
+    };
+
+    struct ThreadResumeCommand {
+        ai::openai::codex::typed::ThreadResumeParams parameters;
+    };
+
+    struct ThreadReadCommand {
+        ai::openai::codex::typed::ThreadReadParams parameters;
+    };
+
+    struct TurnStartCommand {
+        ai::openai::codex::typed::TurnStartParams parameters;
+    };
+
+    struct TurnInterruptCommand {
+        ai::openai::codex::typed::TurnInterruptParams parameters;
+    };
+
+    struct RawCommand {
+        ai::openai::codex::frontend::generated::CompleteCommandParameters parameters;
+    };
+
+    using RemoteCommand = std::variant<SnapshotCommand,
+                                       ReplayCommand,
+                                       ControllerAcquireCommand,
+                                       ControllerReleaseCommand,
+                                       ThreadListCommand,
+                                       ThreadStartCommand,
+                                       ThreadResumeCommand,
+                                       ThreadReadCommand,
+                                       TurnStartCommand,
+                                       TurnInterruptCommand,
+                                       RawCommand>;
+
+    struct NewCommand {
+        ai::openai::codex::typed::ThreadStartParams options;
+        std::string prompt;
     };
 
     struct CommandParseError {
@@ -59,22 +102,14 @@ namespace apps::codex_backend_client {
         bool operator==(const CommandParseError&) const = default;
     };
 
-    using ParsedCommand = std::variant<NoopCommand, HelpCommand, QuitCommand, WatchCommand, SendCommand, NewCommand, CommandParseError>;
+    using ParsedCommand = std::variant<NoopCommand, HelpCommand, QuitCommand, WatchCommand, RemoteCommand, NewCommand, CommandParseError>;
 
     class CommandParser {
     public:
-        explicit CommandParser(std::string requestIdPrefix = "client");
+        CommandParser() = default;
 
         [[nodiscard]] ParsedCommand parse(std::string_view line);
         [[nodiscard]] static std::string helpText();
-
-    private:
-        [[nodiscard]] std::string allocateRequestId();
-        [[nodiscard]] std::optional<std::pair<std::string, std::string>> allocateRequestIdPair();
-
-        std::string requestIdPrefix;
-        std::uint64_t nextRequestId = 1;
-        bool requestIdsExhausted = false;
     };
 
 } // namespace apps::codex_backend_client

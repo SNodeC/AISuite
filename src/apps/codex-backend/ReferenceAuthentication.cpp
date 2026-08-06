@@ -103,6 +103,10 @@ namespace apps::codex_backend {
         return value.size();
     }
 
+    ai::openai::codex::frontend::BearerCredential ProtectedBearerToken::credential() const {
+        return ai::openai::codex::frontend::BearerCredential{value};
+    }
+
     bool constantTimeEqual(std::string_view left, std::string_view right) noexcept {
         const std::size_t comparedSize = std::max(left.size(), right.size());
         std::size_t difference = left.size() ^ right.size();

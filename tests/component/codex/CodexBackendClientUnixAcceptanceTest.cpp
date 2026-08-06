@@ -7,6 +7,7 @@
 
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/client/Client.h"
 #include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/CodexBackendClientSocketContextFactory.h"
 #include "apps/codex-backend-client/CommandDrainController.h"
@@ -47,6 +48,7 @@
 namespace {
     namespace client = apps::codex_backend_client;
     namespace frontend = ai::openai::codex::frontend;
+    namespace sdk_client = ai::openai::codex::frontend::client;
 
     constexpr std::size_t TestMaximumFrameSize = 64 * 1024;
     constexpr frontend::SequenceNumber HandshakeSequence{7};
@@ -119,8 +121,7 @@ namespace {
 
     struct ScenarioState {
         explicit ScenarioState(tests::support::TestResult& result)
-            : result(result)
-            , parser("acceptance") {
+            : result(result) {
         }
 
         void fail(const std::string& message) {
@@ -142,15 +143,14 @@ namespace {
                               "piped commands are parsed before the Unix connection is established");
 
             client::ParsedCommand parsed = parser.parse(line);
-            auto* send = std::get_if<client::SendCommand>(&parsed);
-            auto* command = send == nullptr ? nullptr : std::get_if<frontend::Command>(&send->message);
-            if (command == nullptr) {
+            auto* remote = std::get_if<client::RemoteCommand>(&parsed);
+            if (remote == nullptr) {
                 fail("production parser did not produce a typed command for piped input");
                 return;
             }
 
-            const bool acquire = std::holds_alternative<frontend::ControllerAcquire>(command->parameters);
-            const bool threads = std::holds_alternative<frontend::ThreadList>(command->parameters);
+            const bool acquire = std::holds_alternative<client::ControllerAcquireCommand>(*remote);
+            const bool threads = std::holds_alternative<client::ThreadListCommand>(*remote);
             const bool expected =
                 (stdinLineCount == 1 && line == "acquire" && acquire) || (stdinLineCount == 2 && line == "threads" && threads);
             result.expectTrue(expected, "production stdin and parser preserve the acquire/threads input order");
@@ -159,13 +159,7 @@ namespace {
                 return;
             }
 
-            if (acquire) {
-                acquireRequestId = command->requestId;
-            } else {
-                threadsRequestId = command->requestId;
-            }
-
-            const bool queued = lifecycle.enqueue(std::move(send->message));
+            const bool queued = lifecycle.enqueue(std::move(*remote));
             result.expectTrue(queued, "production drain lifecycle accepts a preconnection piped command");
             if (!queued) {
                 fail("production drain lifecycle rejected a preconnection piped command");
@@ -176,7 +170,6 @@ namespace {
             ++clientContextConnectedCount;
             result.expectTrue(stdinEofCount == 1 && stdinLineCount == 2 && lifecycle.queuedCount() == 2 && commandCount == 0,
                               "both piped commands and EOF occur before the production client connects");
-            lifecycle.connected();
         }
 
         void clientDisconnected(client::CommandDrainController& lifecycle) {
@@ -188,10 +181,6 @@ namespace {
                                       lifecycle.pendingSyncCount() == 0;
             result.expectTrue(lifecycleDrainedCleanly, "the controlled post-drain disconnect preserves a successful lifecycle outcome");
             stopWhenDisconnected();
-        }
-
-        void clientProtocolError(client::CommandDrainController& lifecycle, const frontend::CodecError& error) {
-            lifecycle.protocolFailed(std::string(frontend::toString(error.code)) + ": " + error.message);
         }
 
         void clientMessage(const frontend::ServerMessage& message) {
@@ -250,7 +239,18 @@ namespace {
         tests::support::TestResult& result;
         client::CommandParser parser;
         client::ClientConnection* connection = nullptr;
-        frontend::Json expectedSnapshot{{"lifecycle", "ready"}, {"threads", frontend::Json::array()}};
+        frontend::Json expectedSnapshot{
+            {"backendRevision", std::uint64_t{1}},
+            {"lifecycle", "ready"},
+            {"diagnostics", {{"received", std::uint64_t{0}}, {"recent", frontend::Json::array()}}},
+            {"sessions", frontend::Json::array()},
+            {"threadList", {{"hasLoadedPage", false}, {"complete", true}, {"pagesLoaded", std::uint64_t{0}}}},
+            {"threads", frontend::Json::array()},
+            {"pendingRequests", frontend::Json::array()},
+            {"codexExtensions", frontend::Json::array()},
+            {"omittedCodexExtensions", std::uint64_t{0}},
+            {"journal", {{"oldestReplayableAfter", std::uint64_t{0}}, {"currentSequence", HandshakeSequence.value()}}},
+            {"sequenceExhausted", false}};
         std::string acquireRequestId;
         std::string threadsRequestId;
         bool completed = false;
@@ -359,10 +359,8 @@ namespace {
 
             ++state.commandCount;
             state.serverRequestOrder.push_back(command->requestId);
-            const bool acquire = state.commandCount == 1 && command->requestId == state.acquireRequestId &&
-                                 std::holds_alternative<frontend::ControllerAcquire>(command->parameters);
-            const bool threads = state.commandCount == 2 && command->requestId == state.threadsRequestId &&
-                                 std::holds_alternative<frontend::ThreadList>(command->parameters);
+            const bool acquire = state.commandCount == 1 && std::holds_alternative<frontend::ControllerAcquire>(command->parameters);
+            const bool threads = state.commandCount == 2 && std::holds_alternative<frontend::ThreadList>(command->parameters);
             state.result.expectTrue(state.initialSyncSent && state.syncCompleteCount == 1 && (acquire || threads),
                                     "fake server receives acquire then threads only after initial sync.complete");
             if (!acquire && !threads) {
@@ -372,8 +370,10 @@ namespace {
             }
 
             if (acquire) {
+                state.acquireRequestId = command->requestId;
                 ++state.acquireCount;
             } else {
+                state.threadsRequestId = command->requestId;
                 ++state.threadsCount;
             }
 
@@ -502,51 +502,70 @@ int main(int argc, char* argv[]) {
         std::unique_ptr<client::StdinReader> stdinReader;
 
         {
-            client::CommandDrainController lifecycle(client::CommandDrainCallbacks{
-                .send =
-                    [&connectionHandle](const frontend::ClientMessage& message) {
-                        return connectionHandle != nullptr && connectionHandle->send(message);
-                    },
-                .requestExit =
-                    [&state, &connectionHandle]() {
-                        ++state.lifecycleExitRequests;
-                        core::EventReceiver::atNextTick([&state, &connectionHandle]() {
-                            if (connectionHandle == nullptr || !connectionHandle->connected()) {
-                                state.fail("drain completion could not perform its controlled disconnect");
-                                return;
-                            }
-                            ++state.controlledDisconnects;
-                            connectionHandle->disconnect();
-                        });
-                    },
-                .reportFailure =
-                    [&state, &presenter](std::string message) {
-                        state.lifecycleFailures.push_back(message);
-                        presenter.error(message);
-                        state.fail("production drain lifecycle failed during successful pipe acceptance: " + message);
-                    }});
+            client::CommandDrainController* lifecycleHandle = nullptr;
+            sdk_client::ClientOptions sdkOptions;
+            sdkOptions.credentialProvider = [] {
+                return sdk_client::AuthenticationContext{frontend::NoCredential{}, "verified-local:acceptance"};
+            };
+            sdk_client::Client sdk(std::move(sdkOptions),
+                                   sdk_client::ClientCallbacks{.onConnectionStateChanged =
+                                                                   [&lifecycleHandle](const sdk_client::ConnectionStateChange& change) {
+                                                                       if (lifecycleHandle != nullptr) {
+                                                                           lifecycleHandle->connectionStateChanged(change.current);
+                                                                       }
+                                                                   },
+                                                               .onStateUpdated = {},
+                                                               .onSynchronized = {},
+                                                               .onCursorAdvanced = {},
+                                                               .onProtocolMessage =
+                                                                   [&state, &presenter](const frontend::ServerMessage& message) {
+                                                                       presenter.present(message);
+                                                                       state.clientMessage(message);
+                                                                   },
+                                                               .onDiagnostic = {}});
+            client::CommandDrainController lifecycle(
+                sdk,
+                client::CommandDrainCallbacks{.requestExit =
+                                                  [&state, &connectionHandle]() {
+                                                      ++state.lifecycleExitRequests;
+                                                      core::EventReceiver::atNextTick([&state, &connectionHandle]() {
+                                                          if (connectionHandle == nullptr || !connectionHandle->connected()) {
+                                                              state.fail("drain completion could not perform its controlled disconnect");
+                                                              return;
+                                                          }
+                                                          ++state.controlledDisconnects;
+                                                          connectionHandle->disconnect();
+                                                      });
+                                                  },
+                                              .reportFailure =
+                                                  [&state, &presenter](std::string message) {
+                                                      state.lifecycleFailures.push_back(message);
+                                                      presenter.error(message);
+                                                      state.fail("production drain lifecycle failed during successful pipe acceptance: " +
+                                                                 message);
+                                                  }});
+            lifecycleHandle = &lifecycle;
 
             client::ClientConnection connection(
+                sdk,
                 client::ClientConnectionCallbacks{.onConnected =
                                                       [&state, &lifecycle, &presenter, &path]() {
                                                           presenter.connected(path);
                                                           state.clientConnected(lifecycle);
                                                       },
-                                                  .onMessage =
-                                                      [&state, &lifecycle, &presenter](const frontend::ServerMessage& message) {
-                                                          lifecycle.receive(message);
-                                                          presenter.present(message);
-                                                          state.clientMessage(message);
-                                                      },
-                                                  .onProtocolError =
-                                                      [&state, &lifecycle](const frontend::CodecError& error) {
-                                                          state.clientProtocolError(lifecycle, error);
-                                                      },
                                                   .onDisconnected =
                                                       [&state, &lifecycle, &presenter]() {
                                                           presenter.disconnected();
                                                           state.clientDisconnected(lifecycle);
-                                                      }});
+                                                      },
+                                                  .onFailure =
+                                                      [&state, &lifecycle](std::string message) {
+                                                          lifecycle.connectionFailed(message);
+                                                          state.fail("production frontend SDK connection failed: " + message);
+                                                      },
+                                                  .onOutbound = {},
+                                                  .verifiedLocalUnix = true,
+                                                  .onBeforeTransportConnected = {}});
             connectionHandle = &connection;
             state.connection = &connection;
 
