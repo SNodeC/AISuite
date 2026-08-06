@@ -27,7 +27,7 @@ library-only consumer.
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH="/path/to/snodec/prefix"
-cmake --build build --parallel 28
+cmake --build build --parallel 26
 ctest --test-dir build --output-on-failure
 ```
 
@@ -122,11 +122,11 @@ Arbitrary bounded user, model, tool, reasoning, notice, diagnostic,
 process-output, and command-output text remains potentially sensitive and is
 protected by the same mandatory per-principal projection.
 
-The service implements and advertises 13 mechanism capabilities. The frozen
-`multi_transport` identity remains defined for Protocol v1 compatibility, but
-A1.7b does not maintain an application transport registry and does not advertise
-that capability. Multi-listener operation instead follows naturally because
-every SNode.C listener borrows the same application-owned service.
+The service implements 13 static mechanism capabilities. `multi_transport` is
+a separate conditional topology capability and is advertised only when more
+than one transport family is declared. A1.7c-1 adds the build-derived product
+capability `cpp_client_sdk`; it is independent of listener topology and is not
+a representation selector.
 
 The reference HTTP/WebSocket path uses SNode.C 2.0's configured HTTP parser,
 server limits, native upgrade, framing, and transport backpressure. Express
@@ -144,18 +144,20 @@ profile and exact installed SNode.C targets.
 The installed frontend surface adds the generated contract and security
 headers, `GeneratedProtocol.h` and `Security.h`; A1.7b replaces
 `BackendAdapter.h` with `FrontendService.h` and provides no public alias.
-Installed header inventory is therefore 29 main + 7 backend + 9 frontend = 45
-total. Project version `0.1.0` and all three Codex libraries' SOVERSION 2 remain
-unchanged. See the
+The A1.7c-1 SDK adds 33 installed headers, so the inventory is 29 main + 7
+backend + 9 frontend + 33 frontend-client = 78 total. Project version `0.1.0`
+and all four Codex libraries' SOVERSION 2 remain unchanged. See the
 [A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the
 [A1.6b backend completion](docs/ai/openai/codex/a1-6b-backend-completeness.md),
 the [A1.7a frontend contract](docs/ai/openai/codex/a1-7a-frontend-contract.md),
 the [A1.7b FrontendService](docs/ai/openai/codex/a1-7b-frontend-service.md),
+the [A1.7c-1 C++ Frontend SDK](docs/ai/openai/codex/a1-7c-1-cpp-frontend-sdk.md),
 the [Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
 for initialization and canonical error behavior, and the
 [Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
-for the exact source-compatibility boundary. A1.7c-1 is next and owns the C++
-Frontend SDK plus `codex-backend-client` migration. A1.7c-2 immediately follows
+for the exact source-compatibility boundary. A1.7c-1 provides
+`AISuite::OpenAICodexFrontendClient` and migrates `codex-backend-client`.
+A1.7c-2 immediately follows
 and migrates the existing `codex-ui` into the canonical standalone AI IDE; no
 additional PR is inserted before it. A1.7d owns the TypeScript Frontend SDK and
 browser frontend. Provider-neutral architecture remains A2.

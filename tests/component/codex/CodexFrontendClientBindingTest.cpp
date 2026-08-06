@@ -105,9 +105,7 @@ namespace {
         return result;
     }
 
-    frontend::Welcome modernWelcome(std::string sessionId,
-                                    frontend::SequenceNumber sequence,
-                                    frontend::SyncMode mode) {
+    frontend::Welcome modernWelcome(std::string sessionId, frontend::SequenceNumber sequence, frontend::SyncMode mode) {
         const std::vector<frontend::FrontendMethod> methods = advertisedMethods();
         return frontend::Welcome{std::move(sessionId),
                                  frontend::SessionRole::Observer,
@@ -229,8 +227,8 @@ namespace {
         using ThreadStart = client::generated::BindingTraits<MethodId::ThreadStart>;
         using ApprovalRespond = client::generated::BindingTraits<MethodId::ApprovalRespond>;
         using ControllerAcquire = client::generated::BindingTraits<MethodId::ControllerAcquire>;
-        using SessionLookup = const client::SessionState* (client::State::*)(const client::FrontendSessionId&) const noexcept;
-        using ProcessLookup = const client::ProcessState* (client::State::*)(const client::ProcessHandle&) const noexcept;
+        using SessionLookup = const client::SessionState* (client::State::*) (const client::FrontendSessionId&) const noexcept;
+        using ProcessLookup = const client::ProcessState* (client::State::*) (const client::ProcessHandle&) const noexcept;
 
         constexpr bool typed = std::same_as<ThreadStart::Facade, client::Threads> &&
                                std::same_as<ThreadStart::Parameter, ai::openai::codex::typed::ThreadStartParams> &&
@@ -610,8 +608,7 @@ namespace {
 
         client::Connection second = sdk.openConnection(harness.transport());
         second.transportConnected();
-        (void) second.receive(
-            frontend::ServerMessage{modernWelcome("session-2", frontend::SequenceNumber(8), frontend::SyncMode::Replay)});
+        (void) second.receive(frontend::ServerMessage{modernWelcome("session-2", frontend::SequenceNumber(8), frontend::SyncMode::Replay)});
         (void) second.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(8)}});
         const client::PendingRequestState* retained = sdk.state().pendingRequest(client::PendingRequestId{"41"});
         const std::size_t beforeRejected = harness.outbound.size();

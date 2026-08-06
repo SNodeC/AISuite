@@ -98,15 +98,14 @@ namespace {
         const client::ProjectionFingerprintMetadata fingerprint{
             R"({"format":"snodec.codex-frontend.projection-fingerprint.v1","continuityKey":{"present":true,"value":"test"}})"};
         std::string error;
-        const auto reduction = client::detail::StateReducer::snapshot(
-            client::detail::StateReducer::initial(),
-            frontend::Snapshot{sequence, expandedState()},
-            session,
-            1U << 20U,
-            64,
-            true,
-            error,
-            fingerprint);
+        const auto reduction = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                                      frontend::Snapshot{sequence, expandedState()},
+                                                                      session,
+                                                                      1U << 20U,
+                                                                      64,
+                                                                      true,
+                                                                      error,
+                                                                      fingerprint);
 
         result.expectTrue(reduction.has_value() && error.empty(), "expanded state with bounded SafeDetailValue extensions is reduced");
         if (!reduction)
@@ -177,15 +176,15 @@ namespace {
                           "retained SafeDetailValue extension bytes participate in transactional state-capacity accounting: " + error);
 
         error.clear();
-        const auto oversizedFingerprint = client::detail::StateReducer::snapshot(
-            client::detail::StateReducer::initial(),
-            frontend::Snapshot{sequence, expandedState()},
-            session,
-            7'500,
-            64,
-            true,
-            error,
-            client::ProjectionFingerprintMetadata{std::string(8'192, 'f')});
+        const auto oversizedFingerprint =
+            client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                   frontend::Snapshot{sequence, expandedState()},
+                                                   session,
+                                                   7'500,
+                                                   64,
+                                                   true,
+                                                   error,
+                                                   client::ProjectionFingerprintMetadata{std::string(8'192, 'f')});
         result.expectTrue(!oversizedFingerprint && error.find("maximumDecodedStateBytes") != std::string::npos,
                           "projection-fingerprint metadata participates in transactional state-capacity accounting: " + error);
     }

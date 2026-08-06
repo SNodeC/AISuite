@@ -37,11 +37,10 @@ namespace {
         presenter.present(success("start-1", frontend::Json{{"thread", {{"id", "thread-created"}, {"turns", frontend::Json::array()}}}}));
         presenter.present(failure("start-failed", "controller ownership is required"));
 
-        result.expectTrue(
-            output.str() ==
-                "response request-id=start-1 ok=true result=thread=thread-created status=unknown turns=0\n"
-                "response request-id=start-failed ok=false error=invalid_command message=controller ownership is required\n",
-            "human mode observes protocol responses without command correlation or result-specific decoding");
+        result.expectTrue(output.str() ==
+                              "response request-id=start-1 ok=true result=thread=thread-created status=unknown turns=0\n"
+                              "response request-id=start-failed ok=false error=invalid_command message=controller ownership is required\n",
+                          "human mode observes protocol responses without command correlation or result-specific decoding");
         result.expectTrue(diagnostics.str().empty(), "protocol responses remain protocol output rather than local diagnostics");
     }
 

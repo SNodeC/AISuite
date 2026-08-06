@@ -1,9 +1,11 @@
 # Codex backend reference client
 
-`codex-backend-client` is a small terminal client for the local
-`codex-backend` reference server. It speaks only Codex Frontend Protocol v1
-over an SNode.C Unix-domain stream connection; it never connects to the Codex
-App Server directly.
+`codex-backend-client` is the reference terminal application for
+`AISuite::OpenAICodexFrontendClient`. The SDK owns Hello, authentication
+placement, request IDs, response correlation, synchronization, replay cursors,
+sparse sequence handling, typed state, and operation completion. The
+application owns command parsing, presentation, workflows, and physical
+SNode.C transports. It never connects to the Codex App Server directly.
 
 Start the backend in one terminal and the client in another:
 
@@ -17,15 +19,37 @@ The client connects to
 nonempty. Otherwise it uses
 `/tmp/snodec-codex-backend-<numeric-uid>.sock`.
 
-The ordinary SNode.C remote-address option overrides that default:
+Unix is the only transport enabled by default. Its ordinary SNode.C
+remote-address option overrides that default:
 
 ```sh
-codex-backend-client codex-backend-client remote \
+codex-backend-client codex-backend-client-unix remote \
   --sun-path /run/user/1000/my-codex-backend.sock
 ```
 
-The client sends `hello` automatically after connecting. Interactive commands
-are:
+The executable also composes disabled-by-default named SNode.C clients for
+IPv4/IPv6 JSONL, IPv4/IPv6 TLS JSONL, RFCOMM JSONL, RFCOMM TLS JSONL,
+WebSocket, and WSS when those features are compiled. Enable and configure
+exactly one named outgoing instance through SNode.C's native configuration.
+WebSocket and WSS use SNode.C framing and request the exact `codex`
+subprotocol. The SDK has no transport registry.
+
+Remote transports require a protected bearer-token file:
+
+```sh
+install -m 600 /dev/null "$XDG_CONFIG_HOME/aisuite/codex.token"
+# Write the token without placing it in process arguments or configuration dumps.
+codex-backend-client --bearer-token-file "$XDG_CONFIG_HOME/aisuite/codex.token" \
+  codex-backend-client-ipv4 --disabled=false remote --host 127.0.0.1
+```
+
+The file must satisfy the same owner, regular-file, no-symlink, and permission
+checks as the backend reference authentication policy. Verified local Unix use
+may use `NoCredential` and a continuity key derived from the effective UID.
+The SDK itself neither knows a token-file path nor persists credentials.
+
+The SDK sends Hello automatically only after the physical transport reports
+connected. Interactive commands are:
 
 ```text
 help
@@ -55,10 +79,12 @@ watch on
 watch off
 ```
 
-Normal commands are encoded from the public typed frontend message classes.
-`raw` accepts only JSON that the public frontend codec validates as a client
-message. `watch` is local: disabling it suppresses event-batch presentation but
-does not change backend state or synchronization.
+Normal commands use SDK submissions. `raw` accepts only a known one-of-105
+generated command, validates it through generated schema authority, discards
+caller request IDs, and uses normal SDK correlation. It cannot send Hello,
+unknown methods, or raw App Server messages. `watch` is local: disabling it
+suppresses event-batch presentation but does not change backend state or
+synchronization.
 
 ## Thread lifecycle
 
@@ -147,10 +173,11 @@ rejected because POSIX cannot make those reads nonblocking (pipe the file's
 contents instead). Socket JSONL framing tolerates both fragmented records and
 several records in one read.
 
-Piped commands are retained until the connection's initial `sync.complete`,
-then sent once in input order. EOF enters a deterministic drain: the client
-waits for every command's correlated response and, for `snapshot` and
-`replay`, the resulting `sync.complete` before disconnecting and exiting. A
+Piped commands are retained by the CLI until the SDK becomes Ready after the
+initial `sync.complete`, then submitted once in input order. EOF enters a
+deterministic drain using SDK pending-operation counts and callbacks: the
+client waits for every command completion and, for `snapshot` and `replay`,
+the resulting `sync.complete` before disconnecting and exiting. A
 pending `new` keeps the client alive through both its start and turn stages.
 Connection, protocol, send, compound-operation, or premature-disconnect
 failures during that drain produce a nonzero exit status. An explicit

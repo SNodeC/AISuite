@@ -14,14 +14,9 @@ namespace ai::openai::codex::frontend::client {
         struct ClientTestAccess {
             static void setNextRequest(Client& client, std::uint64_t next) noexcept;
             static void setNextConnectionGeneration(Client& client, std::uint64_t next) noexcept;
-            static void setSynchronizationCounts(Client& client,
-                                                 std::size_t received,
-                                                 std::size_t applied,
-                                                 std::size_t ignored) noexcept;
-            [[nodiscard]] static bool tryAccumulateSynchronizationCounts(Client& client,
-                                                                        std::size_t received,
-                                                                        std::size_t applied,
-                                                                        std::size_t ignored) noexcept;
+            static void setSynchronizationCounts(Client& client, std::size_t received, std::size_t applied, std::size_t ignored) noexcept;
+            [[nodiscard]] static bool
+            tryAccumulateSynchronizationCounts(Client& client, std::size_t received, std::size_t applied, std::size_t ignored) noexcept;
             [[nodiscard]] static std::array<std::size_t, 3> synchronizationCounts(const Client& client) noexcept;
             static void failNextHelloConstruction(Client& client) noexcept;
             static void failAfterNextDispatch(Client& client) noexcept;

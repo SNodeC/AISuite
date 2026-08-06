@@ -15,7 +15,7 @@ namespace ai::openai::codex::frontend::client {
     namespace detail {
         struct BoundOperationCompletion;
         struct ClientTestAccess;
-    }
+    } // namespace detail
 
     class Accounts;
     class Apps;
@@ -121,10 +121,8 @@ namespace ai::openai::codex::frontend::client {
         submitReverseBound(const PendingRequestId& pendingRequestId,
                            frontend::generated::CompleteCommandParameters parameters,
                            detail::BoundOperationCompletion completion);
-        AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT [[nodiscard]] Submission
-        beginSynchronization(frontend::SyncMode mode,
-                             std::optional<frontend::SequenceNumber> after,
-                             CompletionHandler<SynchronizationResult> handler);
+        AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT [[nodiscard]] Submission beginSynchronization(
+            frontend::SyncMode mode, std::optional<frontend::SequenceNumber> after, CompletionHandler<SynchronizationResult> handler);
         struct AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT Impl;
         std::unique_ptr<Impl> impl;
     };

@@ -37,23 +37,17 @@ namespace {
     static_assert(std::is_same_v<decltype(client::PluginsState{}.details), client::PluginsAndSkillsDetailsState>);
     static_assert(std::is_same_v<decltype(client::McpState{}.details), client::McpDetailsState>);
     static_assert(std::is_same_v<decltype(client::PlatformState{}.details), client::PlatformDetailsState>);
-    static_assert(
-        std::is_same_v<decltype(client::ProviderState{}.lastError), std::optional<client::ProviderErrorState>>);
-    static_assert(std::is_same_v<decltype(client::ProviderState{}.initialization),
-                                 std::optional<client::ProviderInitializationState>>);
-    static_assert(
-        std::is_same_v<decltype(client::ThreadState{}.realtime), std::optional<client::ThreadRealtimeState>>);
-    static_assert(std::is_same_v<decltype(client::ThreadRealtimeState{}.version),
-                                 std::optional<typed::RealtimeConversationVersion>>);
+    static_assert(std::is_same_v<decltype(client::ProviderState{}.lastError), std::optional<client::ProviderErrorState>>);
+    static_assert(std::is_same_v<decltype(client::ProviderState{}.initialization), std::optional<client::ProviderInitializationState>>);
+    static_assert(std::is_same_v<decltype(client::ThreadState{}.realtime), std::optional<client::ThreadRealtimeState>>);
+    static_assert(std::is_same_v<decltype(client::ThreadRealtimeState{}.version), std::optional<typed::RealtimeConversationVersion>>);
     static_assert(std::is_same_v<decltype(client::TurnState{}.status), typed::TurnStatus>);
     static_assert(std::is_same_v<decltype(client::AccountDetailsState{}.authMode), std::optional<typed::AuthMode>>);
     static_assert(std::is_same_v<decltype(client::AccountDetailsState{}.planType), std::optional<typed::PlanType>>);
-    static_assert(std::is_same_v<decltype(client::ConfigurationDetailsState{}.writeStatus),
-                                 std::optional<typed::WriteStatus>>);
-    static_assert(std::is_same_v<decltype(client::McpDetailsState{}.startupStatus),
-                                 std::optional<typed::McpServerStartupState>>);
-    static_assert(std::is_same_v<decltype(client::PlatformDetailsState{}.remoteControlStatus),
-                                 std::optional<typed::RemoteControlConnectionStatus>>);
+    static_assert(std::is_same_v<decltype(client::ConfigurationDetailsState{}.writeStatus), std::optional<typed::WriteStatus>>);
+    static_assert(std::is_same_v<decltype(client::McpDetailsState{}.startupStatus), std::optional<typed::McpServerStartupState>>);
+    static_assert(
+        std::is_same_v<decltype(client::PlatformDetailsState{}.remoteControlStatus), std::optional<typed::RemoteControlConnectionStatus>>);
     static_assert(std::is_same_v<decltype(client::ItemContentReplacedChange{}.channel), client::ItemContentChannel>);
     static_assert(client::toString(client::ItemContentChannel::AgentText) == "agentText");
     static_assert(client::toString(client::ItemContentChannel::ReasoningText) == "reasoningText");
@@ -184,10 +178,7 @@ namespace {
                 {"controllerSessionId", "7"},
                 {"sessions", frontend::Json::array()},
                 {"threadList",
-                 {{"hasLoadedPage", true},
-                  {"complete", false},
-                  {"pagesLoaded", std::uint64_t{2}},
-                  {"nextCursor", "cursor-next"}}},
+                 {{"hasLoadedPage", true}, {"complete", false}, {"pagesLoaded", std::uint64_t{2}}, {"nextCursor", "cursor-next"}}},
                 {"threads", frontend::Json::array({std::move(thread)})},
                 {"pendingRequests", frontend::Json::array()},
                 {"codexExtensions", frontend::Json::array()},
@@ -231,19 +222,15 @@ namespace {
                 {"sessions", frontend::Json::array()},
                 {"threads", frontend::Json::array({frontend::Json{{"id", "thread-1"}, {"fullyLoaded", true}}})},
                 {"turns",
-                 frontend::Json::array({frontend::Json{{"id", "turn-1"},
-                                                       {"threadId", "thread-1"},
-                                                       {"status", "completed"},
-                                                       {"active", false},
-                                                       {"terminal", true}}})},
-                {"items",
                  frontend::Json::array({frontend::Json{
-                     {"id", "item-1"},
-                     {"threadId", "thread-1"},
-                     {"turnId", "turn-1"},
-                     {"type", "commandExecution"},
-                     {"agentText", "initial-agent"},
-                     {"commandOutput", std::move(output)}}})},
+                     {"id", "turn-1"}, {"threadId", "thread-1"}, {"status", "completed"}, {"active", false}, {"terminal", true}}})},
+                {"items",
+                 frontend::Json::array({frontend::Json{{"id", "item-1"},
+                                                       {"threadId", "thread-1"},
+                                                       {"turnId", "turn-1"},
+                                                       {"type", "commandExecution"},
+                                                       {"agentText", "initial-agent"},
+                                                       {"commandOutput", std::move(output)}}})},
                 {"pendingRequests", frontend::Json::array()},
                 {"capacity", frontend::Json::object()},
                 {"truncation", {{"truncated", false}}}};
@@ -354,11 +341,10 @@ namespace {
                                                                error);
         std::optional<client::detail::StateReduction> synchronized;
         if (snapshot)
-            synchronized = client::detail::StateReducer::synchronized(
-                snapshot->state, frontend::SequenceNumber(43), session, unlimited, error);
-        const frontend::Json beforeRegression = synchronized
-                                                    ? client::detail::StateReducer::serializeForTesting(synchronized->state)
-                                                    : frontend::Json::object();
+            synchronized =
+                client::detail::StateReducer::synchronized(snapshot->state, frontend::SequenceNumber(43), session, unlimited, error);
+        const frontend::Json beforeRegression =
+            synchronized ? client::detail::StateReducer::serializeForTesting(synchronized->state) : frontend::Json::object();
         std::optional<client::detail::StateReduction> lowerRegression;
         std::optional<client::detail::StateReduction> equalRegression;
         std::optional<client::detail::StateReduction> snapshotRegression;
@@ -366,9 +352,8 @@ namespace {
             error.clear();
             lowerRegression = client::detail::StateReducer::events(
                 synchronized->state,
-                frontend::EventBatch{frontend::SequenceNumber(42),
-                                     frontend::SequenceNumber(42),
-                                     {content(frontend::SequenceNumber(42), "regressed")}},
+                frontend::EventBatch{
+                    frontend::SequenceNumber(42), frontend::SequenceNumber(42), {content(frontend::SequenceNumber(42), "regressed")}},
                 false,
                 unlimited,
                 64,
@@ -377,9 +362,8 @@ namespace {
             error.clear();
             equalRegression = client::detail::StateReducer::events(
                 synchronized->state,
-                frontend::EventBatch{frontend::SequenceNumber(43),
-                                     frontend::SequenceNumber(43),
-                                     {content(frontend::SequenceNumber(43), "duplicate")}},
+                frontend::EventBatch{
+                    frontend::SequenceNumber(43), frontend::SequenceNumber(43), {content(frontend::SequenceNumber(43), "duplicate")}},
                 false,
                 unlimited,
                 64,
@@ -397,48 +381,49 @@ namespace {
         }
         result.expectTrue(snapshot && synchronized && !lowerRegression && !equalRegression && !snapshotRegression &&
                               client::detail::StateReducer::serializeForTesting(synchronized->state) == beforeRegression,
-                          "live occurrences below or equal to synchronizedThrough and replacement snapshots below the represented cursor are rejected without mutating State, while replay-only overlap deduplication remains separate");
+                          "live occurrences below or equal to synchronizedThrough and replacement snapshots below the represented cursor "
+                          "are rejected without mutating State, while replay-only overlap deduplication remains separate");
 
         frontend::Json stateAfterRemoval = expandedState();
         stateAfterRemoval["items"] = frontend::Json::array();
         error.clear();
-        auto removedSnapshot = client::detail::StateReducer::snapshot(
-            client::detail::StateReducer::initial(),
-            frontend::Snapshot{frontend::SequenceNumber(43), std::move(stateAfterRemoval)},
-            session,
-            unlimited,
-            64,
-            true,
-            error);
+        auto removedSnapshot =
+            client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                   frontend::Snapshot{frontend::SequenceNumber(43), std::move(stateAfterRemoval)},
+                                                   session,
+                                                   unlimited,
+                                                   64,
+                                                   true,
+                                                   error);
         std::optional<client::detail::StateReduction> removedSynchronized;
         std::optional<client::detail::StateReduction> oldReferentialOverlap;
         frontend::Json beforeOldOverlap;
         if (removedSnapshot) {
-            removedSynchronized = client::detail::StateReducer::synchronized(
-                removedSnapshot->state, frontend::SequenceNumber(43), session, unlimited, error);
+            removedSynchronized =
+                client::detail::StateReducer::synchronized(removedSnapshot->state, frontend::SequenceNumber(43), session, unlimited, error);
         }
         if (removedSynchronized) {
             beforeOldOverlap = client::detail::StateReducer::serializeForTesting(removedSynchronized->state);
             error.clear();
-            oldReferentialOverlap = client::detail::StateReducer::events(
-                removedSynchronized->state,
-                frontend::EventBatch{frontend::SequenceNumber(42),
-                                     frontend::SequenceNumber(42),
-                                     {content(frontend::SequenceNumber(42), "historical-content")}},
-                true,
-                unlimited,
-                64,
-                true,
-                error);
+            oldReferentialOverlap =
+                client::detail::StateReducer::events(removedSynchronized->state,
+                                                     frontend::EventBatch{frontend::SequenceNumber(42),
+                                                                          frontend::SequenceNumber(42),
+                                                                          {content(frontend::SequenceNumber(42), "historical-content")}},
+                                                     true,
+                                                     unlimited,
+                                                     64,
+                                                     true,
+                                                     error);
         }
-        result.expectTrue(removedSnapshot && removedSynchronized && oldReferentialOverlap &&
-                              oldReferentialOverlap->appliedEvents == 0 &&
-                              oldReferentialOverlap->ignoredAlreadyAppliedEvents == 1 &&
-                              oldReferentialOverlap->changes.empty() && !oldReferentialOverlap->state.item("item-1") &&
+        result.expectTrue(removedSnapshot && removedSynchronized && oldReferentialOverlap && oldReferentialOverlap->appliedEvents == 0 &&
+                              oldReferentialOverlap->ignoredAlreadyAppliedEvents == 1 && oldReferentialOverlap->changes.empty() &&
+                              !oldReferentialOverlap->state.item("item-1") &&
                               oldReferentialOverlap->state.visibleSequence() == frontend::SequenceNumber(43) &&
                               oldReferentialOverlap->state.synchronizedThrough() == frontend::SequenceNumber(43) &&
                               beforeOldOverlap.value("items", frontend::Json::array()).empty(),
-                          "overlapping replay validates an old content wrapper without reapplying it against later state where the referenced item was removed");
+                          "overlapping replay validates an old content wrapper without reapplying it against later state where the "
+                          "referenced item was removed");
 
         Harness moveHarness;
         client::Client moving(options(), moveHarness.callbacks());
@@ -446,27 +431,18 @@ namespace {
         moveConnection.transportConnected();
         frontend::Json movingState = expandedState();
         movingState["threads"].push_back(frontend::Json{{"id", "thread-2"}, {"fullyLoaded", true}});
-        movingState["turns"].push_back(frontend::Json{{"id", "turn-2"},
-                                                      {"threadId", "thread-2"},
-                                                      {"status", "running"},
-                                                      {"active", true},
-                                                      {"terminal", false}});
-        (void) moveConnection.receive(
-            frontend::ServerMessage{welcome(frontend::SequenceNumber(1), frontend::SyncMode::Snapshot)});
-        (void) moveConnection.receive(
-            frontend::ServerMessage{frontend::Snapshot{frontend::SequenceNumber(1), std::move(movingState)}});
+        movingState["turns"].push_back(
+            frontend::Json{{"id", "turn-2"}, {"threadId", "thread-2"}, {"status", "running"}, {"active", true}, {"terminal", false}});
+        (void) moveConnection.receive(frontend::ServerMessage{welcome(frontend::SequenceNumber(1), frontend::SyncMode::Snapshot)});
+        (void) moveConnection.receive(frontend::ServerMessage{frontend::Snapshot{frontend::SequenceNumber(1), std::move(movingState)}});
         (void) moveConnection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(1)}});
         const frontend::EventBatch moves{
             frontend::SequenceNumber(2),
             frontend::SequenceNumber(2),
             {{frontend::SequenceNumber(2),
               "turn.upserted",
-              frontend::Json{{"turn",
-                              {{"id", "turn-1"},
-                               {"threadId", "thread-2"},
-                               {"status", "running"},
-                               {"active", true},
-                               {"terminal", false}}}}},
+              frontend::Json{
+                  {"turn", {{"id", "turn-1"}, {"threadId", "thread-2"}, {"status", "running"}, {"active", true}, {"terminal", false}}}}},
              {frontend::SequenceNumber(2),
               "item.upserted",
               frontend::Json{{"item",
@@ -480,26 +456,26 @@ namespace {
         const client::ThreadState* newThread = moving.state().thread("thread-2");
         const client::TurnState* oldTurn = moving.state().turn("turn-1");
         const client::TurnState* newTurn = moving.state().turn("turn-2");
-        result.expectTrue(moveConnection.isOpen() && oldThread && oldThread->orderedTurns.empty() && newThread &&
-                              std::find(newThread->orderedTurns.begin(), newThread->orderedTurns.end(),
-                                        ai::openai::codex::typed::TurnId{"turn-1"}) != newThread->orderedTurns.end() &&
-                              oldTurn && oldTurn->orderedItems.empty() && newTurn &&
-                              std::find(newTurn->orderedItems.begin(), newTurn->orderedItems.end(),
-                                        ai::openai::codex::typed::ItemId{"item-1"}) != newTurn->orderedItems.end(),
-                          "turn and item upserts remove moved identities from their old parent ordering before adding the new parent relation");
+        result.expectTrue(
+            moveConnection.isOpen() && oldThread && oldThread->orderedTurns.empty() && newThread &&
+                std::find(newThread->orderedTurns.begin(), newThread->orderedTurns.end(), ai::openai::codex::typed::TurnId{"turn-1"}) !=
+                    newThread->orderedTurns.end() &&
+                oldTurn && oldTurn->orderedItems.empty() && newTurn &&
+                std::find(newTurn->orderedItems.begin(), newTurn->orderedItems.end(), ai::openai::codex::typed::ItemId{"item-1"}) !=
+                    newTurn->orderedItems.end(),
+            "turn and item upserts remove moved identities from their old parent ordering before adding the new parent relation");
 
         auto duplicateRejected = [&](frontend::Json duplicateState, std::string_view description) {
             error.clear();
-            const auto reduction = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                           frontend::Snapshot{frontend::SequenceNumber(1),
-                                                                                              std::move(duplicateState)},
-                                                                           session,
-                                                                           unlimited,
-                                                                           64,
-                                                                           true,
-                                                                           error);
-            result.expectTrue(!reduction && error.find("duplicate stable identity") != std::string::npos,
-                              std::string(description));
+            const auto reduction =
+                client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                       frontend::Snapshot{frontend::SequenceNumber(1), std::move(duplicateState)},
+                                                       session,
+                                                       unlimited,
+                                                       64,
+                                                       true,
+                                                       error);
+            result.expectTrue(!reduction && error.find("duplicate stable identity") != std::string::npos, std::string(description));
         };
         frontend::Json duplicateThreads = expandedState();
         duplicateThreads["threads"].push_back(duplicateThreads["threads"].front());
@@ -508,9 +484,8 @@ namespace {
         duplicateItems["items"].push_back(duplicateItems["items"].front());
         duplicateRejected(std::move(duplicateItems), "expanded snapshots reject duplicate item identities");
         frontend::Json duplicateSessions = expandedState();
-        duplicateSessions["sessions"] =
-            frontend::Json::array({frontend::Json{{"sessionId", "7"}, {"role", "observer"}},
-                                   frontend::Json{{"sessionId", "7"}, {"role", "controller"}}});
+        duplicateSessions["sessions"] = frontend::Json::array(
+            {frontend::Json{{"sessionId", "7"}, {"role", "observer"}}, frontend::Json{{"sessionId", "7"}, {"role", "controller"}}});
         duplicateRejected(std::move(duplicateSessions), "expanded snapshots reject duplicate session identities");
         frontend::Json duplicateProcesses = expandedState();
         const frontend::Json process{{"processHandle", "process-1"},
@@ -526,14 +501,14 @@ namespace {
         auto& legacyItems = duplicateLegacyItems["threads"][0]["turns"][0]["items"];
         legacyItems.push_back(legacyItems.front());
         error.clear();
-        const auto duplicateLegacy = client::detail::StateReducer::snapshot(
-            client::detail::StateReducer::initial(),
-            frontend::Snapshot{frontend::SequenceNumber(1), std::move(duplicateLegacyItems)},
-            legacySession,
-            unlimited,
-            64,
-            true,
-            error);
+        const auto duplicateLegacy =
+            client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                   frontend::Snapshot{frontend::SequenceNumber(1), std::move(duplicateLegacyItems)},
+                                                   legacySession,
+                                                   unlimited,
+                                                   64,
+                                                   true,
+                                                   error);
         result.expectTrue(!duplicateLegacy && error.find("duplicate") != std::string::npos,
                           "legacy snapshots reject duplicate nested item identities");
     }
@@ -556,41 +531,32 @@ namespace {
                                                                error);
         std::optional<client::detail::StateReduction> synchronized;
         if (snapshot) {
-            synchronized = client::detail::StateReducer::synchronized(
-                snapshot->state, frontend::SequenceNumber(43), session, unlimited, error);
+            synchronized =
+                client::detail::StateReducer::synchronized(snapshot->state, frontend::SequenceNumber(43), session, unlimited, error);
         }
         if (!synchronized) {
             result.expectTrue(false, "revision-exhaustion fixture establishes synchronized typed State");
             return;
         }
 
-        const client::State nearMaximum =
-            client::detail::StateReducer::withRevisionForTesting(synchronized->state, maximumRevision - 1);
+        const client::State nearMaximum = client::detail::StateReducer::withRevisionForTesting(synchronized->state, maximumRevision - 1);
         error.clear();
-        const auto exactMaximum =
-            client::detail::StateReducer::beginSynchronization(nearMaximum, session, unlimited, error);
-        const client::State maximum =
-            client::detail::StateReducer::withRevisionForTesting(synchronized->state, maximumRevision);
+        const auto exactMaximum = client::detail::StateReducer::beginSynchronization(nearMaximum, session, unlimited, error);
+        const client::State maximum = client::detail::StateReducer::withRevisionForTesting(synchronized->state, maximumRevision);
         const frontend::Json maximumBefore = client::detail::StateReducer::serializeForTesting(maximum);
 
         error.clear();
         const auto beginOverflow = client::detail::StateReducer::beginSynchronization(maximum, session, unlimited, error);
         const bool beginReported = error.find("revision exhausted") != std::string::npos;
         error.clear();
-        const auto snapshotOverflow = client::detail::StateReducer::snapshot(maximum,
-                                                                             frontend::Snapshot{frontend::SequenceNumber(44), expandedState()},
-                                                                             session,
-                                                                             unlimited,
-                                                                             64,
-                                                                             true,
-                                                                             error);
+        const auto snapshotOverflow = client::detail::StateReducer::snapshot(
+            maximum, frontend::Snapshot{frontend::SequenceNumber(44), expandedState()}, session, unlimited, 64, true, error);
         const bool snapshotReported = error.find("revision exhausted") != std::string::npos;
         error.clear();
         const auto eventOverflow = client::detail::StateReducer::events(
             maximum,
-            frontend::EventBatch{frontend::SequenceNumber(44),
-                                 frontend::SequenceNumber(44),
-                                 {content(frontend::SequenceNumber(44), "revision-overflow")}},
+            frontend::EventBatch{
+                frontend::SequenceNumber(44), frontend::SequenceNumber(44), {content(frontend::SequenceNumber(44), "revision-overflow")}},
             false,
             unlimited,
             64,
@@ -598,21 +564,20 @@ namespace {
             error);
         const bool eventReported = error.find("revision exhausted") != std::string::npos;
         error.clear();
-        const auto synchronizationOverflow = client::detail::StateReducer::synchronized(
-            maximum, frontend::SequenceNumber(44), session, unlimited, error);
+        const auto synchronizationOverflow =
+            client::detail::StateReducer::synchronized(maximum, frontend::SequenceNumber(44), session, unlimited, error);
         const bool synchronizationReported = error.find("revision exhausted") != std::string::npos;
         error.clear();
         const auto staleOverflow = client::detail::StateReducer::stale(maximum, unlimited, error);
         const bool staleReported = error.find("revision exhausted") != std::string::npos;
 
         error.clear();
-        auto validationStaging = client::detail::StateReducer::synchronizationStaging(
-            session, frontend::SequenceNumber(43), unlimited, true, error);
+        auto validationStaging =
+            client::detail::StateReducer::synchronizationStaging(session, frontend::SequenceNumber(43), unlimited, true, error);
         std::optional<client::detail::StateReduction> validationOverflow;
         bool validationReported = false;
         if (validationStaging) {
-            const client::State maximumStaging =
-                client::detail::StateReducer::withRevisionForTesting(*validationStaging, maximumRevision);
+            const client::State maximumStaging = client::detail::StateReducer::withRevisionForTesting(*validationStaging, maximumRevision);
             error.clear();
             validationOverflow = client::detail::StateReducer::validateSynchronizationEvents(
                 maximumStaging,
@@ -626,10 +591,9 @@ namespace {
         }
 
         result.expectTrue(exactMaximum && exactMaximum->revision() == maximumRevision && !beginOverflow && beginReported &&
-                              !snapshotOverflow && snapshotReported && !eventOverflow && eventReported &&
-                              !synchronizationOverflow && synchronizationReported && !staleOverflow && staleReported &&
-                              validationStaging && !validationOverflow && validationReported &&
-                              client::detail::StateReducer::serializeForTesting(maximum) == maximumBefore,
+                              !snapshotOverflow && snapshotReported && !eventOverflow && eventReported && !synchronizationOverflow &&
+                              synchronizationReported && !staleOverflow && staleReported && validationStaging && !validationOverflow &&
+                              validationReported && client::detail::StateReducer::serializeForTesting(maximum) == maximumBefore,
                           "every revision-advancing reducer path reaches the exact maximum and rejects overflow transactionally");
     }
 
@@ -642,26 +606,24 @@ namespace {
         session.selectedRepresentationCapabilities = options().requestedCapabilities;
 
         frontend::Json state = expandedState();
-        state["provider"]["lastError"] = frontend::Json{{"category", "transport"},
-                                                          {"code", std::int64_t{17}},
-                                                          {"detailsOmitted", true},
-                                                          {"futureErrorField", "retained"}};
+        state["provider"]["lastError"] = frontend::Json{
+            {"category", "transport"}, {"code", std::int64_t{17}}, {"detailsOmitted", true}, {"futureErrorField", "retained"}};
         state["provider"]["initialization"] = frontend::Json{{"codexHome", "/tmp/codex-home"},
-                                                               {"platformFamily", "unix"},
-                                                               {"platformOs", "linux"},
-                                                               {"userAgent", "codex/1"},
-                                                               {"futureInitializationField", 3}};
+                                                             {"platformFamily", "unix"},
+                                                             {"platformOs", "linux"},
+                                                             {"userAgent", "codex/1"},
+                                                             {"futureInitializationField", 3}};
         state["threads"][0]["realtime"] = frontend::Json{{"lifecycle", "active"},
-                                                           {"transcript", "bounded transcript"},
-                                                           {"itemCount", std::uint64_t{4}},
-                                                           {"receivedAudioBytes", std::uint64_t{120}},
-                                                           {"droppedAudioBytes", std::uint64_t{8}},
-                                                           {"transcriptTruncated", true},
-                                                           {"errorDetailsOmitted", true},
-                                                           {"sessionId", "realtime-1"},
-                                                           {"version", "v1"},
-                                                           {"lastSdpBytes", std::uint64_t{42}},
-                                                           {"futureRealtimeField", "retained"}};
+                                                         {"transcript", "bounded transcript"},
+                                                         {"itemCount", std::uint64_t{4}},
+                                                         {"receivedAudioBytes", std::uint64_t{120}},
+                                                         {"droppedAudioBytes", std::uint64_t{8}},
+                                                         {"transcriptTruncated", true},
+                                                         {"errorDetailsOmitted", true},
+                                                         {"sessionId", "realtime-1"},
+                                                         {"version", "v1"},
+                                                         {"lastSdpBytes", std::uint64_t{42}},
+                                                         {"futureRealtimeField", "retained"}};
         state["accounts"] = frontend::Json{{"details", {{"authMode", "chatgpt"}, {"planType", "plus"}}}};
         state["configuration"] = frontend::Json{{"details", {{"writeStatus", "written"}}}};
         state["mcp"] = frontend::Json{{"details", {{"startupStatus", "complete"}}}};
@@ -671,13 +633,12 @@ namespace {
 
         std::string error;
         const auto reduction = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                       frontend::Snapshot{frontend::SequenceNumber(7),
-                                                                                          std::move(state)},
-                                                                       session,
-                                                                       unlimited,
-                                                                       64,
-                                                                       true,
-                                                                       error);
+                                                                      frontend::Snapshot{frontend::SequenceNumber(7), std::move(state)},
+                                                                      session,
+                                                                      unlimited,
+                                                                      64,
+                                                                      true,
+                                                                      error);
         const client::ProviderState* provider =
             reduction && reduction->state.provider().value ? &*reduction->state.provider().value : nullptr;
         const client::ThreadState* thread = reduction ? reduction->state.thread("thread-1") : nullptr;
@@ -691,29 +652,26 @@ namespace {
         const client::PlatformState* platform =
             reduction && reduction->state.platform().value ? &*reduction->state.platform().value : nullptr;
         result.expectTrue(
-            provider && provider->lastError && provider->lastError->category == "transport" &&
-                provider->lastError->code == 17 && provider->lastError->detailsOmitted == true &&
-                provider->lastError->extensions.value("futureErrorField", "") == "retained" &&
-                provider->initialization && provider->initialization->codexHome.value == "/tmp/codex-home" &&
-                provider->initialization->platformFamily == "unix" && provider->initialization->platformOs == "linux" &&
-                provider->initialization->userAgent == "codex/1" &&
-                provider->initialization->extensions.value("futureInitializationField", 0) == 3 && thread &&
-                thread->realtime && thread->realtime->lifecycle == "active" &&
-                thread->realtime->transcript == "bounded transcript" && thread->realtime->itemCount == 4 &&
-                thread->realtime->receivedAudioBytes == 120 && thread->realtime->droppedAudioBytes == 8 &&
-                thread->realtime->transcriptTruncated && thread->realtime->errorDetailsOmitted == true &&
-                thread->realtime->sessionId == "realtime-1" && thread->realtime->version &&
-                thread->realtime->version->value == "v1" &&
-                thread->realtime->lastSdpBytes == 42 &&
+            provider && provider->lastError && provider->lastError->category == "transport" && provider->lastError->code == 17 &&
+                provider->lastError->detailsOmitted == true &&
+                provider->lastError->extensions.value("futureErrorField", "") == "retained" && provider->initialization &&
+                provider->initialization->codexHome.value == "/tmp/codex-home" && provider->initialization->platformFamily == "unix" &&
+                provider->initialization->platformOs == "linux" && provider->initialization->userAgent == "codex/1" &&
+                provider->initialization->extensions.value("futureInitializationField", 0) == 3 && thread && thread->realtime &&
+                thread->realtime->lifecycle == "active" && thread->realtime->transcript == "bounded transcript" &&
+                thread->realtime->itemCount == 4 && thread->realtime->receivedAudioBytes == 120 &&
+                thread->realtime->droppedAudioBytes == 8 && thread->realtime->transcriptTruncated &&
+                thread->realtime->errorDetailsOmitted == true && thread->realtime->sessionId == "realtime-1" && thread->realtime->version &&
+                thread->realtime->version->value == "v1" && thread->realtime->lastSdpBytes == 42 &&
                 thread->realtime->extensions.value("futureRealtimeField", "") == "retained" && turn &&
                 turn->status == typed::TurnStatus::completed() && account && account->details.authMode &&
-                account->details.authMode->value == "chatgpt" && account->details.planType &&
-                account->details.planType->value == "plus" && configuration && configuration->details.writeStatus &&
-                configuration->details.writeStatus->value == "written" && mcp && mcp->details.startupStatus &&
-                mcp->details.startupStatus->value == "complete" && platform && platform->details.remoteControlStatus &&
-                platform->details.remoteControlStatus->value == "connected" && item && item->stamp &&
-                item->stamp->generation == 9 && item->stamp->freshness == frontend::StateFreshness::Current,
-            "provider, turn, realtime, account, configuration, MCP, and platform fields reuse their existing open-valued typed wrappers while preserving wire identities and bounded extensions");
+                account->details.authMode->value == "chatgpt" && account->details.planType && account->details.planType->value == "plus" &&
+                configuration && configuration->details.writeStatus && configuration->details.writeStatus->value == "written" && mcp &&
+                mcp->details.startupStatus && mcp->details.startupStatus->value == "complete" && platform &&
+                platform->details.remoteControlStatus && platform->details.remoteControlStatus->value == "connected" && item &&
+                item->stamp && item->stamp->generation == 9 && item->stamp->freshness == frontend::StateFreshness::Current,
+            "provider, turn, realtime, account, configuration, MCP, and platform fields reuse their existing open-valued typed wrappers "
+            "while preserving wire identities and bounded extensions");
     }
 
     void testHiddenSuffixAndReconnect(tests::support::TestResult& result) {
@@ -727,8 +685,8 @@ namespace {
         second.transportConnected();
         const auto helloMessage = frontend::Codec::decodeClient(std::string_view(harness.messages.back().compactJson));
         const auto* hello = helloMessage ? std::get_if<frontend::Hello>(&helloMessage.value()) : nullptr;
-        (void) second.receive(frontend::ServerMessage{
-            welcome(frontend::SequenceNumber(53), frontend::SyncMode::Replay, frontend::Json::object(), "2")});
+        (void) second.receive(
+            frontend::ServerMessage{welcome(frontend::SequenceNumber(53), frontend::SyncMode::Replay, frontend::Json::object(), "2")});
         (void) second.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(53)}});
         result.expectTrue(
             hello && hello->resumeAfter == frontend::SequenceNumber(51) && sdk.isReady() &&
@@ -811,13 +769,12 @@ namespace {
         noticeValue["stamp"] = std::move(stamp);
         frontend::Json noticeData = frontend::Json::object();
         noticeData["notice"] = std::move(noticeValue);
-        const frontend::FrontendEvent notice{
-            frontend::SequenceNumber(2), "notice.added", std::move(noticeData), frontend::Json::object()};
+        const frontend::FrontendEvent notice{frontend::SequenceNumber(2), "notice.added", std::move(noticeData), frontend::Json::object()};
         client::Connection interrupted = sdk.openConnection(harness.transport());
         interrupted.transportConnected();
         (void) interrupted.receive(frontend::ServerMessage{welcome(frontend::SequenceNumber(3), frontend::SyncMode::Replay)});
-        (void) interrupted.receive(frontend::ServerMessage{
-            frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(2), {notice}}});
+        (void) interrupted.receive(
+            frontend::ServerMessage{frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(2), {notice}}});
         interrupted.transportDisconnected();
 
         client::Connection resumed = sdk.openConnection(harness.transport());
@@ -825,8 +782,8 @@ namespace {
         const auto helloMessage = frontend::Codec::decodeClient(std::string_view(harness.messages.back().compactJson));
         const auto* hello = helloMessage ? std::get_if<frontend::Hello>(&helloMessage.value()) : nullptr;
         (void) resumed.receive(frontend::ServerMessage{welcome(frontend::SequenceNumber(3), frontend::SyncMode::Replay)});
-        (void) resumed.receive(frontend::ServerMessage{
-            frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(2), {notice}}});
+        (void) resumed.receive(
+            frontend::ServerMessage{frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(2), {notice}}});
         (void) resumed.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(3)}});
         result.expectTrue(hello && hello->resumeAfter == frontend::SequenceNumber(1) && resumed.isOpen() && sdk.isReady() &&
                               sdk.state().notices().value && sdk.state().notices().value->entries.size() == 1 &&
@@ -889,11 +846,12 @@ namespace {
         std::vector<frontend::FrontendEvent> events;
         for (std::size_t index = 0; index < families.size(); ++index) {
             const frontend::Json stamp{{"generation", std::uint64_t{1}}, {"freshness", "current"}};
-            const frontend::Json domain{{"stamp", stamp},
-                                        {"status", "ready"},
-                                        {"latestResults", frontend::Json::array()},
-                                        {"details", {{"notificationCount", std::uint64_t{1}},
-                                                     {"latestNotificationMethods", frontend::Json::array({"domain/updated"})}}}};
+            const frontend::Json domain{
+                {"stamp", stamp},
+                {"status", "ready"},
+                {"latestResults", frontend::Json::array()},
+                {"details",
+                 {{"notificationCount", std::uint64_t{1}}, {"latestNotificationMethods", frontend::Json::array({"domain/updated"})}}}};
             frontend::Json data = frontend::Json::object();
             const std::string& family = families[index];
             if (family == "provider.updated")
@@ -912,11 +870,7 @@ namespace {
                 data = {{"threadId", "thread-family"}};
             else if (family == "turn.upserted")
                 data = {{"turn",
-                         {{"id", "turn-family"},
-                          {"threadId", "thread-1"},
-                          {"status", "running"},
-                          {"active", true},
-                          {"terminal", false}}}};
+                         {{"id", "turn-family"}, {"threadId", "thread-1"}, {"status", "running"}, {"active", true}, {"terminal", false}}}};
             else if (family == "item.upserted")
                 data = {{"item", {{"id", "item-family"}, {"threadId", "thread-1"}, {"turnId", "turn-1"}, {"type", "agentMessage"}}}};
             else if (family == "item.content.updated") {
@@ -941,11 +895,7 @@ namespace {
                 data = {{"notice", {{"occurrence", std::uint64_t{1}}, {"category", "warning"}, {"summary", "notice"}, {"stamp", stamp}}}};
             else if (family == "activity.updated")
                 data = {{"activity",
-                         {{"key", "activity-family"},
-                          {"kind", "tool"},
-                          {"lifecycle", "running"},
-                          {"active", true},
-                          {"stamp", stamp}}}};
+                         {{"key", "activity-family"}, {"kind", "tool"}, {"lifecycle", "running"}, {"active", true}, {"stamp", stamp}}}};
             else if (family == "capacity.updated")
                 data = {{"capacity", {{"sessions", std::uint64_t{1}}, {"retainedItems", std::uint64_t{2}}}}};
             else if (family == "diagnostics.updated")
@@ -957,21 +907,19 @@ namespace {
         const frontend::Json changes = harness.updates.empty()
                                            ? frontend::Json::array()
                                            : client::detail::StateReducer::serializeChangesForTesting(harness.updates.back().changes);
-        result.expectTrue(connection.isOpen() && sdk.visibleSequence() == frontend::SequenceNumber(46) && changes.size() == 25 &&
-                              sdk.state().sessions().value &&
-                              sdk.state().session(client::FrontendSessionId{"1"}) &&
-                              sdk.state().processes().value && sdk.state().processes().value->entries.size() == 1 &&
-                              sdk.state().filesystemWatches().value && sdk.state().filesystemWatches().value->entries.size() == 1 &&
-                              sdk.state().fuzzySearches().value && sdk.state().fuzzySearches().value->entries.size() == 1 &&
-                              sdk.state().notices().value && sdk.state().notices().value->entries.size() == 1 &&
-                              sdk.state().activities().value && sdk.state().activities().value->entries.size() == 1 &&
-                              sdk.state().diagnostics().value && sdk.state().diagnostics().value->entries.size() == 1 &&
-                              sdk.state().permissionProfiles().value && sdk.state().externalAgents().value && sdk.state().skills().value &&
-                              sdk.state().windowsSandbox().value && sdk.state().accounts().value &&
-                              sdk.state().accounts().value->projection.notificationCount == 1 &&
-                              sdk.state().accounts().value->projection.latestNotificationMethods ==
-                                  std::vector<std::string>{"domain/updated"},
-                          "all 25 expanded event families produce typed changes and update the exact typed domain without losing aliases");
+        result.expectTrue(
+            connection.isOpen() && sdk.visibleSequence() == frontend::SequenceNumber(46) && changes.size() == 25 &&
+                sdk.state().sessions().value && sdk.state().session(client::FrontendSessionId{"1"}) && sdk.state().processes().value &&
+                sdk.state().processes().value->entries.size() == 1 && sdk.state().filesystemWatches().value &&
+                sdk.state().filesystemWatches().value->entries.size() == 1 && sdk.state().fuzzySearches().value &&
+                sdk.state().fuzzySearches().value->entries.size() == 1 && sdk.state().notices().value &&
+                sdk.state().notices().value->entries.size() == 1 && sdk.state().activities().value &&
+                sdk.state().activities().value->entries.size() == 1 && sdk.state().diagnostics().value &&
+                sdk.state().diagnostics().value->entries.size() == 1 && sdk.state().permissionProfiles().value &&
+                sdk.state().externalAgents().value && sdk.state().skills().value && sdk.state().windowsSandbox().value &&
+                sdk.state().accounts().value && sdk.state().accounts().value->projection.notificationCount == 1 &&
+                sdk.state().accounts().value->projection.latestNotificationMethods == std::vector<std::string>{"domain/updated"},
+            "all 25 expanded event families produce typed changes and update the exact typed domain without losing aliases");
 
         const frontend::Json stamp{{"generation", std::uint64_t{2}}, {"freshness", "current"}};
         const std::vector<frontend::FrontendEvent> preserving{
@@ -986,15 +934,13 @@ namespace {
              frontend::Json{{"fuzzySearch", {{"sessionId", "search-second"}, {"complete", false}, {"stamp", stamp}}}}},
             {frontend::SequenceNumber(50),
              "notice.added",
-             frontend::Json{{"notice", {{"occurrence", std::uint64_t{2}}, {"category", "information"}, {"summary", "second"}, {"stamp", stamp}}}}},
+             frontend::Json{
+                 {"notice", {{"occurrence", std::uint64_t{2}}, {"category", "information"}, {"summary", "second"}, {"stamp", stamp}}}}},
             {frontend::SequenceNumber(51),
              "activity.updated",
-             frontend::Json{{"activity",
-                             {{"key", "activity-second"},
-                              {"kind", "tool"},
-                              {"lifecycle", "running"},
-                              {"active", true},
-                              {"stamp", stamp}}}}},
+             frontend::Json{
+                 {"activity",
+                  {{"key", "activity-second"}, {"kind", "tool"}, {"lifecycle", "running"}, {"active", true}, {"stamp", stamp}}}}},
             {frontend::SequenceNumber(52),
              "diagnostics.updated",
              frontend::Json{{"diagnostic", {{"received", std::uint64_t{2}}, {"detailsOmitted", true}}}}},
@@ -1002,19 +948,19 @@ namespace {
              "process.updated",
              frontend::Json{{"process", {{"processHandle", "process-second"}, {"lifecycle", "completed"}, {"stamp", stamp}}}}},
         };
-        (void) connection.receive(frontend::ServerMessage{
-            frontend::EventBatch{preserving.front().sequence, preserving.back().sequence, preserving}});
+        (void) connection.receive(
+            frontend::ServerMessage{frontend::EventBatch{preserving.front().sequence, preserving.back().sequence, preserving}});
         result.expectTrue(connection.isOpen() && sdk.state().processes().value && sdk.state().processes().value->entries.size() == 2 &&
                               sdk.state().process(client::ProcessHandle{"process-family"}) &&
                               sdk.state().process(client::ProcessHandle{"process-second"}) &&
                               sdk.state().process(client::ProcessHandle{"process-second"})->lifecycle == "completed" &&
-                              sdk.state().filesystemWatches().value &&
-                              sdk.state().filesystemWatches().value->entries.size() == 2 && sdk.state().fuzzySearches().value &&
-                              sdk.state().fuzzySearches().value->entries.size() == 2 && sdk.state().notices().value &&
-                              sdk.state().notices().value->entries.size() == 2 && sdk.state().activities().value &&
-                              sdk.state().activities().value->entries.size() == 2 && sdk.state().diagnostics().value &&
-                              sdk.state().diagnostics().value->entries.size() == 2,
-                          "singular process/watch/search/activity updates upsert while notices and diagnostics append without replacing unrelated records");
+                              sdk.state().filesystemWatches().value && sdk.state().filesystemWatches().value->entries.size() == 2 &&
+                              sdk.state().fuzzySearches().value && sdk.state().fuzzySearches().value->entries.size() == 2 &&
+                              sdk.state().notices().value && sdk.state().notices().value->entries.size() == 2 &&
+                              sdk.state().activities().value && sdk.state().activities().value->entries.size() == 2 &&
+                              sdk.state().diagnostics().value && sdk.state().diagnostics().value->entries.size() == 2,
+                          "singular process/watch/search/activity updates upsert while notices and diagnostics append without replacing "
+                          "unrelated records");
     }
 
     void testDiagnosticRetentionAndLegacyState(tests::support::TestResult& result) {
@@ -1034,11 +980,10 @@ namespace {
         };
         (void) boundedConnection.receive(
             frontend::ServerMessage{frontend::EventBatch{diagnostics.front().sequence, diagnostics.back().sequence, diagnostics}});
-        result.expectTrue(boundedConnection.isOpen() && bounded.state().diagnostics().value &&
-                              bounded.state().diagnostics().value->entries.size() == 1 &&
-                              bounded.state().diagnostics().value->entries.front().message == "second" &&
-                              bounded.state().diagnostics().truncated,
-                          "maximumRetainedDiagnostics keeps the newest typed diagnostics and records eviction");
+        result.expectTrue(
+            boundedConnection.isOpen() && bounded.state().diagnostics().value && bounded.state().diagnostics().value->entries.size() == 1 &&
+                bounded.state().diagnostics().value->entries.front().message == "second" && bounded.state().diagnostics().truncated,
+            "maximumRetainedDiagnostics keeps the newest typed diagnostics and records eviction");
 
         Harness zeroHarness;
         client::ClientOptions zeroOptions = options();
@@ -1046,11 +991,10 @@ namespace {
         client::Client zero(std::move(zeroOptions), zeroHarness.callbacks());
         client::Connection zeroConnection = zero.openConnection(zeroHarness.transport());
         connectAndSnapshot(zero, zeroConnection, frontend::SequenceNumber(1));
-        (void) zeroConnection.receive(frontend::ServerMessage{
-            frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(2), {diagnostics.front()}}});
+        (void) zeroConnection.receive(
+            frontend::ServerMessage{frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(2), {diagnostics.front()}}});
         result.expectTrue(zeroConnection.isOpen() && zero.state().diagnostics().value &&
-                              zero.state().diagnostics().value->entries.empty() &&
-                              zero.state().diagnostics().truncated,
+                              zero.state().diagnostics().value->entries.empty() && zero.state().diagnostics().truncated,
                           "zero maximumRetainedDiagnostics retains no diagnostics and never means unlimited");
 
         Harness legacyHarness;
@@ -1063,14 +1007,12 @@ namespace {
         (void) legacyConnection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(4)}});
         const client::ItemState* initialLegacyItem = legacy.state().item("item-1");
         result.expectTrue(
-            legacyConnection.isOpen() && legacy.isReady() &&
-                legacy.state().representationMode() == client::RepresentationMode::LegacyV1 && legacy.state().provider().value &&
-                legacy.state().provider().value->ready && legacy.state().controller().value &&
+            legacyConnection.isOpen() && legacy.isReady() && legacy.state().representationMode() == client::RepresentationMode::LegacyV1 &&
+                legacy.state().provider().value && legacy.state().provider().value->ready && legacy.state().controller().value &&
                 legacy.state().controller().value->ownedByThisClient && legacy.state().threadList().value &&
                 legacy.state().threadList().value->hasLoadedPage && !legacy.state().threadList().value->complete &&
-                legacy.state().threadList().value->pagesLoaded == 2 &&
-                legacy.state().threadList().value->nextCursor == "cursor-next" && initialLegacyItem &&
-                initialLegacyItem->status == "completed" && initialLegacyItem->commandOutput == "initial" &&
+                legacy.state().threadList().value->pagesLoaded == 2 && legacy.state().threadList().value->nextCursor == "cursor-next" &&
+                initialLegacyItem && initialLegacyItem->status == "completed" && initialLegacyItem->commandOutput == "initial" &&
                 initialLegacyItem->droppedContentBytes == 3 && initialLegacyItem->contentTruncated &&
                 initialLegacyItem->startedAtMs == 10 && initialLegacyItem->completedAtMs == 20 && initialLegacyItem->data &&
                 initialLegacyItem->data->value("exitCode", -1) == 0 &&
@@ -1095,10 +1037,8 @@ namespace {
             frontend::SequenceNumber(6),
             {{frontend::SequenceNumber(5),
               "thread.list.updated",
-              frontend::Json{{"hasLoadedPage", true},
-                             {"complete", true},
-                             {"pagesLoaded", std::uint64_t{3}},
-                             {"backwardsCursor", "cursor-back"}}},
+              frontend::Json{
+                  {"hasLoadedPage", true}, {"complete", true}, {"pagesLoaded", std::uint64_t{3}}, {"backwardsCursor", "cursor-back"}}},
              {frontend::SequenceNumber(6),
               "item.updated",
               frontend::Json{{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"item", std::move(updatedLegacyItem)}}}}};
@@ -1107,12 +1047,11 @@ namespace {
         result.expectTrue(
             legacyConnection.isOpen() && legacy.state().threadList().value && legacy.state().threadList().value->complete &&
                 legacy.state().threadList().value->pagesLoaded == 3 &&
-                legacy.state().threadList().value->backwardsCursor == "cursor-back" && updatedItem &&
-                updatedItem->status == "failed" && updatedItem->agentText == "updated-agent" &&
-                updatedItem->reasoningText == "updated-reasoning" && updatedItem->reasoningSummary == "updated-summary" &&
-                updatedItem->commandOutput == "updated-output" && updatedItem->droppedContentBytes == 9 &&
-                updatedItem->contentTruncated && updatedItem->startedAtMs == 30 && updatedItem->completedAtMs == 40 &&
-                updatedItem->data && updatedItem->data->value("exitCode", -1) == 1 &&
+                legacy.state().threadList().value->backwardsCursor == "cursor-back" && updatedItem && updatedItem->status == "failed" &&
+                updatedItem->agentText == "updated-agent" && updatedItem->reasoningText == "updated-reasoning" &&
+                updatedItem->reasoningSummary == "updated-summary" && updatedItem->commandOutput == "updated-output" &&
+                updatedItem->droppedContentBytes == 9 && updatedItem->contentTruncated && updatedItem->startedAtMs == 30 &&
+                updatedItem->completedAtMs == 40 && updatedItem->data && updatedItem->data->value("exitCode", -1) == 1 &&
                 updatedItem->extensions.value("safeExtension", "") == "updated",
             "canonical legacy thread-list and item updates preserve every stable item field instead of replacing it with a partial record");
     }
@@ -1178,49 +1117,46 @@ namespace {
         std::optional<client::Error> synchronizationError;
         std::size_t messagesInsideCompletion = 0;
         std::optional<client::Submission> callbackSubmission;
-        const client::Submission snapshot = sdk.synchronization().snapshot(
-            [&](const client::OperationResult<client::SynchronizationResult>& operation) {
+        const client::Submission snapshot =
+            sdk.synchronization().snapshot([&](const client::OperationResult<client::SynchronizationResult>& operation) {
                 ++synchronizationCompletions;
                 synchronizationError = operation.error;
                 messagesInsideCompletion = harness.messages.size();
-                callbackSubmission = sdk.submit(
-                    generated::CompleteCommandParameters{
-                        generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
-                    {});
+                callbackSubmission =
+                    sdk.submit(generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{
+                                   frontend::Json::object()}},
+                               {});
             });
-        result.expectTrue(snapshot && sdk.connectionState() == client::ConnectionState::Synchronizing &&
-                              harness.messages.size() == 1,
+        result.expectTrue(snapshot && sdk.connectionState() == client::ConnectionState::Synchronizing && harness.messages.size() == 1,
                           "an explicit snapshot enters Synchronizing as soon as its command is accepted");
 
         (void) connection.receive(frontend::ServerMessage{frontend::Response::failure(
             snapshot.requestId->value(),
-            frontend::CommandError{frontend::ErrorCode::Conflict,
-                                   "snapshot command rejected",
-                                   std::nullopt,
-                                   frontend::Json::object()})});
+            frontend::CommandError{frontend::ErrorCode::Conflict, "snapshot command rejected", std::nullopt, frontend::Json::object()})});
         const auto callbackCommand = frontend::Codec::decodeDefinedCommand(std::string_view(harness.messages.back().compactJson));
         result.expectTrue(synchronizationCompletions == 1 && synchronizationError &&
                               synchronizationError->origin == client::ErrorOrigin::Command && messagesInsideCompletion == 1 &&
                               callbackSubmission && *callbackSubmission && harness.messages.size() == 2 && callbackCommand &&
                               generated::commandMethod(callbackCommand.value().parameters) == generated::MethodId::ProviderStart &&
                               connection.isOpen() && sdk.isReady(),
-                          "a failed explicit synchronization command restores Ready before its callback, while callback submission remains deferred until dispatch completes");
+                          "a failed explicit synchronization command restores Ready before its callback, while callback submission remains "
+                          "deferred until dispatch completes");
 
         Harness orderingHarness;
         client::Client orderingSdk(options(), orderingHarness.callbacks());
         client::Connection orderingConnection = orderingSdk.openConnection(orderingHarness.transport());
         connectAndSnapshot(orderingSdk, orderingConnection, frontend::SequenceNumber(7));
         std::size_t orderingCompletions = 0;
-        const client::Submission awaitingResponse = orderingSdk.synchronization().snapshot(
-            [&](const client::OperationResult<client::SynchronizationResult>&) {
+        const client::Submission awaitingResponse =
+            orderingSdk.synchronization().snapshot([&](const client::OperationResult<client::SynchronizationResult>&) {
                 ++orderingCompletions;
             });
         (void) orderingConnection.receive(
             frontend::ServerMessage{frontend::Snapshot{frontend::SequenceNumber(8), expandedState("too-early")}});
-        result.expectTrue(awaitingResponse && orderingCompletions == 1 && !orderingConnection.isOpen() &&
-                              orderingHarness.closes == 1 &&
-                              orderingSdk.connectionState() == client::ConnectionState::Disconnected,
-                          "snapshot synchronization data received before its successful command response is a connection-local protocol failure");
+        result.expectTrue(
+            awaitingResponse && orderingCompletions == 1 && !orderingConnection.isOpen() && orderingHarness.closes == 1 &&
+                orderingSdk.connectionState() == client::ConnectionState::Disconnected,
+            "snapshot synchronization data received before its successful command response is a connection-local protocol failure");
 
         Harness rejectionHarness;
         bool rejectCommands = false;
@@ -1228,10 +1164,9 @@ namespace {
             [&](client::OutboundMessage message) {
                 const bool command = message.kind == client::OutboundKind::Command;
                 rejectionHarness.messages.push_back(std::move(message));
-                return command && rejectCommands
-                           ? client::SendResult{client::SendStatus::Backpressure,
-                                                client::TransportError{"explicit synchronization rejection", true}}
-                           : client::SendResult{client::SendStatus::Accepted, std::nullopt};
+                return command && rejectCommands ? client::SendResult{client::SendStatus::Backpressure,
+                                                                      client::TransportError{"explicit synchronization rejection", true}}
+                                                 : client::SendResult{client::SendStatus::Accepted, std::nullopt};
             },
             [&](std::string) {
                 ++rejectionHarness.closes;
@@ -1242,13 +1177,14 @@ namespace {
         connectAndSnapshot(rejectionSdk, rejectionConnection, frontend::SequenceNumber(7));
         rejectCommands = true;
         std::size_t rejectedCallbacks = 0;
-        const client::Submission rejected = rejectionSdk.synchronization().snapshot(
-            [&](const client::OperationResult<client::SynchronizationResult>&) {
+        const client::Submission rejected =
+            rejectionSdk.synchronization().snapshot([&](const client::OperationResult<client::SynchronizationResult>&) {
                 ++rejectedCallbacks;
             });
         result.expectTrue(!rejected && rejected.error && rejected.error->clientCode == client::ClientErrorCode::SendRejected &&
                               rejectedCallbacks == 0 && !rejectionConnection.isOpen() && rejectionHarness.closes == 1,
-                          "an explicit synchronization rejected before transport ownership returns a failed Submission without an empty-ID completion callback");
+                          "an explicit synchronization rejected before transport ownership returns a failed Submission without an empty-ID "
+                          "completion callback");
 
         Harness readyCloseHarness;
         client::Client* readyCloseClient = nullptr;
@@ -1265,24 +1201,23 @@ namespace {
         connectAndSnapshot(readyCloseSdk, readyCloseConnection, frontend::SequenceNumber(7));
         std::size_t readyCloseCompletions = 0;
         std::optional<client::OperationResult<client::SynchronizationResult>> readyCloseResult;
-        const client::Submission readyCloseSubmission = readyCloseSdk.synchronization().snapshot(
-            [&](const client::OperationResult<client::SynchronizationResult>& operation) {
+        const client::Submission readyCloseSubmission =
+            readyCloseSdk.synchronization().snapshot([&](const client::OperationResult<client::SynchronizationResult>& operation) {
                 ++readyCloseCompletions;
                 readyCloseResult = operation;
             });
-        (void) readyCloseConnection.receive(frontend::ServerMessage{frontend::Response::success(
-            readyCloseSubmission.requestId->value(), frontend::Json{{"sequence", std::uint64_t{8}}})});
+        (void) readyCloseConnection.receive(frontend::ServerMessage{
+            frontend::Response::success(readyCloseSubmission.requestId->value(), frontend::Json{{"sequence", std::uint64_t{8}}})});
         (void) readyCloseConnection.receive(
             frontend::ServerMessage{frontend::Snapshot{frontend::SequenceNumber(8), expandedState("ready-close")}});
         closeOnReady = true;
         (void) readyCloseConnection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(8)}});
-        result.expectTrue(readyCloseCompletions == 1 && readyCloseResult && readyCloseResult->requestId.value() ==
-                                                                         readyCloseSubmission.requestId->value() &&
-                              !readyCloseResult->value && readyCloseResult->error &&
-                              readyCloseResult->error->clientCode == client::ClientErrorCode::Closed &&
-                              readyCloseSdk.connectionState() == client::ConnectionState::Closed &&
-                              readyCloseHarness.closes == 1,
-                          "closing Client from the explicit synchronization Ready transition fails the still-unreported operation exactly once instead of reporting success after Closed");
+        result.expectTrue(readyCloseCompletions == 1 && readyCloseResult &&
+                              readyCloseResult->requestId.value() == readyCloseSubmission.requestId->value() && !readyCloseResult->value &&
+                              readyCloseResult->error && readyCloseResult->error->clientCode == client::ClientErrorCode::Closed &&
+                              readyCloseSdk.connectionState() == client::ConnectionState::Closed && readyCloseHarness.closes == 1,
+                          "closing Client from the explicit synchronization Ready transition fails the still-unreported operation exactly "
+                          "once instead of reporting success after Closed");
     }
 
     void testAdvancedGeneratedSynchronization(tests::support::TestResult& result) {
@@ -1294,8 +1229,7 @@ namespace {
         std::size_t snapshotCompletions = 0;
         std::optional<generated::MethodId> snapshotResultMethod;
         const client::Submission snapshot = sdk.submit(
-            generated::CompleteCommandParameters{
-                generated::MethodParameters<generated::MethodId::SnapshotGet>{frontend::Json::object()}},
+            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::SnapshotGet>{frontend::Json::object()}},
             [&](const client::GeneratedOperationResult& operation) {
                 ++snapshotCompletions;
                 if (operation.value) {
@@ -1316,15 +1250,15 @@ namespace {
 
         std::size_t replayCompletions = 0;
         std::optional<generated::MethodId> replayResultMethod;
-        const client::Submission replay = sdk.submit(
-            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::EventsReplay>{
-                frontend::Json{{"after", std::uint64_t{11}}}}},
-            [&](const client::GeneratedOperationResult& operation) {
-                ++replayCompletions;
-                if (operation.value) {
-                    replayResultMethod = generated::commandMethod(*operation.value);
-                }
-            });
+        const client::Submission replay =
+            sdk.submit(generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::EventsReplay>{
+                           frontend::Json{{"after", std::uint64_t{11}}}}},
+                       [&](const client::GeneratedOperationResult& operation) {
+                           ++replayCompletions;
+                           if (operation.value) {
+                               replayResultMethod = generated::commandMethod(*operation.value);
+                           }
+                       });
         (void) connection.receive(frontend::ServerMessage{frontend::Response::success(
             replay.requestId->value(), frontend::Json{{"syncMode", "replay"}, {"sequence", std::uint64_t{13}}})});
         result.expectTrue(replay && replayCompletions == 0 && sdk.pendingOperationCount() == 1 &&
@@ -1357,10 +1291,10 @@ namespace {
                 }
                 scheduled = true;
                 messagesInsideSchedule = harness.messages.size();
-                firstSubmission = sdkPointer->submit(
-                    generated::CompleteCommandParameters{
-                        generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
-                    {});
+                firstSubmission =
+                    sdkPointer->submit(generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{
+                                           frontend::Json::object()}},
+                                       {});
                 synchronizationSubmission = sdkPointer->synchronization().snapshot({});
             };
 
@@ -1412,10 +1346,10 @@ namespace {
                 readyNotifications = 0;
                 cursorNotifications = 0;
                 synchronizedNotifications = 0;
-                (void) connection.receive(frontend::ServerMessage{frontend::EventBatch{
-                    frontend::SequenceNumber(8),
-                    frontend::SequenceNumber(8),
-                    {content(frontend::SequenceNumber(8), "callback-synchronization")}}});
+                (void) connection.receive(
+                    frontend::ServerMessage{frontend::EventBatch{frontend::SequenceNumber(8),
+                                                                 frontend::SequenceNumber(8),
+                                                                 {content(frontend::SequenceNumber(8), "callback-synchronization")}}});
             }
 
             std::vector<generated::MethodId> sentMethods;
@@ -1426,19 +1360,17 @@ namespace {
                 }
             }
             const bool outerNotificationsPreserved =
-                source == Source::LiveState
-                    ? liveStateNotifications == 1 && completedStateNotifications == 0 && readyNotifications == 0 &&
-                          cursorNotifications == 1 && synchronizedNotifications == 0
-                    : liveStateNotifications == 0 && completedStateNotifications == 1 && readyNotifications == 1 &&
-                          cursorNotifications == 1 && synchronizedNotifications == 1;
-            result.expectTrue(
-                scheduled && firstSubmission && *firstSubmission && synchronizationSubmission && *synchronizationSubmission &&
-                    messagesInsideSchedule == expectedMessageBase && harness.messages.size() == expectedMessageBase + 2 &&
-                    sentMethods == std::vector{generated::MethodId::ProviderStart, generated::MethodId::SnapshotGet} &&
-                    outerNotificationsPreserved && sdk.connectionState() == client::ConnectionState::Synchronizing &&
-                    sdk.pendingOperationCount() == 2,
-                "deferred synchronization from " + std::string(label) +
-                    " preserves outer notifications, then sends preceding work and snapshot.get in FIFO order");
+                source == Source::LiveState ? liveStateNotifications == 1 && completedStateNotifications == 0 && readyNotifications == 0 &&
+                                                  cursorNotifications == 1 && synchronizedNotifications == 0
+                                            : liveStateNotifications == 0 && completedStateNotifications == 1 && readyNotifications == 1 &&
+                                                  cursorNotifications == 1 && synchronizedNotifications == 1;
+            result.expectTrue(scheduled && firstSubmission && *firstSubmission && synchronizationSubmission && *synchronizationSubmission &&
+                                  messagesInsideSchedule == expectedMessageBase && harness.messages.size() == expectedMessageBase + 2 &&
+                                  sentMethods == std::vector{generated::MethodId::ProviderStart, generated::MethodId::SnapshotGet} &&
+                                  outerNotificationsPreserved && sdk.connectionState() == client::ConnectionState::Synchronizing &&
+                                  sdk.pendingOperationCount() == 2,
+                              "deferred synchronization from " + std::string(label) +
+                                  " preserves outer notifications, then sends preceding work and snapshot.get in FIFO order");
         };
 
         run(Source::LiveState, "a live state callback");
@@ -1543,23 +1475,22 @@ namespace {
         noContinuityFirst.transportDisconnected();
         client::Connection noContinuitySecond = noContinuityClient.openConnection(noContinuityHarness.transport());
         noContinuitySecond.transportConnected();
-        const auto noContinuityHello =
-            frontend::Codec::decodeClient(std::string_view(noContinuityHarness.messages.back().compactJson));
+        const auto noContinuityHello = frontend::Codec::decodeClient(std::string_view(noContinuityHarness.messages.back().compactJson));
         const auto* hello = noContinuityHello ? std::get_if<frontend::Hello>(&noContinuityHello.value()) : nullptr;
-        (void) noContinuitySecond.receive(frontend::ServerMessage{
-            welcome(frontend::SequenceNumber(62), frontend::SyncMode::Replay, frontend::Json::object(), "62")});
-        result.expectTrue(hello && !hello->resumeAfter && noContinuitySecond.isOpen() &&
-                              noContinuityClient.connectionState() == client::ConnectionState::Synchronizing,
-                          "absent authentication continuity omits resumeAfter while retaining a valid snapshot-refresh synchronization path");
+        (void) noContinuitySecond.receive(
+            frontend::ServerMessage{welcome(frontend::SequenceNumber(62), frontend::SyncMode::Replay, frontend::Json::object(), "62")});
+        result.expectTrue(
+            hello && !hello->resumeAfter && noContinuitySecond.isOpen() &&
+                noContinuityClient.connectionState() == client::ConnectionState::Synchronizing,
+            "absent authentication continuity omits resumeAfter while retaining a valid snapshot-refresh synchronization path");
         const std::size_t beforeNoContinuityBoundary = noContinuityHarness.messages.size();
         (void) noContinuitySecond.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(62)}});
         const auto noContinuitySnapshot =
             frontend::Codec::decodeDefinedCommand(std::string_view(noContinuityHarness.messages.back().compactJson));
-        result.expectTrue(
-            !noContinuityClient.isReady() && noContinuityHarness.messages.size() == beforeNoContinuityBoundary + 1 &&
-                noContinuitySnapshot &&
-                generated::commandMethod(noContinuitySnapshot.value().parameters) == generated::MethodId::SnapshotGet,
-            "a server-selected replay cannot mix retained state when absent authentication continuity omitted resumeAfter");
+        result.expectTrue(!noContinuityClient.isReady() && noContinuityHarness.messages.size() == beforeNoContinuityBoundary + 1 &&
+                              noContinuitySnapshot &&
+                              generated::commandMethod(noContinuitySnapshot.value().parameters) == generated::MethodId::SnapshotGet,
+                          "a server-selected replay cannot mix retained state when absent authentication continuity omitted resumeAfter");
         const std::size_t beforeOutOfOrderProjectionData = noContinuityHarness.messages.size();
         (void) noContinuitySecond.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(62)}});
         result.expectTrue(!noContinuitySecond.isOpen() && noContinuityHarness.closes == 1 &&
@@ -1590,14 +1521,14 @@ namespace {
         frontend::Json malformedLegacy = legacyState();
         malformedLegacy["processes"] = "invalid";
         std::string malformedError;
-        const auto malformed = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                       frontend::Snapshot{frontend::SequenceNumber(1),
-                                                                                          std::move(malformedLegacy)},
-                                                                       legacySession,
-                                                                       unlimited,
-                                                                       64,
-                                                                       true,
-                                                                       malformedError);
+        const auto malformed =
+            client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                   frontend::Snapshot{frontend::SequenceNumber(1), std::move(malformedLegacy)},
+                                                   legacySession,
+                                                   unlimited,
+                                                   64,
+                                                   true,
+                                                   malformedError);
         result.expectTrue(!malformed && malformedError.find("processes") != std::string::npos,
                           "direct legacy reduction rejects a malformed optional collection with a typed error instead of throwing");
 
@@ -1608,45 +1539,39 @@ namespace {
         expandedSession.selectedRepresentationCapabilities = options().requestedCapabilities;
         std::string error;
         auto snapshot = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                frontend::Snapshot{frontend::SequenceNumber(1), expandedState()},
-                                                                expandedSession,
-                                                                unlimited,
-                                                                64,
-                                                                true,
-                                                                error);
+                                                               frontend::Snapshot{frontend::SequenceNumber(1), expandedState()},
+                                                               expandedSession,
+                                                               unlimited,
+                                                               64,
+                                                               true,
+                                                               error);
         std::vector<frontend::FrontendEvent> notices;
         notices.reserve(257);
         for (std::uint64_t sequence = 2; sequence <= 258; ++sequence) {
-            notices.push_back(frontend::FrontendEvent{
-                frontend::SequenceNumber(sequence),
-                "notice.added",
-                frontend::Json{{"notice",
-                                {{"occurrence", sequence},
-                                 {"category", "information"},
-                                 {"summary", "bounded notice"},
-                                 {"stamp", {{"generation", sequence}, {"freshness", "current"}}}}}}});
+            notices.push_back(frontend::FrontendEvent{frontend::SequenceNumber(sequence),
+                                                      "notice.added",
+                                                      frontend::Json{{"notice",
+                                                                      {{"occurrence", sequence},
+                                                                       {"category", "information"},
+                                                                       {"summary", "bounded notice"},
+                                                                       {"stamp", {{"generation", sequence}, {"freshness", "current"}}}}}}});
         }
-        auto boundedNotices = snapshot ? client::detail::StateReducer::events(
-                                             snapshot->state,
-                                             frontend::EventBatch{frontend::SequenceNumber(2),
-                                                                  frontend::SequenceNumber(258),
-                                                                  std::move(notices)},
-                                             false,
-                                             unlimited,
-                                             64,
-                                             true,
-                                             error)
-                                       : std::nullopt;
+        auto boundedNotices =
+            snapshot ? client::detail::StateReducer::events(
+                           snapshot->state,
+                           frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(258), std::move(notices)},
+                           false,
+                           unlimited,
+                           64,
+                           true,
+                           error)
+                     : std::nullopt;
         result.expectTrue(boundedNotices && boundedNotices->state.notices().value &&
                               boundedNotices->state.notices().value->entries.size() == 256 &&
-                              boundedNotices->state.notices().value->entries.front().occurrence ==
-                                  std::optional<std::uint64_t>{3} &&
-                              boundedNotices->state.notices().value->entries.back().occurrence ==
-                                  std::optional<std::uint64_t>{258} &&
-                              boundedNotices->state.notices().truncated &&
-                              boundedNotices->state.notices().value->truncation.truncated &&
-                              boundedNotices->state.notices().value->truncation.omittedEntries ==
-                                  std::optional<std::size_t>{1},
+                              boundedNotices->state.notices().value->entries.front().occurrence == std::optional<std::uint64_t>{3} &&
+                              boundedNotices->state.notices().value->entries.back().occurrence == std::optional<std::uint64_t>{258} &&
+                              boundedNotices->state.notices().truncated && boundedNotices->state.notices().value->truncation.truncated &&
+                              boundedNotices->state.notices().value->truncation.omittedEntries == std::optional<std::size_t>{1},
                           "more than 256 notice events preserve the newest ordered notices and account exactly for SDK eviction");
 
         frontend::Json saturatedState = expandedState();
@@ -1662,14 +1587,14 @@ namespace {
         saturatedState["notices"]["truncation"] =
             frontend::Json{{"truncated", true}, {"omittedEntries", std::numeric_limits<std::uint64_t>::max()}};
         error.clear();
-        auto saturatedSnapshot = client::detail::StateReducer::snapshot(
-            client::detail::StateReducer::initial(),
-            frontend::Snapshot{frontend::SequenceNumber(1), std::move(saturatedState)},
-            expandedSession,
-            unlimited,
-            64,
-            true,
-            error);
+        auto saturatedSnapshot =
+            client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                   frontend::Snapshot{frontend::SequenceNumber(1), std::move(saturatedState)},
+                                                   expandedSession,
+                                                   unlimited,
+                                                   64,
+                                                   true,
+                                                   error);
         const frontend::FrontendEvent oneMoreNotice{
             frontend::SequenceNumber(2),
             "notice.added",
@@ -1678,27 +1603,23 @@ namespace {
                              {"category", "information"},
                              {"summary", "saturating notice"},
                              {"stamp", {{"generation", std::uint64_t{257}}, {"freshness", "current"}}}}}}};
-        auto saturated = saturatedSnapshot ? client::detail::StateReducer::events(
-                                                 saturatedSnapshot->state,
-                                                 frontend::EventBatch{frontend::SequenceNumber(2),
-                                                                      frontend::SequenceNumber(2),
-                                                                      {oneMoreNotice}},
-                                                 false,
-                                                 unlimited,
-                                                 64,
-                                                 true,
-                                                 error)
-                                           : std::nullopt;
+        auto saturated = saturatedSnapshot
+                             ? client::detail::StateReducer::events(
+                                   saturatedSnapshot->state,
+                                   frontend::EventBatch{frontend::SequenceNumber(2), frontend::SequenceNumber(2), {oneMoreNotice}},
+                                   false,
+                                   unlimited,
+                                   64,
+                                   true,
+                                   error)
+                             : std::nullopt;
         result.expectTrue(saturated && saturated->state.notices().value &&
                               saturated->state.notices().value->truncation.omittedEntries ==
                                   std::optional<std::size_t>{std::numeric_limits<std::size_t>::max()},
                           "notice eviction accounting saturates without wrapping an existing omitted-entry counter");
 
-        auto synchronized = snapshot ? client::detail::StateReducer::synchronized(snapshot->state,
-                                                                                    frontend::SequenceNumber(1),
-                                                                                    expandedSession,
-                                                                                    unlimited,
-                                                                                    error)
+        auto synchronized = snapshot ? client::detail::StateReducer::synchronized(
+                                           snapshot->state, frontend::SequenceNumber(1), expandedSession, unlimited, error)
                                      : std::nullopt;
         auto stale = synchronized ? client::detail::StateReducer::stale(synchronized->state, unlimited, error) : std::nullopt;
         auto staleAgain = stale ? client::detail::StateReducer::stale(*stale, unlimited, error) : std::nullopt;
@@ -1724,8 +1645,7 @@ namespace {
             boundedStale = client::detail::StateReducer::stale(synchronized->state, lower, error);
         }
         std::string impossibleError;
-        auto impossibleStale = synchronized ? client::detail::StateReducer::stale(synchronized->state, 0, impossibleError)
-                                            : std::nullopt;
+        auto impossibleStale = synchronized ? client::detail::StateReducer::stale(synchronized->state, 0, impossibleError) : std::nullopt;
         result.expectTrue(stale && staleAgain && stale->revision() == staleAgain->revision() &&
                               client::detail::StateReducer::serializeForTesting(*stale) ==
                                   client::detail::StateReducer::serializeForTesting(*staleAgain),
@@ -1733,8 +1653,8 @@ namespace {
         result.expectTrue(retainedFixtureBytes > initialFixtureBytes && boundedStale && boundedStale->revision() == 0 &&
                               boundedStale->representationMode() == client::RepresentationMode::Unknown,
                           "a stale mutation that exceeds maximumDecodedStateBytes transactionally falls back to bounded empty State "
-                          "(initial fixture bytes=" + std::to_string(initialFixtureBytes) +
-                              ", retained fixture bytes=" + std::to_string(retainedFixtureBytes) +
+                          "(initial fixture bytes=" +
+                              std::to_string(initialFixtureBytes) + ", retained fixture bytes=" + std::to_string(retainedFixtureBytes) +
                               ", bounded revision=" + std::to_string(boundedStale ? boundedStale->revision() : 9999) + ")");
         result.expectTrue(!impossibleStale && impossibleError.find("maximumDecodedStateBytes") != std::string::npos,
                           "a stale mutation reports a contained capacity error when even empty State cannot fit");
@@ -1747,21 +1667,20 @@ namespace {
         legacySession.syncMode = frontend::SyncMode::Replay;
         legacySession.serverCurrentSequence = frontend::SequenceNumber(4);
         std::string error;
-        auto legacyStaging = client::detail::StateReducer::synchronizationStaging(
-            legacySession, frontend::SequenceNumber(1), unlimited, true, error);
+        auto legacyStaging =
+            client::detail::StateReducer::synchronizationStaging(legacySession, frontend::SequenceNumber(1), unlimited, true, error);
         const frontend::Json canonicalLegacy = legacyState();
         const frontend::FrontendEvent legacyEvent{frontend::SequenceNumber(2),
-                                                   "thread.updated",
-                                                   frontend::Json{{"thread", canonicalLegacy.at("threads").at(0)}},
-                                                   frontend::Json::object()};
+                                                  "thread.updated",
+                                                  frontend::Json{{"thread", canonicalLegacy.at("threads").at(0)}},
+                                                  frontend::Json::object()};
         const frontend::EventBatch legacyBatch{
             frontend::SequenceNumber(2), frontend::SequenceNumber(2), {legacyEvent}, frontend::Json::object()};
         std::optional<client::detail::StateReduction> validatedLegacy;
         if (legacyStaging)
-            validatedLegacy = client::detail::StateReducer::validateSynchronizationEvents(
-                *legacyStaging, legacyBatch, unlimited, true, error);
-        frontend::FrontendEvent referentialLegacyEvent =
-            content(frontend::SequenceNumber(3), "validated without retained state");
+            validatedLegacy =
+                client::detail::StateReducer::validateSynchronizationEvents(*legacyStaging, legacyBatch, unlimited, true, error);
+        frontend::FrontendEvent referentialLegacyEvent = content(frontend::SequenceNumber(3), "validated without retained state");
         referentialLegacyEvent.data["itemId"] = "item-only-in-discarded-projection";
         const frontend::EventBatch referentialLegacyBatch{
             frontend::SequenceNumber(3), frontend::SequenceNumber(3), {referentialLegacyEvent}, frontend::Json::object()};
@@ -1769,28 +1688,27 @@ namespace {
         if (validatedLegacy)
             validatedReference = client::detail::StateReducer::validateSynchronizationEvents(
                 validatedLegacy->state, referentialLegacyBatch, unlimited, true, error);
-        result.expectTrue(legacyStaging && legacyStaging->representationMode() == client::RepresentationMode::LegacyV1 &&
-                              validatedLegacy && validatedReference && validatedReference->state.visibleSequence() ==
-                                                                       frontend::SequenceNumber(3) &&
+        result.expectTrue(legacyStaging && legacyStaging->representationMode() == client::RepresentationMode::LegacyV1 && validatedLegacy &&
+                              validatedReference && validatedReference->state.visibleSequence() == frontend::SequenceNumber(3) &&
                               validatedReference->state.threads().empty() && validatedReference->changes.empty(),
                           "projection refresh validates legacy replay in a fresh representation cursor without mixing retained entities");
 
         client::SessionInfo expandedSession = legacySession;
         expandedSession.selectedRepresentationCapabilities = options().requestedCapabilities;
         error.clear();
-        auto expandedStaging = client::detail::StateReducer::synchronizationStaging(
-            expandedSession, frontend::SequenceNumber(1), unlimited, true, error);
+        auto expandedStaging =
+            client::detail::StateReducer::synchronizationStaging(expandedSession, frontend::SequenceNumber(1), unlimited, true, error);
         std::optional<client::detail::StateReduction> rejectedLegacy;
         if (expandedStaging)
-            rejectedLegacy = client::detail::StateReducer::validateSynchronizationEvents(
-                *expandedStaging, legacyBatch, unlimited, true, error);
+            rejectedLegacy =
+                client::detail::StateReducer::validateSynchronizationEvents(*expandedStaging, legacyBatch, unlimited, true, error);
         result.expectTrue(expandedStaging && expandedStaging->representationMode() == client::RepresentationMode::ExpandedV1 &&
                               !rejectedLegacy,
                           "all five selected representation capabilities require expanded replay during projection refresh");
 
         error.clear();
-        const auto disabledLegacy = client::detail::StateReducer::synchronizationStaging(
-            legacySession, frontend::SequenceNumber(1), unlimited, false, error);
+        const auto disabledLegacy =
+            client::detail::StateReducer::synchronizationStaging(legacySession, frontend::SequenceNumber(1), unlimited, false, error);
         result.expectTrue(!disabledLegacy && error.find("legacy Frontend Protocol v1") != std::string::npos,
                           "legacy projection-refresh staging obeys allowLegacyV1");
     }
@@ -1806,52 +1724,46 @@ namespace {
             frontend::FrontendCapability::CompleteBackendDomains,
         };
         std::string error;
-        auto expandedSnapshot = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                        frontend::Snapshot{
-                                                                            frontend::SequenceNumber(7),
-                                                                            expandedState(),
-                                                                            frontend::Json{
-                                                                                {"safeSnapshotExtension", true},
-                                                                                {"scopeProjection",
-                                                                                 frontend::Json{
-                                                                                     {"omittedFields",
-                                                                                      frontend::Json::array(
-                                                                                          {"/provider/initialization/codexHome",
-                                                                                           "/items/0/commandOutput"})},
-                                                                                     {"redactedFields",
-                                                                                      frontend::Json::array({"/provider/lastError/message"})}}}}},
-                                                                        expandedSnapshotSession,
-                                                                        unlimited,
-                                                                        64,
-                                                                        true,
-                                                                        error);
+        auto expandedSnapshot = client::detail::StateReducer::snapshot(
+            client::detail::StateReducer::initial(),
+            frontend::Snapshot{
+                frontend::SequenceNumber(7),
+                expandedState(),
+                frontend::Json{{"safeSnapshotExtension", true},
+                               {"scopeProjection",
+                                frontend::Json{{"omittedFields",
+                                                frontend::Json::array({"/provider/initialization/codexHome", "/items/0/commandOutput"})},
+                                               {"redactedFields", frontend::Json::array({"/provider/lastError/message"})}}}}},
+            expandedSnapshotSession,
+            unlimited,
+            64,
+            true,
+            error);
         const frontend::EventBatch legacyDiagnostics{
             frontend::SequenceNumber(8),
             frontend::SequenceNumber(9),
-            {frontend::FrontendEvent{frontend::SequenceNumber(8),
-                                     "diagnostics.updated",
-                                     frontend::Json{{"received", std::uint64_t{1}},
-                                                    {"recent", frontend::Json::array({"legacy diagnostic"})}}},
+            {frontend::FrontendEvent{
+                 frontend::SequenceNumber(8),
+                 "diagnostics.updated",
+                 frontend::Json{{"received", std::uint64_t{1}}, {"recent", frontend::Json::array({"legacy diagnostic"})}}},
              content(frontend::SequenceNumber(9), "legacy accumulated content")}};
         std::optional<client::detail::StateReduction> legacyEvents;
         if (expandedSnapshot) {
-            legacyEvents = client::detail::StateReducer::events(
-                expandedSnapshot->state, legacyDiagnostics, true, unlimited, 64, true, error);
+            legacyEvents =
+                client::detail::StateReducer::events(expandedSnapshot->state, legacyDiagnostics, true, unlimited, 64, true, error);
         }
-        result.expectTrue(expandedSnapshot && expandedSnapshot->state.representationMode() == client::RepresentationMode::ExpandedV1 &&
-                              expandedSnapshot->state.projectionMetadata().omittedFields ==
-                                  std::vector<std::string>{"/items/0/commandOutput", "/provider/initialization/codexHome"} &&
-                              expandedSnapshot->state.projectionMetadata().redactedFields ==
-                                  std::vector<std::string>{"/provider/lastError/message"} &&
-                              expandedSnapshot->state.provider().omittedFields ==
-                                  std::vector<std::string>{"/provider/initialization/codexHome"} &&
-                              !expandedSnapshot->state.compatibilityExtensions().contains("scopeProjection") &&
-                              expandedSnapshot->state.compatibilityExtensions().value("safeSnapshotExtension", false) &&
-                              legacyEvents && legacyEvents->state.diagnostics().value &&
-                              legacyEvents->state.diagnostics().value->entries.size() == 1 &&
-                              legacyEvents->state.item("item-1") &&
-                              legacyEvents->state.item("item-1")->commandOutput == "legacy accumulated content",
-                          "complete_backend_domains independently selects an expanded snapshot while unselected diagnostic and item families remain valid legacy events");
+        result.expectTrue(
+            expandedSnapshot && expandedSnapshot->state.representationMode() == client::RepresentationMode::ExpandedV1 &&
+                expandedSnapshot->state.projectionMetadata().omittedFields ==
+                    std::vector<std::string>{"/items/0/commandOutput", "/provider/initialization/codexHome"} &&
+                expandedSnapshot->state.projectionMetadata().redactedFields == std::vector<std::string>{"/provider/lastError/message"} &&
+                expandedSnapshot->state.provider().omittedFields == std::vector<std::string>{"/provider/initialization/codexHome"} &&
+                !expandedSnapshot->state.compatibilityExtensions().contains("scopeProjection") &&
+                expandedSnapshot->state.compatibilityExtensions().value("safeSnapshotExtension", false) && legacyEvents &&
+                legacyEvents->state.diagnostics().value && legacyEvents->state.diagnostics().value->entries.size() == 1 &&
+                legacyEvents->state.item("item-1") && legacyEvents->state.item("item-1")->commandOutput == "legacy accumulated content",
+            "complete_backend_domains independently selects an expanded snapshot while unselected diagnostic and item families remain "
+            "valid legacy events");
 
         client::SessionInfo legacySnapshotSession = expandedSnapshotSession;
         legacySnapshotSession.selectedRepresentationCapabilities = {
@@ -1860,150 +1772,130 @@ namespace {
         };
         frontend::Json mixedLegacySnapshot = legacyState();
         mixedLegacySnapshot["items"] = frontend::Json::array({frontend::Json{{"id", "item-1"},
-                                                                              {"threadId", "thread-1"},
-                                                                              {"turnId", "turn-1"},
-                                                                              {"type", "commandExecution"},
-                                                                              {"commandOutput", "complete top-level item"}}});
+                                                                             {"threadId", "thread-1"},
+                                                                             {"turnId", "turn-1"},
+                                                                             {"type", "commandExecution"},
+                                                                             {"commandOutput", "complete top-level item"}}});
         error.clear();
-        auto legacySnapshot = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                      frontend::Snapshot{frontend::SequenceNumber(7),
-                                                                                         std::move(mixedLegacySnapshot)},
-                                                                      legacySnapshotSession,
-                                                                      unlimited,
-                                                                      64,
-                                                                      true,
-                                                                      error);
+        auto legacySnapshot =
+            client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                   frontend::Snapshot{frontend::SequenceNumber(7), std::move(mixedLegacySnapshot)},
+                                                   legacySnapshotSession,
+                                                   unlimited,
+                                                   64,
+                                                   true,
+                                                   error);
         const frontend::EventBatch expandedProvider{
             frontend::SequenceNumber(8),
             frontend::SequenceNumber(8),
-            {frontend::FrontendEvent{frontend::SequenceNumber(8),
-                                     "provider.updated",
-                                     frontend::Json{{"provider", expandedState().at("provider")}},
-                                     frontend::Json{{"scopeProjection",
-                                                     frontend::Json{
-                                                         {"omittedFields",
-                                                          frontend::Json::array({"/provider/initialization/codexHome",
-                                                                                 "/event/process.updated"})},
-                                                         {"redactedFields",
-                                                          frontend::Json::array({"/provider/lastError/message"})}}}}}}};
+            {frontend::FrontendEvent{
+                frontend::SequenceNumber(8),
+                "provider.updated",
+                frontend::Json{{"provider", expandedState().at("provider")}},
+                frontend::Json{{"scopeProjection",
+                                frontend::Json{{"omittedFields",
+                                                frontend::Json::array({"/provider/initialization/codexHome", "/event/process.updated"})},
+                                               {"redactedFields", frontend::Json::array({"/provider/lastError/message"})}}}}}}};
         std::optional<client::detail::StateReduction> expandedEvents;
         if (legacySnapshot)
-            expandedEvents = client::detail::StateReducer::events(
-                legacySnapshot->state, expandedProvider, true, unlimited, 64, true, error);
-        result.expectTrue(legacySnapshot && legacySnapshot->state.representationMode() == client::RepresentationMode::LegacyV1 &&
-                              legacySnapshot->state.item("item-1") &&
-                              legacySnapshot->state.item("item-1")->commandOutput == "complete top-level item" && expandedEvents &&
-                              expandedEvents->state.provider().value && expandedEvents->state.provider().value->ready &&
-                              expandedEvents->state.provider().omittedFields ==
-                                  std::vector<std::string>{"/provider/initialization/codexHome"} &&
-                              expandedEvents->state.projectionMetadata().omittedFields ==
-                                  std::vector<std::string>{"/event/process.updated", "/provider/initialization/codexHome"} &&
-                              expandedEvents->state.projectionMetadata().redactedFields ==
-                                  std::vector<std::string>{"/provider/lastError/message"} &&
-                              legacySnapshot->state.backendCursor().backendRevision == std::uint64_t{7} &&
-                              legacySnapshot->state.backendCursor().currentSequence == frontend::SequenceNumber(7) &&
-                              !legacySnapshot->state.compatibilityExtensions().contains("backendRevision") &&
-                              !legacySnapshot->state.compatibilityExtensions().contains("journal"),
-                          "legacy snapshots accept independently selected complete items and expanded notification events while retaining exact typed scope-projection metadata");
+            expandedEvents =
+                client::detail::StateReducer::events(legacySnapshot->state, expandedProvider, true, unlimited, 64, true, error);
+        result.expectTrue(
+            legacySnapshot && legacySnapshot->state.representationMode() == client::RepresentationMode::LegacyV1 &&
+                legacySnapshot->state.item("item-1") && legacySnapshot->state.item("item-1")->commandOutput == "complete top-level item" &&
+                expandedEvents && expandedEvents->state.provider().value && expandedEvents->state.provider().value->ready &&
+                expandedEvents->state.provider().omittedFields == std::vector<std::string>{"/provider/initialization/codexHome"} &&
+                expandedEvents->state.projectionMetadata().omittedFields ==
+                    std::vector<std::string>{"/event/process.updated", "/provider/initialization/codexHome"} &&
+                expandedEvents->state.projectionMetadata().redactedFields == std::vector<std::string>{"/provider/lastError/message"} &&
+                legacySnapshot->state.backendCursor().backendRevision == std::uint64_t{7} &&
+                legacySnapshot->state.backendCursor().currentSequence == frontend::SequenceNumber(7) &&
+                !legacySnapshot->state.compatibilityExtensions().contains("backendRevision") &&
+                !legacySnapshot->state.compatibilityExtensions().contains("journal"),
+            "legacy snapshots accept independently selected complete items and expanded notification events while retaining exact typed "
+            "scope-projection metadata");
 
         client::SessionInfo completeSession = expandedSnapshotSession;
         completeSession.selectedRepresentationCapabilities = options().requestedCapabilities;
         frontend::Json completeState = expandedState();
         completeState["frontendSequenceExhausted"] = true;
         error.clear();
-        auto completeSnapshot = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                        frontend::Snapshot{frontend::SequenceNumber(20),
-                                                                                           std::move(completeState)},
-                                                                        completeSession,
-                                                                        unlimited,
-                                                                        64,
-                                                                        false,
-                                                                        error);
+        auto completeSnapshot =
+            client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
+                                                   frontend::Snapshot{frontend::SequenceNumber(20), std::move(completeState)},
+                                                   completeSession,
+                                                   unlimited,
+                                                   64,
+                                                   false,
+                                                   error);
         const frontend::FrontendEvent extension{frontend::SequenceNumber(21),
-                                                 "codex.extension",
-                                                 frontend::Json{{"method", "vendor/future"},
-                                                                {"params", frontend::Json{{"safe", true}}}}};
+                                                "codex.extension",
+                                                frontend::Json{{"method", "vendor/future"}, {"params", frontend::Json{{"safe", true}}}}};
         std::optional<client::detail::StateReduction> extensionApplied;
         if (completeSnapshot) {
-            extensionApplied = client::detail::StateReducer::events(
-                completeSnapshot->state,
-                frontend::EventBatch{extension.sequence, extension.sequence, {extension}},
-                true,
-                unlimited,
-                64,
-                false,
-                error);
+            extensionApplied =
+                client::detail::StateReducer::events(completeSnapshot->state,
+                                                     frontend::EventBatch{extension.sequence, extension.sequence, {extension}},
+                                                     true,
+                                                     unlimited,
+                                                     64,
+                                                     false,
+                                                     error);
         }
-        result.expectTrue(extensionApplied && extensionApplied->state.backendCursor().frontendSequenceExhausted == true &&
-                              !extensionApplied->state.compatibilityExtensions().contains("frontendSequenceExhausted") &&
-                              extensionApplied->state.compatibilityExtensions().contains("codexExtensions") &&
-                              extensionApplied->state.compatibilityExtensions().at("codexExtensions").size() == 1,
-                          "allowLegacyV1=false still accepts the bounded codex.extension compatibility mechanism under all five capabilities");
+        result.expectTrue(
+            extensionApplied && extensionApplied->state.backendCursor().frontendSequenceExhausted == true &&
+                !extensionApplied->state.compatibilityExtensions().contains("frontendSequenceExhausted") &&
+                extensionApplied->state.compatibilityExtensions().contains("codexExtensions") &&
+                extensionApplied->state.compatibilityExtensions().at("codexExtensions").size() == 1,
+            "allowLegacyV1=false still accepts the bounded codex.extension compatibility mechanism under all five capabilities");
 
-        const frontend::FrontendEvent first{frontend::SequenceNumber(22),
-                                             "provider.updated",
-                                             frontend::Json{{"provider", expandedState().at("provider")}}};
-        const frontend::FrontendEvent split{frontend::SequenceNumber(22),
-                                             "controller.updated",
-                                             frontend::Json{{"controller", frontend::Json{{"present", false}}}}};
+        const frontend::FrontendEvent first{
+            frontend::SequenceNumber(22), "provider.updated", frontend::Json{{"provider", expandedState().at("provider")}}};
+        const frontend::FrontendEvent split{
+            frontend::SequenceNumber(22), "controller.updated", frontend::Json{{"controller", frontend::Json{{"present", false}}}}};
         error.clear();
-        auto firstBatch = completeSnapshot ? client::detail::StateReducer::events(
-                                                completeSnapshot->state,
-                                                frontend::EventBatch{first.sequence, first.sequence, {first}},
-                                                true,
-                                                unlimited,
-                                                64,
-                                                false,
-                                                error)
-                                          : std::nullopt;
+        auto firstBatch = completeSnapshot
+                              ? client::detail::StateReducer::events(completeSnapshot->state,
+                                                                     frontend::EventBatch{first.sequence, first.sequence, {first}},
+                                                                     true,
+                                                                     unlimited,
+                                                                     64,
+                                                                     false,
+                                                                     error)
+                              : std::nullopt;
         auto beforeSplit = firstBatch ? firstBatch->state : client::State{};
-        auto rejectedSplit = firstBatch ? client::detail::StateReducer::events(
-                                             firstBatch->state,
-                                             frontend::EventBatch{split.sequence, split.sequence, {split}},
-                                             true,
-                                             unlimited,
-                                             64,
-                                             false,
-                                             error)
-                                       : std::nullopt;
-        result.expectTrue(firstBatch && !rejectedSplit &&
-                              client::detail::StateReducer::serializeForTesting(firstBatch->state) ==
-                                  client::detail::StateReducer::serializeForTesting(beforeSplit) &&
-                              error.find("split") != std::string::npos,
-                          "expanded members sharing an occurrence sequence must remain in one EventBatch and a split second batch rolls back");
+        auto rejectedSplit =
+            firstBatch
+                ? client::detail::StateReducer::events(
+                      firstBatch->state, frontend::EventBatch{split.sequence, split.sequence, {split}}, true, unlimited, 64, false, error)
+                : std::nullopt;
+        result.expectTrue(
+            firstBatch && !rejectedSplit &&
+                client::detail::StateReducer::serializeForTesting(firstBatch->state) ==
+                    client::detail::StateReducer::serializeForTesting(beforeSplit) &&
+                error.find("split") != std::string::npos,
+            "expanded members sharing an occurrence sequence must remain in one EventBatch and a split second batch rolls back");
 
         error.clear();
-        auto represented = completeSnapshot ? client::detail::StateReducer::synchronized(completeSnapshot->state,
-                                                                                          frontend::SequenceNumber(23),
-                                                                                          completeSession,
-                                                                                          unlimited,
-                                                                                          error)
+        auto represented = completeSnapshot ? client::detail::StateReducer::synchronized(
+                                                  completeSnapshot->state, frontend::SequenceNumber(23), completeSession, unlimited, error)
                                             : std::nullopt;
         client::SessionInfo reconnectSession = completeSession;
         reconnectSession.sessionId = "2";
         reconnectSession.syncMode = frontend::SyncMode::Replay;
-        auto reconnect = represented ? client::detail::StateReducer::beginSynchronization(
-                                           represented->state, reconnectSession, unlimited, error)
-                                     : std::nullopt;
-        auto ignoredFirst = reconnect ? client::detail::StateReducer::events(
-                                            *reconnect,
-                                            frontend::EventBatch{first.sequence, first.sequence, {first}},
-                                            true,
-                                            unlimited,
-                                            64,
-                                            false,
-                                            error)
-                                      : std::nullopt;
+        auto reconnect = represented
+                             ? client::detail::StateReducer::beginSynchronization(represented->state, reconnectSession, unlimited, error)
+                             : std::nullopt;
+        auto ignoredFirst =
+            reconnect ? client::detail::StateReducer::events(
+                            *reconnect, frontend::EventBatch{first.sequence, first.sequence, {first}}, true, unlimited, 64, false, error)
+                      : std::nullopt;
         const client::State ignoredState = ignoredFirst ? ignoredFirst->state : client::State{};
-        auto rejectedIgnoredSplit = ignoredFirst ? client::detail::StateReducer::events(
-                                                       ignoredFirst->state,
-                                                       frontend::EventBatch{split.sequence, split.sequence, {split}},
-                                                       true,
-                                                       unlimited,
-                                                       64,
-                                                       false,
-                                                       error)
-                                                 : std::nullopt;
+        auto rejectedIgnoredSplit =
+            ignoredFirst
+                ? client::detail::StateReducer::events(
+                      ignoredFirst->state, frontend::EventBatch{split.sequence, split.sequence, {split}}, true, unlimited, 64, false, error)
+                : std::nullopt;
         result.expectTrue(ignoredFirst && ignoredFirst->ignoredAlreadyAppliedEvents == 1 && !rejectedIgnoredSplit &&
                               client::detail::StateReducer::serializeForTesting(ignoredFirst->state) ==
                                   client::detail::StateReducer::serializeForTesting(ignoredState) &&
@@ -2028,79 +1920,62 @@ namespace {
                                           {"stamp", {{"generation", std::uint64_t{2}}, {"freshness", "current"}}}};
 
         frontend::Json baseline = expandedState();
-        baseline["processes"] = frontend::Json{{"entries", frontend::Json::array({retainedProcess})},
-                                                {"truncation", {{"truncated", false}}}};
+        baseline["processes"] =
+            frontend::Json{{"entries", frontend::Json::array({retainedProcess})}, {"truncation", {{"truncated", false}}}};
         frontend::Json replacement = baseline;
         replacement.at("processes").at("entries").push_back(addedProcess);
 
         std::string error;
         auto snapshot = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                frontend::Snapshot{frontend::SequenceNumber(2), replacement},
-                                                                session,
-                                                                unlimited,
-                                                                64,
-                                                                true,
-                                                                error);
-        auto snapshotComplete = snapshot ? client::detail::StateReducer::synchronized(
-                                               snapshot->state,
-                                               frontend::SequenceNumber(2),
-                                               session,
-                                               unlimited,
-                                               error)
-                                         : std::nullopt;
+                                                               frontend::Snapshot{frontend::SequenceNumber(2), replacement},
+                                                               session,
+                                                               unlimited,
+                                                               64,
+                                                               true,
+                                                               error);
+        auto snapshotComplete =
+            snapshot ? client::detail::StateReducer::synchronized(snapshot->state, frontend::SequenceNumber(2), session, unlimited, error)
+                     : std::nullopt;
 
         auto eventBaseline = client::detail::StateReducer::snapshot(client::detail::StateReducer::initial(),
-                                                                     frontend::Snapshot{frontend::SequenceNumber(1), baseline},
-                                                                     session,
-                                                                     unlimited,
-                                                                     64,
-                                                                     true,
-                                                                     error);
-        auto eventBaselineComplete = eventBaseline ? client::detail::StateReducer::synchronized(
-                                                         eventBaseline->state,
-                                                         frontend::SequenceNumber(1),
-                                                         session,
-                                                         unlimited,
-                                                         error)
-                                                   : std::nullopt;
-        const frontend::FrontendEvent processEvent{frontend::SequenceNumber(2),
-                                                    "process.updated",
-                                                    frontend::Json{{"process", addedProcess}}};
+                                                                    frontend::Snapshot{frontend::SequenceNumber(1), baseline},
+                                                                    session,
+                                                                    unlimited,
+                                                                    64,
+                                                                    true,
+                                                                    error);
+        auto eventBaselineComplete =
+            eventBaseline
+                ? client::detail::StateReducer::synchronized(eventBaseline->state, frontend::SequenceNumber(1), session, unlimited, error)
+                : std::nullopt;
+        const frontend::FrontendEvent processEvent{
+            frontend::SequenceNumber(2), "process.updated", frontend::Json{{"process", addedProcess}}};
         const frontend::EventBatch processBatch{
             processEvent.sequence, processEvent.sequence, std::vector<frontend::FrontendEvent>{processEvent}};
-        auto eventApplied = eventBaselineComplete
-                                ? client::detail::StateReducer::events(
-                                      eventBaselineComplete->state,
-                                      processBatch,
-                                      false,
-                                      unlimited,
-                                      64,
-                                      true,
-                                      error)
-                                : std::nullopt;
+        auto eventApplied =
+            eventBaselineComplete
+                ? client::detail::StateReducer::events(eventBaselineComplete->state, processBatch, false, unlimited, 64, true, error)
+                : std::nullopt;
 
-        frontend::Json snapshotState = snapshotComplete
-                                           ? client::detail::StateReducer::serializeForTesting(snapshotComplete->state)
-                                           : frontend::Json();
-        frontend::Json eventState = eventApplied ? client::detail::StateReducer::serializeForTesting(eventApplied->state)
-                                                  : frontend::Json();
+        frontend::Json snapshotState =
+            snapshotComplete ? client::detail::StateReducer::serializeForTesting(snapshotComplete->state) : frontend::Json();
+        frontend::Json eventState =
+            eventApplied ? client::detail::StateReducer::serializeForTesting(eventApplied->state) : frontend::Json();
         // Local revision counts committed transactions, so the snapshot and
         // event paths intentionally differ only in that connection-local value.
         snapshotState.erase("revision");
         eventState.erase("revision");
 
         result.expectTrue(snapshotComplete && eventApplied && snapshotState == eventState &&
-                              snapshotComplete->state.process("process-retained") &&
-                              snapshotComplete->state.process("process-added") &&
+                              snapshotComplete->state.process("process-retained") && snapshotComplete->state.process("process-added") &&
                               eventApplied->state.process("process-retained") && eventApplied->state.process("process-added") &&
                               client::detail::StateReducer::serializeChangesForTesting(eventApplied->changes) ==
-                                  frontend::Json::array({frontend::Json{{"type", "process.updated"},
-                                                                        {"processHandle", "process-added"}}}),
-                          "an expanded snapshot and the equivalent singular expanded event converge on the same normalized State while preserving unrelated collection entries");
+                                  frontend::Json::array({frontend::Json{{"type", "process.updated"}, {"processHandle", "process-added"}}}),
+                          "an expanded snapshot and the equivalent singular expanded event converge on the same normalized State while "
+                          "preserving unrelated collection entries");
     }
 
-    std::optional<client::ProjectionFingerprintInput> decodeProjectionFingerprintFixtureInput(
-        const frontend::Json& encoded) {
+    std::optional<client::ProjectionFingerprintInput> decodeProjectionFingerprintFixtureInput(const frontend::Json& encoded) {
         if (!encoded.is_object())
             return std::nullopt;
         client::ProjectionFingerprintInput result;
@@ -2117,8 +1992,7 @@ namespace {
                 return Optional{};
             return Optional{static_cast<Enum>(numeric)};
         };
-        const auto readCapabilities = [&](std::string_view name,
-                                          std::vector<frontend::FrontendCapability>& destination) {
+        const auto readCapabilities = [&](std::string_view name, std::vector<frontend::FrontendCapability>& destination) {
             const auto found = encoded.find(std::string(name));
             if (found == encoded.end() || !found->is_array())
                 return false;
@@ -2178,8 +2052,7 @@ namespace {
         }
 
         const auto metadata = encoded.find("explicitProjectionMetadata");
-        if (metadata == encoded.end() || !metadata->is_object() || !metadata->contains("present") ||
-            !metadata->at("present").is_boolean())
+        if (metadata == encoded.end() || !metadata->is_object() || !metadata->contains("present") || !metadata->at("present").is_boolean())
             return std::nullopt;
         if (metadata->at("present").get<bool>()) {
             const auto value = metadata->find("value");
@@ -2200,11 +2073,9 @@ namespace {
         if (allPassed) {
             for (const frontend::Json& testCase : *cases) {
                 const std::string name = testCase.value("name", "unnamed");
-                const auto decoded = testCase.contains("input")
-                                         ? decodeProjectionFingerprintFixtureInput(testCase.at("input"))
-                                         : std::nullopt;
-                bool casePassed = decoded && testCase.contains("expectedCanonical") &&
-                                  testCase.at("expectedCanonical").is_string();
+                const auto decoded =
+                    testCase.contains("input") ? decodeProjectionFingerprintFixtureInput(testCase.at("input")) : std::nullopt;
+                bool casePassed = decoded && testCase.contains("expectedCanonical") && testCase.at("expectedCanonical").is_string();
                 std::string actual;
                 if (decoded) {
                     try {
@@ -2243,14 +2114,13 @@ namespace {
                 const auto other = std::find_if(actualByName.begin(), actualByName.end(), [&](const auto& value) {
                     return differentFrom->is_string() && value.first == differentFrom->get<std::string>();
                 });
-                allPassed = allPassed && current != actualByName.end() && other != actualByName.end() &&
-                            current->second != other->second;
+                allPassed = allPassed && current != actualByName.end() && other != actualByName.end() && current->second != other->second;
             }
         }
 
-        result.expectTrue(
-            allPassed,
-            "language-independent projection fingerprint fixtures fix exact canonical serialization, set-order invariance, absent-versus-present inputs, invalid-enum safety, and exclusion of observed non-projection facts");
+        result.expectTrue(allPassed,
+                          "language-independent projection fingerprint fixtures fix exact canonical serialization, set-order invariance, "
+                          "absent-versus-present inputs, invalid-enum safety, and exclusion of observed non-projection facts");
     }
 
     void testReducerFixtures(tests::support::TestResult& result) {
@@ -2259,8 +2129,8 @@ namespace {
         input >> fixture;
         bool allPassed = fixture.value("format", "") == "snodec.codex-frontend.client-reducer.v3" &&
                          fixture.value("fixtureVersion", 0) == 3 && fixture.contains("inputContract") &&
-                         fixture.at("inputContract").is_object() && fixture.contains("cases") &&
-                         fixture.at("cases").is_array() && fixture.at("cases").size() >= 53;
+                         fixture.at("inputContract").is_object() && fixture.contains("cases") && fixture.at("cases").is_array() &&
+                         fixture.at("cases").size() >= 53;
         for (const frontend::Json& testCase : fixture.at("cases")) {
             const std::string name = testCase.value("name", "unnamed");
             bool casePassed = testCase.value("fixtureVersion", 0) == 3 && testCase.contains("initialNormalizedState") &&
@@ -2277,17 +2147,14 @@ namespace {
                 });
             }
             client::State state = client::detail::StateReducer::initial();
-            casePassed = casePassed && client::detail::StateReducer::serializeForTesting(state) ==
-                                           testCase.at("initialNormalizedState");
+            casePassed = casePassed && client::detail::StateReducer::serializeForTesting(state) == testCase.at("initialNormalizedState");
             client::SessionInfo session;
             session.sessionId = "1";
             session.syncMode = frontend::SyncMode::Snapshot;
             session.serverCurrentSequence = frontend::SequenceNumber(0);
             session.requestedRepresentationCapabilities = options().requestedCapabilities;
             const bool expandedFixture = std::any_of(
-                testCase.at("orderedProtocolInputs").begin(),
-                testCase.at("orderedProtocolInputs").end(),
-                [](const frontend::Json& input) {
+                testCase.at("orderedProtocolInputs").begin(), testCase.at("orderedProtocolInputs").end(), [](const frontend::Json& input) {
                     const auto state = input.find("state");
                     return input.value("kind", "") == "snapshot" && state != input.end() && state->is_object() &&
                            state->contains("provider") && !state->contains("backendRevision");
@@ -2372,8 +2239,8 @@ namespace {
                         session.permittedMethods = candidateProjection->permittedMethods;
                         session.availableMethods = candidateProjection->availableMethods;
                     }
-                    projectionRefreshRequired = *mode == frontend::SyncMode::Replay &&
-                                                projectionContinuityCompatible == std::optional(false);
+                    projectionRefreshRequired =
+                        *mode == frontend::SyncMode::Replay && projectionContinuityCompatible == std::optional(false);
                     projectionSnapshotStreaming = false;
                     projectionReplayValidated = false;
                     serverSelectedSnapshotFallback = *mode == frontend::SyncMode::Snapshot && state.synchronizedThrough().has_value();
@@ -2424,16 +2291,15 @@ namespace {
                     const frontend::SequenceNumber sequence(protocolInput.at("sequence").get<std::uint64_t>());
                     if (protocolInput.value("initial", false))
                         session.serverCurrentSequence = sequence;
-                    auto reduction = client::detail::StateReducer::snapshot(state,
-                                                                             frontend::Snapshot{
-                                                                                 sequence,
-                                                                                 protocolInput.at("state"),
-                                                                                 protocolInput.value("extensions", frontend::Json::object())},
-                                                                             session,
-                                                                             maximumBytes,
-                                                                             maximumDiagnostics,
-                                                                             allowLegacy,
-                                                                             error);
+                    auto reduction = client::detail::StateReducer::snapshot(
+                        state,
+                        frontend::Snapshot{
+                            sequence, protocolInput.at("state"), protocolInput.value("extensions", frontend::Json::object())},
+                        session,
+                        maximumBytes,
+                        maximumDiagnostics,
+                        allowLegacy,
+                        error);
                     if (!reduction) {
                         connectionOpen = false;
                         actualError = error;
@@ -2455,10 +2321,9 @@ namespace {
                                           encoded.at("data"),
                                           encoded.value("extensions", frontend::Json::object())});
                     }
-                    frontend::EventBatch batch{
-                        frontend::SequenceNumber(protocolInput.at("fromSequence").get<std::uint64_t>()),
-                        frontend::SequenceNumber(protocolInput.at("toSequence").get<std::uint64_t>()),
-                        std::move(events)};
+                    frontend::EventBatch batch{frontend::SequenceNumber(protocolInput.at("fromSequence").get<std::uint64_t>()),
+                                               frontend::SequenceNumber(protocolInput.at("toSequence").get<std::uint64_t>()),
+                                               std::move(events)};
                     std::optional<client::detail::StateReduction> reduction;
                     if (projectionRefreshRequired) {
                         if (!synchronizing->get<bool>() || !projectionValidationState) {
@@ -2469,13 +2334,8 @@ namespace {
                         reduction = client::detail::StateReducer::validateSynchronizationEvents(
                             *projectionValidationState, batch, eventMaximumBytes, allowLegacy, error);
                     } else {
-                        reduction = client::detail::StateReducer::events(state,
-                                                                         batch,
-                                                                         synchronizing->get<bool>(),
-                                                                         eventMaximumBytes,
-                                                                         maximumDiagnostics,
-                                                                         allowLegacy,
-                                                                         error);
+                        reduction = client::detail::StateReducer::events(
+                            state, batch, synchronizing->get<bool>(), eventMaximumBytes, maximumDiagnostics, allowLegacy, error);
                     }
                     if (!reduction) {
                         connectionOpen = false;
@@ -2499,8 +2359,8 @@ namespace {
                             actualError = "fixture projection validation state is absent at sync.complete";
                             break;
                         }
-                        auto reduction = client::detail::StateReducer::synchronized(
-                            *projectionValidationState, sequence, session, maximumBytes, error);
+                        auto reduction =
+                            client::detail::StateReducer::synchronized(*projectionValidationState, sequence, session, maximumBytes, error);
                         if (!reduction) {
                             connectionOpen = false;
                             actualError = error;
@@ -2543,21 +2403,19 @@ namespace {
 
             const frontend::Json actualState = client::detail::StateReducer::serializeForTesting(state);
             const frontend::Json actualChanges = client::detail::StateReducer::serializeChangesForTesting(changes);
-            const frontend::Json actualVisible = state.visibleSequence()
-                                                     ? frontend::Json(state.visibleSequence()->value())
-                                                     : frontend::Json(nullptr);
-            const frontend::Json actualSynchronized = state.synchronizedThrough()
-                                                          ? frontend::Json(state.synchronizedThrough()->value())
-                                                          : frontend::Json(nullptr);
+            const frontend::Json actualVisible =
+                state.visibleSequence() ? frontend::Json(state.visibleSequence()->value()) : frontend::Json(nullptr);
+            const frontend::Json actualSynchronized =
+                state.synchronizedThrough() ? frontend::Json(state.synchronizedThrough()->value()) : frontend::Json(nullptr);
             frontend::Json actualCounts = frontend::Json::object();
             actualCounts["received"] = receivedEvents;
             actualCounts["applied"] = appliedEvents;
             actualCounts["ignored"] = ignoredEvents;
             const frontend::Json& expectedError = testCase.at("expectedError");
-            const bool errorMatches = expectedError.is_null()
-                                          ? !actualError.has_value()
-                                          : actualError && expectedError.is_string() &&
-                                                actualError->find(expectedError.get<std::string>()) != std::string::npos;
+            const bool errorMatches =
+                expectedError.is_null()
+                    ? !actualError.has_value()
+                    : actualError && expectedError.is_string() && actualError->find(expectedError.get<std::string>()) != std::string::npos;
             const bool synchronizationMatches = testCase.at("expectedSynchronizationResult").is_null()
                                                     ? actualSynchronizationResult.is_null()
                                                     : actualSynchronizationResult == testCase.at("expectedSynchronizationResult");
@@ -2566,15 +2424,15 @@ namespace {
                          actualSynchronized == testCase.at("expectedSynchronizedThrough") &&
                          actualState.value("freshness", "") == testCase.at("expectedFreshness").get<std::string>() &&
                          actualChanges == testCase.at("expectedChanges") && actualCounts == testCase.at("expectedCounts") &&
-                         synchronizationMatches && connectionOpen == testCase.at("connectionRemainsOpen").get<bool>() &&
-                         errorMatches;
+                         synchronizationMatches && connectionOpen == testCase.at("connectionRemainsOpen").get<bool>() && errorMatches;
             allPassed = allPassed && casePassed;
             if (!casePassed) {
                 result.expectTrue(false, "reducer fixture failed: " + name);
             }
         }
         result.expectTrue(allPassed,
-                          "the C++ reducer executes every literal v3 cross-language fixture and compares complete normalized State, typed Changes, cursors, synchronization outcomes, connection disposition, and errors");
+                          "the C++ reducer executes every literal v3 cross-language fixture and compares complete normalized State, typed "
+                          "Changes, cursors, synchronization outcomes, connection disposition, and errors");
     }
 
 } // namespace

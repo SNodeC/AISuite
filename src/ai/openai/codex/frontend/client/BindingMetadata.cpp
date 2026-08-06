@@ -9,8 +9,7 @@ namespace ai::openai::codex::frontend::client::generated {
     static_assert(RequestsBindingCount == ReverseBindingCount);
     static_assert(bindingMetadata(frontend::generated::MethodId::ControllerAcquire)->method ==
                   frontend::generated::MethodId::ControllerAcquire);
-    static_assert(bindingMetadata(frontend::generated::MethodId::ThreadStart)->method ==
-                  frontend::generated::MethodId::ThreadStart);
+    static_assert(bindingMetadata(frontend::generated::MethodId::ThreadStart)->method == frontend::generated::MethodId::ThreadStart);
     static_assert(bindingMetadata(frontend::generated::MethodId::PermissionsApprovalRespond)->method ==
                   frontend::generated::MethodId::PermissionsApprovalRespond);
     static_assert(bindingIsSensitive(frontend::generated::MethodId::AuthenticationRespond));

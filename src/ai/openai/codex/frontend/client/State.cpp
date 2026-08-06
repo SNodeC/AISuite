@@ -204,9 +204,8 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
-        bool decodeProjectionMetadata(const frontend::Json& extensions,
-                                      std::optional<ProjectionMetadataState>& result,
-                                      std::string& error) {
+        bool
+        decodeProjectionMetadata(const frontend::Json& extensions, std::optional<ProjectionMetadataState>& result, std::string& error) {
             if (!extensions.is_object()) {
                 error = "frontend message extensions must be an object";
                 return false;
@@ -238,8 +237,8 @@ namespace ai::openai::codex::frontend::client {
         void addProjectedOmission(Projected<T>& projection, const std::string& path) {
             projection.omittedFields.push_back(path);
             std::sort(projection.omittedFields.begin(), projection.omittedFields.end());
-            projection.omittedFields.erase(
-                std::unique(projection.omittedFields.begin(), projection.omittedFields.end()), projection.omittedFields.end());
+            projection.omittedFields.erase(std::unique(projection.omittedFields.begin(), projection.omittedFields.end()),
+                                           projection.omittedFields.end());
         }
 
         void applySnapshotProjectionOmission(detail::StateStorage& state, const std::string& path) {
@@ -298,9 +297,7 @@ namespace ai::openai::codex::frontend::client {
                 addProjectedOmission(state.diagnostics, path);
         }
 
-        void applyEventProjectionOmission(detail::StateStorage& state,
-                                          frontend::ExpandedEventType type,
-                                          const std::string& path) {
+        void applyEventProjectionOmission(detail::StateStorage& state, frontend::ExpandedEventType type, const std::string& path) {
             // `/event/<family>` reports a completely hidden sibling family,
             // not an omitted field of the visible event's own domain.
             if (projectionPathRoot(path) == "event")
@@ -378,9 +375,7 @@ namespace ai::openai::codex::frontend::client {
             }
         }
 
-        bool applySnapshotProjectionMetadata(detail::StateStorage& state,
-                                             const frontend::Json& extensions,
-                                             std::string& error) {
+        bool applySnapshotProjectionMetadata(detail::StateStorage& state, const frontend::Json& extensions, std::string& error) {
             std::optional<ProjectionMetadataState> metadata;
             if (!decodeProjectionMetadata(extensions, metadata, error))
                 return false;
@@ -414,10 +409,7 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
-        bool requireArrayMember(const frontend::Json& object,
-                                std::string_view key,
-                                const frontend::Json*& value,
-                                std::string& error) {
+        bool requireArrayMember(const frontend::Json& object, std::string_view key, const frontend::Json*& value, std::string& error) {
             if (!object.is_object()) {
                 error = "event data must be an object";
                 return false;
@@ -431,10 +423,7 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
-        bool requireObjectMember(const frontend::Json& object,
-                                 std::string_view key,
-                                 const frontend::Json*& value,
-                                 std::string& error) {
+        bool requireObjectMember(const frontend::Json& object, std::string_view key, const frontend::Json*& value, std::string& error) {
             if (!object.is_object()) {
                 error = "event data must be an object";
                 return false;
@@ -463,10 +452,7 @@ namespace ai::openai::codex::frontend::client {
             return decoded != 0;
         }
 
-        bool requireStringMember(const frontend::Json& object,
-                                 std::string_view key,
-                                 bool nonempty,
-                                 std::string& error) {
+        bool requireStringMember(const frontend::Json& object, std::string_view key, bool nonempty, std::string& error) {
             const auto value = stringMember(object, key);
             if (value && (!nonempty || !value->empty()))
                 return true;
@@ -496,10 +482,8 @@ namespace ai::openai::codex::frontend::client {
             return false;
         }
 
-        bool optionalMemberHasType(const frontend::Json& object,
-                                   std::string_view key,
-                                   frontend::Json::value_t expected,
-                                   std::string& error) {
+        bool
+        optionalMemberHasType(const frontend::Json& object, std::string_view key, frontend::Json::value_t expected, std::string& error) {
             const auto found = object.find(std::string(key));
             if (found == object.end() || found->type() == expected)
                 return true;
@@ -604,10 +588,7 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
-        bool decodeTruncation(const frontend::Json& value,
-                              TruncationMetadata& result,
-                              std::string& error,
-                              bool strict = true) {
+        bool decodeTruncation(const frontend::Json& value, TruncationMetadata& result, std::string& error, bool strict = true) {
             if (!value.is_object()) {
                 if (!strict)
                     return false;
@@ -636,15 +617,11 @@ namespace ai::openai::codex::frontend::client {
                     result.omittedFields.push_back(field.get<std::string>());
                 }
             }
-            result.extensions =
-                extensionsOf(value, {"truncated", "omittedFields", "omittedEntries", "droppedBytes"});
+            result.extensions = extensionsOf(value, {"truncated", "omittedFields", "omittedEntries", "droppedBytes"});
             return true;
         }
 
-        bool decodeProviderError(const frontend::Json& value,
-                                 ProviderErrorState& result,
-                                 std::string& error,
-                                 bool strict) {
+        bool decodeProviderError(const frontend::Json& value, ProviderErrorState& result, std::string& error, bool strict) {
             if (!requireObject(value, "provider error", error))
                 return false;
             const auto category = stringMember(value, "category");
@@ -662,9 +639,7 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
-        bool decodeProviderInitialization(const frontend::Json& value,
-                                          ProviderInitializationState& result,
-                                          std::string& error) {
+        bool decodeProviderInitialization(const frontend::Json& value, ProviderInitializationState& result, std::string& error) {
             if (!requireObject(value, "provider initialization", error))
                 return false;
             const auto platformFamily = stringMember(value, "platformFamily");
@@ -692,8 +667,7 @@ namespace ai::openai::codex::frontend::client {
             const auto receivedAudioBytes = optionalUnsigned(value, "receivedAudioBytes");
             const auto droppedAudioBytes = optionalUnsigned(value, "droppedAudioBytes");
             const auto transcriptTruncated = optionalBool(value, "transcriptTruncated");
-            if (!lifecycle || !transcript || !itemCount || !receivedAudioBytes || !droppedAudioBytes ||
-                !transcriptTruncated) {
+            if (!lifecycle || !transcript || !itemCount || !receivedAudioBytes || !droppedAudioBytes || !transcriptTruncated) {
                 error = "thread realtime state lacks required stable fields";
                 return false;
             }
@@ -709,9 +683,16 @@ namespace ai::openai::codex::frontend::client {
                 result.version = typed::RealtimeConversationVersion{*version};
             result.lastSdpBytes = optionalUnsigned(value, "lastSdpBytes");
             result.extensions = extensionsOf(value,
-                                             {"lifecycle", "transcript", "itemCount", "receivedAudioBytes",
-                                              "droppedAudioBytes", "transcriptTruncated", "errorDetailsOmitted",
-                                              "sessionId", "version", "lastSdpBytes"});
+                                             {"lifecycle",
+                                              "transcript",
+                                              "itemCount",
+                                              "receivedAudioBytes",
+                                              "droppedAudioBytes",
+                                              "transcriptTruncated",
+                                              "errorDetailsOmitted",
+                                              "sessionId",
+                                              "version",
+                                              "lastSdpBytes"});
             return true;
         }
 
@@ -756,8 +737,8 @@ namespace ai::openai::codex::frontend::client {
                     return false;
                 result.initialization = std::move(decoded);
             }
-            result.extensions = extensionsOf(
-                value, {"lifecycle", "generation", "desiredRunning", "recovery", "lastError", "initialization"});
+            result.extensions =
+                extensionsOf(value, {"lifecycle", "generation", "desiredRunning", "recovery", "lastError", "initialization"});
             return true;
         }
 
@@ -814,8 +795,7 @@ namespace ai::openai::codex::frontend::client {
                     return false;
                 result.stamp = decoded;
             }
-            result.extensions = extensionsOf(
-                value, {"hasLoadedPage", "complete", "pagesLoaded", "nextCursor", "backwardsCursor", "stamp"});
+            result.extensions = extensionsOf(value, {"hasLoadedPage", "complete", "pagesLoaded", "nextCursor", "backwardsCursor", "stamp"});
             return true;
         }
 
@@ -877,9 +857,23 @@ namespace ai::openai::codex::frontend::client {
                 }
             }
             return decodeExtensions(value,
-                                    {"id", "title", "name", "preview", "cwd", "model", "modelProvider", "status",
-                                     "fullyLoaded", "realtime", "stamp", "createdAt", "updatedAt", "createdAtMs",
-                                     "updatedAtMs", "turns", "extensions"},
+                                    {"id",
+                                     "title",
+                                     "name",
+                                     "preview",
+                                     "cwd",
+                                     "model",
+                                     "modelProvider",
+                                     "status",
+                                     "fullyLoaded",
+                                     "realtime",
+                                     "stamp",
+                                     "createdAt",
+                                     "updatedAt",
+                                     "createdAtMs",
+                                     "updatedAtMs",
+                                     "turns",
+                                     "extensions"},
                                     result.extensions,
                                     "thread",
                                     error);
@@ -937,8 +931,17 @@ namespace ai::openai::codex::frontend::client {
             if (const auto usage = value.find("tokenUsage"); usage != value.end())
                 result.tokenUsage = *usage;
             return decodeExtensions(value,
-                                    {"id", "threadId", "status", "active", "terminal", "connectionInvalidated",
-                                     "stamp", "items", "failure", "tokenUsage", "extensions"},
+                                    {"id",
+                                     "threadId",
+                                     "status",
+                                     "active",
+                                     "terminal",
+                                     "connectionInvalidated",
+                                     "stamp",
+                                     "items",
+                                     "failure",
+                                     "tokenUsage",
+                                     "extensions"},
                                     result.extensions,
                                     "turn",
                                     error);
@@ -994,9 +997,8 @@ namespace ai::openai::codex::frontend::client {
                     return frontend::ThreadItemKind::WebSearch;
                 if (*typeName == "tool_call") {
                     const auto data = value.find("data");
-                    return data != value.end() && data->is_object() && data->contains("server")
-                               ? frontend::ThreadItemKind::McpToolCall
-                               : frontend::ThreadItemKind::DynamicToolCall;
+                    return data != value.end() && data->is_object() && data->contains("server") ? frontend::ThreadItemKind::McpToolCall
+                                                                                                : frontend::ThreadItemKind::DynamicToolCall;
                 }
                 const auto data = value.find("data");
                 if (data != value.end() && data->is_object()) {
@@ -1081,22 +1083,39 @@ namespace ai::openai::codex::frontend::client {
                 }
                 result.extensions = *extensions;
             }
-            const frontend::Json unknown = extensionsOf(
-                value,
-                {"id", "type", "kind", "threadId", "turnId", "status", "summary", "location", "agentText",
-                 "reasoningText", "reasoningSummary", "commandOutput", "droppedContentBytes", "contentTruncated",
-                 "startedAtMs", "completedAtMs", "data", "truncated", "omittedFields", "connectionInvalidated",
-                 "stamp", "generation", "freshness", "extensions"});
+            const frontend::Json unknown = extensionsOf(value,
+                                                        {"id",
+                                                         "type",
+                                                         "kind",
+                                                         "threadId",
+                                                         "turnId",
+                                                         "status",
+                                                         "summary",
+                                                         "location",
+                                                         "agentText",
+                                                         "reasoningText",
+                                                         "reasoningSummary",
+                                                         "commandOutput",
+                                                         "droppedContentBytes",
+                                                         "contentTruncated",
+                                                         "startedAtMs",
+                                                         "completedAtMs",
+                                                         "data",
+                                                         "truncated",
+                                                         "omittedFields",
+                                                         "connectionInvalidated",
+                                                         "stamp",
+                                                         "generation",
+                                                         "freshness",
+                                                         "extensions"});
             for (auto member = unknown.begin(); member != unknown.end(); ++member)
                 result.extensions[member.key()] = member.value();
             return true;
         }
 
         bool decodeExpandedItem(const frontend::Json& value, ItemState& result, std::string& error) {
-            frontend::ExpandedFrontendEvent synthetic{frontend::SequenceNumber{1},
-                                                       frontend::ExpandedEventType::ItemUpserted,
-                                                       frontend::Json::object(),
-                                                       frontend::Json::object()};
+            frontend::ExpandedFrontendEvent synthetic{
+                frontend::SequenceNumber{1}, frontend::ExpandedEventType::ItemUpserted, frontend::Json::object(), frontend::Json::object()};
             synthetic.data["item"] = value;
             const auto encoded = frontend::Codec::encodeExpandedEvent(synthetic);
             if (!encoded) {
@@ -1154,10 +1173,27 @@ namespace ai::openai::codex::frontend::client {
             if (generation && freshness)
                 result.stamp = SourceStamp{*generation, *freshness};
             result.extensions = extensionsOf(*itemObject,
-                                             {"id", "type", "threadId", "turnId", "status", "summary", "location", "agentText",
-                                              "reasoningText", "reasoningSummary", "commandOutput", "droppedContentBytes",
-                                              "contentTruncated", "startedAtMs", "completedAtMs", "data", "truncated",
-                                              "omittedFields", "connectionInvalidated", "generation", "freshness"});
+                                             {"id",
+                                              "type",
+                                              "threadId",
+                                              "turnId",
+                                              "status",
+                                              "summary",
+                                              "location",
+                                              "agentText",
+                                              "reasoningText",
+                                              "reasoningSummary",
+                                              "commandOutput",
+                                              "droppedContentBytes",
+                                              "contentTruncated",
+                                              "startedAtMs",
+                                              "completedAtMs",
+                                              "data",
+                                              "truncated",
+                                              "omittedFields",
+                                              "connectionInvalidated",
+                                              "generation",
+                                              "freshness"});
             return true;
         }
 
@@ -1191,8 +1227,7 @@ namespace ai::openai::codex::frontend::client {
             }
             result.autoResolutionMs = value.autoResolutionMs;
             result.truncated = value.truncated;
-            if (const auto omitted = value.extensions.find("omittedFields");
-                omitted != value.extensions.end() && omitted->is_array()) {
+            if (const auto omitted = value.extensions.find("omittedFields"); omitted != value.extensions.end() && omitted->is_array()) {
                 for (const frontend::Json& field : *omitted)
                     result.omittedFields.push_back(field.get<std::string>());
             }
@@ -1233,10 +1268,7 @@ namespace ai::openai::codex::frontend::client {
             return std::optional<frontend::Json>{std::move(record.legacyData.value)};
         }
 
-        bool decodePendingRequestJson(const frontend::Json& value,
-                                      PendingRequestState& result,
-                                      std::string& error,
-                                      bool strictExpanded) {
+        bool decodePendingRequestJson(const frontend::Json& value, PendingRequestState& result, std::string& error, bool strictExpanded) {
             if (!requireObject(value, "pending request", error))
                 return false;
             auto id = stringMember(value, "pendingRequestId");
@@ -1306,7 +1338,8 @@ namespace ai::openai::codex::frontend::client {
                     decoded.prompt = *prompt;
                     decoded.allowsFreeText = *allows;
                     decoded.isSecret = *secret;
-                    decoded.extensions = extensionsOf(question, {"id", "header", "prompt", "allowsFreeText", "isSecret", "secret", "options"});
+                    decoded.extensions =
+                        extensionsOf(question, {"id", "header", "prompt", "allowsFreeText", "isSecret", "secret", "options"});
                     for (const frontend::Json& option : *options) {
                         const auto label = stringMember(option, "label");
                         const auto description = stringMember(option, "description");
@@ -1324,8 +1357,19 @@ namespace ai::openai::codex::frontend::client {
                 return false;
             }
             result.extensions = extensionsOf(value,
-                                             {"pendingRequestId", "id", "kind", "type", "threadId", "turnId", "itemId",
-                                              "summary", "details", "questions", "autoResolutionMs", "truncated", "omittedFields",
+                                             {"pendingRequestId",
+                                              "id",
+                                              "kind",
+                                              "type",
+                                              "threadId",
+                                              "turnId",
+                                              "itemId",
+                                              "summary",
+                                              "details",
+                                              "questions",
+                                              "autoResolutionMs",
+                                              "truncated",
+                                              "omittedFields",
                                               "connectionInvalidated"});
             return true;
         }
@@ -1340,8 +1384,8 @@ namespace ai::openai::codex::frontend::client {
                 return true;
             if (found->is_number_integer())
                 return true;
-            if (found->is_number_unsigned() && found->get<std::uint64_t>() <=
-                                                   static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+            if (found->is_number_unsigned() &&
+                found->get<std::uint64_t>() <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
                 return true;
             error = "field '" + std::string(key) + "' must be a signed 64-bit integer";
             return false;
@@ -1360,8 +1404,7 @@ namespace ai::openai::codex::frontend::client {
                 error = "legacy user-message data content must be an array";
                 return false;
             }
-            return requireBoolMember(value, "contentTruncated", error) &&
-                   requireUnsignedMember(value, "originalContentBytes", error) &&
+            return requireBoolMember(value, "contentTruncated", error) && requireUnsignedMember(value, "originalContentBytes", error) &&
                    requireUnsignedMember(value, "retainedContentBytes", error) &&
                    requireUnsignedMember(value, "originalContentItems", error) &&
                    requireUnsignedMember(value, "retainedContentItems", error);
@@ -1370,11 +1413,9 @@ namespace ai::openai::codex::frontend::client {
         bool validateLegacyItemSchema(const frontend::Json& value, std::string& error) {
             if (!requireObject(value, "legacy item", error) || !requireStringMember(value, "id", true, error) ||
                 !requireStringMember(value, "type", true, error) || !requireStringMember(value, "status", false, error) ||
-                !requireStringMember(value, "agentText", false, error) ||
-                !requireStringMember(value, "reasoningText", false, error) ||
+                !requireStringMember(value, "agentText", false, error) || !requireStringMember(value, "reasoningText", false, error) ||
                 !requireStringMember(value, "reasoningSummary", false, error) ||
-                !requireStringMember(value, "commandOutput", false, error) ||
-                !requireUnsignedMember(value, "droppedContentBytes", error) ||
+                !requireStringMember(value, "commandOutput", false, error) || !requireUnsignedMember(value, "droppedContentBytes", error) ||
                 !requireBoolMember(value, "contentTruncated", error))
                 return false;
 
@@ -1392,8 +1433,7 @@ namespace ai::openai::codex::frontend::client {
             }
             if (*type == "user_message" && !validateLegacyUserMessageData(*data, error))
                 return false;
-            return validateOptionalInteger(value, "startedAtMs", error) &&
-                   validateOptionalInteger(value, "completedAtMs", error);
+            return validateOptionalInteger(value, "startedAtMs", error) && validateOptionalInteger(value, "completedAtMs", error);
         }
 
         bool validateLegacyTurnSchema(const frontend::Json& value, std::string& error) {
@@ -1491,8 +1531,7 @@ namespace ai::openai::codex::frontend::client {
                 return false;
             if (event.type == "backend.lifecycle.changed") {
                 const auto lifecycle = stringMember(data, "lifecycle");
-                constexpr std::array<std::string_view, 6> values{
-                    "stopped", "starting", "initializing", "ready", "stopping", "failed"};
+                constexpr std::array<std::string_view, 6> values{"stopped", "starting", "initializing", "ready", "stopping", "failed"};
                 if (!lifecycle || std::find(values.begin(), values.end(), *lifecycle) == values.end()) {
                     error = "legacy provider lifecycle is not a defined stable value";
                     return false;
@@ -1601,22 +1640,18 @@ namespace ai::openai::codex::frontend::client {
         }
 
         bool validateLegacySnapshotSchema(const frontend::Json& state, std::string& error) {
-            if (!requireObject(state, "legacy snapshot state", error) ||
-                !requireUnsignedMember(state, "backendRevision", error) ||
-                !requireStringMember(state, "lifecycle", true, error) ||
-                !requireUnsignedMember(state, "omittedCodexExtensions", error) ||
+            if (!requireObject(state, "legacy snapshot state", error) || !requireUnsignedMember(state, "backendRevision", error) ||
+                !requireStringMember(state, "lifecycle", true, error) || !requireUnsignedMember(state, "omittedCodexExtensions", error) ||
                 !requireBoolMember(state, "sequenceExhausted", error))
                 return false;
 
             const auto lifecycle = stringMember(state, "lifecycle");
-            constexpr std::array<std::string_view, 6> lifecycleValues{
-                "stopped", "starting", "initializing", "ready", "stopping", "failed"};
+            constexpr std::array<std::string_view, 6> lifecycleValues{"stopped", "starting", "initializing", "ready", "stopping", "failed"};
             if (!lifecycle || std::find(lifecycleValues.begin(), lifecycleValues.end(), *lifecycle) == lifecycleValues.end()) {
                 error = "legacy snapshot lifecycle is not a defined stable value";
                 return false;
             }
-            if (const auto exhausted = state.find("frontendSequenceExhausted");
-                exhausted != state.end() && !exhausted->is_boolean()) {
+            if (const auto exhausted = state.find("frontendSequenceExhausted"); exhausted != state.end() && !exhausted->is_boolean()) {
                 error = "legacy snapshot frontendSequenceExhausted must be a boolean";
                 return false;
             }
@@ -1681,8 +1716,8 @@ namespace ai::openai::codex::frontend::client {
                 return false;
             }
             for (const frontend::Json& session : *sessions) {
-                if (!requireObject(session, "legacy snapshot session", error) ||
-                    !requireDecimalIdMember(session, "sessionId", error) || !requireStringMember(session, "role", true, error))
+                if (!requireObject(session, "legacy snapshot session", error) || !requireDecimalIdMember(session, "sessionId", error) ||
+                    !requireStringMember(session, "role", true, error))
                     return false;
                 const auto role = stringMember(session, "role");
                 if (*role != "observer" && *role != "controller") {
@@ -1697,8 +1732,7 @@ namespace ai::openai::codex::frontend::client {
                 return false;
             }
             for (const frontend::Json& extension : *extensions) {
-                if (!validateLegacyEvent(
-                        frontend::FrontendEvent{frontend::SequenceNumber{1}, "codex.extension", extension}, error))
+                if (!validateLegacyEvent(frontend::FrontendEvent{frontend::SequenceNumber{1}, "codex.extension", extension}, error))
                     return false;
             }
 
@@ -1708,8 +1742,7 @@ namespace ai::openai::codex::frontend::client {
                 return false;
 
             const auto journal = state.find("journal");
-            if (journal == state.end() || !journal->is_object() ||
-                !requireUnsignedMember(*journal, "oldestReplayableAfter", error) ||
+            if (journal == state.end() || !journal->is_object() || !requireUnsignedMember(*journal, "oldestReplayableAfter", error) ||
                 !requireUnsignedMember(*journal, "currentSequence", error)) {
                 if (error.empty())
                     error = "legacy snapshot journal lacks required cursor fields";
@@ -1731,8 +1764,8 @@ namespace ai::openai::codex::frontend::client {
             }
 
             const auto validateDomainMembers = [&error](const frontend::Json& domains, std::string_view context) {
-                for (const std::string_view name : {"accounts", "models", "configuration", "reviews", "integrations",
-                                                    "pluginsAndSkills", "mcp", "platform"}) {
+                for (const std::string_view name :
+                     {"accounts", "models", "configuration", "reviews", "integrations", "pluginsAndSkills", "mcp", "platform"}) {
                     const auto value = domains.find(std::string(name));
                     if (value != domains.end() && !value->is_object()) {
                         error = std::string(context) + " member '" + std::string(name) + "' must be an object";
@@ -1776,8 +1809,8 @@ namespace ai::openai::codex::frontend::client {
                 }
                 return true;
             };
-            for (const std::string_view name : {"processes", "filesystemWatches", "fuzzySearches", "fuzzySearchSessions",
-                                                "notices", "activities"}) {
+            for (const std::string_view name :
+                 {"processes", "filesystemWatches", "fuzzySearches", "fuzzySearchSessions", "notices", "activities"}) {
                 if (!validateCollection(name))
                     return false;
             }
@@ -1787,12 +1820,26 @@ namespace ai::openai::codex::frontend::client {
                     error = "legacy snapshot capacity must be an object";
                     return false;
                 }
-                for (const std::string_view name : {
-                         "sessions", "observers", "activeOperations", "pendingRequests", "retainedThreads", "retainedTurns",
-                         "retainedItems", "accumulatedContentBytes", "retainedNotices", "retainedProcesses",
-                         "accumulatedProcessOutputBytes", "retainedFilesystemWatches", "retainedFuzzySearchSessions",
-                         "retainedActivityRecords", "evictedNotices", "evictedProcesses", "droppedProcessOutputBytes",
-                         "evictedFilesystemWatches", "evictedFuzzySearchSessions", "evictedActivityRecords"}) {
+                for (const std::string_view name : {"sessions",
+                                                    "observers",
+                                                    "activeOperations",
+                                                    "pendingRequests",
+                                                    "retainedThreads",
+                                                    "retainedTurns",
+                                                    "retainedItems",
+                                                    "accumulatedContentBytes",
+                                                    "retainedNotices",
+                                                    "retainedProcesses",
+                                                    "accumulatedProcessOutputBytes",
+                                                    "retainedFilesystemWatches",
+                                                    "retainedFuzzySearchSessions",
+                                                    "retainedActivityRecords",
+                                                    "evictedNotices",
+                                                    "evictedProcesses",
+                                                    "droppedProcessOutputBytes",
+                                                    "evictedFilesystemWatches",
+                                                    "evictedFuzzySearchSessions",
+                                                    "evictedActivityRecords"}) {
                     if (capacity->contains(std::string(name)) && !optionalSize(*capacity, name)) {
                         error = "legacy snapshot capacity member '" + std::string(name) + "' must be an unsigned integer";
                         return false;
@@ -1899,13 +1946,13 @@ namespace ai::openai::codex::frontend::client {
                     decoded.complete = optionalBool(entry, "complete");
                     if (!decodeStamp(*stamp, decoded.stamp, error))
                         return false;
-                    decoded.extensions = extensionsOf(entry, {"method", "status", "subjectId", "nextCursor", "itemCount", "complete", "stamp"});
+                    decoded.extensions =
+                        extensionsOf(entry, {"method", "status", "subjectId", "nextCursor", "itemCount", "complete", "stamp"});
                     result.latestResults.push_back(std::move(decoded));
                 }
             }
-            result.extensions = extensionsOf(value,
-                                             {"stamp", "status", "summary", "nextCursor", "complete", "itemCount", "latestResults",
-                                              "details", "truncation"});
+            result.extensions = extensionsOf(
+                value, {"stamp", "status", "summary", "nextCursor", "complete", "itemCount", "latestResults", "details", "truncation"});
             return true;
         }
 
@@ -1919,15 +1966,15 @@ namespace ai::openai::codex::frontend::client {
                 return true;
 #define AISUITE_ACCOUNT_DETAIL_BOOL(name)                                                                                                  \
     result.details.name = optionalBool(*value, #name);                                                                                     \
-    if (value->contains(#name) && !result.details.name) {                                                                                   \
-        error = "account domain detail '" #name "' must be boolean";                                                                     \
-        return false;                                                                                                                       \
+    if (value->contains(#name) && !result.details.name) {                                                                                  \
+        error = "account domain detail '" #name "' must be boolean";                                                                       \
+        return false;                                                                                                                      \
     }
 #define AISUITE_ACCOUNT_DETAIL_STRING(name)                                                                                                \
     result.details.name = stringMember(*value, #name);                                                                                     \
-    if (value->contains(#name) && !result.details.name) {                                                                                   \
-        error = "account domain detail '" #name "' must be a string";                                                                    \
-        return false;                                                                                                                       \
+    if (value->contains(#name) && !result.details.name) {                                                                                  \
+        error = "account domain detail '" #name "' must be a string";                                                                      \
+        return false;                                                                                                                      \
     }
             AISUITE_ACCOUNT_DETAIL_BOOL(loggedOut)
             AISUITE_ACCOUNT_DETAIL_STRING(loginLifecycle)
@@ -1957,11 +2004,20 @@ namespace ai::openai::codex::frontend::client {
             AISUITE_ACCOUNT_DETAIL_BOOL(hasCredits)
 #undef AISUITE_ACCOUNT_DETAIL_STRING
 #undef AISUITE_ACCOUNT_DETAIL_BOOL
-            result.projection.opaqueDetails = extensionsOf(
-                *value,
-                {"notificationCount", "latestNotificationMethods", "loggedOut", "loginLifecycle", "loginMethod",
-                 "loginSucceeded", "authenticated", "accountType", "authMode", "planType", "primaryUsedPercent",
-                 "secondaryUsedPercent", "hasCredits"});
+            result.projection.opaqueDetails = extensionsOf(*value,
+                                                           {"notificationCount",
+                                                            "latestNotificationMethods",
+                                                            "loggedOut",
+                                                            "loginLifecycle",
+                                                            "loginMethod",
+                                                            "loginSucceeded",
+                                                            "authenticated",
+                                                            "accountType",
+                                                            "authMode",
+                                                            "planType",
+                                                            "primaryUsedPercent",
+                                                            "secondaryUsedPercent",
+                                                            "hasCredits"});
             return true;
         }
 
@@ -1985,10 +2041,15 @@ namespace ai::openai::codex::frontend::client {
                 error = "configuration domain detail has an invalid stable type";
                 return false;
             }
-            result.projection.opaqueDetails = extensionsOf(
-                *value,
-                {"notificationCount", "latestNotificationMethods", "filePath", "writeStatus", "writeVersion",
-                 "writeOverridden", "featureCount", "featureListTruncated"});
+            result.projection.opaqueDetails = extensionsOf(*value,
+                                                           {"notificationCount",
+                                                            "latestNotificationMethods",
+                                                            "filePath",
+                                                            "writeStatus",
+                                                            "writeVersion",
+                                                            "writeOverridden",
+                                                            "featureCount",
+                                                            "featureListTruncated"});
             return true;
         }
 
@@ -2009,10 +2070,14 @@ namespace ai::openai::codex::frontend::client {
                 error = "integration domain detail has an invalid stable type";
                 return false;
             }
-            result.projection.opaqueDetails = extensionsOf(
-                *value,
-                {"notificationCount", "latestNotificationMethods", "appCount", "appListTruncated", "marketplaceAddStatus",
-                 "marketplaceRemoveStatus", "marketplaceUpgradeStatus"});
+            result.projection.opaqueDetails = extensionsOf(*value,
+                                                           {"notificationCount",
+                                                            "latestNotificationMethods",
+                                                            "appCount",
+                                                            "appListTruncated",
+                                                            "marketplaceAddStatus",
+                                                            "marketplaceRemoveStatus",
+                                                            "marketplaceUpgradeStatus"});
             return true;
         }
 
@@ -2041,10 +2106,13 @@ namespace ai::openai::codex::frontend::client {
                 error = "plugin/skill domain detail has an invalid stable type";
                 return false;
             }
-            result.projection.opaqueDetails = extensionsOf(
-                *value,
-                {"notificationCount", "latestNotificationMethods", "lastPluginOperation", "lastSkillsOperation",
-                 "extraRootCount", "extraRootsTruncated"});
+            result.projection.opaqueDetails = extensionsOf(*value,
+                                                           {"notificationCount",
+                                                            "latestNotificationMethods",
+                                                            "lastPluginOperation",
+                                                            "lastSkillsOperation",
+                                                            "extraRootCount",
+                                                            "extraRootsTruncated"});
             return true;
         }
 
@@ -2072,8 +2140,7 @@ namespace ai::openai::codex::frontend::client {
             }
             result.projection.opaqueDetails = extensionsOf(
                 *value,
-                {"notificationCount", "latestNotificationMethods", "oauthStatus", "startupStatus", "serverCount",
-                 "statusListComplete"});
+                {"notificationCount", "latestNotificationMethods", "oauthStatus", "startupStatus", "serverCount", "statusListComplete"});
             return true;
         }
 
@@ -2089,9 +2156,8 @@ namespace ai::openai::codex::frontend::client {
                 error = "platform domain detail has an invalid stable type";
                 return false;
             }
-            result.projection.opaqueDetails = extensionsOf(
-                *value,
-                {"notificationCount", "latestNotificationMethods", "remoteControlStatus", "windowsSandboxStatus"});
+            result.projection.opaqueDetails =
+                extensionsOf(*value, {"notificationCount", "latestNotificationMethods", "remoteControlStatus", "windowsSandboxStatus"});
             return true;
         }
 
@@ -2142,9 +2208,19 @@ namespace ai::openai::codex::frontend::client {
             result.connectionInvalidated = optionalBool(value, "connectionInvalidated").value_or(false);
             result.stateUnavailable = optionalBool(value, "stateUnavailable").value_or(false);
             result.extensions = extensionsOf(value,
-                                             {"processHandle", "lifecycle", "stdout", "stderr", "stdoutBytes", "stderrBytes",
-                                              "stdoutTruncated", "stderrTruncated", "droppedOutputBytes", "exitCode", "stamp",
-                                              "connectionInvalidated", "stateUnavailable"});
+                                             {"processHandle",
+                                              "lifecycle",
+                                              "stdout",
+                                              "stderr",
+                                              "stdoutBytes",
+                                              "stderrBytes",
+                                              "stdoutTruncated",
+                                              "stderrTruncated",
+                                              "droppedOutputBytes",
+                                              "exitCode",
+                                              "stamp",
+                                              "connectionInvalidated",
+                                              "stateUnavailable"});
             return true;
         }
 
@@ -2164,7 +2240,8 @@ namespace ai::openai::codex::frontend::client {
             result.changedPathCount = optionalSize(value, "changedPathCount");
             result.connectionInvalidated = optionalBool(value, "connectionInvalidated").value_or(false);
             result.stateUnavailable = optionalBool(value, "stateUnavailable").value_or(false);
-            result.extensions = extensionsOf(value, {"watchId", "root", "changedPathCount", "stamp", "connectionInvalidated", "stateUnavailable"});
+            result.extensions =
+                extensionsOf(value, {"watchId", "root", "changedPathCount", "stamp", "connectionInvalidated", "stateUnavailable"});
             return true;
         }
 
@@ -2184,7 +2261,8 @@ namespace ai::openai::codex::frontend::client {
             result.complete = *complete;
             result.connectionInvalidated = optionalBool(value, "connectionInvalidated").value_or(false);
             result.stateUnavailable = optionalBool(value, "stateUnavailable").value_or(false);
-            result.extensions = extensionsOf(value, {"sessionId", "resultCount", "complete", "stamp", "connectionInvalidated", "stateUnavailable"});
+            result.extensions =
+                extensionsOf(value, {"sessionId", "resultCount", "complete", "stamp", "connectionInvalidated", "stateUnavailable"});
             return true;
         }
 
@@ -2206,7 +2284,8 @@ namespace ai::openai::codex::frontend::client {
             if (const auto threadId = stringMember(value, "threadId"))
                 result.threadId = typed::ThreadId{*threadId};
             result.stateUnavailable = optionalBool(value, "stateUnavailable").value_or(false);
-            result.extensions = extensionsOf(value, {"occurrence", "category", "summary", "details", "threadId", "stamp", "stateUnavailable"});
+            result.extensions =
+                extensionsOf(value, {"occurrence", "category", "summary", "details", "threadId", "stamp", "stateUnavailable"});
             return true;
         }
 
@@ -2237,8 +2316,17 @@ namespace ai::openai::codex::frontend::client {
             result.active = *active;
             result.stateUnavailable = optionalBool(value, "stateUnavailable").value_or(false);
             result.extensions = extensionsOf(value,
-                                             {"key", "subjectId", "kind", "lifecycle", "summary", "details", "threadId", "turnId",
-                                              "active", "stamp", "stateUnavailable"});
+                                             {"key",
+                                              "subjectId",
+                                              "kind",
+                                              "lifecycle",
+                                              "summary",
+                                              "details",
+                                              "threadId",
+                                              "turnId",
+                                              "active",
+                                              "stamp",
+                                              "stateUnavailable"});
             return true;
         }
 
@@ -2267,12 +2355,26 @@ namespace ai::openai::codex::frontend::client {
             AISUITE_CAPACITY_MEMBER(evictedActivityRecords);
 #undef AISUITE_CAPACITY_MEMBER
             result.extensions = extensionsOf(value,
-                                             {"sessions", "observers", "activeOperations", "pendingRequests", "retainedThreads",
-                                              "retainedTurns", "retainedItems", "accumulatedContentBytes", "retainedNotices",
-                                              "retainedProcesses", "accumulatedProcessOutputBytes", "retainedFilesystemWatches",
-                                              "retainedFuzzySearchSessions", "retainedActivityRecords", "evictedNotices",
-                                              "evictedProcesses", "droppedProcessOutputBytes", "evictedFilesystemWatches",
-                                              "evictedFuzzySearchSessions", "evictedActivityRecords"});
+                                             {"sessions",
+                                              "observers",
+                                              "activeOperations",
+                                              "pendingRequests",
+                                              "retainedThreads",
+                                              "retainedTurns",
+                                              "retainedItems",
+                                              "accumulatedContentBytes",
+                                              "retainedNotices",
+                                              "retainedProcesses",
+                                              "accumulatedProcessOutputBytes",
+                                              "retainedFilesystemWatches",
+                                              "retainedFuzzySearchSessions",
+                                              "retainedActivityRecords",
+                                              "evictedNotices",
+                                              "evictedProcesses",
+                                              "droppedProcessOutputBytes",
+                                              "evictedFilesystemWatches",
+                                              "evictedFuzzySearchSessions",
+                                              "evictedActivityRecords"});
             return result;
         }
 
@@ -2364,22 +2466,20 @@ namespace ai::openai::codex::frontend::client {
                 }
                 item.threadId = turn.threadId;
                 item.turnId = turn.id;
-                if (!appendDistinct(items,
-                                    std::move(item),
-                                    [](const ItemState& entry) {
-                                        return entry.id;
-                                    },
-                                    "legacy turn items",
-                                    error))
+                if (!appendDistinct(
+                        items,
+                        std::move(item),
+                        [](const ItemState& entry) {
+                            return entry.id;
+                        },
+                        "legacy turn items",
+                        error))
                     return false;
             }
             return true;
         }
 
-        bool applyCompleteLegacyTurn(detail::StateStorage& state,
-                                     TurnState turn,
-                                     std::vector<ItemState> items,
-                                     std::string& error) {
+        bool applyCompleteLegacyTurn(detail::StateStorage& state, TurnState turn, std::vector<ItemState> items, std::string& error) {
             const typed::TurnId turnId = turn.id;
             const typed::ThreadId threadId = turn.threadId;
             const auto priorTurn = std::find_if(state.turns.begin(), state.turns.end(), [&](const TurnState& candidate) {
@@ -2443,22 +2543,24 @@ namespace ai::openai::codex::frontend::client {
                     error = "legacy turn threadId conflicts with its enclosing thread";
                     return false;
                 }
-                if (!appendDistinct(turns,
-                                    std::move(turn),
-                                    [](const TurnState& entry) {
-                                        return entry.id;
-                                    },
-                                    "legacy thread turns",
-                                    error))
+                if (!appendDistinct(
+                        turns,
+                        std::move(turn),
+                        [](const TurnState& entry) {
+                            return entry.id;
+                        },
+                        "legacy thread turns",
+                        error))
                     return false;
                 for (ItemState& item : turnItems) {
-                    if (!appendDistinct(items,
-                                        std::move(item),
-                                        [](const ItemState& entry) {
-                                            return entry.id;
-                                        },
-                                        "legacy thread items",
-                                        error))
+                    if (!appendDistinct(
+                            items,
+                            std::move(item),
+                            [](const ItemState& entry) {
+                                return entry.id;
+                            },
+                            "legacy thread items",
+                            error))
                         return false;
                 }
             }
@@ -2517,8 +2619,7 @@ namespace ai::openai::codex::frontend::client {
                        std::find(itemIds.begin(), itemIds.end(), candidate.id) != itemIds.end();
             });
             replaceOrderedSubset(state.turns, std::move(turns), [&](const TurnState& candidate) {
-                return candidate.threadId == threadId ||
-                       std::find(turnIds.begin(), turnIds.end(), candidate.id) != turnIds.end();
+                return candidate.threadId == threadId || std::find(turnIds.begin(), turnIds.end(), candidate.id) != turnIds.end();
             });
             upsert(state.threads, std::move(thread), [](const ThreadState& candidate) {
                 return candidate.id;
@@ -2538,7 +2639,7 @@ namespace ai::openai::codex::frontend::client {
             if (diagnostics.value->entries.size() > maximum) {
                 const std::size_t remove = diagnostics.value->entries.size() - maximum;
                 diagnostics.value->entries.erase(diagnostics.value->entries.begin(),
-                                                  diagnostics.value->entries.begin() + static_cast<std::ptrdiff_t>(remove));
+                                                 diagnostics.value->entries.begin() + static_cast<std::ptrdiff_t>(remove));
                 diagnostics.truncated = true;
             }
         }
@@ -2560,17 +2661,18 @@ namespace ai::openai::codex::frontend::client {
                 ProcessState decoded;
                 if (!decodeProcess(entry, decoded, error))
                     return false;
-                if (!appendDistinct(result.entries,
-                                    std::move(decoded),
-                                    [](const ProcessState& process) {
-                                        return process.processHandle;
-                                    },
-                                    "process collection",
-                                    error))
+                if (!appendDistinct(
+                        result.entries,
+                        std::move(decoded),
+                        [](const ProcessState& process) {
+                            return process.processHandle;
+                        },
+                        "process collection",
+                        error))
                     return false;
             }
-            if (const auto truncation = value.find("truncation"); truncation != value.end() &&
-                !decodeTruncation(*truncation, result.truncation, error))
+            if (const auto truncation = value.find("truncation");
+                truncation != value.end() && !decodeTruncation(*truncation, result.truncation, error))
                 return false;
             result.extensions = extensionsOf(value, {"entries", "truncation"});
             return true;
@@ -2584,17 +2686,18 @@ namespace ai::openai::codex::frontend::client {
                 FilesystemWatchState decoded;
                 if (!decodeWatch(entry, decoded, error))
                     return false;
-                if (!appendDistinct(result.entries,
-                                    std::move(decoded),
-                                    [](const FilesystemWatchState& watch) {
-                                        return watch.watchId;
-                                    },
-                                    "filesystem watch collection",
-                                    error))
+                if (!appendDistinct(
+                        result.entries,
+                        std::move(decoded),
+                        [](const FilesystemWatchState& watch) {
+                            return watch.watchId;
+                        },
+                        "filesystem watch collection",
+                        error))
                     return false;
             }
-            if (const auto truncation = value.find("truncation"); truncation != value.end() &&
-                !decodeTruncation(*truncation, result.truncation, error))
+            if (const auto truncation = value.find("truncation");
+                truncation != value.end() && !decodeTruncation(*truncation, result.truncation, error))
                 return false;
             result.extensions = extensionsOf(value, {"entries", "truncation"});
             return true;
@@ -2608,17 +2711,18 @@ namespace ai::openai::codex::frontend::client {
                 FuzzySearchState decoded;
                 if (!decodeSearch(entry, decoded, error))
                     return false;
-                if (!appendDistinct(result.entries,
-                                    std::move(decoded),
-                                    [](const FuzzySearchState& search) {
-                                        return search.sessionId;
-                                    },
-                                    "fuzzy-search collection",
-                                    error))
+                if (!appendDistinct(
+                        result.entries,
+                        std::move(decoded),
+                        [](const FuzzySearchState& search) {
+                            return search.sessionId;
+                        },
+                        "fuzzy-search collection",
+                        error))
                     return false;
             }
-            if (const auto truncation = value.find("truncation"); truncation != value.end() &&
-                !decodeTruncation(*truncation, result.truncation, error))
+            if (const auto truncation = value.find("truncation");
+                truncation != value.end() && !decodeTruncation(*truncation, result.truncation, error))
                 return false;
             result.extensions = extensionsOf(value, {"entries", "truncation"});
             return true;
@@ -2634,8 +2738,8 @@ namespace ai::openai::codex::frontend::client {
                     return false;
                 result.entries.push_back(std::move(decoded));
             }
-            if (const auto truncation = value.find("truncation"); truncation != value.end() &&
-                !decodeTruncation(*truncation, result.truncation, error))
+            if (const auto truncation = value.find("truncation");
+                truncation != value.end() && !decodeTruncation(*truncation, result.truncation, error))
                 return false;
             result.extensions = extensionsOf(value, {"entries", "truncation"});
             return true;
@@ -2649,24 +2753,24 @@ namespace ai::openai::codex::frontend::client {
                 ActivityState decoded;
                 if (!decodeActivity(entry, decoded, error))
                     return false;
-                if (!appendDistinct(result.entries,
-                                    std::move(decoded),
-                                    [](const ActivityState& activity) {
-                                        return activity.key;
-                                    },
-                                    "activity collection",
-                                    error))
+                if (!appendDistinct(
+                        result.entries,
+                        std::move(decoded),
+                        [](const ActivityState& activity) {
+                            return activity.key;
+                        },
+                        "activity collection",
+                        error))
                     return false;
             }
-            if (const auto truncation = value.find("truncation"); truncation != value.end() &&
-                !decodeTruncation(*truncation, result.truncation, error))
+            if (const auto truncation = value.find("truncation");
+                truncation != value.end() && !decodeTruncation(*truncation, result.truncation, error))
                 return false;
             result.extensions = extensionsOf(value, {"entries", "truncation"});
             return true;
         }
 
-        bool hasSelectedRepresentationCapability(const SessionInfo& session,
-                                                 frontend::FrontendCapability capability) {
+        bool hasSelectedRepresentationCapability(const SessionInfo& session, frontend::FrontendCapability capability) {
             return std::find(session.selectedRepresentationCapabilities.begin(),
                              session.selectedRepresentationCapabilities.end(),
                              capability) != session.selectedRepresentationCapabilities.end();
@@ -2715,10 +2819,7 @@ namespace ai::openai::codex::frontend::client {
             return false;
         }
 
-        bool eventRepresentationWasNegotiated(const SessionInfo* session,
-                                              std::string_view type,
-                                              bool expanded,
-                                              std::string& error) {
+        bool eventRepresentationWasNegotiated(const SessionInfo* session, std::string_view type, bool expanded, std::string& error) {
             if (session == nullptr || type == "codex.extension")
                 return true;
             const auto capability = eventRepresentationCapability(type);
@@ -2754,13 +2855,14 @@ namespace ai::openai::codex::frontend::client {
                 SessionState session;
                 if (!decodeSession(value, session, error))
                     return false;
-                if (!appendDistinct(*result.sessions.value,
-                                    std::move(session),
-                                    [](const SessionState& entry) {
-                                        return entry.sessionId;
-                                    },
-                                    "session collection",
-                                    error))
+                if (!appendDistinct(
+                        *result.sessions.value,
+                        std::move(session),
+                        [](const SessionState& entry) {
+                            return entry.sessionId;
+                        },
+                        "session collection",
+                        error))
                     return false;
             }
             if (state.threads) {
@@ -2769,13 +2871,14 @@ namespace ai::openai::codex::frontend::client {
                     ThreadState thread;
                     if (!decodeThread(value, thread, error))
                         return false;
-                    if (!appendDistinct(result.threads,
-                                        std::move(thread),
-                                        [](const ThreadState& entry) {
-                                            return entry.id;
-                                        },
-                                        "thread collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.threads,
+                            std::move(thread),
+                            [](const ThreadState& entry) {
+                                return entry.id;
+                            },
+                            "thread collection",
+                            error))
                         return false;
                 }
             }
@@ -2785,39 +2888,42 @@ namespace ai::openai::codex::frontend::client {
                     TurnState turn;
                     if (!decodeTurn(value, turn, error))
                         return false;
-                    if (!appendDistinct(result.turns,
-                                        std::move(turn),
-                                        [](const TurnState& entry) {
-                                            return entry.id;
-                                        },
-                                        "turn collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.turns,
+                            std::move(turn),
+                            [](const TurnState& entry) {
+                                return entry.id;
+                            },
+                            "turn collection",
+                            error))
                         return false;
                 }
             }
             if (state.items) {
                 result.itemProjectionPresent = true;
                 for (const frontend::ExpandedThreadItem& value : *state.items) {
-                    if (!appendDistinct(result.items,
-                                        decodeItem(value),
-                                        [](const ItemState& entry) {
-                                            return entry.id;
-                                        },
-                                        "item collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.items,
+                            decodeItem(value),
+                            [](const ItemState& entry) {
+                                return entry.id;
+                            },
+                            "item collection",
+                            error))
                         return false;
                 }
             }
             if (state.pendingRequests) {
                 result.pendingRequestProjectionPresent = true;
                 for (const frontend::ExpandedPendingRequest& value : *state.pendingRequests) {
-                    if (!appendDistinct(result.pendingRequests,
-                                        decodePendingRequest(value),
-                                        [](const PendingRequestState& entry) {
-                                            return entry.id;
-                                        },
-                                        "pending-request collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.pendingRequests,
+                            decodePendingRequest(value),
+                            [](const PendingRequestState& entry) {
+                                return entry.id;
+                            },
+                            "pending-request collection",
+                            error))
                         return false;
                 }
             }
@@ -2841,9 +2947,9 @@ namespace ai::openai::codex::frontend::client {
             }
 
 #define AISUITE_DECODE_DOMAIN(member, type)                                                                                                \
-    if (state.member) {                                                                                                                     \
-        if (!decodeDomainWrapper(*state.member, result.member, error))                                                                      \
-            return false;                                                                                                                   \
+    if (state.member) {                                                                                                                    \
+        if (!decodeDomainWrapper(*state.member, result.member, error))                                                                     \
+            return false;                                                                                                                  \
     }
             AISUITE_DECODE_DOMAIN(accounts, AccountState)
             AISUITE_DECODE_DOMAIN(models, ModelsState)
@@ -2933,8 +3039,7 @@ namespace ai::openai::codex::frontend::client {
             result.representationMode = RepresentationMode::LegacyV1;
             result.backendCursor.backendRevision = *optionalUnsigned(state, "backendRevision");
             const frontend::Json& journal = state.at("journal");
-            result.backendCursor.oldestReplayableAfter =
-                frontend::SequenceNumber{*optionalUnsigned(journal, "oldestReplayableAfter")};
+            result.backendCursor.oldestReplayableAfter = frontend::SequenceNumber{*optionalUnsigned(journal, "oldestReplayableAfter")};
             result.backendCursor.currentSequence = frontend::SequenceNumber{*optionalUnsigned(journal, "currentSequence")};
             if (const auto value = optionalUnsigned(journal, "oldestRetainedSequence"))
                 result.backendCursor.oldestRetainedSequence = frontend::SequenceNumber{*value};
@@ -2987,13 +3092,14 @@ namespace ai::openai::codex::frontend::client {
                     SessionState decoded;
                     if (!decodeSession(value, decoded, error))
                         return false;
-                    if (!appendDistinct(*result.sessions.value,
-                                        std::move(decoded),
-                                        [](const SessionState& entry) {
-                                            return entry.sessionId;
-                                        },
-                                        "session collection",
-                                        error))
+                    if (!appendDistinct(
+                            *result.sessions.value,
+                            std::move(decoded),
+                            [](const SessionState& entry) {
+                                return entry.sessionId;
+                            },
+                            "session collection",
+                            error))
                         return false;
                 }
             }
@@ -3016,13 +3122,14 @@ namespace ai::openai::codex::frontend::client {
                     if (!decodeThread(threadValue, thread, error))
                         return false;
                     const typed::ThreadId threadId = thread.id;
-                    if (!appendDistinct(result.threads,
-                                        std::move(thread),
-                                        [](const ThreadState& entry) {
-                                            return entry.id;
-                                        },
-                                        "thread collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.threads,
+                            std::move(thread),
+                            [](const ThreadState& entry) {
+                                return entry.id;
+                            },
+                            "thread collection",
+                            error))
                         return false;
                     if (const auto turns = threadValue.find("turns"); turns != threadValue.end()) {
                         if (!turns->is_array()) {
@@ -3034,13 +3141,14 @@ namespace ai::openai::codex::frontend::client {
                             if (!decodeTurn(turnValue, turn, error, threadId))
                                 return false;
                             const typed::TurnId turnId = turn.id;
-                            if (!appendDistinct(result.turns,
-                                                std::move(turn),
-                                                [](const TurnState& entry) {
-                                                    return entry.id;
-                                                },
-                                                "turn collection",
-                                                error))
+                            if (!appendDistinct(
+                                    result.turns,
+                                    std::move(turn),
+                                    [](const TurnState& entry) {
+                                        return entry.id;
+                                    },
+                                    "turn collection",
+                                    error))
                                 return false;
                             if (const auto items = turnValue.find("items"); items != turnValue.end()) {
                                 if (!items->is_array()) {
@@ -3051,13 +3159,14 @@ namespace ai::openai::codex::frontend::client {
                                     ItemState item;
                                     if (!decodeLegacyItem(itemValue, item, error, threadId, turnId))
                                         return false;
-                                    if (!appendDistinct(result.items,
-                                                        std::move(item),
-                                                        [](const ItemState& entry) {
-                                                            return entry.id;
-                                                        },
-                                                        "item collection",
-                                                        error))
+                                    if (!appendDistinct(
+                                            result.items,
+                                            std::move(item),
+                                            [](const ItemState& entry) {
+                                                return entry.id;
+                                            },
+                                            "item collection",
+                                            error))
                                         return false;
                                 }
                             }
@@ -3114,13 +3223,14 @@ namespace ai::openai::codex::frontend::client {
                     PendingRequestState request;
                     if (!decodePendingRequestJson(value, request, error, false))
                         return false;
-                    if (!appendDistinct(result.pendingRequests,
-                                        std::move(request),
-                                        [](const PendingRequestState& entry) {
-                                            return entry.id;
-                                        },
-                                        "pending-request collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.pendingRequests,
+                            std::move(request),
+                            [](const PendingRequestState& entry) {
+                                return entry.id;
+                            },
+                            "pending-request collection",
+                            error))
                         return false;
                 }
             }
@@ -3128,10 +3238,10 @@ namespace ai::openai::codex::frontend::client {
             const frontend::Json* domains = &state;
             if (const auto nested = state.find("domains"); nested != state.end() && nested->is_object())
                 domains = &*nested;
-#define AISUITE_LEGACY_DOMAIN(jsonName, member)                                                                                             \
-    if (const auto value = domains->find(jsonName); value != domains->end() && value->is_object()) {                                        \
-        if (!decodeDomainWrapper(*value, result.member, error))                                                                             \
-            return false;                                                                                                                   \
+#define AISUITE_LEGACY_DOMAIN(jsonName, member)                                                                                            \
+    if (const auto value = domains->find(jsonName); value != domains->end() && value->is_object()) {                                       \
+        if (!decodeDomainWrapper(*value, result.member, error))                                                                            \
+            return false;                                                                                                                  \
     }
             AISUITE_LEGACY_DOMAIN("accounts", accounts)
             AISUITE_LEGACY_DOMAIN("models", models)
@@ -3161,16 +3271,15 @@ namespace ai::openai::codex::frontend::client {
                 result.skills.omittedFields = result.plugins.omittedFields;
             }
             if (result.platform.value) {
-                result.windowsSandbox.value =
-                    WindowsSandboxState{result.platform.value->projection, result.platform.value->details};
+                result.windowsSandbox.value = WindowsSandboxState{result.platform.value->projection, result.platform.value->details};
                 result.windowsSandbox.truncated = result.platform.truncated;
                 result.windowsSandbox.omittedFields = result.platform.omittedFields;
             }
 
             // The explicit forms avoid exposing a generic domain container and
             // keep each collection's stable element type visible to callers.
-            const auto legacyCollectionWrapper = [&error](const frontend::Json& value, std::string_view name)
-                -> std::optional<frontend::Json> {
+            const auto legacyCollectionWrapper = [&error](const frontend::Json& value,
+                                                          std::string_view name) -> std::optional<frontend::Json> {
                 frontend::Json wrapper = frontend::Json::object();
                 if (value.is_array()) {
                     wrapper["entries"] = value;
@@ -3266,14 +3375,40 @@ namespace ai::openai::codex::frontend::client {
             result.truncation.value->truncated = omittedExtensions != 0;
             result.truncation.value->omittedEntries = omittedExtensions;
             result.truncation.truncated = result.truncation.value->truncated;
-            result.compatibilityExtensions = extensionsOf(
-                state,
-                {"backendRevision", "provider", "lifecycle", "lastLifecycleError", "controller", "controllerSessionId", "sessions",
-                 "threadList", "threads", "items", "pendingRequests", "domains", "accounts", "models",
-                 "configuration", "reviews", "integrations", "pluginsAndSkills", "mcp", "platform", "processes",
-                 "filesystemWatches", "fuzzySearches", "fuzzySearchSessions", "notices", "activities", "capacity",
-                 "diagnostics", "codexExtensions", "omittedCodexExtensions", "journal", "sequenceExhausted",
-                 "frontendSequenceExhausted"});
+            result.compatibilityExtensions = extensionsOf(state,
+                                                          {"backendRevision",
+                                                           "provider",
+                                                           "lifecycle",
+                                                           "lastLifecycleError",
+                                                           "controller",
+                                                           "controllerSessionId",
+                                                           "sessions",
+                                                           "threadList",
+                                                           "threads",
+                                                           "items",
+                                                           "pendingRequests",
+                                                           "domains",
+                                                           "accounts",
+                                                           "models",
+                                                           "configuration",
+                                                           "reviews",
+                                                           "integrations",
+                                                           "pluginsAndSkills",
+                                                           "mcp",
+                                                           "platform",
+                                                           "processes",
+                                                           "filesystemWatches",
+                                                           "fuzzySearches",
+                                                           "fuzzySearchSessions",
+                                                           "notices",
+                                                           "activities",
+                                                           "capacity",
+                                                           "diagnostics",
+                                                           "codexExtensions",
+                                                           "omittedCodexExtensions",
+                                                           "journal",
+                                                           "sequenceExhausted",
+                                                           "frontendSequenceExhausted"});
             if (!state.at("codexExtensions").empty())
                 result.compatibilityExtensions["codexExtensions"] = state.at("codexExtensions");
             return true;
@@ -4022,9 +4157,7 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
-        bool validateExpandedEvent(const frontend::FrontendEvent& event,
-                                   frontend::ExpandedFrontendEvent& decoded,
-                                   std::string& error) {
+        bool validateExpandedEvent(const frontend::FrontendEvent& event, frontend::ExpandedFrontendEvent& decoded, std::string& error) {
             const auto encoded = frontend::Codec::encodeEvent(event);
             if (!encoded) {
                 error = encoded.error().message;
@@ -4039,10 +4172,8 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
-        bool replaceContent(detail::StateStorage& state,
-                            const frontend::Json& data,
-                            ItemContentReplacedChange& change,
-                            std::string& error) {
+        bool
+        replaceContent(detail::StateStorage& state, const frontend::Json& data, ItemContentReplacedChange& change, std::string& error) {
             const auto itemId = stringMember(data, "itemId");
             const auto content = stringMember(data, "content");
             const auto channelName = stringMember(data, "channel");
@@ -4141,13 +4272,14 @@ namespace ai::openai::codex::frontend::client {
                         SessionState session;
                         if (!decodeSession(value, session, error))
                             return false;
-                        if (!appendDistinct(decoded,
-                                            std::move(session),
-                                            [](const SessionState& entry) {
-                                                return entry.sessionId;
-                                            },
-                                            "session collection",
-                                            error))
+                        if (!appendDistinct(
+                                decoded,
+                                std::move(session),
+                                [](const SessionState& entry) {
+                                    return entry.sessionId;
+                                },
+                                "session collection",
+                                error))
                             return false;
                     }
                     state.sessions.value = std::move(decoded);
@@ -4217,10 +4349,9 @@ namespace ai::openai::codex::frontend::client {
                         return turn.id;
                     });
                     if (priorThread && *priorThread != threadId) {
-                        const auto oldThread =
-                            std::find_if(state.threads.begin(), state.threads.end(), [&](const ThreadState& entry) {
-                                return entry.id == *priorThread;
-                            });
+                        const auto oldThread = std::find_if(state.threads.begin(), state.threads.end(), [&](const ThreadState& entry) {
+                            return entry.id == *priorThread;
+                        });
                         if (oldThread != state.threads.end())
                             std::erase(oldThread->orderedTurns, id);
                     }
@@ -4243,8 +4374,7 @@ namespace ai::openai::codex::frontend::client {
                     const auto prior = std::find_if(state.items.begin(), state.items.end(), [&](const ItemState& item) {
                         return item.id == id;
                     });
-                    const std::optional<typed::TurnId> priorTurn =
-                        prior == state.items.end() ? std::nullopt : prior->turnId;
+                    const std::optional<typed::TurnId> priorTurn = prior == state.items.end() ? std::nullopt : prior->turnId;
                     upsert(state.items, std::move(decoded), [](const ItemState& item) {
                         return item.id;
                     });
@@ -4283,13 +4413,14 @@ namespace ai::openai::codex::frontend::client {
                         PendingRequestState request;
                         if (!decodePendingRequestJson(value, request, error, true))
                             return false;
-                        if (!appendDistinct(decoded,
-                                            std::move(request),
-                                            [](const PendingRequestState& entry) {
-                                                return entry.id;
-                                            },
-                                            "pending-request collection",
-                                            error))
+                        if (!appendDistinct(
+                                decoded,
+                                std::move(request),
+                                [](const PendingRequestState& entry) {
+                                    return entry.id;
+                                },
+                                "pending-request collection",
+                                error))
                             return false;
                     }
                     state.pendingRequests = std::move(decoded);
@@ -4358,8 +4489,7 @@ namespace ai::openai::codex::frontend::client {
                     } else {
                         if (!decodeDomainWrapper(*value, state.platform, error))
                             return false;
-                        state.windowsSandbox.value =
-                            WindowsSandboxState{state.platform.value->projection, state.platform.value->details};
+                        state.windowsSandbox.value = WindowsSandboxState{state.platform.value->projection, state.platform.value->details};
                         state.windowsSandbox.truncated = state.platform.truncated;
                         state.windowsSandbox.omittedFields = state.platform.omittedFields;
                         changes.push_back(PlatformUpdatedChange{});
@@ -4488,8 +4618,7 @@ namespace ai::openai::codex::frontend::client {
                 ThreadState decoded;
                 std::vector<TurnState> turns;
                 std::vector<ItemState> items;
-                if (!requireObjectMember(data, "thread", value, error) ||
-                    !decodeCompleteLegacyThread(*value, decoded, turns, items, error))
+                if (!requireObjectMember(data, "thread", value, error) || !decodeCompleteLegacyThread(*value, decoded, turns, items, error))
                     return false;
                 const typed::ThreadId id = decoded.id;
                 if (!applyCompleteLegacyThread(state, std::move(decoded), std::move(turns), std::move(items), error))
@@ -4672,8 +4801,7 @@ namespace ai::openai::codex::frontend::client {
                     state.truncation.value->truncated = true;
                     state.truncation.truncated = true;
                     const std::size_t omitted = state.truncation.value->omittedEntries.value_or(0);
-                    state.truncation.value->omittedEntries =
-                        omitted == std::numeric_limits<std::size_t>::max() ? omitted : omitted + 1;
+                    state.truncation.value->omittedEntries = omitted == std::numeric_limits<std::size_t>::max() ? omitted : omitted + 1;
                 }
                 extensions.push_back(data);
                 changes.push_back(CompatibilityExtensionChange{event.type});
@@ -4793,16 +4921,19 @@ namespace ai::openai::codex::frontend::client {
                     break;
             }
             static constexpr std::array projectedNames{
-                std::string_view{"provider"},          std::string_view{"controller"},       std::string_view{"sessions"},
-                std::string_view{"threadList"},
-                std::string_view{"accounts"},          std::string_view{"models"},           std::string_view{"configuration"},
-                std::string_view{"permissionProfiles"}, std::string_view{"reviews"},          std::string_view{"apps"},
-                std::string_view{"externalAgents"},    std::string_view{"hooks"},             std::string_view{"marketplace"},
-                std::string_view{"plugins"},           std::string_view{"skills"},            std::string_view{"mcp"},
-                std::string_view{"windowsSandbox"},    std::string_view{"platform"},          std::string_view{"processes"},
-                std::string_view{"filesystemWatches"}, std::string_view{"fuzzySearches"},     std::string_view{"notices"},
-                std::string_view{"activities"},        std::string_view{"capacity"},          std::string_view{"truncation"},
-                std::string_view{"diagnostics"},
+                std::string_view{"provider"},       std::string_view{"controller"},
+                std::string_view{"sessions"},       std::string_view{"threadList"},
+                std::string_view{"accounts"},       std::string_view{"models"},
+                std::string_view{"configuration"},  std::string_view{"permissionProfiles"},
+                std::string_view{"reviews"},        std::string_view{"apps"},
+                std::string_view{"externalAgents"}, std::string_view{"hooks"},
+                std::string_view{"marketplace"},    std::string_view{"plugins"},
+                std::string_view{"skills"},         std::string_view{"mcp"},
+                std::string_view{"windowsSandbox"}, std::string_view{"platform"},
+                std::string_view{"processes"},      std::string_view{"filesystemWatches"},
+                std::string_view{"fuzzySearches"},  std::string_view{"notices"},
+                std::string_view{"activities"},     std::string_view{"capacity"},
+                std::string_view{"truncation"},     std::string_view{"diagnostics"},
             };
             for (std::string_view name : projectedNames) {
                 auto found = result.find(std::string(name));
@@ -4959,7 +5090,7 @@ namespace ai::openai::codex::frontend::client {
     }
 
 #define AISUITE_STATE_GETTER(type, name)                                                                                                   \
-    const Projected<type>& State::name() const noexcept {                                                                                   \
+    const Projected<type>& State::name() const noexcept {                                                                                  \
         return impl->name;                                                                                                                 \
     }
     AISUITE_STATE_GETTER(AccountState, accounts)
@@ -4994,35 +5125,37 @@ namespace ai::openai::codex::frontend::client {
     const ProcessState* State::process(std::string_view handle) const noexcept {
         if (!impl->processes.value)
             return nullptr;
-        const auto found = std::find_if(impl->processes.value->entries.begin(), impl->processes.value->entries.end(), [handle](const auto& value) {
-            return value.processHandle.value == handle;
-        });
+        const auto found =
+            std::find_if(impl->processes.value->entries.begin(), impl->processes.value->entries.end(), [handle](const auto& value) {
+                return value.processHandle.value == handle;
+            });
         return found == impl->processes.value->entries.end() ? nullptr : &*found;
     }
     const FilesystemWatchState* State::filesystemWatch(const typed::FsWatchId& id) const noexcept {
         if (!impl->filesystemWatches.value)
             return nullptr;
-        const auto found = std::find_if(impl->filesystemWatches.value->entries.begin(),
-                                        impl->filesystemWatches.value->entries.end(),
-                                        [&](const auto& value) {
-                                            return value.watchId == id;
-                                        });
+        const auto found = std::find_if(
+            impl->filesystemWatches.value->entries.begin(), impl->filesystemWatches.value->entries.end(), [&](const auto& value) {
+                return value.watchId == id;
+            });
         return found == impl->filesystemWatches.value->entries.end() ? nullptr : &*found;
     }
     const FuzzySearchState* State::fuzzySearch(const FuzzySearchSessionId& id) const noexcept {
         if (!impl->fuzzySearches.value)
             return nullptr;
-        const auto found = std::find_if(impl->fuzzySearches.value->entries.begin(), impl->fuzzySearches.value->entries.end(), [&](const auto& value) {
-            return value.sessionId == id;
-        });
+        const auto found =
+            std::find_if(impl->fuzzySearches.value->entries.begin(), impl->fuzzySearches.value->entries.end(), [&](const auto& value) {
+                return value.sessionId == id;
+            });
         return found == impl->fuzzySearches.value->entries.end() ? nullptr : &*found;
     }
     const ActivityState* State::activity(const ActivityKey& key) const noexcept {
         if (!impl->activities.value)
             return nullptr;
-        const auto found = std::find_if(impl->activities.value->entries.begin(), impl->activities.value->entries.end(), [&](const auto& value) {
-            return value.key == key;
-        });
+        const auto found =
+            std::find_if(impl->activities.value->entries.begin(), impl->activities.value->entries.end(), [&](const auto& value) {
+                return value.key == key;
+            });
         return found == impl->activities.value->entries.end() ? nullptr : &*found;
     }
     const frontend::Json& State::compatibilityExtensions() const noexcept {
@@ -5071,10 +5204,10 @@ namespace ai::openai::codex::frontend::client {
         }
 
         std::optional<State> StateReducer::beginSynchronization(const State& current,
-                                                                 const SessionInfo& session,
-                                                                 std::size_t maximumBytes,
-                                                                 std::string& error,
-                                                                 std::optional<ProjectionFingerprintMetadata> projectionFingerprint) {
+                                                                const SessionInfo& session,
+                                                                std::size_t maximumBytes,
+                                                                std::string& error,
+                                                                std::optional<ProjectionFingerprintMetadata> projectionFingerprint) {
             auto candidate = std::make_shared<StateStorage>(*current.impl);
             if (!advanceRevision(*candidate, "beginning synchronization", error))
                 return std::nullopt;
@@ -5086,8 +5219,7 @@ namespace ai::openai::codex::frontend::client {
             candidate->lastSynchronizationBatchSequence.reset();
             if (candidate->controller.value) {
                 candidate->controller.value->ownedByThisClient =
-                    candidate->controller.value->sessionId &&
-                    candidate->controller.value->sessionId->value == session.sessionId;
+                    candidate->controller.value->sessionId && candidate->controller.value->sessionId->value == session.sessionId;
             }
             if (!stateFits(*candidate, maximumBytes, error))
                 return std::nullopt;
@@ -5128,8 +5260,7 @@ namespace ai::openai::codex::frontend::client {
                                                              std::string& error,
                                                              std::optional<ProjectionFingerprintMetadata> projectionFingerprint) {
             std::optional<frontend::SequenceNumber> representedThrough = current.impl->synchronizedThrough;
-            if (current.impl->visibleSequence &&
-                (!representedThrough || *representedThrough < *current.impl->visibleSequence))
+            if (current.impl->visibleSequence && (!representedThrough || *representedThrough < *current.impl->visibleSequence))
                 representedThrough = current.impl->visibleSequence;
             if (representedThrough && snapshotMessage.sequence < *representedThrough) {
                 error = "frontend snapshot sequence regressed behind the represented state";
@@ -5187,8 +5318,7 @@ namespace ai::openai::codex::frontend::client {
             }
             RepresentationMode mode = current.impl->representationMode;
             if (mode == RepresentationMode::Unknown) {
-                mode = eventUsesExpandedRepresentation(current.impl->session ? &*current.impl->session : nullptr,
-                                                       batch.events.front().type)
+                mode = eventUsesExpandedRepresentation(current.impl->session ? &*current.impl->session : nullptr, batch.events.front().type)
                            ? RepresentationMode::ExpandedV1
                            : RepresentationMode::LegacyV1;
             }
@@ -5201,8 +5331,7 @@ namespace ai::openai::codex::frontend::client {
             std::size_t applied = 0;
             std::size_t ignored = 0;
             std::optional<frontend::SequenceNumber> representedThrough = current.impl->synchronizedThrough;
-            if (current.impl->retainedReplayThrough &&
-                (!representedThrough || *representedThrough < *current.impl->retainedReplayThrough))
+            if (current.impl->retainedReplayThrough && (!representedThrough || *representedThrough < *current.impl->retainedReplayThrough))
                 representedThrough = current.impl->retainedReplayThrough;
             std::optional<frontend::SequenceNumber> prior;
             bool priorExpanded = false;
@@ -5239,9 +5368,8 @@ namespace ai::openai::codex::frontend::client {
                 }
                 if (!applyEventProjectionMetadata(*candidate, event, expandedType, error))
                     return std::nullopt;
-                if (!synchronizing &&
-                    ((representedThrough && event.sequence <= *representedThrough) ||
-                     (current.impl->visibleSequence && event.sequence <= *current.impl->visibleSequence))) {
+                if (!synchronizing && ((representedThrough && event.sequence <= *representedThrough) ||
+                                       (current.impl->visibleSequence && event.sequence <= *current.impl->visibleSequence))) {
                     error = "live frontend event sequence did not advance beyond the represented cursor";
                     return std::nullopt;
                 }
@@ -5277,18 +5405,14 @@ namespace ai::openai::codex::frontend::client {
             return StateReduction{State{std::move(candidate)}, std::move(changes), batch.events.size(), applied, ignored};
         }
 
-        std::optional<StateReduction> StateReducer::validateSynchronizationEvents(const State& staging,
-                                                                                   const frontend::EventBatch& batch,
-                                                                                   std::size_t maximumBytes,
-                                                                                   bool allowLegacyV1,
-                                                                                   std::string& error) {
+        std::optional<StateReduction> StateReducer::validateSynchronizationEvents(
+            const State& staging, const frontend::EventBatch& batch, std::size_t maximumBytes, bool allowLegacyV1, std::string& error) {
             if (batch.events.empty() || batch.fromSequence != batch.events.front().sequence ||
                 batch.toSequence != batch.events.back().sequence) {
                 error = "frontend event batch bounds do not match its nonempty event list";
                 return std::nullopt;
             }
-            if (staging.impl->lastSynchronizationBatchSequence &&
-                batch.fromSequence <= *staging.impl->lastSynchronizationBatchSequence) {
+            if (staging.impl->lastSynchronizationBatchSequence && batch.fromSequence <= *staging.impl->lastSynchronizationBatchSequence) {
                 error = "frontend replay event batches overlap or split one occurrence group";
                 return std::nullopt;
             }
@@ -5303,8 +5427,7 @@ namespace ai::openai::codex::frontend::client {
                 return std::nullopt;
             candidate->freshness = StateFreshness::Synchronizing;
             std::optional<frontend::SequenceNumber> representedThrough = staging.impl->synchronizedThrough;
-            if (staging.impl->retainedReplayThrough &&
-                (!representedThrough || *representedThrough < *staging.impl->retainedReplayThrough))
+            if (staging.impl->retainedReplayThrough && (!representedThrough || *representedThrough < *staging.impl->retainedReplayThrough))
                 representedThrough = staging.impl->retainedReplayThrough;
             std::optional<frontend::SequenceNumber> prior;
             bool priorExpanded = false;
@@ -5439,13 +5562,14 @@ namespace ai::openai::codex::frontend::client {
                         error = "turn result item does not belong to its containing turn";
                         return std::nullopt;
                     }
-                    if (!appendDistinct(result.items,
-                                        std::move(item),
-                                        [](const ItemState& candidate) {
-                                            return candidate.id;
-                                        },
-                                        "turn result item collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.items,
+                            std::move(item),
+                            [](const ItemState& candidate) {
+                                return candidate.id;
+                            },
+                            "turn result item collection",
+                            error))
                         return std::nullopt;
                 }
             }
@@ -5484,13 +5608,14 @@ namespace ai::openai::codex::frontend::client {
                                 error = "thread result item does not belong to its containing turn";
                                 return std::nullopt;
                             }
-                            if (!appendDistinct(turn.items,
-                                                std::move(item),
-                                                [](const ItemState& candidate) {
-                                                    return candidate.id;
-                                                },
-                                                "thread result item collection",
-                                                error))
+                            if (!appendDistinct(
+                                    turn.items,
+                                    std::move(item),
+                                    [](const ItemState& candidate) {
+                                        return candidate.id;
+                                    },
+                                    "thread result item collection",
+                                    error))
                                 return std::nullopt;
                         }
                     }
@@ -5504,13 +5629,14 @@ namespace ai::openai::codex::frontend::client {
                             return std::nullopt;
                         }
                     }
-                    if (!appendDistinct(result.turns,
-                                        std::move(turn),
-                                        [](const TurnResultState& candidate) {
-                                            return candidate.state.id;
-                                        },
-                                        "thread result turn collection",
-                                        error))
+                    if (!appendDistinct(
+                            result.turns,
+                            std::move(turn),
+                            [](const TurnResultState& candidate) {
+                                return candidate.state.id;
+                            },
+                            "thread result turn collection",
+                            error))
                         return std::nullopt;
                 }
             }

@@ -172,17 +172,16 @@ namespace {
                           "transportConnected emits exactly one sensitive Hello with exactly five representation capabilities");
 
         makeReady(connection);
-        const std::string expectedProjectionFingerprint = client::projectionFingerprint(client::ProjectionFingerprintInput{
-            exactCapabilities,
-            exactCapabilities,
-            std::optional<std::string>{"bearer-profile:test"},
-            std::nullopt,
-            std::nullopt,
-            std::nullopt,
-            std::nullopt});
+        const std::string expectedProjectionFingerprint =
+            client::projectionFingerprint(client::ProjectionFingerprintInput{exactCapabilities,
+                                                                             exactCapabilities,
+                                                                             std::optional<std::string>{"bearer-profile:test"},
+                                                                             std::nullopt,
+                                                                             std::nullopt,
+                                                                             std::nullopt,
+                                                                             std::nullopt});
         result.expectTrue(sdk.isReady() && sdk.session() && sdk.session()->sessionId == "session-1" &&
-                              sdk.synchronizedThrough() == frontend::SequenceNumber(7) &&
-                              sdk.state().projectionFingerprintMetadata() &&
+                              sdk.synchronizedThrough() == frontend::SequenceNumber(7) && sdk.state().projectionFingerprintMetadata() &&
                               sdk.state().projectionFingerprintMetadata()->canonical == expectedProjectionFingerprint,
                           "Welcome, Snapshot, and SyncComplete reach Ready with the canonical projection fingerprint attached to State");
 
@@ -190,10 +189,11 @@ namespace {
         result.expectTrue(!rejected.isOpen() && sdk.hasActiveConnection(), "one Client permits at most one active physical attachment");
 
         connection.transportDisconnected(client::TransportError{"peer closed", true});
-        result.expectTrue(!connection.isOpen() && sdk.connectionState() == client::ConnectionState::Disconnected &&
-                              sdk.state().projectionFingerprintMetadata() &&
-                              sdk.state().projectionFingerprintMetadata()->canonical == expectedProjectionFingerprint,
-                          "an unexpected disconnect returns the reusable Client to Disconnected while retained State keeps its projection identity");
+        result.expectTrue(
+            !connection.isOpen() && sdk.connectionState() == client::ConnectionState::Disconnected &&
+                sdk.state().projectionFingerprintMetadata() &&
+                sdk.state().projectionFingerprintMetadata()->canonical == expectedProjectionFingerprint,
+            "an unexpected disconnect returns the reusable Client to Disconnected while retained State keeps its projection identity");
 
         client::Connection reconnect = sdk.openConnection(harness.transport());
         reconnect.transportConnected();
@@ -215,25 +215,70 @@ namespace {
             std::function<void(frontend::Json&)> mutate;
         };
         const std::vector<MalformedCase> cases{
-            {"controller", [](frontend::Json& state) { state["controller"] = true; }},
-            {"domains", [](frontend::Json& state) { state["domains"] = "invalid"; }},
-            {"nested domain", [](frontend::Json& state) { state["domains"] = {{"accounts", frontend::Json::array()}}; }},
-            {"top-level domain", [](frontend::Json& state) { state["accounts"] = frontend::Json::array(); }},
-            {"processes", [](frontend::Json& state) { state["processes"] = "invalid"; }},
-            {"filesystem watches", [](frontend::Json& state) { state["filesystemWatches"] = "invalid"; }},
-            {"fuzzy searches", [](frontend::Json& state) { state["fuzzySearches"] = "invalid"; }},
-            {"fuzzy-search alias", [](frontend::Json& state) { state["fuzzySearchSessions"] = "invalid"; }},
-            {"notices", [](frontend::Json& state) { state["notices"] = "invalid"; }},
-            {"activities", [](frontend::Json& state) { state["activities"] = "invalid"; }},
-            {"collection entries", [](frontend::Json& state) { state["processes"] = {{"entries", "invalid"}}; }},
+            {"controller",
+             [](frontend::Json& state) {
+                 state["controller"] = true;
+             }},
+            {"domains",
+             [](frontend::Json& state) {
+                 state["domains"] = "invalid";
+             }},
+            {"nested domain",
+             [](frontend::Json& state) {
+                 state["domains"] = {{"accounts", frontend::Json::array()}};
+             }},
+            {"top-level domain",
+             [](frontend::Json& state) {
+                 state["accounts"] = frontend::Json::array();
+             }},
+            {"processes",
+             [](frontend::Json& state) {
+                 state["processes"] = "invalid";
+             }},
+            {"filesystem watches",
+             [](frontend::Json& state) {
+                 state["filesystemWatches"] = "invalid";
+             }},
+            {"fuzzy searches",
+             [](frontend::Json& state) {
+                 state["fuzzySearches"] = "invalid";
+             }},
+            {"fuzzy-search alias",
+             [](frontend::Json& state) {
+                 state["fuzzySearchSessions"] = "invalid";
+             }},
+            {"notices",
+             [](frontend::Json& state) {
+                 state["notices"] = "invalid";
+             }},
+            {"activities",
+             [](frontend::Json& state) {
+                 state["activities"] = "invalid";
+             }},
+            {"collection entries",
+             [](frontend::Json& state) {
+                 state["processes"] = {{"entries", "invalid"}};
+             }},
             {"collection truncation",
              [](frontend::Json& state) {
                  state["notices"] = {{"entries", frontend::Json::array()}, {"truncation", "invalid"}};
              }},
-            {"capacity", [](frontend::Json& state) { state["capacity"] = "invalid"; }},
-            {"capacity member", [](frontend::Json& state) { state["capacity"] = {{"sessions", "invalid"}}; }},
-            {"complete items", [](frontend::Json& state) { state["items"] = frontend::Json::object(); }},
-            {"diagnostics", [](frontend::Json& state) { state["diagnostics"]["recent"] = "invalid"; }},
+            {"capacity",
+             [](frontend::Json& state) {
+                 state["capacity"] = "invalid";
+             }},
+            {"capacity member",
+             [](frontend::Json& state) {
+                 state["capacity"] = {{"sessions", "invalid"}};
+             }},
+            {"complete items",
+             [](frontend::Json& state) {
+                 state["items"] = frontend::Json::object();
+             }},
+            {"diagnostics",
+             [](frontend::Json& state) {
+                 state["diagnostics"]["recent"] = "invalid";
+             }},
             {"bounded root schema",
              [](frontend::Json& state) {
                  for (std::size_t index = 0; index < 4100; ++index)
@@ -252,8 +297,8 @@ namespace {
             client::Client sdk(options(), harness.callbacks());
             client::Connection connection = sdk.openConnection(harness.transport());
             connection.transportConnected();
-            const client::ReceiveResult welcomeResult = connection.receive(frontend::ServerMessage{frontend::Welcome{
-                "legacy", frontend::SessionRole::Observer, frontend::SequenceNumber(1), frontend::SyncMode::Snapshot}});
+            const client::ReceiveResult welcomeResult = connection.receive(frontend::ServerMessage{
+                frontend::Welcome{"legacy", frontend::SessionRole::Observer, frontend::SequenceNumber(1), frontend::SyncMode::Snapshot}});
             frontend::Json state = minimalLegacyState();
             malformed.mutate(state);
             const client::ReceiveResult snapshotResult =
@@ -266,7 +311,8 @@ namespace {
             }
         }
         result.expectTrue(allRejected,
-                          "every malformed known optional legacy snapshot field is rejected through the public noexcept receive path without escaping or remaining connected");
+                          "every malformed known optional legacy snapshot field is rejected through the public noexcept receive path "
+                          "without escaping or remaining connected");
     }
 
     void testHandshakeReentrancy(tests::support::TestResult& result) {
@@ -281,12 +327,13 @@ namespace {
         credentialClient = &closedDuringCredential;
         client::Connection credentialConnection = closedDuringCredential.openConnection(credentialHarness.transport());
         credentialConnection.transportConnected();
-        result.expectTrue(credentialHarness.messages.empty() && credentialHarness.closes == 1 &&
-                              !credentialConnection.isOpen() && !closedDuringCredential.hasActiveConnection() &&
+        result.expectTrue(credentialHarness.messages.empty() && credentialHarness.closes == 1 && !credentialConnection.isOpen() &&
+                              !closedDuringCredential.hasActiveConnection() &&
                               closedDuringCredential.connectionState() == client::ConnectionState::Closed &&
                               client::detail::ClientTestAccess::erasedTransientBytes(closedDuringCredential) >=
                                   std::string_view("CLOSE_CREDENTIAL_SENTINEL").size(),
-                          "closing from CredentialProvider prevents Hello serialization, wipes the returned credential, and preserves terminal Client state");
+                          "closing from CredentialProvider prevents Hello serialization, wipes the returned credential, and preserves "
+                          "terminal Client state");
 
         Harness sendHarness;
         client::Connection sendConnection;
@@ -412,8 +459,7 @@ namespace {
 
         Harness duplicateAvailableHarness;
         client::Client duplicateAvailableSdk(options(), duplicateAvailableHarness.callbacks());
-        client::Connection duplicateAvailableConnection =
-            duplicateAvailableSdk.openConnection(duplicateAvailableHarness.transport());
+        client::Connection duplicateAvailableConnection = duplicateAvailableSdk.openConnection(duplicateAvailableHarness.transport());
         duplicateAvailableConnection.transportConnected();
         frontend::Welcome duplicateAvailable{"duplicateAvailable",
                                              frontend::SessionRole::Observer,
@@ -428,8 +474,7 @@ namespace {
 
         Harness unknownPermittedHarness;
         client::Client unknownPermittedSdk(options(), unknownPermittedHarness.callbacks());
-        client::Connection unknownPermittedConnection =
-            unknownPermittedSdk.openConnection(unknownPermittedHarness.transport());
+        client::Connection unknownPermittedConnection = unknownPermittedSdk.openConnection(unknownPermittedHarness.transport());
         unknownPermittedConnection.transportConnected();
         frontend::Welcome unknownPermitted{"unknownPermitted",
                                            frontend::SessionRole::Observer,
@@ -444,8 +489,7 @@ namespace {
 
         Harness duplicateCapabilityHarness;
         client::Client duplicateCapabilitySdk(options(), duplicateCapabilityHarness.callbacks());
-        client::Connection duplicateCapabilityConnection =
-            duplicateCapabilitySdk.openConnection(duplicateCapabilityHarness.transport());
+        client::Connection duplicateCapabilityConnection = duplicateCapabilitySdk.openConnection(duplicateCapabilityHarness.transport());
         duplicateCapabilityConnection.transportConnected();
         frontend::CapabilityAdvertisement duplicateAdvertisement = advertisedCapabilities();
         duplicateAdvertisement.implemented.push_back(frontend::FrontendCapability::CompleteBackendDomains);
@@ -654,10 +698,8 @@ namespace {
         invalidCapability.requiredCapabilities = {
             static_cast<frontend::FrontendCapability>(std::numeric_limits<CapabilityUnderlying>::max()),
         };
-        result.expectTrue(configurationRejected(std::move(duplicateRequested)) &&
-                              configurationRejected(std::move(productRequested)) &&
-                              configurationRejected(std::move(duplicateRequired)) &&
-                              configurationRejected(std::move(invalidCapability)),
+        result.expectTrue(configurationRejected(std::move(duplicateRequested)) && configurationRejected(std::move(productRequested)) &&
+                              configurationRejected(std::move(duplicateRequired)) && configurationRejected(std::move(invalidCapability)),
                           "ClientOptions rejects duplicate, invalid, and non-representation Hello capability configuration");
 
         Harness continuityHarness;
@@ -705,13 +747,10 @@ namespace {
 
         client::Client counterClient(options());
         const std::size_t maximumCount = std::numeric_limits<std::size_t>::max();
-        client::detail::ClientTestAccess::setSynchronizationCounts(
-            counterClient, maximumCount - 1, maximumCount - 2, maximumCount - 3);
-        const bool reachedMaximum =
-            client::detail::ClientTestAccess::tryAccumulateSynchronizationCounts(counterClient, 1, 2, 3);
+        client::detail::ClientTestAccess::setSynchronizationCounts(counterClient, maximumCount - 1, maximumCount - 2, maximumCount - 3);
+        const bool reachedMaximum = client::detail::ClientTestAccess::tryAccumulateSynchronizationCounts(counterClient, 1, 2, 3);
         const auto maximumCounts = client::detail::ClientTestAccess::synchronizationCounts(counterClient);
-        const bool overflowRejected =
-            !client::detail::ClientTestAccess::tryAccumulateSynchronizationCounts(counterClient, 1, 0, 0);
+        const bool overflowRejected = !client::detail::ClientTestAccess::tryAccumulateSynchronizationCounts(counterClient, 1, 0, 0);
         result.expectTrue(reachedMaximum && overflowRejected &&
                               maximumCounts == client::detail::ClientTestAccess::synchronizationCounts(counterClient) &&
                               maximumCounts[0] == maximumCount && maximumCounts[1] == maximumCount && maximumCounts[2] == maximumCount,
@@ -722,17 +761,16 @@ namespace {
         client::Connection counterOverflowConnection = counterOverflowClient.openConnection(counterOverflowHarness.transport());
         counterOverflowConnection.transportConnected();
         (void) counterOverflowConnection.receive(frontend::ServerMessage{frontend::Welcome{"counter-overflow",
-                                                                                            frontend::SessionRole::Observer,
-                                                                                            frontend::SequenceNumber(1),
-                                                                                            frontend::SyncMode::Replay,
-                                                                                            frontend::Json::object(),
-                                                                                            advertisedCapabilities()}});
+                                                                                           frontend::SessionRole::Observer,
+                                                                                           frontend::SequenceNumber(1),
+                                                                                           frontend::SyncMode::Replay,
+                                                                                           frontend::Json::object(),
+                                                                                           advertisedCapabilities()}});
         client::detail::ClientTestAccess::setSynchronizationCounts(counterOverflowClient, maximumCount, maximumCount, maximumCount);
-        const frontend::FrontendEvent counterEvent{frontend::SequenceNumber(1),
-                                                    "thread.upserted",
-                                                    frontend::Json{{"thread", {{"id", "counter-thread"}}}}};
-        (void) counterOverflowConnection.receive(frontend::ServerMessage{frontend::EventBatch{
-            frontend::SequenceNumber(1), frontend::SequenceNumber(1), std::vector{counterEvent}}});
+        const frontend::FrontendEvent counterEvent{
+            frontend::SequenceNumber(1), "thread.upserted", frontend::Json{{"thread", {{"id", "counter-thread"}}}}};
+        (void) counterOverflowConnection.receive(frontend::ServerMessage{
+            frontend::EventBatch{frontend::SequenceNumber(1), frontend::SequenceNumber(1), std::vector{counterEvent}}});
         result.expectTrue(!counterOverflowConnection.isOpen() && counterOverflowHarness.closes == 1 &&
                               counterOverflowClient.state().threads().empty(),
                           "a replay batch that would overflow synchronization counts closes before committing its candidate State");
@@ -964,11 +1002,12 @@ namespace {
         (void) dispatchFailureConnection.receive(frontend::ServerMessage{
             frontend::Response::success(dispatchTrigger.requestId->value(), frontend::Json{{"role", "controller"}})});
         dispatchFailureConnection.transportDisconnected(client::TransportError{"late disconnect", true});
-        result.expectTrue(completedInitial == 1 && completedDeferred == 1 && deferredFailure &&
-                              deferredFailure->origin == client::ErrorOrigin::Protocol && dispatchFailureHarness.messages.size() == 1 &&
-                              dispatchFailureHarness.closes == 1 && dispatchFailureSdk.pendingOperationCount() == 0 &&
-                              dispatchFailureSdk.connectionState() == client::ConnectionState::Disconnected,
-                          "an internal dispatch exception restores dispatch depth, cancels deferred work once, and closes only its connection");
+        result.expectTrue(
+            completedInitial == 1 && completedDeferred == 1 && deferredFailure &&
+                deferredFailure->origin == client::ErrorOrigin::Protocol && dispatchFailureHarness.messages.size() == 1 &&
+                dispatchFailureHarness.closes == 1 && dispatchFailureSdk.pendingOperationCount() == 0 &&
+                dispatchFailureSdk.connectionState() == client::ConnectionState::Disconnected,
+            "an internal dispatch exception restores dispatch depth, cancels deferred work once, and closes only its connection");
     }
 
     void testStateCallbackDeferralAndTerminalClose(tests::support::TestResult& result) {
@@ -1067,10 +1106,10 @@ namespace {
         refreshCallbacks.onStateUpdated = [&](const client::StateUpdate& update) {
             if (update.cause == client::UpdateCause::SynchronizationCompleted) {
                 refreshCountsAtCompletion.push_back(sdk.pendingOperationCount());
-                completionSubmission = sdk.submit(
-                    generated::CompleteCommandParameters{
-                        generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
-                    {});
+                completionSubmission =
+                    sdk.submit(generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{
+                                   frontend::Json::object()}},
+                               {});
             }
         };
         refreshCallbacks.onSynchronized = [&](const client::SynchronizationInfo&) {
@@ -1085,15 +1124,15 @@ namespace {
         const std::size_t messagesBeforeCompletion = harness.messages.size();
         (void) second.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(8)}});
         const auto callbackCommand = frontend::Codec::decodeDefinedCommand(std::string_view(harness.messages.back().compactJson));
-        result.expectTrue(afterRefreshResponse == 1 && afterRefreshSnapshot == 1 &&
-                              refreshCountsAtCompletion == std::vector<std::size_t>{0, 1} && completionSubmission &&
-                              *completionSubmission && sdk.pendingOperationCount() == 1 && sdk.isReady() &&
-                              harness.messages.size() == messagesBeforeCompletion + 1 && callbackCommand &&
-                              generated::commandMethod(callbackCommand.value().parameters) == generated::MethodId::ProviderStart,
-                          "projection refresh retires at SyncComplete before callbacks, which may immediately use the released bounded slot");
+        result.expectTrue(
+            afterRefreshResponse == 1 && afterRefreshSnapshot == 1 && refreshCountsAtCompletion == std::vector<std::size_t>{0, 1} &&
+                completionSubmission && *completionSubmission && sdk.pendingOperationCount() == 1 && sdk.isReady() &&
+                harness.messages.size() == messagesBeforeCompletion + 1 && callbackCommand &&
+                generated::commandMethod(callbackCommand.value().parameters) == generated::MethodId::ProviderStart,
+            "projection refresh retires at SyncComplete before callbacks, which may immediately use the released bounded slot");
         if (completionSubmission && *completionSubmission) {
-            (void) second.receive(frontend::ServerMessage{
-                frontend::Response::success(completionSubmission->requestId->value(), frontend::Json::object())});
+            (void) second.receive(
+                frontend::ServerMessage{frontend::Response::success(completionSubmission->requestId->value(), frontend::Json::object())});
         }
         result.expectTrue(sdk.pendingOperationCount() == 0,
                           "the callback submission made at projection-refresh completion flushes and completes exactly once");
@@ -1167,7 +1206,7 @@ namespace {
         result.expectTrue(
             harness.messages.size() == 5 && harness.messages[0].sensitive && harness.messages[1].sensitive &&
                 harness.messages[2].sensitive && harness.messages[3].sensitive && !harness.messages[4].sensitive,
-                          "reviewed generated binding metadata marks reverse secrets and account login sensitive without ad-hoc dispatch tests");
+            "reviewed generated binding metadata marks reverse secrets and account login sensitive without ad-hoc dispatch tests");
     }
 
     void testSensitiveResidualErasure(tests::support::TestResult& result) {
@@ -1185,32 +1224,32 @@ namespace {
         std::size_t afterDeferredEncoding = 0;
         std::size_t deferredCompletions = 0;
         std::optional<client::Error> deferredError;
-        const client::Submission trigger = sdk.submit(
-            generated::CompleteCommandParameters{
-                generated::MethodParameters<generated::MethodId::ControllerAcquire>{frontend::Json::object()}},
-            [&](const client::GeneratedOperationResult&) {
-                frontend::Json authentication = frontend::Json::object();
-                authentication["pendingRequestId"] = "1";
-                authentication["accessToken"] = "DEFERRED_ACCESS_TOKEN_SENTINEL";
-                authentication["chatgptAccountId"] = "account";
-                const client::Submission deferred = sdk.submit(
-                    generated::CompleteCommandParameters{
-                        generated::MethodParameters<generated::MethodId::AuthenticationRespond>{std::move(authentication)}},
-                    [&](const client::GeneratedOperationResult& operation) {
-                        ++deferredCompletions;
-                        deferredError = operation.error;
-                    });
-                (void) deferred;
-                afterDeferredEncoding = client::detail::ClientTestAccess::erasedTransientBytes(sdk);
-                sdk.close("cancel sensitive deferred command");
-            });
+        const client::Submission trigger =
+            sdk.submit(generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ControllerAcquire>{
+                           frontend::Json::object()}},
+                       [&](const client::GeneratedOperationResult&) {
+                           frontend::Json authentication = frontend::Json::object();
+                           authentication["pendingRequestId"] = "1";
+                           authentication["accessToken"] = "DEFERRED_ACCESS_TOKEN_SENTINEL";
+                           authentication["chatgptAccountId"] = "account";
+                           const client::Submission deferred = sdk.submit(
+                               generated::CompleteCommandParameters{
+                                   generated::MethodParameters<generated::MethodId::AuthenticationRespond>{std::move(authentication)}},
+                               [&](const client::GeneratedOperationResult& operation) {
+                                   ++deferredCompletions;
+                                   deferredError = operation.error;
+                               });
+                           (void) deferred;
+                           afterDeferredEncoding = client::detail::ClientTestAccess::erasedTransientBytes(sdk);
+                           sdk.close("cancel sensitive deferred command");
+                       });
         (void) connection.receive(
             frontend::ServerMessage{frontend::Response::success(trigger.requestId->value(), frontend::Json{{"role", "controller"}})});
         const std::size_t afterCancellation = client::detail::ClientTestAccess::erasedTransientBytes(sdk);
-        result.expectTrue(trigger && harness.messages.size() == 1 && afterDeferredEncoding > afterHello &&
-                              afterCancellation > afterDeferredEncoding && deferredCompletions == 1 && deferredError &&
-                              deferredError->clientCode == client::ClientErrorCode::Closed,
-                          "canceling a sensitive deferred submission overwrites both encoded parameter values and the SDK-owned queued payload");
+        result.expectTrue(
+            trigger && harness.messages.size() == 1 && afterDeferredEncoding > afterHello && afterCancellation > afterDeferredEncoding &&
+                deferredCompletions == 1 && deferredError && deferredError->clientCode == client::ClientErrorCode::Closed,
+            "canceling a sensitive deferred submission overwrites both encoded parameter values and the SDK-owned queued payload");
     }
 
     void testConnectionHandleOwnership(tests::support::TestResult& result) {
@@ -1230,10 +1269,12 @@ namespace {
 
         destination = std::move(incoming);
         result.expectTrue(displacedHarness.closes == 1 && displacedClient.connectionState() == client::ConnectionState::Disconnected &&
-                              !displacedClient.hasActiveConnection() && displacedClient.state().freshness() == client::StateFreshness::Stale &&
-                              !incoming.isOpen() && destination.isOpen() && destination.generation() == incomingGeneration &&
-                              incomingClient.isReady() && incomingClient.hasActiveConnection(),
-                          "move-assigning into an active Connection closes and detaches the displaced attachment exactly once while preserving the incoming attachment");
+                              !displacedClient.hasActiveConnection() &&
+                              displacedClient.state().freshness() == client::StateFreshness::Stale && !incoming.isOpen() &&
+                              destination.isOpen() && destination.generation() == incomingGeneration && incomingClient.isReady() &&
+                              incomingClient.hasActiveConnection(),
+                          "move-assigning into an active Connection closes and detaches the displaced attachment exactly once while "
+                          "preserving the incoming attachment");
 
         client::Connection& sameConnection = destination;
         destination = std::move(sameConnection);
@@ -1264,12 +1305,12 @@ namespace {
         const std::uint64_t replacementGeneration = replacement.generation();
 
         throwingDestination = std::move(replacement);
-        result.expectTrue(throwingHarness.closes == 1 && throwingHarness.diagnostics == 1 &&
-                              throwingClient.connectionState() == client::ConnectionState::Disconnected &&
-                              !throwingClient.hasActiveConnection() && !replacement.isOpen() && throwingDestination.isOpen() &&
-                              throwingDestination.generation() == replacementGeneration && replacementClient.isReady() &&
-                              replacementClient.hasActiveConnection(),
-                          "move-assignment contains a displaced transport close exception, detaches it once, and still takes the incoming attachment");
+        result.expectTrue(
+            throwingHarness.closes == 1 && throwingHarness.diagnostics == 1 &&
+                throwingClient.connectionState() == client::ConnectionState::Disconnected && !throwingClient.hasActiveConnection() &&
+                !replacement.isOpen() && throwingDestination.isOpen() && throwingDestination.generation() == replacementGeneration &&
+                replacementClient.isReady() && replacementClient.hasActiveConnection(),
+            "move-assignment contains a displaced transport close exception, detaches it once, and still takes the incoming attachment");
 
         Harness destructorHarness;
         client::Client destructorClient(options(), destructorHarness.callbacks());
@@ -1324,8 +1365,7 @@ namespace {
         callbacks.onConnectionStateChanged = [&](const client::ConnectionStateChange& change) {
             harness.states.push_back(change.current);
             if (change.current == client::ConnectionState::Disconnected) {
-                callbacksSawCommittedDisconnect = callbacksSawCommittedDisconnect &&
-                                                  !sdkPointer->hasActiveConnection() &&
+                callbacksSawCommittedDisconnect = callbacksSawCommittedDisconnect && !sdkPointer->hasActiveConnection() &&
                                                   sdkPointer->pendingOperationCount() == 0 &&
                                                   sdkPointer->state().freshness() == client::StateFreshness::Stale;
             }
@@ -1336,8 +1376,7 @@ namespace {
         connection.transportConnected();
         makeReady(connection, frontend::SequenceNumber(12));
         const client::Submission pending = sdk.submit(
-            generated::CompleteCommandParameters{
-                generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
+            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
             [&](const client::GeneratedOperationResult& operation) {
                 ++operationCompletions;
                 callbacksSawCommittedDisconnect = callbacksSawCommittedDisconnect && operation.error &&
@@ -1346,9 +1385,10 @@ namespace {
                                                   !sdk.hasActiveConnection() && sdk.pendingOperationCount() == 0;
             });
         connection.transportDisconnected(client::TransportError{"atomic disconnect", true});
-        result.expectTrue(pending && staleCallbacks == 1 && operationCompletions == 1 && callbacksSawCommittedDisconnect &&
-                              sdk.connectionState() == client::ConnectionState::Disconnected && !sdk.hasActiveConnection(),
-                          "disconnect commits stale State, clears active/pending ownership, and enters Disconnected before invoking any user callback");
+        result.expectTrue(
+            pending && staleCallbacks == 1 && operationCompletions == 1 && callbacksSawCommittedDisconnect &&
+                sdk.connectionState() == client::ConnectionState::Disconnected && !sdk.hasActiveConnection(),
+            "disconnect commits stale State, clears active/pending ownership, and enters Disconnected before invoking any user callback");
     }
 
     void testGeneratedReverseRequestRejectsStaleSession(tests::support::TestResult& result) {
@@ -1358,10 +1398,8 @@ namespace {
         connection.transportConnected();
 
         frontend::Json state = expandedState();
-        state["pendingRequests"].push_back(frontend::Json{{"pendingRequestId", "1"},
-                                                         {"kind", "command_execution_approval"},
-                                                         {"summary", "stale reverse request"},
-                                                         {"truncated", false}});
+        state["pendingRequests"].push_back(frontend::Json{
+            {"pendingRequestId", "1"}, {"kind", "command_execution_approval"}, {"summary", "stale reverse request"}, {"truncated", false}});
         frontend::Json projectionMetadata = frontend::Json::object();
         projectionMetadata["permittedScopes"] = frontend::Json::array();
         const std::vector<frontend::FrontendMethod> reverseMethods{
@@ -1374,8 +1412,7 @@ namespace {
                                                                             advertisedCapabilities(),
                                                                             reverseMethods,
                                                                             reverseMethods}});
-        (void) connection.receive(
-            frontend::ServerMessage{frontend::Snapshot{frontend::SequenceNumber(7), std::move(state)}});
+        (void) connection.receive(frontend::ServerMessage{frontend::Snapshot{frontend::SequenceNumber(7), std::move(state)}});
         (void) connection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(7)}});
         connection.transportDisconnected();
 
@@ -1394,16 +1431,17 @@ namespace {
         const client::PendingRequestState* stale = sdk.state().pendingRequest(client::PendingRequestId{"1"});
         const std::size_t messageCount = harness.messages.size();
         std::size_t completions = 0;
-        const client::Submission submission = sdk.submit(
-            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ApprovalRespond>{
-                frontend::Json{{"pendingRequestId", "1"}, {"decision", "accept"}}}},
-            [&completions](const client::GeneratedOperationResult&) {
-                ++completions;
-            });
-        result.expectTrue(stale != nullptr && stale->connectionInvalidated && sdk.isReady() && !submission && submission.error &&
-                              submission.error->clientCode == client::ClientErrorCode::MethodNotPermitted &&
-                              harness.messages.size() == messageCount && completions == 0 && reconnect.isOpen(),
-                          "restricted generated reverse submissions share typed Requests session invalidation policy and never reach transport");
+        const client::Submission submission =
+            sdk.submit(generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ApprovalRespond>{
+                           frontend::Json{{"pendingRequestId", "1"}, {"decision", "accept"}}}},
+                       [&completions](const client::GeneratedOperationResult&) {
+                           ++completions;
+                       });
+        result.expectTrue(
+            stale != nullptr && stale->connectionInvalidated && sdk.isReady() && !submission && submission.error &&
+                submission.error->clientCode == client::ClientErrorCode::MethodNotPermitted && harness.messages.size() == messageCount &&
+                completions == 0 && reconnect.isOpen(),
+            "restricted generated reverse submissions share typed Requests session invalidation policy and never reach transport");
     }
 
     void testReentrantConnectionCloseDuringClientClose(tests::support::TestResult& result) {
@@ -1423,23 +1461,22 @@ namespace {
         std::size_t operationCompletions = 0;
         std::optional<client::Error> operationError;
         const client::Submission pending = sdk.submit(
-            generated::CompleteCommandParameters{
-                generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
+            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
             [&](const client::GeneratedOperationResult& operation) {
                 ++operationCompletions;
                 operationError = operation.error;
             });
         const std::size_t statesBeforeClose = harness.states.size();
         sdk.close("reentrant connection close fixture");
-        const std::vector<client::ConnectionState> terminalStates(harness.states.begin() +
-                                                                      static_cast<std::ptrdiff_t>(statesBeforeClose),
+        const std::vector<client::ConnectionState> terminalStates(harness.states.begin() + static_cast<std::ptrdiff_t>(statesBeforeClose),
                                                                   harness.states.end());
         result.expectTrue(terminalStates == std::vector{client::ConnectionState::Closing, client::ConnectionState::Closed} &&
                               sdk.connectionState() == client::ConnectionState::Closed && !connection.isOpen() &&
-                              !sdk.hasActiveConnection() && harness.closes == 1 && pending && operationCompletions == 1 &&
-                              operationError && operationError->origin == client::ErrorOrigin::Client &&
+                              !sdk.hasActiveConnection() && harness.closes == 1 && pending && operationCompletions == 1 && operationError &&
+                              operationError->origin == client::ErrorOrigin::Client &&
                               operationError->clientCode == client::ClientErrorCode::Closed,
-                          "Connection::close reentered from Client Closing remains terminal, reports pending work as Client Closed, and never emits Disconnected");
+                          "Connection::close reentered from Client Closing remains terminal, reports pending work as Client Closed, and "
+                          "never emits Disconnected");
     }
 
     void testSynchronousCloseDisconnect(tests::support::TestResult& result) {
@@ -1462,14 +1499,14 @@ namespace {
         const std::size_t statesBeforeClose = harness.states.size();
 
         sdk.close("synchronous close callback fixture");
-        const std::vector<client::ConnectionState> terminalStates(harness.states.begin() +
-                                                                      static_cast<std::ptrdiff_t>(statesBeforeClose),
+        const std::vector<client::ConnectionState> terminalStates(harness.states.begin() + static_cast<std::ptrdiff_t>(statesBeforeClose),
                                                                   harness.states.end());
         result.expectTrue(terminalStates == std::vector{client::ConnectionState::Closing, client::ConnectionState::Closed} &&
                               harness.closes == 1 && !connection.isOpen() && !sdk.hasActiveConnection() &&
                               sdk.connectionState() == client::ConnectionState::Closed &&
                               sdk.state().freshness() == client::StateFreshness::Stale,
-                          "a transport close callback that synchronously reports disconnection produces only Closing then Closed and leaves retained state stale");
+                          "a transport close callback that synchronously reports disconnection produces only Closing then Closed and "
+                          "leaves retained state stale");
     }
 
     void testProtocolErrorCorrelation(tests::support::TestResult& result) {
@@ -1493,8 +1530,7 @@ namespace {
         sdk.setCallbacks(std::move(callbacks));
 
         const client::Submission operation = sdk.submit(
-            generated::CompleteCommandParameters{
-                generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
+            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
             [&](const client::GeneratedOperationResult& completed) {
                 ++completions;
                 completionError = completed.error;
@@ -1514,8 +1550,8 @@ namespace {
         fatal.message = "fatal protocol error";
         fatal.closeConnection = true;
         (void) connection.receive(frontend::ServerMessage{fatal});
-        result.expectTrue(completions == 1 && observations == 2 && fatalObservations == 1 && harness.closes == 1 &&
-                              !connection.isOpen() && sdk.connectionState() == client::ConnectionState::Disconnected,
+        result.expectTrue(completions == 1 && observations == 2 && fatalObservations == 1 && harness.closes == 1 && !connection.isOpen() &&
+                              sdk.connectionState() == client::ConnectionState::Disconnected,
                           "a fatal protocol.error is observed exactly once and then closes only the current connection");
     }
 
@@ -1537,19 +1573,17 @@ namespace {
         makeReady(connection);
         harness.messages.clear();
         client::detail::ClientTestAccess::setNextRequest(sdk, std::numeric_limits<std::uint64_t>::max());
-        const client::Submission exhausted = sdk.submit(
-            generated::CompleteCommandParameters{
-                generated::MethodParameters<generated::MethodId::ControllerAcquire>{frontend::Json::object()}},
-            {});
-        result.expectTrue(!exhausted && exhausted.error &&
-                              exhausted.error->clientCode == client::ClientErrorCode::RequestIdExhausted && harness.messages.empty() &&
-                              sdk.pendingOperationCount() == 0 && sdk.isReady(),
+        const client::Submission exhausted =
+            sdk.submit(generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ControllerAcquire>{
+                           frontend::Json::object()}},
+                       {});
+        result.expectTrue(!exhausted && exhausted.error && exhausted.error->clientCode == client::ClientErrorCode::RequestIdExhausted &&
+                              harness.messages.empty() && sdk.pendingOperationCount() == 0 && sdk.isReady(),
                           "request-ID exhaustion fails locally without wraparound, send, or connection loss");
 
         Harness generationHarness;
         client::Client generationClient(options(), generationHarness.callbacks());
-        client::detail::ClientTestAccess::setNextConnectionGeneration(generationClient,
-                                                                      std::numeric_limits<std::uint64_t>::max());
+        client::detail::ClientTestAccess::setNextConnectionGeneration(generationClient, std::numeric_limits<std::uint64_t>::max());
         client::Connection unavailable = generationClient.openConnection(generationHarness.transport());
         result.expectTrue(!unavailable.isOpen() && !generationClient.hasActiveConnection() &&
                               generationClient.connectionState() == client::ConnectionState::Disconnected &&
