@@ -4,7 +4,7 @@ AISuite is the home of reusable C++ AI integrations built on SNode.C. Its
 initial provider is a typed, asynchronous client, backend, and frontend protocol
 for the OpenAI Codex App Server.
 
-AISuite consumes the current installed SNode.C package while keeping its Codex
+AISuite consumes an installed SNode.C 2.0-or-newer package while keeping its Codex
 protocol implementation and versioned protocol sources in this repository.
 
 AISuite now owns the three remaining Codex-specific source-policy
@@ -16,24 +16,25 @@ test.
 
 ## Build
 
-AISuite consumes an installed SNode.C package; it never includes a sibling
+AISuite consumes an installed SNode.C 2.0-or-newer package; it never includes a sibling
 SNode.C source checkout. Reusable AISuite libraries require the installed
-`snodec::core` target. Unix reference applications additionally require
-`snodec::net-un-stream-legacy`; that transport component is not imposed on a
+`snodec::core` target. Application-only frontend transports use the exact
+installed SNode.C targets for Unix, IPv4/IPv6, TLS, HTTP/Express, WebSocket,
+and optional RFCOMM; those transport components are not imposed on a
 library-only consumer.
 
 ```sh
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH="/path/to/snodec/prefix"
-cmake --build build --parallel
+cmake --build build --parallel 28
 ctest --test-dir build --output-on-failure
 ```
 
 ## CMake consumption
 
 ```cmake
-find_package(snodec CONFIG REQUIRED COMPONENTS core)
+find_package(snodec 2.0 CONFIG REQUIRED COMPONENTS core)
 find_package(AISuite CONFIG REQUIRED)
 
 target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
@@ -92,37 +93,74 @@ notifications, 18 items, and ten requests. Exactly 13 application operations
 remain reasoned action-only results, and the 16 `ResponseItem` alternatives
 remain reasoned `NoRuntimeBackendStatePath`.
 
-A1.7a now freezes an additive Frontend Protocol v1 contract without changing
-its identity or version. The generated catalog contains the original 15
-runtime methods plus 90 additive definitions, for 105 total: seven
-frontend-native methods and 98 mappings to BackendCore. The owner-reviewed
-denominator is fixed at 148 formerly unresolved decisions plus 86 existing
-notification/item compatibility contracts, or 234 total, with zero decisions
-left unresolved. Capability advertisement distinguishes a method being
-defined, implemented by the current runtime, and permitted for a connection;
-the current server still accepts exactly the original 15 methods. Filesystem
-and arbitrary command-execution methods remain conditional and disabled by
-default, and A1.7a does not implement authentication, scope enforcement, or a
-new transport. All 68 stable notifications and all 18 stable `ThreadItem`
-alternatives retain their existing normalized or bounded/redacted compatibility
-paths while expanded projections remain capability-gated.
+A1.7a freezes an additive Frontend Protocol v1 contract without changing its
+identity or version. Its generated catalog contains the original 15 methods
+plus 90 additive definitions, for 105 total: seven frontend-native methods and
+98 BackendCore mappings. The owner-reviewed denominator remains 148 formerly
+unresolved decisions plus 86 notification/item compatibility contracts, or
+234 total, with zero unresolved.
+
+A1.7b completes the PIMPL-backed `FrontendService` and all 105 runtime
+handlers. Fifteen filesystem/command methods remain implemented but
+deployment-disabled by default, leaving 90 default-available methods. The
+`default_remote` profile (`observe` + `control`) is permitted 53/90; the
+12-scope `local_trusted` profile is permitted 90/90. The remote exclusion is
+exactly 22 privileged provider operations, 12 reverse-response methods, and
+three provider-lifecycle methods. `account.read` keeps its observer form while
+`refreshToken=true` additionally requires `control`, `account_management`, and
+the current controller.
+
+Every listener borrows the same service, controller, sequence, and canonical
+journal. Authentication finishes before BackendCore session creation; Unix
+local trust requires verified same-user peer credentials and an owner-only
+socket, while remote/untrusted connections use a protected-file bearer token
+in Hello. Scope filtering is unconditional for snapshot, live, and replay
+projections. Before canonical retention, AISuite removes known structured
+authentication, credential, token, password, private-key, API-key, cookie, and
+reviewed secret-response fields together with unsafe raw provider envelopes.
+Arbitrary bounded user, model, tool, reasoning, notice, diagnostic,
+process-output, and command-output text remains potentially sensitive and is
+protected by the same mandatory per-principal projection.
+
+The service implements and advertises 13 mechanism capabilities. The frozen
+`multi_transport` identity remains defined for Protocol v1 compatibility, but
+A1.7b does not maintain an application transport registry and does not advertise
+that capability. Multi-listener operation instead follows naturally because
+every SNode.C listener borrows the same application-owned service.
+
+The reference HTTP/WebSocket path uses SNode.C 2.0's configured HTTP parser,
+server limits, native upgrade, framing, and transport backpressure. Express
+middleware retains AISuite's endpoint, Origin, credential-channel, and request
+semantics. The parser bounds decoded bodies at one byte: AISuite rejects that
+one-byte boundary and every other non-empty body, while a larger body receives
+413 before Express dispatch. Static GET responses retain the descriptor produced by the hardened
+`openat()`/`O_NOFOLLOW` walk, pass it to `FileReader::adopt()`, and attach that
+source with `Response::pipe()`; they never reopen the authorized pathname or
+buffer the whole asset. A failed or throwing pipe setup stops the reader; a
+successful pipe transfers source ownership to SNode.C. HEAD returns the same
+representation length without a body. See the A1.7b report for the complete
+profile and exact installed SNode.C targets.
 
 The installed frontend surface adds the generated contract and security
-headers, `GeneratedProtocol.h` and `Security.h`. Installed header inventory is
-therefore 29 main + 7 backend + 9 frontend = 45 total. Project version `0.1.0`
-and all three Codex libraries' SOVERSION 2 remain unchanged. See the
+headers, `GeneratedProtocol.h` and `Security.h`; A1.7b replaces
+`BackendAdapter.h` with `FrontendService.h` and provides no public alias.
+Installed header inventory is therefore 29 main + 7 backend + 9 frontend = 45
+total. Project version `0.1.0` and all three Codex libraries' SOVERSION 2 remain
+unchanged. See the
 [A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the
 [A1.6b backend completion](docs/ai/openai/codex/a1-6b-backend-completeness.md),
 the [A1.7a frontend contract](docs/ai/openai/codex/a1-7a-frontend-contract.md),
+the [A1.7b FrontendService](docs/ai/openai/codex/a1-7b-frontend-service.md),
 the [Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
 for initialization and canonical error behavior, and the
 [Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
-for the exact source-compatibility boundary. A1.7b owns runtime authentication,
-scope projection, provider lifecycle exposure, and multi-transport service
-activation; A1.7c owns the C++ client SDK and Qt UI; A1.7d owns the TypeScript
-client SDK and browser UI. Provider-neutral architecture remains A2.
+for the exact source-compatibility boundary. A1.7c-1 is next and owns the C++
+Frontend SDK plus `codex-backend-client` migration. A1.7c-2 immediately follows
+and migrates the existing `codex-ui` into the canonical standalone AI IDE; no
+additional PR is inserted before it. A1.7d owns the TypeScript Frontend SDK and
+browser frontend. Provider-neutral architecture remains A2.
 
-AISuite validates current build and runtime compatibility with the installed
-SNode.C package. CI builds the current SNode.C `master` branch once, installs
+AISuite validates build and runtime compatibility with installed SNode.C 2.0
+or newer. CI builds the current SNode.C `master` branch once, installs
 it, and configures AISuite only against that prefix. No SNode.C source checkout
 is required by AISuite tests.

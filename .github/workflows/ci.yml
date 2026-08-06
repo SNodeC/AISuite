@@ -9,22 +9,36 @@ permissions:
   contents: read
 
 env:
-  # Resolve indirect DSOs from the staged current SNode.C install while
+  # Resolve indirect DSOs from the staged SNode.C 2.0-or-newer install while
   # linking test executables and executing the ordinary test suite.
-  LDFLAGS: -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib
-  LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib
+  LDFLAGS: >-
+    -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib
+    -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http
+    -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
+  LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
 
 jobs:
   gcc-15-debug:
     runs-on: ubuntu-24.04
     container: gcc:15.3.0-trixie
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y cmake ninja-build python3 pkg-config libssl-dev nlohmann-json3-dev
+          apt-get install -y \
+            cmake \
+            ca-certificates \
+            git \
+            libbluetooth-dev \
+            libmagic-dev \
+            libssl-dev \
+            ninja-build \
+            nlohmann-json3-dev \
+            pkg-config \
+            python3
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           getent group snodec >/dev/null || groupadd --system snodec
 
@@ -35,12 +49,12 @@ jobs:
           ninja --version
           dpkg-query -W -f='${Version}\n' nlohmann-json3-dev
 
-      - name: Prepare current SNode.C master
+      - name: Prepare SNode.C 2.0-or-newer dependency
         run: |
           git clone --depth 1 --branch master \
             https://github.com/SNodeC/snode.c.git ../snodec
 
-      - name: Build and install current SNode.C dependency
+      - name: Build and install SNode.C 2.0-or-newer dependency
         run: |
           cmake -S ../snodec -B ../snodec-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
@@ -48,15 +62,29 @@ jobs:
             -DSNODEC_BUILD_TESTS=OFF \
             -DSNODEC_BUILD_APPS=OFF
           cmake --build ../snodec-build \
-            --target net-un-stream-legacy \
-            --parallel 2
+            --target all \
+            --parallel 28
+          cmake --install ../snodec-build
           for component in \
-            logger utils mux-epoll core core-socket core-socket-stream \
-            core-socket-stream-legacy net net-un net-un-phy \
-            net-un-phy-stream net-un-sphy-tream net-un-stream \
-            net-un-stream-legacy
+            core \
+            net-un-stream-legacy \
+            net-in-stream-legacy \
+            net-in6-stream-legacy \
+            net-in-stream-tls \
+            net-in6-stream-tls \
+            net-rc-stream-legacy \
+            net-rc-stream-tls \
+            http-server \
+            http-server-express \
+            http-server-express-legacy-in \
+            http-server-express-legacy-in6 \
+            http-server-express-tls-in \
+            http-server-express-tls-in6 \
+            websocket-server \
+            websocket-client
           do
-            cmake --install ../snodec-build --component "${component}"
+            test -f \
+              "../snodec-stage/lib/cmake/snodec/snodec_${component}_Targets.cmake"
           done
 
       - name: Configure
@@ -64,13 +92,50 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
+            -DCMAKE_JOB_POOLS='aisuite_compile=4;aisuite_link=2' \
+            -DCMAKE_JOB_POOL_COMPILE=aisuite_compile \
+            -DCMAKE_JOB_POOL_LINK=aisuite_link \
             -DAISUITE_BUILD_TESTS=ON \
-            -DAISUITE_BUILD_APPS=ON
+            -DAISUITE_BUILD_APPS=ON \
+            -DAISUITE_ENABLE_CODEX_FRONTEND_TLS=ON \
+            -DAISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET=ON \
+            -DAISUITE_ENABLE_CODEX_FRONTEND_RFCOMM=ON
 
       - name: Build all targets
-        run: cmake --build build --target all --parallel 2
+        run: cmake --build build --target all --parallel 28
 
-      - name: Test
+      - name: Check generated frontend authorities
+        run: |
+          python3 -B tools/codex/app_server_surface.py frontend-registry \
+            --manifest tools/codex/app-server-surface/0.144.6.json \
+            --registry src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc \
+            --output tools/frontend/frontend-registry-source.json \
+            --check
+          python3 -B tools/frontend/generate_frontend_protocol.py \
+            --source tools/frontend/frontend-registry-source.json \
+            --manifest docs/ai/openai/codex/frontend-protocol-v1.manifest.json \
+            --header src/ai/openai/codex/frontend/GeneratedProtocol.h \
+            --schema-template tools/frontend/frontend-protocol-v1.schema.template.json \
+            --schema docs/ai/openai/codex/frontend-protocol-v1.schema.json \
+            --schema-data src/ai/openai/codex/frontend/GeneratedProtocolSchema.inc \
+            --fixtures tests/component/codex/fixtures/frontend-protocol-v1.generated.json \
+            --check
+
+      - name: Verify complete validation inventory
+        run: |
+          ctest --test-dir build -N > build/ctest-inventory.txt
+          for required_test in \
+            CodexFrontendProtocolGeneratedArtifactsGuardTest \
+            AISuiteInstalledConsumerTest \
+            AISuiteSourcePackageTest \
+            AISuiteBinaryPackageTest \
+            CodexPublicHeaderPolicyTest \
+            CodexPublicHeaderSelfContainmentTest
+          do
+            grep -F "${required_test}" build/ctest-inventory.txt
+          done
+
+      - name: Run complete ordinary CTest suite
         run: |
           ctest --test-dir build \
             --output-on-failure \

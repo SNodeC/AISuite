@@ -769,6 +769,21 @@ namespace ai::openai::codex::detail {
         }
     } // namespace
 
+    std::optional<typed::ExternalAgentConfigMigrationItem> decodeExternalAgentConfigMigrationItem(const Json& value,
+                                                                                                  std::string& error) noexcept {
+        try {
+            typed::ExternalAgentConfigMigrationItem result;
+            if (!decodeMigrationItem(value, result, error, "ExternalAgentConfigMigrationItem", "$")) {
+                return std::nullopt;
+            }
+            error.clear();
+            return result;
+        } catch (...) {
+            error = "ExternalAgentConfigMigrationItem could not be decoded";
+            return std::nullopt;
+        }
+    }
+
     std::optional<Json> encodeExternalAgentConfigDetectParams(const typed::ExternalAgentConfigDetectParams& value,
                                                               std::string& error) noexcept {
         try {

@@ -8,8 +8,8 @@
 #include "CodexBackendTestSupport.h"
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/backend/Snapshot.h"
-#include "ai/openai/codex/frontend/BackendAdapter.h"
 #include "ai/openai/codex/frontend/EventCoalescer.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -24,6 +24,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -136,6 +137,34 @@ namespace {
         std::deque<std::function<void()>> callbacks;
     };
 
+    class ManualTimerScheduler {
+    public:
+        struct Entry {
+            std::uint64_t delayMs = 0;
+            std::function<void()> callback;
+            std::shared_ptr<bool> active;
+        };
+
+        frontend::FrontendTimerCancellation schedule(std::uint64_t delayMs, std::function<void()> callback) {
+            auto active = std::make_shared<bool>(true);
+            entries.push_back({delayMs, std::move(callback), active});
+            return [active] {
+                *active = false;
+            };
+        }
+
+        bool fire(std::size_t index) {
+            if (index >= entries.size() || !*entries[index].active) {
+                return false;
+            }
+            *entries[index].active = false;
+            entries[index].callback();
+            return true;
+        }
+
+        std::vector<Entry> entries;
+    };
+
     struct Observations {
         std::vector<frontend::ServerMessage> messages;
         std::vector<std::string> compactJson;
@@ -157,6 +186,26 @@ namespace {
 
     frontend::ClientMessage hello(std::optional<frontend::SequenceNumber> resumeAfter = std::nullopt) {
         return frontend::Hello{resumeAfter, frontend::Json::object()};
+    }
+
+    constexpr std::uint64_t TrustedTestUserId = 4242;
+    constexpr std::string_view SparseSequenceRemoteToken = "sparse-sequence-bearer";
+
+    frontend::FrontendPeerContext trustedPeer() {
+        frontend::FrontendPeerContext peer;
+        peer.transport = frontend::FrontendTransportKind::Unix;
+        peer.loopback = true;
+        peer.localPeer = true;
+        peer.unixUserId = TrustedTestUserId;
+        return peer;
+    }
+
+    void enableVerifiedTestTrust(frontend::FrontendServiceOptions& options) {
+        options.trustedLocalUserId = TrustedTestUserId;
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
     }
 
     frontend::ClientMessage command(std::string requestId, frontend::CommandParameters parameters) {
@@ -186,7 +235,7 @@ namespace {
         return value && !value->ok && value->error && value->error->code == code;
     }
 
-    const frontend::ProtocolErrorMessage* protocolError(const Observations& observations, const std::string& requestId) {
+    const frontend::ProtocolErrorMessage* protocolError(const Observations& observations, const std::optional<std::string>& requestId) {
         for (const frontend::ServerMessage& message : observations.messages) {
             if (const auto* value = std::get_if<frontend::ProtocolErrorMessage>(&message); value && value->requestId == requestId) {
                 return value;
@@ -253,10 +302,10 @@ namespace {
         result.expectTrue(drained.updates.size() == 1 && drained.updates.front().data["content"] == accumulated,
                           "coalescing preserves the exact final accumulated agent text");
 
-        frontend::EventJournal journal({64, 64U * 1024U, frontend::SequenceNumber{0}});
-        const auto appended = journal.append(drained.updates.front().type, drained.updates.front().data);
+        const frontend::FrontendEvent coalescedEvent{
+            frontend::SequenceNumber{1}, drained.updates.front().type, drained.updates.front().data, frontend::Json::object()};
         frontend::UpdateBatchBuilder batches({16, 16U * 1024U});
-        const auto built = batches.build({*appended.event});
+        const auto built = batches.build({coalescedEvent});
         result.expectTrue(built.success() && built.batches.size() == 1 && built.batches.front().batch.events.size() == 1 &&
                               built.batches.front().batch.events.size() < 1000,
                           "1,000 token deltas become one normalized frontend message, substantially below raw granularity");
@@ -327,7 +376,400 @@ namespace {
                           "dirty-entity capacity is bounded and degrades to a snapshot instead of growing");
     }
 
-    void testAdapterHandshakeRolesReplayAndIsolation(tests::support::TestResult& result) {
+    void testAuthenticationAdmissionAndTopology(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        ManualScheduler scheduler;
+        ManualTimerScheduler timers;
+        std::uint64_t clockMs = 1000;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(backendOptions, transport);
+
+        frontend::FrontendServiceOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [&timers](std::uint64_t delayMs, std::function<void()> callback) {
+            return timers.schedule(delayMs, std::move(callback));
+        };
+        options.monotonicClockMs = [&clockMs] {
+            return clockMs;
+        };
+        options.maximumFailedAuthenticationsPerPeer = 3;
+        options.failedAuthenticationWindowMs = 60000;
+        options.authenticator = [](const frontend::FrontendPeerContext&, const frontend::AuthenticationCredential& credential) {
+            if (const auto* bearer = std::get_if<frontend::BearerCredential>(&credential); bearer && bearer->token == "test-token") {
+                return frontend::AuthenticationResult{frontend::AuthenticationSuccess{frontend::FrontendPrincipal{
+                    "remote-test",
+                    std::vector<frontend::FrontendScope>{frontend::FrontendScope::Observe, frontend::FrontendScope::Control},
+                    "default_remote",
+                    false}}};
+            }
+            return frontend::AuthenticationResult{frontend::AuthenticationFailure{
+                std::holds_alternative<frontend::NoCredential>(credential) ? frontend::AuthenticationFailureCode::AuthenticationRequired
+                                                                           : frontend::AuthenticationFailureCode::AuthenticationFailed}};
+        };
+        frontend::FrontendService service(core, options);
+
+        frontend::FrontendServiceOptions localOptions = options;
+        localOptions.authenticator = {};
+        localOptions.trustedLocalUserId = TrustedTestUserId;
+        frontend::FrontendService localService(core, localOptions);
+        Observations verifiedLocal;
+        frontend::FrontendConnection verifiedLocalConnection = localService.openConnection(trustedPeer(), callbacksFor(verifiedLocal));
+        result.expectTrue(verifiedLocalConnection.receive(hello()).accepted(),
+                          "verified same-user Unix trust accepts the original credential-free Hello");
+        scheduler.drain();
+        result.expectTrue(verifiedLocalConnection.principal().has_value() && verifiedLocalConnection.principal()->localTrusted &&
+                              verifiedLocalConnection.principal()->profile == "local_trusted" && verifiedLocalConnection.peer().localPeer &&
+                              verifiedLocalConnection.peer().unixUserId == TrustedTestUserId,
+                          "verified peer identity and local_trusted principal are visible through credential-free diagnostics");
+
+        frontend::FrontendPeerContext spoofedLocalPeer = trustedPeer();
+        spoofedLocalPeer.transport = frontend::FrontendTransportKind::Ipv4;
+        spoofedLocalPeer.remoteAddress = "127.0.0.1:31999";
+        Observations spoofedLocal;
+        frontend::FrontendConnection spoofedLocalConnection = localService.openConnection(spoofedLocalPeer, callbacksFor(spoofedLocal));
+        result.expectTrue(spoofedLocalConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "verified local trust requires a Unix transport and cannot be manufactured by peer metadata alone");
+        scheduler.drain();
+
+        frontend::FrontendPeerContext wrongUnixPeer = trustedPeer();
+        wrongUnixPeer.unixUserId = TrustedTestUserId + 1;
+        Observations wrongUnix;
+        frontend::FrontendConnection wrongUnixConnection = localService.openConnection(wrongUnixPeer, callbacksFor(wrongUnix));
+        result.expectTrue(wrongUnixConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "a wrong verified Unix peer identity does not inherit local trust");
+        scheduler.drain();
+        frontend::FrontendPeerContext missingUnixCredentials = trustedPeer();
+        missingUnixCredentials.localPeer = false;
+        missingUnixCredentials.unixUserId.reset();
+        Observations missingUnix;
+        frontend::FrontendConnection missingUnixConnection = localService.openConnection(missingUnixCredentials, callbacksFor(missingUnix));
+        result.expectTrue(missingUnixConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "missing Unix peer credentials never silently become trusted");
+        scheduler.drain();
+
+        frontend::FrontendServiceOptions overrideOptions = localOptions;
+        overrideOptions.allowInsecureLocalTrust = true;
+        frontend::FrontendService overrideService(core, overrideOptions);
+        Observations overriddenLocal;
+        frontend::FrontendConnection overriddenConnection =
+            overrideService.openConnection(missingUnixCredentials, callbacksFor(overriddenLocal));
+        result.expectTrue(overriddenConnection.receive(hello()).accepted(),
+                          "the explicit insecure Unix trust override is the only credential-free fallback");
+        scheduler.drain();
+        result.expectTrue(overriddenConnection.principal().has_value() && overriddenConnection.principal()->localTrusted &&
+                              overriddenConnection.principal()->id == "insecure-local-override",
+                          "insecure override remains structurally distinguishable from verified local trust");
+
+        frontend::FrontendPeerContext remote;
+        remote.transport = frontend::FrontendTransportKind::Ipv4;
+        remote.loopback = true;
+        remote.remoteAddress = "127.0.0.1:32000";
+
+        const std::size_t sessionsBeforeMissingAuthentication = core.snapshot().sessions.size();
+        Observations missing;
+        frontend::FrontendConnection missingConnection = service.openConnection(remote, callbacksFor(missing));
+        result.expectTrue(missingConnection.isOpen() && service.unauthenticatedConnectionCount() == 1 &&
+                              service.authenticatedConnectionCount() == 0 && !missingConnection.sessionId().has_value(),
+                          "opening a transport connection consumes only unauthenticated admission capacity");
+        result.expectTrue(missingConnection.receive(hello()).status == frontend::ConnectionReceiveStatus::Closing,
+                          "a remote Hello without a bearer credential is rejected terminally");
+        result.expectTrue(!missingConnection.sessionId().has_value() &&
+                              core.snapshot().sessions.size() == sessionsBeforeMissingAuthentication,
+                          "failed authentication creates no BackendCore session or controller state");
+        scheduler.drain();
+        result.expectTrue(!missingConnection.isOpen() && protocolError(missing, std::nullopt) != nullptr &&
+                              protocolError(missing, std::nullopt)->code == frontend::ErrorCode::AuthenticationRequired,
+                          "missing authentication emits one bounded authentication_required error and closes");
+
+        const auto badHello =
+            frontend::ClientMessage{frontend::Hello{std::nullopt,
+                                                    frontend::Json::object(),
+                                                    std::nullopt,
+                                                    frontend::AuthenticationCredential{frontend::BearerCredential{"wrong-token"}}}};
+        for (std::size_t attempt = 0; attempt < 2; ++attempt) {
+            frontend::FrontendPeerContext reconnectingRemote = remote;
+            reconnectingRemote.remoteAddress = "127.0.0.1:" + std::to_string(32001 + attempt);
+            Observations failed;
+            frontend::FrontendConnection connection = service.openConnection(reconnectingRemote, callbacksFor(failed));
+            result.expectTrue(connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                              "a wrong bearer consumes exactly one address authentication attempt across ephemeral ports");
+            scheduler.drain();
+            result.expectTrue(protocolError(failed, std::nullopt) != nullptr &&
+                                  protocolError(failed, std::nullopt)->code == frontend::ErrorCode::AuthenticationFailed,
+                              "wrong bearer rejection does not expose credential details");
+        }
+        frontend::FrontendPeerContext limitedRemote = remote;
+        limitedRemote.remoteAddress = "127.0.0.1:32999";
+        Observations limited;
+        frontend::FrontendConnection limitedConnection = service.openConnection(limitedRemote, callbacksFor(limited));
+        result.expectTrue(limitedConnection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "the fourth peer attempt is terminal after three recorded failures");
+        scheduler.drain();
+        result.expectTrue(protocolError(limited, std::nullopt) != nullptr &&
+                              protocolError(limited, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "the failed-authentication peer budget returns rate_limited without invoking BackendCore");
+
+        const std::array<std::string, 3> ipv6PeerForms{"::1", "[::1]:32001", "[::1]"};
+        for (const std::string& address : ipv6PeerForms) {
+            frontend::FrontendPeerContext reconnectingIpv6;
+            reconnectingIpv6.transport = frontend::FrontendTransportKind::Ipv6;
+            reconnectingIpv6.loopback = true;
+            reconnectingIpv6.remoteAddress = address;
+            Observations failed;
+            frontend::FrontendConnection connection = service.openConnection(reconnectingIpv6, callbacksFor(failed));
+            result.expectTrue(connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                              "raw and bracketed IPv6 peer forms share one authentication budget");
+            scheduler.drain();
+            result.expectTrue(protocolError(failed, std::nullopt) != nullptr &&
+                                  protocolError(failed, std::nullopt)->code == frontend::ErrorCode::AuthenticationFailed,
+                              "the first three IPv6 peer attempts retain the generic authentication failure");
+        }
+        frontend::FrontendPeerContext limitedIpv6;
+        limitedIpv6.transport = frontend::FrontendTransportKind::TcpTls;
+        limitedIpv6.encrypted = true;
+        limitedIpv6.loopback = true;
+        limitedIpv6.remoteAddress = "[::1]:32999";
+        Observations limitedIpv6Observations;
+        frontend::FrontendConnection limitedIpv6Connection = service.openConnection(limitedIpv6, callbacksFor(limitedIpv6Observations));
+        result.expectTrue(limitedIpv6Connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "changing IPv6 presentation or transport encryption does not reset its peer budget");
+        scheduler.drain();
+        result.expectTrue(protocolError(limitedIpv6Observations, std::nullopt) != nullptr &&
+                              protocolError(limitedIpv6Observations, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "the canonical IPv6 admission key terminates with rate_limited");
+
+        for (std::size_t attempt = 0; attempt < 3; ++attempt) {
+            frontend::FrontendPeerContext reconnectingRfcomm;
+            reconnectingRfcomm.transport = frontend::FrontendTransportKind::Rfcomm;
+            reconnectingRfcomm.remoteAddress = "AA:BB:CC:DD:EE:FF:" + std::to_string(attempt + 1);
+            Observations failed;
+            frontend::FrontendConnection connection = service.openConnection(reconnectingRfcomm, callbacksFor(failed));
+            result.expectTrue(connection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                              "a wrong RFCOMM bearer consumes one address attempt independently of its channel");
+            scheduler.drain();
+            result.expectTrue(protocolError(failed, std::nullopt) != nullptr &&
+                                  protocolError(failed, std::nullopt)->code == frontend::ErrorCode::AuthenticationFailed,
+                              "the first three RFCOMM address attempts retain the generic authentication failure");
+        }
+        frontend::FrontendPeerContext limitedRfcomm;
+        limitedRfcomm.transport = frontend::FrontendTransportKind::RfcommTls;
+        limitedRfcomm.encrypted = true;
+        limitedRfcomm.remoteAddress = "AA:BB:CC:DD:EE:FF:30";
+        Observations limitedRfcommObservations;
+        frontend::FrontendConnection limitedRfcommConnection =
+            service.openConnection(limitedRfcomm, callbacksFor(limitedRfcommObservations));
+        result.expectTrue(limitedRfcommConnection.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "changing RFCOMM channel or encryption does not reset a Bluetooth-address admission budget");
+        scheduler.drain();
+        result.expectTrue(protocolError(limitedRfcommObservations, std::nullopt) != nullptr &&
+                              protocolError(limitedRfcommObservations, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "the shared RFCOMM address budget terminates with rate_limited");
+
+        frontend::FrontendPeerContext otherRemote = remote;
+        otherRemote.remoteAddress = "127.0.0.2:33000";
+        Observations authenticated;
+        frontend::FrontendConnection authenticatedConnection = service.openConnection(otherRemote, callbacksFor(authenticated));
+        const auto goodHello =
+            frontend::ClientMessage{frontend::Hello{std::nullopt,
+                                                    frontend::Json::object(),
+                                                    std::vector{frontend::FrontendCapability::MethodDiscovery},
+                                                    frontend::AuthenticationCredential{frontend::BearerCredential{"test-token"}}}};
+        result.expectTrue(authenticatedConnection.receive(goodHello).accepted(), "a valid bearer authenticates another peer");
+        scheduler.drain();
+        result.expectTrue(authenticatedConnection.helloComplete() && authenticatedConnection.sessionId().has_value() &&
+                              authenticatedConnection.principal().has_value() && authenticatedConnection.principal()->id == "remote-test" &&
+                              authenticatedConnection.principal()->profile == "default_remote" &&
+                              service.authenticatedConnectionCount() == 1 && service.unauthenticatedConnectionCount() == 0,
+                          "authentication precedes BackendCore session creation and exposes only safe principal diagnostics");
+        result.expectTrue(authenticatedConnection.peer().remoteAddress == otherRemote.remoteAddress &&
+                              std::all_of(authenticated.compactJson.begin(),
+                                          authenticated.compactJson.end(),
+                                          [](const std::string& value) {
+                                              return value.find("test-token") == std::string::npos;
+                                          }),
+                          "peer and principal diagnostics preserve useful identity metadata without exposing the bearer credential");
+
+        const std::vector<frontend::FrontendCapability> runtimeCapabilities = service.implementedCapabilities();
+        std::vector<frontend::FrontendConnection> unixClients;
+        std::array<Observations, 4> unixClientObservations;
+        for (Observations& observations : unixClientObservations) {
+            unixClients.push_back(service.openConnection(trustedPeer(), callbacksFor(observations)));
+        }
+        result.expectTrue(runtimeCapabilities.size() == 13 && service.connectionCount() == 5 &&
+                              std::find(runtimeCapabilities.begin(),
+                                        runtimeCapabilities.end(),
+                                        frontend::FrontendCapability::MultiTransport) == runtimeCapabilities.end(),
+                          "the runtime reports thirteen mechanisms and never advertises the legacy multi_transport capability");
+        const frontend::Welcome* firstWelcome = welcome(authenticated);
+        result.expectTrue(firstWelcome && firstWelcome->capabilities &&
+                              std::find(firstWelcome->capabilities->implemented.begin(),
+                                        firstWelcome->capabilities->implemented.end(),
+                                        frontend::FrontendCapability::MultiTransport) == firstWelcome->capabilities->implemented.end(),
+                          "Welcome omits the legacy multi_transport capability");
+
+        frontend::FrontendPeerContext multiTopologyPeer = otherRemote;
+        multiTopologyPeer.remoteAddress = "127.0.0.3:34000";
+        Observations multiTopologyHandshake;
+        frontend::FrontendConnection multiTopologyConnection =
+            service.openConnection(multiTopologyPeer, callbacksFor(multiTopologyHandshake));
+        result.expectTrue(multiTopologyConnection.receive(goodHello).accepted(), "another connection can authenticate normally");
+        scheduler.drain();
+        const frontend::Welcome* initialMultiTopologyWelcome = welcome(multiTopologyHandshake);
+        result.expectTrue(initialMultiTopologyWelcome && initialMultiTopologyWelcome->capabilities &&
+                              std::find(initialMultiTopologyWelcome->capabilities->implemented.begin(),
+                                        initialMultiTopologyWelcome->capabilities->implemented.end(),
+                                        frontend::FrontendCapability::MultiTransport) ==
+                                  initialMultiTopologyWelcome->capabilities->implemented.end(),
+                          "new handshakes also omit multi_transport");
+        frontend::FrontendPeerContext reducedTopologyPeer = otherRemote;
+        reducedTopologyPeer.remoteAddress = "127.0.0.4:35000";
+        Observations reducedTopologyHandshake;
+        frontend::FrontendConnection reducedTopologyConnection =
+            service.openConnection(reducedTopologyPeer, callbacksFor(reducedTopologyHandshake));
+        result.expectTrue(reducedTopologyConnection.receive(goodHello).accepted(),
+                          "a connection can authenticate after one listener family disappears");
+        scheduler.drain();
+        const frontend::Welcome* reducedTopologyWelcome = welcome(reducedTopologyHandshake);
+        const frontend::Welcome* retainedMultiTopologyWelcome = welcome(multiTopologyHandshake);
+        result.expectTrue(
+            reducedTopologyWelcome && reducedTopologyWelcome->capabilities &&
+                std::find(reducedTopologyWelcome->capabilities->implemented.begin(),
+                          reducedTopologyWelcome->capabilities->implemented.end(),
+                          frontend::FrontendCapability::MultiTransport) == reducedTopologyWelcome->capabilities->implemented.end() &&
+                retainedMultiTopologyWelcome && retainedMultiTopologyWelcome->capabilities &&
+                std::find(retainedMultiTopologyWelcome->capabilities->implemented.begin(),
+                          retainedMultiTopologyWelcome->capabilities->implemented.end(),
+                          frontend::FrontendCapability::MultiTransport) == retainedMultiTopologyWelcome->capabilities->implemented.end(),
+            "all authenticated handshakes retain the same thirteen static mechanism capabilities");
+
+        Observations timedOut;
+        frontend::FrontendConnection timeoutConnection = service.openConnection(otherRemote, callbacksFor(timedOut));
+        const std::size_t timeoutIndex = timers.entries.size() - 1;
+        result.expectTrue(timers.entries[timeoutIndex].delayMs == 10000 && timers.fire(timeoutIndex),
+                          "the configured handshake deadline uses the injected event-loop timer seam");
+        scheduler.drain();
+        result.expectTrue(!timeoutConnection.isOpen() && !timeoutConnection.sessionId().has_value() &&
+                              protocolError(timedOut, std::nullopt) != nullptr &&
+                              protocolError(timedOut, std::nullopt)->code == frontend::ErrorCode::AuthenticationRequired,
+                          "handshake timeout closes only the unauthenticated connection without a BackendCore session");
+
+        frontend::FrontendServiceOptions capacityOptions = options;
+        capacityOptions.maxUnauthenticatedConnections = 1;
+        capacityOptions.maxConnections = 1;
+        frontend::FrontendService capacityService(core, capacityOptions);
+        Observations capacityA;
+        Observations capacityB;
+        frontend::FrontendConnection admitted = capacityService.openConnection(otherRemote, callbacksFor(capacityA));
+        frontend::FrontendConnection rejected = capacityService.openConnection(otherRemote, callbacksFor(capacityB));
+        result.expectTrue(admitted.isOpen() && !rejected.isOpen() && capacityService.connectionCount() == 1,
+                          "connection and unauthenticated admission reject only the excess connection");
+
+        frontend::FrontendServiceOptions outstandingOptions = options;
+        outstandingOptions.maxOutstandingCommandsPerConnection = 1;
+        frontend::FrontendService outstandingService(core, outstandingOptions);
+        Observations outstandingObservations;
+        frontend::FrontendConnection outstandingConnection =
+            outstandingService.openConnection(otherRemote, callbacksFor(outstandingObservations));
+        result.expectTrue(outstandingConnection.receive(goodHello).accepted(), "outstanding-command test authenticates normally");
+        scheduler.drain();
+        result.expectTrue(outstandingConnection.receive(command("pending-one", frontend::ControllerAcquire{})).accepted() &&
+                              outstandingConnection.receive(command("pending-two", frontend::ControllerAcquire{})).status ==
+                                  frontend::ConnectionReceiveStatus::Rejected,
+                          "one pending request consumes the configured outstanding-command capacity");
+        scheduler.drain();
+        result.expectTrue(responseHasError(outstandingObservations, "pending-two", frontend::ErrorCode::CapacityExceeded),
+                          "outstanding-command overflow returns capacity_exceeded without affecting the service");
+
+        frontend::FrontendServiceOptions rateOptions = options;
+        rateOptions.maxInboundBurst = 1;
+        rateOptions.maxInboundMessagesPerSecond = 1;
+        frontend::FrontendService rateService(core, rateOptions);
+        Observations rateObservations;
+        frontend::FrontendConnection rateConnection = rateService.openConnection(otherRemote, callbacksFor(rateObservations));
+        result.expectTrue(rateConnection.receive(goodHello).accepted(), "the initial rate token admits Hello");
+        result.expectTrue(rateConnection.receive(command("too-fast", frontend::SnapshotGet{})).status ==
+                              frontend::ConnectionReceiveStatus::Closing,
+                          "the next message without token refill is rate limited deterministically");
+        scheduler.drain();
+        result.expectTrue(!rateConnection.isOpen(), "rate-limit closure is connection-local and reusable service state remains valid");
+
+        frontend::FrontendServiceOptions frameOptions = options;
+        frameOptions.maximumInboundMessageBytes = 8;
+        frontend::FrontendService frameService(core, frameOptions);
+        Observations frameObservations;
+        frontend::FrontendConnection frameConnection = frameService.openConnection(otherRemote, callbacksFor(frameObservations));
+        result.expectTrue(frameConnection.receive(std::string_view{"{\"oversized\":true}"}).status ==
+                              frontend::ConnectionReceiveStatus::Closing,
+                          "the transport-neutral frame bound rejects input before decoding or authentication");
+        scheduler.drain();
+        result.expectTrue(protocolError(frameObservations, std::nullopt) != nullptr &&
+                              protocolError(frameObservations, std::nullopt)->code == frontend::ErrorCode::FrameTooLarge,
+                          "oversized input reports frame_too_large without method-policy disclosure");
+
+        frontend::FrontendServiceOptions preAuthenticationOptions = options;
+        frontend::FrontendService preAuthenticationService(core, preAuthenticationOptions);
+        Observations preAuthenticationObservations;
+        frontend::FrontendConnection preAuthenticationConnection =
+            preAuthenticationService.openConnection(otherRemote, callbacksFor(preAuthenticationObservations));
+        result.expectTrue(preAuthenticationConnection
+                                  .receive(frontend::Json{{"protocol", frontend::ProtocolIdentity},
+                                                          {"version", frontend::ProtocolVersion},
+                                                          {"kind", "command"},
+                                                          {"requestId", "pre-auth-sensitive"},
+                                                          {"method", "command.exec"},
+                                                          {"params", frontend::Json{{"credential", "synthetic-secret-sentinel"}}}})
+                                  .status == frontend::ConnectionReceiveStatus::Closing,
+                          "pre-authentication command decoding is terminal without policy inspection");
+        scheduler.drain();
+        const frontend::ProtocolErrorMessage* preAuthenticationError = protocolError(preAuthenticationObservations, std::nullopt);
+        result.expectTrue(preAuthenticationError != nullptr &&
+                              preAuthenticationError->code == frontend::ErrorCode::AuthenticationRequired &&
+                              preAuthenticationError->message == "frontend authentication must complete before commands are accepted" &&
+                              preAuthenticationError->requestId == std::nullopt &&
+                              preAuthenticationObservations.compactJson.end() ==
+                                  std::find_if(preAuthenticationObservations.compactJson.begin(),
+                                               preAuthenticationObservations.compactJson.end(),
+                                               [](const std::string& encoded) {
+                                                   return encoded.find("command.exec") != std::string::npos ||
+                                                          encoded.find("synthetic-secret-sentinel") != std::string::npos;
+                                               }),
+                          "pre-authentication errors expose neither method existence, request correlation, nor parameter data");
+
+        frontend::FrontendServiceOptions accountingOptions = options;
+        accountingOptions.maxConnections = 1;
+        frontend::FrontendService accountingService(core, accountingOptions);
+        Observations firstPeerFailure;
+        frontend::FrontendConnection firstPeer = accountingService.openConnection(remote, callbacksFor(firstPeerFailure));
+        result.expectTrue(firstPeer.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "the bounded failed-peer table records its first address");
+        scheduler.drain();
+        Observations secondPeerFailure;
+        frontend::FrontendConnection secondPeer = accountingService.openConnection(otherRemote, callbacksFor(secondPeerFailure));
+        result.expectTrue(secondPeer.receive(badHello).status == frontend::ConnectionReceiveStatus::Closing,
+                          "a new address is rejected when failed-peer accounting is full");
+        scheduler.drain();
+        result.expectTrue(protocolError(secondPeerFailure, std::nullopt) != nullptr &&
+                              protocolError(secondPeerFailure, std::nullopt)->code == frontend::ErrorCode::RateLimited,
+                          "failed-authentication peer accounting remains bounded by service connection capacity");
+
+        accountingService.close();
+        preAuthenticationService.close();
+        frameService.close();
+        rateService.close();
+        outstandingService.close();
+        capacityService.close();
+        overrideService.close();
+        localService.close();
+        service.close();
+        scheduler.drain();
+    }
+
+    void testServiceHandshakeRolesReplayAndIsolation(tests::support::TestResult& result) {
         const auto transport = std::make_shared<tests::codex::FakeTransportState>();
         ManualScheduler scheduler;
         backend::BackendCoreOptions backendOptions;
@@ -337,20 +779,21 @@ namespace {
         backendOptions.maxEventsPerCallback = 128;
         FakeBackendCore core(backendOptions, transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        adapterOptions.journal = {8, 128U * 1024U, frontend::SequenceNumber{0}};
-        adapterOptions.batches = {8, 32U * 1024U};
-        adapterOptions.maxOutboundMessagesPerConnection = 64;
-        adapterOptions.maxOutboundBytesPerConnection = 512U * 1024U;
-        frontend::BackendAdapter adapter(core, adapterOptions);
+        serviceOptions.journal = {8, 128U * 1024U, frontend::SequenceNumber{0}};
+        serviceOptions.batches = {8, 32U * 1024U};
+        serviceOptions.maxOutboundMessagesPerConnection = 64;
+        serviceOptions.maxOutboundBytesPerConnection = 512U * 1024U;
+        frontend::FrontendService service(core, serviceOptions);
 
         Observations observerA;
         Observations observerB;
-        frontend::FrontendConnection connectionA = adapter.openConnection(callbacksFor(observerA));
-        frontend::FrontendConnection connectionB = adapter.openConnection(callbacksFor(observerB));
+        frontend::FrontendConnection connectionA = service.openConnection(trustedPeer(), callbacksFor(observerA));
+        frontend::FrontendConnection connectionB = service.openConnection(trustedPeer(), callbacksFor(observerB));
         result.expectTrue(connectionA.receive(hello()).accepted() && connectionB.receive(hello()).accepted() &&
                               observerA.messages.empty() && observerB.messages.empty(),
                           "hello output is asynchronous for every transport-neutral connection");
@@ -363,10 +806,10 @@ namespace {
         result.expectTrue(connectionA.helloComplete() && connectionB.helloComplete() && connectionA.sessionId() != connectionB.sessionId(),
                           "successful hello exposes stable distinct backend session IDs");
 
-        const frontend::SequenceNumber journalSequenceBeforeReplay = adapter.currentSequence();
+        const frontend::SequenceNumber journalSequenceBeforeReplay = service.currentSequence();
         backend::FrontendSession replayMutationSession = core.openSession({});
         scheduler.drain();
-        const frontend::SequenceNumber journalSequenceAfterMutation = adapter.currentSequence();
+        const frontend::SequenceNumber journalSequenceAfterMutation = service.currentSequence();
         const backend::SequenceNumber backendSequenceBeforeReplay = core.snapshot().sequence;
         const std::size_t messagesBeforeReplay = observerA.messages.size();
         result.expectTrue(connectionA.receive(command("journal-replay", frontend::ReplayAfter{journalSequenceBeforeReplay})).accepted(),
@@ -403,8 +846,9 @@ namespace {
                           "observer A submits explicit controller acquisition");
         result.expectTrue(!connectionA.receive(command("acquire-a", frontend::ControllerAcquire{})).accepted(),
                           "duplicate still-pending requestId is rejected locally");
-        result.expectTrue(connectionB.receive(command("observer-mutate", frontend::ThreadStart{})).accepted(),
-                          "observer mutation is accepted for one correlated permission response");
+        result.expectTrue(connectionB.receive(command("observer-mutate", frontend::ThreadStart{})).status ==
+                              frontend::ConnectionReceiveStatus::Rejected,
+                          "observer mutation is denied before BackendCore submission with one correlated response");
         scheduler.drain();
         result.expectTrue(hasSuccessfulResponse(observerA, "acquire-a"),
                           "controller acquisition completes successfully without duplicate backend completion");
@@ -423,15 +867,15 @@ namespace {
 
         const std::string secretSentinel = "frontend-auth-secret-must-not-leak";
         result.expectTrue(
-            connectionA.receive(command("auth-secret", frontend::AuthenticationRespond{"999", secretSentinel, "account", "plus"}))
-                .accepted(),
-            "controller submits an authentication response without exposing its secret in the server contract");
+            connectionA.receive(command("auth-secret", frontend::AuthenticationRespond{"999", secretSentinel, "account", "plus"})).status ==
+                frontend::ConnectionReceiveStatus::Rejected,
+            "reverse responses require provider readiness without exposing their secret in the server contract");
         scheduler.drain();
         const bool secretLeaked =
             std::any_of(observerA.compactJson.begin(), observerA.compactJson.end(), [&secretSentinel](const auto& json) {
                 return json.find(secretSentinel) != std::string::npos;
             });
-        result.expectTrue(responseHasError(observerA, "auth-secret", frontend::ErrorCode::NotFound) && !secretLeaked,
+        result.expectTrue(responseHasError(observerA, "auth-secret", frontend::ErrorCode::BackendUnavailable) && !secretLeaked,
                           "server output never serializes an authentication access token from a frontend command");
 
         const std::vector<frontend::FrontendEvent> allEventsA = events(observerA);
@@ -447,13 +891,13 @@ namespace {
         result.expectTrue(!eventsA.empty() && !eventsB.empty() && ordered,
                           "multiple observers receive normalized frontend batches in strict sequence order");
 
-        const frontend::SequenceNumber resumePosition = adapter.currentSequence();
+        const frontend::SequenceNumber resumePosition = service.currentSequence();
         connectionA.close("controller A disconnected");
         scheduler.drain();
         result.expectTrue(connectionB.isOpen(), "controller disconnect leaves another observer and BackendCore running");
 
         Observations replayed;
-        frontend::FrontendConnection replayConnection = adapter.openConnection(callbacksFor(replayed));
+        frontend::FrontendConnection replayConnection = service.openConnection(trustedPeer(), callbacksFor(replayed));
         result.expectTrue(replayConnection.receive(hello(resumePosition)).accepted(),
                           "a reconnect may request replay after its last sequence");
         scheduler.drain();
@@ -494,7 +938,7 @@ namespace {
             } else if (std::holds_alternative<frontend::EventBatch>(message)) {
                 gapEmittedEvents = true;
             } else if (const auto* complete = std::get_if<frontend::SyncComplete>(&message);
-                       complete && complete->sequence == adapter.currentSequence()) {
+                       complete && complete->sequence == service.currentSequence()) {
                 gapCompleteIndex = index;
             }
         }
@@ -506,7 +950,7 @@ namespace {
 
         const backend::SequenceNumber backendSequenceBeforeFutureReplay = core.snapshot().sequence;
         const std::size_t messagesBeforeFutureReplay = observerB.messages.size();
-        const frontend::SequenceNumber futureSequence{adapter.currentSequence().value() + 1};
+        const frontend::SequenceNumber futureSequence{service.currentSequence().value() + 1};
         result.expectTrue(connectionB.receive(command("future-replay", frontend::ReplayAfter{futureSequence})).status ==
                               frontend::ConnectionReceiveStatus::Rejected,
                           "events.replay rejects a future frontend sequence");
@@ -523,7 +967,7 @@ namespace {
                           "future events.replay returns invalid_command without synchronization payload or BackendCore transition");
 
         Observations snapshotFallback;
-        frontend::FrontendConnection oldReconnect = adapter.openConnection(callbacksFor(snapshotFallback));
+        frontend::FrontendConnection oldReconnect = service.openConnection(trustedPeer(), callbacksFor(snapshotFallback));
         result.expectTrue(oldReconnect.receive(hello(frontend::SequenceNumber{0})).accepted(),
                           "an old reconnect position is accepted for synchronization planning");
         scheduler.drain();
@@ -532,7 +976,7 @@ namespace {
                           "journal eviction deterministically falls back to one complete snapshot");
 
         Observations badClient;
-        frontend::FrontendConnection beforeHello = adapter.openConnection(callbacksFor(badClient));
+        frontend::FrontendConnection beforeHello = service.openConnection(trustedPeer(), callbacksFor(badClient));
         result.expectTrue(beforeHello.receive(command("too-early", frontend::SnapshotGet{})).status ==
                               frontend::ConnectionReceiveStatus::Closing,
                           "a command before hello is rejected and closes only that frontend after its error");
@@ -542,7 +986,8 @@ namespace {
         result.expectTrue(!beforeHello.isOpen() && connectionB.isOpen(), "pre-hello protocol failure is isolated from healthy clients");
 
         Observations slow;
-        frontend::FrontendConnection slowObserver = adapter.openConnection({[&slow](const frontend::OutboundMessage& message) {
+        frontend::FrontendConnection slowObserver = service.openConnection(trustedPeer(),
+                                                                           {[&slow](const frontend::OutboundMessage& message) {
                                                                                 slow.messages.push_back(message.message);
                                                                                 return false;
                                                                             },
@@ -557,7 +1002,8 @@ namespace {
 
         Observations throwing;
         frontend::FrontendConnection throwingObserver =
-            adapter.openConnection({[&throwing](const frontend::OutboundMessage&) -> bool {
+            service.openConnection(trustedPeer(),
+                                   {[&throwing](const frontend::OutboundMessage&) -> bool {
                                         throwing.messages.emplace_back(frontend::ProtocolErrorMessage{});
                                         throw std::runtime_error("intentional frontend transport failure");
                                     },
@@ -571,7 +1017,8 @@ namespace {
 
         Observations selfClosing;
         std::optional<frontend::FrontendConnection> selfClosingConnection;
-        selfClosingConnection.emplace(adapter.openConnection({[&selfClosingConnection](const frontend::OutboundMessage&) {
+        selfClosingConnection.emplace(service.openConnection(trustedPeer(),
+                                                             {[&selfClosingConnection](const frontend::OutboundMessage&) {
                                                                   selfClosingConnection->close("closed during delivery");
                                                                   return true;
                                                               },
@@ -585,10 +1032,10 @@ namespace {
 
         replayMutationSession.close();
         scheduler.drain();
-        adapter.close("adapter test complete");
+        service.close("service test complete");
         scheduler.drain();
-        result.expectTrue(!adapter.isOpen() && !connectionB.isOpen() && !replayConnection.isOpen() && !oldReconnect.isOpen(),
-                          "adapter shutdown detaches every frontend without destroying BackendCore");
+        result.expectTrue(!service.isOpen() && !connectionB.isOpen() && !replayConnection.isOpen() && !oldReconnect.isOpen(),
+                          "service shutdown detaches every frontend without destroying BackendCore");
     }
 
     void testCapabilityDiscoveryHandshake(tests::support::TestResult& result) {
@@ -600,14 +1047,15 @@ namespace {
         };
         FakeBackendCore core(backendOptions, transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        frontend::BackendAdapter adapter(core, adapterOptions);
+        frontend::FrontendService service(core, serviceOptions);
 
         Observations observations;
-        frontend::FrontendConnection connection = adapter.openConnection(callbacksFor(observations));
+        frontend::FrontendConnection connection = service.openConnection(trustedPeer(), callbacksFor(observations));
         const frontend::Hello discoveryHello{
             std::nullopt,
             frontend::Json::object(),
@@ -619,18 +1067,17 @@ namespace {
 
         const frontend::Welcome* discovery = welcome(observations);
         result.expectTrue(discovery != nullptr && discovery->capabilities.has_value() && discovery->capabilities->defined.size() == 18 &&
-                              discovery->capabilities->implemented == std::vector{frontend::FrontendCapability::MethodDiscovery,
-                                                                                  frontend::FrontendCapability::SecurityScopes} &&
+                              discovery->capabilities->implemented.size() == 13 &&
                               discovery->capabilities->permitted == discovery->capabilities->implemented,
-                          "capability-aware welcome distinguishes all defined capabilities from the two implemented contract features");
-        result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 15 &&
+                          "A1.7b Welcome distinguishes 18 definitions from thirteen implemented service mechanisms");
+        result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 90 &&
                               discovery->permittedMethods == discovery->availableMethods &&
                               std::all_of(discovery->availableMethods->begin(),
                                           discovery->availableMethods->end(),
                                           [](const frontend::FrontendMethod& method) {
                                               return frontend::generated::runtimeMethodFromString(method).has_value();
                                           }),
-                          "the A1.7a runtime advertises and permits exactly its original 15 methods");
+                          "the local_trusted A1.7b runtime advertises and permits all 90 deployment-enabled methods");
 
         const std::size_t providerSubmissions = transport->outgoing.size();
         const frontend::ConnectionReceiveResult unavailable = connection.receive(frontend::Json{
@@ -638,18 +1085,17 @@ namespace {
             {"version", frontend::ProtocolVersion},
             {"kind", "command"},
             {"requestId", "defined-but-unavailable"},
-            {"method", "provider.start"},
-            {"params", frontend::Json::object()},
+            {"method", "fs.readFile"},
+            {"params", frontend::Json{{"path", 7}}},
         });
         result.expectTrue(unavailable.status == frontend::ConnectionReceiveStatus::Rejected,
-                          "an A1.7a-defined method outside the legacy runtime set is rejected");
+                          "a defined but deployment-disabled method is rejected before its parameter schema is inspected");
         scheduler.drain();
         const frontend::ProtocolErrorMessage* unavailableError = protocolError(observations, "defined-but-unavailable");
         result.expectTrue(unavailableError != nullptr && unavailableError->code == frontend::ErrorCode::UnknownMethod &&
                               !unavailableError->closeConnection && connection.isOpen() && observations.closeReasons.empty(),
-                          "defined-but-unavailable methods return unknown_method without closing the established connection");
-        result.expectTrue(transport->outgoing.size() == providerSubmissions,
-                          "none of the 90 additive methods reaches BackendCore before A1.7b security enforcement");
+                          "deployment-disabled methods return unknown_method without closing the established connection");
+        result.expectTrue(transport->outgoing.size() == providerSubmissions, "disabled conditional methods never reach BackendCore");
     }
 
     void testSnapshotReplayBarrier(tests::support::TestResult& result) {
@@ -661,27 +1107,28 @@ namespace {
         };
         FakeBackendCore core(backendOptions, transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        adapterOptions.coalescer = {1};
-        frontend::BackendAdapter adapter(core, adapterOptions);
+        serviceOptions.coalescer = {1};
+        frontend::FrontendService service(core, serviceOptions);
 
         Observations initial;
-        frontend::FrontendConnection initialConnection = adapter.openConnection(callbacksFor(initial));
+        frontend::FrontendConnection initialConnection = service.openConnection(trustedPeer(), callbacksFor(initial));
         result.expectTrue(initialConnection.receive(hello()).accepted(), "replay-barrier client completes an initial hello");
         scheduler.drain();
 
-        const frontend::SequenceNumber unchangedSequence = adapter.currentSequence();
+        const frontend::SequenceNumber unchangedSequence = service.currentSequence();
         result.expectTrue(initialConnection.receive(command("unchanged-snapshot", frontend::SnapshotGet{})).accepted(),
                           "an explicit unchanged-state snapshot request is accepted");
         scheduler.drain();
-        result.expectTrue(adapter.currentSequence() == unchangedSequence && hasSuccessfulResponse(initial, "unchanged-snapshot"),
+        result.expectTrue(service.currentSequence() == unchangedSequence && hasSuccessfulResponse(initial, "unchanged-snapshot"),
                           "an explicit snapshot does not advance or invalidate replay continuity");
 
         Observations unchangedReplay;
-        frontend::FrontendConnection unchangedReplayConnection = adapter.openConnection(callbacksFor(unchangedReplay));
+        frontend::FrontendConnection unchangedReplayConnection = service.openConnection(trustedPeer(), callbacksFor(unchangedReplay));
         result.expectTrue(unchangedReplayConnection.receive(hello(unchangedSequence)).accepted(),
                           "an unchanged-state reconnect requests replay at the current sequence");
         scheduler.drain();
@@ -689,15 +1136,15 @@ namespace {
                               countSnapshots(unchangedReplay) == 0,
                           "unchanged state remains replayable without a redundant snapshot");
 
-        const frontend::SequenceNumber beforeFallback = adapter.currentSequence();
+        const frontend::SequenceNumber beforeFallback = service.currentSequence();
         backend::FrontendSession dirtySessionA = core.openSession({});
         backend::FrontendSession dirtySessionB = core.openSession({});
         scheduler.drain();
-        result.expectTrue(adapter.currentSequence() > beforeFallback,
+        result.expectTrue(service.currentSequence() > beforeFallback,
                           "dirty-entity overflow advances the frontend synchronization barrier monotonically");
 
         Observations staleReconnect;
-        frontend::FrontendConnection staleConnection = adapter.openConnection(callbacksFor(staleReconnect));
+        frontend::FrontendConnection staleConnection = service.openConnection(trustedPeer(), callbacksFor(staleReconnect));
         result.expectTrue(staleConnection.receive(hello(beforeFallback)).accepted(),
                           "a stale client may reconnect from the sequence immediately before snapshot fallback");
         scheduler.drain();
@@ -710,7 +1157,7 @@ namespace {
         initialConnection.close();
         dirtySessionB.close();
         dirtySessionA.close();
-        adapter.close("replay barrier test complete");
+        service.close("replay barrier test complete");
         scheduler.drain();
     }
 
@@ -724,11 +1171,12 @@ namespace {
         backendOptions.capacity.maxSnapshotBytes = 1;
         FakeBackendCore core(std::move(backendOptions), transport);
 
-        frontend::BackendAdapterOptions adapterOptions;
-        adapterOptions.scheduler = [&scheduler](std::function<void()> callback) {
+        frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        frontend::BackendAdapter adapter(core, std::move(adapterOptions));
+        frontend::FrontendService service(core, std::move(serviceOptions));
 
         const backend::Snapshot first = core.snapshot();
         scheduler.drain(64);
@@ -745,9 +1193,459 @@ namespace {
                               stable.capacity.snapshotOmissions == 1 && scheduler.pending() == 0,
                           "repeated snapshots at one canonical revision account mandatory-envelope omission only once");
 
-        adapter.close("capacity feedback test complete");
+        service.close("capacity feedback test complete");
         scheduler.drain();
     }
+
+    class SparseSequenceRunner {
+    public:
+        explicit SparseSequenceRunner(tests::support::TestResult& result)
+            : result(result) {
+        }
+
+        void start(std::function<void()> onFinished) {
+            this->onFinished = std::move(onFinished);
+            transport = std::make_shared<tests::codex::FakeTransportState>();
+            tests::codex::installInitializingFake(transport, [this](const Json& message, const TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method != message.end() && method->is_string() && *method == "thread/list" && id != message.end()) {
+                    tests::codex::inject(
+                        callbacks,
+                        Json{{"id", *id}, {"result", {{"data", Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
+                }
+            });
+
+            backend::BackendCoreOptions options;
+            options.initialThreadListLimit = 1;
+            backendCore = std::make_unique<FakeBackendCore>(std::move(options), transport);
+            backendCore->start();
+            waitUntil(
+                "sparse-sequence fake provider reaches Ready before service subscription",
+                [this]() {
+                    return backendCore->isReady();
+                },
+                [this]() {
+                    startVisibleInterval();
+                });
+        }
+
+        [[nodiscard]] bool isFinished() const noexcept {
+            return finished;
+        }
+
+        [[nodiscard]] const std::string& waitingStage() const noexcept {
+            return waitingDescription;
+        }
+
+    private:
+        static void defer(std::function<void()> callback) {
+            core::EventReceiver::atNextTick(std::move(callback));
+        }
+
+        void expect(bool condition, const std::string& message) {
+            result.expectTrue(condition, message);
+        }
+
+        void
+        waitUntil(std::string description, std::function<bool()> predicate, std::function<void()> next, std::size_t remaining = 8'000) {
+            waitingDescription = description;
+            defer([this,
+                   description = std::move(description),
+                   predicate = std::move(predicate),
+                   next = std::move(next),
+                   remaining]() mutable {
+                if (finished) {
+                    return;
+                }
+                try {
+                    if (predicate()) {
+                        waitingDescription = "advancing after: " + description;
+                        next();
+                    } else if (remaining == 0) {
+                        expect(false, description);
+                        finish();
+                    } else {
+                        waitUntil(std::move(description), std::move(predicate), std::move(next), remaining - 1);
+                    }
+                } catch (...) {
+                    expect(false, "sparse-sequence runner contains callback exception at stage: " + description);
+                    finish();
+                }
+            });
+        }
+
+        void afterTicks(std::size_t count, std::function<void()> next) {
+            if (count == 0) {
+                next();
+                return;
+            }
+            defer([this, count, next = std::move(next)]() mutable {
+                afterTicks(count - 1, std::move(next));
+            });
+        }
+
+        frontend::FrontendServiceOptions serviceOptions(frontend::SequenceNumber initialSequence, std::size_t maxEntries) {
+            frontend::FrontendServiceOptions options;
+            enableVerifiedTestTrust(options);
+            options.journal = {maxEntries, 512U * 1024U, initialSequence};
+            options.batches = {16, 128U * 1024U};
+            options.authenticator = [](const frontend::FrontendPeerContext&,
+                                       const frontend::AuthenticationCredential& credential) -> frontend::AuthenticationResult {
+                const auto* bearer = std::get_if<frontend::BearerCredential>(&credential);
+                if (bearer == nullptr || bearer->token != SparseSequenceRemoteToken) {
+                    return frontend::AuthenticationFailure{frontend::AuthenticationFailureCode::AuthenticationFailed};
+                }
+                return frontend::AuthenticationSuccess{frontend::FrontendPrincipal{
+                    "sparse-default-remote",
+                    std::vector<frontend::FrontendScope>{frontend::DefaultRemoteScopes.begin(), frontend::DefaultRemoteScopes.end()},
+                    std::string(frontend::DefaultRemoteScopeProfile.name),
+                    false}};
+            };
+            return options;
+        }
+
+        static frontend::FrontendPeerContext remotePeer() {
+            frontend::FrontendPeerContext peer;
+            peer.transport = frontend::FrontendTransportKind::Ipv4;
+            peer.loopback = true;
+            peer.remoteAddress = "127.0.0.143";
+            return peer;
+        }
+
+        static frontend::ClientMessage remoteHello(std::optional<frontend::SequenceNumber> resumeAfter,
+                                                   std::vector<frontend::FrontendCapability> capabilities = {}) {
+            return frontend::Hello{resumeAfter,
+                                   frontend::Json::object(),
+                                   std::move(capabilities),
+                                   frontend::AuthenticationCredential{frontend::BearerCredential{std::string(SparseSequenceRemoteToken)}}};
+        }
+
+        static std::set<std::uint64_t> messageSequences(const Observations& observations, std::size_t begin, std::size_t end) {
+            std::set<std::uint64_t> sequences;
+            end = std::min(end, observations.messages.size());
+            for (std::size_t index = begin; index < end; ++index) {
+                if (const auto* batch = std::get_if<frontend::EventBatch>(&observations.messages[index])) {
+                    for (const frontend::FrontendEvent& event : batch->events) {
+                        sequences.insert(event.sequence.value());
+                    }
+                }
+            }
+            return sequences;
+        }
+
+        static std::optional<std::size_t> firstSync(const Observations& observations, std::size_t begin = 0) {
+            for (std::size_t index = begin; index < observations.messages.size(); ++index) {
+                if (std::holds_alternative<frontend::SyncComplete>(observations.messages[index])) {
+                    return index;
+                }
+            }
+            return std::nullopt;
+        }
+
+        static bool hasBatchRange(const Observations& observations,
+                                  std::size_t begin,
+                                  std::size_t end,
+                                  frontend::SequenceNumber from,
+                                  frontend::SequenceNumber to) {
+            end = std::min(end, observations.messages.size());
+            for (std::size_t index = begin; index < end; ++index) {
+                if (const auto* batch = std::get_if<frontend::EventBatch>(&observations.messages[index]);
+                    batch && batch->fromSequence == from && batch->toSequence == to) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void injectVisibleFirst() {
+            transport->inject({{"method", "configWarning"},
+                               {"params",
+                                {{"summary", "sparse visible first"},
+                                 {"details", "visible details"},
+                                 {"path", "/sparse/config.toml"},
+                                 {"range", nullptr}}}});
+        }
+
+        void injectHidden(std::string payload) {
+            transport->inject({{"method", "process/outputDelta"},
+                               {"params",
+                                {{"capReached", false},
+                                 {"deltaBase64", std::move(payload)},
+                                 {"processHandle", "sparse-process"},
+                                 {"stream", "stdout"}}}});
+        }
+
+        void injectVisibleLast() {
+            transport->inject(
+                {{"method", "guardianWarning"}, {"params", {{"message", "sparse visible last"}, {"threadId", "sparse-thread"}}}});
+        }
+
+        void startVisibleInterval() {
+            service = std::make_unique<frontend::FrontendService>(*backendCore, serviceOptions(frontend::SequenceNumber{37}, 32));
+            local.emplace(service->openConnection(trustedPeer(), callbacksFor(localObservations)));
+            const std::vector capabilities{frontend::FrontendCapability::DedicatedNotificationEvents,
+                                           frontend::FrontendCapability::ScopeProjectedState};
+            const frontend::Hello localHello{std::nullopt, frontend::Json::object(), capabilities, std::nullopt};
+            expect(local->receive(frontend::ClientMessage{localHello}).accepted(),
+                   "the local_trusted sparse-sequence observer authenticates");
+            waitUntil(
+                "local_trusted handshake completes after the initial provider projection",
+                [this]() {
+                    return local->helloComplete();
+                },
+                [this, capabilities]() {
+                    expect(service->currentSequence() == frontend::SequenceNumber{39},
+                           "the initial provider record and local_trusted session establish global cursor 39 (actual " +
+                               std::to_string(service->currentSequence().value()) + ")");
+                    remote.emplace(service->openConnection(remotePeer(), callbacksFor(remoteObservations)));
+                    expect(remote->receive(remoteHello(std::nullopt, capabilities)).accepted(),
+                           "the default_remote sparse-sequence observer authenticates");
+                    waitUntil(
+                        "default_remote handshake completes at the unchanged global cursor 40",
+                        [this]() {
+                            return remote->helloComplete();
+                        },
+                        [this]() {
+                            expect(service->currentSequence() == frontend::SequenceNumber{40},
+                                   "the default_remote session establishes global cursor 40 (actual " +
+                                       std::to_string(service->currentSequence().value()) + ")");
+                            localBaseline = localObservations.messages.size();
+                            remoteBaseline = remoteObservations.messages.size();
+                            injectVisibleFirst();
+                            waitUntil(
+                                "visible occurrence reaches global sequence 41",
+                                [this]() {
+                                    return service->currentSequence() == frontend::SequenceNumber{41};
+                                },
+                                [this]() {
+                                    injectHidden("c3BhcnNlLWhpZGRlbg==");
+                                    waitUntil(
+                                        "privileged-only occurrence reaches global sequence 42",
+                                        [this]() {
+                                            return service->currentSequence() == frontend::SequenceNumber{42};
+                                        },
+                                        [this]() {
+                                            injectVisibleLast();
+                                            waitUntil(
+                                                "second visible occurrence reaches global sequence 43",
+                                                [this]() {
+                                                    return service->currentSequence() == frontend::SequenceNumber{43};
+                                                },
+                                                [this]() {
+                                                    afterTicks(16, [this]() {
+                                                        verifyLiveAndReplay();
+                                                    });
+                                                });
+                                        });
+                                });
+                        });
+                });
+        }
+
+        void verifyLiveAndReplay() {
+            std::set<std::uint64_t> localLive = messageSequences(localObservations, localBaseline, localObservations.messages.size());
+            const std::set<std::uint64_t> remoteLive =
+                messageSequences(remoteObservations, remoteBaseline, remoteObservations.messages.size());
+            localLive.erase(40);
+            const auto render = [](const std::set<std::uint64_t>& sequences) {
+                std::string value;
+                for (const std::uint64_t sequence : sequences) {
+                    value += (value.empty() ? "" : ",") + std::to_string(sequence);
+                }
+                return value;
+            };
+            expect(localLive == std::set<std::uint64_t>{41, 42, 43} && remoteLive == std::set<std::uint64_t>{41, 43},
+                   "local_trusted sees 41/42/43 while default_remote accepts sparse live 41/43 with no fabricated 42 (local=" +
+                       render(localLive) + ", remote=" + render(remoteLive) + ")");
+
+            explicitReplayBaseline = remoteObservations.messages.size();
+            expect(remote->receive(command("sparse-explicit-replay", frontend::ReplayAfter{frontend::SequenceNumber{40}})).accepted(),
+                   "explicit events.replay accepts the global cursor before the sparse interval");
+            waitUntil(
+                "explicit sparse replay completes",
+                [this]() {
+                    return hasSuccessfulResponse(remoteObservations, "sparse-explicit-replay") &&
+                           firstSync(remoteObservations, explicitReplayBaseline).has_value();
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(remoteObservations, explicitReplayBaseline);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&remoteObservations.messages[syncIndex]);
+                    expect(complete && complete->sequence == frontend::SequenceNumber{43} &&
+                               messageSequences(remoteObservations, explicitReplayBaseline, syncIndex) == std::set<std::uint64_t>{41, 43} &&
+                               hasBatchRange(remoteObservations,
+                                             explicitReplayBaseline,
+                                             syncIndex,
+                                             frontend::SequenceNumber{41},
+                                             frontend::SequenceNumber{43}),
+                           "explicit replay preserves sparse 41/43 and sync.complete advances the global cursor to 43");
+                    startVisibleReconnect();
+                });
+        }
+
+        void startVisibleReconnect() {
+            reconnect.emplace(service->openConnection(remotePeer(), callbacksFor(reconnectObservations)));
+            expect(reconnect->receive(remoteHello(frontend::SequenceNumber{41})).accepted(),
+                   "a legacy default_remote reconnect resumes from visible global sequence 41");
+            waitUntil(
+                "legacy sparse reconnect completes",
+                [this]() {
+                    return firstSync(reconnectObservations).has_value();
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(reconnectObservations);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&reconnectObservations.messages[syncIndex]);
+                    expect(welcome(reconnectObservations) && welcome(reconnectObservations)->syncMode == frontend::SyncMode::Replay &&
+                               complete && complete->sequence == frontend::SequenceNumber{43} &&
+                               messageSequences(reconnectObservations, 0, syncIndex) == std::set<std::uint64_t>{43},
+                           "legacy reconnect after 41 replays visible 43 at the same information ceiling and exposes no hidden marker");
+                    beginHiddenInterval();
+                });
+        }
+
+        void beginHiddenInterval() {
+            reconnect.reset();
+            remote.reset();
+            local.reset();
+            service->close("visible sparse interval complete");
+            service.reset();
+            afterTicks(8, [this]() {
+                service = std::make_unique<frontend::FrontendService>(*backendCore, serviceOptions(frontend::SequenceNumber{50}, 2));
+                injectVisibleFirst();
+                waitUntil(
+                    "hidden-suffix visible anchor reaches global 51",
+                    [this]() {
+                        return service->currentSequence() == frontend::SequenceNumber{51};
+                    },
+                    [this]() {
+                        injectHidden("aGlkZGVuLXN1ZmZpeC0x");
+                        waitUntil(
+                            "first hidden suffix occurrence reaches global 52",
+                            [this]() {
+                                return service->currentSequence() == frontend::SequenceNumber{52};
+                            },
+                            [this]() {
+                                injectHidden("aGlkZGVuLXN1ZmZpeC0y");
+                                waitUntil(
+                                    "second hidden suffix occurrence reaches global 53",
+                                    [this]() {
+                                        return service->currentSequence() == frontend::SequenceNumber{53};
+                                    },
+                                    [this]() {
+                                        startHiddenSuffixReconnect();
+                                    });
+                            });
+                    });
+            });
+        }
+
+        void startHiddenSuffixReconnect() {
+            suffix.emplace(service->openConnection(remotePeer(), callbacksFor(suffixObservations)));
+            expect(suffix->receive(remoteHello(frontend::SequenceNumber{51})).accepted(),
+                   "default_remote reconnect accepts a global cursor before a fully hidden suffix");
+            waitUntil(
+                "hidden suffix advances sync and later session event remains usable",
+                [this]() {
+                    const auto sync = firstSync(suffixObservations);
+                    return sync.has_value() && service->currentSequence() >= frontend::SequenceNumber{54} &&
+                           messageSequences(suffixObservations, *sync + 1, suffixObservations.messages.size()).contains(54);
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(suffixObservations);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&suffixObservations.messages[syncIndex]);
+                    expect(welcome(suffixObservations) && welcome(suffixObservations)->syncMode == frontend::SyncMode::Replay && complete &&
+                               complete->sequence == frontend::SequenceNumber{53} &&
+                               messageSequences(suffixObservations, 0, syncIndex).empty() && suffix->isOpen(),
+                           "a nonempty hidden suffix emits no batch, sync.complete advances to 53, and visible 54 is accepted normally");
+                    startSnapshotFallback();
+                });
+        }
+
+        void startSnapshotFallback() {
+            fallback.emplace(service->openConnection(remotePeer(), callbacksFor(fallbackObservations)));
+            expect(fallback->receive(remoteHello(frontend::SequenceNumber{50})).accepted(),
+                   "a cursor below the replay floor requests synchronization without inferring visible loss");
+            waitUntil(
+                "sparse replay-gap snapshot fallback completes",
+                [this]() {
+                    return firstSync(fallbackObservations).has_value();
+                },
+                [this]() {
+                    const std::size_t syncIndex = *firstSync(fallbackObservations);
+                    const auto* complete = std::get_if<frontend::SyncComplete>(&fallbackObservations.messages[syncIndex]);
+                    const frontend::Snapshot* snapshot = latestSnapshot(fallbackObservations);
+                    const bool exposesHiddenType = std::any_of(
+                        fallbackObservations.compactJson.begin(), fallbackObservations.compactJson.end(), [](const std::string& encoded) {
+                            return encoded.find("process.updated") != std::string::npos ||
+                                   encoded.find("process/outputDelta") != std::string::npos;
+                        });
+                    expect(welcome(fallbackObservations) && welcome(fallbackObservations)->syncMode == frontend::SyncMode::Snapshot &&
+                               snapshot && complete && snapshot->sequence == frontend::SequenceNumber{54} &&
+                               complete->sequence == frontend::SequenceNumber{54} && countSnapshots(fallbackObservations) == 1 &&
+                               messageSequences(fallbackObservations, 0, syncIndex).empty() && !exposesHiddenType,
+                           "an unavailable canonical interval uses one snapshot at cursor 54, never mixes replay, and discloses no hidden "
+                           "occurrence type (welcome=" +
+                               std::to_string(welcome(fallbackObservations) != nullptr) +
+                               ", snapshot=" + (snapshot ? std::to_string(snapshot->sequence.value()) : std::string("none")) +
+                               ", complete=" + (complete ? std::to_string(complete->sequence.value()) : std::string("none")) +
+                               ", snapshots=" + std::to_string(countSnapshots(fallbackObservations)) +
+                               ", pre-sync-events=" + std::to_string(messageSequences(fallbackObservations, 0, syncIndex).size()) +
+                               ", hidden-type=" + std::to_string(exposesHiddenType) + ")");
+                    finish();
+                });
+        }
+
+        void finish() {
+            if (finished || finishing) {
+                return;
+            }
+            finishing = true;
+            fallback.reset();
+            suffix.reset();
+            reconnect.reset();
+            remote.reset();
+            local.reset();
+            if (service) {
+                service->close("sparse-sequence runner complete");
+                service.reset();
+            }
+            if (backendCore) {
+                backendCore->stop();
+            }
+            afterTicks(8, [this]() {
+                backendCore.reset();
+                transport.reset();
+                finishing = false;
+                finished = true;
+                waitingDescription = "complete";
+                if (onFinished) {
+                    onFinished();
+                }
+            });
+        }
+
+        tests::support::TestResult& result;
+        std::function<void()> onFinished;
+        std::shared_ptr<tests::codex::FakeTransportState> transport;
+        std::unique_ptr<FakeBackendCore> backendCore;
+        std::unique_ptr<frontend::FrontendService> service;
+        std::optional<frontend::FrontendConnection> local;
+        std::optional<frontend::FrontendConnection> remote;
+        std::optional<frontend::FrontendConnection> reconnect;
+        std::optional<frontend::FrontendConnection> suffix;
+        std::optional<frontend::FrontendConnection> fallback;
+        Observations localObservations;
+        Observations remoteObservations;
+        Observations reconnectObservations;
+        Observations suffixObservations;
+        Observations fallbackObservations;
+        std::size_t localBaseline = 0;
+        std::size_t remoteBaseline = 0;
+        std::size_t explicitReplayBaseline = 0;
+        bool finishing = false;
+        bool finished = false;
+        std::string waitingDescription = "not started";
+    };
 
     class FrontendBurstRunner {
     public:
@@ -769,19 +1667,28 @@ namespace {
             backendOptions.capacity.maxRetainedThreads = 1;
             backendCore = std::make_unique<FakeBackendCore>(std::move(backendOptions), transport);
 
-            frontend::BackendAdapterOptions adapterOptions;
-            adapterOptions.journal = {128, 2U * 1024U * 1024U, frontend::SequenceNumber{0}};
-            adapterOptions.batches = {8, 128U * 1024U};
-            adapterOptions.coalescer = {64};
-            adapterOptions.maxOutboundMessagesPerConnection = maxOutboundMessages;
-            adapterOptions.maxOutboundBytesPerConnection = maxOutboundBytes;
-            adapterOptions.maxMessagesPerDelivery = 4;
-            adapter = std::make_unique<frontend::BackendAdapter>(*backendCore, std::move(adapterOptions));
+            frontend::FrontendServiceOptions serviceOptions;
+            enableVerifiedTestTrust(serviceOptions);
+            serviceOptions.journal = {128, 2U * 1024U * 1024U, frontend::SequenceNumber{0}};
+            serviceOptions.batches = {8, 128U * 1024U};
+            serviceOptions.coalescer = {64};
+            serviceOptions.maxOutboundMessagesPerConnection = maxOutboundMessages;
+            serviceOptions.maxOutboundBytesPerConnection = maxOutboundBytes;
+            serviceOptions.maxMessagesPerDelivery = 4;
+            service = std::make_unique<frontend::FrontendService>(*backendCore, std::move(serviceOptions));
 
-            connectionA.emplace(adapter->openConnection(callbacksFor(observerA)));
-            connectionB.emplace(adapter->openConnection(callbacksFor(observerB)));
-            expect(connectionA->receive(hello()).accepted() && connectionB->receive(hello()).accepted(),
-                   "both protocol sessions accept hello before the high-volume stream");
+            connectionA.emplace(service->openConnection(trustedPeer(), callbacksFor(observerA)));
+            connectionB.emplace(service->openConnection(trustedPeer(), callbacksFor(observerB)));
+            rangeLegacyConnection.emplace(service->openConnection(trustedPeer(), callbacksFor(rangeLegacyObserver)));
+            const frontend::Hello expandedHello{
+                std::nullopt,
+                frontend::Json::object(),
+                std::vector{frontend::FrontendCapability::DedicatedNotificationEvents},
+            };
+            expect(connectionA->receive(frontend::ClientMessage{expandedHello}).accepted() &&
+                       connectionB->receive(frontend::ClientMessage{expandedHello}).accepted() &&
+                       rangeLegacyConnection->receive(hello()).accepted(),
+                   "the two equivalent expanded sessions and dedicated legacy projection session accept hello");
 
             backendCore->start();
             waitUntil(
@@ -789,10 +1696,10 @@ namespace {
                 [this]() {
                     const backend::Snapshot snapshot = backendCore->snapshot();
                     return backendCore->isReady() && snapshot.threadList.pagesLoaded == 1 && connectionA->helloComplete() &&
-                           connectionB->helloComplete();
+                           connectionB->helloComplete() && rangeLegacyConnection->helloComplete();
                 },
                 [this]() {
-                    exerciseExactWrapperProjection();
+                    exerciseCanonicalOccurrenceSequence();
                 });
         }
 
@@ -901,6 +1808,128 @@ namespace {
             } else if (*method == "turn/interrupt") {
                 tests::codex::inject(callbacks, Json{{"id", *id}, {"result", Json::object()}});
             }
+        }
+
+        std::vector<frontend::FrontendEvent>
+        familyEventsAfter(const Observations& observations, std::size_t baseline, std::initializer_list<std::string_view> families) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            std::vector<frontend::FrontendEvent> selected;
+            for (auto iterator = received.begin() + static_cast<std::ptrdiff_t>(baseline); iterator != received.end(); ++iterator) {
+                if (std::find(families.begin(), families.end(), iterator->type) != families.end()) {
+                    selected.push_back(*iterator);
+                }
+            }
+            return selected;
+        }
+
+        std::vector<frontend::FrontendEvent>
+        legacyNotificationEventsAfter(const Observations& observations, std::size_t baseline, std::string_view method) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            std::vector<frontend::FrontendEvent> selected;
+            for (auto iterator = received.begin() + static_cast<std::ptrdiff_t>(baseline); iterator != received.end(); ++iterator) {
+                if (iterator->type == "codex.extension" && iterator->data.value("method", "") == method) {
+                    selected.push_back(*iterator);
+                }
+            }
+            return selected;
+        }
+
+        void exerciseCanonicalOccurrenceSequence() {
+            rangeBeforeConfig = service->currentSequence();
+            rangeExpandedBaseline = events(observerA).size();
+            rangeLegacyBaseline = events(rangeLegacyObserver).size();
+            transport->inject({{"method", "configWarning"},
+                               {"params",
+                                {{"summary", "synthetic config warning"},
+                                 {"details", "safe details"},
+                                 {"path", "/synthetic/config.toml"},
+                                 {"range", nullptr}}}});
+            waitUntil(
+                "configWarning reaches expanded and legacy projections from one canonical record",
+                [this]() {
+                    return familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"}).size() == 2 &&
+                           legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "configWarning").size() == 1;
+                },
+                [this]() {
+                    const std::vector<frontend::FrontendEvent> expanded =
+                        familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"});
+                    const std::vector<frontend::FrontendEvent> legacy =
+                        legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "configWarning");
+                    if (expanded.size() == 2) {
+                        configSequence = expanded[0].sequence;
+                    }
+                    expect(expanded.size() == 2 && expanded[0].type == "configuration.updated" && configSequence > rangeBeforeConfig &&
+                               expanded[1].type == "notice.added" && expanded[1].sequence == configSequence && legacy.size() == 1 &&
+                               legacy.front().sequence == configSequence && service->currentSequence() == configSequence,
+                           "one configWarning canonical record gives every authorized representation one occurrence sequence "
+                           "(before=" +
+                               std::to_string(rangeBeforeConfig.value()) + ", configuration=" + std::to_string(configSequence.value()) +
+                               ", notice=" + std::to_string(expanded[1].sequence.value()) +
+                               ", legacy=" + std::to_string(legacy.front().sequence.value()) +
+                               ", current=" + std::to_string(service->currentSequence().value()) + ")");
+                    replayAfterOccurrence();
+                });
+        }
+
+        void replayAfterOccurrence() {
+            rangeExpandedBaseline = events(observerA).size();
+            expect(connectionA->receive(command("occurrence-after", frontend::ReplayAfter{configSequence})).accepted(),
+                   "events.replay accepts the canonical multi-family occurrence sequence");
+            waitUntil(
+                "replay after the occurrence suppresses every family from that record",
+                [this]() {
+                    return hasSuccessfulResponse(observerA, "occurrence-after");
+                },
+                [this]() {
+                    expect(familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"}).empty(),
+                           "an occurrence cursor cannot partially replay one canonical record");
+                    replayBeforeOccurrence();
+                });
+        }
+
+        void replayBeforeOccurrence() {
+            rangeExpandedBaseline = events(observerA).size();
+            expect(connectionA->receive(command("occurrence-before", frontend::ReplayAfter{rangeBeforeConfig})).accepted(),
+                   "events.replay accepts the sequence immediately before a canonical multi-family occurrence");
+            waitUntil(
+                "replay before the occurrence emits both dedicated families atomically",
+                [this]() {
+                    return hasSuccessfulResponse(observerA, "occurrence-before") &&
+                           familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"}).size() == 2;
+                },
+                [this]() {
+                    const std::vector<frontend::FrontendEvent> replayed =
+                        familyEventsAfter(observerA, rangeExpandedBaseline, {"configuration.updated", "notice.added"});
+                    expect(replayed.size() == 2 && replayed[0].sequence == configSequence && replayed[1].sequence == configSequence,
+                           "replay before the occurrence preserves both same-sequence families without duplicates");
+                    emitGuardianOccurrence();
+                });
+        }
+
+        void emitGuardianOccurrence() {
+            rangeExpandedBaseline = events(observerA).size();
+            rangeLegacyBaseline = events(rangeLegacyObserver).size();
+            transport->inject({{"method", "guardianWarning"},
+                               {"params", {{"message", "Synthetic guardian warning."}, {"threadId", "synthetic-thread"}}}});
+            waitUntil(
+                "guardianWarning reaches expanded and legacy projections from the next canonical record",
+                [this]() {
+                    return familyEventsAfter(observerA, rangeExpandedBaseline, {"reviews.updated", "notice.added"}).size() == 2 &&
+                           legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "guardianWarning").size() == 1;
+                },
+                [this]() {
+                    const std::vector<frontend::FrontendEvent> expanded =
+                        familyEventsAfter(observerA, rangeExpandedBaseline, {"reviews.updated", "notice.added"});
+                    const std::vector<frontend::FrontendEvent> legacy =
+                        legacyNotificationEventsAfter(rangeLegacyObserver, rangeLegacyBaseline, "guardianWarning");
+                    expect(expanded.size() == 2 && expanded[0].type == "reviews.updated" &&
+                               expanded[0].sequence == frontend::SequenceNumber{configSequence.value() + 1} &&
+                               expanded[1].type == "notice.added" && expanded[1].sequence == expanded[0].sequence && legacy.size() == 1 &&
+                               legacy.front().sequence == expanded[0].sequence && service->currentSequence() == expanded[0].sequence,
+                           "the next guardianWarning occurrence advances once and shares that sequence across projections");
+                    rangeLegacyConnection.reset();
+                    exerciseExactWrapperProjection();
+                });
         }
 
         void exerciseExactWrapperProjection() {
@@ -1012,7 +2041,7 @@ namespace {
             baselineMessagesB = observerB.messages.size();
             baselineEventsA = events(observerA).size();
             baselineEventsB = events(observerB).size();
-            baselineSequence = adapter->currentSequence();
+            baselineSequence = service->currentSequence();
 
             transport->inject(
                 {{"method", "turn/started"}, {"params", {{"threadId", threadId}, {"turn", tests::codex::turnValue(threadId, turnId)}}}});
@@ -1081,7 +2110,8 @@ namespace {
                                observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) &&
                            hasCompletedItemUpdate(
                                observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) &&
-                           hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB);
+                           hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB) &&
+                           hasTerminalTurnAfter(observerA, baselineEventsA) && hasTerminalTurnAfter(observerB, baselineEventsB);
                 },
                 [this]() {
                     verifyBurst();
@@ -1272,6 +2302,19 @@ namespace {
                 }));
         }
 
+        bool hasTerminalTurnAfter(const Observations& observations, std::size_t baseline) const {
+            const std::vector<frontend::FrontendEvent> received = events(observations);
+            if (baseline >= received.size()) {
+                return false;
+            }
+            return std::any_of(
+                received.begin() + static_cast<std::ptrdiff_t>(baseline), received.end(), [this](const frontend::FrontendEvent& event) {
+                    const auto turn = event.data.find("turn");
+                    return event.type == "turn.upserted" && turn != event.data.end() && turn->is_object() &&
+                           turn->value("id", "") == turnId && turn->value("terminal", false);
+                });
+        }
+
         std::size_t resolvedExtensionCountAfter(const Observations& observations, std::size_t baseline) const {
             const std::vector<frontend::FrontendEvent> received = events(observations);
             if (baseline >= received.size()) {
@@ -1352,7 +2395,7 @@ namespace {
                                   [](const frontend::FrontendEvent& left, const frontend::FrontendEvent& right) {
                                       return left.sequence < right.sequence;
                                   }) &&
-                       adapter->currentSequence() > baselineSequence,
+                       service->currentSequence() > baselineSequence,
                    "coalesced burst updates retain strict frontend sequence order");
             std::optional<std::size_t> finalContentIndex;
             std::optional<std::size_t> terminalTurnIndex;
@@ -1363,13 +2406,13 @@ namespace {
                     finalContentIndex = index;
                 }
                 const auto turn = event.data.find("turn");
-                if (event.type == "turn.updated" && turn != event.data.end() && turn->is_object() && turn->value("id", "") == turnId &&
+                if (event.type == "turn.upserted" && turn != event.data.end() && turn->is_object() && turn->value("id", "") == turnId &&
                     turn->value("terminal", false)) {
                     terminalTurnIndex = index;
                 }
             }
             expect(finalContentIndex.has_value() && terminalTurnIndex.has_value() && *finalContentIndex < *terminalTurnIndex,
-                   "adapter emits final item.content.updated before terminal turn.updated when turn.started was already dirty");
+                   "service emits final item.content.updated before terminal turn.updated when turn.started was already dirty");
             expect(latestFrontendText(observerA) == expectedText && latestFrontendText(observerB) == expectedText,
                    "coalescing preserves exact final text for every protocol session");
 
@@ -1412,7 +2455,7 @@ namespace {
                 userMessageData.dump().size() <= backend::MaxSerializedUserMessageDataBytes &&
                 !userMessageItem.value("contentTruncated", true) && userMessageItem.value("droppedContentBytes", std::uint64_t{1}) == 0;
             expect(userMessageDataPreserved,
-                   "Decoder through BackendAdapter preserves a bounded array prefix and independent user-message truncation metadata");
+                   "Decoder through FrontendService preserves a bounded array prefix and independent user-message truncation metadata");
             const auto unknownUpdate = std::find_if(receivedA.begin(), receivedA.end(), [&](const frontend::FrontendEvent& event) {
                 return isCompletedItemUpdate(event, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs);
             });
@@ -1577,10 +2620,10 @@ namespace {
                             expect(eventCountAfter(observerA, pendingBaselineA, "request.resolved") == 6 &&
                                        eventCountAfter(observerB, pendingBaselineB, "request.resolved") == 6,
                                    "Frontend Protocol v1 retains one request.resolved event per invalidated pending occurrence");
-                            adapter->close("burst test complete");
+                            service->close("burst test complete");
                             backendCore->stop();
                             waitUntil(
-                                "burst BackendCore reaches Stopped after adapter isolation checks",
+                                "burst BackendCore reaches Stopped after service isolation checks",
                                 [this]() {
                                     return backendCore->snapshot().provider.lifecycle == backend::ProviderLifecycle::Stopped;
                                 },
@@ -1596,15 +2639,16 @@ namespace {
                 return;
             }
             finished = true;
-            if (adapter) {
-                adapter->close("frontend burst runner finished");
+            if (service) {
+                service->close("frontend burst runner finished");
             }
             if (backendCore) {
                 backendCore->stop();
             }
             connectionA.reset();
             connectionB.reset();
-            adapter.reset();
+            rangeLegacyConnection.reset();
+            service.reset();
             backendCore.reset();
             core::SNodeC::stop();
         }
@@ -1631,7 +2675,7 @@ namespace {
         static constexpr std::int64_t userMessageStartedAtMs = 30;
         static constexpr std::int64_t userMessageCompletedAtMs = 40;
         const std::string unknownItemId = "unknown-item-burst";
-        const std::string unknownItemType = "futureAdapterItem";
+        const std::string unknownItemType = "futureServiceItem";
         static constexpr std::int64_t unknownItemStartedAtMs = 50;
         static constexpr std::int64_t unknownItemCompletedAtMs = 60;
         const std::vector<LegacyMetadataItemFixture> legacyMetadataItems = legacyMetadataItemFixtures();
@@ -1639,11 +2683,13 @@ namespace {
         tests::support::TestResult& result;
         std::shared_ptr<tests::codex::FakeTransportState> transport;
         std::unique_ptr<FakeBackendCore> backendCore;
-        std::unique_ptr<frontend::BackendAdapter> adapter;
+        std::unique_ptr<frontend::FrontendService> service;
         std::optional<frontend::FrontendConnection> connectionA;
         std::optional<frontend::FrontendConnection> connectionB;
+        std::optional<frontend::FrontendConnection> rangeLegacyConnection;
         Observations observerA;
         Observations observerB;
+        Observations rangeLegacyObserver;
         std::string expectedText;
         const std::string extensionAccessToken = "wire-extension-access-token-must-not-leak";
         const std::string extensionSecretAnswer = "wire-extension-secret-answer-must-not-leak";
@@ -1657,6 +2703,10 @@ namespace {
         std::size_t pendingBaselineB = 0;
         std::size_t resolvedBaselineA = 0;
         std::size_t resolvedBaselineB = 0;
+        frontend::SequenceNumber rangeBeforeConfig;
+        frontend::SequenceNumber configSequence;
+        std::size_t rangeExpandedBaseline = 0;
+        std::size_t rangeLegacyBaseline = 0;
         static constexpr const char* wrapperAcquireRequestId = "wrapper-acquire";
         static constexpr const char* wrapperThreadStartRequestId = "wrapper-thread-start";
         static constexpr const char* wrapperThreadResumeRequestId = "wrapper-thread-resume";
@@ -1681,15 +2731,17 @@ int main(int argc, char* argv[]) {
     int returnCode = tests::support::cTestSkipReturnCode;
 
     if (tests::support::shouldSkipRootWithoutSNodeCGroup()) {
-        tests::support::printRootWithoutSNodeCGroupSkipMessage("CodexFrontendAdapterTest");
+        tests::support::printRootWithoutSNodeCGroupSkipMessage("CodexFrontendServiceTest");
     } else {
         core::SNodeC::init(argc, argv);
         testCoalescingAndBounds(result);
-        testAdapterHandshakeRolesReplayAndIsolation(result);
+        testAuthenticationAdmissionAndTopology(result);
+        testServiceHandshakeRolesReplayAndIsolation(result);
         testCapabilityDiscoveryHandshake(result);
         testSnapshotReplayBarrier(result);
         testCapacityOnlySnapshotFeedback(result);
         bool timedOut = false;
+        SparseSequenceRunner sparseRunner(result);
         FrontendBurstRunner runner(result);
         [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
             [&timedOut]() {
@@ -1697,13 +2749,17 @@ int main(int argc, char* argv[]) {
                 core::SNodeC::stop();
             },
             utils::Timeval({10, 0}));
-        runner.start();
+        sparseRunner.start([&runner]() {
+            runner.start();
+        });
         const int eventLoopResult = core::SNodeC::start(utils::Timeval({12, 0}));
         result.expectTrue(!timedOut,
-                          "frontend 1,000-delta scenario completes before the watchdog (last stage: " + runner.waitingStage() + "; " +
-                              runner.terminalProgress() + ")");
+                          "sparse-sequence and frontend 1,000-delta scenarios complete before the watchdog (sparse stage: " +
+                              sparseRunner.waitingStage() + "; burst stage: " + runner.waitingStage() + "; " + runner.terminalProgress() +
+                              ")");
+        result.expectTrue(sparseRunner.isFinished(), "sparse global-sequence scenario reaches a clean terminal state");
         result.expectTrue(runner.isFinished(), "frontend 1,000-delta scenario reaches a clean terminal state");
-        result.expectEqual(0, eventLoopResult, "frontend adapter event loop exits cleanly");
+        result.expectEqual(0, eventLoopResult, "frontend service event loop exits cleanly");
 
         core::SNodeC::free();
         returnCode = result.processResult();

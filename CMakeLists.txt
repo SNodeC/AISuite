@@ -78,9 +78,86 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
 endif()
 set(AISUITE_SNODEC_COMPONENTS core)
 if(AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS)
-    list(APPEND AISUITE_SNODEC_COMPONENTS net-un-stream-legacy)
+    list(APPEND AISUITE_SNODEC_COMPONENTS net-un-stream-legacy
+         net-in-stream-legacy net-in6-stream-legacy
+    )
 endif()
-find_package(snodec CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS})
+find_package(snodec 2.0 CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS})
+
+set(AISUITE_CODEX_FRONTEND_TLS_DEFAULT OFF)
+if(EXISTS "${snodec_DIR}/snodec_net-in-stream-tls_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_net-in6-stream-tls_Targets.cmake"
+)
+    set(AISUITE_CODEX_FRONTEND_TLS_DEFAULT ON)
+endif()
+option(AISUITE_ENABLE_CODEX_FRONTEND_TLS
+       "Build Codex TLS frontend stream transports"
+       ${AISUITE_CODEX_FRONTEND_TLS_DEFAULT}
+)
+
+set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT OFF)
+if(EXISTS "${snodec_DIR}/snodec_http-server_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_http-server-express_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_http-server-express-legacy-in_Targets.cmake"
+   AND EXISTS
+       "${snodec_DIR}/snodec_http-server-express-legacy-in6_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_websocket-server_Targets.cmake"
+)
+    set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT ON)
+endif()
+option(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
+       "Build Codex HTTP and WebSocket frontend transports"
+       ${AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT}
+)
+
+set(AISUITE_CODEX_FRONTEND_RFCOMM_DEFAULT OFF)
+if(EXISTS "${snodec_DIR}/snodec_net-rc-stream-legacy_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_net-rc-stream-tls_Targets.cmake"
+)
+    set(AISUITE_CODEX_FRONTEND_RFCOMM_DEFAULT ON)
+endif()
+option(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM
+       "Build Codex RFCOMM frontend stream transports"
+       ${AISUITE_CODEX_FRONTEND_RFCOMM_DEFAULT}
+)
+
+set(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
+if(AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS)
+    if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+        list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS net-in-stream-tls
+             net-in6-stream-tls
+        )
+    endif()
+    if(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM)
+        list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS net-rc-stream-legacy
+             net-rc-stream-tls
+        )
+    endif()
+    if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
+        list(
+            APPEND
+            AISUITE_SNODEC_OPTIONAL_COMPONENTS
+            http-server
+            http-server-express
+            http-server-express-legacy-in
+            http-server-express-legacy-in6
+            websocket-server
+        )
+        if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+            list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS
+                 http-server-express-tls-in http-server-express-tls-in6
+            )
+        endif()
+        if(AISUITE_BUILD_TESTS)
+            list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS websocket-client)
+        endif()
+    endif()
+endif()
+if(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
+    find_package(
+        snodec CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_OPTIONAL_COMPONENTS}
+    )
+endif()
 
 add_subdirectory(src/ai/openai/codex)
 

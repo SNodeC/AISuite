@@ -13,11 +13,15 @@
 
 #include <cstddef>
 #include <deque>
+#include <memory>
 #include <optional>
-#include <string>
 #include <vector>
 
 namespace ai::openai::codex::frontend {
+
+    namespace detail {
+        class CanonicalEventJournalAccess;
+    }
 
     struct EventJournalConfig {
         std::size_t maxEntries = DefaultJournalMaxEntries;
@@ -29,41 +33,11 @@ namespace ai::openai::codex::frontend {
 
     enum class JournalAppendStatus { Appended, NotRetained, InvalidEvent, SequenceOverflow, EncodingFailure };
 
-    struct JournalAppendResult {
-        JournalAppendStatus status = JournalAppendStatus::EncodingFailure;
-        std::optional<FrontendEvent> event;
-        std::size_t serializedBytes = 0;
-
-        [[nodiscard]] bool accepted() const noexcept {
-            return status == JournalAppendStatus::Appended || status == JournalAppendStatus::NotRetained;
-        }
-
-        [[nodiscard]] bool retained() const noexcept {
-            return status == JournalAppendStatus::Appended;
-        }
-    };
-
     enum class JournalReplayStatus { Available, Gap, FutureSequence };
-
-    struct JournalReplayResult {
-        JournalReplayStatus status = JournalReplayStatus::Gap;
-        SequenceNumber requestedAfter;
-        SequenceNumber oldestReplayableAfter;
-        SequenceNumber currentSequence;
-        std::vector<FrontendEvent> events;
-
-        [[nodiscard]] bool requiresSnapshot() const noexcept {
-            return status == JournalReplayStatus::Gap;
-        }
-    };
 
     class EventJournal {
     public:
         explicit EventJournal(EventJournalConfig config = {});
-
-        [[nodiscard]] JournalAppendResult append(std::string type, Json data = Json::object(), Json extensions = Json::object()) noexcept;
-
-        [[nodiscard]] JournalReplayResult replayAfter(SequenceNumber sequence) const;
 
         // Drops retained entries and advances a synchronization barrier without
         // fabricating a frontend event. Clients from before the barrier must
@@ -78,14 +52,32 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] std::optional<SequenceNumber> newestRetainedSequence() const noexcept;
         [[nodiscard]] std::size_t retainedEntryCount() const noexcept;
         [[nodiscard]] std::size_t retainedBytes() const noexcept;
-        [[nodiscard]] std::vector<FrontendEvent> retainedEvents() const;
 
     private:
-        struct Entry {
-            FrontendEvent event;
+        friend class detail::CanonicalEventJournalAccess;
+
+        struct OpaqueAppendResult {
+            JournalAppendStatus status = JournalAppendStatus::EncodingFailure;
+            std::optional<SequenceNumber> sequence;
             std::size_t serializedBytes = 0;
         };
 
+        struct OpaqueReplayResult {
+            JournalReplayStatus status = JournalReplayStatus::Gap;
+            SequenceNumber requestedAfter;
+            SequenceNumber oldestReplayableAfter;
+            SequenceNumber currentSequence;
+            std::vector<std::shared_ptr<const void>> records;
+        };
+
+        struct Entry {
+            SequenceNumber sequence;
+            std::shared_ptr<const void> opaqueRecord;
+            std::size_t serializedBytes = 0;
+        };
+
+        [[nodiscard]] OpaqueAppendResult appendOpaque(std::shared_ptr<const void> record, std::size_t serializedBytes) noexcept;
+        [[nodiscard]] OpaqueReplayResult replayOpaqueAfter(SequenceNumber sequence) const;
         void evictFront() noexcept;
 
         EventJournalConfig journalConfig;

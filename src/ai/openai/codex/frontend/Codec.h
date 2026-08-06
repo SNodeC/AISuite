@@ -78,9 +78,9 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] static CodecResult<ClientMessage> decodeClient(const Json& message) noexcept;
         [[nodiscard]] static CodecResult<ClientMessage> decodeClient(std::string_view message) noexcept;
         // The complete additive-v1 command codec is deliberately separate
-        // from decodeClient().  The latter remains the production runtime
-        // gate for the original 15 methods until A1.7b installs
-        // authentication and scope enforcement.
+        // from decodeClient(). The latter preserves the original 15-method
+        // compatibility model; FrontendService uses this tagged command model
+        // after authentication and runtime policy checks.
         [[nodiscard]] static CodecResult<generated::DefinedCommand> decodeDefinedCommand(const Json& message) noexcept;
         [[nodiscard]] static CodecResult<generated::DefinedCommand> decodeDefinedCommand(std::string_view message) noexcept;
         [[nodiscard]] static CodecResult<ServerMessage> decodeServer(const Json& message) noexcept;
@@ -101,8 +101,8 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] static CodecResult<ExpandedFrontendEvent> decodeExpandedEvent(const Json& event) noexcept;
         [[nodiscard]] static CodecResult<Json> encodeExpandedEvent(const ExpandedFrontendEvent& event) noexcept;
 
-        // Event encoding excludes the surrounding event-batch envelope. It is
-        // public so EventJournal can enforce an exact retained-byte bound.
+        // Event encoding excludes the surrounding event-batch envelope. These
+        // helpers support exact projected replay and outbound capacity bounds.
         [[nodiscard]] static CodecResult<Json> encodeEvent(const FrontendEvent& event) noexcept;
         [[nodiscard]] static CodecResult<std::size_t> serializedEventSize(const FrontendEvent& event) noexcept;
     };

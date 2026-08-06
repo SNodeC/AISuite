@@ -10,9 +10,13 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
+#include <variant>
+#include <vector>
 
 namespace ai::openai::codex::frontend {
 
@@ -120,6 +124,141 @@ namespace ai::openai::codex::frontend {
         false,
     };
 
+    enum class FrontendTransportKind { Unix, Ipv4, Ipv6, TcpTls, WebSocket, WebSocketTls, Rfcomm, RfcommTls, InMemory };
+
+    inline constexpr std::array<FrontendTransportKind, 9> FrontendTransportKinds{
+        FrontendTransportKind::Unix,
+        FrontendTransportKind::Ipv4,
+        FrontendTransportKind::Ipv6,
+        FrontendTransportKind::TcpTls,
+        FrontendTransportKind::WebSocket,
+        FrontendTransportKind::WebSocketTls,
+        FrontendTransportKind::Rfcomm,
+        FrontendTransportKind::RfcommTls,
+        FrontendTransportKind::InMemory,
+    };
+
+    [[nodiscard]] constexpr std::string_view toString(FrontendTransportKind kind) noexcept {
+        switch (kind) {
+            case FrontendTransportKind::Unix:
+                return "unix";
+            case FrontendTransportKind::Ipv4:
+                return "ipv4";
+            case FrontendTransportKind::Ipv6:
+                return "ipv6";
+            case FrontendTransportKind::TcpTls:
+                return "tcp_tls";
+            case FrontendTransportKind::WebSocket:
+                return "websocket";
+            case FrontendTransportKind::WebSocketTls:
+                return "websocket_tls";
+            case FrontendTransportKind::Rfcomm:
+                return "rfcomm";
+            case FrontendTransportKind::RfcommTls:
+                return "rfcomm_tls";
+            case FrontendTransportKind::InMemory:
+                return "in_memory";
+        }
+        return {};
+    }
+
+    [[nodiscard]] constexpr std::optional<FrontendTransportKind> frontendTransportKindFromString(std::string_view value) noexcept {
+        for (const FrontendTransportKind kind : FrontendTransportKinds) {
+            if (value == toString(kind)) {
+                return kind;
+            }
+        }
+        return std::nullopt;
+    }
+
+    struct FrontendPeerContext {
+        FrontendTransportKind transport = FrontendTransportKind::InMemory;
+        bool encrypted = false;
+        bool loopback = false;
+        bool localPeer = false;
+        std::optional<std::string> remoteAddress;
+        std::optional<std::string> origin;
+        std::optional<std::uint64_t> unixUserId;
+
+        bool operator==(const FrontendPeerContext&) const = default;
+    };
+
+    struct NoCredential {
+        bool operator==(const NoCredential&) const = default;
+    };
+
+    struct BearerCredential {
+        std::string token;
+
+        bool operator==(const BearerCredential&) const = default;
+    };
+
+    using AuthenticationCredential = std::variant<NoCredential, BearerCredential>;
+
+    struct FrontendPrincipal {
+        std::string id;
+        std::vector<FrontendScope> scopes;
+        std::string profile;
+        bool localTrusted = false;
+
+        bool operator==(const FrontendPrincipal&) const = default;
+    };
+
+    enum class AuthenticationFailureCode {
+        AuthenticationRequired,
+        AuthenticationFailed,
+        OriginRejected,
+        TransportSecurityRequired,
+        RateLimited
+    };
+
+    inline constexpr std::array<AuthenticationFailureCode, 5> AuthenticationFailureCodes{
+        AuthenticationFailureCode::AuthenticationRequired,
+        AuthenticationFailureCode::AuthenticationFailed,
+        AuthenticationFailureCode::OriginRejected,
+        AuthenticationFailureCode::TransportSecurityRequired,
+        AuthenticationFailureCode::RateLimited,
+    };
+
+    [[nodiscard]] constexpr std::string_view toString(AuthenticationFailureCode code) noexcept {
+        switch (code) {
+            case AuthenticationFailureCode::AuthenticationRequired:
+                return "authentication_required";
+            case AuthenticationFailureCode::AuthenticationFailed:
+                return "authentication_failed";
+            case AuthenticationFailureCode::OriginRejected:
+                return "origin_rejected";
+            case AuthenticationFailureCode::TransportSecurityRequired:
+                return "transport_security_required";
+            case AuthenticationFailureCode::RateLimited:
+                return "rate_limited";
+        }
+        return {};
+    }
+
+    [[nodiscard]] constexpr std::optional<AuthenticationFailureCode> authenticationFailureCodeFromString(std::string_view value) noexcept {
+        for (const AuthenticationFailureCode code : AuthenticationFailureCodes) {
+            if (value == toString(code)) {
+                return code;
+            }
+        }
+        return std::nullopt;
+    }
+
+    struct AuthenticationSuccess {
+        FrontendPrincipal principal;
+
+        bool operator==(const AuthenticationSuccess&) const = default;
+    };
+
+    struct AuthenticationFailure {
+        AuthenticationFailureCode code = AuthenticationFailureCode::AuthenticationFailed;
+
+        bool operator==(const AuthenticationFailure&) const = default;
+    };
+
+    using AuthenticationResult = std::variant<AuthenticationSuccess, AuthenticationFailure>;
+
     // Scope possession authorizes a capability. Controller ownership is a
     // separate serialization policy: the control scope neither acquires nor
     // proves controller ownership, and controller ownership grants no scope.
@@ -177,6 +316,26 @@ namespace ai::openai::codex::frontend {
                   DefaultRemoteScopeProfile.scopes.size() == 2);
     static_assert(LocalTrustedScopeProfile.name == "local_trusted" && !LocalTrustedScopeProfile.remote &&
                   LocalTrustedScopeProfile.scopes.size() == 12);
+    static_assert(FrontendTransportKinds.size() == 9);
+    static_assert(static_cast<std::size_t>(FrontendTransportKind::InMemory) + 1 == FrontendTransportKinds.size());
+    static_assert([] {
+        for (const FrontendTransportKind kind : FrontendTransportKinds) {
+            if (toString(kind).empty() || frontendTransportKindFromString(toString(kind)) != kind) {
+                return false;
+            }
+        }
+        return true;
+    }());
+    static_assert(AuthenticationFailureCodes.size() == 5);
+    static_assert(static_cast<std::size_t>(AuthenticationFailureCode::RateLimited) + 1 == AuthenticationFailureCodes.size());
+    static_assert([] {
+        for (const AuthenticationFailureCode code : AuthenticationFailureCodes) {
+            if (toString(code).empty() || authenticationFailureCodeFromString(toString(code)) != code) {
+                return false;
+            }
+        }
+        return true;
+    }());
 
 } // namespace ai::openai::codex::frontend
 

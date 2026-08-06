@@ -58,7 +58,7 @@ set(
     "backend/FrontendSession.h"
     "backend/Reducer.h"
     "backend/Snapshot.h"
-    "frontend/BackendAdapter.h"
+    "frontend/FrontendService.h"
     "frontend/Codec.h"
     "frontend/EventCoalescer.h"
     "frontend/EventJournal.h"

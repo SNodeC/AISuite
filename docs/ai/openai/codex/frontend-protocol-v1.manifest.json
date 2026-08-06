@@ -26,10 +26,18 @@
     "providerLifecycleMethods": 3,
     "providerOperationMethods": 86,
     "reverseMethods": 12,
-    "currentRuntimeMethods": 15,
+    "currentRuntimeMethods": 105,
+    "implementedMethods": 105,
+    "defaultAvailableMethods": 90,
+    "defaultRemotePermittedMethods": 53,
+    "localTrustedPermittedMethods": 90,
+    "implementedMechanismCapabilities": 13,
+    "runtimeTopologyCapabilities": 1,
+    "futureProductCapabilities": 4,
     "reviewedIdentities": 234,
     "notifications": 68,
-    "threadItems": 18
+    "threadItems": 18,
+    "pendingRequests": 10
   },
   "scopeProfiles": {
     "default_remote": [
@@ -51,6 +59,31 @@
       "unknown_request_response"
     ]
   },
+  "helloAuthentication": {
+    "optional": true,
+    "credentialLocation": "hello.authentication",
+    "schemes": [
+      "bearer"
+    ],
+    "secretFields": [
+      "token"
+    ],
+    "legacyHelloWithoutCredentialRemainsValid": true
+  },
+  "authorization": {
+    "defined": 105,
+    "implemented": 105,
+    "legacyCompatibility": 15,
+    "available": 90,
+    "defaultRemotePermitted": 53,
+    "localTrustedPermitted": 90,
+    "privilegedProviderExcluded": 22,
+    "reverseExcluded": 12,
+    "lifecycleExcluded": 3,
+    "registryReachableOperations": 49,
+    "reachableFrontendNative": 4,
+    "providerReadyRequired": 98
+  },
   "capabilities": [
     {
       "key": "method_discovery",
@@ -67,67 +100,67 @@
     {
       "key": "complete_provider_operations",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_reverse_requests",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_backend_domains",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "conditional_filesystem",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "conditional_command_execution",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "dedicated_pending_requests",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "dedicated_notification_events",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_thread_items",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "authenticated_frontend",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7b"
     },
     {
       "key": "scope_projected_state",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7b"
     },
     {
       "key": "provider_lifecycle",
       "defined": true,
-      "implementedByCurrentRuntime": false,
+      "implementedByCurrentRuntime": true,
       "futurePhase": "A1.7b"
     },
     {
@@ -201,6 +234,7 @@
       "serviceAction": "ControllerAcquire",
       "parameterSchema": "#/$defs/ControllerAcquireParams",
       "resultSchema": "#/$defs/ControllerAcquireResult",
+      "resultType": "ControllerResult",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -209,8 +243,10 @@
         "control"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": false,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -231,6 +267,7 @@
       "serviceAction": "ControllerRelease",
       "parameterSchema": "#/$defs/ControllerReleaseParams",
       "resultSchema": "#/$defs/ControllerReleaseResult",
+      "resultType": "ControllerResult",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -239,8 +276,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": false,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -261,6 +300,7 @@
       "serviceAction": "SnapshotGet",
       "parameterSchema": "#/$defs/SnapshotGetParams",
       "resultSchema": "#/$defs/SnapshotGetResult",
+      "resultType": "SnapshotSyncResult",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -269,8 +309,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": false,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -291,6 +333,7 @@
       "serviceAction": "ReplayAfter",
       "parameterSchema": "#/$defs/EventsReplayParams",
       "resultSchema": "#/$defs/EventsReplayResult",
+      "resultType": "ReplayResult",
       "parameterFields": [
         "after"
       ],
@@ -303,8 +346,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": false,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -327,6 +372,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadStartParams",
       "resultSchema": "#/$defs/ThreadStartResult",
+      "resultType": "ThreadStartResponse",
       "parameterFields": [
         "approvalPolicy",
         "approvalsReviewer",
@@ -351,8 +397,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -375,6 +423,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadResumeParams",
       "resultSchema": "#/$defs/ThreadResumeResult",
+      "resultType": "ThreadResumeResponse",
       "parameterFields": [
         "approvalPolicy",
         "approvalsReviewer",
@@ -398,8 +447,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -422,6 +473,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadListParams",
       "resultSchema": "#/$defs/ThreadListResult",
+      "resultType": "ThreadListResponse",
       "parameterFields": [
         "archived",
         "cursor",
@@ -441,8 +493,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -465,6 +519,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadReadParams",
       "resultSchema": "#/$defs/ThreadReadResult",
+      "resultType": "ThreadReadResponse",
       "parameterFields": [
         "includeTurns",
         "threadId"
@@ -478,8 +533,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -502,6 +559,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/TurnStartParams",
       "resultSchema": "#/$defs/TurnStartResult",
+      "resultType": "TurnStartResponse",
       "parameterFields": [
         "approvalPolicy",
         "approvalsReviewer",
@@ -527,8 +585,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -551,6 +611,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/TurnInterruptParams",
       "resultSchema": "#/$defs/TurnInterruptResult",
+      "resultType": "Unit",
       "parameterFields": [
         "threadId",
         "turnId"
@@ -565,8 +626,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -590,6 +653,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ApprovalRespondParams",
       "resultSchema": "#/$defs/ApprovalRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "decision",
@@ -605,8 +669,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -629,6 +695,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/UserInputRespondParams",
       "resultSchema": "#/$defs/UserInputRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "answers",
@@ -644,8 +711,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -668,6 +737,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AuthenticationRespondParams",
       "resultSchema": "#/$defs/AuthenticationRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "accessToken",
@@ -685,8 +755,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -707,6 +779,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/UnknownRequestRespondParams",
       "resultSchema": "#/$defs/UnknownRequestRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "result"
@@ -722,8 +795,10 @@
         "unknown_request_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -744,6 +819,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/UnknownRequestRejectParams",
       "resultSchema": "#/$defs/UnknownRequestRejectResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "code",
@@ -762,8 +838,10 @@
         "unknown_request_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
       "currentlyImplemented": true,
+      "legacyCompatibilityMethod": true,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -786,6 +864,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountLoginCancelParams",
       "resultSchema": "#/$defs/AccountLoginCancelResult",
+      "resultType": "CancelLoginAccountResponse",
       "parameterFields": [
         "loginId"
       ],
@@ -799,8 +878,10 @@
         "account_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -823,8 +904,20 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountLoginStartParams",
       "resultSchema": "#/$defs/AccountLoginStartResult",
-      "parameterFields": [],
-      "requiredParameterFields": [],
+      "resultType": "LoginAccountResponse",
+      "parameterFields": [
+        "accessToken",
+        "apiKey",
+        "appBrand",
+        "chatgptAccountId",
+        "chatgptPlanType",
+        "codexStreamlinedLogin",
+        "type",
+        "useHostedLoginSuccessPage"
+      ],
+      "requiredParameterFields": [
+        "type"
+      ],
       "exposure": "DedicatedFrontendMethod",
       "securityDecision": "PrivilegedScopedApproved",
       "requiredScopes": [
@@ -832,8 +925,10 @@
         "account_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -856,6 +951,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountLogoutParams",
       "resultSchema": "#/$defs/AccountLogoutResult",
+      "resultType": "Unit",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -865,8 +961,10 @@
         "account_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -889,6 +987,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountRateLimitResetCreditConsumeParams",
       "resultSchema": "#/$defs/AccountRateLimitResetCreditConsumeResult",
+      "resultType": "ConsumeAccountRateLimitResetCreditResponse",
       "parameterFields": [
         "creditId",
         "idempotencyKey"
@@ -903,8 +1002,10 @@
         "account_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -927,6 +1028,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountRateLimitsReadParams",
       "resultSchema": "#/$defs/AccountRateLimitsReadResult",
+      "resultType": "GetAccountRateLimitsResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -935,8 +1037,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -959,6 +1063,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountReadParams",
       "resultSchema": "#/$defs/AccountReadResult",
+      "resultType": "GetAccountResponse",
       "parameterFields": [
         "refreshToken"
       ],
@@ -969,8 +1074,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": true,
       "largeResult": false,
@@ -993,6 +1100,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountSendAddCreditsNudgeEmailParams",
       "resultSchema": "#/$defs/AccountSendAddCreditsNudgeEmailResult",
+      "resultType": "SendAddCreditsNudgeEmailResponse",
       "parameterFields": [
         "creditType"
       ],
@@ -1006,8 +1114,10 @@
         "account_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1030,6 +1140,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountUsageReadParams",
       "resultSchema": "#/$defs/AccountUsageReadResult",
+      "resultType": "GetAccountTokenUsageResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -1038,8 +1149,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1062,6 +1175,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AccountWorkspaceMessagesReadParams",
       "resultSchema": "#/$defs/AccountWorkspaceMessagesReadResult",
+      "resultType": "GetWorkspaceMessagesResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -1070,8 +1184,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1094,6 +1210,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AppsListParams",
       "resultSchema": "#/$defs/AppsListResult",
+      "resultType": "AppsListResponse",
       "parameterFields": [
         "cursor",
         "forceRefetch",
@@ -1107,8 +1224,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -1131,6 +1250,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/CommandExecParams",
       "resultSchema": "#/$defs/CommandExecResult",
+      "resultType": "CommandExecResponse",
       "parameterFields": [
         "command",
         "cwd",
@@ -1156,8 +1276,10 @@
         "command_execution"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1180,6 +1302,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/CommandExecResizeParams",
       "resultSchema": "#/$defs/CommandExecResizeResult",
+      "resultType": "Unit",
       "parameterFields": [
         "processId",
         "size"
@@ -1195,8 +1318,10 @@
         "command_execution"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1219,6 +1344,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/CommandExecTerminateParams",
       "resultSchema": "#/$defs/CommandExecTerminateResult",
+      "resultType": "Unit",
       "parameterFields": [
         "processId"
       ],
@@ -1232,8 +1358,10 @@
         "command_execution"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1256,6 +1384,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/CommandExecWriteParams",
       "resultSchema": "#/$defs/CommandExecWriteResult",
+      "resultType": "Unit",
       "parameterFields": [
         "closeStdin",
         "deltaBase64",
@@ -1271,8 +1400,10 @@
         "command_execution"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1295,6 +1426,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ConfigBatchWriteParams",
       "resultSchema": "#/$defs/ConfigBatchWriteResult",
+      "resultType": "ConfigWriteResponse",
       "parameterFields": [
         "edits",
         "expectedVersion",
@@ -1311,8 +1443,10 @@
         "configuration_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1335,6 +1469,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ConfigMcpServerReloadParams",
       "resultSchema": "#/$defs/ConfigMcpServerReloadResult",
+      "resultType": "Unit",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -1344,8 +1479,10 @@
         "configuration_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1368,6 +1505,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ConfigReadParams",
       "resultSchema": "#/$defs/ConfigReadResult",
+      "resultType": "ConfigReadResponse",
       "parameterFields": [
         "cwd",
         "includeLayers"
@@ -1379,8 +1517,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": true,
       "largeResult": true,
@@ -1403,6 +1543,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ConfigValueWriteParams",
       "resultSchema": "#/$defs/ConfigValueWriteResult",
+      "resultType": "ConfigWriteResponse",
       "parameterFields": [
         "expectedVersion",
         "filePath",
@@ -1422,8 +1563,10 @@
         "configuration_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1446,6 +1589,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ConfigRequirementsReadParams",
       "resultSchema": "#/$defs/ConfigRequirementsReadResult",
+      "resultType": "ConfigRequirementsReadResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -1454,8 +1598,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1478,6 +1624,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ExperimentalFeatureEnablementSetParams",
       "resultSchema": "#/$defs/ExperimentalFeatureEnablementSetResult",
+      "resultType": "ExperimentalFeatureEnablementSetResponse",
       "parameterFields": [
         "enablement"
       ],
@@ -1491,8 +1638,10 @@
         "configuration_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1515,6 +1664,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ExperimentalFeatureListParams",
       "resultSchema": "#/$defs/ExperimentalFeatureListResult",
+      "resultType": "ExperimentalFeatureListResponse",
       "parameterFields": [
         "cursor",
         "limit",
@@ -1527,8 +1677,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1551,6 +1703,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ExternalAgentConfigDetectParams",
       "resultSchema": "#/$defs/ExternalAgentConfigDetectResult",
+      "resultType": "ExternalAgentConfigDetectResponse",
       "parameterFields": [
         "cwds",
         "includeHome"
@@ -1562,8 +1715,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1586,6 +1741,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ExternalAgentConfigImportParams",
       "resultSchema": "#/$defs/ExternalAgentConfigImportResult",
+      "resultType": "ExternalAgentConfigImportResponse",
       "parameterFields": [
         "migrationItems",
         "source"
@@ -1599,8 +1755,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1623,6 +1781,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ExternalAgentConfigImportHistoriesReadParams",
       "resultSchema": "#/$defs/ExternalAgentConfigImportHistoriesReadResult",
+      "resultType": "ExternalAgentConfigImportHistoriesReadResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -1631,8 +1790,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1655,6 +1816,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FeedbackUploadParams",
       "resultSchema": "#/$defs/FeedbackUploadResult",
+      "resultType": "FeedbackUploadResponse",
       "parameterFields": [
         "classification",
         "extraLogFiles",
@@ -1672,8 +1834,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1696,6 +1860,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsCopyParams",
       "resultSchema": "#/$defs/FsCopyResult",
+      "resultType": "Unit",
       "parameterFields": [
         "destinationPath",
         "recursive",
@@ -1712,8 +1877,10 @@
         "filesystem_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1736,6 +1903,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsCreateDirectoryParams",
       "resultSchema": "#/$defs/FsCreateDirectoryResult",
+      "resultType": "Unit",
       "parameterFields": [
         "path",
         "recursive"
@@ -1750,8 +1918,10 @@
         "filesystem_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1774,6 +1944,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsGetMetadataParams",
       "resultSchema": "#/$defs/FsGetMetadataResult",
+      "resultType": "FsGetMetadataResponse",
       "parameterFields": [
         "path"
       ],
@@ -1787,8 +1958,10 @@
         "filesystem_read"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1811,6 +1984,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsReadDirectoryParams",
       "resultSchema": "#/$defs/FsReadDirectoryResult",
+      "resultType": "FsReadDirectoryResponse",
       "parameterFields": [
         "path"
       ],
@@ -1824,8 +1998,10 @@
         "filesystem_read"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -1848,6 +2024,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsReadFileParams",
       "resultSchema": "#/$defs/FsReadFileResult",
+      "resultType": "FsReadFileResponse",
       "parameterFields": [
         "path"
       ],
@@ -1861,8 +2038,10 @@
         "filesystem_read"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -1885,6 +2064,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsRemoveParams",
       "resultSchema": "#/$defs/FsRemoveResult",
+      "resultType": "Unit",
       "parameterFields": [
         "force",
         "path",
@@ -1900,8 +2080,10 @@
         "filesystem_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1924,6 +2106,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsUnwatchParams",
       "resultSchema": "#/$defs/FsUnwatchResult",
+      "resultType": "Unit",
       "parameterFields": [
         "watchId"
       ],
@@ -1937,8 +2120,10 @@
         "filesystem_read"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -1961,6 +2146,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsWatchParams",
       "resultSchema": "#/$defs/FsWatchResult",
+      "resultType": "FsWatchResponse",
       "parameterFields": [
         "path",
         "watchId"
@@ -1976,8 +2162,10 @@
         "filesystem_read"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2000,6 +2188,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FsWriteFileParams",
       "resultSchema": "#/$defs/FsWriteFileResult",
+      "resultType": "Unit",
       "parameterFields": [
         "dataBase64",
         "path"
@@ -2015,8 +2204,10 @@
         "filesystem_write"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2039,6 +2230,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/FuzzyFileSearchParams",
       "resultSchema": "#/$defs/FuzzyFileSearchResult",
+      "resultType": "FuzzyFileSearchResponse",
       "parameterFields": [
         "cancellationToken",
         "query",
@@ -2055,8 +2247,10 @@
         "filesystem_read"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -2079,6 +2273,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/HooksListParams",
       "resultSchema": "#/$defs/HooksListResult",
+      "resultType": "HooksListResponse",
       "parameterFields": [
         "cwds"
       ],
@@ -2089,8 +2284,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2113,6 +2310,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/MarketplaceAddParams",
       "resultSchema": "#/$defs/MarketplaceAddResult",
+      "resultType": "MarketplaceAddResponse",
       "parameterFields": [
         "refName",
         "source",
@@ -2128,8 +2326,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2152,6 +2352,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/MarketplaceRemoveParams",
       "resultSchema": "#/$defs/MarketplaceRemoveResult",
+      "resultType": "MarketplaceRemoveResponse",
       "parameterFields": [
         "marketplaceName"
       ],
@@ -2165,8 +2366,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2189,6 +2392,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/MarketplaceUpgradeParams",
       "resultSchema": "#/$defs/MarketplaceUpgradeResult",
+      "resultType": "MarketplaceUpgradeResponse",
       "parameterFields": [
         "marketplaceName"
       ],
@@ -2200,8 +2404,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2224,6 +2430,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/McpServerOauthLoginParams",
       "resultSchema": "#/$defs/McpServerOauthLoginResult",
+      "resultType": "McpServerOauthLoginResponse",
       "parameterFields": [
         "name",
         "scopes",
@@ -2240,8 +2447,10 @@
         "mcp_invoke"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -2264,6 +2473,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/McpResourceReadParams",
       "resultSchema": "#/$defs/McpResourceReadResult",
+      "resultType": "McpResourceReadResponse",
       "parameterFields": [
         "server",
         "threadId",
@@ -2279,8 +2489,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": true,
       "largeResult": false,
@@ -2303,6 +2515,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/McpServerToolCallParams",
       "resultSchema": "#/$defs/McpServerToolCallResult",
+      "resultType": "McpServerToolCallResponse",
       "parameterFields": [
         "_meta",
         "arguments",
@@ -2322,8 +2535,10 @@
         "mcp_invoke"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -2346,6 +2561,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/McpServerStatusListParams",
       "resultSchema": "#/$defs/McpServerStatusListResult",
+      "resultType": "ListMcpServerStatusResponse",
       "parameterFields": [
         "cursor",
         "detail",
@@ -2359,8 +2575,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2383,6 +2601,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ModelListParams",
       "resultSchema": "#/$defs/ModelListResult",
+      "resultType": "ModelListResponse",
       "parameterFields": [
         "cursor",
         "includeHidden",
@@ -2395,8 +2614,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -2419,6 +2640,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ModelProviderCapabilitiesReadParams",
       "resultSchema": "#/$defs/ModelProviderCapabilitiesReadResult",
+      "resultType": "ModelProviderCapabilitiesReadResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -2427,8 +2649,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2451,6 +2675,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PermissionProfileListParams",
       "resultSchema": "#/$defs/PermissionProfileListResult",
+      "resultType": "PermissionProfileListResponse",
       "parameterFields": [
         "cursor",
         "cwd",
@@ -2463,8 +2688,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2487,6 +2714,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginInstallParams",
       "resultSchema": "#/$defs/PluginInstallResult",
+      "resultType": "PluginInstallResponse",
       "parameterFields": [
         "marketplacePath",
         "pluginName",
@@ -2502,8 +2730,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2526,6 +2756,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginInstalledParams",
       "resultSchema": "#/$defs/PluginInstalledResult",
+      "resultType": "PluginInstalledResponse",
       "parameterFields": [
         "cwds",
         "installSuggestionPluginNames"
@@ -2537,8 +2768,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -2561,6 +2794,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginListParams",
       "resultSchema": "#/$defs/PluginListResult",
+      "resultType": "PluginListResponse",
       "parameterFields": [
         "cwds",
         "marketplaceKinds"
@@ -2572,8 +2806,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -2596,6 +2832,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginReadParams",
       "resultSchema": "#/$defs/PluginReadResult",
+      "resultType": "PluginReadResponse",
       "parameterFields": [
         "marketplacePath",
         "pluginName",
@@ -2610,8 +2847,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2634,6 +2873,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginShareCheckoutParams",
       "resultSchema": "#/$defs/PluginShareCheckoutResult",
+      "resultType": "PluginShareCheckoutResponse",
       "parameterFields": [
         "remotePluginId"
       ],
@@ -2647,8 +2887,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2671,6 +2913,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginShareDeleteParams",
       "resultSchema": "#/$defs/PluginShareDeleteResult",
+      "resultType": "Unit",
       "parameterFields": [
         "remotePluginId"
       ],
@@ -2684,8 +2927,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2708,6 +2953,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginShareListParams",
       "resultSchema": "#/$defs/PluginShareListResult",
+      "resultType": "PluginShareListResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -2716,8 +2962,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2740,6 +2988,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginShareSaveParams",
       "resultSchema": "#/$defs/PluginShareSaveResult",
+      "resultType": "PluginShareSaveResponse",
       "parameterFields": [
         "discoverability",
         "pluginPath",
@@ -2756,8 +3005,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2780,6 +3031,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginShareUpdateTargetsParams",
       "resultSchema": "#/$defs/PluginShareUpdateTargetsResult",
+      "resultType": "PluginShareUpdateTargetsResponse",
       "parameterFields": [
         "discoverability",
         "remotePluginId",
@@ -2797,8 +3049,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2821,6 +3075,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginSkillReadParams",
       "resultSchema": "#/$defs/PluginSkillReadResult",
+      "resultType": "PluginSkillReadResponse",
       "parameterFields": [
         "remoteMarketplaceName",
         "remotePluginId",
@@ -2837,8 +3092,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2861,6 +3118,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PluginUninstallParams",
       "resultSchema": "#/$defs/PluginUninstallResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pluginId"
       ],
@@ -2874,8 +3132,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2896,6 +3156,7 @@
       "serviceAction": "ProviderRestart",
       "parameterSchema": "#/$defs/ProviderRestartParams",
       "resultSchema": "#/$defs/ProviderRestartResult",
+      "resultType": "Unit",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -2905,8 +3166,10 @@
         "provider_lifecycle"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": false,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2927,6 +3190,7 @@
       "serviceAction": "ProviderStart",
       "parameterSchema": "#/$defs/ProviderStartParams",
       "resultSchema": "#/$defs/ProviderStartResult",
+      "resultType": "Unit",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -2936,8 +3200,10 @@
         "provider_lifecycle"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": false,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2958,6 +3224,7 @@
       "serviceAction": "ProviderStop",
       "parameterSchema": "#/$defs/ProviderStopParams",
       "resultSchema": "#/$defs/ProviderStopResult",
+      "resultType": "Unit",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -2967,8 +3234,10 @@
         "provider_lifecycle"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": false,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -2991,6 +3260,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ApplyPatchApprovalRespondParams",
       "resultSchema": "#/$defs/ApplyPatchApprovalRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "response"
@@ -3006,8 +3276,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -3030,6 +3302,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/AttestationRespondParams",
       "resultSchema": "#/$defs/AttestationRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "response"
@@ -3045,8 +3318,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -3069,6 +3344,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/DynamicToolRespondParams",
       "resultSchema": "#/$defs/DynamicToolRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "response"
@@ -3084,8 +3360,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -3108,6 +3386,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ExecCommandApprovalRespondParams",
       "resultSchema": "#/$defs/ExecCommandApprovalRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "response"
@@ -3123,8 +3402,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -3150,6 +3431,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/KnownRequestRejectParams",
       "resultSchema": "#/$defs/KnownRequestRejectResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "error"
@@ -3165,8 +3447,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -3189,6 +3473,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/McpElicitationRespondParams",
       "resultSchema": "#/$defs/McpElicitationRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "response"
@@ -3204,8 +3489,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -3228,6 +3515,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/PermissionsApprovalRespondParams",
       "resultSchema": "#/$defs/PermissionsApprovalRespondResult",
+      "resultType": "Unit",
       "parameterFields": [
         "pendingRequestId",
         "response"
@@ -3243,8 +3531,10 @@
         "sensitive_response"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": true,
       "largeResult": false,
@@ -3267,6 +3557,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ReviewStartParams",
       "resultSchema": "#/$defs/ReviewStartResult",
+      "resultType": "ReviewStartResponse",
       "parameterFields": [
         "delivery",
         "target",
@@ -3282,8 +3573,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3306,6 +3599,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/SkillsConfigWriteParams",
       "resultSchema": "#/$defs/SkillsConfigWriteResult",
+      "resultType": "SkillsConfigWriteResponse",
       "parameterFields": [
         "enabled",
         "name",
@@ -3321,8 +3615,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3345,6 +3641,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/SkillsExtraRootsSetParams",
       "resultSchema": "#/$defs/SkillsExtraRootsSetResult",
+      "resultType": "Unit",
       "parameterFields": [
         "extraRoots"
       ],
@@ -3358,8 +3655,10 @@
         "extension_management"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3382,6 +3681,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/SkillsListParams",
       "resultSchema": "#/$defs/SkillsListResult",
+      "resultType": "SkillsListResponse",
       "parameterFields": [
         "cwds",
         "forceReload"
@@ -3393,8 +3693,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -3417,6 +3719,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadApproveGuardianDeniedActionParams",
       "resultSchema": "#/$defs/ThreadApproveGuardianDeniedActionResult",
+      "resultType": "Unit",
       "parameterFields": [
         "event",
         "threadId"
@@ -3431,8 +3734,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3455,6 +3760,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadArchiveParams",
       "resultSchema": "#/$defs/ThreadArchiveResult",
+      "resultType": "Unit",
       "parameterFields": [
         "threadId"
       ],
@@ -3467,8 +3773,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3491,6 +3799,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadCompactStartParams",
       "resultSchema": "#/$defs/ThreadCompactStartResult",
+      "resultType": "Unit",
       "parameterFields": [
         "threadId"
       ],
@@ -3503,8 +3812,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3527,6 +3838,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadDeleteParams",
       "resultSchema": "#/$defs/ThreadDeleteResult",
+      "resultType": "Unit",
       "parameterFields": [
         "threadId"
       ],
@@ -3539,8 +3851,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3563,6 +3877,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadForkParams",
       "resultSchema": "#/$defs/ThreadForkResult",
+      "resultType": "ThreadForkResponse",
       "parameterFields": [
         "approvalPolicy",
         "approvalsReviewer",
@@ -3588,8 +3903,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3612,6 +3929,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadGoalClearParams",
       "resultSchema": "#/$defs/ThreadGoalClearResult",
+      "resultType": "ThreadGoalClearResponse",
       "parameterFields": [
         "threadId"
       ],
@@ -3624,8 +3942,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3648,6 +3968,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadGoalGetParams",
       "resultSchema": "#/$defs/ThreadGoalGetResult",
+      "resultType": "ThreadGoalGetResponse",
       "parameterFields": [
         "threadId"
       ],
@@ -3660,8 +3981,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3684,6 +4007,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadGoalSetParams",
       "resultSchema": "#/$defs/ThreadGoalSetResult",
+      "resultType": "ThreadGoalSetResponse",
       "parameterFields": [
         "objective",
         "status",
@@ -3699,8 +4023,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3723,6 +4049,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadInjectItemsParams",
       "resultSchema": "#/$defs/ThreadInjectItemsResult",
+      "resultType": "Unit",
       "parameterFields": [
         "items",
         "threadId"
@@ -3737,8 +4064,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3761,6 +4090,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadLoadedListParams",
       "resultSchema": "#/$defs/ThreadLoadedListResult",
+      "resultType": "ThreadLoadedListResponse",
       "parameterFields": [
         "cursor",
         "limit"
@@ -3772,8 +4102,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": true,
@@ -3796,6 +4128,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadMetadataUpdateParams",
       "resultSchema": "#/$defs/ThreadMetadataUpdateResult",
+      "resultType": "ThreadMetadataUpdateResponse",
       "parameterFields": [
         "gitInfo",
         "threadId"
@@ -3809,8 +4142,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3833,6 +4168,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadSetNameParams",
       "resultSchema": "#/$defs/ThreadSetNameResult",
+      "resultType": "Unit",
       "parameterFields": [
         "name",
         "threadId"
@@ -3847,8 +4183,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3871,6 +4209,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadRollbackParams",
       "resultSchema": "#/$defs/ThreadRollbackResult",
+      "resultType": "ThreadRollbackResponse",
       "parameterFields": [
         "numTurns",
         "threadId"
@@ -3885,8 +4224,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3909,6 +4250,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadShellCommandParams",
       "resultSchema": "#/$defs/ThreadShellCommandResult",
+      "resultType": "Unit",
       "parameterFields": [
         "command",
         "threadId"
@@ -3924,8 +4266,10 @@
         "command_execution"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": false,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3948,6 +4292,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadUnarchiveParams",
       "resultSchema": "#/$defs/ThreadUnarchiveResult",
+      "resultType": "ThreadUnarchiveResponse",
       "parameterFields": [
         "threadId"
       ],
@@ -3960,8 +4305,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -3984,6 +4331,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/ThreadUnsubscribeParams",
       "resultSchema": "#/$defs/ThreadUnsubscribeResult",
+      "resultType": "ThreadUnsubscribeResponse",
       "parameterFields": [
         "threadId"
       ],
@@ -3996,8 +4344,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -4020,6 +4370,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/TurnSteerParams",
       "resultSchema": "#/$defs/TurnSteerResult",
+      "resultType": "TurnSteerResponse",
       "parameterFields": [
         "clientUserMessageId",
         "expectedTurnId",
@@ -4037,8 +4388,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -4061,6 +4414,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/WindowsSandboxReadinessParams",
       "resultSchema": "#/$defs/WindowsSandboxReadinessResult",
+      "resultType": "WindowsSandboxReadinessResponse",
       "parameterFields": [],
       "requiredParameterFields": [],
       "exposure": "DedicatedFrontendMethod",
@@ -4069,8 +4423,10 @@
         "observe"
       ],
       "controllerRequired": false,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": true,
       "sensitiveResult": false,
       "largeResult": false,
@@ -4093,6 +4449,7 @@
       "serviceAction": "",
       "parameterSchema": "#/$defs/WindowsSandboxSetupStartParams",
       "resultSchema": "#/$defs/WindowsSandboxSetupStartResult",
+      "resultType": "WindowsSandboxSetupStartResponse",
       "parameterFields": [
         "cwd",
         "mode"
@@ -4106,8 +4463,10 @@
         "control"
       ],
       "controllerRequired": true,
+      "providerReadyRequired": true,
       "defaultEnabled": true,
-      "currentlyImplemented": false,
+      "currentlyImplemented": true,
+      "legacyCompatibilityMethod": false,
       "observerAvailability": false,
       "sensitiveResult": false,
       "largeResult": false,
@@ -5582,6 +5941,252 @@
       "capability": "complete_thread_items",
       "legacyCapabilityBehavior": "use legacy contract when capability is absent",
       "expandedCapabilityBehavior": "use bounded safe item projection when capability is present",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    }
+  ],
+  "pendingRequestMappings": [
+    {
+      "registryKey": "server_request:ServerRequest:method:item/commandExecution/requestApproval",
+      "providerMethod": "item/commandExecution/requestApproval",
+      "kind": "command_execution_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.approval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/fileChange/requestApproval",
+      "providerMethod": "item/fileChange/requestApproval",
+      "kind": "file_change_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.approval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/tool/requestUserInput",
+      "providerMethod": "item/tool/requestUserInput",
+      "kind": "user_input",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.userInput.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:account/chatgptAuthTokens/refresh",
+      "providerMethod": "account/chatgptAuthTokens/refresh",
+      "kind": "authentication",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.authentication.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:applyPatchApproval",
+      "providerMethod": "applyPatchApproval",
+      "kind": "apply_patch_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.applyPatchApproval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:execCommandApproval",
+      "providerMethod": "execCommandApproval",
+      "kind": "exec_command_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.execCommandApproval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/permissions/requestApproval",
+      "providerMethod": "item/permissions/requestApproval",
+      "kind": "permissions_approval",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.permissionsApproval.respond"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:attestation/generate",
+      "providerMethod": "attestation/generate",
+      "kind": "attestation",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.attestation.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:item/tool/call",
+      "providerMethod": "item/tool/call",
+      "kind": "dynamic_tool_call",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.dynamicTool.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
+      "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
+    },
+    {
+      "registryKey": "server_request:ServerRequest:method:mcpServer/elicitation/request",
+      "providerMethod": "mcpServer/elicitation/request",
+      "kind": "mcp_elicitation",
+      "finalExposure": "DedicatedPendingRequestContract",
+      "securityDecision": "ScopeProjectedStateEventApproved",
+      "legacyContract": "legacy_generic_or_existing_dedicated",
+      "expandedEvent": "pendingRequests.updated",
+      "responseMethods": [
+        "request.mcpElicitation.respond",
+        "request.known.reject"
+      ],
+      "presentationRequiredScopes": [
+        "observe"
+      ],
+      "controllerRequiredForPresentation": false,
+      "responseRequiredScopes": [
+        "control",
+        "sensitive_response"
+      ],
+      "controllerRequiredForResponse": true,
+      "redactionClass": "safe_pending_request",
+      "capability": "dedicated_pending_requests",
       "duplicateSuppression": "exactly_one_compatibility_representation_per_connection"
     }
   ],

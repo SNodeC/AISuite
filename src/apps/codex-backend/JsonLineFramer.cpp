@@ -7,16 +7,12 @@
 
 #include "apps/codex-backend/JsonLineFramer.h"
 
-#include <stdexcept>
 #include <utility>
 
 namespace apps::codex_backend {
 
     JsonLineFramer::JsonLineFramer(std::size_t maximumFrameSize)
         : maximumSize(maximumFrameSize) {
-        if (maximumSize == 0) {
-            throw std::invalid_argument("the maximum JSONL frame size must be greater than zero");
-        }
         buffered.reserve(maximumSize < 4096 ? maximumSize : 4096);
     }
 

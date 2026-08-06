@@ -23,6 +23,13 @@ if(NOT archive_count EQUAL 1)
     message(FATAL_ERROR "expected one binary archive, found ${archive_count}")
 endif()
 list(GET archives 0 archive)
+get_filename_component(archive_name "${archive}" NAME)
+if(NOT archive_name MATCHES "^AISuite-0[.]1[.]0(-[^/]*)?[.]tar[.]gz$")
+    message(
+        FATAL_ERROR
+            "A1.7b must retain PROJECT_VERSION 0.1.0; unexpected binary archive ${archive_name}"
+    )
+endif()
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E tar tf "${archive}"
     OUTPUT_VARIABLE listing
@@ -107,6 +114,7 @@ foreach(required
     "include/aisuite/ai/openai/codex/typed/WindowsSandbox.h"
     "include/aisuite/ai/openai/codex/typed/Plugins.h"
     "include/aisuite/ai/openai/codex/typed/Skills.h"
+    "include/aisuite/ai/openai/codex/frontend/FrontendService.h"
     "lib/libaisuite-openai-codex.so.2"
     "lib/libaisuite-openai-codex-backend.so.2"
     "lib/libaisuite-openai-codex-frontend.so.2"
@@ -121,9 +129,12 @@ foreach(required
 endforeach()
 foreach(forbidden
     "include/aisuite/ai/openai/codex/typed/Client.h"
+    "include/aisuite/ai/openai/codex/frontend/BackendAdapter.h"
+    "include/aisuite/ai/openai/codex/frontend/FrontendClient.h"
     "lib/libaisuite-openai-codex.so.1"
     "lib/libaisuite-openai-codex-backend.so.1"
     "lib/libaisuite-openai-codex-frontend.so.1"
+    "lib/libaisuite-openai-codex-frontend-client.so"
     "tools/codex/"
     "tools/extraction/"
     "tests/component/codex/"

@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#ifndef APPS_CODEX_BACKEND_CODEXFRONTENDSOCKETCONTEXT_H
-#define APPS_CODEX_BACKEND_CODEXFRONTENDSOCKETCONTEXT_H
+#ifndef APPS_CODEX_BACKEND_FRONTENDSTREAMSOCKETCONTEXT_H
+#define APPS_CODEX_BACKEND_FRONTENDSTREAMSOCKETCONTEXT_H
 
-#include "ai/openai/codex/frontend/BackendAdapter.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "apps/codex-backend/Configuration.h"
 #include "apps/codex-backend/JsonLineFramer.h"
 #include "core/socket/stream/SocketContext.h"
@@ -27,11 +27,15 @@ namespace core::socket::stream {
 
 namespace apps::codex_backend {
 
-    class CodexFrontendSocketContext final : public core::socket::stream::SocketContext {
+    // Transport-neutral JSONL bridge used by Unix, TCP, TLS, and RFCOMM
+    // listeners. Authentication, authorization, projection, replay, and
+    // command dispatch remain exclusively owned by FrontendService.
+    class FrontendStreamSocketContext final : public core::socket::stream::SocketContext {
     public:
-        CodexFrontendSocketContext(core::socket::stream::SocketConnection* socketConnection,
-                                   ai::openai::codex::frontend::BackendAdapter& adapter,
-                                   SocketFrontendOptions options);
+        FrontendStreamSocketContext(core::socket::stream::SocketConnection* socketConnection,
+                                    ai::openai::codex::frontend::FrontendService& service,
+                                    ai::openai::codex::frontend::FrontendPeerContext peer,
+                                    SocketFrontendOptions options);
 
     private:
         struct Lifetime;
@@ -42,10 +46,11 @@ namespace apps::codex_backend {
         bool onSignal(int signum) override;
 
         bool send(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
-        void adapterClosed(const std::string& reason) noexcept;
+        void serviceClosed() noexcept;
         void rejectFrame(ai::openai::codex::frontend::ErrorCode code, std::string message) noexcept;
 
-        ai::openai::codex::frontend::BackendAdapter& adapter;
+        ai::openai::codex::frontend::FrontendService& service;
+        ai::openai::codex::frontend::FrontendPeerContext peer;
         SocketFrontendOptions options;
         JsonLineFramer framer;
         ai::openai::codex::frontend::FrontendConnection frontendConnection;
@@ -56,4 +61,4 @@ namespace apps::codex_backend {
 
 } // namespace apps::codex_backend
 
-#endif // APPS_CODEX_BACKEND_CODEXFRONTENDSOCKETCONTEXT_H
+#endif // APPS_CODEX_BACKEND_FRONTENDSTREAMSOCKETCONTEXT_H

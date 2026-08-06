@@ -45,24 +45,33 @@ namespace {
     }};
 
     static_assert(generated::MethodCount == 105);
+    static_assert(generated::ImplementedMethodCount == 105);
     static_assert(generated::ExistingMethodCount == 15);
     static_assert(generated::AdditiveMethodCount == 90);
+    static_assert(generated::DefaultAvailableMethodCount == 90);
+    static_assert(generated::DefaultRemotePermittedMethodCount == 53);
+    static_assert(generated::LocalTrustedPermittedMethodCount == 90);
     static_assert(generated::FrontendNativeMethodCount == 7);
     static_assert(generated::NonNativeMethodCount == 98);
     static_assert(generated::ProviderOperationMethodCount == 86);
     static_assert(generated::ReverseMethodCount == 12);
     static_assert(generated::ProviderLifecycleMethodCount == 3);
+    static_assert(generated::ImplementedMechanismCapabilityCount == 13);
+    static_assert(generated::AllPendingRequestProjections.size() == 10);
     static_assert(std::variant_size_v<generated::CompleteCommandParameters> == 105);
     static_assert(std::variant_size_v<generated::CompleteCommandResult> == 105);
     static_assert(frontend::LocalTrustedScopes.size() == 12);
     static_assert(frontend::DefaultRemoteScopes.size() == 2);
 
     void testCounts(tests::support::TestResult& result) {
-        result.expectTrue(generated::MethodCount == 105 && generated::ExistingMethodCount == 15 && generated::AdditiveMethodCount == 90 &&
-                              generated::FrontendNativeMethodCount == 7 && generated::NonNativeMethodCount == 98 &&
-                              generated::ProviderOperationMethodCount == 86 && generated::ReverseMethodCount == 12 &&
-                              generated::ProviderLifecycleMethodCount == 3,
-                          "generated frontend metadata preserves the exact 105/15/90/7/98/86/12/3 method census");
+        result.expectTrue(generated::MethodCount == 105 && generated::ImplementedMethodCount == 105 &&
+                              generated::ExistingMethodCount == 15 && generated::AdditiveMethodCount == 90 &&
+                              generated::DefaultAvailableMethodCount == 90 && generated::DefaultRemotePermittedMethodCount == 53 &&
+                              generated::LocalTrustedPermittedMethodCount == 90 && generated::FrontendNativeMethodCount == 7 &&
+                              generated::NonNativeMethodCount == 98 && generated::ProviderOperationMethodCount == 86 &&
+                              generated::ReverseMethodCount == 12 && generated::ProviderLifecycleMethodCount == 3,
+                          "generated frontend metadata preserves the exact 105 implemented, 15 legacy, 90 default-available, "
+                          "53 default_remote, 90 local_trusted, and 7/98/86/12/3 category census");
         result.expectEqual(std::size_t{105},
                            std::variant_size_v<generated::CompleteCommandParameters>,
                            "complete command parameters have one alternative for each of the 105 defined methods");
@@ -145,10 +154,10 @@ namespace {
 
         result.expectTrue(exactParameters,
                           "all 105 methods preserve their exact MethodId and JSON value through makeParameters/commandMethod");
-        result.expectTrue(exactRuntimeAvailability && runtimeMethods == 15,
-                          "runtime lookup exposes exactly the 15 currently implemented methods and no additive method");
-        result.expectTrue(conditionalMethods != 0 && conditionalDefaultOff,
-                          "every conditionally exposed filesystem or command-execution method is disabled by default");
+        result.expectTrue(exactRuntimeAvailability && runtimeMethods == 105,
+                          "runtime lookup correlates every one of the 105 implemented A1.7b method handlers");
+        result.expectTrue(conditionalMethods == 15 && conditionalDefaultOff,
+                          "all and only the 15 conditional filesystem or command-execution methods are disabled by default");
     }
 
     void testSecurityMetadata(tests::support::TestResult& result) {
@@ -300,22 +309,81 @@ namespace {
                           "all 86 contracts select exactly one legacy or expanded representation per capability profile");
     }
 
+    void testPendingRequestProjection(tests::support::TestResult& result) {
+        struct ExpectedPendingRequest {
+            std::string_view providerMethod;
+            std::string_view kind;
+            std::string_view responseMethod;
+            bool supportsKnownReject;
+        };
+        constexpr std::array<ExpectedPendingRequest, 10> Expected{{
+            {"item/commandExecution/requestApproval", "command_execution_approval", "request.approval.respond", false},
+            {"item/fileChange/requestApproval", "file_change_approval", "request.approval.respond", false},
+            {"item/tool/requestUserInput", "user_input", "request.userInput.respond", true},
+            {"account/chatgptAuthTokens/refresh", "authentication", "request.authentication.respond", false},
+            {"applyPatchApproval", "apply_patch_approval", "request.applyPatchApproval.respond", false},
+            {"execCommandApproval", "exec_command_approval", "request.execCommandApproval.respond", false},
+            {"item/permissions/requestApproval", "permissions_approval", "request.permissionsApproval.respond", false},
+            {"attestation/generate", "attestation", "request.attestation.respond", true},
+            {"item/tool/call", "dynamic_tool_call", "request.dynamicTool.respond", true},
+            {"mcpServer/elicitation/request", "mcp_elicitation", "request.mcpElicitation.respond", true},
+        }};
+
+        bool exact = generated::AllPendingRequestProjections.size() == Expected.size();
+        for (std::size_t index = 0; index < Expected.size(); ++index) {
+            const auto& expected = Expected[index];
+            const generated::PendingRequestProjectionMetadata& metadata = generated::AllPendingRequestProjections[index];
+            const std::size_t expectedResponseCount = expected.supportsKnownReject ? 2U : 1U;
+            exact =
+                exact && metadata.providerMethod == expected.providerMethod && metadata.kind == expected.kind &&
+                metadata.registryKey == "server_request:ServerRequest:method:" + std::string(expected.providerMethod) &&
+                metadata.exposure == "DedicatedPendingRequestContract" && metadata.securityDecision == "ScopeProjectedStateEventApproved" &&
+                metadata.legacyContract == "legacy_generic_or_existing_dedicated" && metadata.expandedEvent == "pendingRequests.updated" &&
+                metadata.responseMethods.size() == expectedResponseCount && metadata.responseMethods.front() == expected.responseMethod &&
+                (!expected.supportsKnownReject || metadata.responseMethods.back() == "request.known.reject") &&
+                metadata.presentationRequiredScopes.size() == 1 &&
+                metadata.presentationRequiredScopes.front() == frontend::FrontendScope::Observe &&
+                !metadata.controllerRequiredForPresentation && metadata.responseRequiredScopes.size() == 2 &&
+                metadata.responseRequiredScopes[0] == frontend::FrontendScope::Control &&
+                metadata.responseRequiredScopes[1] == frontend::FrontendScope::SensitiveResponse &&
+                metadata.controllerRequiredForResponse && metadata.redactionClass == "safe_pending_request" &&
+                metadata.duplicateSuppression == "exactly_one_compatibility_representation_per_connection" &&
+                metadata.expansionCapability == generated::Capability::DedicatedPendingRequests &&
+                generated::pendingRequestProjectionFromKind(expected.kind) == &metadata &&
+                generated::pendingRequestProjectionFromProviderMethod(expected.providerMethod) == &metadata;
+        }
+        const auto reviewedServerRequests =
+            std::count_if(generated::AllReviewedContracts.begin(),
+                          generated::AllReviewedContracts.end(),
+                          [](const generated::ContractMetadata& contract) {
+                              return contract.registryKey.starts_with("server_request:ServerRequest:method:");
+                          });
+        // Ten stable server requests have dedicated projections. The same
+        // reviewed registry bucket also contains one experimental request,
+        // which remains explicitly not exposed and has no projection entry.
+        result.expectTrue(exact && reviewedServerRequests == 11 && generated::pendingRequestProjectionFromKind("unknown") == nullptr &&
+                              generated::pendingRequestProjectionFromProviderMethod("unknown") == nullptr,
+                          "generated pending-request metadata bijectively freezes all ten kinds, exact typed response methods, "
+                          "scope/controller policy, redaction, compatibility, and dedicated capability selection");
+    }
+
     void testExistingProtocolAliases(tests::support::TestResult& result) {
         bool aliasesMatch = true;
         for (const auto& [id, alias] : ExistingProtocolAliases) {
-            aliasesMatch = aliasesMatch && alias == generated::methodString(id) && generated::runtimeMethodFromString(alias) == id;
+            aliasesMatch = aliasesMatch && alias == generated::methodString(id) && generated::runtimeMethodFromString(alias) == id &&
+                           generated::legacyMethodFromString(alias) == id;
         }
         result.expectTrue(aliasesMatch, "Protocol.h aliases all 15 existing methods to their generated spellings and runtime identities");
 
-        const bool everyRuntimeMethodAliased =
+        const bool everyLegacyMethodAliased =
             std::all_of(generated::AllMethods.begin(), generated::AllMethods.end(), [](const generated::MethodMetadata& metadata) {
-                return !metadata.currentlyImplemented ||
+                return !metadata.legacyCompatibilityMethod ||
                        std::any_of(ExistingProtocolAliases.begin(), ExistingProtocolAliases.end(), [&](const Alias& alias) {
                            return alias.first == metadata.id && alias.second == metadata.method;
                        });
             });
-        result.expectTrue(everyRuntimeMethodAliased,
-                          "the 15-name Protocol.h compatibility alias set covers every currently implemented method exactly once");
+        result.expectTrue(everyLegacyMethodAliased,
+                          "the 15-name Protocol.h compatibility alias set covers every frozen legacy method exactly once");
     }
 } // namespace
 
@@ -327,6 +395,7 @@ int main() {
     testParameterAndAvailabilityRoundTrips(result);
     testSecurityMetadata(result);
     testCompatibilityProjection(result);
+    testPendingRequestProjection(result);
     testExistingProtocolAliases(result);
 
     return result.processResult();

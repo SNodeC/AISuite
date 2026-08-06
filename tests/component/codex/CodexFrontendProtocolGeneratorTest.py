@@ -107,6 +107,34 @@ def validate_manifest_contract(generator, source: dict, manifest: dict) -> None:
     provider_methods = [
         row for row in methods if row.get("category") == "provider_operation"
     ]
+    login_source = provider_source.get("account.login.start")
+    if login_source is None or login_source.get("parameterShape") != {
+        "type": "LoginAccountParams",
+        "requiredFields": ["type"],
+        "fields": [
+            "accessToken",
+            "apiKey",
+            "appBrand",
+            "chatgptAccountId",
+            "chatgptPlanType",
+            "codexStreamlinedLogin",
+            "type",
+            "useHostedLoginSuccessPage",
+        ],
+        "propertyPaths": [
+            "accessToken",
+            "apiKey",
+            "appBrand",
+            "chatgptAccountId",
+            "chatgptPlanType",
+            "codexStreamlinedLogin",
+            "type",
+            "useHostedLoginSuccessPage",
+        ],
+    }:
+        raise generator.GenerationError(
+            "tagged account login union fields changed or were demoted to extensions"
+        )
     for row in provider_methods:
         source_row = provider_source.get(row["method"])
         if source_row is None:
@@ -119,12 +147,33 @@ def validate_manifest_contract(generator, source: dict, manifest: dict) -> None:
             raise generator.GenerationError(
                 "manifest controller requirement differs from registry source"
             )
+        if row.get("resultType") != source_row["operationContract"].get("resultType"):
+            raise generator.GenerationError(
+                "manifest result type differs from registry source"
+            )
+        if row.get("providerReadyRequired") is not True:
+            raise generator.GenerationError(
+                "provider operation lost its provider-ready requirement"
+            )
 
     runtime_methods = tuple(
         row["method"] for row in methods if row.get("currentlyImplemented") is True
     )
-    if runtime_methods != generator.EXISTING_METHODS:
-        raise generator.GenerationError("A1.7a runtime method set changed")
+    if runtime_methods != tuple(method_names):
+        raise generator.GenerationError("A1.7b runtime must implement all 105 methods")
+    legacy_methods = tuple(
+        row["method"] for row in methods if row.get("legacyCompatibilityMethod") is True
+    )
+    if legacy_methods != generator.EXISTING_METHODS:
+        raise generator.GenerationError("legacy compatibility method set changed")
+    if any(
+        row.get("providerReadyRequired") is not (row["category"] in {"provider_operation", "reverse_response"})
+        for row in methods
+    ):
+        raise generator.GenerationError("provider-ready metadata differs from method category")
+    generator.validate_runtime_authorization(
+        rows, methods, source["defaultRemoteScopes"]
+    )
 
     capabilities = manifest.get("capabilities")
     if not isinstance(capabilities, list):
@@ -132,13 +181,75 @@ def validate_manifest_contract(generator, source: dict, manifest: dict) -> None:
     capability_by_key = {row.get("key"): row for row in capabilities}
     if set(capability_by_key) != set(generator.CAPABILITIES):
         raise generator.GenerationError("manifest capability catalog changed")
+    implemented_capabilities = {
+        key
+        for key, row in capability_by_key.items()
+        if row.get("implementedByCurrentRuntime") is True
+    }
     if any(
         capability_by_key[key].get("implementedByCurrentRuntime") is True
         for key in generator.FUTURE_CAPABILITIES
     ):
         raise generator.GenerationError(
-            "A1.7a claims a future capability as implemented"
+            "A1.7b claims a future capability as implemented"
         )
+    if implemented_capabilities != generator.IMPLEMENTED_MECHANISM_CAPABILITIES:
+        raise generator.GenerationError(
+            "A1.7b mechanism capability set changed"
+        )
+
+    pending_requests = manifest.get("pendingRequestMappings")
+    expected_pending_kinds = dict(generator.PENDING_REQUEST_KINDS)
+    if not isinstance(pending_requests, list) or len(pending_requests) != 10:
+        raise generator.GenerationError(
+            "manifest pending-request projection must contain ten entries"
+        )
+    if (
+        {row.get("providerMethod") for row in pending_requests}
+        != set(expected_pending_kinds)
+        or {row.get("kind") for row in pending_requests}
+        != set(expected_pending_kinds.values())
+    ):
+        raise generator.GenerationError(
+            "manifest pending-request projection does not bijectively cover the stable request kinds"
+        )
+    stable_requests = {
+        generator.registry_key(row): row
+        for row in rows
+        if row["registryKey"]["category"] == "server_request"
+        and row["stability"] == "stable"
+    }
+    reverse_methods = {
+        row["method"]: row
+        for row in methods
+        if row["category"] == "reverse_response"
+    }
+    for mapping in pending_requests:
+        source_row = stable_requests.get(mapping.get("registryKey"))
+        response_methods = mapping.get("responseMethods")
+        if (
+            source_row is None
+            or mapping.get("kind")
+            != expected_pending_kinds[source_row["registryKey"]["name"]]
+            or mapping.get("finalExposure") != "DedicatedPendingRequestContract"
+            or mapping.get("securityDecision")
+            != "ScopeProjectedStateEventApproved"
+            or mapping.get("expandedEvent") != "pendingRequests.updated"
+            or response_methods != source_row["mappings"]
+            or any(method not in reverse_methods for method in response_methods)
+            or mapping.get("presentationRequiredScopes") != ["observe"]
+            or mapping.get("controllerRequiredForPresentation") is not False
+            or mapping.get("responseRequiredScopes")
+            != ["control", "sensitive_response"]
+            or mapping.get("controllerRequiredForResponse") is not True
+            or mapping.get("redactionClass") != "safe_pending_request"
+            or mapping.get("capability") != "dedicated_pending_requests"
+            or mapping.get("duplicateSuppression")
+            != "exactly_one_compatibility_representation_per_connection"
+        ):
+            raise generator.GenerationError(
+                "manifest pending-request projection differs from the reviewed registry response contract"
+            )
 
 
 def expect_manifest_failure(
@@ -151,6 +262,20 @@ def expect_manifest_failure(
             raise AssertionError(f"expected {needle!r}, got {error}") from error
     else:
         raise AssertionError(f"manifest mutation unexpectedly passed: {needle}")
+
+
+def expect_authorization_failure(
+    generator, source: dict, methods: list[dict], needle: str
+) -> None:
+    try:
+        generator.validate_runtime_authorization(
+            source["entries"], methods, source["defaultRemoteScopes"]
+        )
+    except generator.GenerationError as error:
+        if needle not in str(error):
+            raise AssertionError(f"expected {needle!r}, got {error}") from error
+    else:
+        raise AssertionError(f"authorization mutation unexpectedly passed: {needle}")
 
 
 def validate_source_controller_contract(generator, source: dict) -> None:
@@ -188,7 +313,7 @@ def expect_source_controller_failure(generator, source: dict) -> None:
 
 def validate_exact_dispatch(generator, header: str) -> None:
     if (
-        header.count("method.method == value") != 2
+        header.count("method.method == value") != 3
         or "starts_with(method.method)" in header
     ):
         raise generator.GenerationError("generated method dispatch must use exact equality")
@@ -242,10 +367,11 @@ def validate_additive_schema_contract(
         "methods": 105,
         "existingMethods": 15,
         "additiveMethods": 90,
-        "runtimeAvailableMethods": 15,
+        "runtimeAvailableMethods": 90,
         "reviewedIdentities": 234,
         "notificationMappings": 68,
         "threadItemMappings": 18,
+        "pendingRequestMappings": 10,
     }
     if contract_metadata != expected_metadata:
         raise AssertionError(f"JSON Schema contract metadata changed: {contract_metadata}")
@@ -266,6 +392,28 @@ def validate_additive_schema_contract(
         "uniqueItems": True,
     }:
         raise AssertionError("hello capability negotiation is no longer additive")
+    if "authentication" in hello["required"] or hello["properties"].get(
+        "authentication"
+    ) != {"$ref": "#/$defs/HelloAuthentication"}:
+        raise AssertionError("hello bearer authentication is no longer additive")
+    if definitions.get("HelloAuthentication") != {
+        "type": "object",
+        "required": ["scheme", "token"],
+        "properties": {
+            "scheme": {"const": "bearer"},
+            "token": {"type": "string", "minLength": 1, "maxLength": 65536},
+        },
+        "additionalProperties": False,
+    }:
+        raise AssertionError("hello bearer authentication schema changed")
+    if manifest.get("helloAuthentication") != {
+        "optional": True,
+        "credentialLocation": "hello.authentication",
+        "schemes": ["bearer"],
+        "secretFields": ["token"],
+        "legacyHelloWithoutCredentialRemainsValid": True,
+    }:
+        raise AssertionError("hello authentication manifest metadata changed")
 
     welcome = definitions["Welcome"]["allOf"][1]
     discovery_fields = {
@@ -322,6 +470,70 @@ def validate_additive_schema_contract(
     if expanded_contract_counts != expected_expanded_counts:
         raise AssertionError(
             f"expanded snapshot/event schema counts changed: {expanded_contract_counts}"
+        )
+    if definitions["PendingRequestKind"]["enum"] != [
+        mapping["kind"] for mapping in manifest["pendingRequestMappings"]
+    ]:
+        raise AssertionError(
+            "expanded pending-request schema discriminators differ from generated projection metadata"
+        )
+    pending_question = definitions.get("ExpandedPendingRequestQuestion", {})
+    if (
+        pending_question.get("required")
+        != ["id", "header", "prompt", "allowsFreeText", "isSecret", "options"]
+        or "secret" in pending_question.get("properties", {})
+        or pending_question.get("properties", {}).get("isSecret")
+        != {"type": "boolean"}
+        or pending_question.get("properties", {})
+        .get("options", {})
+        .get("maxItems")
+        != 64
+    ):
+        raise AssertionError(
+            "dedicated user-input pending-request question schema changed"
+        )
+    for field in ("id", "header", "prompt"):
+        if pending_question["properties"][field] != {
+            "type": "string",
+            "maxLength": 16384,
+        }:
+            raise AssertionError(
+                "user-input question strings must preserve provider empty-string semantics while remaining bounded"
+            )
+    pending_base = definitions.get("ExpandedPendingRequestBase", {})
+    if (
+        pending_base.get("properties", {}).get("questions", {}).get("maxItems")
+        != 64
+        or pending_base.get("properties", {}).get("autoResolutionMs")
+        != {"$ref": "#/$defs/UInt64"}
+    ):
+        raise AssertionError(
+            "dedicated user-input pending-request bounds changed"
+        )
+    pending_branches = definitions.get("ExpandedPendingRequest", {}).get(
+        "oneOf", []
+    )
+    user_input_branches = [
+        branch
+        for branch in pending_branches
+        if branch.get("allOf", [{}, {}])[1]
+        .get("properties", {})
+        .get("kind", {})
+        .get("const")
+        == "user_input"
+    ]
+    if (
+        len(user_input_branches) != 1
+        or user_input_branches[0]["allOf"][1].get("required")
+        != ["questions"]
+        or any(
+            "not" not in branch["allOf"][1]
+            for branch in pending_branches
+            if branch is not user_input_branches[0]
+        )
+    ):
+        raise AssertionError(
+            "only user_input may carry the required dedicated question contract"
         )
     for name in (
         "ExpandedPendingRequest",
@@ -572,10 +784,18 @@ def main() -> int:
         "providerLifecycleMethods": 3,
         "providerOperationMethods": 86,
         "reverseMethods": 12,
-        "currentRuntimeMethods": 15,
+        "currentRuntimeMethods": 105,
+        "implementedMethods": 105,
+        "defaultAvailableMethods": 90,
+        "defaultRemotePermittedMethods": 53,
+        "localTrustedPermittedMethods": 90,
+        "implementedMechanismCapabilities": 13,
+        "runtimeTopologyCapabilities": 1,
+        "futureProductCapabilities": 4,
         "reviewedIdentities": 234,
         "notifications": 68,
         "threadItems": 18,
+        "pendingRequests": 10,
     }
     if counts != expected_counts:
         raise AssertionError(f"method/review denominator changed: {counts}")
@@ -584,8 +804,8 @@ def main() -> int:
         raise AssertionError("JSON Schema does not define all 105 command methods")
     if generated_schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
         raise AssertionError("JSON Schema draft changed")
-    if generated_schema["x-aisuite-frontend-contract"]["runtimeAvailableMethods"] != 15:
-        raise AssertionError("JSON Schema claims additive runtime availability")
+    if generated_schema["x-aisuite-frontend-contract"]["runtimeAvailableMethods"] != 90:
+        raise AssertionError("JSON Schema default runtime availability changed")
 
     methods = manifest["methods"]
     by_name = {row["method"]: row for row in methods}
@@ -611,10 +831,29 @@ def main() -> int:
         raise AssertionError("provider mapping is not 86/86")
     if sum(row["category"] == "reverse_response" for row in methods) != 12:
         raise AssertionError("reverse mapping is not 12/12")
-    if sum(row["currentlyImplemented"] for row in methods) != 15:
-        raise AssertionError("A1.7a activated an additive method")
-    if any(row["currentlyImplemented"] for row in methods[15:]):
-        raise AssertionError("one of the 90 additive methods is runtime-active")
+    if sum(row["currentlyImplemented"] for row in methods) != 105:
+        raise AssertionError("A1.7b does not implement all 105 methods")
+    if tuple(row["method"] for row in methods if row["legacyCompatibilityMethod"]) != generator.EXISTING_METHODS:
+        raise AssertionError("the 15-method legacy compatibility set changed")
+    authorization = generator.validate_runtime_authorization(
+        source["entries"], methods, source["defaultRemoteScopes"]
+    )
+    expected_authorization = {
+        "defined": 105,
+        "implemented": 105,
+        "legacyCompatibility": 15,
+        "available": 90,
+        "defaultRemotePermitted": 53,
+        "localTrustedPermitted": 90,
+        "privilegedProviderExcluded": 22,
+        "reverseExcluded": 12,
+        "lifecycleExcluded": 3,
+        "registryReachableOperations": 49,
+        "reachableFrontendNative": 4,
+        "providerReadyRequired": 98,
+    }
+    if authorization != expected_authorization or manifest.get("authorization") != expected_authorization:
+        raise AssertionError("A1.7b authorization totals changed")
 
     conditional = {row["method"] for row in methods if row["exposure"] == "ConditionallyExposedFrontendMethod"}
     expected_conditional = {
@@ -640,12 +879,13 @@ def main() -> int:
         raise AssertionError("default remote scope profile changed")
     if "refreshToken true" not in by_name["account.read"]["parameterPolicy"]:
         raise AssertionError("account.read parameter-sensitive policy disappeared")
-    if any(
-        capability["implementedByCurrentRuntime"]
+    implemented_capabilities = {
+        capability["key"]
         for capability in manifest["capabilities"]
-        if capability["key"] in generator.FUTURE_CAPABILITIES
-    ):
-        raise AssertionError("a future capability is claimed as implemented")
+        if capability["implementedByCurrentRuntime"]
+    }
+    if implemented_capabilities != generator.IMPLEMENTED_MECHANISM_CAPABILITIES:
+        raise AssertionError("the exact A1.7b mechanism/build capabilities changed")
 
     prefix_pairs = {
         (left, right)
@@ -811,16 +1051,12 @@ def main() -> int:
         "original 15 method order/spellings",
     )
 
-    # 15. A1.7a cannot activate any of the 90 additive runtime methods.
+    # 15. Every defined method must retain an A1.7b runtime handler.
     runtime_activation = copy.deepcopy(manifest)
-    account_read_runtime = next(
-        row
-        for row in runtime_activation["methods"]
-        if row["method"] == "account.read"
-    )
-    account_read_runtime["currentlyImplemented"] = True
+    account_read_runtime = next(row for row in runtime_activation["methods"] if row["method"] == "account.read")
+    account_read_runtime["currentlyImplemented"] = False
     expect_manifest_failure(
-        generator, source, runtime_activation, "runtime method set changed"
+        generator, source, runtime_activation, "implement all 105 methods"
     )
 
     # 16. Future service/transport/SDK/UI capabilities remain unimplemented.
@@ -828,12 +1064,118 @@ def main() -> int:
     authentication = next(
         row
         for row in future_capability["capabilities"]
-        if row["key"] == "authenticated_frontend"
+        if row["key"] == "cpp_client_sdk"
     )
     authentication["implementedByCurrentRuntime"] = True
     expect_manifest_failure(
         generator, source, future_capability, "future capability as implemented"
     )
+
+    # 17. Removing one privileged method scope must change neither 53/90 nor
+    # the independent owner-registry derivation silently.
+    missing_privileged_scope = copy.deepcopy(manifest["methods"])
+    account_login = next(row for row in missing_privileged_scope if row["method"] == "account.login.start")
+    account_login["requiredScopes"] = ["control"]
+    expect_authorization_failure(generator, source, missing_privileged_scope, "53 of 90")
+
+    # 18. The default remote profile cannot acquire a privileged scope.
+    privileged_default = copy.deepcopy(source)
+    privileged_default["defaultRemoteScopes"].append("account_management")
+    expect_authorization_failure(generator, privileged_default, manifest["methods"], "exactly observe and control")
+
+    # 19. An extra owner-registry operation cannot become observer-readable.
+    extra_observer = copy.deepcopy(source)
+    observer_mutation = next(
+        row
+        for row in extra_observer["entries"]
+        if row["registryKey"]["category"] == "client_request" and row["registryKey"]["name"] == "account/login/start"
+    )
+    observer_mutation["securityDecision"] = "ObserverReadApproved"
+    expect_authorization_failure(generator, extra_observer, manifest["methods"], "26/22/22/15/1")
+
+    # 20. Conditional deployment gates remain absent from default availability.
+    enabled_conditional_method = copy.deepcopy(manifest["methods"])
+    next(row for row in enabled_conditional_method if row["method"] == "fs.readFile")["defaultEnabled"] = True
+    expect_authorization_failure(generator, source, enabled_conditional_method, "denominator must remain 90")
+
+    # 21. Lifecycle methods cannot enter default_remote.
+    exposed_lifecycle = copy.deepcopy(manifest["methods"])
+    next(row for row in exposed_lifecycle if row["method"] == "provider.start")["requiredScopes"] = ["control"]
+    expect_authorization_failure(generator, source, exposed_lifecycle, "53 of 90")
+
+    # 22. Every reverse response/rejection retains a sensitive response scope.
+    exposed_reverse = copy.deepcopy(manifest["methods"])
+    next(row for row in exposed_reverse if row["method"] == "request.approval.respond")["requiredScopes"] = ["control"]
+    expect_authorization_failure(generator, source, exposed_reverse, "53 of 90")
+
+    # 23. A denominator reduction cannot preserve a misleading percentage.
+    shrunken_available = copy.deepcopy(manifest["methods"])
+    next(row for row in shrunken_available if row["method"] == "thread.list")["defaultEnabled"] = False
+    expect_authorization_failure(generator, source, shrunken_available, "denominator must remain 90")
+
+    # 24. Independent registry categories cannot drift while generated method
+    # policy remains unchanged.
+    mismatched_derivation = copy.deepcopy(source)
+    next(
+        row
+        for row in mismatched_derivation["entries"]
+        if row["registryKey"]["category"] == "client_request" and row["registryKey"]["name"] == "thread/start"
+    )["securityDecision"] = "ObserverReadApproved"
+    expect_authorization_failure(generator, mismatched_derivation, manifest["methods"], "26/22/22/15/1")
+
+    # 25. Provider readiness is generated for all and only 86+12 provider paths.
+    missing_provider_ready = copy.deepcopy(manifest["methods"])
+    next(row for row in missing_provider_ready if row["method"] == "thread.list")["providerReadyRequired"] = False
+    expect_authorization_failure(generator, source, missing_provider_ready, "86 provider operations and 12 reverse")
+
+    # 26. Provider result type metadata is authoritative from the registry.
+    wrong_result_type = copy.deepcopy(manifest)
+    next(row for row in wrong_result_type["methods"] if row["method"] == "thread.start")["resultType"] = "Thread"
+    expect_manifest_failure(generator, source, wrong_result_type, "result type differs from registry source")
+
+    # 27. Runtime implementation does not erase the frozen original 15.
+    missing_legacy = copy.deepcopy(manifest)
+    next(row for row in missing_legacy["methods"] if row["method"] == "thread.start")["legacyCompatibilityMethod"] = False
+    expect_manifest_failure(generator, source, missing_legacy, "legacy compatibility method set changed")
+
+    # 28. The ten dedicated pending-request projections remain a bijection with
+    # the stable server-request registry and their exact typed response methods.
+    missing_pending_projection = copy.deepcopy(manifest)
+    missing_pending_projection["pendingRequestMappings"].pop()
+    expect_manifest_failure(
+        generator,
+        source,
+        missing_pending_projection,
+        "must contain ten entries",
+    )
+    wrong_pending_response = copy.deepcopy(manifest)
+    wrong_pending_response["pendingRequestMappings"][0]["responseMethods"] = [
+        "request.unknown.respond"
+    ]
+    expect_manifest_failure(
+        generator,
+        source,
+        wrong_pending_response,
+        "differs from the reviewed registry response contract",
+    )
+
+    try:
+        generator.secure_safe_object_extensions(
+            {
+                "type": "object",
+                "properties": {"secret": {"type": "boolean"}},
+                "additionalProperties": True,
+            }
+        )
+    except generator.GenerationError as error:
+        if "credential-shaped known properties" not in str(error):
+            raise AssertionError(
+                f"unexpected safe-projection property guard failure: {error}"
+            ) from error
+    else:
+        raise AssertionError(
+            "safe generated projections accepted a credential-shaped known property"
+        )
 
     # Runtime-schema assertions are closed over the exact C++ validator profile.
     unsupported_keyword = copy.deepcopy(schema_template)

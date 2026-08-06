@@ -70,8 +70,12 @@ path and are recorded as `NotApplicable` with the approved A1.6
 `NoRuntimeBackendStatePath` rationale.
 
 The A1.7a registry resolves all 234 reviewed frontend-contract identities.
-Definition in the additive v1 contract does not by itself imply runtime
-implementation, deployment enablement, or principal permission.
+A1.7b handler implementation, deployment availability, and built-in scope-profile
+permission are emitted and mechanically guarded by the downstream
+`frontend-protocol-v1.manifest.json`; this owner-reviewed registry report does
+not duplicate that runtime-status authority.
+Definition, handler implementation, deployment enablement, static principal
+permission, and invocation-time readiness remain distinct runtime concepts.
 
 ## Pinned artifacts
 

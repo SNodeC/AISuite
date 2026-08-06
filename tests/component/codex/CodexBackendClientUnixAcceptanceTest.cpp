@@ -237,8 +237,9 @@ namespace {
                 result.expectTrue(events->fromSequence == frontend::SequenceNumber{8} &&
                                       events->toSequence == frontend::SequenceNumber{8} && events->events.size() == 1 &&
                                       events->events.front().sequence == frontend::SequenceNumber{8} &&
-                                      events->events.front().type == "acceptance.trailing" &&
-                                      events->events.front().data == frontend::Json{{"presented", true}},
+                                      events->events.front().type == "codex.extension" &&
+                                      events->events.front().data == frontend::Json{{"method", "acceptance/trailing"},
+                                                                                    {"params", frontend::Json{{"presented", true}}}},
                                   "a frame coalesced after the final response is decoded and presented before disconnect");
                 return;
             }
@@ -381,12 +382,15 @@ namespace {
                     frontend::ServerMessage{frontend::Response::success(state.acquireRequestId, frontend::Json{{"role", "controller"}})});
                 const auto threadsResponse = frame(frontend::ServerMessage{
                     frontend::Response::success(state.threadsRequestId, frontend::Json{{"threads", frontend::Json::array()}})});
-                const auto trailingEvents = frame(frontend::ServerMessage{frontend::EventBatch{
-                    frontend::SequenceNumber{8},
-                    frontend::SequenceNumber{8},
-                    {frontend::FrontendEvent{
-                        frontend::SequenceNumber{8}, "acceptance.trailing", frontend::Json{{"presented", true}}, frontend::Json::object()}},
-                    frontend::Json::object()}});
+                const auto trailingEvents = frame(frontend::ServerMessage{
+                    frontend::EventBatch{frontend::SequenceNumber{8},
+                                         frontend::SequenceNumber{8},
+                                         {frontend::FrontendEvent{frontend::SequenceNumber{8},
+                                                                  "codex.extension",
+                                                                  frontend::Json{{"method", "acceptance/trailing"},
+                                                                                 {"params", frontend::Json{{"presented", true}}}},
+                                                                  frontend::Json::object()}},
+                                         frontend::Json::object()}});
                 if (acquireResponse && threadsResponse && trailingEvents) {
                     coalescedDrain = *acquireResponse + *threadsResponse + *trailingEvents;
                     sendToPeer(coalescedDrain.data(), coalescedDrain.size());
@@ -626,12 +630,15 @@ int main(int argc, char* argv[]) {
              frontend::ServerMessage{frontend::Response::success(state.acquireRequestId, frontend::Json{{"role", "controller"}})},
              frontend::ServerMessage{
                  frontend::Response::success(state.threadsRequestId, frontend::Json{{"threads", frontend::Json::array()}})},
-             frontend::ServerMessage{frontend::EventBatch{
-                 frontend::SequenceNumber{8},
-                 frontend::SequenceNumber{8},
-                 {frontend::FrontendEvent{
-                     frontend::SequenceNumber{8}, "acceptance.trailing", frontend::Json{{"presented", true}}, frontend::Json::object()}},
-                 frontend::Json::object()}}});
+             frontend::ServerMessage{
+                 frontend::EventBatch{frontend::SequenceNumber{8},
+                                      frontend::SequenceNumber{8},
+                                      {frontend::FrontendEvent{frontend::SequenceNumber{8},
+                                                               "codex.extension",
+                                                               frontend::Json{{"method", "acceptance/trailing"},
+                                                                              {"params", frontend::Json{{"presented", true}}}},
+                                                               frontend::Json::object()}},
+                                      frontend::Json::object()}}});
 
         const bool pathCleaned = !pathExists(path);
         result.expectTrue(!timedOut && state.completed, "client pipe acceptance flow completes before its watchdog");

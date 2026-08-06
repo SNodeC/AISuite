@@ -10,8 +10,8 @@
 #include "ai/openai/codex/backend/Reducer.h"
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/detail/EventDecoder.h"
-#include "ai/openai/codex/frontend/BackendAdapter.h"
 #include "ai/openai/codex/frontend/Codec.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -51,9 +51,7 @@ namespace {
     }
 
     template <typename Notification>
-    bool verifyPreserved(tests::support::TestResult& result,
-                         const codex::Notification& wire,
-                         const typed::Event& event) {
+    bool verifyPreserved(tests::support::TestResult& result, const codex::Notification& wire, const typed::Event& event) {
         const auto* decoded = std::get_if<Notification>(&event);
         result.expectTrue(decoded && decoded->raw == wire.raw,
                           wire.method + " typed notification retains the complete JSON-RPC envelope internally");
@@ -61,15 +59,12 @@ namespace {
         backend::Reducer reducer;
         backend::BackendState state;
         const std::vector<backend::BackendEvent> translated = reducer.translate(event);
-        const auto* extension =
-            translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated.front()) : nullptr;
+        const auto* extension = translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated.front()) : nullptr;
 
-        const bool exactTranslation =
-            extension && extension->method == wire.method && extension->payload == wire.params &&
-            !extension->payload.contains("futureEnvelopeOnly") &&
-            extension->payload.dump().find("mustNotBecomeParams") == std::string::npos;
-        result.expectTrue(exactTranslation,
-                          wire.method + " translation preserves only params, never the complete JSON-RPC envelope");
+        const bool exactTranslation = extension && extension->method == wire.method && extension->payload == wire.params &&
+                                      !extension->payload.contains("futureEnvelopeOnly") &&
+                                      extension->payload.dump().find("mustNotBecomeParams") == std::string::npos;
+        result.expectTrue(exactTranslation, wire.method + " translation preserves only params, never the complete JSON-RPC envelope");
 
         if (extension) {
             const backend::Reduction reduction = reducer.apply(state, *extension);
@@ -77,8 +72,7 @@ namespace {
                               wire.method + " records its bounded extension and canonical account state");
         }
 
-        const backend::ExtensionRecord* retained =
-            state.recentExtensions.size() == 1 ? &state.recentExtensions.front() : nullptr;
+        const backend::ExtensionRecord* retained = state.recentExtensions.size() == 1 ? &state.recentExtensions.front() : nullptr;
         result.expectTrue(retained && retained->method == wire.method && retained->payload == wire.params &&
                               !retained->payload.contains("futureEnvelopeOnly"),
                           wire.method + " bounded BackendCore preservation retains exact params and method");
@@ -111,10 +105,8 @@ namespace {
     }
 
     void testAllAccountNotifications(tests::support::TestResult& result) {
-        const codex::Notification login =
-            notification("account/login/completed",
-                         {{"error", nullptr}, {"loginId", "login-preserved"}, {"success", true}, {"futureParam", 1}},
-                         1);
+        const codex::Notification login = notification(
+            "account/login/completed", {{"error", nullptr}, {"loginId", "login-preserved"}, {"success", true}, {"futureParam", 1}}, 1);
         const codex::Notification rateLimits =
             notification("account/rateLimits/updated",
                          {{"rateLimits",
@@ -128,13 +120,10 @@ namespace {
                             {"secondary", nullptr}}},
                           {"futureParam", 2}},
                          2);
-        const codex::Notification updated =
-            notification("account/updated",
-                         {{"authMode", "future-auth-mode"},
-                          {"planType", nullptr},
-                          {"accessToken", SyntheticNotificationSecret},
-                          {"futureParam", 3}},
-                         3);
+        const codex::Notification updated = notification(
+            "account/updated",
+            {{"authMode", "future-auth-mode"}, {"planType", nullptr}, {"accessToken", SyntheticNotificationSecret}, {"futureParam", 3}},
+            3);
 
         const typed::Event loginEvent = detail::decodeEvent(login);
         const typed::Event rateLimitEvent = detail::decodeEvent(rateLimits);
@@ -148,13 +137,12 @@ namespace {
     }
 
     void testFrontendSnapshotRedaction(tests::support::TestResult& result) {
-        const codex::Notification updated =
-            notification("account/updated",
-                         {{"authMode", "chatgpt"},
-                          {"planType", "plus"},
-                          {"nested", {{"accessToken", SyntheticNotificationSecret}}},
-                          {"safe", "visible"}},
-                         4);
+        const codex::Notification updated = notification("account/updated",
+                                                         {{"authMode", "chatgpt"},
+                                                          {"planType", "plus"},
+                                                          {"nested", {{"accessToken", SyntheticNotificationSecret}}},
+                                                          {"safe", "visible"}},
+                                                         4);
         const typed::Event event = detail::decodeEvent(updated);
 
         backend::Reducer reducer;
@@ -164,11 +152,9 @@ namespace {
             reducer.apply(state, translated.front());
         }
 
-        const backend::ExtensionRecord* canonical =
-            state.recentExtensions.size() == 1 ? &state.recentExtensions.front() : nullptr;
+        const backend::ExtensionRecord* canonical = state.recentExtensions.size() == 1 ? &state.recentExtensions.front() : nullptr;
         const backend::Snapshot snapshot = backend::makeSnapshot(state);
-        const backend::ExtensionSnapshot* projected =
-            snapshot.recentExtensions.size() == 1 ? &snapshot.recentExtensions.front() : nullptr;
+        const backend::ExtensionSnapshot* projected = snapshot.recentExtensions.size() == 1 ? &snapshot.recentExtensions.front() : nullptr;
         const std::string frontendPayload = projected ? projected->payload.dump() : std::string{};
 
         result.expectTrue(canonical && canonical->payload == updated.params,
@@ -186,13 +172,12 @@ namespace {
     }
 
     void testActualFrontendAdapterAndCodecParity(tests::support::TestResult& result) {
-        const codex::Notification updated =
-            notification("account/updated",
-                         {{"authMode", "chatgpt"},
-                          {"planType", "plus"},
-                          {"nested", {{"accessToken", SyntheticNotificationSecret}}},
-                          {"safe", "visible"}},
-                         5);
+        const codex::Notification updated = notification("account/updated",
+                                                         {{"authMode", "chatgpt"},
+                                                          {"planType", "plus"},
+                                                          {"nested", {{"accessToken", SyntheticNotificationSecret}}},
+                                                          {"safe", "visible"}},
+                                                         5);
 
         const typed::Event decodedEvent = detail::decodeEvent(updated);
         const auto* decoded = std::get_if<typed::AccountUpdatedNotification>(&decodedEvent);
@@ -200,34 +185,38 @@ namespace {
                           "the adapter parity input retains the complete envelope in the typed notification raw member");
 
         auto transport = std::make_shared<tests::codex::FakeTransportState>();
-        tests::codex::installInitializingFake(
-            transport,
-            [](const codex::Json& message, const detail::TransportCallbacks& callbacks) {
-                const auto method = message.find("method");
-                const auto id = message.find("id");
-                if (method != message.end() && method->is_string() && *method == "thread/list" && id != message.end()) {
-                    tests::codex::inject(
-                        callbacks,
-                        codex::Json{
-                            {"id", *id},
-                            {"result", {{"data", codex::Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}},
-                        });
-                }
-            });
+        tests::codex::installInitializingFake(transport, [](const codex::Json& message, const detail::TransportCallbacks& callbacks) {
+            const auto method = message.find("method");
+            const auto id = message.find("id");
+            if (method != message.end() && method->is_string() && *method == "thread/list" && id != message.end()) {
+                tests::codex::inject(
+                    callbacks,
+                    codex::Json{
+                        {"id", *id},
+                        {"result", {{"data", codex::Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}},
+                    });
+            }
+        });
 
         FakeBackendCore backendCore(transport);
-        frontend::BackendAdapter adapter(backendCore);
+        frontend::FrontendServiceOptions frontendOptions;
+        frontendOptions.trustedLocalUserId = 42;
+        frontend::FrontendService adapter(backendCore, std::move(frontendOptions));
 
         std::vector<frontend::OutboundMessage> outbound;
-        frontend::FrontendConnection connection = adapter.openConnection(
-            {[&outbound](const frontend::OutboundMessage& message) {
-                 outbound.push_back(message);
-                 return true;
-             },
-             [](const std::string&) {}});
-        result.expectTrue(
-            connection.receive(frontend::ClientMessage{frontend::Hello{std::nullopt, frontend::Json::object()}}).accepted(),
-            "the actual Frontend Protocol adapter accepts the v1 hello");
+        frontend::FrontendPeerContext peer;
+        peer.transport = frontend::FrontendTransportKind::Unix;
+        peer.localPeer = true;
+        peer.unixUserId = 42;
+        frontend::FrontendConnection connection = adapter.openConnection(std::move(peer),
+                                                                         {[&outbound](const frontend::OutboundMessage& message) {
+                                                                              outbound.push_back(message);
+                                                                              return true;
+                                                                          },
+                                                                          [](const std::string&) {
+                                                                          }});
+        result.expectTrue(connection.receive(frontend::ClientMessage{frontend::Hello{std::nullopt, frontend::Json::object()}}).accepted(),
+                          "the actual Frontend Protocol adapter accepts the v1 hello");
 
         backendCore.start();
         core::EventReceiver::atNextTick([&outbound, &transport, &updated]() {
@@ -240,8 +229,7 @@ namespace {
             const bool observed = std::any_of(outbound.begin(), outbound.end(), [](const frontend::OutboundMessage& message) {
                 const auto* batch = std::get_if<frontend::EventBatch>(&message.message);
                 return batch && std::any_of(batch->events.begin(), batch->events.end(), [](const frontend::FrontendEvent& event) {
-                           return event.type == "codex.extension" &&
-                                  event.data.value("method", "") == "account/updated";
+                           return event.type == "codex.extension" && event.data.value("method", "") == "account/updated";
                        });
             });
             if (observed || remaining == 0) {
@@ -261,13 +249,17 @@ namespace {
         result.expectEqual(0, eventLoopResult, "the actual frontend adapter parity event loop exits cleanly");
 
         const backend::BackendState canonical = backendCore.state();
-        const backend::ExtensionRecord* retained =
-            canonical.recentExtensions.size() == 1 ? &canonical.recentExtensions.front() : nullptr;
+        const backend::ExtensionRecord* retained = canonical.recentExtensions.size() == 1 ? &canonical.recentExtensions.front() : nullptr;
         result.expectTrue(retained && retained->method == updated.method && retained->payload == updated.params,
                           "BackendCore receives the typed account notification as exact params-only extension state");
 
-        const backend::ExtensionSnapshot expected =
+        const backend::ExtensionSnapshot snapshotProjection =
             retained ? backend::makeExtensionSnapshot(*retained) : backend::ExtensionSnapshot{};
+        const codex::Json canonicalExpectedParams{
+            {"authMode", "chatgpt"}, {"planType", "plus"}, {"nested", codex::Json::object()}, {"safe", "visible"}};
+        result.expectTrue(snapshotProjection.sensitiveFieldsRedacted && snapshotProjection.payload.contains("nested") &&
+                              snapshotProjection.payload.at("nested").value("accessToken", "") == "[redacted]",
+                          "Backend snapshot sanitization replaces the credential value before canonical journal filtering");
         const frontend::OutboundMessage* encodedBatch = nullptr;
         const frontend::FrontendEvent* encodedEvent = nullptr;
         for (const frontend::OutboundMessage& message : outbound) {
@@ -282,15 +274,15 @@ namespace {
         }
 
         const bool exactFrontendParams =
-            encodedEvent && retained && encodedEvent->data.value("params", codex::Json{}) == expected.payload &&
-            encodedEvent->data.value("sensitiveFieldsRedacted", false) &&
-            encodedEvent->data.at("params").value("safe", "") == "visible" &&
+            encodedEvent && retained && encodedEvent->data.value("params", codex::Json{}) == canonicalExpectedParams &&
+            encodedEvent->data.value("sensitiveFieldsRedacted", false) && encodedEvent->data.at("params").value("safe", "") == "visible" &&
+            !encodedEvent->data.at("params").at("nested").contains("accessToken") &&
             encodedEvent->data.at("params").dump().find(SyntheticNotificationSecret) == std::string::npos &&
             encodedEvent->data.at("params").dump().find("futureEnvelopeOnly") == std::string::npos &&
             !encodedEvent->data.at("params").contains("jsonrpc") && !encodedEvent->data.at("params").contains("method");
         result.expectTrue(
             exactFrontendParams,
-            "actual frontend codex.extension.params equals recursively sanitized notification params and contains no envelope fields");
+            "actual frontend codex.extension.params equals the canonical credential-field-free projection and contains no envelope fields");
 
         codex::Json compact;
         if (encodedBatch) {
@@ -307,10 +299,10 @@ namespace {
         }
         const bool unchangedWireShape =
             encodedBatch && encodedEvent && !compact.is_discarded() && compact.value("protocol", "") == frontend::ProtocolIdentity &&
-            compact.value("version", 0) == frontend::ProtocolVersion && compact.value("kind", "") == "events" &&
-            compact.size() == 6 && compact.contains("fromSequence") && compact.contains("toSequence") && compactEvent &&
-            compactEvent->size() == 3 && compactEvent->contains("sequence") && compactEvent->at("data") == encodedEvent->data &&
-            encodedEvent->data.size() == 3 && encodedEvent->data.contains("method") && encodedEvent->data.contains("params") &&
+            compact.value("version", 0) == frontend::ProtocolVersion && compact.value("kind", "") == "events" && compact.size() == 6 &&
+            compact.contains("fromSequence") && compact.contains("toSequence") && compactEvent && compactEvent->size() == 3 &&
+            compactEvent->contains("sequence") && compactEvent->at("data") == encodedEvent->data && encodedEvent->data.size() == 3 &&
+            encodedEvent->data.contains("method") && encodedEvent->data.contains("params") &&
             encodedEvent->data.contains("sensitiveFieldsRedacted") &&
             encodedBatch->compactJson.find(SyntheticNotificationSecret) == std::string::npos;
         result.expectTrue(unchangedWireShape,

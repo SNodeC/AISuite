@@ -20,15 +20,16 @@ typed App Server events
         ↓
 BackendCore reducer updates canonical state immediately
         ↓
-frontend adapter marks a visible entity/channel dirty
+FrontendService marks a visible entity/channel dirty
         ↓
 one guarded next-tick flush
         ↓
-latest visible entity state is normalized and coalesced
+one bounded canonical record with known structured secrets and unsafe raw
+provider envelopes removed, plus one global sequence
         ↓
-bounded event batches and bounded replay journal
+one bounded canonical replay journal
         ↓
-independent bounded queue for each frontend
+mandatory per-principal projection and independent bounded queues
 ```
 
 This gives consumers complete snapshots, semantic updates, exact accumulated
@@ -51,11 +52,10 @@ message kinds. The complete method catalog is exactly:
 - 98 non-native mappings: all 86 stable provider operations and all 12 reverse
   response/rejection commands.
 
-Definition and runtime availability are separate. The production runtime still
-accepts exactly the original 15 methods. The 90 additive methods are described
-by generated metadata and JSON Schema but remain unavailable until A1.7b adds
-the authenticated, scope-enforcing service boundary. An unavailable additive
-method is not a raw JSON escape hatch.
+Definition and runtime availability remain separate. A1.7b implements all 105
+handlers, while deployment policy keeps the exact 15 filesystem/command
+methods disabled by default. The default available set is therefore 90. An
+unavailable method is not a raw JSON escape hatch.
 
 The review denominator is also fixed independently of the generated
 percentage. It is 148 formerly unresolved exposure decisions plus 86 existing
@@ -93,6 +93,9 @@ A1.7a adds exactly two installed public headers:
 `frontend/GeneratedProtocol.h` for the complete generated method/contract
 metadata and `frontend/Security.h` for scopes and profiles. The installed
 inventory is 29 main, seven backend, and nine frontend headers, or 45 total.
+A1.7b replaces `frontend/BackendAdapter.h` with
+`frontend/FrontendService.h` and installs no compatibility alias, so that
+inventory does not change.
 Project version `0.1.0`, all three Codex libraries' SOVERSION 2, protocol
 identity, and protocol version remain unchanged.
 
@@ -102,7 +105,8 @@ deployment enablement, and per-connection permission remain separate facts.
 Registry presence alone never makes an App Server operation remotely callable.
 See the generated [coverage report](app-server-api-coverage.md), frozen
 [security decisions](app-server-security-decisions.md), and focused
-[A1.7a report](a1-7a-frontend-contract.md).
+[A1.7a report](a1-7a-frontend-contract.md), and runtime
+[A1.7b report](a1-7b-frontend-service.md).
 
 ## C++ tagged-JSON model
 
@@ -113,11 +117,11 @@ time, while their payload is retained in `nlohmann::json`. The tags provide
 exact method correlation, generated metadata, schema validation, and wire
 conformance. They are not yet the ergonomic, domain-typed C++ application API.
 
-A1.7c will introduce `AISuite::OpenAICodexFrontendClient` with domain-oriented
+A1.7c-1 will introduce `AISuite::OpenAICodexFrontendClient` with domain-oriented
 façades, callback-last asynchronous operations, typed client-side state,
 replay/reconnection, and no raw-JSON requirement for stable application
 workflows. A1.7a therefore supplies method-tagged schema-validated protocol
-types; A1.7c supplies the domain-typed Frontend SDK.
+types; A1.7c-1 supplies the domain-typed Frontend SDK.
 
 ## Runtime schema validation profile
 
@@ -171,8 +175,8 @@ compatibility. Known fields retain full validation, while unknown values retain
 safe-property-name, sensitive-field, nesting, size, and nested-value checks.
 AISuite intentionally does not use `additionalProperties: false` to reject such
 safe extensions at runtime; this is a compatibility policy, not generic Draft
-2020-12 behavior. A1.7b still owns network admission, frame bounds, rate
-limiting, authentication, and connection-scope enforcement.
+2020-12 behavior. A1.7b supplies the separate network admission, frame bounds,
+rate limiting, authentication, and connection-scope enforcement.
 
 ## Common envelope and compatibility
 
@@ -207,8 +211,23 @@ The message kinds are:
 ## Handshake and synchronization
 
 The first client message must be `hello`. The backend creates no
-`FrontendSession` before a valid hello. A hello without `resumeAfter` requests
-a snapshot:
+`FrontendSession` before a successfully authenticated hello. The original
+Hello remains schema-valid and authenticates without a credential only when
+the transport policy supplies verified local trust. Other connections use the
+additive bearer object:
+
+```json
+{"protocol":"snodec.codex-frontend","version":1,"kind":"hello","authentication":{"scheme":"bearer","token":"secret bytes"}}
+```
+
+Authentication material is permitted only in this inbound Hello object. It is
+never returned in Welcome, snapshots, events, replay, diagnostics, or the
+journal, and it is not a URL, cookie, query, path, or WebSocket-subprotocol
+credential. One authentication attempt is allowed per transport connection.
+A failed attempt creates no BackendCore session or frontend state and closes
+after one bounded generic protocol error.
+
+An authenticated hello without `resumeAfter` requests a snapshot:
 
 ```json
 {"protocol":"snodec.codex-frontend","version":1,"kind":"hello"}
@@ -222,7 +241,8 @@ The normal response is a welcome, exactly one snapshot, then a sync marker:
 {"protocol":"snodec.codex-frontend","version":1,"kind":"sync.complete","sequence":140}
 ```
 
-To reconnect, include the last fully applied frontend sequence:
+To reconnect, authenticate again and include the last fully applied frontend
+sequence:
 
 ```json
 {"protocol":"snodec.codex-frontend","version":1,"kind":"hello","resumeAfter":140}
@@ -242,7 +262,37 @@ the journal was invalidated, `syncMode` is `snapshot` and a fresh snapshot is
 sent. A hello with a future sequence also falls back to a snapshot. No replay
 and snapshot are mixed in one synchronization. The sequence in
 `sync.complete` is the synchronization boundary the client may persist after
-it has applied all preceding messages.
+it has applied all preceding messages. `resumeAfter` restores only replay
+position; it does not restore the old session ID, principal, scopes,
+controller ownership, command correlation, or command responses.
+
+Sequence numbers identify occurrences in the one global canonical journal.
+Each authenticated connection observes an ordered subset of those occurrence
+numbers, and mandatory principal filtering may make that visible subset sparse.
+A forward jump therefore does not by itself prove message loss: a missing
+number may belong to an occurrence outside that principal's information
+ceiling. `resumeAfter` is a global journal cursor, not a per-principal visible
+event index. Replay uses the reconnecting principal's current scopes and the
+capabilities negotiated by that connection, so a nonempty canonical interval
+may produce sparse visible events or no visible event batch at all.
+
+After applying every preceding synchronization message, a client persists
+`sync.complete.sequence` as the authoritative global cursor. That boundary may
+be greater than the last visible event when the replay suffix contained only
+hidden occurrences. During ordinary live delivery, a client may persist the
+last fully applied visible global sequence and must accept a later forward
+jump. On reconnect, the server processes any intervening hidden occurrences
+and advances the durable cursor through `sync.complete`; replay availability
+comes from the server's replay-floor contract, not from testing whether
+`candidateSequence == previousSequence + 1`. A replay gap still uses the
+existing snapshot fallback, and replay and snapshot are never mixed in one
+synchronization. No filler event, tombstone, hidden-event type, omission count,
+or privileged occurrence marker is exposed merely to make a visible sequence
+contiguous.
+
+The C++ Frontend SDK tracks the global replay cursor, accepts sparse visible
+sequences, and persists `sync.complete.sequence` as the synchronization
+boundary.
 
 A client can synchronize again with `snapshot.get` or `events.replay`. The
 server sends the command response first, then snapshot or event batches, then
@@ -265,8 +315,8 @@ advertisement contains three independent arrays:
 
 - `defined`: the server understands the contract name;
 - `implemented`: the running server has executable support; and
-- `permitted`: the authenticated connection, deployment configuration, and
-  current authorization permit its use.
+- `permitted`: the authenticated connection may negotiate the implemented
+  mechanism.
 
 The 18 defined capability names are:
 
@@ -282,13 +332,38 @@ cpp_client_sdk                   typescript_client_sdk
 browser_ui                       qt_ui
 ```
 
-A1.7a's generated metadata marks only `method_discovery` and `security_scopes`
-as implemented by the current runtime. Future capability names are defined so
-clients can negotiate without a version fork, but their presence in `defined`
-must never be interpreted as implementation or permission. Likewise,
-`availableMethods` is deployment/runtime availability while `permittedMethods`
-is connection-specific authorization. The current runtime method set remains
-the original 15 listed below.
+A1.7b implements these 13 mechanism capabilities:
+
+```text
+method_discovery                 security_scopes
+complete_provider_operations     complete_reverse_requests
+complete_backend_domains         conditional_filesystem
+conditional_command_execution    dedicated_pending_requests
+dedicated_notification_events    complete_thread_items
+authenticated_frontend           scope_projected_state
+provider_lifecycle
+```
+
+The conditional capabilities remain implemented when their methods are
+deployment-disabled; method activation is represented by `availableMethods`.
+The four future product capabilities `cpp_client_sdk`,
+`typescript_client_sdk`, `browser_ui`, and `qt_ui` remain unimplemented.
+
+The generated `multi_transport` capability identity remains defined for v1
+compatibility. A1.7b does not implement or advertise it: SNode.C owns listener
+configuration and lifecycle, and the service keeps no duplicate runtime
+transport registry. A deployment may still run several listeners, all borrowing
+the same FrontendService, while Welcome advertises the same 13 implemented
+mechanism capabilities.
+
+For methods, `availableMethods` means implemented and deployment-enabled.
+`permittedMethods` further filters that set by the authenticated principal's
+static scopes. It deliberately does not depend on current controller
+ownership, transient provider readiness, capacity, or a parameter-sensitive
+branch. Those are invocation-time checks. With default gates, the counts are
+105 defined, 105 implemented, and 90 available. `default_remote` is permitted
+53/90 and `local_trusted` 90/90; the 37 remote exclusions are 22 privileged
+provider operations, 12 reverse methods, and three lifecycle methods.
 
 ### Scope profiles and controller ownership
 
@@ -314,8 +389,10 @@ All filesystem methods and arbitrary command-execution methods are conditional
 and default-disabled. This includes filesystem metadata/directory/file reads,
 fuzzy search and watches, filesystem mutations, `command.exec` and its
 resize/terminate/write family, and `thread.shellCommand`. Trusted BackendCore
-read policy is not remote authorization. A1.7b must enforce explicit
-deployment enablement before any such frontend method can run.
+read policy is not remote authorization. FrontendService enforces explicit
+deployment enablement, required scopes, controller requirements, provider
+readiness, and configured path/execution policy before any such method can
+run.
 
 `account.read` is parameter-sensitive. With `refreshToken` absent or `false`,
 it is an observer read requiring `observe`. With `refreshToken: true`, it
@@ -344,10 +421,11 @@ remains open. Closing a session suppresses its later response but does not
 cancel an already accepted App Server operation merely because the frontend
 went away.
 
-Every session starts as an observer. The following table is the exact 15-method
-current runtime subset, not the complete 105-method additive catalog. Observer
-commands are marked **O**; all other commands require the controller role
-(**C**).
+Every session starts as an observer. The following table is the exact original
+15-method legacy-compatibility subset, not the complete 105-method runtime
+catalog. A1.7b preserves these parameter/result bytes while activating the
+remaining generated handlers. Observer commands are marked **O**; all other
+legacy commands require the controller role (**C**).
 
 | Role | Method | `params` fields |
 | --- | --- | --- |
@@ -517,8 +595,9 @@ objects rather than as a raw ordinary App Server envelope.
 
 ### Capability-gated expanded state
 
-A1.7a defines a scope-projectable expanded snapshot model without activating it
-for current connections. Its mandatory core is `provider`, `controller`,
+A1.7a defines the scope-projectable expanded snapshot model and A1.7b activates
+it for connections that negotiate the relevant capabilities. Its mandatory
+core is `provider`, `controller`,
 `sessions`, `capacity`, and `truncation`. Optional authorized domains are
 `threads`, `turns`, `items`, `pendingRequests`, `accounts`, `models`,
 `configuration`, `processes`, `filesystemWatches`, `fuzzySearches`,
@@ -540,10 +619,10 @@ plan                  reasoning            sleep
 subAgentActivity      userMessage          webSearch
 ```
 
-Each expanded item retains safe IDs/location, bounded status and summary,
+Each expanded item retains reviewed IDs/location, bounded status and summary,
 generation/freshness, connection invalidation, and explicit
 truncation/omission metadata. It never exposes raw provider JSON, binary image
-or audio payloads, unbounded prompts, or secrets.
+or audio payloads, unbounded prompts, or known structured secret fields.
 
 Expanded pending requests use exactly ten safe kinds:
 
@@ -561,7 +640,14 @@ remain excluded.
 
 ## Normalized events
 
-An `events` message contains a strictly increasing, non-empty sequence:
+An `events` message contains a non-empty occurrence-ordered visible sequence.
+Sequence numbers increase strictly between visible canonical occurrences but
+need not be contiguous because mandatory projection may omit an occurrence.
+Recognized expanded event families projected from one occurrence may repeat
+that occurrence's global sequence as one atomic group; legacy events remain
+strictly increasing. The outer range exactly matches the first and last
+visible event, while each inner `event.sequence` remains the authoritative
+global occurrence identifier.
 
 ```json
 {
@@ -618,8 +704,8 @@ contracts and ten retain bounded metadata-only compatibility. The expanded
 mapping covers all 68 notifications and all 18 items. For one provider
 occurrence, a connection receives either its legacy projection or its
 capability-gated expanded projection, never both. A1.7a defines and tests that
-mapping but does not activate the expanded event families in the current
-runtime.
+mapping; A1.7b activates it through the same mandatory scope-projection path
+used by snapshot, live events, and replay.
 
 The content channel is one of `agentText`, `reasoningText`,
 `reasoningSummary`, or `commandOutput`. Consumers replace their visible value
@@ -650,7 +736,7 @@ request occurrence tokens.
 ## Delta accumulation, dirty entities, and flushes
 
 Every App Server delta updates canonical BackendCore state immediately. The
-adapter marks the tuple `(thread, turn, item, channel)` dirty and stores the
+service marks the tuple `(thread, turn, item, channel)` dirty and stores the
 latest accumulated visible content. Repeated marks for the same key replace
 the pending normalized update while preserving the key's first insertion
 order. Item, turn, thread, pending-request, controller, session, lifecycle,
@@ -670,7 +756,7 @@ updates, turn completion, non-retrying turn failure, and capacity/snapshot
 fallback. An immediate flush drains every already-dirty key, so accumulated
 item content is visible before the terminal turn update. Flush reentrancy is
 guarded; work marked during a flush is drained again without recursively
-entering the adapter.
+entering the service.
 
 The default dirty-set maximum is 4,096 entity/channel keys. Exhausting it,
 failing normalization, or producing a single event larger than a legal batch
@@ -688,8 +774,8 @@ Default protocol-layer bounds are:
 | serialized bytes per batch | 256 KiB |
 | replay-journal entries | 4,096 |
 | serialized replay-journal bytes | 8 MiB |
-| queued messages per frontend adapter connection | 512 |
-| queued serialized bytes per frontend adapter connection | 11 MiB |
+| queued messages per FrontendService connection | 512 |
+| queued serialized bytes per FrontendService connection | 11 MiB |
 | messages delivered per event-loop callback | 64 |
 
 Batch size is measured from the compact serialized envelope, not estimated
@@ -701,34 +787,59 @@ An explicit snapshot of unchanged state does not advance that barrier. Latency i
 bounded by the next event-loop tick unless an immediate transition flushes it
 earlier.
 
-The journal stores only normalized, post-coalescing frontend events. It never
-stores one record per raw token merely because the App Server emitted one.
+The journal stores only bounded post-coalescing canonical records. Before
+canonical retention, AISuite removes known structured authentication material,
+known credential/token/password/private-key/API-key/cookie fields, reviewed
+secret-response fields, and unsafe raw provider envelopes. It never stores one
+record per raw token merely because the App Server emitted one, and a
+connection-specific serialized projection is not its authority. Arbitrary
+user, model, reasoning, notice, diagnostic, process-output, and command-output
+text remains potentially sensitive; it may remain in bounded canonical state
+when required for an authorized projection and is protected by mandatory
+per-principal scope projection. AISuite does not claim that arbitrary text is
+semantically free of credentials and does not apply heuristic token scanning.
+
+Scope filtering is unconditional. Live and replay project the same canonical
+record for the current principal, and snapshots use the same domain policy.
+The projection order is known structured-secret and unsafe-envelope removal,
+scope filtering, legacy/expanded selection, optional omission/redaction
+metadata, then encoding. Thus
+`scope_projected_state` changes metadata only and omitting capabilities cannot
+increase the information ceiling. Different principals may receive richer or
+redacted representations of the same occurrence and sequence without a
+second journal record.
+
 Sequence numbers start at the configured initial value (zero by default), are
-strictly monotonic across eviction, and never get reused. Replay returns
-events strictly after the requested sequence. The oldest entries are evicted
-until both entry and exact serialized-byte bounds hold. A request below
-`oldestReplayableAfter` has a gap and receives a snapshot; requesting the
-current sequence is a valid empty replay. Unsigned-64 exhaustion reports
-`sequence_overflow`, invalidates replay, and never wraps.
+strictly monotonic across eviction, and never get reused. Replay considers
+canonical occurrences strictly after the requested global sequence, then
+projects them for the current principal; the visible result may therefore be
+sparse or empty. `EventBatch.fromSequence` and `toSequence` bound the first and
+last visible events in that batch. The oldest entries are evicted until both
+entry and exact serialized-byte bounds hold. A request below
+`oldestReplayableAfter` has a server-reported journal gap and receives a
+snapshot; a visible sequence jump alone is not a replay gap. Requesting the
+current sequence is a valid empty replay, as is a projected empty suffix that
+ends with `sync.complete` at the current global sequence. Unsigned-64
+exhaustion reports `sequence_overflow`, invalidates replay, and never wraps.
 
 Journal byte accounting covers the compact event objects. A replay also needs
 the `events` envelopes, commas between events, `welcome`, and `sync.complete`.
-The default adapter therefore reserves explicit downstream headroom instead of
+The default service therefore reserves explicit downstream headroom instead of
 using the same 8 MiB limit twice: 512 bytes per possible retained entry (a
 conservative upper bound for the v1 batch-envelope contribution), 64 KiB for
-control envelopes, and additional bounded margin, for an 11 MiB adapter limit.
+control envelopes, and additional bounded margin, for an 11 MiB service limit.
 This makes every replay that fits the default 4,096-entry/8 MiB journal fit the
-default adapter queue as well. The queue remains bounded and slow-client
+default service queue as well. The queue remains bounded and slow-client
 isolation is unchanged.
 
 These relationships apply to the defaults. Applications that independently
-raise journal entries, journal bytes, batch bounds, adapter bounds, or a
+raise journal entries, journal bytes, batch bounds, service bounds, or a
 transport writer bound must preserve corresponding downstream headroom. If a
 custom limit cannot contain a replay or a complete snapshot, that frontend is
 closed locally by backpressure; the implementation does not make snapshots or
 queues unbounded to mask an inconsistent deployment configuration.
 
-The adapter gives every frontend its own bounded asynchronous queue. A queue
+The service gives every frontend its own bounded asynchronous queue. A queue
 overflow, a throwing callback, or a transport that declines an outbound
 message closes only that frontend and releases all of its queued memory. A
 slow observer therefore cannot grow the controller queue or delay another
@@ -776,20 +887,43 @@ treat all command traffic as sensitive.
 Protocol v1 defines JSON values, not record framing or a socket. The reference
 application uses compact newline-delimited JSON, documented in
 [Codex backend reference application](codex-backend-reference-app.md). An
-in-process consumer, future WebSocket adapter, or other transport can use the
-same `Codec` and `BackendAdapter` without inheriting JSONL.
+in-process consumer or WebSocket transport uses the same `Codec` and
+`FrontendService` without inheriting JSONL. Stream transports use one compact
+JSON object plus newline; WebSocket uses one complete JSON object per text
+message and rejects binary protocol messages. The reference WebSocket maximum
+is the same exact 1 MiB (1,048,576-byte) inbound bound as stream framing.
+
+The reference HTTP/WebSocket transport configures SNode.C 2.0's HTTP parser
+and server with 8 KiB start/header lines, 64 KiB aggregate headers, 128 fields,
+a one-byte decoded-body ceiling, one pending request, and disabled chunked
+transfer and pipelining. Zero is not used because SNode.C defines it as
+unlimited. Express middleware rejects every non-empty static or WebSocket
+upgrade body; requests larger than the parser boundary receive 413 before
+route dispatch. It then applies AISuite's endpoint, method, Origin,
+credential-channel, and request semantics. A BackendCore session is still
+created only after authenticated Hello.
+
+WebSocket bearer material remains legal only in that first protocol Hello.
+The reference upgrade rejects query, cookie, Authorization, Proxy-Authorization,
+and credential-shaped subprotocol channels. The required WebSocket subprotocol
+token is `codex`, distinct from the Frontend Protocol identity
+`snodec.codex-frontend`. This is reference transport policy, not an additional
+Frontend Protocol v1 message or field.
 
 The original frontend slice did not implement provider recovery. A1.6a added
 event-loop-native provider recovery to the reference backend without changing
-Protocol v1, and A1.6b completed provider-to-backend semantics. A1.7a only
-freezes the additive contract, generated metadata, and owner-approved security
-decisions. It does not add a listener, TLS, remote authentication, scope
-enforcement, or another transport.
+Protocol v1, A1.6b completed provider-to-backend semantics, and A1.7a froze the
+additive contract and owner-approved security decisions. A1.7b completes the
+authenticated, scope-projecting `FrontendService`, all approved handlers,
+provider lifecycle exposure, and Unix/TCP/TLS/WebSocket/WSS/RFCOMM
+composition. The default application remains Unix-only; optional transport
+support does not alter the protocol identity or method catalog.
 
-A1.7b owns the authenticated, scope-projecting `FrontendService`, runtime
-activation of approved additive methods and event/state projections, provider
-lifecycle exposure, and multi-transport service composition. A1.7c owns the
-C++ client SDK and Qt UI. A1.7d owns the TypeScript client SDK and browser UI.
+A1.7c-1 is next and owns the C++ Frontend SDK plus
+`codex-backend-client` migration. A1.7c-2 immediately follows and migrates the
+existing `codex-ui` into the canonical standalone AI IDE; no extra roadmap PR
+is inserted before it. A1.7d owns the TypeScript Frontend SDK and browser
+frontend.
 Persistence, multiple controllers, forced takeover, and provider-neutral
 architecture are not implied by any capability name; provider neutrality
 remains A2. Every later phase must preserve v1 identity, bounded coalescing,

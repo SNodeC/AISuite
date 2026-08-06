@@ -10,8 +10,8 @@
 #include "ai/openai/codex/backend/Reducer.h"
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/detail/EventDecoder.h"
-#include "ai/openai/codex/frontend/BackendAdapter.h"
 #include "ai/openai/codex/frontend/Codec.h"
+#include "ai/openai/codex/frontend/FrontendService.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -53,34 +53,27 @@ namespace {
     }
 
     void testModelReroutedCompatibility(tests::support::TestResult& result) {
-        const codex::Notification wire =
-            notification("model/rerouted",
-                         {{"fromModel", "model-before"},
-                          {"reason", "futureRerouteReason"},
-                          {"threadId", "thread-reroute"},
-                          {"toModel", "model-after"},
-                          {"turnId", "turn-reroute"}},
-                         1);
+        const codex::Notification wire = notification("model/rerouted",
+                                                      {{"fromModel", "model-before"},
+                                                       {"reason", "futureRerouteReason"},
+                                                       {"threadId", "thread-reroute"},
+                                                       {"toModel", "model-after"},
+                                                       {"turnId", "turn-reroute"}},
+                                                      1);
         const typed::Event decodedEvent = detail::decodeEvent(wire);
         const auto* decoded = std::get_if<typed::ModelRerouted>(&decodedEvent);
-        const typed::ModelReroutedNotification* canonical =
-            decoded && decoded->canonical ? &*decoded->canonical : nullptr;
+        const typed::ModelReroutedNotification* canonical = decoded && decoded->canonical ? &*decoded->canonical : nullptr;
 
         const bool exactCanonical =
-            decoded && canonical && decoded->threadId.value == "thread-reroute" &&
-            decoded->turnId.value == "turn-reroute" && decoded->from.value == "model-before" &&
-            decoded->to.value == "model-after" && decoded->reason == "futureRerouteReason" &&
-            decoded->raw == wire.raw && canonical->fromModel == decoded->from &&
-            canonical->toModel == decoded->to && canonical->reason.value == decoded->reason &&
-            !canonical->reason.isKnown() && canonical->raw == wire.raw &&
-            canonical->diagnostics.size() == 1 &&
-            canonical->diagnostics.front().kind == typed::DecodeIssueKind::UnknownEnumValue &&
+            decoded && canonical && decoded->threadId.value == "thread-reroute" && decoded->turnId.value == "turn-reroute" &&
+            decoded->from.value == "model-before" && decoded->to.value == "model-after" && decoded->reason == "futureRerouteReason" &&
+            decoded->raw == wire.raw && canonical->fromModel == decoded->from && canonical->toModel == decoded->to &&
+            canonical->reason.value == decoded->reason && !canonical->reason.isKnown() && canonical->raw == wire.raw &&
+            canonical->diagnostics.size() == 1 && canonical->diagnostics.front().kind == typed::DecodeIssueKind::UnknownEnumValue &&
             canonical->diagnostics.front().severity == typed::DecodeIssueSeverity::ForwardCompatibility &&
-            canonical->diagnostics.front().surface == "ModelRerouteReason" &&
-            canonical->diagnostics.front().fieldPath == "$.params.reason";
-        result.expectTrue(
-            exactCanonical,
-            "schema-complete model/rerouted retains the legacy view and exact future-reason canonical diagnostics");
+            canonical->diagnostics.front().surface == "ModelRerouteReason" && canonical->diagnostics.front().fieldPath == "$.params.reason";
+        result.expectTrue(exactCanonical,
+                          "schema-complete model/rerouted retains the legacy view and exact future-reason canonical diagnostics");
 
         typed::ModelRerouted legacy{
             .threadId = typed::ThreadId{"thread-reroute"},
@@ -92,23 +85,16 @@ namespace {
         };
         backend::Reducer reducer;
         const std::vector<backend::BackendEvent> decodedTranslation = reducer.translate(decodedEvent);
-        const std::vector<backend::BackendEvent> legacyTranslation =
-            reducer.translate(typed::Event{std::move(legacy)});
+        const std::vector<backend::BackendEvent> legacyTranslation = reducer.translate(typed::Event{std::move(legacy)});
         const backend::ModelRerouted* decodedBackend = translatedReroute(decodedTranslation);
         const backend::ModelRerouted* legacyBackend = translatedReroute(legacyTranslation);
-        result.expectTrue(
-            decodedBackend && legacyBackend &&
-                decodedBackend->threadId == legacyBackend->threadId &&
-                decodedBackend->turnId == legacyBackend->turnId &&
-                decodedBackend->from == legacyBackend->from &&
-                decodedBackend->to == legacyBackend->to &&
-                decodedBackend->reason == legacyBackend->reason &&
-                decodedBackend->threadId.value == "thread-reroute" &&
-                decodedBackend->turnId.value == "turn-reroute" &&
-                decodedBackend->from.value == "model-before" &&
-                decodedBackend->to.value == "model-after" &&
-                decodedBackend->reason == "futureRerouteReason",
-            "canonical and pre-A1.2 model/rerouted views translate to identical existing BackendCore semantics");
+        result.expectTrue(decodedBackend && legacyBackend && decodedBackend->threadId == legacyBackend->threadId &&
+                              decodedBackend->turnId == legacyBackend->turnId && decodedBackend->from == legacyBackend->from &&
+                              decodedBackend->to == legacyBackend->to && decodedBackend->reason == legacyBackend->reason &&
+                              decodedBackend->threadId.value == "thread-reroute" && decodedBackend->turnId.value == "turn-reroute" &&
+                              decodedBackend->from.value == "model-before" && decodedBackend->to.value == "model-after" &&
+                              decodedBackend->reason == "futureRerouteReason",
+                          "canonical and pre-A1.2 model/rerouted views translate to identical existing BackendCore semantics");
 
         backend::BackendState decodedState;
         backend::BackendState legacyState;
@@ -120,31 +106,25 @@ namespace {
         }
         const auto decodedThread = decodedState.threads.find("thread-reroute");
         const auto legacyThread = legacyState.threads.find("thread-reroute");
-        const backend::TurnState* decodedTurn =
-            decodedThread != decodedState.threads.end()
-                    ? [&]() -> const backend::TurnState* {
-                          const auto turn = decodedThread->second.turns.find("turn-reroute");
-                          return turn == decodedThread->second.turns.end() ? nullptr : &turn->second;
-                      }()
-                    : nullptr;
-        const backend::TurnState* legacyTurn =
-            legacyThread != legacyState.threads.end()
-                    ? [&]() -> const backend::TurnState* {
-                          const auto turn = legacyThread->second.turns.find("turn-reroute");
-                          return turn == legacyThread->second.turns.end() ? nullptr : &turn->second;
-                      }()
-                    : nullptr;
-        result.expectTrue(
-            decodedTurn && legacyTurn && decodedTurn->modelReroutes.size() == 1 &&
-                legacyTurn->modelReroutes.size() == 1 &&
-                decodedTurn->modelReroutes.front().from.value == "model-before" &&
-                decodedTurn->modelReroutes.front().to.value == "model-after" &&
-                decodedTurn->modelReroutes.front().reason == "futureRerouteReason" &&
-                decodedTurn->modelReroutes.front().from == legacyTurn->modelReroutes.front().from &&
-                decodedTurn->modelReroutes.front().to == legacyTurn->modelReroutes.front().to &&
-                decodedTurn->modelReroutes.front().reason == legacyTurn->modelReroutes.front().reason &&
-                backend::makeSnapshot(decodedState) == backend::makeSnapshot(legacyState),
-            "model/rerouted keeps the exact thread/turn association, from/to/reason record, and frontend snapshot behavior");
+        const backend::TurnState* decodedTurn = decodedThread != decodedState.threads.end() ? [&]() -> const backend::TurnState* {
+            const auto turn = decodedThread->second.turns.find("turn-reroute");
+            return turn == decodedThread->second.turns.end() ? nullptr : &turn->second;
+        }()
+                                                                                         : nullptr;
+        const backend::TurnState* legacyTurn = legacyThread != legacyState.threads.end() ? [&]() -> const backend::TurnState* {
+            const auto turn = legacyThread->second.turns.find("turn-reroute");
+            return turn == legacyThread->second.turns.end() ? nullptr : &turn->second;
+        }()
+            : nullptr;
+        result.expectTrue(decodedTurn && legacyTurn && decodedTurn->modelReroutes.size() == 1 && legacyTurn->modelReroutes.size() == 1 &&
+                              decodedTurn->modelReroutes.front().from.value == "model-before" &&
+                              decodedTurn->modelReroutes.front().to.value == "model-after" &&
+                              decodedTurn->modelReroutes.front().reason == "futureRerouteReason" &&
+                              decodedTurn->modelReroutes.front().from == legacyTurn->modelReroutes.front().from &&
+                              decodedTurn->modelReroutes.front().to == legacyTurn->modelReroutes.front().to &&
+                              decodedTurn->modelReroutes.front().reason == legacyTurn->modelReroutes.front().reason &&
+                              backend::makeSnapshot(decodedState) == backend::makeSnapshot(legacyState),
+                          "model/rerouted keeps the exact thread/turn association, from/to/reason record, and frontend snapshot behavior");
 
         backend::BackendState boundedState;
         for (std::size_t index = 0; index < 65; ++index) {
@@ -156,26 +136,21 @@ namespace {
                 .reason = "future-reason-" + std::to_string(index),
                 .raw = codex::Json::object(),
             };
-            const std::vector<backend::BackendEvent> translated =
-                reducer.translate(typed::Event{std::move(value)});
+            const std::vector<backend::BackendEvent> translated = reducer.translate(typed::Event{std::move(value)});
             if (const backend::ModelRerouted* reroute = translatedReroute(translated)) {
                 reducer.apply(boundedState, *reroute);
             }
         }
         const auto boundedThread = boundedState.threads.find("thread-bounded");
-        const backend::TurnState* boundedTurn =
-            boundedThread != boundedState.threads.end()
-                    ? [&]() -> const backend::TurnState* {
-                          const auto turn = boundedThread->second.turns.find("turn-bounded");
-                          return turn == boundedThread->second.turns.end() ? nullptr : &turn->second;
-                      }()
-                    : nullptr;
+        const backend::TurnState* boundedTurn = boundedThread != boundedState.threads.end() ? [&]() -> const backend::TurnState* {
+            const auto turn = boundedThread->second.turns.find("turn-bounded");
+            return turn == boundedThread->second.turns.end() ? nullptr : &turn->second;
+        }()
+            : nullptr;
         result.expectTrue(
-            boundedTurn && boundedTurn->modelReroutes.size() == 64 &&
-                boundedTurn->modelReroutes.front().from.value == "model-1" &&
+            boundedTurn && boundedTurn->modelReroutes.size() == 64 && boundedTurn->modelReroutes.front().from.value == "model-1" &&
                 boundedTurn->modelReroutes.front().reason == "future-reason-1" &&
-                boundedTurn->modelReroutes.back().to.value == "model-65" &&
-                boundedTurn->modelReroutes.back().reason == "future-reason-64",
+                boundedTurn->modelReroutes.back().to.value == "model-65" && boundedTurn->modelReroutes.back().reason == "future-reason-64",
             "model/rerouted preserves the existing exact 64-record bounded-history behavior for future reasons");
     }
 
@@ -189,18 +164,15 @@ namespace {
         result.expectTrue(decoded && decoded->raw == wire.raw,
                           wire.method + " typed notification retains the complete JSON-RPC envelope internally");
         const std::vector<backend::BackendEvent> translated = reducer.translate(event);
-        const auto* extension =
-            translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated.front()) : nullptr;
-        result.expectTrue(
-            extension && extension->method == wire.method && extension->payload == wire.params &&
-                !extension->payload.contains("futureEnvelopeOnly") &&
-                extension->payload.dump().find("mustNotBecomeParams") == std::string::npos,
-            wire.method + " translation preserves exact params rather than the complete envelope");
+        const auto* extension = translated.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&translated.front()) : nullptr;
+        result.expectTrue(extension && extension->method == wire.method && extension->payload == wire.params &&
+                              !extension->payload.contains("futureEnvelopeOnly") &&
+                              extension->payload.dump().find("mustNotBecomeParams") == std::string::npos,
+                          wire.method + " translation preserves exact params rather than the complete envelope");
         if (extension) {
             reducer.apply(state, *extension);
         }
-        const backend::ExtensionRecord* retained =
-            state.recentExtensions.empty() ? nullptr : &state.recentExtensions.back();
+        const backend::ExtensionRecord* retained = state.recentExtensions.empty() ? nullptr : &state.recentExtensions.back();
         result.expectTrue(retained && retained->method == wire.method && retained->payload == wire.params &&
                               !retained->payload.contains("futureEnvelopeOnly"),
                           wire.method + " uses the existing bounded params-only extension state");
@@ -208,17 +180,16 @@ namespace {
     }
 
     void testUnmodeledPreservation(tests::support::TestResult& result) {
-        const codex::Notification safety =
-            notification("model/safetyBuffering/updated",
-                         {{"fasterModel", nullptr},
-                          {"model", "model-buffering"},
-                          {"reasons", codex::Json::array({"safety-review"})},
-                          {"showBufferingUi", true},
-                          {"threadId", "thread-preserve"},
-                          {"turnId", "turn-preserve"},
-                          {"useCases", codex::Json::array({"cyber"})},
-                          {"futureParam", 2}},
-                         2);
+        const codex::Notification safety = notification("model/safetyBuffering/updated",
+                                                        {{"fasterModel", nullptr},
+                                                         {"model", "model-buffering"},
+                                                         {"reasons", codex::Json::array({"safety-review"})},
+                                                         {"showBufferingUi", true},
+                                                         {"threadId", "thread-preserve"},
+                                                         {"turnId", "turn-preserve"},
+                                                         {"useCases", codex::Json::array({"cyber"})},
+                                                         {"futureParam", 2}},
+                                                        2);
         const codex::Notification verification =
             notification("model/verification",
                          {{"threadId", "thread-preserve"},
@@ -232,14 +203,8 @@ namespace {
         backend::Reducer reducer;
         backend::BackendState state;
         std::size_t exact = 0;
-        exact += verifyPreserved<typed::ModelSafetyBufferingUpdatedNotification>(
-                     result, reducer, state, safety, safetyEvent)
-                     ? 1U
-                     : 0U;
-        exact += verifyPreserved<typed::ModelVerificationNotification>(
-                     result, reducer, state, verification, verificationEvent)
-                     ? 1U
-                     : 0U;
+        exact += verifyPreserved<typed::ModelSafetyBufferingUpdatedNotification>(result, reducer, state, safety, safetyEvent) ? 1U : 0U;
+        exact += verifyPreserved<typed::ModelVerificationNotification>(result, reducer, state, verification, verificationEvent) ? 1U : 0U;
         const auto thread = state.threads.find("thread-preserve");
         const backend::TurnState* turn = thread != state.threads.end() ? [&]() -> const backend::TurnState* {
             const auto found = thread->second.turns.find("turn-preserve");
@@ -274,15 +239,13 @@ namespace {
 
         backend::BackendState bounded;
         for (std::size_t index = 0; index < 65; ++index) {
-            codex::Notification repeated =
-                notification("model/verification",
-                             {{"threadId", "thread-preserve"},
-                              {"turnId", "turn-preserve"},
-                              {"verifications", codex::Json::array({"trustedAccessForCyber"})},
-                              {"sequence", index}},
-                             index);
-            const std::vector<backend::BackendEvent> translated =
-                reducer.translate(detail::decodeEvent(repeated));
+            codex::Notification repeated = notification("model/verification",
+                                                        {{"threadId", "thread-preserve"},
+                                                         {"turnId", "turn-preserve"},
+                                                         {"verifications", codex::Json::array({"trustedAccessForCyber"})},
+                                                         {"sequence", index}},
+                                                        index);
+            const std::vector<backend::BackendEvent> translated = reducer.translate(detail::decodeEvent(repeated));
             if (translated.size() == 1) {
                 reducer.apply(bounded, translated.front());
             }
@@ -294,61 +257,62 @@ namespace {
     }
 
     void testActualFrontendAdapterParity(tests::support::TestResult& result) {
-        const codex::Notification rerouted =
-            notification("model/rerouted",
-                         {{"fromModel", "model-before"},
-                          {"reason", "futureRerouteReason"},
-                          {"threadId", "thread-adapter"},
-                          {"toModel", "model-after"},
-                          {"turnId", "turn-adapter"}},
-                         4);
-        const codex::Notification safety =
-            notification("model/safetyBuffering/updated",
-                         {{"fasterModel", "model-faster"},
-                          {"model", "model-buffering"},
-                          {"reasons", codex::Json::array({"review"})},
-                          {"showBufferingUi", false},
-                          {"threadId", "thread-adapter"},
-                          {"turnId", "turn-adapter"},
-                          {"useCases", codex::Json::array({"cyber"})},
-                          {"futureParam", 5}},
-                         5);
-        const codex::Notification verification =
-            notification("model/verification",
-                         {{"threadId", "thread-adapter"},
-                          {"turnId", "turn-adapter"},
-                          {"verifications", codex::Json::array({"futureVerification"})},
-                          {"futureParam", 6}},
-                         6);
+        const codex::Notification rerouted = notification("model/rerouted",
+                                                          {{"fromModel", "model-before"},
+                                                           {"reason", "futureRerouteReason"},
+                                                           {"threadId", "thread-adapter"},
+                                                           {"toModel", "model-after"},
+                                                           {"turnId", "turn-adapter"}},
+                                                          4);
+        const codex::Notification safety = notification("model/safetyBuffering/updated",
+                                                        {{"fasterModel", "model-faster"},
+                                                         {"model", "model-buffering"},
+                                                         {"reasons", codex::Json::array({"review"})},
+                                                         {"showBufferingUi", false},
+                                                         {"threadId", "thread-adapter"},
+                                                         {"turnId", "turn-adapter"},
+                                                         {"useCases", codex::Json::array({"cyber"})},
+                                                         {"futureParam", 5}},
+                                                        5);
+        const codex::Notification verification = notification("model/verification",
+                                                              {{"threadId", "thread-adapter"},
+                                                               {"turnId", "turn-adapter"},
+                                                               {"verifications", codex::Json::array({"futureVerification"})},
+                                                               {"futureParam", 6}},
+                                                              6);
 
         auto transport = std::make_shared<tests::codex::FakeTransportState>();
-        tests::codex::installInitializingFake(
-            transport,
-            [](const codex::Json& message, const detail::TransportCallbacks& callbacks) {
-                const auto method = message.find("method");
-                const auto id = message.find("id");
-                if (method != message.end() && method->is_string() && *method == "thread/list" && id != message.end()) {
-                    tests::codex::inject(
-                        callbacks,
-                        codex::Json{
-                            {"id", *id},
-                            {"result", {{"data", codex::Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}},
-                        });
-                }
-            });
+        tests::codex::installInitializingFake(transport, [](const codex::Json& message, const detail::TransportCallbacks& callbacks) {
+            const auto method = message.find("method");
+            const auto id = message.find("id");
+            if (method != message.end() && method->is_string() && *method == "thread/list" && id != message.end()) {
+                tests::codex::inject(
+                    callbacks,
+                    codex::Json{
+                        {"id", *id},
+                        {"result", {{"data", codex::Json::array()}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}},
+                    });
+            }
+        });
 
         FakeBackendCore backendCore(transport);
-        frontend::BackendAdapter adapter(backendCore);
+        frontend::FrontendServiceOptions frontendOptions;
+        frontendOptions.trustedLocalUserId = 42;
+        frontend::FrontendService adapter(backendCore, std::move(frontendOptions));
         std::vector<frontend::OutboundMessage> outbound;
-        frontend::FrontendConnection connection = adapter.openConnection(
-            {[&outbound](const frontend::OutboundMessage& message) {
-                 outbound.push_back(message);
-                 return true;
-             },
-             [](const std::string&) {}});
-        result.expectTrue(
-            connection.receive(frontend::ClientMessage{frontend::Hello{std::nullopt, frontend::Json::object()}}).accepted(),
-            "the actual Frontend Protocol adapter accepts the v1 hello for B3 parity");
+        frontend::FrontendPeerContext peer;
+        peer.transport = frontend::FrontendTransportKind::Unix;
+        peer.localPeer = true;
+        peer.unixUserId = 42;
+        frontend::FrontendConnection connection = adapter.openConnection(std::move(peer),
+                                                                         {[&outbound](const frontend::OutboundMessage& message) {
+                                                                              outbound.push_back(message);
+                                                                              return true;
+                                                                          },
+                                                                          [](const std::string&) {
+                                                                          }});
+        result.expectTrue(connection.receive(frontend::ClientMessage{frontend::Hello{std::nullopt, frontend::Json::object()}}).accepted(),
+                          "the actual Frontend Protocol adapter accepts the v1 hello for B3 parity");
 
         backendCore.start();
         core::EventReceiver::atNextTick([&]() {
@@ -388,18 +352,14 @@ namespace {
 
         const backend::BackendState canonical = backendCore.state();
         const auto thread = canonical.threads.find("thread-adapter");
-        const backend::TurnState* turn =
-            thread != canonical.threads.end()
-                    ? [&]() -> const backend::TurnState* {
-                          const auto found = thread->second.turns.find("turn-adapter");
-                          return found == thread->second.turns.end() ? nullptr : &found->second;
-                      }()
-                    : nullptr;
-        result.expectTrue(turn && turn->modelReroutes.size() == 1 &&
-                              turn->modelReroutes.front().from.value == "model-before" &&
+        const backend::TurnState* turn = thread != canonical.threads.end() ? [&]() -> const backend::TurnState* {
+            const auto found = thread->second.turns.find("turn-adapter");
+            return found == thread->second.turns.end() ? nullptr : &found->second;
+        }()
+            : nullptr;
+        result.expectTrue(turn && turn->modelReroutes.size() == 1 && turn->modelReroutes.front().from.value == "model-before" &&
                               turn->modelReroutes.front().to.value == "model-after" &&
-                              turn->modelReroutes.front().reason == "futureRerouteReason" &&
-                              canonical.recentExtensions.size() == 2,
+                              turn->modelReroutes.front().reason == "futureRerouteReason" && canonical.recentExtensions.size() == 2,
                           "actual BackendCore preserves the existing reroute record and exactly two new extension records");
 
         std::vector<const frontend::FrontendEvent*> extensions;
@@ -409,35 +369,28 @@ namespace {
         bool noNewRerouteField = true;
         for (const frontend::OutboundMessage& message : outbound) {
             const codex::Json compact = codex::Json::parse(message.compactJson, nullptr, false);
-            v1WireShape = v1WireShape && !compact.is_discarded() &&
-                          compact.value("protocol", "") == frontend::ProtocolIdentity &&
+            v1WireShape = v1WireShape && !compact.is_discarded() && compact.value("protocol", "") == frontend::ProtocolIdentity &&
                           compact.value("version", 0) == frontend::ProtocolVersion;
             if (const auto* batch = std::get_if<frontend::EventBatch>(&message.message)) {
                 for (const frontend::FrontendEvent& event : batch->events) {
                     turnObserved = turnObserved || event.type == "turn.updated";
                     if (event.type == "codex.extension") {
-                        rerouteNotExposedAsExtension =
-                            rerouteNotExposedAsExtension &&
-                            event.data.value("method", "") != "model/rerouted";
+                        rerouteNotExposedAsExtension = rerouteNotExposedAsExtension && event.data.value("method", "") != "model/rerouted";
                         extensions.push_back(&event);
                     }
-                    noNewRerouteField =
-                        noNewRerouteField && event.data.dump().find("modelReroutes") == std::string::npos &&
-                        event.data.dump().find("fromModel") == std::string::npos &&
-                        event.data.dump().find("toModel") == std::string::npos;
+                    noNewRerouteField = noNewRerouteField && event.data.dump().find("modelReroutes") == std::string::npos &&
+                                        event.data.dump().find("fromModel") == std::string::npos &&
+                                        event.data.dump().find("toModel") == std::string::npos;
                 }
             }
         }
 
         bool exactExtensions = extensions.size() == 2 && canonical.recentExtensions.size() == 2;
-        result.expectTrue(extensions.size() == 2,
-                          "actual frontend v1 emits exactly two B3 codex.extension events");
+        result.expectTrue(extensions.size() == 2, "actual frontend v1 emits exactly two B3 codex.extension events");
         for (const frontend::FrontendEvent* event : extensions) {
             const std::string method = event->data.value("method", "");
             const auto retained = std::find_if(
-                canonical.recentExtensions.begin(),
-                canonical.recentExtensions.end(),
-                [&](const backend::ExtensionRecord& extension) {
+                canonical.recentExtensions.begin(), canonical.recentExtensions.end(), [&](const backend::ExtensionRecord& extension) {
                     return extension.method == method;
                 });
             if (retained == canonical.recentExtensions.end()) {
@@ -449,32 +402,22 @@ namespace {
             const codex::Json params = event->data.value("params", codex::Json{});
             const bool sanitizedParity = params == expected.payload;
             const bool internalParity = params == retained->payload;
-            const bool paramsOnly = !params.contains("jsonrpc") && !params.contains("method") &&
-                                    !params.contains("futureEnvelopeOnly") &&
+            const bool paramsOnly = !params.contains("jsonrpc") && !params.contains("method") && !params.contains("futureEnvelopeOnly") &&
                                     params.dump().find("mustNotBecomeParams") == std::string::npos;
-            const bool stableShape =
-                event->data.size() == 2 && event->data.contains("method") &&
-                event->data.contains("params") && !event->data.contains("sensitiveFieldsRedacted");
-            result.expectTrue(sanitizedParity,
-                              method + " frontend params equal the sanitized bounded extension payload");
-            result.expectTrue(internalParity,
-                              method + " safe frontend params remain equal to exact internal params");
-            result.expectTrue(paramsOnly,
-                              method + " frontend params exclude every JSON-RPC envelope-only field");
-            result.expectTrue(stableShape,
-                              method + " safe frontend extension retains the exact existing method/params data shape");
+            const bool stableShape = event->data.size() == 2 && event->data.contains("method") && event->data.contains("params") &&
+                                     !event->data.contains("sensitiveFieldsRedacted");
+            result.expectTrue(sanitizedParity, method + " frontend params equal the sanitized bounded extension payload");
+            result.expectTrue(internalParity, method + " safe frontend params remain equal to exact internal params");
+            result.expectTrue(paramsOnly, method + " frontend params exclude every JSON-RPC envelope-only field");
+            result.expectTrue(stableShape, method + " safe frontend extension retains the exact existing method/params data shape");
             exactExtensions = exactExtensions && sanitizedParity && internalParity && paramsOnly && stableShape;
         }
         result.expectTrue(exactExtensions,
                           "actual frontend v1 codex.extension.params exactly match the two sanitized BackendCore params values");
-        result.expectTrue(turnObserved,
-                          "actual frontend v1 retains the existing model/rerouted turn.updated behavior");
-        result.expectTrue(rerouteNotExposedAsExtension,
-                          "actual frontend v1 does not reclassify modeled model/rerouted as an extension");
-        result.expectTrue(noNewRerouteField,
-                          "actual frontend v1 adds no model-reroute snapshot or event field");
-        result.expectTrue(v1WireShape,
-                          "actual frontend adapter output retains the existing protocol identity and version");
+        result.expectTrue(turnObserved, "actual frontend v1 retains the existing model/rerouted turn.updated behavior");
+        result.expectTrue(rerouteNotExposedAsExtension, "actual frontend v1 does not reclassify modeled model/rerouted as an extension");
+        result.expectTrue(noNewRerouteField, "actual frontend v1 adds no model-reroute snapshot or event field");
+        result.expectTrue(v1WireShape, "actual frontend adapter output retains the existing protocol identity and version");
     }
 } // namespace
 

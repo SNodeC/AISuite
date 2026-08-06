@@ -359,7 +359,7 @@ endif()
 
 execute_process(
     COMMAND
-        "${AISUITE_CMAKE_COMMAND}" --build "${consumer_build}" --parallel 2
+        "${AISUITE_CMAKE_COMMAND}" --build "${consumer_build}" --parallel 28
         --verbose
     RESULT_VARIABLE build_result
     OUTPUT_VARIABLE build_output

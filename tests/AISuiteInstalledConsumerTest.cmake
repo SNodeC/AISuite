@@ -219,13 +219,58 @@ file(READ "${installed_aisuite_config}" installed_aisuite_config_text)
 string(FIND "${installed_aisuite_config_text}" "COMPONENTS core"
        required_core_component_index
 )
-string(FIND "${installed_aisuite_config_text}" "net-un-stream-legacy"
-       unwanted_unix_component_index
-)
-if(required_core_component_index EQUAL -1 OR
-   NOT unwanted_unix_component_index EQUAL -1)
+if(required_core_component_index EQUAL -1)
     fail_cross_repo(
-        "installed AISuite library package must require SNode.C core without requiring Unix-stream transport"
+        "installed AISuite library package must require SNode.C core"
+    )
+endif()
+foreach(
+    application_transport_component
+    IN ITEMS
+       net-un-stream-legacy
+       net-in-stream-legacy
+       net-in6-stream-legacy
+       net-in-stream-tls
+       net-in6-stream-tls
+       net-rc-stream-legacy
+       net-rc-stream-tls
+       http-server
+       http-server-express
+       http-server-express-legacy-in
+       http-server-express-legacy-in6
+       http-server-express-tls-in
+       http-server-express-tls-in6
+       websocket-server
+       websocket-client
+)
+    string(FIND "${installed_aisuite_config_text}"
+           "${application_transport_component}" transport_component_index
+    )
+    if(NOT transport_component_index EQUAL -1)
+        fail_cross_repo(
+            "installed AISuite library package leaked application transport dependency ${application_transport_component}"
+        )
+    endif()
+endforeach()
+
+set(installed_aisuite_targets
+    "${aisuite_install}/lib/cmake/AISuite/AISuiteTargets.cmake"
+)
+if(NOT EXISTS "${installed_aisuite_targets}")
+    fail_installed(
+        "installed AISuite target export is missing: ${installed_aisuite_targets}"
+    )
+endif()
+file(READ "${installed_aisuite_targets}" installed_aisuite_targets_text)
+string(FIND "${installed_aisuite_targets_text}"
+       "AISuite::OpenAICodexFrontend" frontend_target_index
+)
+string(FIND "${installed_aisuite_targets_text}"
+       "AISuite::OpenAICodexFrontendClient" frontend_client_target_index
+)
+if(frontend_target_index EQUAL -1 OR NOT frontend_client_target_index EQUAL -1)
+    fail_installed(
+        "installed target boundary must expose OpenAICodexFrontend without an A1.7c frontend-client target"
     )
 endif()
 
@@ -327,7 +372,7 @@ require_path_under("${snodec_dir}" "${snodec_install}" "snodec_DIR")
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 4 --verbose
+        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 28 --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE consumer_build_output
     ERROR_VARIABLE consumer_build_error
@@ -416,7 +461,7 @@ require_success(
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 4
+        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 28
         --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE module_consumer_build_output

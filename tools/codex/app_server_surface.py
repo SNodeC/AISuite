@@ -10839,6 +10839,42 @@ def frontend_registry_source(
             )
         return schema
 
+    def top_level_object_shape(schema: Any) -> tuple[set[str], set[str]]:
+        """Derive possible and universally required top-level fields.
+
+        The committed provider surface predates the frontend's tagged-union
+        parameter model and records only direct/allOf properties. The frontend
+        export must also retain the union branch fields so its generated
+        method-tagged JSON value does not demote known provider parameters to
+        compatibility extensions.
+        """
+
+        if not isinstance(schema, dict):
+            return set(), set()
+        properties = schema.get("properties")
+        fields = set(properties) if isinstance(properties, dict) else set()
+        encoded_required = schema.get("required")
+        required = (
+            set(encoded_required)
+            if isinstance(encoded_required, list)
+            and all(isinstance(value, str) for value in encoded_required)
+            else set()
+        )
+        all_of = schema.get("allOf")
+        if isinstance(all_of, list):
+            for part in all_of:
+                part_fields, part_required = top_level_object_shape(part)
+                fields.update(part_fields)
+                required.update(part_required)
+        for keyword in ("oneOf", "anyOf"):
+            alternatives = schema.get(keyword)
+            if isinstance(alternatives, list) and alternatives:
+                shapes = [top_level_object_shape(part) for part in alternatives]
+                for part_fields, _ in shapes:
+                    fields.update(part_fields)
+                required.update(set.intersection(*(part_required for _, part_required in shapes)))
+        return fields, required
+
     ledger = frontend_contract_review_ledger(manifest)
     rows: list[dict[str, Any]] = []
     for entry in ledger["reviewed"]:
@@ -10859,6 +10895,11 @@ def frontend_registry_source(
             )
         prior_exposure, prior_security = legacy_frontend_contract_decision(entry)
         operation_contract = operation_contracts.get(key)
+        parameter_schema = contract_schema(operation_contract, "parameter_schema")
+        parameter_fields, parameter_required = top_level_object_shape(parameter_schema)
+        if not parameter_fields and entry.get("params"):
+            parameter_fields = set(entry["params"].get("fields", ()))
+            parameter_required = set(entry["params"].get("required_fields", ()))
         if entry["stability"] == "experimental_only":
             rationale = "Experimental inventory is not exposed by frontend security policy."
         elif entry["category"] == "item_discriminator" and entry["domain"] == "ResponseItem":
@@ -10887,17 +10928,15 @@ def frontend_registry_source(
                     "resultKind": local["result_contract_kind"],
                     "evidenceKind": local["association_evidence_kind"],
                     "evidenceKey": local["association_evidence_key"],
-                    "parameterJsonSchema": contract_schema(
-                        operation_contract, "parameter_schema"
-                    ),
+                    "parameterJsonSchema": parameter_schema,
                     "resultJsonSchema": contract_schema(
                         operation_contract, "result_schema"
                     ),
                 },
                 "parameterShape": {
                     "type": entry["params"]["type"] if entry.get("params") else "Unit",
-                    "requiredFields": list(entry["params"].get("required_fields", ())) if entry.get("params") else [],
-                    "fields": list(entry["params"].get("fields", ())) if entry.get("params") else [],
+                    "requiredFields": sorted(parameter_required),
+                    "fields": sorted(parameter_fields),
                     "propertyPaths": list(entry["params"].get("property_paths", ())) if entry.get("params") else [],
                 },
                 "priorCompatibilityExposure": prior_exposure,
@@ -11301,8 +11340,12 @@ def render_coverage_document(
             "`NoRuntimeBackendStatePath` rationale.",
             "",
             "The A1.7a registry resolves all 234 reviewed frontend-contract identities.",
-            "Definition in the additive v1 contract does not by itself imply runtime",
-            "implementation, deployment enablement, or principal permission.",
+            "A1.7b handler implementation, deployment availability, and built-in scope-profile",
+            "permission are emitted and mechanically guarded by the downstream",
+            "`frontend-protocol-v1.manifest.json`; this owner-reviewed registry report does",
+            "not duplicate that runtime-status authority.",
+            "Definition, handler implementation, deployment enablement, static principal",
+            "permission, and invocation-time readiness remain distinct runtime concepts.",
             "",
             "## Pinned artifacts",
             "",
@@ -11444,7 +11487,9 @@ def render_security_document(
         "the A1.6 `NoRuntimeBackendStatePath` disposition; they do not shrink the denominator.",
         "",
         "Protocol methods: **105** (**15** existing + **90** additive; **7** frontend-native + **98** non-native).",
-        "The current A1.7a runtime advertises and executes only the existing **15** methods.",
+        "A1.7b handler implementation, deployment availability, and built-in scope-profile permission are",
+        "mechanically recorded by the downstream `frontend-protocol-v1.manifest.json`; this owner-decision",
+        "record deliberately does not duplicate those runtime-status fields.",
         "Default-disabled schema-defined methods: **15** (ten filesystem/search/watch methods and five command-execution methods).",
         "Experimental requests not exposed: **36**. ResponseItem rows genuinely NotApplicable: **16**.",
         "Stable notification mappings: **68**. Stable ThreadItem mappings: **18**.",
@@ -11514,7 +11559,7 @@ def render_security_document(
         elif prior_exposure in {"ExistingEventSubset", "GenericExtension", "ExistingUnknownItemSubset"}:
             rationale = "Legacy bytes retained; expanded-capability projection is duplicate-suppressed."
         else:
-            rationale = "Owner-approved schema-defined v1 contract; runtime activation follows A1.7a policy."
+            rationale = "Owner-approved A1.7a schema-defined v1 contract; A1.7b runtime status is tracked by downstream generated method metadata."
         lines.append(
             "| "
             + " | ".join(

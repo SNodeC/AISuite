@@ -8,8 +8,9 @@
 #include "CodexBackendTestSupport.h"
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
-#include "apps/codex-backend/CodexFrontendSocketContextFactory.h"
 #include "apps/codex-backend/Configuration.h"
+#include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
+#include "apps/codex-backend/UnixPeerCredentials.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
@@ -34,6 +35,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <utility>
 #include <variant>
@@ -967,15 +969,28 @@ int main(int argc, char* argv[]) {
             backendOptions.initialThreadListLimit = 2;
             backendOptions.maxEventsPerCallback = 512;
             FakeBackendCore backendCore(backendOptions, transport);
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            // This broad protocol acceptance is not an authentication-policy
+            // test. Platforms without a peer-credential API must opt into the
+            // explicit insecure test override rather than silently treating
+            // Unix transport identity as verified local trust.
+            serviceOptions.allowInsecureLocalTrust = !apps::codex_backend::unixPeerCredentialsSupported();
+            frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
-            apps::codex_backend::SocketFrontendOptions frontendOptions;
-            frontendOptions.maximumFrameSize = MaximumFrameSize;
-            frontendOptions.maximumOutboundBytes = 2U * 1024U * 1024U;
-            const net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
-                                                        FakeBackendCore&,
-                                                        apps::codex_backend::SocketFrontendOptions>
-                server("codex-backend-acceptance-server", backendCore, std::move(frontendOptions));
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions frontendOptions;
+            frontendOptions.transport = frontend::FrontendTransportKind::Unix;
+            frontendOptions.socket.maximumFrameSize = MaximumFrameSize;
+            frontendOptions.resolvePeer = [](core::socket::stream::SocketConnection& connection) {
+                return apps::codex_backend::verifiedUnixPeerContextFromFileDescriptor(connection.getFd(),
+                                                                                      static_cast<std::uint64_t>(::geteuid()));
+            };
+            const net::un::stream::legacy::SocketServer<apps::codex_backend::FrontendStreamSocketContextFactory,
+                                                        frontend::FrontendService&,
+                                                        apps::codex_backend::FrontendStreamSocketContextFactoryOptions>
+                server("codex-backend-acceptance-server", frontendService, std::move(frontendOptions));
             server.getConfig()->Instance::forceUnrequired();
+            server.getConfig()->Connection::setMaximumWriteQueueBytes(2U * 1024U * 1024U);
 
             AcceptanceScenario scenario(result, backendCore, transport);
             scenario.installFakeProtocol();
@@ -1022,8 +1037,12 @@ int main(int argc, char* argv[]) {
                 }
             });
 
-            server.listen(path, [&scenario](const net::un::SocketAddress&, core::socket::State state) {
+            server.listen(path, [&scenario, &path](const net::un::SocketAddress&, core::socket::State state) {
                 if (state == core::socket::State::OK) {
+                    if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0) {
+                        scenario.listenFailed();
+                        return;
+                    }
                     scenario.listenReady();
                 } else {
                     scenario.listenFailed();

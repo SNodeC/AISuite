@@ -44,5 +44,9 @@ int main() {
                       "the first byte beyond the configured bound rejects the frame");
     result.expectTrue(bounded.bufferedSize() == 0, "an oversized frame releases all accumulated storage");
 
+    JsonLineFramer zeroCapacity(0);
+    result.expectTrue(zeroCapacity.push("x", collect) == JsonLineFramer::Result::FrameTooLarge && zeroCapacity.bufferedSize() == 0,
+                      "a configured zero frame bound means zero capacity rather than unlimited buffering");
+
     return result.processResult();
 }

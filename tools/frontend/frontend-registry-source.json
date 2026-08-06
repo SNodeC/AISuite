@@ -345,8 +345,19 @@
       },
       "parameterShape": {
         "type": "LoginAccountParams",
-        "requiredFields": [],
-        "fields": [],
+        "requiredFields": [
+          "type"
+        ],
+        "fields": [
+          "accessToken",
+          "apiKey",
+          "appBrand",
+          "chatgptAccountId",
+          "chatgptPlanType",
+          "codexStreamlinedLogin",
+          "type",
+          "useHostedLoginSuccessPage"
+        ],
         "propertyPaths": [
           "accessToken",
           "apiKey",
@@ -50883,13 +50894,21 @@
       "parameterShape": {
         "type": "McpServerElicitationRequestParams",
         "requiredFields": [
+          "message",
+          "mode",
           "serverName",
           "threadId"
         ],
         "fields": [
+          "_meta",
+          "elicitationId",
+          "message",
+          "mode",
+          "requestedSchema",
           "serverName",
           "threadId",
-          "turnId"
+          "turnId",
+          "url"
         ],
         "propertyPaths": [
           "_meta",

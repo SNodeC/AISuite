@@ -329,6 +329,70 @@ int main(const int argc, char* argv[]) {
         return 1;
     }
 
+    const std::string eventJournalHeader = aisuite::source_policy::cxx::maskCommentsAndLiterals(
+        aisuite::source_policy::readFile(root / "src/ai/openai/codex/frontend/EventJournal.h"));
+    for (const std::string_view legacyType : {"JournalAppendResult", "JournalReplayResult"}) {
+        const std::regex expression("(^|[^A-Za-z0-9_])" + std::string(legacyType) + "([^A-Za-z0-9_]|$)", std::regex::ECMAScript);
+        if (std::regex_search(eventJournalHeader, expression)) {
+            valid = aisuite::source_policy::diagnostic(
+                kInventoryDiagnostic, "frontend/EventJournal.h exposes legacy second-authority type " + std::string(legacyType));
+        }
+    }
+    for (const std::string_view legacyMethod : {"append", "replayAfter", "retainedEvents"}) {
+        const std::regex expression("(^|[^A-Za-z0-9_])" + std::string(legacyMethod) + "\\s*\\(", std::regex::ECMAScript);
+        if (std::regex_search(eventJournalHeader, expression)) {
+            valid = aisuite::source_policy::diagnostic(
+                kInventoryDiagnostic, "frontend/EventJournal.h exposes legacy second-authority method " + std::string(legacyMethod));
+        }
+    }
+    if (!valid) {
+        return 1;
+    }
+
+    constexpr std::array<std::string_view, 9> expectedFrontendHeaders = {{
+        "frontend/Codec.h",
+        "frontend/EventCoalescer.h",
+        "frontend/EventJournal.h",
+        "frontend/FrontendService.h",
+        "frontend/GeneratedProtocol.h",
+        "frontend/Messages.h",
+        "frontend/Protocol.h",
+        "frontend/Security.h",
+        "frontend/UpdateBatch.h",
+    }};
+    std::vector<std::string> actualFrontendHeaders = components[2].headers;
+    std::sort(actualFrontendHeaders.begin(), actualFrontendHeaders.end());
+    if (!std::equal(
+            actualFrontendHeaders.begin(), actualFrontendHeaders.end(), expectedFrontendHeaders.begin(), expectedFrontendHeaders.end())) {
+        valid = aisuite::source_policy::diagnostic(
+            kInventoryDiagnostic,
+            "frontend public-header inventory must be exactly the nine A1.7b headers with FrontendService and without BackendAdapter");
+    }
+
+    constexpr std::array<std::string_view, 5> forbiddenPublicSymbols = {{
+        "BackendAdapter",
+        "BackendAdapterOptions",
+        "FrontendClient",
+        "OpenAICodexFrontendClient",
+        "declaredTransportFamilies",
+    }};
+    for (const Component& component : components) {
+        for (const std::string& header : component.headers) {
+            const std::string source = aisuite::source_policy::cxx::maskCommentsAndLiterals(
+                aisuite::source_policy::readFile(root / "src/ai/openai/codex" / header));
+            for (const std::string_view symbol : forbiddenPublicSymbols) {
+                const std::regex expression("(^|[^A-Za-z0-9_])" + std::string(symbol) + "([^A-Za-z0-9_]|$)", std::regex::ECMAScript);
+                if (std::regex_search(source, expression)) {
+                    valid = aisuite::source_policy::diagnostic(
+                        kInventoryDiagnostic, header + " exposes forbidden pre-A1.7b or future-SDK symbol " + std::string(symbol));
+                }
+            }
+        }
+    }
+    if (!valid) {
+        return 1;
+    }
+
     std::vector<std::string> authority;
     for (const Component& component : components) {
         authority.insert(authority.end(), component.headers.begin(), component.headers.end());

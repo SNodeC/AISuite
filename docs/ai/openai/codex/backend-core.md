@@ -53,7 +53,8 @@ The generator and C++ validator share the authoritative action-only identity
 set; count and mutation guards reject a fourteenth action-only identity or any
 attempt to improve coverage by shrinking the denominator. See the
 [A1.6b completion report](a1-6b-backend-completeness.md) for the exact ledger.
-A1.7 owns the multi-transport frontend service, while A2 remains
+A1.7a freezes the frontend contract and A1.7b supplies the one-service,
+multi-transport runtime without changing this BackendCore surface. A2 remains
 provider-neutral architecture.
 
 ## Ownership and construction
@@ -542,11 +543,12 @@ false. A true value intentionally refreshes authentication material and is
 controller-only. Every other provider mutation and all request responses or
 rejections require the controller and a Ready provider.
 
-The filesystem read operations above are observer-readable only at the
-trusted in-process BackendCore authorization boundary. This is not permission
-to expose them through an out-of-process protocol. Frontend Protocol v1 does
-not map them, and A1.7 must perform a separate transport/frontend security
-review before any remote exposure.
+The filesystem read operations above are observer-readable at the trusted
+in-process BackendCore authorization boundary. That policy is not remote
+permission. Frontend Protocol v1 maps them only as conditional methods;
+FrontendService separately requires deployment enablement, filesystem scope,
+controller policy where generated, provider readiness, and the configured safe
+path policy.
 
 Frontend replay remains handled entirely by the frontend journal. Controller
 acquisition succeeds when there is no controller or idempotently for the same
@@ -624,21 +626,26 @@ no automatic approval or rejection policy.
 
 ## Frontend Protocol v1 boundary
 
-Completing BackendCore does not add provider methods to Frontend Protocol v1.
-Its identity, version, message kinds, command subset, JSON fields, replay,
-coalescing, batching, controller rules, and error codes remain unchanged. The
-adapter projects `ThreadStartResponse`, `ThreadResumeResponse`, and
-`ThreadReadResponse` through their `.thread` member and `TurnStartResponse`
-through `.turn`, preserving the existing v1 JSON. `ThreadListResponse` and
-`typed::Unit` keep their existing page and empty-object projections.
+Completing BackendCore did not itself expose provider methods remotely. A1.7a
+froze the additive 105-method contract and A1.7b implements all 105 handlers
+through the generated exact mapping authority. The 86 provider operations and
+12 reverse methods still construct existing BackendCommand alternatives;
+provider lifecycle uses the existing `start()`, `stop()`, and `restart()` API.
+No second provider-operation registry or lifecycle state machine is added.
 
-The other 59 provider result alternatives are unreachable from the v1 command
-set. The adapter exhaustively recognizes them but reports an internal adapter
-error if one arrives unexpectedly; it neither invents a v1 representation nor
-exposes raw typed state. Stable notifications continue through the existing
-dedicated normalized events or the single bounded `codex.extension` contract,
-without duplicate delivery. Frontend protocol expansion, new snapshot fields,
-additional transports, SDKs, and UI security decisions remain A1.7.
+The original 15 methods keep their v1 JSON projections:
+`ThreadStartResponse`, `ThreadResumeResponse`, and `ThreadReadResponse` project
+through `.thread`, `TurnStartResponse` through `.turn`, and
+`ThreadListResponse`/`typed::Unit` retain their page/empty-object forms. The
+remaining typed provider results use the A1.7a method-tagged generated result
+schemas instead of a raw JSON-RPC escape hatch.
+
+One application-owned FrontendService borrows one BackendCore and opens one
+BackendCore `FrontendSession` only after each transport connection
+authenticates. It owns the global frontend controller view, sequence, canonical
+journal, authorization, and per-principal projection. Every listener borrows
+that service. This leaves BackendCore transport-independent and preserves its
+single provider generation, capacity, command lifecycle, and canonical state.
 
 ## Installed module consumption
 
@@ -648,34 +655,29 @@ generic `core` and `net-un-stream-legacy` forwarding wrappers are not part of
 the build. A library-only `find_package(AISuite CONFIG REQUIRED)` consumer does
 not inherit the Unix transport dependency.
 
-A staged Unix server composition explicitly finds both packages and links only
-public targets:
+A staged in-memory service consumer finds AISuite and links only public
+targets:
 
 ```cmake
-find_package(snodec CONFIG REQUIRED COMPONENTS
-    core
-    net-un-stream-legacy
-)
 find_package(AISuite CONFIG REQUIRED)
 
-target_link_libraries(module_server PRIVATE
+target_link_libraries(frontend_consumer PRIVATE
     AISuite::OpenAICodex
     AISuite::OpenAICodexBackend
     AISuite::OpenAICodexFrontend
-    snodec::core
-    snodec::net-un-stream-legacy
 )
 ```
 
-The installed module-consumer test instantiates
-`BackendCore<stdio::Client>`, the public frontend adapter, and a minimal
-Unix-domain SNode.C server using only staged headers and packages. It uses no
-AISuite source include path, private header, real Codex credential, or fixed
-dependency commit.
+The installed frontend-consumer test instantiates
+`BackendCore<stdio::Client>`, the public `FrontendService`, and one in-memory
+`FrontendConnection` using only staged headers and packages. It uses no AISuite
+source include path, private header, real Codex credential, or fixed dependency
+commit.
 
-A1.6b remains inside the intentionally unreleased SOVERSION-2 development ABI
+A1.7b remains inside the intentionally unreleased SOVERSION-2 development ABI
 boundary. Project version remains `0.1.0`. A1.6b established the 29 main, 7
 backend, and 7 frontend header inventory; A1.7a subsequently adds only
 `frontend/Security.h` and `frontend/GeneratedProtocol.h`, making the current
 installed inventory 29 main, 7 backend, and 9 frontend headers (45 total). No
-compatibility copy of the former flattened command-result API is installed.
+compatibility copy of the former `BackendAdapter` API or flattened
+command-result API is installed.

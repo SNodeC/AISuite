@@ -15,8 +15,9 @@
 #include "apps/codex-backend-client/CommandParser.h"
 #include "apps/codex-backend-client/Presenter.h"
 #include "apps/codex-backend-client/StdinReader.h"
-#include "apps/codex-backend/CodexFrontendSocketContextFactory.h"
 #include "apps/codex-backend/Configuration.h"
+#include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
+#include "apps/codex-backend/UnixPeerCredentials.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
@@ -41,6 +42,7 @@
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <sys/stat.h>
 #include <type_traits>
 #include <unistd.h>
 #include <utility>
@@ -329,12 +331,21 @@ namespace {
             backend::BackendCoreOptions backendOptions;
             backendOptions.initialThreadListLimit = 1;
             FakeBackendCore backendCore(backendOptions, transport);
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            serviceOptions.allowInsecureLocalTrust = !apps::codex_backend::unixPeerCredentialsSupported();
+            frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
-            apps::codex_backend::SocketFrontendOptions frontendOptions;
-            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
-                                                                 FakeBackendCore&,
-                                                                 apps::codex_backend::SocketFrontendOptions>;
-            Server server("codex-client-thread-workflow-server", backendCore, std::move(frontendOptions));
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions frontendOptions;
+            frontendOptions.transport = frontend::FrontendTransportKind::Unix;
+            frontendOptions.resolvePeer = [](core::socket::stream::SocketConnection& connection) {
+                return apps::codex_backend::verifiedUnixPeerContextFromFileDescriptor(connection.getFd(),
+                                                                                      static_cast<std::uint64_t>(::geteuid()));
+            };
+            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::FrontendStreamSocketContextFactory,
+                                                                 frontend::FrontendService&,
+                                                                 apps::codex_backend::FrontendStreamSocketContextFactoryOptions>;
+            Server server("codex-client-thread-workflow-server", frontendService, std::move(frontendOptions));
             server.getConfig()->Instance::forceUnrequired();
             backendCore.start();
 
@@ -559,7 +570,11 @@ namespace {
 
             server.listen(path, [&](const net::un::SocketAddress&, core::socket::State state) {
                 if (state != core::socket::State::OK) {
-                    lifecycle.connectionFailed("thread-workflow real BackendAdapter Unix server failed to listen");
+                    lifecycle.connectionFailed("thread-workflow real FrontendService Unix server failed to listen");
+                    return;
+                }
+                if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0) {
+                    lifecycle.connectionFailed("thread-workflow Unix listener could not be secured");
                     return;
                 }
                 ++listenSuccessCount;
@@ -664,14 +679,14 @@ namespace {
         result.expectTrue(sentCommandSyncCounts == std::vector<std::size_t>(8, 1),
                           "every workflow command, including new's turn, is sent only after initial synchronization");
         result.expectTrue(appServerOperations == expectedAppServerOperations,
-                          "the real BackendAdapter maps every start/resume option and both exact TextInput prompts in order");
+                          "the real FrontendService maps every start/resume option and both exact TextInput prompts in order");
         result.expectTrue(newStartObservedDuringEofDrain && newTurnSentFromMatchingStart && exitWaitedForNewTurnResponse,
                           "EOF remains draining while new waits for its matching start response and subsequent turn response");
         result.expectTrue(responseHasThread(explicitStartResponse, ExplicitThreadId) &&
                               responseHasThread(resumeResponse, PersistedThreadId) &&
                               responseHasTurn(explicitTurnResponse, PersistedThreadId) &&
                               responseHasThread(newStartResponse, NewThreadId) && responseHasTurn(newTurnResponse, NewThreadId),
-                          "real BackendAdapter responses preserve explicit, resumed, and generated thread IDs through both workflows");
+                          "real FrontendService responses preserve explicit, resumed, and generated thread IDs through both workflows");
         result.expectTrue(acquireRequestIds.size() == 3 && acquireResponseCount == 3 && responseIds.size() == 8,
                           "controller ownership is explicitly acquired for each workflow and all real responses are correlated");
         result.expectEqual(0, static_cast<int>(protocolErrorCount), "the thread-workflow scenario reports no frontend protocol error");
@@ -793,12 +808,21 @@ int main(int argc, char* argv[]) {
             backend::BackendCoreOptions backendOptions;
             backendOptions.initialThreadListLimit = LargeThreadCount;
             FakeBackendCore backendCore(backendOptions, transport);
+            frontend::FrontendServiceOptions serviceOptions;
+            serviceOptions.trustedLocalUserId = static_cast<std::uint64_t>(::geteuid());
+            serviceOptions.allowInsecureLocalTrust = !apps::codex_backend::unixPeerCredentialsSupported();
+            frontend::FrontendService frontendService(backendCore, std::move(serviceOptions));
 
-            apps::codex_backend::SocketFrontendOptions frontendOptions;
-            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::CodexFrontendSocketContextFactory,
-                                                                 FakeBackendCore&,
-                                                                 apps::codex_backend::SocketFrontendOptions>;
-            Server server("codex-client-real-backend-server", backendCore, std::move(frontendOptions));
+            apps::codex_backend::FrontendStreamSocketContextFactoryOptions frontendOptions;
+            frontendOptions.transport = frontend::FrontendTransportKind::Unix;
+            frontendOptions.resolvePeer = [](core::socket::stream::SocketConnection& connection) {
+                return apps::codex_backend::verifiedUnixPeerContextFromFileDescriptor(connection.getFd(),
+                                                                                      static_cast<std::uint64_t>(::geteuid()));
+            };
+            using Server = net::un::stream::legacy::SocketServer<apps::codex_backend::FrontendStreamSocketContextFactory,
+                                                                 frontend::FrontendService&,
+                                                                 apps::codex_backend::FrontendStreamSocketContextFactoryOptions>;
+            Server server("codex-client-real-backend-server", frontendService, std::move(frontendOptions));
             server.getConfig()->Instance::forceUnrequired();
 
             backendCore.start();
@@ -1077,7 +1101,11 @@ int main(int argc, char* argv[]) {
 
             server.listen(path, [&](const net::un::SocketAddress&, core::socket::State state) {
                 if (state != core::socket::State::OK) {
-                    lifecycle.connectionFailed("real BackendAdapter Unix server failed to listen");
+                    lifecycle.connectionFailed("real FrontendService Unix server failed to listen");
+                    return;
+                }
+                if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0) {
+                    lifecycle.connectionFailed("real FrontendService Unix listener could not be secured");
                     return;
                 }
                 ++listenSuccessCount;
@@ -1166,8 +1194,8 @@ int main(int argc, char* argv[]) {
         result.expectEqual(1, static_cast<int>(connectionCallbackCount), "production client connection callback runs exactly once");
         result.expectTrue(acquireQueuedBeforeConnection, "acquire entered before readiness is retained behind the synchronization barrier");
         result.expectEqual(1, static_cast<int>(welcomeCount), "exactly one automatic hello produces exactly one real-adapter welcome");
-        result.expectEqual(1, static_cast<int>(snapshotCount), "real BackendAdapter emits one initial snapshot");
-        result.expectEqual(1, static_cast<int>(syncCompleteCount), "real BackendAdapter emits one initial sync.complete");
+        result.expectEqual(1, static_cast<int>(snapshotCount), "real FrontendService emits one initial snapshot");
+        result.expectEqual(1, static_cast<int>(syncCompleteCount), "real FrontendService emits one initial sync.complete");
         result.expectTrue(initialMessageKinds == std::vector<std::string>{"welcome", "snapshot", "sync.complete"},
                           "real adapter handshake is decoded in welcome, snapshot, sync.complete order");
         result.expectTrue(syncObservedWhileSynchronizing && reachedReady,

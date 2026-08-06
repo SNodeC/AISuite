@@ -9,7 +9,7 @@
 #include <ai/openai/codex/backend/BackendCore.h>
 #include <ai/openai/codex/backend/BackendState.h>
 #include <ai/openai/codex/backend/Snapshot.h>
-#include <ai/openai/codex/frontend/BackendAdapter.h>
+#include <ai/openai/codex/frontend/FrontendService.h>
 #include <ai/openai/codex/frontend/GeneratedProtocol.h>
 #include <ai/openai/codex/frontend/Security.h>
 #include <ai/openai/codex/stdio/Client.h>
@@ -67,14 +67,17 @@ namespace {
 
     class ModuleSocketContext final : public core::socket::stream::SocketContext {
     public:
-        ModuleSocketContext(core::socket::stream::SocketConnection* socketConnection, codex::frontend::BackendAdapter& adapter)
+        ModuleSocketContext(core::socket::stream::SocketConnection* socketConnection, codex::frontend::FrontendService& adapter)
             : core::socket::stream::SocketContext(socketConnection)
             , adapter(adapter) {
         }
 
     private:
         void onConnected() override {
-            connection = adapter.openConnection({.onMessage =
+            codex::frontend::FrontendPeerContext peer;
+            peer.transport = codex::frontend::FrontendTransportKind::Unix;
+            connection = adapter.openConnection(std::move(peer),
+                                                {.onMessage =
                                                      [this](const codex::frontend::OutboundMessage& message) {
                                                          sendToPeer(message.compactJson.data(), message.compactJson.size());
                                                          static constexpr char newline = '\n';
@@ -101,13 +104,13 @@ namespace {
             return true;
         }
 
-        codex::frontend::BackendAdapter& adapter;
+        codex::frontend::FrontendService& adapter;
         codex::frontend::FrontendConnection connection;
     };
 
     class ModuleSocketContextFactory final : public core::socket::stream::SocketContextFactory {
     public:
-        explicit ModuleSocketContextFactory(codex::frontend::BackendAdapter& adapter)
+        explicit ModuleSocketContextFactory(codex::frontend::FrontendService& adapter)
             : adapter(adapter) {
         }
 
@@ -116,7 +119,7 @@ namespace {
         }
 
     private:
-        codex::frontend::BackendAdapter& adapter;
+        codex::frontend::FrontendService& adapter;
     };
 } // namespace
 
@@ -131,7 +134,12 @@ int main(int argc, char* argv[]) {
     const std::filesystem::path socketPath = std::filesystem::current_path() / "aisuite-module-consumer.sock";
     {
         codex::backend::BackendCore<codex::stdio::Client> backend;
-        codex::frontend::BackendAdapter adapter(backend);
+        codex::frontend::FrontendServiceOptions frontendOptions;
+        // The isolated installed-package consumer has no production trust
+        // policy. Make its local-only compile/run fixture explicit instead of
+        // relying on the transport kind as implicit authentication.
+        frontendOptions.allowInsecureLocalTrust = true;
+        codex::frontend::FrontendService adapter(backend, std::move(frontendOptions));
         auto server = net::un::stream::legacy::Server<ModuleSocketContextFactory>(
             "aisuite-installed-module-server",
             [&socketPath](net::un::stream::legacy::config::ConfigSocketServer* config) {

@@ -8,6 +8,8 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_MESSAGES_H
 #define AI_OPENAI_CODEX_FRONTEND_MESSAGES_H
 
+#include "ai/openai/codex/frontend/Security.h"
+
 #include <compare>
 #include <cstdint>
 #include <limits>
@@ -223,6 +225,28 @@ namespace ai::openai::codex::frontend {
         bool operator==(const ExpandedThreadItem&) const = default;
     };
 
+    struct ExpandedPendingRequestOption {
+        std::string label;
+        std::string description;
+        Json extensions = Json::object();
+
+        bool operator==(const ExpandedPendingRequestOption&) const = default;
+    };
+
+    struct ExpandedPendingRequestQuestion {
+        std::string id;
+        std::string header;
+        std::string prompt;
+        bool allowsFreeText = false;
+        // This is presentation metadata only. Secret answers are never part of
+        // a pending-request projection.
+        bool isSecret = false;
+        std::vector<ExpandedPendingRequestOption> options;
+        Json extensions = Json::object();
+
+        bool operator==(const ExpandedPendingRequestQuestion&) const = default;
+    };
+
     struct ExpandedPendingRequest {
         std::string pendingRequestId;
         PendingRequestKind kind = PendingRequestKind::CommandExecutionApproval;
@@ -231,6 +255,8 @@ namespace ai::openai::codex::frontend {
         std::optional<std::string> itemId;
         std::optional<std::string> summary;
         std::optional<Json> details;
+        std::optional<std::vector<ExpandedPendingRequestQuestion>> questions;
+        std::optional<std::uint64_t> autoResolutionMs;
         bool truncated = false;
         Json extensions = Json::object();
 
@@ -292,15 +318,18 @@ namespace ai::openai::codex::frontend {
         std::optional<SequenceNumber> resumeAfter;
         Json extensions = Json::object();
         std::optional<std::vector<FrontendCapability>> capabilities;
+        std::optional<AuthenticationCredential> authentication;
 
         Hello() = default;
 
         Hello(std::optional<SequenceNumber> resumeAfter,
               Json extensions = Json::object(),
-              std::optional<std::vector<FrontendCapability>> capabilities = std::nullopt)
+              std::optional<std::vector<FrontendCapability>> capabilities = std::nullopt,
+              std::optional<AuthenticationCredential> authentication = std::nullopt)
             : resumeAfter(resumeAfter)
             , extensions(std::move(extensions))
-            , capabilities(std::move(capabilities)) {
+            , capabilities(std::move(capabilities))
+            , authentication(std::move(authentication)) {
         }
 
         bool operator==(const Hello&) const = default;
