@@ -235,6 +235,13 @@ namespace {
             expect(remoteWelcome->availableMethods.has_value() && remoteWelcome->availableMethods->size() == 90 &&
                        remoteWelcome->permittedMethods.has_value() && remoteWelcome->permittedMethods->size() == 53,
                    "Welcome freezes the same 90 available and 53 default_remote permitted methods at handshake");
+            frontend::Json expectedScopes = frontend::Json::array();
+            for (const frontend::FrontendScope scope : frontend::DefaultRemoteScopes) {
+                expectedScopes.push_back(std::string(frontend::toString(scope)));
+            }
+            expect(remoteWelcome->extensions.contains("permittedScopes") &&
+                       remoteWelcome->extensions.at("permittedScopes") == expectedScopes,
+                   "Welcome freezes the exact default_remote permitted-scope set at handshake");
         }
 
         void acquireController() {

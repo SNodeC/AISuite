@@ -61,8 +61,13 @@ namespace {
     using ai::openai::codex::frontend::FrontendTransportKind;
 
     template <typename Address>
-    void reportListener(std::string_view name, const Address& address, const core::socket::State& state) {
+    void reportListener(ai::openai::codex::frontend::FrontendService& service,
+                        FrontendTransportKind transport,
+                        std::string_view name,
+                        const Address& address,
+                        const core::socket::State& state) {
         if (state == core::socket::State::OK) {
+            service.declareTransportFamily(transport);
             std::cout << "codex-backend: frontend listener " << name << " bound at " << address.toString() << '\n';
         } else if (state == core::socket::State::DISABLED) {
             std::cout << "codex-backend: frontend listener " << name << " is disabled\n";
@@ -296,7 +301,7 @@ int main(int argc, char* argv[]) {
 #endif
 #endif
 
-        unixServer.listen([](const net::un::SocketAddress& address, const core::socket::State& state) {
+        unixServer.listen([&frontendService](const net::un::SocketAddress& address, const core::socket::State& state) {
             if (state == core::socket::State::OK) {
                 const std::string socketPath = address.getSunPath();
                 const bool ownerOnly =
@@ -308,71 +313,71 @@ int main(int argc, char* argv[]) {
                     return;
                 }
             }
-            reportListener("unix", address, state);
+            reportListener(frontendService, FrontendTransportKind::Unix, "unix", address, state);
         });
-        ipv4Server.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in::SocketAddress& address,
-                                                                                              const core::socket::State& state) {
+        ipv4Server.listen([&frontendService, allowInsecure = authenticationConfiguration.allowInsecureRemote()](
+                              const net::in::SocketAddress& address, const core::socket::State& state) {
             if (state == core::socket::State::OK && !allowInsecure &&
                 !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), false)) {
                 std::cerr << "codex-backend: rejected a non-loopback plaintext IPv4 frontend bind\n";
                 core::SNodeC::stop();
                 return;
             }
-            reportListener("ipv4", address, state);
+            reportListener(frontendService, FrontendTransportKind::Ipv4, "ipv4", address, state);
         });
-        ipv6Server.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in6::SocketAddress& address,
-                                                                                              const core::socket::State& state) {
+        ipv6Server.listen([&frontendService, allowInsecure = authenticationConfiguration.allowInsecureRemote()](
+                              const net::in6::SocketAddress& address, const core::socket::State& state) {
             if (state == core::socket::State::OK && !allowInsecure &&
                 !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), true)) {
                 std::cerr << "codex-backend: rejected a non-loopback plaintext IPv6 frontend bind\n";
                 core::SNodeC::stop();
                 return;
             }
-            reportListener("ipv6", address, state);
+            reportListener(frontendService, FrontendTransportKind::Ipv6, "ipv6", address, state);
         });
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-        tlsIpv4Server.listen([](const net::in::SocketAddress& address, const core::socket::State& state) {
-            reportListener("tls-ipv4", address, state);
+        tlsIpv4Server.listen([&frontendService](const net::in::SocketAddress& address, const core::socket::State& state) {
+            reportListener(frontendService, FrontendTransportKind::TcpTls, "tls-ipv4", address, state);
         });
-        tlsIpv6Server.listen([](const net::in6::SocketAddress& address, const core::socket::State& state) {
-            reportListener("tls-ipv6", address, state);
+        tlsIpv6Server.listen([&frontendService](const net::in6::SocketAddress& address, const core::socket::State& state) {
+            reportListener(frontendService, FrontendTransportKind::TcpTls, "tls-ipv6", address, state);
         });
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-        rfcommServer.listen([](const net::rc::SocketAddress& address, const core::socket::State& state) {
-            reportListener("rfcomm", address, state);
+        rfcommServer.listen([&frontendService](const net::rc::SocketAddress& address, const core::socket::State& state) {
+            reportListener(frontendService, FrontendTransportKind::Rfcomm, "rfcomm", address, state);
         });
-        rfcommTlsServer.listen([](const net::rc::SocketAddress& address, const core::socket::State& state) {
-            reportListener("rfcomm-tls", address, state);
+        rfcommTlsServer.listen([&frontendService](const net::rc::SocketAddress& address, const core::socket::State& state) {
+            reportListener(frontendService, FrontendTransportKind::RfcommTls, "rfcomm-tls", address, state);
         });
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        webSocketIpv4App.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in::SocketAddress& address,
-                                                                                                    const core::socket::State& state) {
+        webSocketIpv4App.listen([&frontendService, allowInsecure = authenticationConfiguration.allowInsecureRemote()](
+                                    const net::in::SocketAddress& address, const core::socket::State& state) {
             if (state == core::socket::State::OK && !allowInsecure &&
                 !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), false)) {
                 std::cerr << "codex-backend: rejected a non-loopback plaintext WebSocket bind\n";
                 core::SNodeC::stop();
                 return;
             }
-            reportListener("websocket-ipv4", address, state);
+            reportListener(frontendService, FrontendTransportKind::WebSocket, "websocket-ipv4", address, state);
         });
-        webSocketIpv6App.listen([allowInsecure = authenticationConfiguration.allowInsecureRemote()](const net::in6::SocketAddress& address,
-                                                                                                    const core::socket::State& state) {
+        webSocketIpv6App.listen([&frontendService, allowInsecure = authenticationConfiguration.allowInsecureRemote()](
+                                    const net::in6::SocketAddress& address, const core::socket::State& state) {
             if (state == core::socket::State::OK && !allowInsecure &&
                 !apps::codex_backend::isLoopbackFrontendAddress(address.getHost(), true)) {
                 std::cerr << "codex-backend: rejected a non-loopback plaintext WebSocket bind\n";
                 core::SNodeC::stop();
                 return;
             }
-            reportListener("websocket-ipv6", address, state);
+            reportListener(frontendService, FrontendTransportKind::WebSocket, "websocket-ipv6", address, state);
         });
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-        webSocketTlsIpv4App.listen([](const net::in::SocketAddress& address, const core::socket::State& state) {
-            reportListener("wss-ipv4", address, state);
+        webSocketTlsIpv4App.listen([&frontendService](const net::in::SocketAddress& address, const core::socket::State& state) {
+            reportListener(frontendService, FrontendTransportKind::WebSocketTls, "wss-ipv4", address, state);
         });
-        webSocketTlsIpv6App.listen([](const net::in6::SocketAddress& address, const core::socket::State& state) {
-            reportListener("wss-ipv6", address, state);
+        webSocketTlsIpv6App.listen([&frontendService](const net::in6::SocketAddress& address, const core::socket::State& state) {
+            reportListener(frontendService, FrontendTransportKind::WebSocketTls, "wss-ipv6", address, state);
         });
 #endif
 #endif

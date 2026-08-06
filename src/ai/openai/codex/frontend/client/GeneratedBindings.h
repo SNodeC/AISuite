@@ -2,11 +2,80 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_CLIENT_GENERATEDBINDINGS_H
 #define AI_OPENAI_CODEX_FRONTEND_CLIENT_GENERATEDBINDINGS_H
 
-#include "ai/openai/codex/frontend/GeneratedProtocol.h"
+#include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/frontend/client/Accounts.h"
+#include "ai/openai/codex/frontend/client/Apps.h"
+#include "ai/openai/codex/frontend/client/Commands.h"
+#include "ai/openai/codex/frontend/client/Configuration.h"
+#include "ai/openai/codex/frontend/client/Controller.h"
+#include "ai/openai/codex/frontend/client/ExternalAgents.h"
+#include "ai/openai/codex/frontend/client/Feedback.h"
+#include "ai/openai/codex/frontend/client/Filesystem.h"
+#include "ai/openai/codex/frontend/client/Hooks.h"
+#include "ai/openai/codex/frontend/client/Marketplace.h"
+#include "ai/openai/codex/frontend/client/Mcp.h"
+#include "ai/openai/codex/frontend/client/Models.h"
+#include "ai/openai/codex/frontend/client/PermissionProfiles.h"
+#include "ai/openai/codex/frontend/client/Plugins.h"
+#include "ai/openai/codex/frontend/client/Provider.h"
+#include "ai/openai/codex/frontend/client/Requests.h"
+#include "ai/openai/codex/frontend/client/Results.h"
+#include "ai/openai/codex/frontend/client/Reviews.h"
+#include "ai/openai/codex/frontend/client/Skills.h"
+#include "ai/openai/codex/frontend/client/Synchronization.h"
+#include "ai/openai/codex/frontend/client/Threads.h"
+#include "ai/openai/codex/frontend/client/Turns.h"
+#include "ai/openai/codex/frontend/client/Types.h"
+#include "ai/openai/codex/frontend/client/WindowsSandbox.h"
+#include "ai/openai/codex/typed/Accounts.h"
+#include "ai/openai/codex/typed/Apps.h"
+#include "ai/openai/codex/typed/Commands.h"
+#include "ai/openai/codex/typed/Configuration.h"
+#include "ai/openai/codex/typed/ExternalAgents.h"
+#include "ai/openai/codex/typed/Feedback.h"
+#include "ai/openai/codex/typed/Filesystem.h"
+#include "ai/openai/codex/typed/Hooks.h"
+#include "ai/openai/codex/typed/Marketplace.h"
+#include "ai/openai/codex/typed/Mcp.h"
+#include "ai/openai/codex/typed/Models.h"
+#include "ai/openai/codex/typed/PermissionProfiles.h"
+#include "ai/openai/codex/typed/Plugins.h"
+#include "ai/openai/codex/typed/Results.h"
+#include "ai/openai/codex/typed/Reviews.h"
+#include "ai/openai/codex/typed/Skills.h"
+#include "ai/openai/codex/typed/Threads.h"
+#include "ai/openai/codex/typed/Turns.h"
+#include "ai/openai/codex/typed/WindowsSandbox.h"
 
 #include <array>
 #include <cstddef>
 #include <string_view>
+#include <type_traits>
+
+namespace ai::openai::codex::frontend::client {
+    class Accounts;
+    class Apps;
+    class Commands;
+    class Configuration;
+    class Controller;
+    class ExternalAgents;
+    class Feedback;
+    class Filesystem;
+    class Hooks;
+    class Marketplace;
+    class Mcp;
+    class Models;
+    class PermissionProfiles;
+    class Plugins;
+    class Provider;
+    class Requests;
+    class Reviews;
+    class Skills;
+    class Synchronization;
+    class Threads;
+    class Turns;
+    class WindowsSandbox;
+}
 
 // clang-format off
 namespace ai::openai::codex::frontend::client::generated {
@@ -26,6 +95,1277 @@ namespace ai::openai::codex::frontend::client::generated {
         std::string_view resultDecoder;
         bool sensitive;
     };
+
+    template <frontend::generated::MethodId Method>
+    struct BindingTraits;
+
+    template <typename T>
+    struct IsGeneratedJsonWrapper : std::false_type {};
+    template <frontend::generated::MethodId Method>
+    struct IsGeneratedJsonWrapper<frontend::generated::MethodParameters<Method>> : std::true_type {};
+    template <frontend::generated::MethodId Method>
+    struct IsGeneratedJsonWrapper<frontend::generated::MethodResult<Method>> : std::true_type {};
+
+    template <> struct BindingTraits<frontend::generated::MethodId::ControllerAcquire> {
+        using Facade = ::ai::openai::codex::frontend::client::Controller;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::frontend::client::ControllerResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ControllerAcquire;
+        static constexpr BindingCategory Category = BindingCategory::Native;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ControllerAcquire>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ControllerAcquire>::Result>::value);
+    using BindingMember_ControllerAcquire = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Controller::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::ControllerResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ControllerAcquire>(&::ai::openai::codex::frontend::client::Controller::acquire)), BindingMember_ControllerAcquire>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ControllerRelease> {
+        using Facade = ::ai::openai::codex::frontend::client::Controller;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::frontend::client::ControllerResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ControllerRelease;
+        static constexpr BindingCategory Category = BindingCategory::Native;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ControllerRelease>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ControllerRelease>::Result>::value);
+    using BindingMember_ControllerRelease = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Controller::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::ControllerResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ControllerRelease>(&::ai::openai::codex::frontend::client::Controller::release)), BindingMember_ControllerRelease>);
+    template <> struct BindingTraits<frontend::generated::MethodId::SnapshotGet> {
+        using Facade = ::ai::openai::codex::frontend::client::Synchronization;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::frontend::client::SynchronizationResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::SnapshotGet;
+        static constexpr BindingCategory Category = BindingCategory::Native;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SnapshotGet>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SnapshotGet>::Result>::value);
+    using BindingMember_SnapshotGet = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Synchronization::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::SynchronizationResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_SnapshotGet>(&::ai::openai::codex::frontend::client::Synchronization::snapshot)), BindingMember_SnapshotGet>);
+    template <> struct BindingTraits<frontend::generated::MethodId::EventsReplay> {
+        using Facade = ::ai::openai::codex::frontend::client::Synchronization;
+        using Parameter = ::ai::openai::codex::frontend::SequenceNumber;
+        using Result = ::ai::openai::codex::frontend::client::SynchronizationResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::EventsReplay;
+        static constexpr BindingCategory Category = BindingCategory::Native;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::EventsReplay>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::EventsReplay>::Result>::value);
+    using BindingMember_EventsReplay = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Synchronization::*)(::ai::openai::codex::frontend::SequenceNumber, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::SynchronizationResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_EventsReplay>(&::ai::openai::codex::frontend::client::Synchronization::replay)), BindingMember_EventsReplay>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadStart> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadStartParams;
+        using Result = ::ai::openai::codex::frontend::client::ThreadStartResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadStart;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadStart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadStart>::Result>::value);
+    using BindingMember_ThreadStart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadStartParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::ThreadStartResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadStart>(&::ai::openai::codex::frontend::client::Threads::start)), BindingMember_ThreadStart>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadResume> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadResumeParams;
+        using Result = ::ai::openai::codex::frontend::client::ThreadResumeResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadResume;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadResume>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadResume>::Result>::value);
+    using BindingMember_ThreadResume = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadResumeParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::ThreadResumeResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadResume>(&::ai::openai::codex::frontend::client::Threads::resume)), BindingMember_ThreadResume>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadList> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadListParams;
+        using Result = ::ai::openai::codex::frontend::client::ThreadListResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadList>::Result>::value);
+    using BindingMember_ThreadList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::ThreadListResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadList>(&::ai::openai::codex::frontend::client::Threads::list)), BindingMember_ThreadList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadReadParams;
+        using Result = ::ai::openai::codex::frontend::client::ThreadReadResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadRead>::Result>::value);
+    using BindingMember_ThreadRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadReadParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::ThreadReadResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadRead>(&::ai::openai::codex::frontend::client::Threads::read)), BindingMember_ThreadRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::TurnStart> {
+        using Facade = ::ai::openai::codex::frontend::client::Turns;
+        using Parameter = ::ai::openai::codex::typed::TurnStartParams;
+        using Result = ::ai::openai::codex::frontend::client::TurnStartResult;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::TurnStart;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::TurnStart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::TurnStart>::Result>::value);
+    using BindingMember_TurnStart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Turns::*)(::ai::openai::codex::typed::TurnStartParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::frontend::client::TurnStartResult>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_TurnStart>(&::ai::openai::codex::frontend::client::Turns::start)), BindingMember_TurnStart>);
+    template <> struct BindingTraits<frontend::generated::MethodId::TurnInterrupt> {
+        using Facade = ::ai::openai::codex::frontend::client::Turns;
+        using Parameter = ::ai::openai::codex::typed::TurnInterruptParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::TurnInterrupt;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::TurnInterrupt>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::TurnInterrupt>::Result>::value);
+    using BindingMember_TurnInterrupt = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Turns::*)(::ai::openai::codex::typed::TurnInterruptParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_TurnInterrupt>(&::ai::openai::codex::frontend::client::Turns::interrupt)), BindingMember_TurnInterrupt>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ApprovalRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::ApprovalRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ApprovalRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ApprovalRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ApprovalRespond>::Result>::value);
+    using BindingMember_ApprovalRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::ApprovalRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ApprovalRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_ApprovalRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::UserInputRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::UserInputRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::UserInputRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::UserInputRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::UserInputRespond>::Result>::value);
+    using BindingMember_UserInputRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::UserInputRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_UserInputRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_UserInputRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AuthenticationRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::AuthenticationRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AuthenticationRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AuthenticationRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AuthenticationRespond>::Result>::value);
+    using BindingMember_AuthenticationRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::AuthenticationRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AuthenticationRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_AuthenticationRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::UnknownRequestRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::UnknownRequestRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::UnknownRequestRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::UnknownRequestRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::UnknownRequestRespond>::Result>::value);
+    using BindingMember_UnknownRequestRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::UnknownRequestRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_UnknownRequestRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_UnknownRequestRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::UnknownRequestReject> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::UnknownRequestRejectParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::UnknownRequestReject;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::UnknownRequestReject>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::UnknownRequestReject>::Result>::value);
+    using BindingMember_UnknownRequestReject = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::UnknownRequestRejectParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_UnknownRequestReject>(&::ai::openai::codex::frontend::client::Requests::reject)), BindingMember_UnknownRequestReject>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountLoginCancel> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::CancelLoginAccountParams;
+        using Result = ::ai::openai::codex::typed::CancelLoginAccountResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountLoginCancel;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountLoginCancel>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountLoginCancel>::Result>::value);
+    using BindingMember_AccountLoginCancel = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::typed::CancelLoginAccountParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::CancelLoginAccountResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountLoginCancel>(&::ai::openai::codex::frontend::client::Accounts::cancelLogin)), BindingMember_AccountLoginCancel>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountLoginStart> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::LoginAccountParams;
+        using Result = ::ai::openai::codex::typed::LoginAccountResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountLoginStart;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountLoginStart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountLoginStart>::Result>::value);
+    using BindingMember_AccountLoginStart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::typed::LoginAccountParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::LoginAccountResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountLoginStart>(&::ai::openai::codex::frontend::client::Accounts::startLogin)), BindingMember_AccountLoginStart>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountLogout> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountLogout;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountLogout>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountLogout>::Result>::value);
+    using BindingMember_AccountLogout = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountLogout>(&::ai::openai::codex::frontend::client::Accounts::logout)), BindingMember_AccountLogout>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountRateLimitResetCreditConsume> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::ConsumeAccountRateLimitResetCreditParams;
+        using Result = ::ai::openai::codex::typed::ConsumeAccountRateLimitResetCreditResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountRateLimitResetCreditConsume;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountRateLimitResetCreditConsume>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountRateLimitResetCreditConsume>::Result>::value);
+    using BindingMember_AccountRateLimitResetCreditConsume = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::typed::ConsumeAccountRateLimitResetCreditParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ConsumeAccountRateLimitResetCreditResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountRateLimitResetCreditConsume>(&::ai::openai::codex::frontend::client::Accounts::consumeRateLimitResetCredit)), BindingMember_AccountRateLimitResetCreditConsume>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountRateLimitsRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::GetAccountRateLimitsResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountRateLimitsRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountRateLimitsRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountRateLimitsRead>::Result>::value);
+    using BindingMember_AccountRateLimitsRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::GetAccountRateLimitsResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountRateLimitsRead>(&::ai::openai::codex::frontend::client::Accounts::readRateLimits)), BindingMember_AccountRateLimitsRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::GetAccountParams;
+        using Result = ::ai::openai::codex::typed::GetAccountResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountRead>::Result>::value);
+    using BindingMember_AccountRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::typed::GetAccountParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::GetAccountResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountRead>(&::ai::openai::codex::frontend::client::Accounts::read)), BindingMember_AccountRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountSendAddCreditsNudgeEmail> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::SendAddCreditsNudgeEmailParams;
+        using Result = ::ai::openai::codex::typed::SendAddCreditsNudgeEmailResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountSendAddCreditsNudgeEmail;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountSendAddCreditsNudgeEmail>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountSendAddCreditsNudgeEmail>::Result>::value);
+    using BindingMember_AccountSendAddCreditsNudgeEmail = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::typed::SendAddCreditsNudgeEmailParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::SendAddCreditsNudgeEmailResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountSendAddCreditsNudgeEmail>(&::ai::openai::codex::frontend::client::Accounts::sendAddCreditsNudgeEmail)), BindingMember_AccountSendAddCreditsNudgeEmail>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountUsageRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::GetAccountTokenUsageResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountUsageRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountUsageRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountUsageRead>::Result>::value);
+    using BindingMember_AccountUsageRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::GetAccountTokenUsageResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountUsageRead>(&::ai::openai::codex::frontend::client::Accounts::readUsage)), BindingMember_AccountUsageRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AccountWorkspaceMessagesRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Accounts;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::GetWorkspaceMessagesResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AccountWorkspaceMessagesRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountWorkspaceMessagesRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AccountWorkspaceMessagesRead>::Result>::value);
+    using BindingMember_AccountWorkspaceMessagesRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Accounts::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::GetWorkspaceMessagesResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AccountWorkspaceMessagesRead>(&::ai::openai::codex::frontend::client::Accounts::readWorkspaceMessages)), BindingMember_AccountWorkspaceMessagesRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AppsList> {
+        using Facade = ::ai::openai::codex::frontend::client::Apps;
+        using Parameter = ::ai::openai::codex::typed::AppsListParams;
+        using Result = ::ai::openai::codex::typed::AppsListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AppsList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AppsList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AppsList>::Result>::value);
+    using BindingMember_AppsList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Apps::*)(::ai::openai::codex::typed::AppsListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::AppsListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AppsList>(&::ai::openai::codex::frontend::client::Apps::list)), BindingMember_AppsList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::CommandExec> {
+        using Facade = ::ai::openai::codex::frontend::client::Commands;
+        using Parameter = ::ai::openai::codex::typed::CommandExecParams;
+        using Result = ::ai::openai::codex::typed::CommandExecResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::CommandExec;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExec>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExec>::Result>::value);
+    using BindingMember_CommandExec = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Commands::*)(::ai::openai::codex::typed::CommandExecParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::CommandExecResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_CommandExec>(&::ai::openai::codex::frontend::client::Commands::exec)), BindingMember_CommandExec>);
+    template <> struct BindingTraits<frontend::generated::MethodId::CommandExecResize> {
+        using Facade = ::ai::openai::codex::frontend::client::Commands;
+        using Parameter = ::ai::openai::codex::typed::CommandExecResizeParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::CommandExecResize;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExecResize>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExecResize>::Result>::value);
+    using BindingMember_CommandExecResize = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Commands::*)(::ai::openai::codex::typed::CommandExecResizeParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_CommandExecResize>(&::ai::openai::codex::frontend::client::Commands::resize)), BindingMember_CommandExecResize>);
+    template <> struct BindingTraits<frontend::generated::MethodId::CommandExecTerminate> {
+        using Facade = ::ai::openai::codex::frontend::client::Commands;
+        using Parameter = ::ai::openai::codex::typed::CommandExecTerminateParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::CommandExecTerminate;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExecTerminate>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExecTerminate>::Result>::value);
+    using BindingMember_CommandExecTerminate = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Commands::*)(::ai::openai::codex::typed::CommandExecTerminateParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_CommandExecTerminate>(&::ai::openai::codex::frontend::client::Commands::terminate)), BindingMember_CommandExecTerminate>);
+    template <> struct BindingTraits<frontend::generated::MethodId::CommandExecWrite> {
+        using Facade = ::ai::openai::codex::frontend::client::Commands;
+        using Parameter = ::ai::openai::codex::typed::CommandExecWriteParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::CommandExecWrite;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExecWrite>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::CommandExecWrite>::Result>::value);
+    using BindingMember_CommandExecWrite = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Commands::*)(::ai::openai::codex::typed::CommandExecWriteParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_CommandExecWrite>(&::ai::openai::codex::frontend::client::Commands::write)), BindingMember_CommandExecWrite>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ConfigBatchWrite> {
+        using Facade = ::ai::openai::codex::frontend::client::Configuration;
+        using Parameter = ::ai::openai::codex::typed::ConfigBatchWriteParams;
+        using Result = ::ai::openai::codex::typed::ConfigWriteResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ConfigBatchWrite;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigBatchWrite>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigBatchWrite>::Result>::value);
+    using BindingMember_ConfigBatchWrite = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Configuration::*)(::ai::openai::codex::typed::ConfigBatchWriteParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ConfigWriteResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ConfigBatchWrite>(&::ai::openai::codex::frontend::client::Configuration::batchWrite)), BindingMember_ConfigBatchWrite>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ConfigMcpServerReload> {
+        using Facade = ::ai::openai::codex::frontend::client::Configuration;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ConfigMcpServerReload;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigMcpServerReload>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigMcpServerReload>::Result>::value);
+    using BindingMember_ConfigMcpServerReload = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Configuration::*)(::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ConfigMcpServerReload>(&::ai::openai::codex::frontend::client::Configuration::reloadMcpServers)), BindingMember_ConfigMcpServerReload>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ConfigRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Configuration;
+        using Parameter = ::ai::openai::codex::typed::ConfigReadParams;
+        using Result = ::ai::openai::codex::typed::ConfigReadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ConfigRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigRead>::Result>::value);
+    using BindingMember_ConfigRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Configuration::*)(::ai::openai::codex::typed::ConfigReadParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ConfigReadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ConfigRead>(&::ai::openai::codex::frontend::client::Configuration::read)), BindingMember_ConfigRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ConfigValueWrite> {
+        using Facade = ::ai::openai::codex::frontend::client::Configuration;
+        using Parameter = ::ai::openai::codex::typed::ConfigValueWriteParams;
+        using Result = ::ai::openai::codex::typed::ConfigWriteResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ConfigValueWrite;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigValueWrite>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigValueWrite>::Result>::value);
+    using BindingMember_ConfigValueWrite = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Configuration::*)(::ai::openai::codex::typed::ConfigValueWriteParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ConfigWriteResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ConfigValueWrite>(&::ai::openai::codex::frontend::client::Configuration::writeValue)), BindingMember_ConfigValueWrite>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ConfigRequirementsRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Configuration;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::ConfigRequirementsReadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ConfigRequirementsRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigRequirementsRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ConfigRequirementsRead>::Result>::value);
+    using BindingMember_ConfigRequirementsRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Configuration::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ConfigRequirementsReadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ConfigRequirementsRead>(&::ai::openai::codex::frontend::client::Configuration::readRequirements)), BindingMember_ConfigRequirementsRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ExperimentalFeatureEnablementSet> {
+        using Facade = ::ai::openai::codex::frontend::client::Configuration;
+        using Parameter = ::ai::openai::codex::typed::ExperimentalFeatureEnablementSetParams;
+        using Result = ::ai::openai::codex::typed::ExperimentalFeatureEnablementSetResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ExperimentalFeatureEnablementSet;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExperimentalFeatureEnablementSet>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExperimentalFeatureEnablementSet>::Result>::value);
+    using BindingMember_ExperimentalFeatureEnablementSet = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Configuration::*)(::ai::openai::codex::typed::ExperimentalFeatureEnablementSetParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ExperimentalFeatureEnablementSetResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ExperimentalFeatureEnablementSet>(&::ai::openai::codex::frontend::client::Configuration::setExperimentalFeatureEnablement)), BindingMember_ExperimentalFeatureEnablementSet>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ExperimentalFeatureList> {
+        using Facade = ::ai::openai::codex::frontend::client::Configuration;
+        using Parameter = ::ai::openai::codex::typed::ExperimentalFeatureListParams;
+        using Result = ::ai::openai::codex::typed::ExperimentalFeatureListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ExperimentalFeatureList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExperimentalFeatureList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExperimentalFeatureList>::Result>::value);
+    using BindingMember_ExperimentalFeatureList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Configuration::*)(::ai::openai::codex::typed::ExperimentalFeatureListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ExperimentalFeatureListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ExperimentalFeatureList>(&::ai::openai::codex::frontend::client::Configuration::listExperimentalFeatures)), BindingMember_ExperimentalFeatureList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ExternalAgentConfigDetect> {
+        using Facade = ::ai::openai::codex::frontend::client::ExternalAgents;
+        using Parameter = ::ai::openai::codex::typed::ExternalAgentConfigDetectParams;
+        using Result = ::ai::openai::codex::typed::ExternalAgentConfigDetectResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ExternalAgentConfigDetect;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExternalAgentConfigDetect>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExternalAgentConfigDetect>::Result>::value);
+    using BindingMember_ExternalAgentConfigDetect = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::ExternalAgents::*)(::ai::openai::codex::typed::ExternalAgentConfigDetectParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ExternalAgentConfigDetectResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ExternalAgentConfigDetect>(&::ai::openai::codex::frontend::client::ExternalAgents::detect)), BindingMember_ExternalAgentConfigDetect>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ExternalAgentConfigImport> {
+        using Facade = ::ai::openai::codex::frontend::client::ExternalAgents;
+        using Parameter = ::ai::openai::codex::typed::ExternalAgentConfigImportParams;
+        using Result = ::ai::openai::codex::typed::ExternalAgentConfigImportResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ExternalAgentConfigImport;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExternalAgentConfigImport>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExternalAgentConfigImport>::Result>::value);
+    using BindingMember_ExternalAgentConfigImport = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::ExternalAgents::*)(::ai::openai::codex::typed::ExternalAgentConfigImportParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ExternalAgentConfigImportResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ExternalAgentConfigImport>(&::ai::openai::codex::frontend::client::ExternalAgents::importConfiguration)), BindingMember_ExternalAgentConfigImport>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ExternalAgentConfigImportHistoriesRead> {
+        using Facade = ::ai::openai::codex::frontend::client::ExternalAgents;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::ExternalAgentConfigImportHistoriesReadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ExternalAgentConfigImportHistoriesRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExternalAgentConfigImportHistoriesRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExternalAgentConfigImportHistoriesRead>::Result>::value);
+    using BindingMember_ExternalAgentConfigImportHistoriesRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::ExternalAgents::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ExternalAgentConfigImportHistoriesReadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ExternalAgentConfigImportHistoriesRead>(&::ai::openai::codex::frontend::client::ExternalAgents::readImportHistories)), BindingMember_ExternalAgentConfigImportHistoriesRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FeedbackUpload> {
+        using Facade = ::ai::openai::codex::frontend::client::Feedback;
+        using Parameter = ::ai::openai::codex::typed::FeedbackUploadParams;
+        using Result = ::ai::openai::codex::typed::FeedbackUploadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FeedbackUpload;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FeedbackUpload>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FeedbackUpload>::Result>::value);
+    using BindingMember_FeedbackUpload = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Feedback::*)(::ai::openai::codex::typed::FeedbackUploadParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::FeedbackUploadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FeedbackUpload>(&::ai::openai::codex::frontend::client::Feedback::upload)), BindingMember_FeedbackUpload>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsCopy> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsCopyParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsCopy;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsCopy>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsCopy>::Result>::value);
+    using BindingMember_FsCopy = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsCopyParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsCopy>(&::ai::openai::codex::frontend::client::Filesystem::copy)), BindingMember_FsCopy>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsCreateDirectory> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsCreateDirectoryParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsCreateDirectory;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsCreateDirectory>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsCreateDirectory>::Result>::value);
+    using BindingMember_FsCreateDirectory = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsCreateDirectoryParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsCreateDirectory>(&::ai::openai::codex::frontend::client::Filesystem::createDirectory)), BindingMember_FsCreateDirectory>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsGetMetadata> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsGetMetadataParams;
+        using Result = ::ai::openai::codex::typed::FsGetMetadataResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsGetMetadata;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsGetMetadata>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsGetMetadata>::Result>::value);
+    using BindingMember_FsGetMetadata = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsGetMetadataParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::FsGetMetadataResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsGetMetadata>(&::ai::openai::codex::frontend::client::Filesystem::getMetadata)), BindingMember_FsGetMetadata>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsReadDirectory> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsReadDirectoryParams;
+        using Result = ::ai::openai::codex::typed::FsReadDirectoryResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsReadDirectory;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsReadDirectory>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsReadDirectory>::Result>::value);
+    using BindingMember_FsReadDirectory = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsReadDirectoryParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::FsReadDirectoryResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsReadDirectory>(&::ai::openai::codex::frontend::client::Filesystem::readDirectory)), BindingMember_FsReadDirectory>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsReadFile> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsReadFileParams;
+        using Result = ::ai::openai::codex::typed::FsReadFileResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsReadFile;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsReadFile>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsReadFile>::Result>::value);
+    using BindingMember_FsReadFile = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsReadFileParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::FsReadFileResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsReadFile>(&::ai::openai::codex::frontend::client::Filesystem::readFile)), BindingMember_FsReadFile>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsRemove> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsRemoveParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsRemove;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsRemove>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsRemove>::Result>::value);
+    using BindingMember_FsRemove = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsRemoveParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsRemove>(&::ai::openai::codex::frontend::client::Filesystem::remove)), BindingMember_FsRemove>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsUnwatch> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsUnwatchParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsUnwatch;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsUnwatch>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsUnwatch>::Result>::value);
+    using BindingMember_FsUnwatch = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsUnwatchParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsUnwatch>(&::ai::openai::codex::frontend::client::Filesystem::unwatch)), BindingMember_FsUnwatch>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsWatch> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsWatchParams;
+        using Result = ::ai::openai::codex::typed::FsWatchResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsWatch;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsWatch>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsWatch>::Result>::value);
+    using BindingMember_FsWatch = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsWatchParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::FsWatchResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsWatch>(&::ai::openai::codex::frontend::client::Filesystem::watch)), BindingMember_FsWatch>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FsWriteFile> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FsWriteFileParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FsWriteFile;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsWriteFile>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FsWriteFile>::Result>::value);
+    using BindingMember_FsWriteFile = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FsWriteFileParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FsWriteFile>(&::ai::openai::codex::frontend::client::Filesystem::writeFile)), BindingMember_FsWriteFile>);
+    template <> struct BindingTraits<frontend::generated::MethodId::FuzzyFileSearch> {
+        using Facade = ::ai::openai::codex::frontend::client::Filesystem;
+        using Parameter = ::ai::openai::codex::typed::FuzzyFileSearchParams;
+        using Result = ::ai::openai::codex::typed::FuzzyFileSearchResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::FuzzyFileSearch;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FuzzyFileSearch>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::FuzzyFileSearch>::Result>::value);
+    using BindingMember_FuzzyFileSearch = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Filesystem::*)(::ai::openai::codex::typed::FuzzyFileSearchParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::FuzzyFileSearchResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_FuzzyFileSearch>(&::ai::openai::codex::frontend::client::Filesystem::fuzzyFileSearch)), BindingMember_FuzzyFileSearch>);
+    template <> struct BindingTraits<frontend::generated::MethodId::HooksList> {
+        using Facade = ::ai::openai::codex::frontend::client::Hooks;
+        using Parameter = ::ai::openai::codex::typed::HooksListParams;
+        using Result = ::ai::openai::codex::typed::HooksListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::HooksList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::HooksList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::HooksList>::Result>::value);
+    using BindingMember_HooksList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Hooks::*)(::ai::openai::codex::typed::HooksListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::HooksListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_HooksList>(&::ai::openai::codex::frontend::client::Hooks::list)), BindingMember_HooksList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::MarketplaceAdd> {
+        using Facade = ::ai::openai::codex::frontend::client::Marketplace;
+        using Parameter = ::ai::openai::codex::typed::MarketplaceAddParams;
+        using Result = ::ai::openai::codex::typed::MarketplaceAddResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::MarketplaceAdd;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::MarketplaceAdd>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::MarketplaceAdd>::Result>::value);
+    using BindingMember_MarketplaceAdd = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Marketplace::*)(::ai::openai::codex::typed::MarketplaceAddParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::MarketplaceAddResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_MarketplaceAdd>(&::ai::openai::codex::frontend::client::Marketplace::add)), BindingMember_MarketplaceAdd>);
+    template <> struct BindingTraits<frontend::generated::MethodId::MarketplaceRemove> {
+        using Facade = ::ai::openai::codex::frontend::client::Marketplace;
+        using Parameter = ::ai::openai::codex::typed::MarketplaceRemoveParams;
+        using Result = ::ai::openai::codex::typed::MarketplaceRemoveResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::MarketplaceRemove;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::MarketplaceRemove>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::MarketplaceRemove>::Result>::value);
+    using BindingMember_MarketplaceRemove = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Marketplace::*)(::ai::openai::codex::typed::MarketplaceRemoveParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::MarketplaceRemoveResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_MarketplaceRemove>(&::ai::openai::codex::frontend::client::Marketplace::remove)), BindingMember_MarketplaceRemove>);
+    template <> struct BindingTraits<frontend::generated::MethodId::MarketplaceUpgrade> {
+        using Facade = ::ai::openai::codex::frontend::client::Marketplace;
+        using Parameter = ::ai::openai::codex::typed::MarketplaceUpgradeParams;
+        using Result = ::ai::openai::codex::typed::MarketplaceUpgradeResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::MarketplaceUpgrade;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::MarketplaceUpgrade>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::MarketplaceUpgrade>::Result>::value);
+    using BindingMember_MarketplaceUpgrade = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Marketplace::*)(::ai::openai::codex::typed::MarketplaceUpgradeParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::MarketplaceUpgradeResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_MarketplaceUpgrade>(&::ai::openai::codex::frontend::client::Marketplace::upgrade)), BindingMember_MarketplaceUpgrade>);
+    template <> struct BindingTraits<frontend::generated::MethodId::McpServerOauthLogin> {
+        using Facade = ::ai::openai::codex::frontend::client::Mcp;
+        using Parameter = ::ai::openai::codex::typed::McpServerOauthLoginParams;
+        using Result = ::ai::openai::codex::typed::McpServerOauthLoginResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::McpServerOauthLogin;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpServerOauthLogin>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpServerOauthLogin>::Result>::value);
+    using BindingMember_McpServerOauthLogin = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Mcp::*)(::ai::openai::codex::typed::McpServerOauthLoginParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::McpServerOauthLoginResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_McpServerOauthLogin>(&::ai::openai::codex::frontend::client::Mcp::startOauthLogin)), BindingMember_McpServerOauthLogin>);
+    template <> struct BindingTraits<frontend::generated::MethodId::McpResourceRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Mcp;
+        using Parameter = ::ai::openai::codex::typed::McpResourceReadParams;
+        using Result = ::ai::openai::codex::typed::McpResourceReadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::McpResourceRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpResourceRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpResourceRead>::Result>::value);
+    using BindingMember_McpResourceRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Mcp::*)(::ai::openai::codex::typed::McpResourceReadParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::McpResourceReadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_McpResourceRead>(&::ai::openai::codex::frontend::client::Mcp::readResource)), BindingMember_McpResourceRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::McpServerToolCall> {
+        using Facade = ::ai::openai::codex::frontend::client::Mcp;
+        using Parameter = ::ai::openai::codex::typed::McpServerToolCallParams;
+        using Result = ::ai::openai::codex::typed::McpServerToolCallResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::McpServerToolCall;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpServerToolCall>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpServerToolCall>::Result>::value);
+    using BindingMember_McpServerToolCall = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Mcp::*)(::ai::openai::codex::typed::McpServerToolCallParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::McpServerToolCallResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_McpServerToolCall>(&::ai::openai::codex::frontend::client::Mcp::callTool)), BindingMember_McpServerToolCall>);
+    template <> struct BindingTraits<frontend::generated::MethodId::McpServerStatusList> {
+        using Facade = ::ai::openai::codex::frontend::client::Mcp;
+        using Parameter = ::ai::openai::codex::typed::ListMcpServerStatusParams;
+        using Result = ::ai::openai::codex::typed::ListMcpServerStatusResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::McpServerStatusList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpServerStatusList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpServerStatusList>::Result>::value);
+    using BindingMember_McpServerStatusList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Mcp::*)(::ai::openai::codex::typed::ListMcpServerStatusParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ListMcpServerStatusResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_McpServerStatusList>(&::ai::openai::codex::frontend::client::Mcp::listServers)), BindingMember_McpServerStatusList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ModelList> {
+        using Facade = ::ai::openai::codex::frontend::client::Models;
+        using Parameter = ::ai::openai::codex::typed::ModelListParams;
+        using Result = ::ai::openai::codex::typed::ModelListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ModelList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ModelList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ModelList>::Result>::value);
+    using BindingMember_ModelList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Models::*)(::ai::openai::codex::typed::ModelListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ModelListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ModelList>(&::ai::openai::codex::frontend::client::Models::list)), BindingMember_ModelList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ModelProviderCapabilitiesRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Models;
+        using Parameter = ::ai::openai::codex::typed::ModelProviderCapabilitiesReadParams;
+        using Result = ::ai::openai::codex::typed::ModelProviderCapabilitiesReadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ModelProviderCapabilitiesRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ModelProviderCapabilitiesRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ModelProviderCapabilitiesRead>::Result>::value);
+    using BindingMember_ModelProviderCapabilitiesRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Models::*)(::ai::openai::codex::typed::ModelProviderCapabilitiesReadParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ModelProviderCapabilitiesReadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ModelProviderCapabilitiesRead>(&::ai::openai::codex::frontend::client::Models::readProviderCapabilities)), BindingMember_ModelProviderCapabilitiesRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PermissionProfileList> {
+        using Facade = ::ai::openai::codex::frontend::client::PermissionProfiles;
+        using Parameter = ::ai::openai::codex::typed::PermissionProfileListParams;
+        using Result = ::ai::openai::codex::typed::PermissionProfileListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PermissionProfileList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PermissionProfileList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PermissionProfileList>::Result>::value);
+    using BindingMember_PermissionProfileList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::PermissionProfiles::*)(::ai::openai::codex::typed::PermissionProfileListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PermissionProfileListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PermissionProfileList>(&::ai::openai::codex::frontend::client::PermissionProfiles::list)), BindingMember_PermissionProfileList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginInstall> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginInstallParams;
+        using Result = ::ai::openai::codex::typed::PluginInstallResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginInstall;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginInstall>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginInstall>::Result>::value);
+    using BindingMember_PluginInstall = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginInstallParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginInstallResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginInstall>(&::ai::openai::codex::frontend::client::Plugins::install)), BindingMember_PluginInstall>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginInstalled> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginInstalledParams;
+        using Result = ::ai::openai::codex::typed::PluginInstalledResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginInstalled;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginInstalled>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginInstalled>::Result>::value);
+    using BindingMember_PluginInstalled = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginInstalledParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginInstalledResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginInstalled>(&::ai::openai::codex::frontend::client::Plugins::installed)), BindingMember_PluginInstalled>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginList> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginListParams;
+        using Result = ::ai::openai::codex::typed::PluginListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginList>::Result>::value);
+    using BindingMember_PluginList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginList>(&::ai::openai::codex::frontend::client::Plugins::list)), BindingMember_PluginList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginReadParams;
+        using Result = ::ai::openai::codex::typed::PluginReadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginRead>::Result>::value);
+    using BindingMember_PluginRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginReadParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginReadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginRead>(&::ai::openai::codex::frontend::client::Plugins::read)), BindingMember_PluginRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginShareCheckout> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginShareCheckoutParams;
+        using Result = ::ai::openai::codex::typed::PluginShareCheckoutResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginShareCheckout;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareCheckout>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareCheckout>::Result>::value);
+    using BindingMember_PluginShareCheckout = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginShareCheckoutParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginShareCheckoutResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginShareCheckout>(&::ai::openai::codex::frontend::client::Plugins::shareCheckout)), BindingMember_PluginShareCheckout>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginShareDelete> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginShareDeleteParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginShareDelete;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareDelete>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareDelete>::Result>::value);
+    using BindingMember_PluginShareDelete = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginShareDeleteParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginShareDelete>(&::ai::openai::codex::frontend::client::Plugins::shareDelete)), BindingMember_PluginShareDelete>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginShareList> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginShareListParams;
+        using Result = ::ai::openai::codex::typed::PluginShareListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginShareList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareList>::Result>::value);
+    using BindingMember_PluginShareList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginShareListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginShareListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginShareList>(&::ai::openai::codex::frontend::client::Plugins::shareList)), BindingMember_PluginShareList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginShareSave> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginShareSaveParams;
+        using Result = ::ai::openai::codex::typed::PluginShareSaveResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginShareSave;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareSave>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareSave>::Result>::value);
+    using BindingMember_PluginShareSave = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginShareSaveParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginShareSaveResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginShareSave>(&::ai::openai::codex::frontend::client::Plugins::shareSave)), BindingMember_PluginShareSave>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginShareUpdateTargets> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginShareUpdateTargetsParams;
+        using Result = ::ai::openai::codex::typed::PluginShareUpdateTargetsResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginShareUpdateTargets;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareUpdateTargets>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginShareUpdateTargets>::Result>::value);
+    using BindingMember_PluginShareUpdateTargets = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginShareUpdateTargetsParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginShareUpdateTargetsResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginShareUpdateTargets>(&::ai::openai::codex::frontend::client::Plugins::shareUpdateTargets)), BindingMember_PluginShareUpdateTargets>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginSkillRead> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginSkillReadParams;
+        using Result = ::ai::openai::codex::typed::PluginSkillReadResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginSkillRead;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginSkillRead>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginSkillRead>::Result>::value);
+    using BindingMember_PluginSkillRead = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginSkillReadParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::PluginSkillReadResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginSkillRead>(&::ai::openai::codex::frontend::client::Plugins::readSkill)), BindingMember_PluginSkillRead>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PluginUninstall> {
+        using Facade = ::ai::openai::codex::frontend::client::Plugins;
+        using Parameter = ::ai::openai::codex::typed::PluginUninstallParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PluginUninstall;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginUninstall>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PluginUninstall>::Result>::value);
+    using BindingMember_PluginUninstall = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Plugins::*)(::ai::openai::codex::typed::PluginUninstallParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PluginUninstall>(&::ai::openai::codex::frontend::client::Plugins::uninstall)), BindingMember_PluginUninstall>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ProviderRestart> {
+        using Facade = ::ai::openai::codex::frontend::client::Provider;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ProviderRestart;
+        static constexpr BindingCategory Category = BindingCategory::Native;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ProviderRestart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ProviderRestart>::Result>::value);
+    using BindingMember_ProviderRestart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Provider::*)(::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ProviderRestart>(&::ai::openai::codex::frontend::client::Provider::restart)), BindingMember_ProviderRestart>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ProviderStart> {
+        using Facade = ::ai::openai::codex::frontend::client::Provider;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ProviderStart;
+        static constexpr BindingCategory Category = BindingCategory::Native;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ProviderStart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ProviderStart>::Result>::value);
+    using BindingMember_ProviderStart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Provider::*)(::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ProviderStart>(&::ai::openai::codex::frontend::client::Provider::start)), BindingMember_ProviderStart>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ProviderStop> {
+        using Facade = ::ai::openai::codex::frontend::client::Provider;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ProviderStop;
+        static constexpr BindingCategory Category = BindingCategory::Native;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ProviderStop>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ProviderStop>::Result>::value);
+    using BindingMember_ProviderStop = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Provider::*)(::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ProviderStop>(&::ai::openai::codex::frontend::client::Provider::stop)), BindingMember_ProviderStop>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ApplyPatchApprovalRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::ApplyPatchApprovalRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ApplyPatchApprovalRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ApplyPatchApprovalRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ApplyPatchApprovalRespond>::Result>::value);
+    using BindingMember_ApplyPatchApprovalRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::ApplyPatchApprovalRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ApplyPatchApprovalRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_ApplyPatchApprovalRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::AttestationRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::AttestationRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::AttestationRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AttestationRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::AttestationRespond>::Result>::value);
+    using BindingMember_AttestationRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::AttestationRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_AttestationRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_AttestationRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::DynamicToolRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::DynamicToolRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::DynamicToolRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::DynamicToolRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::DynamicToolRespond>::Result>::value);
+    using BindingMember_DynamicToolRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::DynamicToolRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_DynamicToolRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_DynamicToolRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ExecCommandApprovalRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::ExecCommandApprovalRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ExecCommandApprovalRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExecCommandApprovalRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ExecCommandApprovalRespond>::Result>::value);
+    using BindingMember_ExecCommandApprovalRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::ExecCommandApprovalRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ExecCommandApprovalRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_ExecCommandApprovalRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::KnownRequestReject> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::KnownRequestRejectParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::KnownRequestReject;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::KnownRequestReject>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::KnownRequestReject>::Result>::value);
+    using BindingMember_KnownRequestReject = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::KnownRequestRejectParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_KnownRequestReject>(&::ai::openai::codex::frontend::client::Requests::reject)), BindingMember_KnownRequestReject>);
+    template <> struct BindingTraits<frontend::generated::MethodId::McpElicitationRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::McpElicitationRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::McpElicitationRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpElicitationRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::McpElicitationRespond>::Result>::value);
+    using BindingMember_McpElicitationRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::McpElicitationRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_McpElicitationRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_McpElicitationRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::PermissionsApprovalRespond> {
+        using Facade = ::ai::openai::codex::frontend::client::Requests;
+        using Parameter = ::ai::openai::codex::frontend::client::PermissionsApprovalRespondParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::PermissionsApprovalRespond;
+        static constexpr BindingCategory Category = BindingCategory::Reverse;
+        static constexpr bool Sensitive = true;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PermissionsApprovalRespond>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::PermissionsApprovalRespond>::Result>::value);
+    using BindingMember_PermissionsApprovalRespond = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Requests::*)(::ai::openai::codex::frontend::client::PermissionsApprovalRespondParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_PermissionsApprovalRespond>(&::ai::openai::codex::frontend::client::Requests::respond)), BindingMember_PermissionsApprovalRespond>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ReviewStart> {
+        using Facade = ::ai::openai::codex::frontend::client::Reviews;
+        using Parameter = ::ai::openai::codex::typed::ReviewStartParams;
+        using Result = ::ai::openai::codex::typed::ReviewStartResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ReviewStart;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ReviewStart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ReviewStart>::Result>::value);
+    using BindingMember_ReviewStart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Reviews::*)(::ai::openai::codex::typed::ReviewStartParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ReviewStartResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ReviewStart>(&::ai::openai::codex::frontend::client::Reviews::start)), BindingMember_ReviewStart>);
+    template <> struct BindingTraits<frontend::generated::MethodId::SkillsConfigWrite> {
+        using Facade = ::ai::openai::codex::frontend::client::Skills;
+        using Parameter = ::ai::openai::codex::typed::SkillsConfigWriteParams;
+        using Result = ::ai::openai::codex::typed::SkillsConfigWriteResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::SkillsConfigWrite;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SkillsConfigWrite>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SkillsConfigWrite>::Result>::value);
+    using BindingMember_SkillsConfigWrite = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Skills::*)(::ai::openai::codex::typed::SkillsConfigWriteParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::SkillsConfigWriteResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_SkillsConfigWrite>(&::ai::openai::codex::frontend::client::Skills::writeConfig)), BindingMember_SkillsConfigWrite>);
+    template <> struct BindingTraits<frontend::generated::MethodId::SkillsExtraRootsSet> {
+        using Facade = ::ai::openai::codex::frontend::client::Skills;
+        using Parameter = ::ai::openai::codex::typed::SkillsExtraRootsSetParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::SkillsExtraRootsSet;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SkillsExtraRootsSet>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SkillsExtraRootsSet>::Result>::value);
+    using BindingMember_SkillsExtraRootsSet = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Skills::*)(::ai::openai::codex::typed::SkillsExtraRootsSetParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_SkillsExtraRootsSet>(&::ai::openai::codex::frontend::client::Skills::setExtraRoots)), BindingMember_SkillsExtraRootsSet>);
+    template <> struct BindingTraits<frontend::generated::MethodId::SkillsList> {
+        using Facade = ::ai::openai::codex::frontend::client::Skills;
+        using Parameter = ::ai::openai::codex::typed::SkillsListParams;
+        using Result = ::ai::openai::codex::typed::SkillsListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::SkillsList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SkillsList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::SkillsList>::Result>::value);
+    using BindingMember_SkillsList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Skills::*)(::ai::openai::codex::typed::SkillsListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::SkillsListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_SkillsList>(&::ai::openai::codex::frontend::client::Skills::list)), BindingMember_SkillsList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadApproveGuardianDeniedAction> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadApproveGuardianDeniedActionParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadApproveGuardianDeniedAction;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadApproveGuardianDeniedAction>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadApproveGuardianDeniedAction>::Result>::value);
+    using BindingMember_ThreadApproveGuardianDeniedAction = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadApproveGuardianDeniedActionParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadApproveGuardianDeniedAction>(&::ai::openai::codex::frontend::client::Threads::approveGuardianDeniedAction)), BindingMember_ThreadApproveGuardianDeniedAction>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadArchive> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadArchiveParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadArchive;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadArchive>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadArchive>::Result>::value);
+    using BindingMember_ThreadArchive = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadArchiveParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadArchive>(&::ai::openai::codex::frontend::client::Threads::archive)), BindingMember_ThreadArchive>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadCompactStart> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadCompactStartParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadCompactStart;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadCompactStart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadCompactStart>::Result>::value);
+    using BindingMember_ThreadCompactStart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadCompactStartParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadCompactStart>(&::ai::openai::codex::frontend::client::Threads::startCompaction)), BindingMember_ThreadCompactStart>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadDelete> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadDeleteParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadDelete;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadDelete>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadDelete>::Result>::value);
+    using BindingMember_ThreadDelete = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadDeleteParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadDelete>(&::ai::openai::codex::frontend::client::Threads::remove)), BindingMember_ThreadDelete>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadFork> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadForkParams;
+        using Result = ::ai::openai::codex::typed::ThreadForkResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadFork;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadFork>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadFork>::Result>::value);
+    using BindingMember_ThreadFork = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadForkParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadForkResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadFork>(&::ai::openai::codex::frontend::client::Threads::fork)), BindingMember_ThreadFork>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadGoalClear> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadGoalClearParams;
+        using Result = ::ai::openai::codex::typed::ThreadGoalClearResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadGoalClear;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadGoalClear>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadGoalClear>::Result>::value);
+    using BindingMember_ThreadGoalClear = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadGoalClearParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadGoalClearResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadGoalClear>(&::ai::openai::codex::frontend::client::Threads::clearGoal)), BindingMember_ThreadGoalClear>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadGoalGet> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadGoalGetParams;
+        using Result = ::ai::openai::codex::typed::ThreadGoalGetResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadGoalGet;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadGoalGet>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadGoalGet>::Result>::value);
+    using BindingMember_ThreadGoalGet = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadGoalGetParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadGoalGetResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadGoalGet>(&::ai::openai::codex::frontend::client::Threads::getGoal)), BindingMember_ThreadGoalGet>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadGoalSet> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadGoalSetParams;
+        using Result = ::ai::openai::codex::typed::ThreadGoalSetResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadGoalSet;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadGoalSet>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadGoalSet>::Result>::value);
+    using BindingMember_ThreadGoalSet = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadGoalSetParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadGoalSetResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadGoalSet>(&::ai::openai::codex::frontend::client::Threads::setGoal)), BindingMember_ThreadGoalSet>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadInjectItems> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadInjectItemsParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadInjectItems;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadInjectItems>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadInjectItems>::Result>::value);
+    using BindingMember_ThreadInjectItems = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadInjectItemsParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadInjectItems>(&::ai::openai::codex::frontend::client::Threads::injectItems)), BindingMember_ThreadInjectItems>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadLoadedList> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadLoadedListParams;
+        using Result = ::ai::openai::codex::typed::ThreadLoadedListResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadLoadedList;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadLoadedList>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadLoadedList>::Result>::value);
+    using BindingMember_ThreadLoadedList = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadLoadedListParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadLoadedListResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadLoadedList>(&::ai::openai::codex::frontend::client::Threads::listLoaded)), BindingMember_ThreadLoadedList>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadMetadataUpdate> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadMetadataUpdateParams;
+        using Result = ::ai::openai::codex::typed::ThreadMetadataUpdateResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadMetadataUpdate;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadMetadataUpdate>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadMetadataUpdate>::Result>::value);
+    using BindingMember_ThreadMetadataUpdate = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadMetadataUpdateParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadMetadataUpdateResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadMetadataUpdate>(&::ai::openai::codex::frontend::client::Threads::updateMetadata)), BindingMember_ThreadMetadataUpdate>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadSetName> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadSetNameParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadSetName;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadSetName>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadSetName>::Result>::value);
+    using BindingMember_ThreadSetName = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadSetNameParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadSetName>(&::ai::openai::codex::frontend::client::Threads::setName)), BindingMember_ThreadSetName>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadRollback> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadRollbackParams;
+        using Result = ::ai::openai::codex::typed::ThreadRollbackResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadRollback;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadRollback>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadRollback>::Result>::value);
+    using BindingMember_ThreadRollback = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadRollbackParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadRollbackResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadRollback>(&::ai::openai::codex::frontend::client::Threads::rollback)), BindingMember_ThreadRollback>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadShellCommand> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadShellCommandParams;
+        using Result = ::ai::openai::codex::typed::Unit;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadShellCommand;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadShellCommand>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadShellCommand>::Result>::value);
+    using BindingMember_ThreadShellCommand = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadShellCommandParams, ::ai::openai::codex::frontend::client::DoneHandler);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadShellCommand>(&::ai::openai::codex::frontend::client::Threads::shellCommand)), BindingMember_ThreadShellCommand>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadUnarchive> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadUnarchiveParams;
+        using Result = ::ai::openai::codex::typed::ThreadUnarchiveResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadUnarchive;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadUnarchive>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadUnarchive>::Result>::value);
+    using BindingMember_ThreadUnarchive = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadUnarchiveParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadUnarchiveResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadUnarchive>(&::ai::openai::codex::frontend::client::Threads::unarchive)), BindingMember_ThreadUnarchive>);
+    template <> struct BindingTraits<frontend::generated::MethodId::ThreadUnsubscribe> {
+        using Facade = ::ai::openai::codex::frontend::client::Threads;
+        using Parameter = ::ai::openai::codex::typed::ThreadUnsubscribeParams;
+        using Result = ::ai::openai::codex::typed::ThreadUnsubscribeResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::ThreadUnsubscribe;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadUnsubscribe>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::ThreadUnsubscribe>::Result>::value);
+    using BindingMember_ThreadUnsubscribe = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Threads::*)(::ai::openai::codex::typed::ThreadUnsubscribeParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::ThreadUnsubscribeResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_ThreadUnsubscribe>(&::ai::openai::codex::frontend::client::Threads::unsubscribe)), BindingMember_ThreadUnsubscribe>);
+    template <> struct BindingTraits<frontend::generated::MethodId::TurnSteer> {
+        using Facade = ::ai::openai::codex::frontend::client::Turns;
+        using Parameter = ::ai::openai::codex::typed::TurnSteerParams;
+        using Result = ::ai::openai::codex::typed::TurnSteerResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::TurnSteer;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::TurnSteer>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::TurnSteer>::Result>::value);
+    using BindingMember_TurnSteer = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::Turns::*)(::ai::openai::codex::typed::TurnSteerParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::TurnSteerResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_TurnSteer>(&::ai::openai::codex::frontend::client::Turns::steer)), BindingMember_TurnSteer>);
+    template <> struct BindingTraits<frontend::generated::MethodId::WindowsSandboxReadiness> {
+        using Facade = ::ai::openai::codex::frontend::client::WindowsSandbox;
+        using Parameter = ::ai::openai::codex::typed::Unit;
+        using Result = ::ai::openai::codex::typed::WindowsSandboxReadinessResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::WindowsSandboxReadiness;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::WindowsSandboxReadiness>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::WindowsSandboxReadiness>::Result>::value);
+    using BindingMember_WindowsSandboxReadiness = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::WindowsSandbox::*)(::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::WindowsSandboxReadinessResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_WindowsSandboxReadiness>(&::ai::openai::codex::frontend::client::WindowsSandbox::checkReadiness)), BindingMember_WindowsSandboxReadiness>);
+    template <> struct BindingTraits<frontend::generated::MethodId::WindowsSandboxSetupStart> {
+        using Facade = ::ai::openai::codex::frontend::client::WindowsSandbox;
+        using Parameter = ::ai::openai::codex::typed::WindowsSandboxSetupStartParams;
+        using Result = ::ai::openai::codex::typed::WindowsSandboxSetupStartResponse;
+        static constexpr frontend::generated::MethodId Method = frontend::generated::MethodId::WindowsSandboxSetupStart;
+        static constexpr BindingCategory Category = BindingCategory::Provider;
+        static constexpr bool Sensitive = false;
+    };
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::WindowsSandboxSetupStart>::Parameter>::value);
+    static_assert(!IsGeneratedJsonWrapper<typename BindingTraits<frontend::generated::MethodId::WindowsSandboxSetupStart>::Result>::value);
+    using BindingMember_WindowsSandboxSetupStart = ::ai::openai::codex::frontend::client::Submission (::ai::openai::codex::frontend::client::WindowsSandbox::*)(::ai::openai::codex::typed::WindowsSandboxSetupStartParams, ::ai::openai::codex::frontend::client::CompletionHandler<::ai::openai::codex::typed::WindowsSandboxSetupStartResponse>);
+    static_assert(std::is_same_v<decltype(static_cast<BindingMember_WindowsSandboxSetupStart>(&::ai::openai::codex::frontend::client::WindowsSandbox::startSetup)), BindingMember_WindowsSandboxSetupStart>);
 
     inline constexpr std::array<BindingMetadata, 105> AllBindings{{
         {frontend::generated::MethodId::ControllerAcquire, "Controller", "acquire", BindingCategory::Native, "::ai::openai::codex::typed::Unit", "ai/openai/codex/typed/Results.h", "::ai::openai::codex::frontend::client::ControllerResult", "ai/openai/codex/frontend/client/Controller.h", "::ai::openai::codex::frontend::client::detail::encodeUnitParams", "::ai::openai::codex::frontend::client::detail::decodeControllerResult", false},

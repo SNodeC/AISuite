@@ -423,8 +423,8 @@ namespace {
                 clientStarted = true;
                 const auto capabilities = service.implementedCapabilities();
                 state.capabilitiesObservedBeforeClients =
-                    service.connectionCount() == 0 && capabilities.size() == 13 &&
-                    std::find(capabilities.begin(), capabilities.end(), frontend::FrontendCapability::MultiTransport) == capabilities.end();
+                    service.connectionCount() == 0 && capabilities.size() == 15 &&
+                    std::find(capabilities.begin(), capabilities.end(), frontend::FrontendCapability::MultiTransport) != capabilities.end();
                 state.dispatchNext();
             };
 
@@ -495,27 +495,30 @@ namespace {
             web::websocket::client::SocketContextUpgradeFactory::link();
             web::websocket::client::SubProtocolFactorySelector::link(std::string(app::FrontendWebSocketSubProtocol), createClientFactory);
 
-            webApp.listen(
-                net::in::SocketAddress("127.0.0.1", 0),
-                [&state, &websocketPort, &startClientWhenReady](const net::in::SocketAddress& address, core::socket::State status) {
+            webApp.listen(net::in::SocketAddress("127.0.0.1", 0),
+                          [&state, &service, &websocketPort, &startClientWhenReady](const net::in::SocketAddress& address,
+                                                                                    core::socket::State status) {
+                              if (status != core::socket::State::OK || address.getPort() == 0) {
+                                  ++state.listenerFailures;
+                                  state.fail("IPv4 WebSocket listener failed to bind: " + status.what());
+                                  return;
+                              }
+                              service.declareTransportFamily(frontend::FrontendTransportKind::WebSocket);
+                              websocketPort = address.getPort();
+                              ++state.listenerSuccesses;
+                              startClientWhenReady();
+                          });
+            nativeServer.listen(
+                [&state, &service, &startClientWhenReady](const net::in::SocketAddress& address, core::socket::State status) {
                     if (status != core::socket::State::OK || address.getPort() == 0) {
                         ++state.listenerFailures;
-                        state.fail("IPv4 WebSocket listener failed to bind: " + status.what());
+                        state.fail("shared IPv4 JSONL listener failed to bind: " + status.what());
                         return;
                     }
-                    websocketPort = address.getPort();
+                    service.declareTransportFamily(frontend::FrontendTransportKind::Ipv4);
                     ++state.listenerSuccesses;
                     startClientWhenReady();
                 });
-            nativeServer.listen([&state, &startClientWhenReady](const net::in::SocketAddress& address, core::socket::State status) {
-                if (status != core::socket::State::OK || address.getPort() == 0) {
-                    ++state.listenerFailures;
-                    state.fail("shared IPv4 JSONL listener failed to bind: " + status.what());
-                    return;
-                }
-                ++state.listenerSuccesses;
-                startClientWhenReady();
-            });
 
             [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
                 [&state] {
@@ -538,7 +541,7 @@ namespace {
             std::size_t{2}, state.listenerSuccesses, "the WebSocket and shared native listener each report one successful ephemeral bind");
         result.expectEqual(std::size_t{0}, state.listenerFailures, "both live listeners bind without failure");
         result.expectTrue(state.capabilitiesObservedBeforeClients,
-                          "the shared service advertises 13 mechanism capabilities and no dynamic multi_transport capability");
+                          "the shared service advertises thirteen mechanisms, cpp_client_sdk, and topology-derived multi_transport");
         result.expectEqual(caseIndex(CaseKind::Count), state.activeCase, "all six live WebSocket cases complete in order");
         result.expectEqual(std::size_t{3},
                            state.authenticationAttempts,
@@ -579,8 +582,8 @@ namespace {
                               std::to_string(good.welcomeCount) + ", snapshot=" + std::to_string(good.snapshotCount) +
                               ", sync=" + std::to_string(good.syncCompleteCount) + ", responses=" + std::to_string(good.responseCount) +
                               ", messages=" + std::to_string(good.messageEnds) + ")");
-        result.expectTrue(good.availableMethods == 90 && good.permittedMethods == 53 && !good.advertisedMultiTransport,
-                          "the live Welcome reports 90 available methods, default_remote 53/90, and no multi_transport advertisement");
+        result.expectTrue(good.availableMethods == 90 && good.permittedMethods == 53 && good.advertisedMultiTransport,
+                          "the live Welcome reports 90 available methods, default_remote 53/90, and multi_transport for two families");
 
         const CaseObservation& binary = state.cases[caseIndex(CaseKind::Binary)];
         result.expectTrue(binary.completed && binary.websocketDisconnected == 1 && binary.messageEnds == 0 && binary.welcomeCount == 0,

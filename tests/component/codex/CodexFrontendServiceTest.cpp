@@ -46,6 +46,10 @@ namespace {
         return {{"type", "agentMessage"}, {"id", id}, {"text", text}};
     }
 
+    Json resultTurnValue(const std::string& threadId, const std::string& turnId, const std::string& itemId, const std::string& text) {
+        return tests::codex::turnValue(threadId, turnId, "completed", Json::array({agentItemValue(itemId, text)}));
+    }
+
     struct LegacyMetadataItemFixture {
         std::string id;
         std::string type;
@@ -600,17 +604,22 @@ namespace {
         for (Observations& observations : unixClientObservations) {
             unixClients.push_back(service.openConnection(trustedPeer(), callbacksFor(observations)));
         }
-        result.expectTrue(runtimeCapabilities.size() == 13 && service.connectionCount() == 5 &&
-                              std::find(runtimeCapabilities.begin(),
-                                        runtimeCapabilities.end(),
-                                        frontend::FrontendCapability::MultiTransport) == runtimeCapabilities.end(),
-                          "the runtime reports thirteen mechanisms and never advertises the legacy multi_transport capability");
+        result.expectTrue(
+            runtimeCapabilities.size() == 14 && service.connectionCount() == 5 &&
+                std::find(runtimeCapabilities.begin(), runtimeCapabilities.end(), frontend::FrontendCapability::CppClientSdk) !=
+                    runtimeCapabilities.end() &&
+                std::find(runtimeCapabilities.begin(), runtimeCapabilities.end(), frontend::FrontendCapability::MultiTransport) ==
+                    runtimeCapabilities.end(),
+            "the SDK-enabled runtime reports thirteen static mechanisms plus cpp_client_sdk with no topology capability");
         const frontend::Welcome* firstWelcome = welcome(authenticated);
         result.expectTrue(firstWelcome && firstWelcome->capabilities &&
                               std::find(firstWelcome->capabilities->implemented.begin(),
                                         firstWelcome->capabilities->implemented.end(),
                                         frontend::FrontendCapability::MultiTransport) == firstWelcome->capabilities->implemented.end(),
-                          "Welcome omits the legacy multi_transport capability");
+                          "a handshake made without multiple declared transport families omits multi_transport");
+
+        service.declareTransportFamily(frontend::FrontendTransportKind::Unix);
+        service.declareTransportFamily(frontend::FrontendTransportKind::WebSocket);
 
         frontend::FrontendPeerContext multiTopologyPeer = otherRemote;
         multiTopologyPeer.remoteAddress = "127.0.0.3:34000";
@@ -623,9 +632,10 @@ namespace {
         result.expectTrue(initialMultiTopologyWelcome && initialMultiTopologyWelcome->capabilities &&
                               std::find(initialMultiTopologyWelcome->capabilities->implemented.begin(),
                                         initialMultiTopologyWelcome->capabilities->implemented.end(),
-                                        frontend::FrontendCapability::MultiTransport) ==
+                                        frontend::FrontendCapability::MultiTransport) !=
                                   initialMultiTopologyWelcome->capabilities->implemented.end(),
-                          "new handshakes also omit multi_transport");
+                          "a new handshake advertises multi_transport for two declared transport families");
+        service.withdrawTransportFamily(frontend::FrontendTransportKind::WebSocket);
         frontend::FrontendPeerContext reducedTopologyPeer = otherRemote;
         reducedTopologyPeer.remoteAddress = "127.0.0.4:35000";
         Observations reducedTopologyHandshake;
@@ -644,8 +654,8 @@ namespace {
                 retainedMultiTopologyWelcome && retainedMultiTopologyWelcome->capabilities &&
                 std::find(retainedMultiTopologyWelcome->capabilities->implemented.begin(),
                           retainedMultiTopologyWelcome->capabilities->implemented.end(),
-                          frontend::FrontendCapability::MultiTransport) == retainedMultiTopologyWelcome->capabilities->implemented.end(),
-            "all authenticated handshakes retain the same thirteen static mechanism capabilities");
+                          frontend::FrontendCapability::MultiTransport) != retainedMultiTopologyWelcome->capabilities->implemented.end(),
+            "topology truth is evaluated per handshake while an existing Welcome remains immutable");
 
         Observations timedOut;
         frontend::FrontendConnection timeoutConnection = service.openConnection(otherRemote, callbacksFor(timedOut));
@@ -1067,9 +1077,9 @@ namespace {
 
         const frontend::Welcome* discovery = welcome(observations);
         result.expectTrue(discovery != nullptr && discovery->capabilities.has_value() && discovery->capabilities->defined.size() == 18 &&
-                              discovery->capabilities->implemented.size() == 13 &&
+                              discovery->capabilities->implemented.size() == 14 &&
                               discovery->capabilities->permitted == discovery->capabilities->implemented,
-                          "A1.7b Welcome distinguishes 18 definitions from thirteen implemented service mechanisms");
+                          "Welcome distinguishes 18 definitions from thirteen static mechanisms plus the built C++ SDK product");
         result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 90 &&
                               discovery->permittedMethods == discovery->availableMethods &&
                               std::all_of(discovery->availableMethods->begin(),
@@ -1078,6 +1088,13 @@ namespace {
                                               return frontend::generated::runtimeMethodFromString(method).has_value();
                                           }),
                           "the local_trusted A1.7b runtime advertises and permits all 90 deployment-enabled methods");
+        frontend::Json expectedScopes = frontend::Json::array();
+        for (const frontend::FrontendScope scope : frontend::LocalTrustedScopes) {
+            expectedScopes.push_back(std::string(frontend::toString(scope)));
+        }
+        result.expectTrue(discovery != nullptr && discovery->extensions.contains("permittedScopes") &&
+                              discovery->extensions.at("permittedScopes") == expectedScopes,
+                          "the modern Welcome advertises the exact local_trusted permitted-scope set alongside both method sets");
 
         const std::size_t providerSubmissions = transport->outgoing.size();
         const frontend::ConnectionReceiveResult unavailable = connection.receive(frontend::Json{
@@ -1789,22 +1806,38 @@ namespace {
             if (*method == "thread/list") {
                 const Json params = message.value("params", Json::object());
                 const bool frontendRequest = params.value("cursor", "") == wrapperCursor;
+                Json page = Json::array();
+                if (frontendRequest) {
+                    page.push_back(tests::codex::threadValue(
+                        wrapperThreadId,
+                        Json::array({resultTurnValue(wrapperThreadId, wrapperListTurnId, wrapperListItemId, "list nested item")})));
+                }
+                tests::codex::inject(
+                    callbacks,
+                    Json{{"id", *id}, {"result", {{"data", std::move(page)}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
+            } else if (*method == "thread/start" || *method == "thread/resume") {
+                tests::codex::inject(callbacks,
+                                     Json{{"id", *id},
+                                          {"result",
+                                           tests::codex::threadOperationResult(
+                                               wrapperThreadId,
+                                               Json::array({resultTurnValue(
+                                                   wrapperThreadId, wrapperStartTurnId, wrapperStartItemId, "start nested item")}))}});
+            } else if (*method == "thread/read") {
+                const std::string threadId = message.value("params", Json::object()).value("threadId", wrapperReadThreadId);
                 tests::codex::inject(
                     callbacks,
                     Json{{"id", *id},
                          {"result",
-                          {{"data", frontendRequest ? Json::array({tests::codex::threadValue(wrapperThreadId)}) : Json::array()},
-                           {"nextCursor", nullptr},
-                           {"backwardsCursor", nullptr}}}});
-            } else if (*method == "thread/start" || *method == "thread/resume") {
-                tests::codex::inject(callbacks, Json{{"id", *id}, {"result", tests::codex::threadOperationResult(wrapperThreadId)}});
-            } else if (*method == "thread/read") {
-                const std::string threadId = message.value("params", Json::object()).value("threadId", wrapperReadThreadId);
-                tests::codex::inject(callbacks, Json{{"id", *id}, {"result", {{"thread", tests::codex::threadValue(threadId)}}}});
+                          {{"thread",
+                            tests::codex::threadValue(
+                                threadId,
+                                Json::array({resultTurnValue(threadId, wrapperReadTurnId, wrapperReadItemId, "read nested item")}))}}}});
             } else if (*method == "turn/start") {
                 tests::codex::inject(
                     callbacks,
-                    Json{{"id", *id}, {"result", {{"turn", tests::codex::turnValue(wrapperThreadId, wrapperTurnId, "completed")}}}});
+                    Json{{"id", *id},
+                         {"result", {{"turn", resultTurnValue(wrapperThreadId, wrapperTurnId, wrapperTurnItemId, "turn nested item")}}}});
             } else if (*method == "turn/interrupt") {
                 tests::codex::inject(callbacks, Json{{"id", *id}, {"result", Json::object()}});
             }
@@ -2000,27 +2033,61 @@ namespace {
         }
 
         void verifyExactWrapperProjectionBeforeRead() {
-            const auto exactThreadResult = [this](const char* requestId, const char* expectedThreadId, bool fullyLoaded) {
+            const auto responseResult = [this](const char* requestId) {
+                const frontend::Response* value = response(observerA, requestId);
+                return value != nullptr && value->result ? value->result->dump() : std::string{"missing"};
+            };
+            const auto containsNested = [](const Json& thread, const char* expectedTurnId, const char* expectedItemId) {
+                const Json turns = thread.value("turns", Json::array());
+                const auto turn = std::find_if(turns.begin(), turns.end(), [expectedTurnId](const Json& candidate) {
+                    return candidate.value("id", "") == expectedTurnId;
+                });
+                if (turn == turns.end()) {
+                    return false;
+                }
+                const Json items = turn->value("items", Json::array());
+                return std::find_if(items.begin(), items.end(), [expectedItemId](const Json& candidate) {
+                           return candidate.value("id", "") == expectedItemId;
+                       }) != items.end();
+            };
+            const auto exactThreadResult = [this](const char* requestId,
+                                                  const char* expectedThreadId,
+                                                  bool fullyLoaded,
+                                                  const char* expectedTurnId,
+                                                  const char* expectedItemId,
+                                                  const auto& containsNested) {
                 const frontend::Response* value = response(observerA, requestId);
                 return value != nullptr && value->ok && value->result.has_value() && value->result->size() == 1 &&
                        value->result->contains("thread") && (*value->result)["thread"].is_object() &&
                        (*value->result)["thread"].value("id", "") == expectedThreadId &&
-                       (*value->result)["thread"].value("fullyLoaded", !fullyLoaded) == fullyLoaded;
+                       (*value->result)["thread"].value("fullyLoaded", !fullyLoaded) == fullyLoaded &&
+                       containsNested((*value->result)["thread"], expectedTurnId, expectedItemId);
             };
-            expect(exactThreadResult(wrapperThreadStartRequestId, wrapperThreadId, false) &&
-                       exactThreadResult(wrapperThreadResumeRequestId, wrapperThreadId, false),
-                   "thread start/resume exact result wrappers preserve the v1 envelope and summary-load semantics");
+            expect(exactThreadResult(
+                       wrapperThreadStartRequestId, wrapperThreadId, false, wrapperStartTurnId, wrapperStartItemId, containsNested) &&
+                       exactThreadResult(
+                           wrapperThreadResumeRequestId, wrapperThreadId, false, wrapperStartTurnId, wrapperStartItemId, containsNested),
+                   "thread start/resume exact result wrappers preserve nested turn/item values and summary-load semantics (start=" +
+                       responseResult(wrapperThreadStartRequestId) + ", resume=" + responseResult(wrapperThreadResumeRequestId) + ")");
 
             const frontend::Response* list = response(observerA, wrapperThreadListRequestId);
             expect(list != nullptr && list->ok && list->result.has_value() && list->result->size() == 1 &&
                        list->result->contains("threads") && (*list->result)["threads"].is_array() &&
-                       (*list->result)["threads"].size() == 1 && (*list->result)["threads"][0].value("id", "") == wrapperThreadId,
-                   "thread list exact result wrapper preserves the unchanged v1 page envelope");
+                       (*list->result)["threads"].size() == 1 && (*list->result)["threads"][0].value("id", "") == wrapperThreadId &&
+                       containsNested((*list->result)["threads"][0], wrapperListTurnId, wrapperListItemId) &&
+                       (*list->result)["threads"][0].value("turns", Json::array()).size() >= 3 &&
+                       (*list->result)["threads"][0]["turns"][0].value("id", "") == wrapperStartTurnId &&
+                       (*list->result)["threads"][0]["turns"][1].value("id", "") == wrapperListTurnId &&
+                       (*list->result)["threads"][0]["turns"][2].value("id", "") == wrapperTurnId,
+                   "thread list exact result wrapper preserves its ordered nested page projection (actual=" +
+                       responseResult(wrapperThreadListRequestId) + ")");
 
             const frontend::Response* turn = response(observerA, wrapperTurnStartRequestId);
             expect(turn != nullptr && turn->ok && turn->result.has_value() && turn->result->size() == 1 && turn->result->contains("turn") &&
-                       (*turn->result)["turn"].is_object() && (*turn->result)["turn"].value("id", "") == wrapperTurnId,
-                   "turn start exact result wrapper projects only the unchanged v1 turn envelope");
+                       (*turn->result)["turn"].is_object() && (*turn->result)["turn"].value("id", "") == wrapperTurnId &&
+                       (*turn->result)["turn"].value("items", Json::array()).size() == 1 &&
+                       (*turn->result)["turn"]["items"][0].value("id", "") == wrapperTurnItemId,
+                   "turn start exact result wrapper preserves its ordered nested item projection");
 
             const frontend::Response* interrupt = response(observerA, wrapperTurnInterruptRequestId);
             expect(interrupt != nullptr && interrupt->ok && interrupt->result.has_value() && interrupt->result->empty(),
@@ -2032,8 +2099,12 @@ namespace {
             expect(value != nullptr && value->ok && value->result.has_value() && value->result->size() == 1 &&
                        value->result->contains("thread") && (*value->result)["thread"].is_object() &&
                        (*value->result)["thread"].value("id", "") == wrapperReadThreadId &&
-                       (*value->result)["thread"].value("fullyLoaded", false),
-                   "thread read exact result wrapper preserves the v1 envelope and full-load semantics");
+                       (*value->result)["thread"].value("fullyLoaded", false) &&
+                       (*value->result)["thread"].value("turns", Json::array()).size() == 1 &&
+                       (*value->result)["thread"]["turns"][0].value("id", "") == wrapperReadTurnId &&
+                       (*value->result)["thread"]["turns"][0].value("items", Json::array()).size() == 1 &&
+                       (*value->result)["thread"]["turns"][0]["items"][0].value("id", "") == wrapperReadItemId,
+                   "thread read exact result wrapper preserves its full nested projection and full-load semantics");
         }
 
         void emitBurst() {
@@ -2718,6 +2789,13 @@ namespace {
         static constexpr const char* wrapperThreadId = "wrapper-thread";
         static constexpr const char* wrapperReadThreadId = "wrapper-read-thread";
         static constexpr const char* wrapperTurnId = "wrapper-turn";
+        static constexpr const char* wrapperStartTurnId = "wrapper-start-turn";
+        static constexpr const char* wrapperStartItemId = "wrapper-start-item";
+        static constexpr const char* wrapperListTurnId = "wrapper-list-turn";
+        static constexpr const char* wrapperListItemId = "wrapper-list-item";
+        static constexpr const char* wrapperReadTurnId = "wrapper-read-turn";
+        static constexpr const char* wrapperReadItemId = "wrapper-read-item";
+        static constexpr const char* wrapperTurnItemId = "wrapper-turn-item";
         static constexpr const char* resolvedProviderRequestId = "v1-permissions-request";
         static constexpr const char* resolvedThreadId = "v1-permissions-thread";
         bool finished = false;

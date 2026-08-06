@@ -13,6 +13,9 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 GENERATOR = ROOT / "tools/frontend/generate_cpp_frontend_client.py"
 BINDINGS = ROOT / "tools/frontend/cpp-client-bindings.json"
+GENERATED_FACADES = ROOT / "src/ai/openai/codex/frontend/client/GeneratedFacades.cpp"
+
+
 def load_generator():
     spec = importlib.util.spec_from_file_location("cpp_frontend_client_generator", GENERATOR)
     if spec is None or spec.loader is None:
@@ -213,6 +216,29 @@ def main() -> int:
     non_boolean_sensitivity[provider_start]["sensitive"] = "false"
     must_fail(module, non_boolean_sensitivity, "sensitivity must be boolean")
 
+    generated_facades = module.render_facade_implementation(bindings)
+    if GENERATED_FACADES.read_text(encoding="utf-8") != generated_facades:
+        raise AssertionError("generated typed facade definitions are stale")
+    if generated_facades.count("return client->submitBound(") != 86:
+        raise AssertionError("all 86 provider methods must submit through Client::submitBound")
+    if generated_facades.count("return client->submitReverseBound(") != 12:
+        raise AssertionError("all 12 reverse methods must submit through Client::submitReverseBound")
+    if generated_facades.count("            parameters.pendingRequestId,") != 12:
+        raise AssertionError("every reverse façade must pass its typed pending-request identity to Client")
+    if generated_facades.count("detail::bindCompletion<Result>(") != 98:
+        raise AssertionError("all generated facade methods must use the typed completion bridge")
+    if generated_facades.count("using Parameters = frontend::generated::MethodParameters<") != 98:
+        raise AssertionError("generated MethodParameters must be constructed internally for all 98 domain operations")
+    if generated_facades.count("constexpr auto NativeParameterEncoder_") != 7:
+        raise AssertionError("all seven native parameter encoders must be named by compiled generated guards")
+    if generated_facades.count("constexpr auto NativeResultDecoder_") != 7:
+        raise AssertionError("all seven native result decoders must be named by compiled generated guards")
+    if generated_facades.count("static_assert(std::is_pointer_v<std::remove_cv_t<decltype(NativeParameterEncoder_") != 7:
+        raise AssertionError("all seven native parameter encoders must have compile-time existence checks")
+    if generated_facades.count("static_assert(std::is_pointer_v<std::remove_cv_t<decltype(NativeResultDecoder_") != 7:
+        raise AssertionError("all seven native result decoders must have compile-time existence checks")
+    if "call(std::string" in generated_facades:
+        raise AssertionError("generated facades must not introduce an unrestricted string-and-JSON API")
     return 0
 
 

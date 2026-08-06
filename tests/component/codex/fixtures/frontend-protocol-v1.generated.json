@@ -661,10 +661,14 @@
     {
       "method": "command.exec",
       "minimalParams": {
-        "command": []
+        "command": [
+          "x"
+        ]
       },
       "completeParams": {
-        "command": [],
+        "command": [
+          "x"
+        ],
         "cwd": "x",
         "disableOutputCap": false,
         "disableTimeout": false,
@@ -695,31 +699,45 @@
       },
       "nullableParams": [
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "cwd": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "env": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "outputBytesCap": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "processId": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "sandboxPolicy": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "size": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "timeoutMs": null
         }
       ],

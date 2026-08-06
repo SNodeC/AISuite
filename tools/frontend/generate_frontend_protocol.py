@@ -184,6 +184,15 @@ EVENT_FAMILIES = (
     "diagnostics.updated",
 )
 
+# The provider registry description already states that command/exec rejects an
+# empty argv vector, but the pinned upstream JSON Schema omitted the matching
+# assertion.  Frontend Protocol validates that stable application invariant at
+# its own boundary instead of admitting a command the typed provider codec must
+# reject later.
+PROVIDER_PARAMETER_MIN_ITEMS = {
+    "command.exec": {"command": 1},
+}
+
 EXISTING_METHODS = (
     "controller.acquire",
     "controller.release",
@@ -740,6 +749,13 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
             "key": key,
             "defined": True,
             "implementedByCurrentRuntime": key in IMPLEMENTED_MECHANISM_CAPABILITIES,
+            "category": (
+                "static_mechanism"
+                if key in MECHANISM_CAPABILITIES
+                else "conditional_topology"
+                if key == "multi_transport"
+                else "product"
+            ),
             "futurePhase": (
                 "A1.7b" if key in {"authenticated_frontend", "scope_projected_state", "provider_lifecycle", "multi_transport"}
                 else "A1.7c" if key in {"cpp_client_sdk", "qt_ui"}
@@ -1577,6 +1593,22 @@ def legacy_result_schema(method: str) -> dict[str, Any]:
     return unit
 
 
+def apply_provider_parameter_constraints(
+    method: str, schema: dict[str, Any]
+) -> dict[str, Any]:
+    constrained = copy_json(schema)
+    for field, minimum in PROVIDER_PARAMETER_MIN_ITEMS.get(method, {}).items():
+        properties = constrained.get("properties")
+        field_schema = properties.get(field) if isinstance(properties, dict) else None
+        if not isinstance(field_schema, dict) or field_schema.get("type") != "array":
+            raise GenerationError(
+                f"frontend provider parameter constraint {method}.{field} "
+                "does not target an array property"
+            )
+        field_schema["minItems"] = minimum
+    return constrained
+
+
 def generate_schema(
     template: dict[str, Any], manifest: dict[str, Any], source: dict[str, Any]
 ) -> dict[str, Any]:
@@ -1622,8 +1654,11 @@ def generate_schema(
         )
         if operation_row is not None:
             operation = operation_row["operationContract"]
-            definitions[parameter_definition] = normalize_embedded_schema(
-                operation.get("parameterJsonSchema"), parameter_definition
+            definitions[parameter_definition] = apply_provider_parameter_constraints(
+                name,
+                normalize_embedded_schema(
+                    operation.get("parameterJsonSchema"), parameter_definition
+                ),
             )
             definitions[result_definition] = bound_and_redact_result_schema(
                 operation.get("resultJsonSchema"), result_definition
@@ -2509,7 +2544,8 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "        std::string_view parameterPolicy;",
             "    };",
             "",
-            "    struct CapabilityMetadata { Capability id; std::string_view key; bool defined; bool implementedByCurrentRuntime; };",
+            "    enum class CapabilityCategory { StaticMechanism, ConditionalTopology, Product };",
+            "    struct CapabilityMetadata { Capability id; std::string_view key; CapabilityCategory category; bool defined; bool implementedByCurrentRuntime; };",
             "    struct AuthenticationMetadata { std::string_view helloField; std::string_view bearerScheme; std::size_t maximumBearerTokenBytes; };",
             "    struct ContractMetadata { std::string_view registryKey; std::string_view exposure; std::string_view securityDecision; std::string_view mappings; std::string_view redactionClass; std::string_view compatibilityBehavior; bool controllerRequired; bool defaultEnabled; };",
             "    struct ProjectionMetadata {",
@@ -2611,8 +2647,13 @@ def generate_header(manifest: dict[str, Any]) -> str:
     capabilities = manifest["capabilities"]
     lines.append(f"    inline constexpr std::array<CapabilityMetadata, {len(capabilities)}> AllCapabilities{{{{")
     for capability in capabilities:
+        category = {
+            "static_mechanism": "StaticMechanism",
+            "conditional_topology": "ConditionalTopology",
+            "product": "Product",
+        }[capability["category"]]
         lines.append(
-            f"        {{Capability::{cpp_id(capability['key'])}, {q(capability['key'])}, true, {str(capability['implementedByCurrentRuntime']).lower()}}},"
+            f"        {{Capability::{cpp_id(capability['key'])}, {q(capability['key'])}, CapabilityCategory::{category}, true, {str(capability['implementedByCurrentRuntime']).lower()}}},"
         )
     lines.extend(["    }};", ""])
     for family, family_cpp, mappings in (
@@ -2738,7 +2779,7 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "    consteval std::size_t countPermitted(std::span<const FrontendScope> profile) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.currentlyImplemented && method.defaultEnabled && staticallyPermitted(method, profile); return count; }",
             "    consteval std::size_t countProviderSecurity(std::string_view decision) { std::size_t count = 0; for (const auto& method : AllMethods) count += method.category == MethodCategory::ProviderOperation && method.securityDecision == decision; return count; }",
             "    consteval std::size_t countProviderReady() { std::size_t count = 0; for (const auto& method : AllMethods) count += method.providerReadyRequired; return count; }",
-            "    consteval std::size_t countImplementedCapabilities() { std::size_t count = 0; for (const auto& capability : AllCapabilities) count += capability.implementedByCurrentRuntime; return count; }",
+            "    consteval std::size_t countImplementedMechanismCapabilities() { std::size_t count = 0; for (const auto& capability : AllCapabilities) count += capability.category == CapabilityCategory::StaticMechanism && capability.implementedByCurrentRuntime; return count; }",
             "    consteval bool uniqueMethods() { for (std::size_t i = 0; i < AllMethods.size(); ++i) for (std::size_t j = i + 1; j < AllMethods.size(); ++j) if (AllMethods[i].method == AllMethods[j].method) return false; return true; }",
             "    consteval bool uniquePendingRequestProjections() { for (std::size_t i = 0; i < AllPendingRequestProjections.size(); ++i) for (std::size_t j = i + 1; j < AllPendingRequestProjections.size(); ++j) if (AllPendingRequestProjections[i].registryKey == AllPendingRequestProjections[j].registryKey || AllPendingRequestProjections[i].providerMethod == AllPendingRequestProjections[j].providerMethod || AllPendingRequestProjections[i].kind == AllPendingRequestProjections[j].kind) return false; return true; }",
             "",
@@ -2760,7 +2801,7 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "    inline constexpr std::size_t PrivilegedProviderMethodCount = countProviderSecurity(\"PrivilegedScopedApproved\");",
             "    inline constexpr std::size_t ConditionalProviderMethodCount = countProviderSecurity(\"ConditionalExplicitEnablementApproved\");",
             "    inline constexpr std::size_t ParameterSensitiveProviderMethodCount = countProviderSecurity(\"ParameterSensitiveApproved\");",
-            "    inline constexpr std::size_t ImplementedMechanismCapabilityCount = countImplementedCapabilities();",
+            "    inline constexpr std::size_t ImplementedMechanismCapabilityCount = countImplementedMechanismCapabilities();",
             "    inline constexpr std::size_t ReviewedIdentityCount = AllReviewedContracts.size();",
             "",
             "    static_assert(MethodCount == 105);",

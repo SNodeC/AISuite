@@ -2,7 +2,7 @@ set(AI_OPENAI_CODEX_FRONTEND_CPP
     FrontendService.cpp Codec.cpp EventCoalescer.cpp EventJournal.cpp
     Messages.cpp UpdateBatch.cpp
     detail/BackendCommandMapper.cpp detail/BackendProjectionBuilder.cpp
-    detail/GeneratedSchemaValidator.cpp
+    detail/GeneratedSchemaValidator.cpp detail/FrontendCapabilities.cpp
     detail/FrontendProjection.cpp detail/ProviderResultProjection.cpp
 )
 set(AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
@@ -22,6 +22,11 @@ target_include_directories(
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/aisuite>"
 )
 target_compile_features(ai-openai-codex-frontend PUBLIC cxx_std_20)
+target_compile_definitions(
+    ai-openai-codex-frontend
+    PRIVATE
+        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
+)
 target_link_libraries(
     ai-openai-codex-frontend
     PUBLIC AISuite::OpenAICodexBackend

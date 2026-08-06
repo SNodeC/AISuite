@@ -17,6 +17,7 @@
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/detail/BackendCommandMapper.h"
 #include "ai/openai/codex/frontend/detail/BackendProjectionBuilder.h"
+#include "ai/openai/codex/frontend/detail/FrontendCapabilities.h"
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
 #include "ai/openai/codex/frontend/detail/ProviderResultProjection.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
@@ -64,23 +65,6 @@ namespace ai::openai::codex::frontend {
 
         template <typename T>
         concept ProviderOperationResult = VariantContains<std::remove_cvref_t<T>, backend::ProviderOperationValue>::value;
-
-        CapabilityAdvertisement currentCapabilityAdvertisement() {
-            CapabilityAdvertisement advertisement;
-            for (const generated::CapabilityMetadata& metadata : generated::AllCapabilities) {
-                const auto capability = frontendCapabilityFromString(metadata.key);
-                if (!capability.has_value()) {
-                    continue;
-                }
-                advertisement.defined.push_back(*capability);
-                const bool implemented = metadata.implementedByCurrentRuntime;
-                if (implemented) {
-                    advertisement.implemented.push_back(*capability);
-                    advertisement.permitted.push_back(*capability);
-                }
-            }
-            return advertisement;
-        }
 
         bool hasScope(const FrontendPrincipal& principal, FrontendScope scope) noexcept {
             return std::find(principal.scopes.begin(), principal.scopes.end(), scope) != principal.scopes.end();
@@ -1315,7 +1299,41 @@ namespace ai::openai::codex::frontend {
         }
 
         std::vector<FrontendCapability> implementedCapabilities() const {
-            return currentCapabilityAdvertisement().implemented;
+            return capabilityAdvertisement().implemented;
+        }
+
+        CapabilityAdvertisement capabilityAdvertisement() const {
+            return detail::computeCapabilities(AISUITE_CODEX_CPP_CLIENT_SDK_BUILT != 0, declaredTransportCounts.size()).advertisement;
+        }
+
+        void declareTransportFamily(FrontendTransportKind transport) {
+            std::size_t& declarations = declaredTransportCounts[transport];
+            if (declarations != std::numeric_limits<std::size_t>::max()) {
+                ++declarations;
+            }
+        }
+
+        void withdrawTransportFamily(FrontendTransportKind transport) noexcept {
+            const auto found = declaredTransportCounts.find(transport);
+            if (found == declaredTransportCounts.end()) {
+                return;
+            }
+            if (found->second > 1) {
+                --found->second;
+            } else {
+                declaredTransportCounts.erase(found);
+            }
+        }
+
+        std::vector<FrontendTransportKind> enabledTransportFamilies() const {
+            std::vector<FrontendTransportKind> result;
+            result.reserve(declaredTransportCounts.size());
+            for (const auto& [transport, declarations] : declaredTransportCounts) {
+                if (declarations != 0) {
+                    result.push_back(transport);
+                }
+            }
+            return result;
         }
 
         std::vector<FrontendCapability> negotiatedCapabilities(const Hello& hello, const CapabilityAdvertisement& advertisement) const {
@@ -1351,7 +1369,7 @@ namespace ai::openai::codex::frontend {
                 return;
             }
 
-            const CapabilityAdvertisement handshakeAdvertisement = currentCapabilityAdvertisement();
+            const CapabilityAdvertisement handshakeAdvertisement = capabilityAdvertisement();
             control->negotiatedCapabilities = negotiatedCapabilities(hello, handshakeAdvertisement);
 
             flushNow();
@@ -1695,11 +1713,7 @@ namespace ai::openai::codex::frontend {
                 bool controllerRequired = metadata->controllerRequired;
                 bool scopeAllowed = hasRequiredScopes(*control->principal, metadata->requiredScopes);
                 if (method == generated::MethodId::AccountRead) {
-                    const Json& params = std::visit(
-                        [](const auto& value) -> const Json& {
-                            return value.value;
-                        },
-                        command.parameters);
+                    const Json& params = validatedCommand.value().at("params");
                     const bool refreshToken = params.contains("refreshToken") && params.at("refreshToken").get<bool>();
                     if (refreshToken) {
                         scopeAllowed = hasScope(*control->principal, FrontendScope::Control) &&
@@ -2540,6 +2554,7 @@ namespace ai::openai::codex::frontend {
         backend::BackendObserverSubscription observer;
         std::map<std::uint64_t, std::shared_ptr<FrontendConnection::Control>> connections;
         std::map<std::string, FailedAuthenticationWindow> failedAuthentications;
+        std::map<FrontendTransportKind, std::size_t> declaredTransportCounts;
         std::uint64_t nextConnectionId = 0;
         std::uint64_t nextFailureWindowGeneration = 0;
         std::size_t unauthenticatedConnections = 0;
@@ -2731,6 +2746,18 @@ namespace ai::openai::codex::frontend {
         return impl ? impl->recordPreAuthenticationFailure(peer, failure) : AuthenticationFailureCode::RateLimited;
     }
 
+    void FrontendService::declareTransportFamily(FrontendTransportKind transport) {
+        if (impl) {
+            impl->declareTransportFamily(transport);
+        }
+    }
+
+    void FrontendService::withdrawTransportFamily(FrontendTransportKind transport) noexcept {
+        if (impl) {
+            impl->withdrawTransportFamily(transport);
+        }
+    }
+
     void FrontendService::flush() {
         if (impl) {
             impl->flushNow();
@@ -2790,6 +2817,10 @@ namespace ai::openai::codex::frontend {
 
     std::vector<FrontendMethod> FrontendService::permittedMethods(const FrontendPrincipal& principal) const {
         return impl ? impl->permittedMethods(principal) : std::vector<FrontendMethod>{};
+    }
+
+    std::vector<FrontendTransportKind> FrontendService::enabledTransportFamilies() const {
+        return impl ? impl->enabledTransportFamilies() : std::vector<FrontendTransportKind>{};
     }
 
     std::vector<FrontendCapability> FrontendService::implementedCapabilities() const {
