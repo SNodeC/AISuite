@@ -381,9 +381,9 @@ namespace ai::openai::codex::frontend::client {
     };
 
 #define AISUITE_FRONTEND_CLIENT_SIMPLE_DOMAIN_TYPE(typeName)                                                                               \
-    struct typeName {                                                                                                                       \
+    struct typeName {                                                                                                                      \
         DomainProjectionState projection;                                                                                                  \
-        bool operator==(const typeName&) const = default;                                                                                   \
+        bool operator==(const typeName&) const = default;                                                                                  \
     }
 
     struct AccountDetailsState {
@@ -456,10 +456,10 @@ namespace ai::openai::codex::frontend::client {
     AISUITE_FRONTEND_CLIENT_SIMPLE_DOMAIN_TYPE(PermissionProfilesState);
     AISUITE_FRONTEND_CLIENT_SIMPLE_DOMAIN_TYPE(ReviewsState);
 #define AISUITE_FRONTEND_CLIENT_INTEGRATION_DOMAIN_TYPE(typeName)                                                                          \
-    struct typeName {                                                                                                                       \
+    struct typeName {                                                                                                                      \
         DomainProjectionState projection;                                                                                                  \
         IntegrationDetailsState details;                                                                                                   \
-        bool operator==(const typeName&) const = default;                                                                                   \
+        bool operator==(const typeName&) const = default;                                                                                  \
     }
     AISUITE_FRONTEND_CLIENT_INTEGRATION_DOMAIN_TYPE(AppsState);
     AISUITE_FRONTEND_CLIENT_INTEGRATION_DOMAIN_TYPE(ExternalAgentsState);
@@ -467,10 +467,10 @@ namespace ai::openai::codex::frontend::client {
     AISUITE_FRONTEND_CLIENT_INTEGRATION_DOMAIN_TYPE(MarketplaceState);
 #undef AISUITE_FRONTEND_CLIENT_INTEGRATION_DOMAIN_TYPE
 #define AISUITE_FRONTEND_CLIENT_PLUGIN_DOMAIN_TYPE(typeName)                                                                               \
-    struct typeName {                                                                                                                       \
+    struct typeName {                                                                                                                      \
         DomainProjectionState projection;                                                                                                  \
         PluginsAndSkillsDetailsState details;                                                                                              \
-        bool operator==(const typeName&) const = default;                                                                                   \
+        bool operator==(const typeName&) const = default;                                                                                  \
     }
     AISUITE_FRONTEND_CLIENT_PLUGIN_DOMAIN_TYPE(PluginsState);
     AISUITE_FRONTEND_CLIENT_PLUGIN_DOMAIN_TYPE(SkillsState);
@@ -481,10 +481,10 @@ namespace ai::openai::codex::frontend::client {
         bool operator==(const McpState&) const = default;
     };
 #define AISUITE_FRONTEND_CLIENT_PLATFORM_DOMAIN_TYPE(typeName)                                                                             \
-    struct typeName {                                                                                                                       \
+    struct typeName {                                                                                                                      \
         DomainProjectionState projection;                                                                                                  \
         PlatformDetailsState details;                                                                                                      \
-        bool operator==(const typeName&) const = default;                                                                                   \
+        bool operator==(const typeName&) const = default;                                                                                  \
     }
     AISUITE_FRONTEND_CLIENT_PLATFORM_DOMAIN_TYPE(WindowsSandboxState);
     AISUITE_FRONTEND_CLIENT_PLATFORM_DOMAIN_TYPE(PlatformState);

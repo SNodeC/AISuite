@@ -117,7 +117,7 @@ time, while their payload is retained in `nlohmann::json`. The tags provide
 exact method correlation, generated metadata, schema validation, and wire
 conformance. They are not yet the ergonomic, domain-typed C++ application API.
 
-A1.7c-1 will introduce `AISuite::OpenAICodexFrontendClient` with domain-oriented
+A1.7c-1 introduces `AISuite::OpenAICodexFrontendClient` with domain-oriented
 façades, callback-last asynchronous operations, typed client-side state,
 replay/reconnection, and no raw-JSON requirement for stable application
 workflows. A1.7a therefore supplies method-tagged schema-validated protocol
@@ -159,16 +159,18 @@ are contained at the `Codec` boundary. A generated `uniqueItems: true` array is
 accepted only when generation can prove a finite maximum cardinality and bound
 the resulting pair comparisons.
 
-The fixed regression corpus contains 558 generated validations. Its observed
-maxima are 3,323 visits, depth 16, 1,806 resolved references, 38 evaluated
+The fixed regression corpus contains 559 generated validations. Its observed
+maxima are 3,549 visits, depth 23, 1,896 resolved references, 65 evaluated
 alternatives, 28 discriminator fast paths, zero unique-item comparisons, and 11
-regular-expression evaluations. A valid 2,000-item expanded snapshot consumes
-225,307 visits at depth 12. The generated `$defs` graph is currently acyclic;
-the private test seam therefore exercises the exact 128/129 depth boundary with
-a synthetic schema, while generated snapshots are tested at their exact
-measured depth and again through the public codec. The generated sensitive-field
-guard is separately driven past depth 128 through a real method result; the
-public codec rejects it with the bounded complexity error and remains reusable.
+regular-expression evaluations. A valid 2,000-item expanded snapshot is
+739,169 bytes and consumes 225,533 visits at depth 23, with 2,047 alternatives
+and 2,010 discriminator fast paths. The generated `$defs` graph is currently
+acyclic; the private test seam therefore exercises the exact 128/129 depth
+boundary with a synthetic schema, while generated snapshots are tested at their
+exact measured depth and again through the public codec. The generated
+sensitive-field guard is separately driven past depth 128 through a real method
+result; the public codec rejects it with the bounded complexity error and
+remains reusable.
 
 Unknown non-conflicting fields are deliberately accepted for additive v1
 compatibility. Known fields retain full validation, while unknown values retain
@@ -355,17 +357,21 @@ authenticated_frontend           scope_projected_state
 provider_lifecycle
 ```
 
-The conditional capabilities remain implemented when their methods are
+The invocation-policy capabilities remain implemented when their methods are
 deployment-disabled; method activation is represented by `availableMethods`.
-The four future product capabilities `cpp_client_sdk`,
-`typescript_client_sdk`, `browser_ui`, and `qt_ui` remain unimplemented.
+Capability category and current truth are independent. The 13 entries above
+are static service mechanisms. `multi_transport` is the one conditional
+topology capability: one declared transport family yields false and more than
+one yields true. Product capabilities are a third category. `cpp_client_sdk`
+is build-derived true when the AISuite C++ SDK product is enabled and built;
+`typescript_client_sdk`, `browser_ui`, and `qt_ui` remain false.
 
-The generated `multi_transport` capability identity remains defined for v1
-compatibility. A1.7b does not implement or advertise it: SNode.C owns listener
-configuration and lifecycle, and the service keeps no duplicate runtime
-transport registry. A deployment may still run several listeners, all borrowing
-the same FrontendService, while Welcome advertises the same 13 implemented
-mechanism capabilities.
+The implemented total is therefore `13 + topology(0|1) + product(0|1)`, not
+one unconditional mechanism count. The SDK requests only the five v1
+representation selectors: `complete_backend_domains`,
+`dedicated_pending_requests`, `dedicated_notification_events`,
+`complete_thread_items`, and `scope_projected_state`. It observes mechanism,
+topology, and product facts without requesting them as representation choices.
 
 For methods, `availableMethods` means implemented and deployment-enabled.
 `permittedMethods` further filters that set by the authenticated principal's
@@ -1006,8 +1012,8 @@ provider lifecycle exposure, and Unix/TCP/TLS/WebSocket/WSS/RFCOMM
 composition. The default application remains Unix-only; optional transport
 support does not alter the protocol identity or method catalog.
 
-A1.7c-1 is next and owns the C++ Frontend SDK plus
-`codex-backend-client` migration. A1.7c-2 immediately follows and migrates the
+A1.7c-1 supplies the C++ Frontend SDK and migrated
+`codex-backend-client`. A1.7c-2 immediately follows and migrates the
 existing `codex-ui` into the canonical standalone AI IDE; no extra roadmap PR
 is inserted before it. A1.7d owns the TypeScript Frontend SDK and browser
 frontend.

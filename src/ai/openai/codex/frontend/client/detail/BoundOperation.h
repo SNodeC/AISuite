@@ -19,8 +19,7 @@ namespace ai::openai::codex::frontend::client::detail {
     // domain-typed while letting Client own correlation and protocol-failure
     // containment for every operation uniformly.
     struct BoundOperationCompletion {
-        using Decoder =
-            std::function<bool(const frontend::generated::CompleteCommandResult&, std::any&, std::string&)>;
+        using Decoder = std::function<bool(const frontend::generated::CompleteCommandResult&, std::any&, std::string&)>;
         using Success = std::function<void(const RequestId&, std::any&&)>;
         using Failure = std::function<void(const RequestId&, const Error&)>;
 

@@ -22,8 +22,7 @@ namespace ai::openai::codex::frontend::client {
         std::optional<frontend::Json> explicitProjectionMetadata;
     };
 
-    AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT [[nodiscard]] std::string
-    projectionFingerprint(const ProjectionFingerprintInput& input);
+    AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT [[nodiscard]] std::string projectionFingerprint(const ProjectionFingerprintInput& input);
 
 } // namespace ai::openai::codex::frontend::client
 

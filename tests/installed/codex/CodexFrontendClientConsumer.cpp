@@ -109,8 +109,8 @@ int main() {
 
     client::UserInputRespondParams reverseParameters;
     reverseParameters.pendingRequestId = client::PendingRequestId{"1"};
-    reverseParameters.answers.push_back(typed::UserInputAnswer{.questionId = "installed-consumer-question",
-                                                               .answers = {"installed-consumer-answer"}});
+    reverseParameters.answers.push_back(
+        typed::UserInputAnswer{.questionId = "installed-consumer-question", .answers = {"installed-consumer-answer"}});
     const client::Submission reverseResponse =
         sdk.requests().respond(std::move(reverseParameters), [](const client::OperationResult<typed::Unit>&) {
         });
@@ -122,9 +122,9 @@ int main() {
 
     const bool typedOperationsRejectBeforeReady = isNotReady(threadStart) && isNotReady(turnStart) && isNotReady(controllerAcquire) &&
                                                   isNotReady(providerStart) && isNotReady(reverseResponse) && isNotReady(replay);
-    const bool initialStateIsTypedAndEmpty = state.revision() == 0 && exerciseTypedState(state) &&
-                                             !backendCursor.currentSequence && projectionMetadata.omittedFields.empty() &&
-                                             projectionMetadata.redactedFields.empty() && !projectionFingerprint;
+    const bool initialStateIsTypedAndEmpty = state.revision() == 0 && exerciseTypedState(state) && !backendCursor.currentSequence &&
+                                             projectionMetadata.omittedFields.empty() && projectionMetadata.redactedFields.empty() &&
+                                             !projectionFingerprint;
     const bool capabilityMetadataIsUsable =
         capability.capability == frontend::FrontendCapability::CppClientSdk && capability.defined == client::Availability::Yes;
 

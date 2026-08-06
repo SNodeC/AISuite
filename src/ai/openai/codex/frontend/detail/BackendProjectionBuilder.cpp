@@ -1948,11 +1948,8 @@ namespace ai::openai::codex::frontend::detail {
             }
             return projected;
         } catch (...) {
-            return Json{{"hasLoadedPage", false},
-                        {"complete", false},
-                        {"pagesLoaded", 0},
-                        {"stamp", stampJson({})},
-                        {"projectionTruncated", true}};
+            return Json{
+                {"hasLoadedPage", false}, {"complete", false}, {"pagesLoaded", 0}, {"stamp", stampJson({})}, {"projectionTruncated", true}};
         }
     }
 

@@ -57,10 +57,11 @@ denominator.
 
 Optional hello/welcome discovery fields distinguish capabilities that are
 defined, implemented, and permitted, and distinguish available methods from
-connection-permitted methods. The service advertises 13 mechanism
-capabilities. The generated `multi_transport` identity remains defined for v1
-compatibility, but this application keeps no duplicate listener registry and
-does not advertise it; SNode.C owns listener configuration and lifecycle.
+connection-permitted methods. The service advertises 13 static mechanism
+capabilities. `multi_transport` is separate conditional topology truth: one
+declared transport family yields false and more than one yields true. This
+application keeps no duplicate listener registry; SNode.C owns listener
+configuration and lifecycle.
 
 The default remote scope profile is exactly `observe` plus `control`. The local
 trusted profile contains those and the ten additional scopes
@@ -84,7 +85,7 @@ Compatibility remains complete and duplicate-free: all 68 stable
 notifications retain either their existing normalized path or bounded/redacted
 `codex.extension`, and all 18 stable `ThreadItem` alternatives retain their
 existing normalized or metadata-only path. Expanded mappings cover those
-families, ten pending-request kinds, and 25 event families. Mandatory scope
+families, ten pending-request kinds, and 26 event families. Mandatory scope
 filtering occurs before legacy/expanded selection, and one provider occurrence
 uses one representation for a connection, never both.
 
@@ -158,7 +159,7 @@ cmake -S . -B build \
   -DAISUITE_BUILD_APPS=ON \
   -DAISUITE_BUILD_TESTS=ON \
   -DCMAKE_PREFIX_PATH=/path/to/installed/snodec
-cmake --build build --parallel 28 --target codex-backend codex-backend-client
+cmake --build build --parallel 26 --target codex-backend codex-backend-client
 ```
 
 With a conventional single-configuration generator, run the in-tree binaries
@@ -212,19 +213,19 @@ tests.
 None of those application-only targets leaks into the reusable frontend
 library.
 
-Start the server and client in separate terminals. The client sends `hello`
-automatically and provides typed synchronization, controller, thread, and turn
-commands as documented in its README:
+Start the server and client in separate terminals. The C++ Frontend SDK sends
+Hello after the physical transport connects and provides synchronization,
+controller, and domain façades as documented in the client README:
 
 ```sh
 codex-backend
 codex-backend-client
 ```
 
-The staged installed frontend-consumer test separately finds AISuite and
-constructs `BackendCore<stdio::Client>`, public `FrontendService`, and an
-in-memory `FrontendConnection` using only installed headers and imported
-AISuite targets. It uses no source-tree or private headers.
+The staged installed consumers separately exercise `FrontendService` and
+`AISuite::OpenAICodexFrontendClient` using only installed headers and imported
+AISuite targets. The SDK consumer links no concrete SNode.C transport target
+and uses no source-tree or private header.
 
 The separate installed module-server consumer continues to exercise the
 application-only `snodec::net-un-stream-legacy` composition boundary.
@@ -278,9 +279,10 @@ acquire
 release
 ```
 
-These remain the existing client's 15-command UI subset; A1.7b does not migrate
-the client to the complete method catalog. FrontendService nevertheless maps
-all 105 protocol methods. For legacy compatibility it projects the exact
+These remain the reference CLI's concise workflow subset. A1.7c-1 migrates its
+protocol lifecycle and correlation to the SDK, whose generated binding
+authority covers all 105 methods. For legacy compatibility FrontendService
+projects the exact
 `ThreadStartResponse`, `ThreadResumeResponse`, and `ThreadReadResponse` wrappers
 back to the existing `result.thread` JSON, `TurnStartResponse` to the existing
 `result.turn`, `ThreadListResponse` to the existing page JSON, and
@@ -331,9 +333,9 @@ acquire
 new --cwd /home/voc/projects/snode.c -- Review the repository.
 ```
 
-`new` is solely a `codex-backend-client` compound command. It submits a typed
-`ThreadStart`, waits for the matching successful response, validates the
-returned `result.thread.id`, and submits a typed `TurnStart` with that ID and
+`new` is solely a `codex-backend-client` compound command. It submits
+`thread.start` through the SDK, waits for the typed completion, validates the
+returned thread ID, and submits `turn.start` through the SDK with that ID and
 one text input containing the complete prompt. The backend and Frontend
 Protocol v1 gain no `new` operation, and the client does not send both requests
 before the start response arrives.
@@ -352,7 +354,8 @@ printf '%s\n' \
   | codex-backend-client --json
 ```
 
-EOF draining waits for both stages of `new`. If thread creation succeeds but
+EOF draining uses the SDK pending-operation count and waits for both stages of
+`new`. If thread creation succeeds but
 the initial turn cannot be submitted or returns a failure, the client exits
 unsuccessfully, reports that the thread was created, and preserves its ID in
 the diagnostic. Disconnects and send failures during either stage likewise
@@ -615,6 +618,19 @@ limits remain finite. Deployments that customize one limit must adjust the
 downstream limits consistently; a complete snapshot is one separate message
 and a configured writer too small for it closes only that frontend.
 
+When one atomic live occurrence cannot fit the event-batch limit,
+FrontendService sends a bare live Snapshot barrier to the already Ready
+connection. The client replaces its projected state without another Welcome or
+SyncComplete. Expanded thread-list metadata is represented by one compact
+`threadList.updated` family rather than by re-emitting every retained thread;
+page threads remain their own ordinary upserts and an empty page fabricates no
+thread.
+
+If FrontendService requests a connection-local close, the native JSONL and
+WebSocket adapters retain and log one bounded, control-character-safe lifecycle
+reason. Complete protocol payloads, credentials, command parameters, and secret
+reverse-response values are not logged.
+
 No unbounded application queue is added. If either boundary cannot accept the
 next message, the service closes that frontend, clears its queued data, and
 detaches its session. A throwing send callback has the same local effect. One
@@ -659,12 +675,10 @@ model turn.
 
 A1.7b implements authenticated Unix, IPv4/IPv6 JSONL, TLS JSONL, WebSocket,
 WSS, optional RFCOMM composition, provider lifecycle, and scope-projected
-state. It intentionally does not add a C++ client SDK, migrate the existing
-client or UI, provide browser assets, add multiple controllers, or permit
-forced takeover.
+state. A1.7c-1 adds the transport-neutral C++ Frontend SDK and migrates the
+reference client while leaving the UI and browser unchanged.
 
-A1.7c-1 is the next PR and implements the C++ Frontend SDK plus
-`codex-backend-client` migration. A1.7c-2 immediately follows and migrates the
+A1.7c-2 immediately follows and migrates the
 existing `codex-ui` into the canonical standalone AI IDE. No additional PR is
 inserted before `codex-ui`. A1.7d owns the TypeScript Frontend SDK and browser
 frontend. Provider-neutral architecture remains A2.

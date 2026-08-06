@@ -43,8 +43,8 @@
 #include <map>
 #include <ostream>
 #include <set>
-#include <streambuf>
 #include <stdexcept>
+#include <streambuf>
 #include <type_traits>
 #include <utility>
 
@@ -139,10 +139,10 @@ namespace ai::openai::codex::frontend::client {
         }
 
         const frontend::generated::MethodMetadata* methodMetadata(frontend::generated::MethodId method) noexcept {
-            const auto found = std::ranges::find_if(frontend::generated::AllMethods,
-                                                    [method](const frontend::generated::MethodMetadata& metadata) {
-                                                        return metadata.id == method;
-                                                    });
+            const auto found =
+                std::ranges::find_if(frontend::generated::AllMethods, [method](const frontend::generated::MethodMetadata& metadata) {
+                    return metadata.id == method;
+                });
             return found == frontend::generated::AllMethods.end() ? nullptr : &*found;
         }
 
@@ -222,7 +222,9 @@ namespace ai::openai::codex::frontend::client {
                 for (std::size_t index = 0; index < value.size(); ++index) {
                     data[index] = '\0';
                 }
-                zeroed = std::ranges::all_of(value, [](char character) { return character == '\0'; });
+                zeroed = std::ranges::all_of(value, [](char character) {
+                    return character == '\0';
+                });
                 value.clear();
             } catch (...) {
                 // No allocation is expected when resizing to capacity, but a
@@ -232,7 +234,9 @@ namespace ai::openai::codex::frontend::client {
                 for (std::size_t index = 0; index < value.size(); ++index) {
                     data[index] = '\0';
                 }
-                zeroed = value.empty() || std::ranges::all_of(value, [](char character) { return character == '\0'; });
+                zeroed = value.empty() || std::ranges::all_of(value, [](char character) {
+                             return character == '\0';
+                         });
                 value.clear();
             }
             if (completeStorageWasZeroed != nullptr) {
@@ -249,9 +253,8 @@ namespace ai::openai::codex::frontend::client {
                 } else if (value.is_array() || value.is_object()) {
                     for (frontend::Json& member : value) {
                         const std::size_t erased = securelyErase(member);
-                        bytes = erased > std::numeric_limits<std::size_t>::max() - bytes
-                                    ? std::numeric_limits<std::size_t>::max()
-                                    : bytes + erased;
+                        bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max()
+                                                                                         : bytes + erased;
                     }
                 }
                 value = nullptr;
@@ -263,11 +266,14 @@ namespace ai::openai::codex::frontend::client {
         }
 
         std::size_t securelyErase(frontend::generated::DefinedCommand& command) noexcept {
-            std::size_t bytes = std::visit([](auto& parameters) { return securelyErase(parameters.value); }, command.parameters);
+            std::size_t bytes = std::visit(
+                [](auto& parameters) {
+                    return securelyErase(parameters.value);
+                },
+                command.parameters);
             for (frontend::Json* value : {&command.extensions, &command.parameterExtensions}) {
                 const std::size_t erased = securelyErase(*value);
-                bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max()
-                                                                                : bytes + erased;
+                bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max() : bytes + erased;
             }
             return bytes;
         }
@@ -289,8 +295,7 @@ namespace ai::openai::codex::frontend::client {
             std::size_t bytes = securelyErase(hello->extensions);
             if (hello->authentication) {
                 const std::size_t erased = securelyErase(*hello->authentication);
-                bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max()
-                                                                                : bytes + erased;
+                bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max() : bytes + erased;
                 hello->authentication.reset();
             }
             return bytes;
@@ -422,9 +427,7 @@ namespace ai::openai::codex::frontend::client {
             message.serializedBytes = 0;
         }
 
-        [[nodiscard]] bool tryAccumulateSynchronizationCounts(std::size_t received,
-                                                              std::size_t applied,
-                                                              std::size_t ignored) noexcept {
+        [[nodiscard]] bool tryAccumulateSynchronizationCounts(std::size_t received, std::size_t applied, std::size_t ignored) noexcept {
             if (received > std::numeric_limits<std::size_t>::max() - synchronizationReceivedEvents ||
                 applied > std::numeric_limits<std::size_t>::max() - synchronizationAppliedEvents ||
                 ignored > std::numeric_limits<std::size_t>::max() - synchronizationIgnoredEvents) {
@@ -463,9 +466,8 @@ namespace ai::openai::codex::frontend::client {
             }
         }
 
-        void notifyConnectionStateChanged(ConnectionState previous,
-                                          ConnectionState next,
-                                          std::optional<Error> error = std::nullopt) noexcept {
+        void
+        notifyConnectionStateChanged(ConnectionState previous, ConnectionState next, std::optional<Error> error = std::nullopt) noexcept {
             if (!callbacks.onConnectionStateChanged) {
                 return;
             }
@@ -553,8 +555,7 @@ namespace ai::openai::codex::frontend::client {
             }
         }
 
-        void invokeExplicitSynchronizationSuccess(ExplicitSynchronization operation,
-                                                  SynchronizationResult result) noexcept {
+        void invokeExplicitSynchronizationSuccess(ExplicitSynchronization operation, SynchronizationResult result) noexcept {
             const RequestId requestId = operation.requestId.value_or(RequestId{});
             if (operation.handler) {
                 try {
@@ -568,8 +569,7 @@ namespace ai::openai::codex::frontend::client {
             if (operation.generatedHandler) {
                 try {
                     if (operation.generatedResult) {
-                        operation.generatedHandler(
-                            GeneratedOperationResult{requestId, std::move(operation.generatedResult), std::nullopt});
+                        operation.generatedHandler(GeneratedOperationResult{requestId, std::move(operation.generatedResult), std::nullopt});
                     } else {
                         operation.generatedHandler(GeneratedOperationResult{
                             requestId,
@@ -614,9 +614,9 @@ namespace ai::openai::codex::frontend::client {
             projectionSnapshotStreaming = false;
             projectionSnapshotRequestId.reset();
             projectionValidationState.reset();
-            const Error disconnectError = error.value_or(
-                terminal ? clientError(ClientErrorCode::Closed, "frontend client closed")
-                         : clientError(ClientErrorCode::NotConnected, "frontend client connection closed", true));
+            const Error disconnectError =
+                error.value_or(terminal ? clientError(ClientErrorCode::Closed, "frontend client closed")
+                                        : clientError(ClientErrorCode::NotConnected, "frontend client connection closed", true));
 
             std::optional<detail::StateReduction> staleReduction;
             std::optional<Error> staleCapacityError;
@@ -630,9 +630,8 @@ namespace ai::openai::codex::frontend::client {
                     // Keep disconnect/close noexcept even for an impossible
                     // configuration below the minimum empty-State footprint.
                     staleState = detail::StateReducer::initial();
-                    staleCapacityError = clientError(
-                        ClientErrorCode::StateCapacityExceeded,
-                        staleError.empty() ? "stale frontend state exceeded capacity" : std::move(staleError));
+                    staleCapacityError = clientError(ClientErrorCode::StateCapacityExceeded,
+                                                     staleError.empty() ? "stale frontend state exceeded capacity" : std::move(staleError));
                 }
                 staleReduction = detail::StateReduction{std::move(*staleState), {}, 0, 0, 0};
                 currentState = staleReduction->state;
@@ -838,9 +837,10 @@ namespace ai::openai::codex::frontend::client {
                     !validUniqueCapabilities(welcome.capabilities->defined) ||
                     !validUniqueCapabilities(welcome.capabilities->implemented) ||
                     !validUniqueCapabilities(welcome.capabilities->permitted) ||
-                    std::ranges::any_of(welcome.capabilities->implemented, [&](frontend::FrontendCapability capability) {
-                        return !contains(welcome.capabilities->defined, capability);
-                    }) ||
+                    std::ranges::any_of(welcome.capabilities->implemented,
+                                        [&](frontend::FrontendCapability capability) {
+                                            return !contains(welcome.capabilities->defined, capability);
+                                        }) ||
                     std::ranges::any_of(welcome.capabilities->permitted, [&](frontend::FrontendCapability capability) {
                         return !contains(welcome.capabilities->implemented, capability);
                     });
@@ -868,8 +868,7 @@ namespace ai::openai::codex::frontend::client {
                     }
                 }
                 for (const frontend::FrontendCapability required : options.requiredCapabilities) {
-                    if (!contains(welcome.capabilities->implemented, required) ||
-                        !contains(welcome.capabilities->permitted, required)) {
+                    if (!contains(welcome.capabilities->implemented, required) || !contains(welcome.capabilities->permitted, required)) {
                         fail(control,
                              protocolError(ClientErrorCode::UnexpectedMessage, "required frontend capability is unavailable"),
                              "required frontend capability unavailable");
@@ -970,13 +969,12 @@ namespace ai::openai::codex::frontend::client {
             projectionValidationState.reset();
             if (projectionRefreshRequired) {
                 std::string stagingError;
-                projectionValidationState = detail::StateReducer::synchronizationStaging(
-                    info,
-                    helloResumeAfterSent,
-                    options.maximumDecodedStateBytes,
-                    options.allowLegacyV1,
-                    stagingError,
-                    activeProjectionMetadata());
+                projectionValidationState = detail::StateReducer::synchronizationStaging(info,
+                                                                                         helloResumeAfterSent,
+                                                                                         options.maximumDecodedStateBytes,
+                                                                                         options.allowLegacyV1,
+                                                                                         stagingError,
+                                                                                         activeProjectionMetadata());
                 if (!projectionValidationState) {
                     fail(control,
                          protocolError(ClientErrorCode::StateDivergence, std::move(stagingError)),
@@ -985,13 +983,12 @@ namespace ai::openai::codex::frontend::client {
                 }
             } else if (welcome.syncMode == frontend::SyncMode::Replay && !currentState.synchronizedThrough()) {
                 std::string stagingError;
-                auto initialReplayState = detail::StateReducer::synchronizationStaging(
-                    info,
-                    helloResumeAfterSent,
-                    options.maximumDecodedStateBytes,
-                    options.allowLegacyV1,
-                    stagingError,
-                    activeProjectionMetadata());
+                auto initialReplayState = detail::StateReducer::synchronizationStaging(info,
+                                                                                       helloResumeAfterSent,
+                                                                                       options.maximumDecodedStateBytes,
+                                                                                       options.allowLegacyV1,
+                                                                                       stagingError,
+                                                                                       activeProjectionMetadata());
                 if (!initialReplayState) {
                     fail(control,
                          protocolError(ClientErrorCode::StateDivergence, std::move(stagingError)),
@@ -1228,10 +1225,9 @@ namespace ai::openai::codex::frontend::client {
                 sawSnapshot = true;
                 const UpdateCause cause = projectionSnapshotStreaming
                                               ? UpdateCause::ProjectionRefresh
-                                              : (explicitSynchronization
-                                                     ? UpdateCause::ExplicitSnapshot
-                                                     : (initialSnapshotFallback ? UpdateCause::SnapshotFallback
-                                                                                : UpdateCause::InitialSnapshot));
+                                              : (explicitSynchronization ? UpdateCause::ExplicitSnapshot
+                                                                         : (initialSnapshotFallback ? UpdateCause::SnapshotFallback
+                                                                                                    : UpdateCause::InitialSnapshot));
                 stateUpdated(std::move(*reduction), cause, snapshot->sequence, snapshot->sequence);
                 semanticallyAccepted = true;
                 return;
@@ -1248,16 +1244,12 @@ namespace ai::openai::codex::frontend::client {
                 if (projectionRefreshRequired) {
                     if (!projectionValidationState) {
                         fail(control,
-                             protocolError(ClientErrorCode::StateDivergence,
-                                           "projection replay validation state is unavailable"),
+                             protocolError(ClientErrorCode::StateDivergence, "projection replay validation state is unavailable"),
                              "frontend projection replay validation failed");
                         return;
                     }
-                    reduction = detail::StateReducer::validateSynchronizationEvents(*projectionValidationState,
-                                                                                   *batch,
-                                                                                   options.maximumDecodedStateBytes,
-                                                                                   options.allowLegacyV1,
-                                                                                   reductionError);
+                    reduction = detail::StateReducer::validateSynchronizationEvents(
+                        *projectionValidationState, *batch, options.maximumDecodedStateBytes, options.allowLegacyV1, reductionError);
                 } else {
                     reduction = detail::StateReducer::events(currentState,
                                                              *batch,
@@ -1273,12 +1265,10 @@ namespace ai::openai::codex::frontend::client {
                          "frontend replay reduction failed");
                     return;
                 }
-                if (!tryAccumulateSynchronizationCounts(reduction->receivedEvents,
-                                                        reduction->appliedEvents,
-                                                        reduction->ignoredAlreadyAppliedEvents)) {
+                if (!tryAccumulateSynchronizationCounts(
+                        reduction->receivedEvents, reduction->appliedEvents, reduction->ignoredAlreadyAppliedEvents)) {
                     fail(control,
-                         protocolError(ClientErrorCode::StateCapacityExceeded,
-                                       "frontend synchronization event counters exhausted"),
+                         protocolError(ClientErrorCode::StateCapacityExceeded, "frontend synchronization event counters exhausted"),
                          "frontend synchronization event counters exhausted");
                     return;
                 }
@@ -1288,13 +1278,9 @@ namespace ai::openai::codex::frontend::client {
                 } else {
                     const UpdateCause cause = explicitSynchronization
                                                   ? UpdateCause::ExplicitReplay
-                                                  : (active && active->generation > 1 && helloResumeAfterSent
-                                                         ? UpdateCause::ReconnectReplay
-                                                         : UpdateCause::InitialReplay);
-                    stateUpdated(std::move(*reduction),
-                                 cause,
-                                 batch->fromSequence,
-                                 batch->toSequence);
+                                                  : (active && active->generation > 1 && helloResumeAfterSent ? UpdateCause::ReconnectReplay
+                                                                                                              : UpdateCause::InitialReplay);
+                    stateUpdated(std::move(*reduction), cause, batch->fromSequence, batch->toSequence);
                 }
                 semanticallyAccepted = true;
                 return;
@@ -1361,9 +1347,8 @@ namespace ai::openai::codex::frontend::client {
                 explicitSynchronization->streamCompleted = true;
                 completedExplicitRequestId = explicitSynchronization->requestId;
             }
-            const bool synchronizationWasSnapshotFallback =
-                projectionSnapshotStreaming || initialSnapshotFallback ||
-                (explicitSynchronization && explicitSynchronization->snapshotFallback);
+            const bool synchronizationWasSnapshotFallback = projectionSnapshotStreaming || initialSnapshotFallback ||
+                                                            (explicitSynchronization && explicitSynchronization->snapshotFallback);
             std::optional<SynchronizationResult> completedSynchronizationResult;
             if (explicitSynchronization) {
                 std::string synchronizationDecodeError;
@@ -1403,8 +1388,7 @@ namespace ai::openai::codex::frontend::client {
             if (!owns(control) || connectionState != ConnectionState::Ready) {
                 return;
             }
-            notifyStateUpdated(
-                std::move(synchronizationChanges), UpdateCause::SynchronizationCompleted, std::nullopt, complete->sequence);
+            notifyStateUpdated(std::move(synchronizationChanges), UpdateCause::SynchronizationCompleted, std::nullopt, complete->sequence);
             if (!owns(control) || connectionState != ConnectionState::Ready) {
                 return;
             }
@@ -1435,12 +1419,11 @@ namespace ai::openai::codex::frontend::client {
             }
             if (callbacks.onSynchronized) {
                 try {
-                    callbacks.onSynchronized(SynchronizationInfo{
-                        streamMode,
-                        complete->sequence,
-                        currentState,
-                        active && active->generation > 1,
-                        synchronizationWasSnapshotFallback});
+                    callbacks.onSynchronized(SynchronizationInfo{streamMode,
+                                                                 complete->sequence,
+                                                                 currentState,
+                                                                 active && active->generation > 1,
+                                                                 synchronizationWasSnapshotFallback});
                 } catch (...) {
                     diagnostic(Diagnostic::Severity::Warning,
                                "frontend client synchronization callback threw",
@@ -1642,9 +1625,8 @@ namespace ai::openai::codex::frontend::client {
                     eraseOwnedOutbound(deferred.message);
                     continue;
                 }
-                const bool synchronizationCommand =
-                    operationFound->second.method == frontend::generated::MethodId::SnapshotGet ||
-                    operationFound->second.method == frontend::generated::MethodId::EventsReplay;
+                const bool synchronizationCommand = operationFound->second.method == frontend::generated::MethodId::SnapshotGet ||
+                                                    operationFound->second.method == frontend::generated::MethodId::EventsReplay;
                 const bool activatesSynchronization =
                     synchronizationCommand && explicitSynchronization && explicitSynchronization->requestId &&
                     explicitSynchronization->requestId->value() == deferred.requestId && !explicitSynchronization->responseAccepted &&
@@ -1657,9 +1639,9 @@ namespace ai::openai::codex::frontend::client {
                         continue;
                     }
                 }
-                const bool sendableState = connectionState == ConnectionState::Ready ||
-                                           (connectionState == ConnectionState::Synchronizing && synchronizationCommand &&
-                                            explicitSynchronization.has_value());
+                const bool sendableState =
+                    connectionState == ConnectionState::Ready ||
+                    (connectionState == ConnectionState::Synchronizing && synchronizationCommand && explicitSynchronization.has_value());
                 if (!active || !active->connected || !sendableState) {
                     PendingOperation operation = std::move(operationFound->second);
                     pending.erase(operationFound);
@@ -1711,9 +1693,8 @@ namespace ai::openai::codex::frontend::client {
             const frontend::generated::MethodId method = frontend::generated::commandMethod(parameters);
             if (explicitSynchronization && !explicitSynchronization->streamCompleted) {
                 const frontend::generated::MethodId synchronizationMethod =
-                    explicitSynchronization->requestedMode == frontend::SyncMode::Snapshot
-                        ? frontend::generated::MethodId::SnapshotGet
-                        : frontend::generated::MethodId::EventsReplay;
+                    explicitSynchronization->requestedMode == frontend::SyncMode::Snapshot ? frontend::generated::MethodId::SnapshotGet
+                                                                                           : frontend::generated::MethodId::EventsReplay;
                 if (method != synchronizationMethod) {
                     return {std::nullopt,
                             clientError(ClientErrorCode::NotReady,
@@ -1749,8 +1730,11 @@ namespace ai::openai::codex::frontend::client {
             eraseTransientString(serializedStorage, true);
             const frontend::generated::MethodMetadata* metadata = methodMetadata(method);
             if (metadata != nullptr && metadata->category == frontend::generated::MethodCategory::ReverseResponse) {
-                const frontend::Json& validatedParameters =
-                    std::visit([](const auto& value) -> const frontend::Json& { return value.value; }, command.parameters);
+                const frontend::Json& validatedParameters = std::visit(
+                    [](const auto& value) -> const frontend::Json& {
+                        return value.value;
+                    },
+                    command.parameters);
                 const auto pendingRequestId = validatedParameters.find("pendingRequestId");
                 if (pendingRequestId != validatedParameters.end() && pendingRequestId->is_string()) {
                     const PendingRequestState* pendingRequest =
@@ -1882,10 +1866,9 @@ namespace ai::openai::codex::frontend::client {
             explicitSynchronization->streamMode = mode;
             explicitSynchronization->handler = std::move(handler);
             std::string encodingError;
-            std::optional<frontend::Json> encodedParameters =
-                mode == frontend::SyncMode::Snapshot
-                    ? detail::encodeUnitParams(typed::Unit{}, encodingError)
-                    : detail::encodeEventsReplayParams(*after, encodingError);
+            std::optional<frontend::Json> encodedParameters = mode == frontend::SyncMode::Snapshot
+                                                                  ? detail::encodeUnitParams(typed::Unit{}, encodingError)
+                                                                  : detail::encodeEventsReplayParams(*after, encodingError);
             if (!encodedParameters) {
                 explicitSynchronization.reset();
                 return {std::nullopt,
@@ -1915,7 +1898,7 @@ namespace ai::openai::codex::frontend::client {
         }
 
         Submission beginGeneratedSynchronization(frontend::generated::CompleteCommandParameters parameters,
-                                                  GeneratedCompletionHandler handler) {
+                                                 GeneratedCompletionHandler handler) {
             if (explicitSynchronization) {
                 return {
                     std::nullopt,
@@ -1923,11 +1906,10 @@ namespace ai::openai::codex::frontend::client {
             }
             const frontend::generated::MethodId method = frontend::generated::commandMethod(parameters);
             if (method != frontend::generated::MethodId::SnapshotGet && method != frontend::generated::MethodId::EventsReplay) {
-                return {std::nullopt,
-                        clientError(ClientErrorCode::InvalidConfiguration, "generated synchronization method is invalid")};
+                return {std::nullopt, clientError(ClientErrorCode::InvalidConfiguration, "generated synchronization method is invalid")};
             }
-            const frontend::SyncMode mode = method == frontend::generated::MethodId::SnapshotGet ? frontend::SyncMode::Snapshot
-                                                                                                  : frontend::SyncMode::Replay;
+            const frontend::SyncMode mode =
+                method == frontend::generated::MethodId::SnapshotGet ? frontend::SyncMode::Snapshot : frontend::SyncMode::Replay;
             explicitSynchronization.emplace();
             explicitSynchronization->requestedMode = mode;
             explicitSynchronization->streamMode = mode;
@@ -2004,8 +1986,7 @@ namespace ai::openai::codex::frontend::client {
 
     Connection Client::openConnection(TransportCallbacks callbacks) {
         if (impl->connectionState != ConnectionState::Disconnected || impl->active || impl->detachCallbacksInProgress || !callbacks.send ||
-            !callbacks.close ||
-            impl->nextConnectionGeneration == std::numeric_limits<std::uint64_t>::max()) {
+            !callbacks.close || impl->nextConnectionGeneration == std::numeric_limits<std::uint64_t>::max()) {
             return {};
         }
         auto control = std::make_shared<Connection::Control>();
@@ -2079,13 +2060,7 @@ namespace ai::openai::codex::frontend::client {
             return candidate.id == method;
         });
         if (metadata == frontend::generated::AllMethods.end()) {
-            return MethodStatus{method,
-                                Availability::Unknown,
-                                Availability::Unknown,
-                                false,
-                                false,
-                                false,
-                                {}};
+            return MethodStatus{method, Availability::Unknown, Availability::Unknown, false, false, false, {}};
         }
         MethodStatus status{method,
                             Availability::Unknown,
@@ -2138,8 +2113,7 @@ namespace ai::openai::codex::frontend::client {
         const PendingRequestState* pendingRequest = impl->currentState.pendingRequest(pendingRequestId);
         if (pendingRequest != nullptr && pendingRequest->connectionInvalidated) {
             return {std::nullopt,
-                    clientError(ClientErrorCode::MethodNotPermitted,
-                                "frontend pending request belongs to an inactive connection session")};
+                    clientError(ClientErrorCode::MethodNotPermitted, "frontend pending request belongs to an inactive connection session")};
         }
         return impl->submitBound(std::move(parameters), std::move(completion));
     }
@@ -2165,15 +2139,13 @@ namespace ai::openai::codex::frontend::client {
             if (!encoded) {
                 return std::nullopt;
             }
-            return frontend::generated::CompleteCommandParameters{
-                frontend::generated::MethodParameters<Method>{std::move(*encoded)}};
+            return frontend::generated::CompleteCommandParameters{frontend::generated::MethodParameters<Method>{std::move(*encoded)}};
         }
 
         template <frontend::generated::MethodId Method>
         detail::BoundOperationCompletion unitCompletion(DoneHandler handler) {
             return detail::bindCompletion<typed::Unit>(
-                std::move(handler),
-                [](const frontend::generated::CompleteCommandResult& result, std::string& error) noexcept {
+                std::move(handler), [](const frontend::generated::CompleteCommandResult& result, std::string& error) noexcept {
                     const auto* generated = std::get_if<frontend::generated::MethodResult<Method>>(&result);
                     if (generated == nullptr) {
                         error = "frontend unit result did not match the submitted generated MethodId";
@@ -2186,8 +2158,7 @@ namespace ai::openai::codex::frontend::client {
         template <frontend::generated::MethodId Method>
         detail::BoundOperationCompletion controllerCompletion(Client& client, CompletionHandler<ControllerResult> handler) {
             return detail::bindCompletion<ControllerResult>(
-                std::move(handler),
-                [&client](const frontend::generated::CompleteCommandResult& result, std::string& error) noexcept {
+                std::move(handler), [&client](const frontend::generated::CompleteCommandResult& result, std::string& error) noexcept {
                     const auto* generated = std::get_if<frontend::generated::MethodResult<Method>>(&result);
                     if (generated == nullptr) {
                         error = "frontend controller result did not match the submitted generated MethodId";
@@ -2209,9 +2180,8 @@ namespace ai::openai::codex::frontend::client {
                     clientError(ClientErrorCode::SerializationFailed,
                                 error.empty() ? "controller.acquire parameters could not be encoded" : std::move(error))};
         }
-        return client->submitBound(
-            std::move(*parameters),
-            controllerCompletion<frontend::generated::MethodId::ControllerAcquire>(*client, std::move(handler)));
+        return client->submitBound(std::move(*parameters),
+                                   controllerCompletion<frontend::generated::MethodId::ControllerAcquire>(*client, std::move(handler)));
     }
 
     Submission Controller::release(CompletionHandler<ControllerResult> handler) {
@@ -2222,9 +2192,8 @@ namespace ai::openai::codex::frontend::client {
                     clientError(ClientErrorCode::SerializationFailed,
                                 error.empty() ? "controller.release parameters could not be encoded" : std::move(error))};
         }
-        return client->submitBound(
-            std::move(*parameters),
-            controllerCompletion<frontend::generated::MethodId::ControllerRelease>(*client, std::move(handler)));
+        return client->submitBound(std::move(*parameters),
+                                   controllerCompletion<frontend::generated::MethodId::ControllerRelease>(*client, std::move(handler)));
     }
 
     bool Controller::ownedByThisClient() const noexcept {
@@ -2252,8 +2221,7 @@ namespace ai::openai::codex::frontend::client {
                     clientError(ClientErrorCode::SerializationFailed,
                                 error.empty() ? "provider.stop parameters could not be encoded" : std::move(error))};
         }
-        return client->submitBound(std::move(*parameters),
-                                   unitCompletion<frontend::generated::MethodId::ProviderStop>(std::move(handler)));
+        return client->submitBound(std::move(*parameters), unitCompletion<frontend::generated::MethodId::ProviderStop>(std::move(handler)));
     }
 
     Submission Provider::restart(DoneHandler handler) {
@@ -2381,8 +2349,7 @@ namespace ai::openai::codex::frontend::client {
                                 "frontend server message encoding failed");
             return {false, TransportError{"failed to encode frontend server message", false}};
         }
-        const std::optional<bool> withinBound =
-            jsonFitsBound(encoded.value(), implementation.options.maximumInboundMessageBytes);
+        const std::optional<bool> withinBound = jsonFitsBound(encoded.value(), implementation.options.maximumInboundMessageBytes);
         if (!withinBound) {
             implementation.fail(*control,
                                 protocolError(ClientErrorCode::DecodeFailure, "failed to size frontend server message"),
@@ -2427,9 +2394,7 @@ namespace ai::openai::codex::frontend::client {
         const Error closeError = implementation.clientCloseInProgress
                                      ? clientError(ClientErrorCode::Closed, "frontend client closed")
                                      : clientError(ClientErrorCode::NotConnected, "frontend connection closed");
-        implementation.detach(*control,
-                              closeError,
-                              implementation.clientCloseInProgress);
+        implementation.detach(*control, closeError, implementation.clientCloseInProgress);
     }
 
     bool Connection::isOpen() const noexcept {
@@ -2460,9 +2425,9 @@ namespace ai::openai::codex::frontend::client {
     }
 
     bool detail::ClientTestAccess::tryAccumulateSynchronizationCounts(Client& client,
-                                                                     std::size_t received,
-                                                                     std::size_t applied,
-                                                                     std::size_t ignored) noexcept {
+                                                                      std::size_t received,
+                                                                      std::size_t applied,
+                                                                      std::size_t ignored) noexcept {
         return client.impl->tryAccumulateSynchronizationCounts(received, applied, ignored);
     }
 
