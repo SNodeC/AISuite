@@ -1972,6 +1972,51 @@ set_tests_properties(
 
 if(TARGET codex-backend-client-support)
     snodec_add_test(
+        CodexBackendClientTransportSelectionTest
+        CodexBackendClientTransportSelectionTest.cpp
+    )
+    target_link_libraries(
+        CodexBackendClientTransportSelectionTest
+        PRIVATE snodec-test-support codex-backend-client-support
+    )
+    target_compile_features(
+        CodexBackendClientTransportSelectionTest PRIVATE cxx_std_20
+    )
+    set_tests_properties(
+        CodexBackendClientTransportSelectionTest
+        PROPERTIES
+            LABELS
+            "component;ai;openai;codex;frontend;client;transport;configuration;a1-7c-1"
+            TIMEOUT 5
+    )
+
+    snodec_add_test(
+        CodexBackendClientAuthenticationTest
+        CodexBackendClientAuthenticationTest.cpp
+    )
+    target_link_libraries(
+        CodexBackendClientAuthenticationTest PRIVATE snodec-test-support
+                                                     codex-backend-client-support
+    )
+    target_compile_features(
+        CodexBackendClientAuthenticationTest PRIVATE cxx_std_20
+    )
+    target_compile_definitions(
+        CodexBackendClientAuthenticationTest
+        PRIVATE
+            CODEX_BACKEND_CLIENT_MAIN_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/main.cpp"
+            CODEX_BACKEND_CLIENT_CONNECTION_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/ClientConnection.cpp"
+            CODEX_BACKEND_CLIENT_WEBSOCKET_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/FrontendWebSocketClient.cpp"
+    )
+    set_tests_properties(
+        CodexBackendClientAuthenticationTest
+        PROPERTIES
+            LABELS
+            "component;ai;openai;codex;frontend;client;transport;authentication;security;a1-7c-1"
+            TIMEOUT 5
+    )
+
+    snodec_add_test(
         CodexBackendClientCommandTest CodexBackendClientCommandTest.cpp
     )
     target_link_libraries(

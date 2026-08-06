@@ -7,6 +7,7 @@
 
 #include "apps/codex-backend-client/CodexBackendClientSocketContextFactory.h"
 
+#include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/CodexBackendClientSocketContext.h"
 
 namespace apps::codex_backend_client {
@@ -14,12 +15,13 @@ namespace apps::codex_backend_client {
     CodexBackendClientSocketContextFactory::CodexBackendClientSocketContextFactory(ClientConnection& connection,
                                                                                    std::size_t maximumFrameSize)
         : connection(connection)
-        , maximumFrameSize(maximumFrameSize) {
+        , maximumFrameSize(maximumFrameSize)
+        , attemptGeneration(connection.preparedAttemptForFactory()) {
     }
 
     core::socket::stream::SocketContext*
     CodexBackendClientSocketContextFactory::create(core::socket::stream::SocketConnection* socketConnection) {
-        return new CodexBackendClientSocketContext(socketConnection, connection, maximumFrameSize);
+        return new CodexBackendClientSocketContext(socketConnection, connection, maximumFrameSize, attemptGeneration);
     }
 
 } // namespace apps::codex_backend_client

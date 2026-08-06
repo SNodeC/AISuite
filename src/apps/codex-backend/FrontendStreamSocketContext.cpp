@@ -9,6 +9,7 @@
 
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Messages.h"
+#include "apps/codex-backend/FrontendCloseReason.h"
 #include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
 
@@ -52,10 +53,10 @@ namespace apps::codex_backend {
                                                                        const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                                        return locked && locked->context && locked->context->send(message);
                                                                    },
-                                                                   [weakLifetime]([[maybe_unused]] const std::string& reason) {
+                                                                   [weakLifetime](const std::string& reason) {
                                                                        const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                                        if (locked && locked->context) {
-                                                                           locked->context->serviceClosed();
+                                                                           locked->context->serviceClosed(reason);
                                                                        }
                                                                    }});
         } catch (...) {
@@ -91,7 +92,7 @@ namespace apps::codex_backend {
                     inputBlocked = true;
                 } else if (receiveResult.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closed) {
                     inputBlocked = true;
-                    serviceClosed();
+                    serviceClosed(receiveResult.error ? receiveResult.error->message : "frontend service closed the stream");
                 }
             });
             if (frameResult == JsonLineFramer::Result::FrameTooLarge) {
@@ -128,10 +129,11 @@ namespace apps::codex_backend {
         }
     }
 
-    void FrontendStreamSocketContext::serviceClosed() noexcept {
+    void FrontendStreamSocketContext::serviceClosed(std::string reason) noexcept {
         if (disconnecting) {
             return;
         }
+        logFrontendCloseReason("stream transport", reason);
         inputBlocked = true;
         disconnecting = true;
         try {
@@ -157,7 +159,7 @@ namespace apps::codex_backend {
         if (result.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closing) {
             inputBlocked = true;
         } else if (result.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closed) {
-            serviceClosed();
+            serviceClosed(result.error ? result.error->message : "frontend service rejected the stream frame");
         }
     }
 

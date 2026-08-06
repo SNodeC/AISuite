@@ -30,9 +30,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <sys/stat.h>
@@ -53,6 +55,39 @@ namespace {
     constexpr std::size_t MaximumFrameSize = 1024;
     constexpr std::size_t EvictionEventCount = 4200;
     constexpr std::size_t EvictionChunkSize = 100;
+    constexpr std::string_view MalformedPayloadMarker = "malformed-payload-must-not-leak";
+
+    class ScopedClogCapture {
+    public:
+        ScopedClogCapture()
+            : previous(std::clog.rdbuf(output.rdbuf())) {
+        }
+
+        ScopedClogCapture(const ScopedClogCapture&) = delete;
+        ScopedClogCapture& operator=(const ScopedClogCapture&) = delete;
+
+        ~ScopedClogCapture() {
+            std::clog.rdbuf(previous);
+        }
+
+        [[nodiscard]] std::string str() const {
+            return output.str();
+        }
+
+    private:
+        std::ostringstream output;
+        std::streambuf* previous;
+    };
+
+    std::size_t occurrenceCount(std::string_view text, std::string_view needle) {
+        std::size_t count = 0;
+        std::size_t offset = 0;
+        while ((offset = text.find(needle, offset)) != std::string_view::npos) {
+            ++count;
+            offset += needle.size();
+        }
+        return count;
+    }
 
     enum class ClientKind : std::size_t { ControllerA, ObserverB, ReplayB, OldReconnect, Malformed, Oversized, Count };
 
@@ -420,7 +455,7 @@ namespace {
                     break;
                 case ClientKind::Malformed:
                     if (const auto serializedHello = frontend::Codec::serializeClient(hello())) {
-                        context.sendRaw("{malformed-json\n" + serializedHello.value() + "\n");
+                        context.sendRaw("{" + std::string(MalformedPayloadMarker) + "\n" + serializedHello.value() + "\n");
                     } else {
                         ++decodeFailures;
                         result.expectTrue(false, "failed to serialize hello for coalesced malformed-client input-barrier test");
@@ -950,6 +985,7 @@ int main(int argc, char* argv[]) {
     if (tests::support::shouldSkipRootWithoutSNodeCGroup()) {
         tests::support::printRootWithoutSNodeCGroupSkipMessage("CodexBackendUnixAcceptanceTest");
     } else {
+        ScopedClogCapture closeDiagnostics;
         std::remove(path.c_str());
         result.expectTrue(!pathExists(path), "unique Unix acceptance socket path is absent before listen");
         core::SNodeC::init(argc, argv);
@@ -1077,6 +1113,15 @@ int main(int argc, char* argv[]) {
         result.expectEqual(0, static_cast<int>(decodingFailures), "all server JSONL frames decode as Frontend Protocol v1");
         result.expectTrue(typedInput && declinedApproval, "typed turn input and explicit decline traversed the complete stack");
         result.expectTrue(pathCleanedByServer, "Unix SocketServer removes its socket path on clean destruction");
+
+        const std::string capturedCloseDiagnostics = closeDiagnostics.str();
+        constexpr std::string_view ExpectedCloseDiagnostic =
+            "codex-backend: frontend stream transport closed: frontend protocol requested connection close\n";
+        result.expectTrue(occurrenceCount(capturedCloseDiagnostics, ExpectedCloseDiagnostic) == 2 &&
+                              capturedCloseDiagnostics.find(MalformedPayloadMarker) == std::string::npos &&
+                              capturedCloseDiagnostics.find("frontend stream disconnected") == std::string::npos,
+                          "real FrontendService onClosed reasons reach the Unix adapter once per causal close without inbound "
+                          "payload disclosure or later disconnect overwrite");
 
         core::SNodeC::free();
         returnCode = result.processResult();
