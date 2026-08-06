@@ -63,7 +63,7 @@ jobs:
             -DSNODEC_BUILD_APPS=OFF
           cmake --build ../snodec-build \
             --target all \
-            --parallel 28
+            --parallel 26
           cmake --install ../snodec-build
           for component in \
             core \
@@ -102,7 +102,7 @@ jobs:
             -DAISUITE_ENABLE_CODEX_FRONTEND_RFCOMM=ON
 
       - name: Build all targets
-        run: cmake --build build --target all --parallel 28
+        run: cmake --build build --target all --parallel 26
 
       - name: Check generated frontend authorities
         run: |
@@ -120,12 +120,22 @@ jobs:
             --schema-data src/ai/openai/codex/frontend/GeneratedProtocolSchema.inc \
             --fixtures tests/component/codex/fixtures/frontend-protocol-v1.generated.json \
             --check
+          python3 -B tools/frontend/generate_cpp_frontend_client.py --check
 
       - name: Verify complete validation inventory
         run: |
-          ctest --test-dir build -N > build/ctest-inventory.txt
+          ctest --test-dir build -N --parallel 26 > build/ctest-inventory.txt
           for required_test in \
             CodexFrontendProtocolGeneratedArtifactsGuardTest \
+            CodexFrontendClientBindingsCurrentnessTest \
+            CodexFrontendClientGeneratorTest \
+            CodexFrontendClientBindingTest \
+            CodexFrontendClientLifecycleTest \
+            CodexFrontendClientSynchronizationTest \
+            CodexFrontendClientSymbolVisibilityTest \
+            CodexBackendClientAuthenticationTest \
+            CodexBackendClientTransportCompositionTest \
+            AISuiteCodexFrontendDependencyPolicyTest \
             AISuiteInstalledConsumerTest \
             AISuiteSourcePackageTest \
             AISuiteBinaryPackageTest \
@@ -139,4 +149,4 @@ jobs:
         run: |
           ctest --test-dir build \
             --output-on-failure \
-            --parallel 2
+            --parallel 26

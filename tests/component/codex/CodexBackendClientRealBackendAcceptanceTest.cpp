@@ -376,138 +376,147 @@ namespace {
             sdkOptions.credentialProvider = [] {
                 return sdk_client::AuthenticationContext{frontend::NoCredential{}, "verified-local:thread-workflow"};
             };
-            sdk_client::Client sdk(
-                std::move(sdkOptions),
-                sdk_client::ClientCallbacks{
-                    .onConnectionStateChanged =
-                        [&lifecycleHandle, &syncCompleteCount](const sdk_client::ConnectionStateChange& change) {
-                            if (change.current == sdk_client::ConnectionState::Ready && syncCompleteCount == 0) {
-                                ++syncCompleteCount;
-                            }
-                            if (lifecycleHandle != nullptr) {
-                                lifecycleHandle->connectionStateChanged(change.current);
-                            }
-                        },
-                    .onStateUpdated = {},
-                    .onSynchronized = {},
-                    .onCursorAdvanced = {},
-                    .onProtocolMessage =
-                        [&](const frontend::ServerMessage& message) {
-                            const auto* response = std::get_if<frontend::Response>(&message);
-                            if (response != nullptr) {
-                                responseIds.push_back(response->requestId);
-                                if (std::find(acquireRequestIds.begin(), acquireRequestIds.end(), response->requestId) !=
-                                    acquireRequestIds.end()) {
-                                    ++acquireResponseCount;
-                                } else if (response->requestId == explicitStartRequestId) {
-                                    explicitStartResponse = *response;
-                                } else if (response->requestId == resumeRequestId) {
-                                    resumeResponse = *response;
-                                } else if (response->requestId == explicitTurnRequestId) {
-                                    explicitTurnResponse = *response;
-                                } else if (response->requestId == newStartRequestId) {
-                                    newStartResponse = *response;
-                                    newStartObservedDuringEofDrain =
-                                        lifecycleHandle != nullptr &&
-                                        lifecycleHandle->inputState() == client::CommandDrainController::InputState::DrainOnEof &&
-                                        lifecycleHandle->outcome() == client::CommandDrainController::Outcome::Running;
-                                } else if (response->requestId == newTurnRequestId) {
-                                    newTurnResponse = *response;
-                                }
-                            } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
-                                ++protocolErrorCount;
-                            }
-                            presenter.present(message);
-                        },
-                    .onDiagnostic = {}});
+            sdk_client::Client sdk(std::move(sdkOptions),
+                                   sdk_client::ClientCallbacks{
+                                       .onConnectionStateChanged =
+                                           [&lifecycleHandle, &syncCompleteCount](const sdk_client::ConnectionStateChange& change) {
+                                               if (change.current == sdk_client::ConnectionState::Ready && syncCompleteCount == 0) {
+                                                   ++syncCompleteCount;
+                                               }
+                                               if (lifecycleHandle != nullptr) {
+                                                   lifecycleHandle->connectionStateChanged(change.current);
+                                               }
+                                           },
+                                       .onStateUpdated = {},
+                                       .onSynchronized = {},
+                                       .onCursorAdvanced = {},
+                                       .onProtocolMessage =
+                                           [&](const frontend::ServerMessage& message) {
+                                               const auto* response = std::get_if<frontend::Response>(&message);
+                                               if (response != nullptr) {
+                                                   responseIds.push_back(response->requestId);
+                                                   if (std::find(acquireRequestIds.begin(), acquireRequestIds.end(), response->requestId) !=
+                                                       acquireRequestIds.end()) {
+                                                       ++acquireResponseCount;
+                                                   } else if (response->requestId == explicitStartRequestId) {
+                                                       explicitStartResponse = *response;
+                                                   } else if (response->requestId == resumeRequestId) {
+                                                       resumeResponse = *response;
+                                                   } else if (response->requestId == explicitTurnRequestId) {
+                                                       explicitTurnResponse = *response;
+                                                   } else if (response->requestId == newStartRequestId) {
+                                                       newStartResponse = *response;
+                                                       newStartObservedDuringEofDrain =
+                                                           lifecycleHandle != nullptr &&
+                                                           lifecycleHandle->inputState() ==
+                                                               client::CommandDrainController::InputState::DrainOnEof &&
+                                                           lifecycleHandle->outcome() == client::CommandDrainController::Outcome::Running;
+                                                   } else if (response->requestId == newTurnRequestId) {
+                                                       newTurnResponse = *response;
+                                                   }
+                                               } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
+                                                   ++protocolErrorCount;
+                                               }
+                                               presenter.present(message);
+                                           },
+                                       .onDiagnostic = {}});
 
-            client::CommandDrainController lifecycle(sdk, client::CommandDrainCallbacks{
-                .requestExit =
-                    [&]() {
-                        ++exitRequestCount;
-                        exitWaitedForNewTurnResponse = !newTurnRequestId.empty() && sdk.pendingOperationCount() == 0;
-                        if (stdinReaderHandle != nullptr) {
-                            stdinReaderHandle->stop();
-                        }
-                        if (!eventLoopRunning || exitScheduled) {
-                            return;
-                        }
-                        exitScheduled = true;
-                        core::EventReceiver::atNextTick([&]() {
-                            if (!eventLoopRunning) {
-                                return;
-                            }
-                            if (connectionHandle != nullptr && connectionHandle->connected()) {
-                                connectionHandle->disconnect();
-                            } else {
-                                core::SNodeC::stop();
-                            }
-                        });
-                    },
-                .reportFailure =
-                    [&](std::string message) {
-                        lifecycleFailures.push_back(message);
-                        presenter.error(std::move(message));
-                    }});
+            client::CommandDrainController lifecycle(
+                sdk,
+                client::CommandDrainCallbacks{.requestExit =
+                                                  [&]() {
+                                                      ++exitRequestCount;
+                                                      exitWaitedForNewTurnResponse =
+                                                          !newTurnRequestId.empty() && sdk.pendingOperationCount() == 0;
+                                                      if (stdinReaderHandle != nullptr) {
+                                                          stdinReaderHandle->stop();
+                                                      }
+                                                      if (!eventLoopRunning || exitScheduled) {
+                                                          return;
+                                                      }
+                                                      exitScheduled = true;
+                                                      core::EventReceiver::atNextTick([&]() {
+                                                          if (!eventLoopRunning) {
+                                                              return;
+                                                          }
+                                                          if (connectionHandle != nullptr && connectionHandle->connected()) {
+                                                              connectionHandle->disconnect();
+                                                          } else {
+                                                              core::SNodeC::stop();
+                                                          }
+                                                      });
+                                                  },
+                                              .reportFailure =
+                                                  [&](std::string message) {
+                                                      lifecycleFailures.push_back(message);
+                                                      presenter.error(std::move(message));
+                                                  }});
             lifecycleHandle = &lifecycle;
 
-            client::ClientConnection connection(sdk, client::ClientConnectionCallbacks{
-                .onConnected =
-                    [&]() {
-                        ++connectionCallbackCount;
-                        presenter.connected(path);
-                    },
-                .onDisconnected =
-                    [&]() {
-                        ++disconnectCallbackCount;
-                        presenter.disconnected();
-                        lifecycle.disconnected();
-                        lifecycleClosedCleanly = lifecycle.sessionState() == client::CommandDrainController::SessionState::Closed &&
-                                                 lifecycle.outcome() == client::CommandDrainController::Outcome::Success &&
-                                                 lifecycle.queuedCount() == 0 && lifecycle.pendingResponseCount() == 0 &&
-                                                 lifecycle.pendingSyncCount() == 0;
-                        completed = true;
-                        if (eventLoopRunning) {
-                            core::SNodeC::stop();
-                        }
-                    },
-                .onFailure = [&](std::string message) { lifecycle.connectionFailed(std::move(message)); },
-                .onOutbound =
-                    [&](const sdk_client::OutboundMessage& message) {
-                        const auto command = frontend::Codec::decodeDefinedCommand(std::string_view(message.compactJson));
-                        if (!command) {
-                            return;
-                        }
-                        const frontend::generated::MethodId method = frontend::generated::commandMethod(command.value().parameters);
-                        sentCommandIds.push_back(command.value().requestId);
-                        sentCommandMethods.emplace_back(frontend::generated::methodString(method));
-                        sentCommandSyncCounts.push_back(syncCompleteCount);
-                        switch (method) {
-                            case frontend::generated::MethodId::ControllerAcquire:
-                                acquireRequestIds.push_back(command.value().requestId);
-                                break;
-                            case frontend::generated::MethodId::ThreadStart:
-                                if (explicitStartRequestId.empty()) {
-                                    explicitStartRequestId = command.value().requestId;
-                                } else {
-                                    newStartRequestId = command.value().requestId;
-                                }
-                                break;
-                            case frontend::generated::MethodId::ThreadResume:
-                                resumeRequestId = command.value().requestId;
-                                break;
-                            case frontend::generated::MethodId::TurnStart:
-                                if (explicitTurnRequestId.empty()) {
-                                    explicitTurnRequestId = command.value().requestId;
-                                } else {
-                                    newTurnRequestId = command.value().requestId;
-                                    newTurnSentFromMatchingStart = !newStartRequestId.empty();
-                                }
-                                break;
-                            default:
-                                break;
-                        }
-                    }});
+            client::ClientConnection connection(
+                sdk,
+                client::ClientConnectionCallbacks{
+                    .onConnected =
+                        [&]() {
+                            ++connectionCallbackCount;
+                            presenter.connected(path);
+                        },
+                    .onDisconnected =
+                        [&]() {
+                            ++disconnectCallbackCount;
+                            presenter.disconnected();
+                            lifecycle.disconnected();
+                            lifecycleClosedCleanly = lifecycle.sessionState() == client::CommandDrainController::SessionState::Closed &&
+                                                     lifecycle.outcome() == client::CommandDrainController::Outcome::Success &&
+                                                     lifecycle.queuedCount() == 0 && lifecycle.pendingResponseCount() == 0 &&
+                                                     lifecycle.pendingSyncCount() == 0;
+                            completed = true;
+                            if (eventLoopRunning) {
+                                core::SNodeC::stop();
+                            }
+                        },
+                    .onFailure =
+                        [&](std::string message) {
+                            lifecycle.connectionFailed(std::move(message));
+                        },
+                    .onOutbound =
+                        [&](const sdk_client::OutboundMessage& message) {
+                            const auto command = frontend::Codec::decodeDefinedCommand(std::string_view(message.compactJson));
+                            if (!command) {
+                                return;
+                            }
+                            const frontend::generated::MethodId method = frontend::generated::commandMethod(command.value().parameters);
+                            sentCommandIds.push_back(command.value().requestId);
+                            sentCommandMethods.emplace_back(frontend::generated::methodString(method));
+                            sentCommandSyncCounts.push_back(syncCompleteCount);
+                            switch (method) {
+                                case frontend::generated::MethodId::ControllerAcquire:
+                                    acquireRequestIds.push_back(command.value().requestId);
+                                    break;
+                                case frontend::generated::MethodId::ThreadStart:
+                                    if (explicitStartRequestId.empty()) {
+                                        explicitStartRequestId = command.value().requestId;
+                                    } else {
+                                        newStartRequestId = command.value().requestId;
+                                    }
+                                    break;
+                                case frontend::generated::MethodId::ThreadResume:
+                                    resumeRequestId = command.value().requestId;
+                                    break;
+                                case frontend::generated::MethodId::TurnStart:
+                                    if (explicitTurnRequestId.empty()) {
+                                        explicitTurnRequestId = command.value().requestId;
+                                    } else {
+                                        newTurnRequestId = command.value().requestId;
+                                        newTurnSentFromMatchingStart = !newStartRequestId.empty();
+                                    }
+                                    break;
+                                default:
+                                    break;
+                            }
+                        },
+                    .verifiedLocalUnix = true,
+                    .onBeforeTransportConnected = {}});
             connectionHandle = &connection;
 
             using Client = net::un::stream::legacy::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&>;
@@ -521,15 +530,17 @@ namespace {
                 std::visit(
                     [&]<typename Parsed>(Parsed&& command) {
                         using T = std::remove_cvref_t<Parsed>;
-                        if constexpr (std::is_same_v<T, client::SendCommand>) {
-                            const frontend::generated::MethodId method = frontend::generated::commandMethod(command.parameters);
-                            if (method != frontend::generated::MethodId::ControllerAcquire &&
-                                method != frontend::generated::MethodId::ThreadStart &&
-                                method != frontend::generated::MethodId::ThreadResume &&
-                                method != frontend::generated::MethodId::TurnStart) {
+                        if constexpr (std::is_same_v<T, client::RemoteCommand>) {
+                            const bool supported = std::holds_alternative<client::ControllerAcquireCommand>(command) ||
+                                                   std::holds_alternative<client::ThreadStartCommand>(command) ||
+                                                   std::holds_alternative<client::ThreadResumeCommand>(command) ||
+                                                   std::holds_alternative<client::TurnStartCommand>(command);
+                            if (!supported) {
                                 result.expectTrue(false, "thread-workflow input contains only acquire, start, resume, turn, and new");
+                                lifecycle.inputFailed("thread-workflow pipe contained an unsupported remote command");
+                                return;
                             }
-                            result.expectTrue(lifecycle.enqueue(std::move(command.parameters)),
+                            result.expectTrue(lifecycle.enqueue(std::move(command)),
                                               "the lifecycle queues each ordinary thread-workflow command before connection");
                         } else if constexpr (std::is_same_v<T, client::NewCommand>) {
                             result.expectTrue(lifecycle.enqueue(std::move(command)),
@@ -731,13 +742,14 @@ namespace {
                                                return operation.first.find("new") != std::string::npos;
                                            }),
                           "new emits only real thread.start and turn.start operations with no synthetic protocol method");
-        result.expectTrue(contains(humanOutput.str(), "result=thread=" + std::string(ExplicitThreadId)) &&
-                              contains(humanOutput.str(), "result=thread=" + std::string(PersistedThreadId)) &&
-                              contains(humanOutput.str(), "result=thread=" + std::string(NewThreadId)) &&
-                              contains(humanOutput.str(), "result=turn=turn-new-acceptance thread=" + std::string(NewThreadId)) &&
-                              diagnostics.str().empty(),
-                          "the production presenter emits bounded lifecycle summaries without diagnostics on the successful workflow; output=" +
-                              humanOutput.str());
+        result.expectTrue(
+            contains(humanOutput.str(), "result=thread=" + std::string(ExplicitThreadId)) &&
+                contains(humanOutput.str(), "result=thread=" + std::string(PersistedThreadId)) &&
+                contains(humanOutput.str(), "result=thread=" + std::string(NewThreadId)) &&
+                contains(humanOutput.str(), "result=turn=turn-new-acceptance thread=" + std::string(NewThreadId)) &&
+                diagnostics.str().empty(),
+            "the production presenter emits bounded lifecycle summaries without diagnostics on the successful workflow; output=" +
+                humanOutput.str());
         result.expectTrue(!pathExists(path), "the thread-workflow Unix server removes its owned socket path");
 
         core::SNodeC::free();
@@ -877,18 +889,18 @@ int main(int argc, char* argv[]) {
                             const bool initialReady = change.current == sdk_client::ConnectionState::Ready && syncCompleteCount == 0;
                             if (initialReady) {
                                 ++syncCompleteCount;
-                                syncObservedWhileSynchronizing = lifecycleHandle != nullptr &&
-                                                                 lifecycleHandle->sessionState() ==
-                                                                     client::CommandDrainController::SessionState::Synchronizing &&
-                                                                 lifecycleHandle->queuedCount() == 1;
+                                syncObservedWhileSynchronizing =
+                                    lifecycleHandle != nullptr &&
+                                    lifecycleHandle->sessionState() == client::CommandDrainController::SessionState::Synchronizing &&
+                                    lifecycleHandle->queuedCount() == 1;
                             }
                             if (lifecycleHandle != nullptr) {
                                 lifecycleHandle->connectionStateChanged(change.current);
                             }
                             if (initialReady && lifecycleHandle != nullptr) {
                                 reachedReady = lifecycleHandle->sessionState() == client::CommandDrainController::SessionState::Ready;
-                                queuedAcquireSentAfterSync = reachedReady && lifecycleHandle->queuedCount() == 0 &&
-                                                             lifecycleHandle->pendingResponseCount() == 1;
+                                queuedAcquireSentAfterSync =
+                                    reachedReady && lifecycleHandle->queuedCount() == 0 && lifecycleHandle->pendingResponseCount() == 1;
                                 presenter.localMessage("synchronized; commands are ready");
                                 if (!inputPipe.writeAll("threads\nfoobar\n")) {
                                     lifecycleHandle->inputFailed("failed to write deterministic interactive commands");
@@ -954,71 +966,80 @@ int main(int argc, char* argv[]) {
                         },
                     .onDiagnostic = {}});
 
-            client::CommandDrainController lifecycle(sdk, client::CommandDrainCallbacks{
-                .requestExit =
-                    [&connectionHandle, &stdinReaderHandle, &eventLoopRunning, &exitScheduled, &exitRequestCount]() {
-                        ++exitRequestCount;
-                        if (stdinReaderHandle != nullptr) {
-                            stdinReaderHandle->stop();
-                        }
-                        if (!eventLoopRunning || exitScheduled) {
-                            return;
-                        }
-                        exitScheduled = true;
-                        core::EventReceiver::atNextTick([&connectionHandle, &eventLoopRunning]() {
-                            if (!eventLoopRunning) {
+            client::CommandDrainController lifecycle(
+                sdk,
+                client::CommandDrainCallbacks{
+                    .requestExit =
+                        [&connectionHandle, &stdinReaderHandle, &eventLoopRunning, &exitScheduled, &exitRequestCount]() {
+                            ++exitRequestCount;
+                            if (stdinReaderHandle != nullptr) {
+                                stdinReaderHandle->stop();
+                            }
+                            if (!eventLoopRunning || exitScheduled) {
                                 return;
                             }
-                            if (connectionHandle != nullptr && connectionHandle->connected()) {
-                                connectionHandle->disconnect();
-                            } else {
-                                core::SNodeC::stop();
-                            }
-                        });
-                    },
-                .reportFailure =
-                    [&presenter](std::string message) {
-                        presenter.error(message);
-                    }});
+                            exitScheduled = true;
+                            core::EventReceiver::atNextTick([&connectionHandle, &eventLoopRunning]() {
+                                if (!eventLoopRunning) {
+                                    return;
+                                }
+                                if (connectionHandle != nullptr && connectionHandle->connected()) {
+                                    connectionHandle->disconnect();
+                                } else {
+                                    core::SNodeC::stop();
+                                }
+                            });
+                        },
+                    .reportFailure =
+                        [&presenter](std::string message) {
+                            presenter.error(message);
+                        }});
             lifecycleHandle = &lifecycle;
 
-            client::ClientConnection connection(sdk, client::ClientConnectionCallbacks{
-                .onConnected =
-                    [&]() {
-                        ++connectionCallbackCount;
-                        result.expectTrue(lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting,
-                                          "production connection callback runs while the lifecycle is Connecting");
-                        presenter.connected(path);
-                        presenter.localMessage("enter 'help' for commands");
-                        result.expectTrue(lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting,
-                                          "production connection callback remains in SDK authentication before Welcome");
-                    },
-                .onDisconnected =
-                    [&]() {
-                        ++disconnectCallbackCount;
-                        presenter.disconnected();
-                        lifecycle.disconnected();
-                        if (eventLoopRunning) {
-                            core::SNodeC::stop();
-                        }
-                    },
-                .onFailure = [&](std::string message) { lifecycle.connectionFailed(std::move(message)); },
-                .onOutbound =
-                    [&](const sdk_client::OutboundMessage& message) {
-                        const auto command = frontend::Codec::decodeDefinedCommand(std::string_view(message.compactJson));
-                        if (!command) {
-                            return;
-                        }
-                        const frontend::generated::MethodId method = frontend::generated::commandMethod(command.value().parameters);
-                        sentCommandIds.push_back(command.value().requestId);
-                        sentCommandStates.push_back(lifecycle.sessionState());
-                        sentCommandSyncCounts.push_back(syncCompleteCount);
-                        if (method == frontend::generated::MethodId::ControllerAcquire) {
-                            acquireRequestId = command.value().requestId;
-                        } else if (method == frontend::generated::MethodId::ThreadList) {
-                            threadsRequestId = command.value().requestId;
-                        }
-                    }});
+            client::ClientConnection connection(
+                sdk,
+                client::ClientConnectionCallbacks{
+                    .onConnected =
+                        [&]() {
+                            ++connectionCallbackCount;
+                            result.expectTrue(lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting,
+                                              "production connection callback runs while the lifecycle is Connecting");
+                            presenter.connected(path);
+                            presenter.localMessage("enter 'help' for commands");
+                            result.expectTrue(lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting,
+                                              "production connection callback remains in SDK authentication before Welcome");
+                        },
+                    .onDisconnected =
+                        [&]() {
+                            ++disconnectCallbackCount;
+                            presenter.disconnected();
+                            lifecycle.disconnected();
+                            if (eventLoopRunning) {
+                                core::SNodeC::stop();
+                            }
+                        },
+                    .onFailure =
+                        [&](std::string message) {
+                            lifecycle.connectionFailed(std::move(message));
+                        },
+                    .onOutbound =
+                        [&](const sdk_client::OutboundMessage& message) {
+                            const auto command = frontend::Codec::decodeDefinedCommand(std::string_view(message.compactJson));
+                            if (!command) {
+                                return;
+                            }
+                            const frontend::generated::MethodId method = frontend::generated::commandMethod(command.value().parameters);
+                            sentCommandIds.push_back(command.value().requestId);
+                            sentCommandStates.push_back(lifecycle.sessionState());
+                            sentCommandSyncCounts.push_back(syncCompleteCount);
+                            if (method == frontend::generated::MethodId::ControllerAcquire) {
+                                acquireRequestId = command.value().requestId;
+                            } else if (method == frontend::generated::MethodId::ThreadList) {
+                                threadsRequestId = command.value().requestId;
+                            }
+                        },
+                    .verifiedLocalUnix = true,
+                    .onBeforeTransportConnected = {}});
             connectionHandle = &connection;
 
             using Client = net::un::stream::legacy::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&>;
@@ -1032,13 +1053,17 @@ int main(int argc, char* argv[]) {
                 std::visit(
                     [&]<typename Parsed>(Parsed&& command) {
                         using T = std::remove_cvref_t<Parsed>;
-                        if constexpr (std::is_same_v<T, client::SendCommand>) {
+                        if constexpr (std::is_same_v<T, client::RemoteCommand>) {
                             const bool waiting = lifecycle.sessionState() == client::CommandDrainController::SessionState::Connecting ||
                                                  lifecycle.sessionState() == client::CommandDrainController::SessionState::Synchronizing;
-                            const frontend::generated::MethodId method = frontend::generated::commandMethod(command.parameters);
-                            const bool acquire = method == frontend::generated::MethodId::ControllerAcquire;
-                            const bool threads = method == frontend::generated::MethodId::ThreadList;
-                            const bool accepted = lifecycle.enqueue(std::move(command.parameters));
+                            const bool acquire = std::holds_alternative<client::ControllerAcquireCommand>(command);
+                            const bool threads = std::holds_alternative<client::ThreadListCommand>(command);
+                            if (!acquire && !threads) {
+                                result.expectTrue(false, "only acquire and threads are sent in the interactive acceptance scenario");
+                                lifecycle.inputFailed("interactive acceptance input contained an unsupported remote command");
+                                return;
+                            }
+                            const bool accepted = lifecycle.enqueue(std::move(command));
                             result.expectTrue(accepted, "interactive lifecycle accepts each valid parsed command");
                             if (accepted && waiting) {
                                 presenter.localMessage("command queued; waiting for initial synchronization");
@@ -1058,8 +1083,6 @@ int main(int argc, char* argv[]) {
                                     accepted && !waiting &&
                                     lifecycle.sessionState() == client::CommandDrainController::SessionState::Ready &&
                                     lifecycle.queuedCount() == 0;
-                            } else {
-                                result.expectTrue(false, "only acquire and threads are sent in the interactive acceptance scenario");
                             }
                         } else if constexpr (std::is_same_v<T, client::QuitCommand>) {
                             ++quitCount;

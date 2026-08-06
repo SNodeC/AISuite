@@ -34,7 +34,7 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         CodexFrontendClientBindingTest
         PRIVATE
             snodec-test-support
-            AISuite::OpenAICodexFrontendClient
+            ai-openai-codex-frontend-client-test-support
     )
     target_compile_features(CodexFrontendClientBindingTest PRIVATE cxx_std_20)
     set_tests_properties(
@@ -52,7 +52,7 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         CodexFrontendClientLifecycleTest
         PRIVATE
             snodec-test-support
-            AISuite::OpenAICodexFrontendClient
+            ai-openai-codex-frontend-client-test-support
     )
     target_compile_features(CodexFrontendClientLifecycleTest PRIVATE cxx_std_20)
     set_tests_properties(
@@ -70,7 +70,7 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         CodexFrontendClientSynchronizationTest
         PRIVATE
             snodec-test-support
-            AISuite::OpenAICodexFrontendClient
+            ai-openai-codex-frontend-client-test-support
     )
     target_compile_features(CodexFrontendClientSynchronizationTest PRIVATE cxx_std_20)
     target_compile_definitions(
@@ -93,13 +93,29 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         CodexFrontendClientStateExtensionTest
         PRIVATE
             snodec-test-support
-            AISuite::OpenAICodexFrontendClient
+            ai-openai-codex-frontend-client-test-support
     )
     target_compile_features(CodexFrontendClientStateExtensionTest PRIVATE cxx_std_20)
     set_tests_properties(
         CodexFrontendClientStateExtensionTest
         PROPERTIES
             LABELS "component;ai;openai;codex;frontend;client;state;extensions;a1-7c-1"
+            TIMEOUT 5
+    )
+
+    add_test(
+        NAME CodexFrontendClientSymbolVisibilityTest
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DAISUITE_FRONTEND_CLIENT_LIBRARY=$<TARGET_FILE:ai-openai-codex-frontend-client>
+            -DAISUITE_NM=${CMAKE_NM}
+            -P
+            ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendClientSymbolVisibilityTest.cmake
+    )
+    set_tests_properties(
+        CodexFrontendClientSymbolVisibilityTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;abi;symbols;a1-7c-1"
             TIMEOUT 5
     )
 endif()
@@ -2015,6 +2031,33 @@ if(TARGET codex-backend-client-support)
             TIMEOUT 5
     )
 
+    if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
+        snodec_add_test(
+            CodexBackendClientTransportCompositionTest
+            CodexBackendClientTransportCompositionTest.cpp
+        )
+        target_link_libraries(
+            CodexBackendClientTransportCompositionTest
+            PRIVATE snodec-test-support codex-backend-client-support
+                    snodec::websocket-client
+        )
+        target_compile_features(
+            CodexBackendClientTransportCompositionTest PRIVATE cxx_std_20
+        )
+        target_compile_definitions(
+            CodexBackendClientTransportCompositionTest
+            PRIVATE
+                CODEX_BACKEND_CLIENT_MAIN_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/main.cpp"
+        )
+        set_tests_properties(
+            CodexBackendClientTransportCompositionTest
+            PROPERTIES
+                LABELS
+                "component;ai;openai;codex;frontend;client;transport;websocket;configuration;a1-7c-1"
+                TIMEOUT 5
+        )
+    endif()
+
     snodec_add_test(
         CodexBackendClientCommandTest CodexBackendClientCommandTest.cpp
     )
@@ -2116,6 +2159,207 @@ if(TARGET codex-backend-client-support)
                    "component;ai;openai;codex;frontend;client;unix;acceptance"
                    SKIP_RETURN_CODE 77 TIMEOUT 10
     )
+
+    add_executable(
+        CodexBackendClientStreamTransportAcceptanceTest
+        CodexBackendClientStreamTransportAcceptanceTest.cpp
+    )
+    target_link_libraries(
+        CodexBackendClientStreamTransportAcceptanceTest
+        PRIVATE snodec-test-support codex-backend-client-support snodec::core
+    )
+    target_compile_features(
+        CodexBackendClientStreamTransportAcceptanceTest PRIVATE cxx_std_20
+    )
+    if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+        target_compile_definitions(
+            CodexBackendClientStreamTransportAcceptanceTest
+            PRIVATE
+                AISUITE_CODEX_TEST_TLS_CERT="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-cert.pem"
+                AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
+        )
+    endif()
+    add_test(
+        NAME CodexBackendClientIpv4AcceptanceTest
+        COMMAND CodexBackendClientStreamTransportAcceptanceTest ipv4
+    )
+    add_test(
+        NAME CodexBackendClientIpv6AcceptanceTest
+        COMMAND CodexBackendClientStreamTransportAcceptanceTest ipv6
+    )
+    set_tests_properties(
+        CodexBackendClientIpv4AcceptanceTest
+        PROPERTIES
+            LABELS
+            "component;integration;ai;openai;codex;frontend;client;transport;ipv4;jsonl;acceptance;a1-7c-1"
+            SKIP_RETURN_CODE
+            77
+            TIMEOUT
+            10
+    )
+    set_tests_properties(
+        CodexBackendClientIpv6AcceptanceTest
+        PROPERTIES
+            LABELS
+            "component;integration;ai;openai;codex;frontend;client;transport;ipv6;jsonl;acceptance;a1-7c-1"
+            SKIP_RETURN_CODE
+            77
+            TIMEOUT
+            10
+    )
+    if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
+        add_test(
+            NAME CodexBackendClientTlsIpv4AcceptanceTest
+            COMMAND CodexBackendClientStreamTransportAcceptanceTest tls-ipv4
+        )
+        add_test(
+            NAME CodexBackendClientTlsIpv6AcceptanceTest
+            COMMAND CodexBackendClientStreamTransportAcceptanceTest tls-ipv6
+        )
+        set_tests_properties(
+            CodexBackendClientTlsIpv4AcceptanceTest
+            PROPERTIES
+                LABELS
+                "component;integration;ai;openai;codex;frontend;client;transport;ipv4;tls;jsonl;acceptance;a1-7c-1"
+                SKIP_RETURN_CODE
+                77
+                TIMEOUT
+                10
+        )
+        set_tests_properties(
+            CodexBackendClientTlsIpv6AcceptanceTest
+            PROPERTIES
+                LABELS
+                "component;integration;ai;openai;codex;frontend;client;transport;ipv6;tls;jsonl;acceptance;a1-7c-1"
+                SKIP_RETURN_CODE
+                77
+                TIMEOUT
+                10
+        )
+    endif()
+
+    if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
+       AND TARGET codex-backend-web-adapter
+       AND TARGET codex-backend-runtime-bridge
+       AND TARGET snodec::http-server-express-legacy-in
+       AND TARGET snodec::http-server-express-legacy-in6
+       AND TARGET snodec::websocket-server
+       AND TARGET snodec::websocket-client
+       AND TARGET codex-backend-websocket-subprotocol
+    )
+        add_executable(
+            CodexBackendClientWebSocketAcceptanceTest
+            CodexBackendClientWebSocketAcceptanceTest.cpp
+        )
+        target_link_libraries(
+            CodexBackendClientWebSocketAcceptanceTest
+            PRIVATE
+                snodec-test-support
+                codex-backend-client-support
+                codex-backend-web-adapter
+                codex-backend-runtime-bridge
+                AISuite::OpenAICodexBackend
+                AISuite::OpenAICodexFrontend
+                snodec::http-server-express-legacy-in
+                snodec::http-server-express-legacy-in6
+                snodec::websocket-server
+                snodec::websocket-client
+                snodec::core
+        )
+        target_compile_features(
+            CodexBackendClientWebSocketAcceptanceTest PRIVATE cxx_std_20
+        )
+        if(AISUITE_ENABLE_CODEX_FRONTEND_TLS
+           AND TARGET snodec::http-server-express-tls-in
+           AND TARGET snodec::http-server-express-tls-in6
+        )
+            target_link_libraries(
+                CodexBackendClientWebSocketAcceptanceTest
+                PRIVATE snodec::http-server-express-tls-in
+                        snodec::http-server-express-tls-in6
+            )
+            target_compile_definitions(
+                CodexBackendClientWebSocketAcceptanceTest
+                PRIVATE
+                    AISUITE_CODEX_WEBSOCKET_ACCEPTANCE_TLS=1
+                    AISUITE_CODEX_TEST_TLS_CERT="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-cert.pem"
+                    AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
+            )
+        endif()
+        add_dependencies(
+            CodexBackendClientWebSocketAcceptanceTest
+            codex-backend-websocket-subprotocol
+        )
+        add_test(
+            NAME CodexBackendClientWebSocketIpv4AcceptanceTest
+            COMMAND CodexBackendClientWebSocketAcceptanceTest websocket-ipv4
+        )
+        add_test(
+            NAME CodexBackendClientWebSocketIpv6AcceptanceTest
+            COMMAND CodexBackendClientWebSocketAcceptanceTest websocket-ipv6
+        )
+        set_tests_properties(
+            CodexBackendClientWebSocketIpv4AcceptanceTest
+            PROPERTIES
+                LABELS
+                "component;integration;ai;openai;codex;frontend;client;transport;ipv4;websocket;acceptance;a1-7c-1"
+                ENVIRONMENT
+                "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
+                SKIP_RETURN_CODE
+                77
+                TIMEOUT
+                15
+        )
+        set_tests_properties(
+            CodexBackendClientWebSocketIpv6AcceptanceTest
+            PROPERTIES
+                LABELS
+                "component;integration;ai;openai;codex;frontend;client;transport;ipv6;websocket;acceptance;a1-7c-1"
+                ENVIRONMENT
+                "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
+                SKIP_RETURN_CODE
+                77
+                TIMEOUT
+                15
+        )
+        if(AISUITE_ENABLE_CODEX_FRONTEND_TLS
+           AND TARGET snodec::http-server-express-tls-in
+           AND TARGET snodec::http-server-express-tls-in6
+        )
+            add_test(
+                NAME CodexBackendClientWssIpv4AcceptanceTest
+                COMMAND CodexBackendClientWebSocketAcceptanceTest wss-ipv4
+            )
+            add_test(
+                NAME CodexBackendClientWssIpv6AcceptanceTest
+                COMMAND CodexBackendClientWebSocketAcceptanceTest wss-ipv6
+            )
+            set_tests_properties(
+                CodexBackendClientWssIpv4AcceptanceTest
+                PROPERTIES
+                    LABELS
+                    "component;integration;ai;openai;codex;frontend;client;transport;ipv4;websocket;wss;tls;acceptance;a1-7c-1"
+                    ENVIRONMENT
+                    "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
+                    SKIP_RETURN_CODE
+                    77
+                    TIMEOUT
+                    15
+            )
+            set_tests_properties(
+                CodexBackendClientWssIpv6AcceptanceTest
+                PROPERTIES
+                    LABELS
+                    "component;integration;ai;openai;codex;frontend;client;transport;ipv6;websocket;wss;tls;acceptance;a1-7c-1"
+                    ENVIRONMENT
+                    "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
+                    SKIP_RETURN_CODE
+                    77
+                    TIMEOUT
+                    15
+            )
+        endif()
+    endif()
 
     if(TARGET codex-backend-stream-adapter)
         snodec_add_test(

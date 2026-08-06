@@ -16,6 +16,11 @@ add_dependencies(
     CodexPublicHeaderPolicyTest ai-openai-codex ai-openai-codex-backend
     ai-openai-codex-frontend
 )
+if(TARGET ai-openai-codex-frontend-client)
+    add_dependencies(
+        CodexPublicHeaderPolicyTest ai-openai-codex-frontend-client
+    )
+endif()
 
 add_test(NAME CodexPublicHeaderPolicyTest
          COMMAND CodexPublicHeaderPolicyTest --repo-root ${PROJECT_SOURCE_DIR}
@@ -34,6 +39,7 @@ add_test(
         -DAISUITE_PUBLIC_HEADER_POLICY_EXECUTABLE=$<TARGET_FILE:CodexPublicHeaderPolicyTest>
         -DAISUITE_SOURCE_DIR=${PROJECT_SOURCE_DIR}
         -DAISUITE_BUILD_DIR=${CMAKE_BINARY_DIR}
+        -DAISUITE_BUILD_CODEX_FRONTEND_CLIENT=${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}
         -DAISUITE_CMAKE_COMMAND=${CMAKE_COMMAND}
         -DAISUITE_CMAKE_GENERATOR=${CMAKE_GENERATOR}
         -DAISUITE_CXX_COMPILER=${CMAKE_CXX_COMPILER}

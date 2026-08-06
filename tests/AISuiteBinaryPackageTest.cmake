@@ -1,6 +1,12 @@
 if(NOT DEFINED AISUITE_BUILD_DIR)
     message(FATAL_ERROR "AISUITE_BUILD_DIR is required")
 endif()
+if(NOT DEFINED AISUITE_BUILD_APPS)
+    set(AISUITE_BUILD_APPS ON)
+endif()
+if(NOT DEFINED AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    set(AISUITE_BUILD_CODEX_FRONTEND_CLIENT ON)
+endif()
 if(NOT DEFINED CMAKE_CPACK_COMMAND)
     set(CMAKE_CPACK_COMMAND cpack)
 endif()
@@ -49,6 +55,7 @@ set(codex_public_headers)
 set(codex_main_header_count 0)
 set(codex_backend_header_count 0)
 set(codex_frontend_header_count 0)
+set(codex_frontend_client_header_count 0)
 foreach(archive_entry IN LISTS archive_entries)
     string(STRIP "${archive_entry}" archive_entry)
     if(archive_entry MATCHES
@@ -83,6 +90,10 @@ foreach(archive_entry IN LISTS archive_entries)
         math(EXPR codex_backend_header_count
              "${codex_backend_header_count} + 1"
         )
+    elseif(codex_header MATCHES "^frontend/client/")
+        math(EXPR codex_frontend_client_header_count
+             "${codex_frontend_client_header_count} + 1"
+        )
     elseif(codex_header MATCHES "^frontend/")
         math(EXPR codex_frontend_header_count
              "${codex_frontend_header_count} + 1"
@@ -92,17 +103,26 @@ foreach(archive_entry IN LISTS archive_entries)
     endif()
 endforeach()
 list(LENGTH codex_public_headers codex_public_header_count)
+set(expected_frontend_client_header_count 0)
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    set(expected_frontend_client_header_count 33)
+endif()
+math(EXPR expected_public_header_count
+     "45 + ${expected_frontend_client_header_count}"
+)
 if(NOT codex_main_header_count EQUAL 29 OR
    NOT codex_backend_header_count EQUAL 7 OR
    NOT codex_frontend_header_count EQUAL 9 OR
-   NOT codex_public_header_count EQUAL 45)
+   NOT codex_frontend_client_header_count EQUAL
+       ${expected_frontend_client_header_count} OR
+   NOT codex_public_header_count EQUAL ${expected_public_header_count})
     message(
         FATAL_ERROR
-            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, total=${codex_public_header_count}; expected 29/7/9/45"
+            "CodexPolicyPublicHeaderInventoryMismatch: binary-package Codex header inventory is main=${codex_main_header_count}, backend=${codex_backend_header_count}, frontend=${codex_frontend_header_count}, frontend-client=${codex_frontend_client_header_count}, total=${codex_public_header_count}; expected 29/7/9/${expected_frontend_client_header_count}/${expected_public_header_count}"
     )
 endif()
 
-foreach(required
+set(required_package_entries
     "include/aisuite/ai/openai/codex/Api.h"
     "include/aisuite/ai/openai/codex/AppServerClient.h"
     "include/aisuite/ai/openai/codex/typed/Apps.h"
@@ -118,23 +138,45 @@ foreach(required
     "lib/libaisuite-openai-codex.so.2"
     "lib/libaisuite-openai-codex-backend.so.2"
     "lib/libaisuite-openai-codex-frontend.so.2"
-    "bin/codex-backend"
-    "bin/codex-backend-client"
     "lib/cmake/AISuite/AISuiteConfig.cmake"
 )
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    list(
+        APPEND required_package_entries
+        "include/aisuite/ai/openai/codex/frontend/client/Client.h"
+        "include/aisuite/ai/openai/codex/frontend/client/Controller.h"
+        "include/aisuite/ai/openai/codex/frontend/client/Export.h"
+        "include/aisuite/ai/openai/codex/frontend/client/GeneratedBindings.h"
+        "include/aisuite/ai/openai/codex/frontend/client/Provider.h"
+        "include/aisuite/ai/openai/codex/frontend/client/Requests.h"
+        "include/aisuite/ai/openai/codex/frontend/client/State.h"
+        "include/aisuite/ai/openai/codex/frontend/client/StateTypes.h"
+        "include/aisuite/ai/openai/codex/frontend/client/Synchronization.h"
+        "include/aisuite/ai/openai/codex/frontend/client/Threads.h"
+        "include/aisuite/ai/openai/codex/frontend/client/Turns.h"
+        "lib/libaisuite-openai-codex-frontend-client.so.2"
+    )
+endif()
+if(AISUITE_BUILD_APPS)
+    list(APPEND required_package_entries "bin/codex-backend")
+    if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+        list(APPEND required_package_entries "bin/codex-backend-client")
+    endif()
+endif()
+foreach(required IN LISTS required_package_entries)
     string(FIND "${listing}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "binary package missing ${required}")
     endif()
 endforeach()
-foreach(forbidden
+set(forbidden_package_entries
     "include/aisuite/ai/openai/codex/typed/Client.h"
     "include/aisuite/ai/openai/codex/frontend/BackendAdapter.h"
     "include/aisuite/ai/openai/codex/frontend/FrontendClient.h"
     "lib/libaisuite-openai-codex.so.1"
     "lib/libaisuite-openai-codex-backend.so.1"
     "lib/libaisuite-openai-codex-frontend.so.1"
-    "lib/libaisuite-openai-codex-frontend-client.so"
+    "lib/libaisuite-openai-codex-frontend-client.so.1"
     "tools/codex/"
     "tools/extraction/"
     "tests/component/codex/"
@@ -154,6 +196,18 @@ foreach(forbidden
     "src/ai/openai/codex/detail/"
     "ProtocolSurfaceRegistryData.inc"
 )
+if(NOT AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    list(
+        APPEND forbidden_package_entries
+        "include/aisuite/ai/openai/codex/frontend/client/"
+        "lib/libaisuite-openai-codex-frontend-client.so.2"
+        "bin/codex-backend-client"
+    )
+endif()
+if(NOT AISUITE_BUILD_APPS)
+    list(APPEND forbidden_package_entries "bin/codex-backend")
+endif()
+foreach(forbidden IN LISTS forbidden_package_entries)
     string(FIND "${listing}" "${forbidden}" found)
     if(NOT found EQUAL -1)
         message(

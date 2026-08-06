@@ -4,6 +4,53 @@ project(AISuiteInstalledCodexConsumer LANGUAGES CXX)
 
 find_package(AISuite CONFIG REQUIRED)
 
+if(TARGET AISuite::OpenAICodexFrontendClient)
+    get_target_property(
+        frontend_client_links
+        AISuite::OpenAICodexFrontendClient
+        INTERFACE_LINK_LIBRARIES
+    )
+    if(NOT frontend_client_links)
+        message(
+            FATAL_ERROR
+                "OpenAICodexFrontendClient has no exported public link interface"
+        )
+    endif()
+    list(
+        FIND frontend_client_links AISuite::OpenAICodexFrontend
+        frontend_protocol_index
+    )
+    if(frontend_protocol_index EQUAL -1)
+        message(
+            FATAL_ERROR
+                "OpenAICodexFrontendClient does not export its Frontend Protocol dependency: ${frontend_client_links}"
+        )
+    endif()
+    foreach(
+        forbidden_transport
+        IN ITEMS
+           net-un
+           net-in
+           net-in6
+           net-rc
+           http
+           websocket
+           OpenSSL
+           Bluetooth
+           Qt
+           Curses
+           CURSES
+    )
+        string(FIND "${frontend_client_links}" "${forbidden_transport}" forbidden_index)
+        if(NOT forbidden_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                    "OpenAICodexFrontendClient leaks transport dependency ${forbidden_transport}: ${frontend_client_links}"
+            )
+        endif()
+    endforeach()
+endif()
+
 add_executable(
     AISuiteInstalledSNodeCoreConsumer
     SNodeInstalledCoreConsumer.cpp
@@ -75,3 +122,17 @@ target_link_libraries(
     AISuiteInstalledCodexBackendFrontendConsumer
     PRIVATE AISuite::OpenAICodexBackend AISuite::OpenAICodexFrontend
 )
+
+if(TARGET AISuite::OpenAICodexFrontendClient)
+    add_executable(
+        AISuiteInstalledCodexFrontendClientConsumer
+        CodexFrontendClientConsumer.cpp
+    )
+    target_compile_features(
+        AISuiteInstalledCodexFrontendClientConsumer PRIVATE cxx_std_20
+    )
+    target_link_libraries(
+        AISuiteInstalledCodexFrontendClientConsumer
+        PRIVATE AISuite::OpenAICodexFrontendClient
+    )
+endif()
