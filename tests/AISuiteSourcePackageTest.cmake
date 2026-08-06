@@ -6,7 +6,7 @@ if(NOT DEFINED CMAKE_CPACK_COMMAND)
 endif()
 set(
     source_package_ignore_files
-    "/[.]git/;/[.]qtcreator/;/__pycache__/;[.]py[co]$;/build[^/]*/;/stage[^/]*/;/package[^/]*/;~$"
+    "/[.]git/;/[.]qtcreator/;/__pycache__/;[.]py[co]$;/build[^/]*/;/stage[^/]*/;/package[^/]*/;(^|/)CMakeFiles/;(^|/)CMakeCache[.]txt$;~$"
 )
 set(
     source_package_guard_config
@@ -57,6 +57,7 @@ file(GLOB roots "${extract}/AISuite-*")
 list(GET roots 0 root)
 foreach(required
     CMakeLists.txt
+    cmake/AISuiteCodexFrontendDependencies.cmake
     src/ai/openai/codex/AppServerClient.cpp
     src/ai/openai/codex/Api.h
     src/ai/openai/codex/typed/Apps.h
@@ -69,6 +70,23 @@ foreach(required
     src/ai/openai/codex/typed/WindowsSandbox.h
     src/ai/openai/codex/frontend/FrontendService.cpp
     src/ai/openai/codex/frontend/FrontendService.h
+    src/ai/openai/codex/frontend/client/Client.cpp
+    src/ai/openai/codex/frontend/client/Client.h
+    src/ai/openai/codex/frontend/client/CMakeLists.txt
+    src/ai/openai/codex/frontend/client/Export.h
+    src/ai/openai/codex/frontend/client/GeneratedBindings.h
+    src/ai/openai/codex/frontend/client/GeneratedFacades.cpp
+    src/ai/openai/codex/frontend/client/OperationCodecs.cpp
+    src/ai/openai/codex/frontend/client/Requests.h
+    src/ai/openai/codex/frontend/client/State.cpp
+    src/ai/openai/codex/frontend/client/State.h
+    src/ai/openai/codex/frontend/client/StateTypes.h
+    src/ai/openai/codex/frontend/client/Threads.h
+    src/ai/openai/codex/frontend/client/Turns.h
+    src/ai/openai/codex/frontend/client/detail/BoundOperation.h
+    src/ai/openai/codex/frontend/client/detail/ClientTestAccess.h
+    src/ai/openai/codex/frontend/client/detail/OperationCodecs.h
+    src/ai/openai/codex/frontend/client/detail/StateReducer.h
     src/apps/codex-backend/Configuration.cpp
     src/apps/codex-backend/FrontendRuntimeBridge.cpp
     src/apps/codex-backend/FrontendRuntimeBridge.h
@@ -85,9 +103,15 @@ foreach(required
     src/apps/codex-backend/UnixPeerCredentials.cpp
     src/apps/codex-backend/main.cpp
     src/apps/codex-backend-client/main.cpp
+    src/apps/codex-backend-client/ClientAuthentication.cpp
+    src/apps/codex-backend-client/ClientAuthentication.h
+    src/apps/codex-backend-client/FrontendWebSocketClient.cpp
+    tools/frontend/cpp-client-bindings.json
+    tools/frontend/generate_cpp_frontend_client.py
     tools/codex/app_server_surface.py
     tools/codex/app-server-schema/0.144.6/PROVENANCE.json
     tests/CMakeLists.txt
+    tests/AISuiteCodexFrontendDependencyPolicyTest.cmake
     tests/AISuiteBinaryPackageTest.cmake
     tests/AISuiteSourcePackageTest.cmake
     tests/policy/CMakeLists.txt
@@ -104,11 +128,20 @@ foreach(required
     tests/policy/security/CMakeLists.txt
     tests/policy/security/CodexSyntheticSecretLeakGuardTest.py
     tests/component/codex/CodexA14RuntimePlatformCurrentStateTest.py
+    tests/component/codex/CodexBackendClientAuthenticationTest.cpp
+    tests/component/codex/CodexFrontendClientBindingTest.cpp
+    tests/component/codex/CodexFrontendClientGeneratorTest.py
+    tests/component/codex/CodexFrontendClientLifecycleTest.cpp
+    tests/component/codex/CodexFrontendClientSymbolVisibilityTest.cmake
+    tests/component/codex/CodexFrontendClientSynchronizationTest.cpp
+    tests/component/codex/CodexFrontendServiceClientIntegrationTest.cpp
+    tests/component/codex/fixtures/frontend-client-reducer/conformance.json
     tests/installed/codex/CMakeLists.txt
     tests/installed/codex/CodexApiConsumer.cpp
     tests/installed/codex/CodexApiExample.cpp
     tests/installed/codex/CodexApplicationProjectionConsumer.cpp
     tests/installed/codex/CodexBackendFrontendConsumer.cpp
+    tests/installed/codex/CodexFrontendClientConsumer.cpp
     tests/installed/codex/SNodeInstalledCoreConsumer.cpp
     tests/installed/codex-module-server/CMakeLists.txt
     tests/installed/codex-module-server/CodexModuleServer.cpp
@@ -116,7 +149,11 @@ foreach(required
     docs/ai/openai/codex/a1-4-runtime-and-platform-long-tail.md
     docs/ai/openai/codex/a1-6a-backend-foundation.md
     docs/ai/openai/codex/a1-7b-frontend-service.md
+    docs/ai/openai/codex/a1-7c-1-cpp-frontend-sdk-architecture.md
+    docs/ai/openai/codex/a1-7c-1-cpp-frontend-sdk.md
     docs/ai/openai/codex/a1-final-abi-transition.md
+    src/apps/codex-backend/FrontendCloseReason.h
+    src/apps/codex-backend/README.md
 )
     if(NOT EXISTS "${root}/${required}")
         message(
@@ -150,10 +187,12 @@ file(
 foreach(packaged_entry IN LISTS packaged_entries)
     string(REPLACE "\\" "/" packaged_entry "${packaged_entry}")
     if(packaged_entry STREQUAL ".git" OR
-       packaged_entry MATCHES "(^|/)[.]git(/|$)")
+       packaged_entry MATCHES "(^|/)[.]git(/|$)" OR
+       packaged_entry MATCHES "(^|/)CMakeFiles(/|$)" OR
+       packaged_entry MATCHES "(^|/)CMakeCache[.]txt$")
         message(
             FATAL_ERROR
-                "source package contains forbidden Git metadata: ${packaged_entry}"
+                "source package contains forbidden repository/build metadata: ${packaged_entry}"
         )
     endif()
 endforeach()
@@ -166,6 +205,22 @@ set(package_check_environment
     "--unset=GIT_WORK_TREE"
     "GIT_CEILING_DIRECTORIES=${package_parent}"
 )
+
+execute_process(
+    COMMAND
+        ${package_check_environment}
+        "${python_executable}" -B
+        "${root}/tools/frontend/generate_cpp_frontend_client.py"
+        --check
+    WORKING_DIRECTORY "${root}"
+    RESULT_VARIABLE result
+)
+if(NOT result EQUAL 0)
+    message(
+        FATAL_ERROR
+            "C++ frontend client binding authority is stale inside source package: ${result}"
+    )
+endif()
 
 execute_process(
     COMMAND

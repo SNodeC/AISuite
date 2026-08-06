@@ -278,21 +278,30 @@ namespace {
         std::size_t ifndefLine = 0;
         std::size_t defineLine = 0;
         std::size_t endifLine = 0;
+        std::size_t conditionalDepth = 0;
         bool pragmaOnce = false;
         while (std::getline(lines, line)) {
             ++lineNumber;
             const Directive current = directive(line);
             if (current.name == "ifndef") {
+                ++conditionalDepth;
                 ++ifndefCount;
                 if (current.argument == guard) {
                     ifndefLine = lineNumber;
                 }
+            } else if (current.name == "if" || current.name == "ifdef") {
+                ++conditionalDepth;
             } else if (current.name == "define" && current.argument == guard) {
                 ++defineCount;
                 defineLine = lineNumber;
             } else if (current.name == "endif") {
-                ++endifCount;
-                endifLine = lineNumber;
+                if (conditionalDepth == 1) {
+                    ++endifCount;
+                    endifLine = lineNumber;
+                }
+                if (conditionalDepth != 0) {
+                    --conditionalDepth;
+                }
             } else if (current.name == "pragma" && current.argument == "once") {
                 pragmaOnce = true;
             }
@@ -300,7 +309,7 @@ namespace {
         const std::string closing = "#endif // " + guard;
         const bool valid = !source.empty() && ifndefCount == 1 && defineCount == 1 && endifCount == 1 &&
                            aisuite::source_policy::occurrenceCount(source, closing) == 1 && ifndefLine != 0 && ifndefLine < defineLine &&
-                           defineLine < endifLine && !pragmaOnce;
+                           defineLine < endifLine && conditionalDepth == 0 && !pragmaOnce;
         if (!valid) {
             return aisuite::source_policy::diagnostic(
                 kGuardDiagnostic, relativePath + " must use exactly one ordered " + guard + " guard and no #pragma once");
@@ -320,6 +329,12 @@ int main(const int argc, char* argv[]) {
         {"main", "src/ai/openai/codex/CMakeLists.txt", "AI_OPENAI_CODEX_PUBLIC_H", "", 29, {}},
         {"backend", "src/ai/openai/codex/backend/CMakeLists.txt", "AI_OPENAI_CODEX_BACKEND_PUBLIC_H", "backend", 7, {}},
         {"frontend", "src/ai/openai/codex/frontend/CMakeLists.txt", "AI_OPENAI_CODEX_FRONTEND_PUBLIC_H", "frontend", 9, {}},
+        {"frontend-client",
+         "src/ai/openai/codex/frontend/client/CMakeLists.txt",
+         "AI_OPENAI_CODEX_FRONTEND_CLIENT_PUBLIC_H",
+         "frontend/client",
+         33,
+         {}},
     };
     bool valid = true;
     for (Component& component : components) {
@@ -369,11 +384,54 @@ int main(const int argc, char* argv[]) {
             "frontend public-header inventory must be exactly the nine A1.7b headers with FrontendService and without BackendAdapter");
     }
 
-    constexpr std::array<std::string_view, 5> forbiddenPublicSymbols = {{
+    constexpr std::array<std::string_view, 33> expectedFrontendClientHeaders = {{
+        "frontend/client/Accounts.h",
+        "frontend/client/Apps.h",
+        "frontend/client/Changes.h",
+        "frontend/client/Client.h",
+        "frontend/client/Commands.h",
+        "frontend/client/Configuration.h",
+        "frontend/client/Connection.h",
+        "frontend/client/Controller.h",
+        "frontend/client/Export.h",
+        "frontend/client/ExternalAgents.h",
+        "frontend/client/Feedback.h",
+        "frontend/client/Filesystem.h",
+        "frontend/client/GeneratedBindings.h",
+        "frontend/client/Hooks.h",
+        "frontend/client/Marketplace.h",
+        "frontend/client/Mcp.h",
+        "frontend/client/Models.h",
+        "frontend/client/PermissionProfiles.h",
+        "frontend/client/Plugins.h",
+        "frontend/client/ProjectionFingerprint.h",
+        "frontend/client/Provider.h",
+        "frontend/client/Requests.h",
+        "frontend/client/Results.h",
+        "frontend/client/Reviews.h",
+        "frontend/client/Skills.h",
+        "frontend/client/State.h",
+        "frontend/client/StateTypes.h",
+        "frontend/client/Synchronization.h",
+        "frontend/client/Threads.h",
+        "frontend/client/Transport.h",
+        "frontend/client/Turns.h",
+        "frontend/client/Types.h",
+        "frontend/client/WindowsSandbox.h",
+    }};
+    std::vector<std::string> actualFrontendClientHeaders = components[3].headers;
+    std::sort(actualFrontendClientHeaders.begin(), actualFrontendClientHeaders.end());
+    if (!std::equal(actualFrontendClientHeaders.begin(),
+                    actualFrontendClientHeaders.end(),
+                    expectedFrontendClientHeaders.begin(),
+                    expectedFrontendClientHeaders.end())) {
+        valid = aisuite::source_policy::diagnostic(
+            kInventoryDiagnostic, "frontend-client public-header inventory must contain exactly the 33 A1.7c-1 SDK headers");
+    }
+
+    constexpr std::array<std::string_view, 3> forbiddenPublicSymbols = {{
         "BackendAdapter",
         "BackendAdapterOptions",
-        "FrontendClient",
-        "OpenAICodexFrontendClient",
         "declaredTransportFamilies",
     }};
     for (const Component& component : components) {
@@ -397,8 +455,8 @@ int main(const int argc, char* argv[]) {
     for (const Component& component : components) {
         authority.insert(authority.end(), component.headers.begin(), component.headers.end());
     }
-    if (authority.size() != 45) {
-        valid = aisuite::source_policy::diagnostic(kInventoryDiagnostic, "total public-header count is not 45");
+    if (authority.size() != 78) {
+        valid = aisuite::source_policy::diagnostic(kInventoryDiagnostic, "total public-header count is not 78");
     }
     std::string duplicate;
     if (hasDuplicates(authority, duplicate)) {
@@ -432,7 +490,7 @@ int main(const int argc, char* argv[]) {
         valid = checkGuard(root, header) && valid;
     }
     if (valid) {
-        std::cout << "Codex public-header policy verified: main=29 backend=7 frontend=9 total=45\n";
+        std::cout << "Codex public-header policy verified: main=29 backend=7 frontend=9 frontend-client=33 total=78\n";
     }
     return valid ? 0 : 1;
 }

@@ -5,6 +5,9 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Messages.h"
 #include "ai/openai/codex/frontend/client/Client.h"
+#include "ai/openai/codex/frontend/client/Controller.h"
+#include "ai/openai/codex/frontend/client/Threads.h"
+#include "ai/openai/codex/typed/Threads.h"
 #include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/CodexBackendClientSocketContextFactory.h"
 #include "apps/codex-backend-client/JsonLineFramer.h"
@@ -37,7 +40,9 @@
 #include <cerrno>
 #include <csignal>
 #include <cstddef>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <optional>
@@ -47,6 +52,7 @@
 #include <unistd.h>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace {
     namespace app = apps::codex_backend_client;
@@ -153,6 +159,8 @@ namespace {
         return false;
     }
 
+    class FakeFrontendServerContext;
+
     struct ScenarioState {
         explicit ScenarioState(tests::support::TestResult& result, Transport transport)
             : result(result)
@@ -166,7 +174,7 @@ namespace {
         }
 
         void stopWhenDetached() {
-            if (clientDisconnected == 1 && serverDisconnected == 1) {
+            if (clientDisconnected == 2 && serverDisconnected == 2) {
                 completed = true;
                 core::SNodeC::stop();
             }
@@ -174,7 +182,9 @@ namespace {
 
         tests::support::TestResult& result;
         Transport transport;
+        sdk::Client* sdkClient = nullptr;
         app::ClientConnection* connection = nullptr;
+        FakeFrontendServerContext* serverContext = nullptr;
         bool completed = false;
         bool timedOut = false;
         std::size_t failures = 0;
@@ -193,6 +203,10 @@ namespace {
         std::size_t synchronized = 0;
         std::size_t readyTransitions = 0;
         std::size_t localShutdowns = 0;
+        std::size_t postReconnectCommands = 0;
+        std::size_t postReconnectCompletions = 0;
+        std::size_t overlapRejections = 0;
+        std::vector<std::string> sessionIds;
     };
 
     class FakeFrontendServerContext final : public core::socket::stream::SocketContext {
@@ -201,6 +215,10 @@ namespace {
             : core::socket::stream::SocketContext(connection)
             , state(state)
             , framer(MaximumFrameBytes) {
+        }
+
+        void dropPeer() {
+            close();
         }
 
     private:
@@ -222,49 +240,87 @@ namespace {
                 close();
                 return;
             }
-            const auto* hello = std::get_if<frontend::Hello>(&decoded.value());
-            if (hello == nullptr || state.helloReceived != 0) {
-                state.fail("CLI adapter did not send exactly one Hello as its first JSONL object");
+            if (const auto* hello = std::get_if<frontend::Hello>(&decoded.value())) {
+                ++state.helloReceived;
+                if (state.helloReceived > 2) {
+                    state.fail("CLI adapter sent more than one Hello per physical JSONL attachment");
+                    close();
+                    return;
+                }
+                const auto* bearer = hello->authentication ? std::get_if<frontend::BearerCredential>(&*hello->authentication) : nullptr;
+                const bool initial = state.helloReceived == 1;
+                state.result.expectTrue(
+                    bearer != nullptr && bearer->token == Bearer &&
+                        (initial ? !hello->resumeAfter.has_value()
+                                 : hello->resumeAfter == std::optional<frontend::SequenceNumber>{SynchronizationSequence}),
+                    initial ? "the initial SDK Hello omits a replay cursor"
+                            : "the second physical attachment reuses the SDK Client and resumes at its retained cursor");
+
+                const frontend::Json snapshotState{
+                    {"backendRevision", std::uint64_t{1}},
+                    {"lifecycle", "ready"},
+                    {"diagnostics", {{"received", std::uint64_t{0}}, {"recent", frontend::Json::array()}}},
+                    {"sessions", frontend::Json::array()},
+                    {"threadList", {{"hasLoadedPage", false}, {"complete", true}, {"pagesLoaded", std::uint64_t{0}}}},
+                    {"threads", frontend::Json::array()},
+                    {"pendingRequests", frontend::Json::array()},
+                    {"codexExtensions", frontend::Json::array()},
+                    {"omittedCodexExtensions", std::uint64_t{0}},
+                    {"journal", {{"oldestReplayableAfter", std::uint64_t{0}}, {"currentSequence", SynchronizationSequence.value()}}},
+                    {"sequenceExhausted", false}};
+                const std::string sessionId = initial ? "transport-acceptance-session-1" : "transport-acceptance-session-2";
+                const std::vector<frontend::FrontendMethod> methods{"controller.acquire", "thread.list"};
+                const frontend::Json welcomeExtensions{{"permittedScopes", frontend::Json::array({"control", "observe"})}};
+                const auto welcome =
+                    frame(frontend::ServerMessage{frontend::Welcome{sessionId,
+                                                                    frontend::SessionRole::Observer,
+                                                                    SynchronizationSequence,
+                                                                    initial ? frontend::SyncMode::Snapshot : frontend::SyncMode::Replay,
+                                                                    welcomeExtensions,
+                                                                    std::nullopt,
+                                                                    methods,
+                                                                    methods}});
+                const auto snapshot = initial ? frame(frontend::ServerMessage{
+                                                    frontend::Snapshot{SynchronizationSequence, snapshotState, frontend::Json::object()}})
+                                              : std::optional<std::string>{std::string{}};
+                const auto complete =
+                    frame(frontend::ServerMessage{frontend::SyncComplete{SynchronizationSequence, frontend::Json::object()}});
+                if (welcome && snapshot && complete) {
+                    std::string coalesced = *welcome + *snapshot + *complete;
+                    sendToPeer(coalesced.data(), coalesced.size());
+                }
+                return;
+            }
+
+            const auto* command = std::get_if<frontend::Command>(&decoded.value());
+            if (command == nullptr) {
+                state.fail("CLI adapter emitted an unexpected client-message variant after reconnect");
                 close();
                 return;
             }
-            ++state.helloReceived;
-            const auto* bearer = hello->authentication ? std::get_if<frontend::BearerCredential>(&*hello->authentication) : nullptr;
-            state.result.expectTrue(bearer != nullptr && bearer->token == Bearer && !hello->resumeAfter.has_value(),
-                                    "the SDK-generated remote Hello crosses the selected CLI stream adapter exactly once");
-
-            const frontend::Json snapshotState{
-                {"backendRevision", std::uint64_t{1}},
-                {"lifecycle", "ready"},
-                {"diagnostics", {{"received", std::uint64_t{0}}, {"recent", frontend::Json::array()}}},
-                {"sessions", frontend::Json::array()},
-                {"threadList", {{"hasLoadedPage", false}, {"complete", true}, {"pagesLoaded", std::uint64_t{0}}}},
-                {"threads", frontend::Json::array()},
-                {"pendingRequests", frontend::Json::array()},
-                {"codexExtensions", frontend::Json::array()},
-                {"omittedCodexExtensions", std::uint64_t{0}},
-                {"journal", {{"oldestReplayableAfter", std::uint64_t{0}}, {"currentSequence", SynchronizationSequence.value()}}},
-                {"sequenceExhausted", false}};
-            const auto welcome = frame(frontend::ServerMessage{frontend::Welcome{"transport-acceptance-session",
-                                                                                 frontend::SessionRole::Observer,
-                                                                                 SynchronizationSequence,
-                                                                                 frontend::SyncMode::Snapshot,
-                                                                                 frontend::Json::object()}});
-            const auto snapshot =
-                frame(frontend::ServerMessage{frontend::Snapshot{SynchronizationSequence, snapshotState, frontend::Json::object()}});
-            const auto complete = frame(frontend::ServerMessage{frontend::SyncComplete{SynchronizationSequence, frontend::Json::object()}});
-            if (welcome && snapshot && complete) {
-                std::string coalesced = *welcome + *snapshot + *complete;
-                sendToPeer(coalesced.data(), coalesced.size());
+            if (state.synchronized != 2) {
+                state.fail("CLI adapter emitted a command before the reconnected session synchronized");
+                close();
+                return;
+            }
+            ++state.postReconnectCommands;
+            const auto response = frame(frontend::ServerMessage{
+                frontend::Response::success(command->requestId, frontend::Json{{"threads", frontend::Json::array()}})});
+            if (response) {
+                sendToPeer(response->data(), response->size());
             }
         }
 
         void onConnected() override {
             ++state.serverConnected;
+            state.serverContext = this;
         }
 
         void onDisconnected() override {
             ++state.serverDisconnected;
+            if (state.serverContext == this) {
+                state.serverContext = nullptr;
+            }
             state.stopWhenDetached();
         }
 
@@ -313,39 +369,72 @@ namespace {
         };
         return sdk::Client(
             std::move(options),
-            sdk::ClientCallbacks{.onConnectionStateChanged =
-                                     [&state](const sdk::ConnectionStateChange& change) {
-                                         if (change.current == sdk::ConnectionState::Ready) {
-                                             ++state.readyTransitions;
-                                         }
-                                     },
-                                 .onStateUpdated = {},
-                                 .onSynchronized =
-                                     [&state](const sdk::SynchronizationInfo&) {
-                                         ++state.synchronized;
-                                         core::EventReceiver::atNextTick([&state] {
-                                             if (state.connection == nullptr || !state.connection->connected()) {
-                                                 state.fail("CLI stream adapter detached before synchronized work could interleave");
-                                                 return;
-                                             }
-                                             if (state.transport == Transport::Ipv4) {
-                                                 static_cast<void>(::kill(::getpid(), SIGINT));
-                                             } else {
-                                                 state.connection->disconnect();
-                                             }
-                                         });
-                                     },
-                                 .onCursorAdvanced = {},
-                                 .onProtocolMessage =
-                                     [&state](const frontend::ServerMessage& message) {
-                                         state.welcomeReceived += std::holds_alternative<frontend::Welcome>(message) ? 1U : 0U;
-                                         state.snapshotReceived += std::holds_alternative<frontend::Snapshot>(message) ? 1U : 0U;
-                                         state.syncCompleteReceived += std::holds_alternative<frontend::SyncComplete>(message) ? 1U : 0U;
-                                     },
-                                 .onDiagnostic = {}});
+            sdk::ClientCallbacks{
+                .onConnectionStateChanged =
+                    [&state](const sdk::ConnectionStateChange& change) {
+                        if (change.current == sdk::ConnectionState::Ready) {
+                            ++state.readyTransitions;
+                        }
+                    },
+                .onStateUpdated = {},
+                .onSynchronized =
+                    [&state](const sdk::SynchronizationInfo&) {
+                        ++state.synchronized;
+                        core::EventReceiver::atNextTick([&state] {
+                            if (state.connection == nullptr || !state.connection->connected()) {
+                                state.fail("CLI stream adapter detached before synchronized work could interleave");
+                                return;
+                            }
+                            if (state.synchronized == 1) {
+                                if (state.serverContext == nullptr) {
+                                    state.fail("the first real JSONL server attachment disappeared before forced loss");
+                                    return;
+                                }
+                                state.serverContext->dropPeer();
+                                return;
+                            }
+                            if (state.synchronized != 2 || state.sdkClient == nullptr || !state.sdkClient->isReady() ||
+                                state.sdkClient->controller().ownedByThisClient() || !state.sdkClient->session() ||
+                                state.sdkClient->session()->role != frontend::SessionRole::Observer) {
+                                state.fail("the second physical JSONL attachment did not reach a fresh observer Ready session");
+                                return;
+                            }
+                            const sdk::Submission submission = state.sdkClient->threads().list(
+                                ai::openai::codex::typed::ThreadListParams{},
+                                [&state](const sdk::OperationResult<sdk::ThreadListResult>& operation) {
+                                    ++state.postReconnectCompletions;
+                                    state.result.expectTrue(operation && operation.value->threads.empty(),
+                                                            "a typed command succeeds once after explicit reconnect");
+                                    core::EventReceiver::atNextTick([&state] {
+                                        if (state.transport == Transport::Ipv4) {
+                                            static_cast<void>(::kill(::getpid(), SIGINT));
+                                        } else if (state.connection != nullptr) {
+                                            state.connection->shutdown();
+                                        }
+                                    });
+                                });
+                            state.result.expectTrue(submission.accepted(), "the reconnected Ready session accepts a new typed command");
+                        });
+                    },
+                .onCursorAdvanced = {},
+                .onProtocolMessage =
+                    [&state](const frontend::ServerMessage& message) {
+                        if (const auto* welcome = std::get_if<frontend::Welcome>(&message)) {
+                            ++state.welcomeReceived;
+                            state.sessionIds.push_back(welcome->sessionId);
+                        }
+                        state.snapshotReceived += std::holds_alternative<frontend::Snapshot>(message) ? 1U : 0U;
+                        state.syncCompleteReceived += std::holds_alternative<frontend::SyncComplete>(message) ? 1U : 0U;
+                    },
+                .onDiagnostic = {}});
     }
 
-    app::ClientConnection makeConnection(sdk::Client& client, ScenarioState& state) {
+    app::ClientConnection
+    makeConnection(sdk::Client& client,
+                   ScenarioState& state,
+                   std::function<void(app::PhysicalConnectionAttemptGate::Generation)> onAttemptConnected,
+                   std::function<void(app::PhysicalConnectionAttemptGate::Generation)> onAttemptDisconnected,
+                   std::function<void(app::PhysicalConnectionAttemptGate::Generation, std::string)> onAttemptFailure) {
         return app::ClientConnection(
             client,
             app::ClientConnectionCallbacks{
@@ -362,6 +451,9 @@ namespace {
                     [&state](std::string message) {
                         state.fail(std::string(transportName(state.transport)) + " CLI adapter failed: " + message);
                     },
+                .onAttemptConnected = std::move(onAttemptConnected),
+                .onAttemptDisconnected = std::move(onAttemptDisconnected),
+                .onAttemptFailure = std::move(onAttemptFailure),
                 .onOutbound =
                     [&state](const sdk::OutboundMessage& message) {
                         if (message.kind == sdk::OutboundKind::Hello) {
@@ -394,36 +486,83 @@ namespace {
         int eventLoopResult = 1;
         {
             sdk::Client sdk = makeSdk(state);
-            app::ClientConnection connection = makeConnection(sdk, state);
+            state.sdkClient = &sdk;
+            app::PhysicalConnectionAttemptGate physicalAttempts;
+            std::shared_ptr<Client> activeClient;
+            std::function<void()> startAttempt;
+            app::ClientConnection connection = makeConnection(
+                sdk,
+                state,
+                [&state, &physicalAttempts](const app::PhysicalConnectionAttemptGate::Generation generation) {
+                    state.result.expectTrue(physicalAttempts.isCurrent(generation),
+                                            "only the current physical JSONL generation may attach to the SDK");
+                },
+                [&state, &physicalAttempts, &activeClient, &startAttempt](const app::PhysicalConnectionAttemptGate::Generation generation) {
+                    if (!physicalAttempts.isCurrent(generation)) {
+                        state.fail("a stale JSONL detach callback reached application lifecycle state");
+                        return;
+                    }
+                    static_cast<void>(physicalAttempts.complete(generation));
+                    std::shared_ptr<Client> retired = std::move(activeClient);
+                    if (state.clientDisconnected == 1) {
+                        core::EventReceiver::atNextTick([retired = std::move(retired), &startAttempt] {
+                            startAttempt();
+                        });
+                    } else {
+                        core::EventReceiver::atNextTick([retired = std::move(retired), &state] {
+                            state.stopWhenDetached();
+                        });
+                    }
+                },
+                [&state, &physicalAttempts](const app::PhysicalConnectionAttemptGate::Generation generation, std::string message) {
+                    if (physicalAttempts.isCurrent(generation)) {
+                        state.fail(std::string(transportName(state.transport)) + " current attempt failed: " + message);
+                    }
+                });
             state.connection = &connection;
             Server server("a1-7c-1-client-transport-server", state);
-            Client client("a1-7c-1-client-transport-client", connection, std::size_t{MaximumFrameBytes});
             server.getConfig()->Instance::forceUnrequired();
-            client.getConfig()->Instance::forceUnrequired();
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
             if constexpr (requires { server.getConfig()->setCert(AISUITE_CODEX_TEST_TLS_CERT); }) {
                 server.getConfig()->setCert(AISUITE_CODEX_TEST_TLS_CERT);
                 server.getConfig()->setCertKey(AISUITE_CODEX_TEST_TLS_KEY);
-                client.getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
-                client.getConfig()->setCaCertAcceptUnknown(false);
-                client.getConfig()->setSni("localhost");
             }
 #endif
 
-            server.listen(listenAddress, [&state, &client, connectHost](const Address& bound, core::socket::State status) {
+            server.listen(listenAddress, [&](const Address& bound, core::socket::State status) {
                 if (status != core::socket::State::OK || bound.getPort() == 0) {
                     state.fail(std::string(transportName(state.transport)) + " fake listener failed: " + status.what());
                     return;
                 }
                 ++state.listenerBound;
                 const Address remote(connectHost, bound.getPort());
-                client.connect(remote, [&state](const Address&, core::socket::State connectStatus) {
-                    if (connectStatus == core::socket::State::OK) {
-                        ++state.connectorSucceeded;
-                    } else {
-                        state.fail(std::string(transportName(state.transport)) + " CLI connector failed: " + connectStatus.what());
+                startAttempt = [&, remote] {
+                    const auto generation = physicalAttempts.begin();
+                    if (!generation || !connection.prepareAttempt(*generation)) {
+                        state.fail("the configured JSONL adapter allowed overlapping physical attempts");
+                        return;
                     }
-                });
+                    if (!physicalAttempts.begin()) {
+                        ++state.overlapRejections;
+                    }
+                    activeClient = std::make_shared<Client>("", connection, std::size_t{MaximumFrameBytes});
+                    activeClient->getConfig()->Instance::forceUnrequired();
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+                    if constexpr (requires { activeClient->getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT); }) {
+                        activeClient->getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
+                        activeClient->getConfig()->setCaCertAcceptUnknown(false);
+                        activeClient->getConfig()->setSni("localhost");
+                    }
+#endif
+                    activeClient->connect(remote, [&state](const Address&, core::socket::State connectStatus) {
+                        if (connectStatus == core::socket::State::OK) {
+                            ++state.connectorSucceeded;
+                        } else {
+                            state.fail(std::string(transportName(state.transport)) + " CLI connector failed: " + connectStatus.what());
+                        }
+                    });
+                };
+                startAttempt();
             });
 
             [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
@@ -434,19 +573,25 @@ namespace {
                 utils::Timeval({5, 0}));
             eventLoopResult = core::SNodeC::start(utils::Timeval({7, 0}));
             state.connection = nullptr;
+            state.sdkClient = nullptr;
         }
         core::SNodeC::free();
 
         const int expectedLoopResult = transport == Transport::Ipv4 ? -SIGINT : 0;
         result.expectTrue(eventLoopResult == expectedLoopResult && !state.timedOut && state.completed && state.failures == 0,
-                          std::string(transportName(transport)) + " completes one deterministic SDK transport lifecycle");
-        result.expectTrue(state.listenerBound == 1 && state.connectorSucceeded == 1 && state.serverConnected == 1 &&
-                              state.clientConnected == 1 && state.serverDisconnected == 1 && state.clientDisconnected == 1,
-                          std::string(transportName(transport)) + " uses one real SNode.C listener/client connection pair");
-        result.expectTrue(state.authenticationPrepared == 1 && state.helloObservedOutbound == 1 && state.helloReceived == 1 &&
-                              state.welcomeReceived == 1 && state.snapshotReceived == 1 && state.syncCompleteReceived == 1 &&
-                              state.synchronized == 1 && state.readyTransitions == 1 && state.localShutdowns == 1,
-                          std::string(transportName(transport)) + " carries SDK Hello, Welcome, snapshot, and sync.complete exactly once");
+                          std::string(transportName(transport)) + " completes two deterministic SDK transport lifecycles");
+        result.expectTrue(state.listenerBound == 1 && state.connectorSucceeded == 2 && state.serverConnected == 2 &&
+                              state.clientConnected == 2 && state.serverDisconnected == 2 && state.clientDisconnected == 2 &&
+                              state.overlapRejections == 2,
+                          std::string(transportName(transport)) + " uses two sequential real SNode.C connection pairs without overlap");
+        result.expectTrue(state.authenticationPrepared == 2 && state.helloObservedOutbound == 2 && state.helloReceived == 2 &&
+                              state.welcomeReceived == 2 && state.snapshotReceived == 1 && state.syncCompleteReceived == 2 &&
+                              state.synchronized == 2 && state.readyTransitions == 2 && state.localShutdowns == 1 &&
+                              state.postReconnectCommands == 1 && state.postReconnectCompletions == 1 &&
+                              state.sessionIds ==
+                                  std::vector<std::string>{"transport-acceptance-session-1", "transport-acceptance-session-2"},
+                          std::string(transportName(transport)) +
+                              " reuses one SDK Client, resumes once, stays observer, and completes one new command exactly once");
         if (transport == Transport::Ipv4) {
             result.expectEqual(
                 -SIGINT, eventLoopResult, "the production stream SocketContext classifies SIGINT as intentional before transport detach");

@@ -19,6 +19,7 @@
 #include "ai/openai/codex/frontend/detail/BackendProjectionBuilder.h"
 #include "ai/openai/codex/frontend/detail/FrontendCapabilities.h"
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
+#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #include "ai/openai/codex/frontend/detail/ProviderResultProjection.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
 #include "ai/openai/codex/typed/Threads.h"
@@ -2808,6 +2809,10 @@ namespace ai::openai::codex::frontend {
 
     std::size_t FrontendService::authenticatedConnectionCount() const noexcept {
         return impl ? impl->authenticatedConnectionCount() : 0;
+    }
+
+    bool FrontendServiceTestAccess::enqueue(FrontendService& service, FrontendConnection& connection, ServerMessage message) noexcept {
+        return service.impl && connection.control && service.impl->enqueue(connection.control, std::move(message));
     }
 
     std::optional<std::string> FrontendService::currentController() const {

@@ -131,6 +131,7 @@ namespace ai::openai::codex::frontend {
 
     private:
         friend class FrontendService;
+        friend struct FrontendServiceTestAccess;
         struct Control;
 
         explicit FrontendConnection(std::shared_ptr<Control> control) noexcept;
@@ -183,6 +184,7 @@ namespace ai::openai::codex::frontend {
 
     private:
         friend class FrontendConnection;
+        friend struct FrontendServiceTestAccess;
 
         explicit FrontendService(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions options);
 

@@ -9,6 +9,7 @@
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/detail/BackendProjectionBuilder.h"
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
+#include "ai/openai/codex/frontend/detail/GeneratedSchemaValidator.h"
 #include "support/TestResult.h"
 
 #include <algorithm>
@@ -315,6 +316,70 @@ namespace {
         constexpr std::string_view marker = ":type:";
         const std::size_t offset = registryKey.rfind(marker);
         return offset == std::string_view::npos ? std::string_view{} : registryKey.substr(offset + marker.size());
+    }
+
+    struct BackendItemKindMapping {
+        std::string_view backendType;
+        frontend::ThreadItemKind frontendKind;
+        bool mcpServer = false;
+    };
+
+    constexpr std::array BackendItemKindMappings{
+        BackendItemKindMapping{"agent_message", frontend::ThreadItemKind::AgentMessage},
+        BackendItemKindMapping{"collabAgentToolCall", frontend::ThreadItemKind::CollabAgentToolCall},
+        BackendItemKindMapping{"command_execution", frontend::ThreadItemKind::CommandExecution},
+        BackendItemKindMapping{"contextCompaction", frontend::ThreadItemKind::ContextCompaction},
+        BackendItemKindMapping{"tool_call", frontend::ThreadItemKind::DynamicToolCall},
+        BackendItemKindMapping{"enteredReviewMode", frontend::ThreadItemKind::EnteredReviewMode},
+        BackendItemKindMapping{"exitedReviewMode", frontend::ThreadItemKind::ExitedReviewMode},
+        BackendItemKindMapping{"file_change", frontend::ThreadItemKind::FileChange},
+        BackendItemKindMapping{"hookPrompt", frontend::ThreadItemKind::HookPrompt},
+        BackendItemKindMapping{"imageGeneration", frontend::ThreadItemKind::ImageGeneration},
+        BackendItemKindMapping{"imageView", frontend::ThreadItemKind::ImageView},
+        BackendItemKindMapping{"tool_call", frontend::ThreadItemKind::McpToolCall, true},
+        BackendItemKindMapping{"plan", frontend::ThreadItemKind::Plan},
+        BackendItemKindMapping{"reasoning", frontend::ThreadItemKind::Reasoning},
+        BackendItemKindMapping{"sleep", frontend::ThreadItemKind::Sleep},
+        BackendItemKindMapping{"subAgentActivity", frontend::ThreadItemKind::SubAgentActivity},
+        BackendItemKindMapping{"user_message", frontend::ThreadItemKind::UserMessage},
+        BackendItemKindMapping{"web_search", frontend::ThreadItemKind::WebSearch},
+    };
+
+    ai::openai::codex::backend::Snapshot itemSnapshot(const BackendItemKindMapping& mapping,
+                                                      std::string itemId,
+                                                      std::string threadId = "thread-mapping",
+                                                      std::string turnId = "turn-mapping") {
+        namespace backend = ai::openai::codex::backend;
+        backend::ItemSnapshot item;
+        item.id = std::move(itemId);
+        item.type = std::string(mapping.backendType);
+        item.status = "completed";
+        item.agentText = "bounded projected text";
+        item.data = {{"safeLabel", "projected-from-snapshot"}};
+        if (mapping.mcpServer) {
+            item.data["server"] = "reviewed-mcp-server";
+        }
+        item.stamp = {23, backend::Freshness::Current};
+
+        backend::TurnSnapshot turn;
+        turn.id = std::move(turnId);
+        turn.threadId = threadId;
+        turn.status = "completed";
+        turn.terminal = true;
+        turn.items.push_back(std::move(item));
+        turn.stamp = {23, backend::Freshness::Current};
+
+        backend::ThreadSnapshot thread;
+        thread.id = std::move(threadId);
+        thread.fullyLoaded = true;
+        thread.turns.push_back(std::move(turn));
+        thread.stamp = {23, backend::Freshness::Current};
+
+        backend::Snapshot snapshot;
+        snapshot.provider.lifecycle = backend::ProviderLifecycle::Ready;
+        snapshot.provider.generation = 23;
+        snapshot.threads.push_back(std::move(thread));
+        return snapshot;
     }
 
     std::string backendPendingType(std::string_view kind) {
@@ -958,6 +1023,210 @@ namespace {
             "all 18 ThreadItems retain useful safe fields, stable locations, exact 8/10 compatibility, and scope-filtered content");
     }
 
+    void testBackendItemKindNormalizationAndWireBoundary(tests::support::TestResult& result) {
+        namespace backend = ai::openai::codex::backend;
+
+        std::set<frontend::ThreadItemKind> mappedKinds;
+        std::set<std::string> mappedSpellings;
+        std::set<std::string> generatedSpellings;
+        bool everyKindMapped = true;
+        bool everyKindRoundTrips = true;
+        bool everyItemSchemaValid = true;
+        bool everyEventRoundTrips = true;
+        bool everyIdentityExact = true;
+        bool noRawOccurrenceRepresentation = true;
+        bool liveReplayEquivalent = true;
+        bool userWireNormalized = false;
+        bool agentWireNormalized = false;
+
+        for (const auto& metadata : generated::AllThreadItemProjections) {
+            generatedSpellings.emplace(itemDiscriminator(metadata.registryKey));
+        }
+
+        for (std::size_t index = 0; index < BackendItemKindMappings.size(); ++index) {
+            const BackendItemKindMapping& mapping = BackendItemKindMappings[index];
+            const std::string itemId = "item-mapping-" + std::to_string(index);
+            backend::Snapshot snapshot = itemSnapshot(mapping, itemId);
+            const backend::ItemSnapshot& backendItem = snapshot.threads.front().turns.front().items.front();
+            const std::optional<frontend::ThreadItemKind> mapped = detail::expandedItemKind(backendItem);
+            const std::string stableType(frontend::toString(mapping.frontendKind));
+            const std::optional<frontend::ThreadItemKind> reversed = frontend::threadItemKindFromString(stableType);
+            mappedKinds.emplace(mapping.frontendKind);
+            mappedSpellings.emplace(stableType);
+            everyKindMapped = everyKindMapped && mapped == mapping.frontendKind && !stableType.empty();
+            everyKindRoundTrips = everyKindRoundTrips && reversed == mapping.frontendKind;
+
+            const frontend::SequenceNumber sequence{600 + index};
+            const detail::CanonicalEventRecord record =
+                detail::makeCanonicalEventRecord("item.updated",
+                                                 frontend::Json{{"threadId", "thread-mapping"},
+                                                                {"turnId", "turn-mapping"},
+                                                                {"item",
+                                                                 {{"id", itemId},
+                                                                  {"type", mapping.backendType},
+                                                                  {"rawOccurrenceOnly", "must-not-cross-projection-boundary"},
+                                                                  {"data", {{"occurrenceOnly", true}}}}}},
+                                                 snapshot,
+                                                 sequence);
+            const detail::EventProjection live = detail::projectEvent(record, localExpandedContext());
+            const detail::EventProjection replay =
+                detail::projectEvent(record, localExpandedContext(), frontend::SequenceNumber{sequence.value() - 1});
+            liveReplayEquivalent = liveReplayEquivalent && live.events == replay.events && live.expanded == replay.expanded &&
+                                   live.omittedFields == replay.omittedFields && live.redactedFields == replay.redactedFields;
+            if (live.events.size() != 1 || live.events.front().type != "item.upserted" || !live.events.front().data.contains("item")) {
+                everyItemSchemaValid = false;
+                everyEventRoundTrips = false;
+                everyIdentityExact = false;
+                noRawOccurrenceRepresentation = false;
+                continue;
+            }
+
+            const frontend::Json& projectedItem = live.events.front().data.at("item");
+            everyIdentityExact = everyIdentityExact && projectedItem.value("id", "") == itemId &&
+                                 projectedItem.value("threadId", "") == "thread-mapping" &&
+                                 projectedItem.value("turnId", "") == "turn-mapping";
+            noRawOccurrenceRepresentation = noRawOccurrenceRepresentation && projectedItem.value("type", "") == stableType &&
+                                            !projectedItem.contains("rawOccurrenceOnly") &&
+                                            (!projectedItem.contains("data") || !projectedItem.at("data").contains("occurrenceOnly"));
+
+            const detail::GeneratedSchemaValidation itemValidation = detail::validateGeneratedSchema(
+                detail::generatedProtocolSchema(), "#/$defs/ExpandedThreadItem", projectedItem, "expanded item");
+            const auto typedEvent = frontend::Codec::encodeExpandedEvent(
+                frontend::ExpandedFrontendEvent{sequence, frontend::ExpandedEventType::ItemUpserted, live.events.front().data});
+            everyItemSchemaValid = everyItemSchemaValid && itemValidation.valid && typedEvent.hasValue();
+
+            const frontend::EventBatch batch{sequence, sequence, live.events, frontend::Json::object()};
+            const auto serialized = frontend::Codec::serializeServer(frontend::ServerMessage{batch});
+            bool decodedExact = false;
+            std::string itemWire;
+            if (serialized) {
+                const auto decoded = frontend::Codec::decodeServer(std::string_view{serialized.value()});
+                const frontend::Json wire = frontend::Json::parse(serialized.value(), nullptr, false);
+                if (!wire.is_discarded() && wire.contains("events") && wire.at("events").is_array() && !wire.at("events").empty()) {
+                    itemWire = wire.at("events").front().at("data").at("item").dump();
+                }
+                if (decoded) {
+                    if (const auto* decodedBatch = std::get_if<frontend::EventBatch>(&decoded.value());
+                        decodedBatch != nullptr && decodedBatch->events.size() == 1) {
+                        decodedExact = decodedBatch->events.front().data.at("item").value("type", "") == stableType;
+                    }
+                }
+            }
+            const std::string stableWire = "\"type\":\"" + stableType + "\"";
+            const std::string backendWire = "\"type\":\"" + std::string(mapping.backendType) + "\"";
+            const bool noBackendDiscriminator = mapping.backendType == stableType || itemWire.find(backendWire) == std::string::npos;
+            everyEventRoundTrips = everyEventRoundTrips && serialized.hasValue() && decodedExact &&
+                                   itemWire.find(stableWire) != std::string::npos && noBackendDiscriminator;
+            userWireNormalized = userWireNormalized ||
+                                 (mapping.backendType == "user_message" && itemWire.find("\"type\":\"userMessage\"") != std::string::npos &&
+                                  itemWire.find("\"type\":\"user_message\"") == std::string::npos);
+            agentWireNormalized = agentWireNormalized || (mapping.backendType == "agent_message" &&
+                                                          itemWire.find("\"type\":\"agentMessage\"") != std::string::npos &&
+                                                          itemWire.find("\"type\":\"agent_message\"") == std::string::npos);
+        }
+
+        result.expectTrue(everyKindMapped && mappedKinds.size() == 18,
+                          "the production backend item-kind mapper covers all 18 reviewed alternatives, including both tool-call forms");
+        result.expectTrue(everyKindRoundTrips && mappedSpellings.size() == 18 && generatedSpellings == mappedSpellings,
+                          "all 18 enum spellings are unique, generated-authority-defined, and round-trip through ThreadItemKind");
+        result.expectTrue(everyItemSchemaValid && everyEventRoundTrips && everyIdentityExact,
+                          "all 18 projected items satisfy ExpandedThreadItem and serialize/decode with exact parent identity");
+        result.expectTrue(
+            noRawOccurrenceRepresentation && userWireNormalized && agentWireNormalized && liveReplayEquivalent,
+            "wire projection normalizes backend discriminators, copies no raw occurrence representation, and is live/replay stable");
+
+        const BackendItemKindMapping userMapping{"user_message", frontend::ThreadItemKind::UserMessage};
+        const BackendItemKindMapping agentMapping{"agent_message", frontend::ThreadItemKind::AgentMessage};
+        backend::Snapshot exact = itemSnapshot(userMapping, "duplicate-item", "thread-exact", "turn-exact");
+        backend::Snapshot unrelated = itemSnapshot(agentMapping, "duplicate-item", "thread-unrelated", "turn-unrelated");
+        exact.threads.insert(exact.threads.begin(), std::move(unrelated.threads.front()));
+        const detail::CanonicalEventRecord exactRecord = detail::makeCanonicalEventRecord(
+            "item.updated",
+            frontend::Json{
+                {"threadId", "thread-exact"}, {"turnId", "turn-exact"}, {"item", {{"id", "duplicate-item"}, {"type", "user_message"}}}},
+            exact,
+            frontend::SequenceNumber{700});
+        const detail::EventProjection exactProjection = detail::projectEvent(exactRecord, localExpandedContext());
+        const detail::CanonicalEventRecord exactContentRecord =
+            detail::makeCanonicalEventRecord("item.content.updated",
+                                             frontend::Json{{"threadId", "thread-exact"},
+                                                            {"turnId", "turn-exact"},
+                                                            {"itemId", "duplicate-item"},
+                                                            {"channel", "agentText"},
+                                                            {"content", "exact replacement"}},
+                                             exact,
+                                             frontend::SequenceNumber{701});
+        const detail::EventProjection exactContentProjection = detail::projectEvent(exactContentRecord, localExpandedContext());
+        const detail::CanonicalEventRecord mismatchRecord = detail::makeCanonicalEventRecord(
+            "item.updated",
+            frontend::Json{
+                {"threadId", "thread-exact"}, {"turnId", "turn-missing"}, {"item", {{"id", "duplicate-item"}, {"type", "user_message"}}}},
+            exact,
+            frontend::SequenceNumber{702});
+
+        backend::Snapshot inconsistentParent = itemSnapshot(userMapping, "duplicate-item", "thread-exact", "turn-exact");
+        inconsistentParent.threads.front().turns.front().threadId = "thread-inconsistent";
+        const detail::CanonicalEventRecord inconsistentParentRecord = detail::makeCanonicalEventRecord(
+            "item.updated",
+            frontend::Json{
+                {"threadId", "thread-exact"}, {"turnId", "turn-exact"}, {"item", {{"id", "duplicate-item"}, {"type", "user_message"}}}},
+            inconsistentParent,
+            frontend::SequenceNumber{703});
+        result.expectTrue(
+            !exactRecord.snapshotRequired && exactProjection.events.size() == 1 &&
+                exactProjection.events.front().data.at("item").at("type") == "userMessage" &&
+                exactProjection.events.front().data.at("item").at("threadId") == "thread-exact" &&
+                exactContentProjection.events.size() == 1 && exactContentProjection.events.front().data.at("threadId") == "thread-exact" &&
+                exactContentProjection.events.front().data.at("turnId") == "turn-exact" && mismatchRecord.snapshotRequired &&
+                detail::projectEvent(mismatchRecord, localExpandedContext()).events.empty() && inconsistentParentRecord.snapshotRequired &&
+                detail::projectEvent(inconsistentParentRecord, localExpandedContext()).events.empty(),
+            "item upsert and content projection resolve the full thread/turn/item triple, reject inconsistent parent metadata, and "
+            "never substitute a duplicate ID");
+    }
+
+    void testUnknownBackendItemContainment(tests::support::TestResult& result) {
+        namespace backend = ai::openai::codex::backend;
+        const BackendItemKindMapping knownMapping{"user_message", frontend::ThreadItemKind::UserMessage};
+        backend::Snapshot snapshot = itemSnapshot(knownMapping, "known-item", "thread-unknown", "turn-unknown");
+        backend::ItemSnapshot unknown;
+        unknown.id = "future-item";
+        unknown.type = "future_codex_item_kind";
+        unknown.status = "completed";
+        unknown.data = {{"safeLabel", "future item retained only in the backend"}};
+        unknown.stamp = {23, backend::Freshness::Current};
+        snapshot.threads.front().turns.front().items.push_back(std::move(unknown));
+
+        const detail::CanonicalEventRecord event =
+            detail::makeCanonicalEventRecord("item.updated",
+                                             frontend::Json{{"threadId", "thread-unknown"},
+                                                            {"turnId", "turn-unknown"},
+                                                            {"item", {{"id", "future-item"}, {"type", "future_codex_item_kind"}}}},
+                                             snapshot,
+                                             frontend::SequenceNumber{710});
+        const detail::EventProjection live = detail::projectEvent(event, localExpandedContext());
+        const detail::EventProjection replay = detail::projectEvent(event, localExpandedContext(), frontend::SequenceNumber{709});
+
+        const detail::CanonicalSnapshotRecord snapshotRecord = detail::makeCanonicalSnapshotRecord(
+            frontend::Json{{"items", frontend::Json::array()}}, snapshot, frontend::SequenceNumber{711});
+        const auto projectedSnapshot = detail::projectSnapshot(snapshotRecord, localExpandedContext());
+        bool validBoundedSnapshot = false;
+        if (projectedSnapshot) {
+            const frontend::Json& state = projectedSnapshot->snapshot.state;
+            const auto decoded = frontend::Codec::decodeExpandedSnapshot(expandedSnapshotEnvelope(*projectedSnapshot));
+            validBoundedSnapshot = decoded.hasValue() && state.at("items").size() == 1 &&
+                                   state.at("items").front().at("id") == "known-item" &&
+                                   state.at("items").front().at("type") == "userMessage" && state.at("truncation").at("truncated") &&
+                                   state.at("truncation").at("omittedEntries").get<std::size_t>() >= 1 &&
+                                   state.dump().find("future_codex_item_kind") == std::string::npos &&
+                                   state.dump().find("\"type\":\"unknown\"") == std::string::npos;
+        }
+        result.expectTrue(event.snapshotRequired && !detail::canonicalEventRetainedBytes(event).has_value() && live.events.empty() &&
+                              replay.events.empty(),
+                          "an unrecognized backend item emits no fabricated item event and requests authoritative Snapshot fallback");
+        result.expectTrue(validBoundedSnapshot,
+                          "expanded snapshots omit unsupported items through explicit truncation accounting while retaining known items");
+    }
+
     void testAllPendingRequestRuntimeMappings(tests::support::TestResult& result) {
         namespace backend = ai::openai::codex::backend;
         backend::Snapshot snapshot;
@@ -1391,25 +1660,23 @@ namespace {
             frontend::Json{
                 {"type", "commandExecution"}, {"commandOutput", "inconsistent-ceiling-output"}, {"data", {{"codexType", "fileChange"}}}},
             427);
-        const auto outputPresent = [](const detail::EventProjection& projection) {
-            return projection.events.size() == 1 && projection.events.front().data.at("item").contains("commandOutput");
-        };
         bool conservativeUnknownAndInconsistent = true;
-        for (const detail::CanonicalEventRecord* record : {&unknownItem, &inconsistentItem}) {
-            const detail::EventProjection commandOnly = detail::projectEvent(
-                *record, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, true));
-            const detail::EventProjection filesystemOnly = detail::projectEvent(
-                *record, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, true));
-            const detail::EventProjection both = detail::projectEvent(
-                *record,
-                scopedContext(
-                    {frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution, frontend::FrontendScope::FilesystemWrite},
-                    true));
+        const std::array unsafeItems{
+            frontend::Json{{"type", "futureOutputItem"}, {"commandOutput", "unknown-ceiling-output"}},
+            frontend::Json{
+                {"type", "commandExecution"}, {"commandOutput", "inconsistent-ceiling-output"}, {"data", {{"codexType", "fileChange"}}}},
+        };
+        for (std::size_t index = 0; index < unsafeItems.size(); ++index) {
+            const std::vector<frontend::FrontendScope> scopes = detail::itemCommandOutputRequiredScopes(unsafeItems[index]);
+            const detail::CanonicalEventRecord& record = index == 0 ? unknownItem : inconsistentItem;
             conservativeUnknownAndInconsistent =
-                conservativeUnknownAndInconsistent && !outputPresent(commandOnly) && !outputPresent(filesystemOnly) && outputPresent(both);
+                conservativeUnknownAndInconsistent && scopes.size() == 2 &&
+                std::find(scopes.begin(), scopes.end(), frontend::FrontendScope::CommandExecution) != scopes.end() &&
+                std::find(scopes.begin(), scopes.end(), frontend::FrontendScope::FilesystemWrite) != scopes.end() &&
+                record.snapshotRequired && detail::projectEvent(record, localExpandedContext()).events.empty();
         }
         result.expectTrue(conservativeUnknownAndInconsistent,
-                          "unknown or inconsistent item discriminators require both information ceilings or omit commandOutput");
+                          "unknown or inconsistent item discriminators retain conservative information ceilings and emit no raw item");
 
         const detail::CanonicalEventRecord nestedThreadEvent = detail::makeCanonicalEventRecord(
             "thread.updated", frontend::Json{{"thread", legacyState.at("threads").at(0)}}, snapshot, frontend::SequenceNumber{424});
@@ -2008,6 +2275,8 @@ int main() {
     testEventProjectionAndReuse(result);
     testBackendProjectionBuilderAndGeneratedMappings(result);
     testAllThreadItemRuntimeMappings(result);
+    testBackendItemKindNormalizationAndWireBoundary(result);
+    testUnknownBackendItemContainment(result);
     testAllPendingRequestRuntimeMappings(result);
     testAllExpandedEventFamilies(result);
     testCapabilitySelectionAndUnknownFallback(result);

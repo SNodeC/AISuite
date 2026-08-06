@@ -440,7 +440,7 @@ namespace {
                                                               return;
                                                           }
                                                           if (connectionHandle != nullptr && connectionHandle->connected()) {
-                                                              connectionHandle->disconnect();
+                                                              connectionHandle->shutdown();
                                                           } else {
                                                               core::SNodeC::stop();
                                                           }
@@ -450,7 +450,8 @@ namespace {
                                                   [&](std::string message) {
                                                       lifecycleFailures.push_back(message);
                                                       presenter.error(std::move(message));
-                                                  }});
+                                                  },
+                                              .requestReconnect = {}});
             lifecycleHandle = &lifecycle;
 
             client::ClientConnection connection(
@@ -626,7 +627,7 @@ namespace {
             if (stdinReader != nullptr) {
                 stdinReader->stop();
             }
-            connection.disconnect();
+            connection.shutdown();
             backendCore.stop();
         }
 
@@ -984,7 +985,7 @@ int main(int argc, char* argv[]) {
                                     return;
                                 }
                                 if (connectionHandle != nullptr && connectionHandle->connected()) {
-                                    connectionHandle->disconnect();
+                                    connectionHandle->shutdown();
                                 } else {
                                     core::SNodeC::stop();
                                 }
@@ -993,7 +994,8 @@ int main(int argc, char* argv[]) {
                     .reportFailure =
                         [&presenter](std::string message) {
                             presenter.error(message);
-                        }});
+                        },
+                    .requestReconnect = {}});
             lifecycleHandle = &lifecycle;
 
             client::ClientConnection connection(
@@ -1090,7 +1092,7 @@ int main(int argc, char* argv[]) {
                         } else if constexpr (std::is_same_v<T, client::CommandParseError>) {
                             ++invalidCommandCount;
                             invalidReportedBeforeThreadsResponse = threadsResponseCount == 0;
-                            presenter.error(command.message);
+                            lifecycle.localCommandFailed(std::move(command.message));
                             if (maybeFinish) {
                                 maybeFinish();
                             }
@@ -1185,7 +1187,7 @@ int main(int argc, char* argv[]) {
             if (stdinReader != nullptr) {
                 stdinReader->stop();
             }
-            connection.disconnect();
+            connection.shutdown();
             backendCore.stop();
         }
 
@@ -1323,7 +1325,8 @@ int main(int argc, char* argv[]) {
                               contains(output, "response request-id=" + acquireRequestId + " ok=true") &&
                               contains(output, "response request-id=" + threadsRequestId + " ok=true"),
                           "human presentation includes the real handshake and both correlated responses");
-        result.expectTrue(contains(errors, "unknown command 'foobar'"), "invalid input remains an immediate diagnostic");
+        result.expectTrue(contains(errors, "unknown command; enter 'help' for available commands"),
+                          "invalid input remains an immediate safe diagnostic without echoing command input");
         result.expectTrue(pathCleanedByServer, "real frontend Unix server removes its owned socket path");
 
         core::SNodeC::free();

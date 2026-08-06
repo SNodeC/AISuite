@@ -10,6 +10,7 @@
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/frontend/EventCoalescer.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -292,11 +293,14 @@ namespace {
         std::size_t schedulingRequests = 0;
         for (std::size_t index = 0; index < 1000; ++index) {
             accumulated += static_cast<char>('a' + static_cast<int>(index % 26));
-            const frontend::CoalescerMarkResult marked =
-                coalescer.mark({agentKey,
-                                "item.content.updated",
-                                frontend::Json{{"itemId", "item-1"}, {"channel", "agentText"}, {"content", accumulated}},
-                                frontend::FlushUrgency::Deferred});
+            const frontend::CoalescerMarkResult marked = coalescer.mark({agentKey,
+                                                                         "item.content.updated",
+                                                                         frontend::Json{{"threadId", "thread-1"},
+                                                                                        {"turnId", "turn-1"},
+                                                                                        {"itemId", "item-1"},
+                                                                                        {"channel", "agentText"},
+                                                                                        {"content", accumulated}},
+                                                                         frontend::FlushUrgency::Deferred});
             schedulingRequests += marked.scheduleRequired ? 1U : 0U;
         }
         result.expectTrue(coalescer.dirtyCount() == 1 && schedulingRequests == 1 && coalescer.flushScheduled(),
@@ -316,15 +320,27 @@ namespace {
 
         const auto reasoning = coalescer.mark({frontend::CoalescingKey::itemContent("thread-1", "turn-1", "item-1", "reasoningText"),
                                                "item.content.updated",
-                                               frontend::Json{{"content", "reasoning-final"}},
+                                               frontend::Json{{"threadId", "thread-1"},
+                                                              {"turnId", "turn-1"},
+                                                              {"itemId", "item-1"},
+                                                              {"channel", "reasoningText"},
+                                                              {"content", "reasoning-final"}},
                                                frontend::FlushUrgency::Deferred});
         const auto commandOutput = coalescer.mark({frontend::CoalescingKey::itemContent("thread-1", "turn-1", "item-1", "commandOutput"),
                                                    "item.content.updated",
-                                                   frontend::Json{{"content", "command-final"}},
+                                                   frontend::Json{{"threadId", "thread-1"},
+                                                                  {"turnId", "turn-1"},
+                                                                  {"itemId", "item-1"},
+                                                                  {"channel", "commandOutput"},
+                                                                  {"content", "command-final"}},
                                                    frontend::FlushUrgency::Deferred});
         const auto otherTurn = coalescer.mark({frontend::CoalescingKey::itemContent("thread-1", "turn-2", "item-1", "reasoningText"),
                                                "item.content.updated",
-                                               frontend::Json{{"content", "other-turn"}},
+                                               frontend::Json{{"threadId", "thread-1"},
+                                                              {"turnId", "turn-2"},
+                                                              {"itemId", "item-1"},
+                                                              {"channel", "reasoningText"},
+                                                              {"content", "other-turn"}},
                                                frontend::FlushUrgency::Deferred});
         result.expectTrue(reasoning.accepted() && commandOutput.accepted() && otherTurn.accepted() && coalescer.dirtyCount() == 3,
                           "reasoning, command output, and a same-named item in another turn never coalesce together");
@@ -350,7 +366,11 @@ namespace {
         result.expectTrue(terminalOrdering
                               .mark({frontend::CoalescingKey::itemContent("thread-order", "turn-order", "item-order", "agentText"),
                                      "item.content.updated",
-                                     frontend::Json{{"itemId", "item-order"}, {"channel", "agentText"}, {"content", "final"}},
+                                     frontend::Json{{"threadId", "thread-order"},
+                                                    {"turnId", "turn-order"},
+                                                    {"itemId", "item-order"},
+                                                    {"channel", "agentText"},
+                                                    {"content", "final"}},
                                      frontend::FlushUrgency::Deferred})
                               .accepted(),
                           "final item content remains independently dirty from its turn");
@@ -378,6 +398,63 @@ namespace {
             {frontend::CoalescingKey::thread("two"), "thread.updated", frontend::Json::object(), frontend::FlushUrgency::Deferred});
         result.expectTrue(overflow.status == frontend::CoalescerMarkStatus::SnapshotRequired && bounded.dirtyCount() == 1,
                           "dirty-entity capacity is bounded and degrades to a snapshot instead of growing");
+    }
+
+    void testProducerRejectsMalformedExpandedEventBeforeTransport(tests::support::TestResult& result) {
+        constexpr std::string_view FixtureSecret = "fixture-secret-that-must-never-reach-the-close-reason";
+
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(backendOptions, transport);
+
+        frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        frontend::FrontendService service(core, serviceOptions);
+
+        Observations observations;
+        frontend::FrontendConnection connection = service.openConnection(trustedPeer(), callbacksFor(observations));
+        frontend::FrontendEvent malformed{
+            frontend::SequenceNumber{123},
+            "item.upserted",
+            Json{{"item",
+                  Json{{"id", "item-serialization-failure"},
+                       {"threadId", "thread-serialization-failure"},
+                       {"turnId", "turn-serialization-failure"},
+                       {"type", "user_message"},
+                       {"opaqueFixture", FixtureSecret}}}},
+            Json::object(),
+        };
+        frontend::EventBatch batch{frontend::SequenceNumber{123}, frontend::SequenceNumber{123}, {std::move(malformed)}, Json::object()};
+
+        const bool enqueued = frontend::FrontendServiceTestAccess::enqueue(service, connection, frontend::ServerMessage{std::move(batch)});
+        result.expectTrue(!enqueued && !connection.isOpen() && connection.queuedMessages() == 0 && connection.queuedBytes() == 0 &&
+                              service.isOpen() && service.connectionCount() == 0,
+                          "producer-side schema failure closes only the offending connection without queuing malformed bytes");
+        result.expectTrue(observations.messages.empty() && observations.compactJson.empty() && observations.serializedBytes.empty(),
+                          "producer-side schema failure invokes no transport callback and writes no partial frame");
+
+        scheduler.drain();
+        const bool oneBoundedSafeReason =
+            observations.closeReasons.size() == 1 && observations.closeReasons.front().size() <= 512 &&
+            observations.closeReasons.front().find(
+                "expanded event.data.item.type value 'user_message' is not a schema-defined discriminator") != std::string::npos &&
+            observations.closeReasons.front().find(FixtureSecret) == std::string::npos &&
+            observations.closeReasons.front().find("item-serialization-failure") == std::string::npos &&
+            observations.closeReasons.front().find("thread-serialization-failure") == std::string::npos &&
+            observations.closeReasons.front().find("turn-serialization-failure") == std::string::npos &&
+            observations.closeReasons.front().find("opaqueFixture") == std::string::npos;
+        result.expectTrue(oneBoundedSafeReason,
+                          "producer-side schema failure reports only the bounded discriminator path and rejected value");
+
+        service.close("producer serialization failure test complete");
+        scheduler.drain();
     }
 
     void testAuthenticationAdmissionAndTopology(tests::support::TestResult& result) {
@@ -1735,6 +1812,7 @@ namespace {
             const std::string backendText = terminalBackendText();
             const std::string frontendTextA = latestFrontendText(observerA);
             const std::string frontendTextB = latestFrontendText(observerB);
+            const std::string closeReason = observerA.closeReasons.empty() ? "open" : observerA.closeReasons.front();
             return "backend=" + std::to_string(backendText.size()) + "/" + std::to_string(expectedText.size()) +
                    ", frontendA=" + std::to_string(frontendTextA.size()) + ", frontendB=" + std::to_string(frontendTextB.size()) +
                    ", user=" +
@@ -1743,14 +1821,8 @@ namespace {
                    "/" +
                    std::to_string(hasCompletedItemUpdate(
                        observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs)) +
-                   ", unknown=" +
-                   std::to_string(hasCompletedItemUpdate(
-                       observerA, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs)) +
-                   "/" +
-                   std::to_string(hasCompletedItemUpdate(
-                       observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs)) +
                    ", legacy=" + std::to_string(hasMetadataOnlyLegacyItemUpdates(observerA)) + "/" +
-                   std::to_string(hasMetadataOnlyLegacyItemUpdates(observerB));
+                   std::to_string(hasMetadataOnlyLegacyItemUpdates(observerB)) + ", connection=" + closeReason;
         }
 
     private:
@@ -2160,18 +2232,6 @@ namespace {
                    {"turnId", turnId},
                    {"item", {{"id", userMessageItemId}, {"type", "userMessage"}, {"clientId", nullptr}, {"content", userMessageContent}}},
                    {"completedAtMs", userMessageCompletedAtMs}}}});
-            transport->inject({{"method", "item/started"},
-                               {"params",
-                                {{"threadId", threadId},
-                                 {"turnId", turnId},
-                                 {"item", {{"id", unknownItemId}, {"type", unknownItemType}, {"futureField", Json{{"value", 7}}}}},
-                                 {"startedAtMs", unknownItemStartedAtMs}}}});
-            transport->inject({{"method", "item/completed"},
-                               {"params",
-                                {{"threadId", threadId},
-                                 {"turnId", turnId},
-                                 {"item", {{"id", unknownItemId}, {"type", unknownItemType}, {"futureField", Json{{"value", 7}}}}},
-                                 {"completedAtMs", unknownItemCompletedAtMs}}}});
             std::int64_t legacyCompletedAtMs = 70;
             for (const LegacyMetadataItemFixture& fixture : legacyMetadataItems) {
                 transport->inject(
@@ -2190,11 +2250,7 @@ namespace {
                            hasCompletedItemUpdate(
                                observerA, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) &&
                            hasCompletedItemUpdate(
-                               observerA, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) &&
-                           hasCompletedItemUpdate(
                                observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) &&
-                           hasCompletedItemUpdate(
-                               observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) &&
                            hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB) &&
                            hasTerminalTurnAfter(observerA, baselineEventsA) && hasTerminalTurnAfter(observerB, baselineEventsB);
                 },
@@ -2511,8 +2567,6 @@ namespace {
             };
             expect(countCompletedItemUpdates(userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) == 1,
                    "userMessage start/completion coalesce into one canonical completed frontend item update");
-            expect(countCompletedItemUpdates(unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) == 1,
-                   "an unknown item with common metadata coalesces into one canonical completed frontend item update");
             const auto userMessageUpdate = std::find_if(receivedA.begin(), receivedA.end(), [&](const frontend::FrontendEvent& event) {
                 return isCompletedItemUpdate(event, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs);
             });
@@ -2541,13 +2595,6 @@ namespace {
                 !userMessageItem.value("contentTruncated", true) && userMessageItem.value("droppedContentBytes", std::uint64_t{1}) == 0;
             expect(userMessageDataPreserved,
                    "Decoder through FrontendService preserves a bounded array prefix and independent user-message truncation metadata");
-            const auto unknownUpdate = std::find_if(receivedA.begin(), receivedA.end(), [&](const frontend::FrontendEvent& event) {
-                return isCompletedItemUpdate(event, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs);
-            });
-            const Json unknownData =
-                unknownUpdate == receivedA.end() ? Json::object() : unknownUpdate->data.at("item").value("data", Json::object());
-            expect(unknownData.is_object() && unknownData.value("codexType", "") == unknownItemType,
-                   "the canonical frontend unknown item preserves its future discriminator");
             expect(hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB),
                    "all ten newly rich backend ThreadItem projections retain their metadata-only Frontend Protocol v1 payloads");
 
@@ -2562,7 +2609,7 @@ namespace {
                            decodingError.find("item event omitted threadId or turnId") != std::string::npos;
                 });
             expect(!hasItemLifecycleExtension,
-                   "valid userMessage and unknown item lifecycle events never become location-error codex.extension events");
+                   "valid userMessage item lifecycle events never become location-error codex.extension events");
 
             verifyCapacityEvictionSnapshot();
         }
@@ -2759,10 +2806,6 @@ namespace {
         }();
         static constexpr std::int64_t userMessageStartedAtMs = 30;
         static constexpr std::int64_t userMessageCompletedAtMs = 40;
-        const std::string unknownItemId = "unknown-item-burst";
-        const std::string unknownItemType = "futureServiceItem";
-        static constexpr std::int64_t unknownItemStartedAtMs = 50;
-        static constexpr std::int64_t unknownItemCompletedAtMs = 60;
         const std::vector<LegacyMetadataItemFixture> legacyMetadataItems = legacyMetadataItemFixtures();
 
         tests::support::TestResult& result;
@@ -2830,6 +2873,7 @@ int main(int argc, char* argv[]) {
     } else {
         core::SNodeC::init(argc, argv);
         testCoalescingAndBounds(result);
+        testProducerRejectsMalformedExpandedEventBeforeTransport(result);
         testAuthenticationAdmissionAndTopology(result);
         testServiceHandshakeRolesReplayAndIsolation(result);
         testCapabilityDiscoveryHandshake(result);

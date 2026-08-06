@@ -163,11 +163,35 @@ read_authority(
     frontend_headers
     frontend_lines
 )
-set(expected_headers ${main_headers} ${backend_headers} ${frontend_headers})
-set(inventory_lines ${main_lines} ${backend_lines} ${frontend_lines})
+set(frontend_client_headers)
+set(frontend_client_lines)
+set(frontend_client_expected_count 0)
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    read_authority(
+        frontend-client
+        "src/ai/openai/codex/frontend/client/CMakeLists.txt"
+        AI_OPENAI_CODEX_FRONTEND_CLIENT_PUBLIC_H
+        frontend/client
+        33
+        frontend_client_headers
+        frontend_client_lines
+    )
+    set(frontend_client_expected_count 33)
+endif()
+set(expected_headers
+    ${main_headers} ${backend_headers} ${frontend_headers}
+    ${frontend_client_headers}
+)
+set(inventory_lines
+    ${main_lines} ${backend_lines} ${frontend_lines}
+    ${frontend_client_lines}
+)
 list(LENGTH expected_headers expected_count)
-if(NOT expected_count EQUAL 45)
-    fail_self_containment("derived total is ${expected_count}; expected 45")
+math(EXPR expected_total "45 + ${frontend_client_expected_count}")
+if(NOT expected_count EQUAL expected_total)
+    fail_self_containment(
+        "derived total is ${expected_count}; expected ${expected_total}"
+    )
 endif()
 list(SORT expected_headers)
 set(previous "")
@@ -218,9 +242,9 @@ file(
 )
 list(SORT installed_headers)
 list(LENGTH installed_headers installed_count)
-if(NOT installed_count EQUAL 45)
+if(NOT installed_count EQUAL expected_total)
     fail_self_containment(
-        "installed Codex inventory has ${installed_count} headers; expected 45"
+        "installed Codex inventory has ${installed_count} headers; expected ${expected_total}"
     )
 endif()
 set(previous "")
@@ -278,6 +302,12 @@ find_package(AISuite CONFIG REQUIRED)
 )
 set(index 0)
 set(translation_units)
+set(consumer_link_targets
+    "AISuite::OpenAICodex AISuite::OpenAICodexBackend AISuite::OpenAICodexFrontend"
+)
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    string(APPEND consumer_link_targets " AISuite::OpenAICodexFrontendClient")
+endif()
 foreach(header IN LISTS expected_headers)
     math(EXPR index "${index} + 1")
     set(target "codex_public_header_${index}")
@@ -289,7 +319,7 @@ foreach(header IN LISTS expected_headers)
     file(
         APPEND "${consumer_source}/CMakeLists.txt"
         "add_library(${target} OBJECT \"${translation_unit}\")\n"
-        "target_link_libraries(${target} PRIVATE AISuite::OpenAICodex AISuite::OpenAICodexBackend AISuite::OpenAICodexFrontend)\n"
+        "target_link_libraries(${target} PRIVATE ${consumer_link_targets})\n"
     )
     list(APPEND translation_units "${translation_unit}")
 endforeach()
@@ -359,7 +389,11 @@ endif()
 
 execute_process(
     COMMAND
-        "${AISUITE_CMAKE_COMMAND}" --build "${consumer_build}" --parallel 28
+        # This test deliberately compiles every installed public header as a
+        # separate translation unit. Keep its nested build aligned with the
+        # conservative ordinary-suite concurrency so hosted runners do not
+        # launch the entire inventory at once.
+        "${AISUITE_CMAKE_COMMAND}" --build "${consumer_build}" --parallel 2
         --verbose
     RESULT_VARIABLE build_result
     OUTPUT_VARIABLE build_output
@@ -379,9 +413,9 @@ string(
           "${compile_commands}"
 )
 list(LENGTH compile_entries compile_count)
-if(NOT compile_count EQUAL 45)
+if(NOT compile_count EQUAL expected_total)
     fail_self_containment(
-        "compile_commands contains ${compile_count} translation units; expected 45"
+        "compile_commands contains ${compile_count} translation units; expected ${expected_total}"
     )
 endif()
 foreach(translation_unit IN LISTS translation_units)
@@ -443,5 +477,5 @@ endif()
 file(REMOVE_RECURSE "${test_root}")
 message(
     STATUS
-        "Codex public-header self-containment verified: 29 main + 7 backend + 9 frontend = 45 isolated installed includes"
+        "Codex public-header self-containment verified: 29 main + 7 backend + 9 frontend + ${frontend_client_expected_count} frontend-client = ${expected_total} isolated installed includes"
 )

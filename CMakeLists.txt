@@ -9,6 +9,7 @@ project(
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+include(cmake/AISuiteCodexFrontendDependencies.cmake)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
 option(AISUITE_BUILD_TESTS "Build AISuite tests" OFF)
@@ -100,6 +101,18 @@ option(AISUITE_ENABLE_CODEX_FRONTEND_TLS
        ${AISUITE_CODEX_FRONTEND_TLS_DEFAULT}
 )
 
+aisuite_codex_frontend_websocket_client_required(
+    AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED "${AISUITE_BUILD_APPS}"
+    "${AISUITE_BUILD_TESTS}" "${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}"
+)
+
+set(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_AVAILABLE ON)
+if(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED
+   AND NOT EXISTS "${snodec_DIR}/snodec_websocket-client_Targets.cmake"
+)
+    set(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_AVAILABLE OFF)
+endif()
+
 set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT OFF)
 if(EXISTS "${snodec_DIR}/snodec_http-server_Targets.cmake"
    AND EXISTS "${snodec_DIR}/snodec_http-server-express_Targets.cmake"
@@ -107,6 +120,7 @@ if(EXISTS "${snodec_DIR}/snodec_http-server_Targets.cmake"
    AND EXISTS
        "${snodec_DIR}/snodec_http-server-express-legacy-in6_Targets.cmake"
    AND EXISTS "${snodec_DIR}/snodec_websocket-server_Targets.cmake"
+   AND AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_AVAILABLE
 )
     set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT ON)
 endif()
@@ -153,7 +167,9 @@ if(AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS)
                  http-server-express-tls-in http-server-express-tls-in6
             )
         endif()
-        list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS websocket-client)
+        if(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED)
+            list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS websocket-client)
+        endif()
     endif()
 endif()
 if(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
@@ -166,7 +182,9 @@ add_subdirectory(src/ai/openai/codex)
 
 if(AISUITE_BUILD_APPS)
     add_subdirectory(src/apps/codex-backend)
-    add_subdirectory(src/apps/codex-backend-client)
+    if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+        add_subdirectory(src/apps/codex-backend-client)
+    endif()
 endif()
 
 if(AISUITE_BUILD_TESTS)

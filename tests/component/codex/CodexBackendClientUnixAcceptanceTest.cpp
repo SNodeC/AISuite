@@ -534,7 +534,7 @@ int main(int argc, char* argv[]) {
                                                               return;
                                                           }
                                                           ++state.controlledDisconnects;
-                                                          connectionHandle->disconnect();
+                                                          connectionHandle->shutdown();
                                                       });
                                                   },
                                               .reportFailure =
@@ -543,7 +543,8 @@ int main(int argc, char* argv[]) {
                                                       presenter.error(message);
                                                       state.fail("production drain lifecycle failed during successful pipe acceptance: " +
                                                                  message);
-                                                  }});
+                                                  },
+                                              .requestReconnect = {}});
             lifecycleHandle = &lifecycle;
 
             client::ClientConnection connection(

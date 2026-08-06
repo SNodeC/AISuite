@@ -257,7 +257,7 @@ namespace {
 
     void testDefaultReplayHeadroom(tests::support::TestResult& result) {
         constexpr std::size_t retainedSlackBytes = 32;
-        constexpr std::size_t maximumPayloadBytes = 24U * 1024U;
+        constexpr std::size_t maximumPayloadBytes = 16U * 1024U;
         const std::size_t retainedTarget = DefaultJournalMaxBytes - retainedSlackBytes;
         std::vector<FrontendEvent> retainedEvents;
         std::size_t retainedBytes = 0;
@@ -267,7 +267,11 @@ namespace {
             const std::size_t remaining = retainedTarget - retainedBytes;
             const FrontendEvent empty{next,
                                       "item.content.updated",
-                                      Json{{"itemId", "capacity-item"}, {"channel", "commandOutput"}, {"content", ""}},
+                                      Json{{"threadId", "capacity-thread"},
+                                           {"turnId", "capacity-turn"},
+                                           {"itemId", "capacity-item"},
+                                           {"channel", "commandOutput"},
+                                           {"content", ""}},
                                       Json::object()};
             const auto emptySize = Codec::serializedEventSize(empty);
             result.expectTrue(emptySize.hasValue(), "capacity-test normalized event has a stable compact base encoding");
@@ -276,11 +280,14 @@ namespace {
             }
 
             const std::size_t payloadBytes = std::min(maximumPayloadBytes, remaining - emptySize.value());
-            FrontendEvent event{
-                next,
-                "item.content.updated",
-                Json{{"itemId", "capacity-item"}, {"channel", "commandOutput"}, {"content", std::string(payloadBytes, 'x')}},
-                Json::object()};
+            FrontendEvent event{next,
+                                "item.content.updated",
+                                Json{{"threadId", "capacity-thread"},
+                                     {"turnId", "capacity-turn"},
+                                     {"itemId", "capacity-item"},
+                                     {"channel", "commandOutput"},
+                                     {"content", std::string(payloadBytes, 'x')}},
+                                Json::object()};
             const auto serializedBytes = Codec::serializedEventSize(event);
             result.expectTrue(serializedBytes.hasValue() && serializedBytes.value() <= remaining,
                               "capacity-test projected event fits without crossing the configured retention budget");
@@ -316,6 +323,51 @@ namespace {
         result.expectTrue(boundedBatches && queuedBytes > DefaultJournalMaxBytes && queuedBytes <= DefaultFrontendServiceMaxOutboundBytes &&
                               queuedMessages <= DefaultFrontendServiceMaxOutboundMessages,
                           "default adapter headroom accepts exact batch/control overhead for a near-8 MiB retained replay");
+    }
+
+    void testProducerExpandedEventValidation(tests::support::TestResult& result) {
+        const FrontendEvent malformed{
+            SequenceNumber{123},
+            "item.upserted",
+            Json{{"item", Json{{"id", "item-1"}, {"type", "user_message"}, {"opaque", "MUST_NOT_APPEAR_IN_ERROR"}}}},
+            Json::object(),
+        };
+        const auto encodedMalformed = Codec::encodeEvent(malformed);
+        const auto serializedMalformed =
+            Codec::serializeServer(ServerMessage{EventBatch{SequenceNumber{123}, SequenceNumber{123}, {malformed}, Json::object()}});
+        const UpdateBatchResult batchedMalformed = UpdateBatchBuilder{}.build({malformed});
+        result.expectTrue(!encodedMalformed && !serializedMalformed && batchedMalformed.status == UpdateBatchStatus::EncodingFailure &&
+                              encodedMalformed.error().message.find(
+                                  "expanded event.data.item.type value 'user_message' is not a schema-defined discriminator") !=
+                                  std::string::npos &&
+                              encodedMalformed.error().message.find("MUST_NOT_APPEAR_IN_ERROR") == std::string::npos,
+                          "generic producer serialization rejects malformed expanded events locally with a bounded discriminator error");
+
+        const FrontendEvent valid{
+            SequenceNumber{124}, "item.upserted", Json{{"item", Json{{"id", "item-1"}, {"type", "userMessage"}}}}, Json::object()};
+        const auto serializedValid =
+            Codec::serializeServer(ServerMessage{EventBatch{SequenceNumber{124}, SequenceNumber{124}, {valid}, Json::object()}});
+        const auto decodedValid =
+            serializedValid ? Codec::decodeServer(std::string_view{serializedValid.value()})
+                            : CodecResult<ServerMessage>{
+                                  CodecError{ErrorCode::InternalError, "serialization failed", false, {}, std::nullopt, std::nullopt}};
+        result.expectTrue(serializedValid.hasValue() && decodedValid.hasValue(),
+                          "a valid generic expanded event passes producer schema validation and round-trips");
+
+        const FrontendEvent legacy{
+            SequenceNumber{125},
+            "item.updated",
+            Json{{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"item", Json{{"id", "item-1"}, {"type", "user_message"}}}},
+            Json::object()};
+        const FrontendEvent legacyDiagnostics{
+            SequenceNumber{126}, "diagnostics.updated", Json{{"received", 1}, {"recent", Json::array()}}, Json::object()};
+        const auto encodedLegacy = Codec::encodeEvent(legacy);
+        const auto encodedLegacyDiagnostics = Codec::encodeEvent(legacyDiagnostics);
+        result.expectTrue(encodedLegacy.hasValue() && encodedLegacy.value().at("data").at("item").at("type") == "user_message" &&
+                              encodedLegacyDiagnostics.hasValue() && encodedLegacyDiagnostics.value().at("data").contains("diagnostic") &&
+                              encodedLegacyDiagnostics.value().at("data").contains("received") &&
+                              encodedLegacyDiagnostics.value().at("data").contains("recent"),
+                          "legacy event validation remains compatible while the dual-name diagnostics event gains an additive safe view");
     }
 } // namespace
 
@@ -424,7 +476,10 @@ int main() {
     const FrontendEvent extensionEvent{
         SequenceNumber(141), "codex.extension", Json{{"method", "future/event"}, {"params", Json{{"value", 1}}}}, Json::object()};
     const FrontendEvent itemEvent{
-        SequenceNumber(142), "item.content.updated", Json{{"itemId", "item-1"}, {"text", "complete"}}, Json::object()};
+        SequenceNumber(142),
+        "item.content.updated",
+        Json{{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"itemId", "item-1"}, {"channel", "agentText"}, {"content", "complete"}},
+        Json::object()};
     expectServerRoundTrip(result,
                           ServerMessage{EventBatch{SequenceNumber(141), SequenceNumber(142), {extensionEvent, itemEvent}, Json::object()}},
                           "event batch including unknown Codex extension");
@@ -599,6 +654,7 @@ int main() {
                       "a single oversized update requests snapshot fallback");
 
     testDefaultReplayHeadroom(result);
+    testProducerExpandedEventValidation(result);
     testUserMessageDataSchema(result);
 
     return result.processResult();
