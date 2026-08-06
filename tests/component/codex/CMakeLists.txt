@@ -61,6 +61,48 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
             LABELS "component;ai;openai;codex;frontend;client;lifecycle;correlation;a1-7c-1"
             TIMEOUT 5
     )
+
+    snodec_add_test(
+        CodexFrontendClientSynchronizationTest
+        CodexFrontendClientSynchronizationTest.cpp
+    )
+    target_link_libraries(
+        CodexFrontendClientSynchronizationTest
+        PRIVATE
+            snodec-test-support
+            AISuite::OpenAICodexFrontendClient
+    )
+    target_compile_features(CodexFrontendClientSynchronizationTest PRIVATE cxx_std_20)
+    target_compile_definitions(
+        CodexFrontendClientSynchronizationTest
+        PRIVATE
+            AISUITE_CODEX_FRONTEND_CLIENT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-client-reducer"
+            AISUITE_CODEX_FRONTEND_CLIENT_STATE_SOURCE="${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/client/State.cpp"
+    )
+    set_tests_properties(
+        CodexFrontendClientSynchronizationTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;state;replay;reducer;a1-7c-1"
+            TIMEOUT 10
+    )
+
+    snodec_add_test(
+        CodexFrontendClientStateExtensionTest
+        CodexFrontendClientStateExtensionTest.cpp
+    )
+    target_link_libraries(
+        CodexFrontendClientStateExtensionTest
+        PRIVATE
+            snodec-test-support
+            AISuite::OpenAICodexFrontendClient
+    )
+    target_compile_features(CodexFrontendClientStateExtensionTest PRIVATE cxx_std_20)
+    set_tests_properties(
+        CodexFrontendClientStateExtensionTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;state;extensions;a1-7c-1"
+            TIMEOUT 5
+    )
 endif()
 
 set(CODEX_PHASE_A0_SCHEMA_ROOT

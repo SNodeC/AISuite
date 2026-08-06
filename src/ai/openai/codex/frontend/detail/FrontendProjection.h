@@ -79,6 +79,11 @@ namespace ai::openai::codex::frontend::detail {
     [[nodiscard]] FrontendProjectionContext makeProjectionContext(const FrontendPrincipal& principal,
                                                                   std::span<const FrontendCapability> negotiatedCapabilities = {}) noexcept;
 
+    // Private projection authority shared with BackendProjectionBuilder.
+    // commandOutput belongs to two stable item families with different scope
+    // ceilings; unknown or inconsistent discriminators require both scopes.
+    [[nodiscard]] std::vector<FrontendScope> itemCommandOutputRequiredScopes(const Json& item) noexcept;
+
     struct CanonicalSnapshotRecord {
         SequenceNumber sequence;
         ScopedProjectionValue legacyState;
@@ -91,6 +96,10 @@ namespace ai::openai::codex::frontend::detail {
     struct CanonicalExpandedEvent {
         ExpandedEventType type = ExpandedEventType::DiagnosticsUpdated;
         ScopedProjectionValue data;
+        // Some event families have occurrence-specific information ceilings.
+        // If these scopes are unavailable, the complete family occurrence is
+        // hidden; required schema members must never be projected away.
+        std::vector<FrontendScope> requiredScopes;
 
         bool operator==(const CanonicalExpandedEvent&) const = default;
     };
@@ -109,6 +118,11 @@ namespace ai::openai::codex::frontend::detail {
         Json extensions = Json::object();
         CanonicalSanitizationStatistics sanitization;
         std::size_t maximumReportedPaths = 64;
+        // The canonical occurrence could not prove the exact stable target
+        // required by one of its expanded entity projections.  The service
+        // must publish an authoritative bounded snapshot instead of inventing
+        // or substituting an entity.
+        bool snapshotRequired = false;
     };
 
     struct SnapshotProjection {

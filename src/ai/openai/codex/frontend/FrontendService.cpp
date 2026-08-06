@@ -303,7 +303,10 @@ namespace ai::openai::codex::frontend {
                    type == "plan" || type == "sleep" || type == "subAgentActivity";
         }
 
-        Json itemSnapshotJson(const backend::ItemSnapshot& item) {
+        // This is the legacy/canonical backend representation. It is not an
+        // ExpandedThreadItem and must never be copied directly into an expanded
+        // frontend event.
+        Json legacyItemSnapshotJson(const backend::ItemSnapshot& item) {
             const Json frontendData = isFrontendV1MetadataOnlyItem(item.type) ? Json::object({{"codexType", item.type}}) : item.data;
             Json encoded{{"id", item.id},
                          {"type", item.type},
@@ -340,7 +343,7 @@ namespace ai::openai::codex::frontend {
                 encoded["tokenUsage"] = *turn.tokenUsage;
             }
             for (const backend::ItemSnapshot& item : turn.items) {
-                encoded["items"].push_back(itemSnapshotJson(item));
+                encoded["items"].push_back(legacyItemSnapshotJson(item));
             }
             return encoded;
         }
@@ -1445,6 +1448,11 @@ namespace ai::openai::codex::frontend {
                 welcome.capabilities = handshakeAdvertisement;
                 welcome.availableMethods = availableMethods();
                 welcome.permittedMethods = permittedMethods(*control->principal);
+                Json permittedScopes = Json::array();
+                for (const FrontendScope scope : control->principal->scopes) {
+                    permittedScopes.push_back(std::string(toString(scope)));
+                }
+                welcome.extensions["permittedScopes"] = std::move(permittedScopes);
             }
             if (!enqueue(control, ServerMessage{std::move(welcome)})) {
                 return;
@@ -2043,16 +2051,7 @@ namespace ai::openai::codex::frontend {
         }
 
         Json threadListEventData(const backend::Snapshot& snapshot) const {
-            Json data{{"hasLoadedPage", snapshot.threadList.hasLoadedPage},
-                      {"complete", snapshot.threadList.complete},
-                      {"pagesLoaded", snapshot.threadList.pagesLoaded}};
-            if (snapshot.threadList.nextCursor.has_value()) {
-                data["nextCursor"] = *snapshot.threadList.nextCursor;
-            }
-            if (snapshot.threadList.backwardsCursor.has_value()) {
-                data["backwardsCursor"] = *snapshot.threadList.backwardsCursor;
-            }
-            return data;
+            return detail::threadListProjection(snapshot.threadList);
         }
 
         CoalescerMarkResult
@@ -2090,7 +2089,7 @@ namespace ai::openai::codex::frontend {
             }
             return markNormalized(CoalescingKey::item(std::string(threadId), std::string(turnId), std::string(itemId)),
                                   "item.updated",
-                                  Json{{"threadId", threadId}, {"turnId", turnId}, {"item", itemSnapshotJson(*item)}},
+                                  Json{{"threadId", threadId}, {"turnId", turnId}, {"item", legacyItemSnapshotJson(*item)}},
                                   urgency);
         }
 

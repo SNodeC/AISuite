@@ -2,6 +2,8 @@ set(
     AI_OPENAI_CODEX_FRONTEND_CLIENT_CPP
     BindingMetadata.cpp
     Client.cpp
+    ProjectionFingerprint.cpp
+    State.cpp
 )
 set(
     AI_OPENAI_CODEX_FRONTEND_CLIENT_PUBLIC_H
@@ -24,6 +26,7 @@ set(
     PermissionProfiles.h
     Plugins.h
     Provider.h
+    ProjectionFingerprint.h
     Requests.h
     Results.h
     Reviews.h
@@ -70,6 +73,11 @@ install(
     EXPORT AISuiteTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(
+    FILES detail/StateReducer.h
+    DESTINATION
+        ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/frontend/client/detail
 )
 install(
     FILES ${AI_OPENAI_CODEX_FRONTEND_CLIENT_PUBLIC_H}

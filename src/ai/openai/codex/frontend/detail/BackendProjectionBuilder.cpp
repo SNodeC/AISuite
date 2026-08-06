@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <initializer_list>
 #include <limits>
 #include <optional>
 #include <span>
@@ -18,6 +19,41 @@
 #include <utility>
 
 namespace ai::openai::codex::frontend::detail {
+
+    std::optional<ThreadItemKind> expandedItemKind(const backend::ItemSnapshot& item) noexcept {
+        const auto direct = threadItemKindFromString(item.type);
+        if (direct.has_value()) {
+            return direct;
+        }
+        if (item.type == "agent_message") {
+            return ThreadItemKind::AgentMessage;
+        }
+        if (item.type == "user_message") {
+            return ThreadItemKind::UserMessage;
+        }
+        if (item.type == "command_execution") {
+            return ThreadItemKind::CommandExecution;
+        }
+        if (item.type == "file_change") {
+            return ThreadItemKind::FileChange;
+        }
+        if (item.type == "web_search") {
+            return ThreadItemKind::WebSearch;
+        }
+        if (item.type == "tool_call") {
+            return item.data.is_object() && item.data.contains("server") ? ThreadItemKind::McpToolCall : ThreadItemKind::DynamicToolCall;
+        }
+        try {
+            if (item.data.is_object()) {
+                const auto codexType = item.data.find("codexType");
+                if (codexType != item.data.end() && codexType->is_string()) {
+                    return threadItemKindFromString(codexType->get_ref<const std::string&>());
+                }
+            }
+        } catch (...) {
+        }
+        return std::nullopt;
+    }
 
     namespace {
 
@@ -65,6 +101,45 @@ namespace ai::openai::codex::frontend::detail {
 
         std::string boundedText(std::string_view value, std::size_t maximumBytes = MaximumTextBytes) {
             return std::string(value.substr(0, utf8PrefixLength(value, maximumBytes)));
+        }
+
+        bool validUtf8(std::string_view value) noexcept {
+            for (std::size_t offset = 0; offset < value.size();) {
+                const auto lead = static_cast<unsigned char>(value[offset]);
+                std::size_t width = 0;
+                if (lead <= 0x7fU) {
+                    width = 1;
+                } else if (lead >= 0xc2U && lead <= 0xdfU) {
+                    width = 2;
+                } else if (lead >= 0xe0U && lead <= 0xefU) {
+                    width = 3;
+                } else if (lead >= 0xf0U && lead <= 0xf4U) {
+                    width = 4;
+                } else {
+                    return false;
+                }
+                if (offset + width > value.size()) {
+                    return false;
+                }
+                for (std::size_t index = 1; index < width; ++index) {
+                    if ((static_cast<unsigned char>(value[offset + index]) & 0xc0U) != 0x80U) {
+                        return false;
+                    }
+                }
+                if (width == 3) {
+                    const auto second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xe0U && second < 0xa0U) || (lead == 0xedU && second > 0x9fU)) {
+                        return false;
+                    }
+                } else if (width == 4) {
+                    const auto second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xf0U && second < 0x90U) || (lead == 0xf4U && second > 0x8fU)) {
+                        return false;
+                    }
+                }
+                offset += width;
+            }
+            return true;
         }
 
         std::string normalizedName(std::string_view value) {
@@ -247,45 +322,10 @@ namespace ai::openai::codex::frontend::detail {
             return result;
         }
 
-        std::optional<ThreadItemKind> itemKind(const backend::ItemSnapshot& item) noexcept {
-            const auto direct = threadItemKindFromString(item.type);
-            if (direct.has_value()) {
-                return direct;
-            }
-            if (item.type == "agent_message") {
-                return ThreadItemKind::AgentMessage;
-            }
-            if (item.type == "user_message") {
-                return ThreadItemKind::UserMessage;
-            }
-            if (item.type == "command_execution") {
-                return ThreadItemKind::CommandExecution;
-            }
-            if (item.type == "file_change") {
-                return ThreadItemKind::FileChange;
-            }
-            if (item.type == "web_search") {
-                return ThreadItemKind::WebSearch;
-            }
-            if (item.type == "tool_call") {
-                return item.data.is_object() && item.data.contains("server") ? ThreadItemKind::McpToolCall
-                                                                             : ThreadItemKind::DynamicToolCall;
-            }
-            try {
-                if (item.data.is_object()) {
-                    const auto codexType = item.data.find("codexType");
-                    if (codexType != item.data.end() && codexType->is_string()) {
-                        return threadItemKindFromString(codexType->get_ref<const std::string&>());
-                    }
-                }
-            } catch (...) {
-            }
-            return std::nullopt;
-        }
-
-        std::optional<Json>
-        itemJson(const backend::ItemSnapshot& item, std::optional<std::string_view> threadId, std::optional<std::string_view> turnId) {
-            const std::optional<ThreadItemKind> kind = itemKind(item);
+        std::optional<Json> expandedItemJson(const backend::ItemSnapshot& item,
+                                             std::optional<std::string_view> threadId,
+                                             std::optional<std::string_view> turnId) {
+            const std::optional<ThreadItemKind> kind = expandedItemKind(item);
             if (!kind.has_value() || item.id.empty()) {
                 return std::nullopt;
             }
@@ -355,7 +395,7 @@ namespace ai::openai::codex::frontend::detail {
             if (includeItems) {
                 result["items"] = Json::array();
                 for (const backend::ItemSnapshot& item : turn.items) {
-                    if (const auto encoded = itemJson(item, turn.threadId, turn.id); encoded.has_value()) {
+                    if (const auto encoded = expandedItemJson(item, turn.threadId, turn.id); encoded.has_value()) {
                         result["items"].push_back(*encoded);
                     }
                 }
@@ -859,14 +899,13 @@ namespace ai::openai::codex::frontend::detail {
         }
 
         std::vector<ScopeProjectionRule> expandedSnapshotRules() {
-            return {
+            std::vector<ScopeProjectionRule> rules{
                 {"/provider/initialization/codexHome", {FrontendScope::FilesystemRead}, ScopeProjectionAction::Omit},
                 // Pending-request presentation is the generated Observe
                 // contract. Response submission remains independently gated
                 // by Control + SensitiveResponse and controller ownership.
                 {"/pendingRequests", {FrontendScope::Observe}, ScopeProjectionAction::Omit},
                 {"/threads/*/cwd", {FrontendScope::FilesystemRead}, ScopeProjectionAction::Omit},
-                {"/items/*/commandOutput", {FrontendScope::CommandExecution}, ScopeProjectionAction::Omit},
                 {"/items/*/data/**/aggregatedOutput", {FrontendScope::CommandExecution}, ScopeProjectionAction::Omit},
                 {"/items/*/data/**/command", {FrontendScope::CommandExecution}, ScopeProjectionAction::Omit},
                 {"/items/*/data/**/commandActions", {FrontendScope::CommandExecution}, ScopeProjectionAction::Omit},
@@ -906,13 +945,13 @@ namespace ai::openai::codex::frontend::detail {
                 {"/mcp/latestResults/*/subjectId", {FrontendScope::McpInvoke}, ScopeProjectionAction::Omit},
                 {"/mcp/latestResults/*/nextCursor", {FrontendScope::McpInvoke}, ScopeProjectionAction::Omit},
             };
+            return rules;
         }
 
         void appendItemScopeRules(std::vector<ScopeProjectionRule>& rules, std::string_view prefix) {
             const auto append = [&rules, prefix](std::string_view suffix, FrontendScope scope) {
                 rules.push_back({std::string(prefix) + std::string(suffix), {scope}, ScopeProjectionAction::Omit});
             };
-            append("/commandOutput", FrontendScope::CommandExecution);
             append("/data/**/aggregatedOutput", FrontendScope::CommandExecution);
             append("/data/**/command", FrontendScope::CommandExecution);
             append("/data/**/commandActions", FrontendScope::CommandExecution);
@@ -1086,92 +1125,462 @@ namespace ai::openai::codex::frontend::detail {
             const backend::TurnSnapshot* turn = nullptr;
         };
 
-        ItemLocation findItem(const backend::Snapshot& snapshot, std::string_view id) noexcept {
-            for (const backend::ThreadSnapshot& thread : snapshot.threads) {
-                for (const backend::TurnSnapshot& turn : thread.turns) {
-                    const auto iterator = std::find_if(turn.items.begin(), turn.items.end(), [id](const backend::ItemSnapshot& item) {
-                        return item.id == id;
-                    });
-                    if (iterator != turn.items.end()) {
-                        return {&*iterator, &turn};
-                    }
-                }
+        ItemLocation
+        findItem(const backend::Snapshot& snapshot, std::string_view threadId, std::string_view turnId, std::string_view itemId) noexcept {
+            const backend::ThreadSnapshot* thread = findThread(snapshot, threadId);
+            if (thread == nullptr) {
+                return {};
             }
-            return {};
+            const auto turn = std::find_if(thread->turns.begin(), thread->turns.end(), [turnId](const backend::TurnSnapshot& candidate) {
+                return candidate.id == turnId;
+            });
+            if (turn == thread->turns.end() || turn->threadId != threadId) {
+                return {};
+            }
+            const auto item = std::find_if(turn->items.begin(), turn->items.end(), [itemId](const backend::ItemSnapshot& candidate) {
+                return candidate.id == itemId;
+            });
+            return item == turn->items.end() ? ItemLocation{} : ItemLocation{&*item, &*turn};
         }
 
-        std::optional<std::string> findNamedString(const Json& value, std::span<const std::string_view> names, std::size_t depth = 0) {
-            if (depth > 8) {
+        const Json* exactValueAt(const Json& value, std::initializer_list<std::string_view> path) noexcept {
+            try {
+                const Json* current = &value;
+                for (const std::string_view component : path) {
+                    if (!current->is_object()) {
+                        return nullptr;
+                    }
+                    const auto iterator = current->find(std::string(component));
+                    if (iterator == current->end()) {
+                        return nullptr;
+                    }
+                    current = &*iterator;
+                }
+                return current;
+            } catch (...) {
+                return nullptr;
+            }
+        }
+
+        std::optional<std::string>
+        exactStringAt(const Json& value, std::initializer_list<std::string_view> path, std::size_t maximumBytes = MaximumIdentifierBytes) {
+            const Json* candidate = exactValueAt(value, path);
+            if (candidate == nullptr || !candidate->is_string() || candidate->get_ref<const std::string&>().empty()) {
                 return std::nullopt;
             }
-            if (value.is_object()) {
-                for (std::string_view name : names) {
-                    const auto iterator = value.find(std::string(name));
-                    if (iterator != value.end() && iterator->is_string() && !iterator->get_ref<const std::string&>().empty()) {
-                        return boundedText(iterator->get_ref<const std::string&>(), MaximumIdentifierBytes);
-                    }
-                }
-                for (auto iterator = value.begin(); iterator != value.end(); ++iterator) {
-                    if (const auto found = findNamedString(iterator.value(), names, depth + 1); found.has_value()) {
-                        return found;
-                    }
-                }
-            } else if (value.is_array()) {
-                for (const Json& entry : value) {
-                    if (const auto found = findNamedString(entry, names, depth + 1); found.has_value()) {
-                        return found;
-                    }
-                }
+            const std::string& exact = candidate->get_ref<const std::string&>();
+            if (exact.size() > maximumBytes || !validUtf8(exact)) {
+                return std::nullopt;
             }
-            return std::nullopt;
+            return exact;
         }
 
-        std::optional<std::string> eventThreadId(const Json& data) {
-            static constexpr std::array names{std::string_view{"threadId"}, std::string_view{"conversationId"}};
-            return findNamedString(data, names);
+        std::optional<std::string>
+        boundedStringAt(const Json& value, std::initializer_list<std::string_view> path, std::size_t maximumBytes) {
+            const Json* candidate = exactValueAt(value, path);
+            if (candidate == nullptr || !candidate->is_string() || candidate->get_ref<const std::string&>().empty()) {
+                return std::nullopt;
+            }
+            return boundedText(candidate->get_ref<const std::string&>(), maximumBytes);
         }
 
-        std::optional<std::string> eventTurnId(const Json& data) {
-            static constexpr std::array names{std::string_view{"turnId"}};
-            return findNamedString(data, names);
+        bool providerParamsIdentityUnavailable(const Json& data, std::initializer_list<std::optional<std::string>> identities) noexcept {
+            try {
+                if (exactValueAt(data, {"truncation", "params"}) != nullptr) {
+                    return true;
+                }
+                const Json* redacted = exactValueAt(data, {"sensitiveFieldsRedacted"});
+                if (redacted == nullptr || (redacted->is_boolean() && !redacted->get<bool>())) {
+                    return false;
+                }
+                if (!redacted->is_boolean()) {
+                    return true;
+                }
+                return std::any_of(identities.begin(), identities.end(), [](const auto& identity) {
+                    return identity.has_value() && *identity == "[redacted]";
+                });
+            } catch (...) {
+                return true;
+            }
         }
 
-        std::optional<std::string> eventItemId(const Json& data) {
-            static constexpr std::array names{std::string_view{"itemId"}};
-            return findNamedString(data, names);
+        std::optional<std::string> providerMethod(const Json& data) {
+            return exactStringAt(data, {"method"}, 256);
         }
 
-        Json minimumThread(std::optional<std::string> id) {
-            return Json{{"id", id.value_or("unavailable")}, {"stateUnavailable", true}};
+        bool hasProviderEnvelope(const Json& data) noexcept {
+            return exactValueAt(data, {"method"}) != nullptr || exactValueAt(data, {"params"}) != nullptr;
         }
 
-        Json minimumTurn(std::optional<std::string> id, std::optional<std::string> threadId) {
-            return Json{{"id", id.value_or("unavailable")},
-                        {"threadId", threadId.value_or("unavailable")},
+        bool conflictingIdentities(const std::optional<std::string>& left, const std::optional<std::string>& right) noexcept {
+            return left.has_value() && right.has_value() && *left != *right;
+        }
+
+        bool conflictingCompleteIdentity(const Json* wrapper,
+                                         const std::optional<std::string>& providerId,
+                                         std::initializer_list<std::string_view> wrapperIdPath) {
+            if (wrapper == nullptr) {
+                return false;
+            }
+            if (!wrapper->is_object()) {
+                return true;
+            }
+            const auto directId = exactStringAt(*wrapper, wrapperIdPath);
+            return !directId.has_value() || conflictingIdentities(providerId, directId);
+        }
+
+        std::optional<std::string> threadUpsertedId(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                if (!method->starts_with("thread/") || *method == "thread/deleted" || *method == "thread/compacted" ||
+                    *method == "thread/tokenUsage/updated") {
+                    return std::nullopt;
+                }
+                if (*method == "thread/started") {
+                    const auto nested = exactStringAt(data, {"params", "thread", "id"});
+                    const auto flat = exactStringAt(data, {"params", "threadId"});
+                    if (providerParamsIdentityUnavailable(data, {nested, flat}) || !nested.has_value() ||
+                        conflictingIdentities(nested, flat) ||
+                        conflictingCompleteIdentity(exactValueAt(data, {"thread"}), nested, {"id"})) {
+                        return std::nullopt;
+                    }
+                    return nested;
+                }
+                const auto providerId = exactStringAt(data, {"params", "threadId"});
+                return !providerParamsIdentityUnavailable(data, {providerId}) && providerId.has_value() &&
+                               !conflictingCompleteIdentity(exactValueAt(data, {"thread"}), providerId, {"id"})
+                           ? providerId
+                           : std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            return exactStringAt(data, {"thread", "id"});
+        }
+
+        std::optional<std::string> threadRemovedId(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                if (*method != "thread/deleted") {
+                    return std::nullopt;
+                }
+                const auto providerId = exactStringAt(data, {"params", "threadId"});
+                const auto directId = exactStringAt(data, {"threadId"});
+                return !providerParamsIdentityUnavailable(data, {providerId}) && providerId.has_value() &&
+                               !conflictingIdentities(providerId, directId)
+                           ? providerId
+                           : std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            return exactStringAt(data, {"threadId"});
+        }
+
+        struct TurnEventIdentity {
+            std::string threadId;
+            std::string turnId;
+        };
+
+        std::optional<TurnEventIdentity> turnUpsertedIdentity(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                const auto threadId = exactStringAt(data, {"params", "threadId"});
+                if (!threadId.has_value()) {
+                    return std::nullopt;
+                }
+                if (*method == "turn/started" || *method == "turn/completed") {
+                    const auto turnId = exactStringAt(data, {"params", "turn", "id"});
+                    const auto nestedThreadId = exactStringAt(data, {"params", "turn", "threadId"});
+                    const Json* directTurn = exactValueAt(data, {"turn"});
+                    const auto directTurnId = exactStringAt(data, {"turn", "id"});
+                    const auto directThreadId = exactStringAt(data, {"turn", "threadId"});
+                    if (providerParamsIdentityUnavailable(data, {threadId, turnId, nestedThreadId}) || !turnId.has_value() ||
+                        conflictingIdentities(threadId, nestedThreadId) ||
+                        (directTurn != nullptr &&
+                         (!directTurn->is_object() || !directTurnId.has_value() || !directThreadId.has_value() ||
+                          conflictingIdentities(turnId, directTurnId) || conflictingIdentities(threadId, directThreadId)))) {
+                        return std::nullopt;
+                    }
+                    return TurnEventIdentity{*threadId, *turnId};
+                }
+                if (!method->starts_with("turn/") && *method != "thread/compacted" && *method != "thread/tokenUsage/updated" &&
+                    *method != "model/rerouted" && *method != "model/safetyBuffering/updated" && *method != "model/verification") {
+                    return std::nullopt;
+                }
+                const auto turnId = exactStringAt(data, {"params", "turnId"});
+                const Json* directTurn = exactValueAt(data, {"turn"});
+                const auto directTurnId = exactStringAt(data, {"turn", "id"});
+                const auto directThreadId = exactStringAt(data, {"turn", "threadId"});
+                return !providerParamsIdentityUnavailable(data, {threadId, turnId}) && turnId.has_value() &&
+                               (directTurn == nullptr ||
+                                (directTurn->is_object() && directTurnId.has_value() && directThreadId.has_value() &&
+                                 !conflictingIdentities(turnId, directTurnId) && !conflictingIdentities(threadId, directThreadId)))
+                           ? std::optional<TurnEventIdentity>{TurnEventIdentity{*threadId, *turnId}}
+                           : std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            const auto turnId = exactStringAt(data, {"turn", "id"});
+            const auto threadId = exactStringAt(data, {"turn", "threadId"});
+            return turnId.has_value() && threadId.has_value() ? std::optional<TurnEventIdentity>{TurnEventIdentity{*threadId, *turnId}}
+                                                              : std::nullopt;
+        }
+
+        struct ItemEventIdentity {
+            std::string threadId;
+            std::string turnId;
+            std::string itemId;
+        };
+
+        std::optional<ItemEventIdentity> itemIdentityAt(const Json& data,
+                                                        std::initializer_list<std::string_view> itemPath,
+                                                        std::initializer_list<std::string_view> threadPath,
+                                                        std::initializer_list<std::string_view> turnPath) {
+            const auto itemId = exactStringAt(data, itemPath);
+            const auto threadId = exactStringAt(data, threadPath);
+            const auto turnId = exactStringAt(data, turnPath);
+            if (!itemId.has_value() || !threadId.has_value() || !turnId.has_value()) {
+                return std::nullopt;
+            }
+            return ItemEventIdentity{*threadId, *turnId, *itemId};
+        }
+
+        std::optional<ItemEventIdentity> itemUpsertedIdentity(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                if (!method->starts_with("item/")) {
+                    return std::nullopt;
+                }
+                const auto threadId = exactStringAt(data, {"params", "threadId"});
+                const auto turnId = exactStringAt(data, {"params", "turnId"});
+                if (!threadId.has_value() || !turnId.has_value()) {
+                    return std::nullopt;
+                }
+                if (*method == "item/started" || *method == "item/completed") {
+                    const auto itemId = exactStringAt(data, {"params", "item", "id"});
+                    const auto flatItemId = exactStringAt(data, {"params", "itemId"});
+                    const Json* directItem = exactValueAt(data, {"item"});
+                    const auto directItemId = exactStringAt(data, {"item", "id"});
+                    const auto directThreadId = exactStringAt(data, {"threadId"});
+                    const auto directTurnId = exactStringAt(data, {"turnId"});
+                    const bool directFormPresent = directItem != nullptr || directThreadId.has_value() || directTurnId.has_value();
+                    if (providerParamsIdentityUnavailable(data, {threadId, turnId, itemId, flatItemId}) || !itemId.has_value() ||
+                        conflictingIdentities(itemId, flatItemId) ||
+                        (directFormPresent &&
+                         (directItem == nullptr || !directItem->is_object() || !directItemId.has_value() || !directThreadId.has_value() ||
+                          !directTurnId.has_value() || conflictingIdentities(itemId, directItemId) ||
+                          conflictingIdentities(threadId, directThreadId) || conflictingIdentities(turnId, directTurnId)))) {
+                        return std::nullopt;
+                    }
+                    return ItemEventIdentity{*threadId, *turnId, *itemId};
+                }
+                const auto itemId = exactStringAt(data, {"params", "itemId"});
+                const Json* directItem = exactValueAt(data, {"item"});
+                const auto directItemId = exactStringAt(data, {"item", "id"});
+                const auto directThreadId = exactStringAt(data, {"threadId"});
+                const auto directTurnId = exactStringAt(data, {"turnId"});
+                const bool directFormPresent = directItem != nullptr || directThreadId.has_value() || directTurnId.has_value();
+                return !providerParamsIdentityUnavailable(data, {threadId, turnId, itemId}) && itemId.has_value() &&
+                               (!directFormPresent ||
+                                (directItem != nullptr && directItem->is_object() && directItemId.has_value() &&
+                                 directThreadId.has_value() && directTurnId.has_value() && !conflictingIdentities(itemId, directItemId) &&
+                                 !conflictingIdentities(threadId, directThreadId) && !conflictingIdentities(turnId, directTurnId)))
+                           ? std::optional<ItemEventIdentity>{ItemEventIdentity{*threadId, *turnId, *itemId}}
+                           : std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            return itemIdentityAt(data, {"item", "id"}, {"threadId"}, {"turnId"});
+        }
+
+        std::optional<ItemEventIdentity> itemContentUpdatedIdentity(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                if (!method->starts_with("item/")) {
+                    return std::nullopt;
+                }
+                const auto itemId = exactStringAt(data, {"params", "itemId"});
+                const auto threadId = exactStringAt(data, {"params", "threadId"});
+                const auto turnId = exactStringAt(data, {"params", "turnId"});
+                const auto directItemId = exactStringAt(data, {"itemId"});
+                const auto directThreadId = exactStringAt(data, {"threadId"});
+                const auto directTurnId = exactStringAt(data, {"turnId"});
+                return !providerParamsIdentityUnavailable(data, {threadId, turnId, itemId}) && itemId.has_value() && threadId.has_value() &&
+                               turnId.has_value() && !conflictingIdentities(itemId, directItemId) &&
+                               !conflictingIdentities(threadId, directThreadId) && !conflictingIdentities(turnId, directTurnId)
+                           ? std::optional<ItemEventIdentity>{ItemEventIdentity{*threadId, *turnId, *itemId}}
+                           : std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            const auto itemId = exactStringAt(data, {"itemId"});
+            const auto threadId = exactStringAt(data, {"threadId"});
+            const auto turnId = exactStringAt(data, {"turnId"});
+            return itemId.has_value() && threadId.has_value() && turnId.has_value()
+                       ? std::optional<ItemEventIdentity>{ItemEventIdentity{*threadId, *turnId, *itemId}}
+                       : std::nullopt;
+        }
+
+        std::optional<std::string> processUpdatedId(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                if (*method == "command/exec/outputDelta") {
+                    const auto providerId = exactStringAt(data, {"params", "processId"});
+                    return !providerParamsIdentityUnavailable(data, {providerId}) && providerId.has_value() &&
+                                   !conflictingCompleteIdentity(exactValueAt(data, {"process"}), providerId, {"processHandle"})
+                               ? providerId
+                               : std::nullopt;
+                }
+                if (*method == "process/outputDelta" || *method == "process/exited") {
+                    const auto providerId = exactStringAt(data, {"params", "processHandle"});
+                    return !providerParamsIdentityUnavailable(data, {providerId}) && providerId.has_value() &&
+                                   !conflictingCompleteIdentity(exactValueAt(data, {"process"}), providerId, {"processHandle"})
+                               ? providerId
+                               : std::nullopt;
+                }
+                return std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            return exactStringAt(data, {"process", "processHandle"});
+        }
+
+        std::optional<std::string> filesystemWatchUpdatedId(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                if (*method != "fs/changed") {
+                    return std::nullopt;
+                }
+                const auto providerId = exactStringAt(data, {"params", "watchId"});
+                return !providerParamsIdentityUnavailable(data, {providerId}) && providerId.has_value() &&
+                               !conflictingCompleteIdentity(exactValueAt(data, {"filesystemWatch"}), providerId, {"watchId"})
+                           ? providerId
+                           : std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            return exactStringAt(data, {"filesystemWatch", "watchId"});
+        }
+
+        std::optional<std::string> fuzzySearchUpdatedId(const Json& data) {
+            if (const auto method = providerMethod(data); method.has_value()) {
+                if (*method != "fuzzyFileSearch/sessionUpdated" && *method != "fuzzyFileSearch/sessionCompleted") {
+                    return std::nullopt;
+                }
+                const auto providerId = exactStringAt(data, {"params", "sessionId"});
+                return !providerParamsIdentityUnavailable(data, {providerId}) && providerId.has_value() &&
+                               !conflictingCompleteIdentity(exactValueAt(data, {"fuzzySearch"}), providerId, {"sessionId"})
+                           ? providerId
+                           : std::nullopt;
+            }
+            if (hasProviderEnvelope(data)) {
+                return std::nullopt;
+            }
+            return exactStringAt(data, {"fuzzySearch", "sessionId"});
+        }
+
+        const backend::ProcessSnapshot* findProcess(const backend::Snapshot& snapshot, std::string_view id) noexcept {
+            const auto iterator = std::find_if(snapshot.processes.begin(), snapshot.processes.end(), [id](const auto& process) {
+                return process.processHandle == id;
+            });
+            return iterator == snapshot.processes.end() ? nullptr : &*iterator;
+        }
+
+        const backend::FilesystemWatchSnapshot* findFilesystemWatch(const backend::Snapshot& snapshot, std::string_view id) noexcept {
+            const auto iterator =
+                std::find_if(snapshot.filesystemWatches.begin(), snapshot.filesystemWatches.end(), [id](const auto& watch) {
+                    return watch.watchId == id;
+                });
+            return iterator == snapshot.filesystemWatches.end() ? nullptr : &*iterator;
+        }
+
+        const backend::FuzzySearchSnapshot* findFuzzySearch(const backend::Snapshot& snapshot, std::string_view id) noexcept {
+            const auto iterator =
+                std::find_if(snapshot.fuzzySearchSessions.begin(), snapshot.fuzzySearchSessions.end(), [id](const auto& search) {
+                    return search.sessionId == id;
+                });
+            return iterator == snapshot.fuzzySearchSessions.end() ? nullptr : &*iterator;
+        }
+
+        Json minimumThread(std::string_view id) {
+            return Json{{"id", id}, {"stateUnavailable", true}};
+        }
+
+        Json minimumTurn(std::string_view id, std::string_view threadId) {
+            return Json{{"id", id},
+                        {"threadId", threadId},
                         {"status", "unknown"},
                         {"active", false},
                         {"terminal", false},
                         {"stateUnavailable", true}};
         }
 
-        Json minimumItem(std::optional<std::string> id, std::optional<std::string> threadId, std::optional<std::string> turnId) {
-            Json item{{"id", id.value_or("unavailable")},
-                      {"type", toString(ThreadItemKind::AgentMessage)},
-                      {"truncated", true},
-                      {"stateUnavailable", true}};
+        Json exactNoticeEvent(const Json& data, const backend::Snapshot& snapshot, bool& snapshotRequired) {
+            if (const Json* direct = exactValueAt(data, {"notice"});
+                direct != nullptr && direct->is_object() && exactStringAt(*direct, {"category"}, 256).has_value() &&
+                exactStringAt(*direct, {"summary"}, MaximumTextBytes).has_value() && exactValueAt(*direct, {"stamp"}) != nullptr) {
+                return *direct;
+            }
+
+            const auto method = exactStringAt(data, {"method"}, 256);
+            if (!method.has_value()) {
+                snapshotRequired = true;
+                return Json::object();
+            }
+
+            std::string category;
+            std::optional<std::string> summary;
+            std::optional<std::string> details;
+            std::optional<std::string> threadId;
+            if (*method == "deprecationNotice") {
+                category = "deprecation";
+                summary = boundedStringAt(data, {"params", "summary"}, MaximumTextBytes);
+                details = boundedStringAt(data, {"params", "details"}, MaximumTextBytes);
+            } else if (*method == "configWarning") {
+                category = "configuration";
+                summary = boundedStringAt(data, {"params", "summary"}, MaximumTextBytes);
+                details = boundedStringAt(data, {"params", "details"}, MaximumTextBytes);
+            } else if (*method == "guardianWarning") {
+                category = "security";
+                summary = boundedStringAt(data, {"params", "message"}, MaximumTextBytes);
+                threadId = exactStringAt(data, {"params", "threadId"});
+            } else if (*method == "warning") {
+                category = "warning";
+                summary = boundedStringAt(data, {"params", "message"}, MaximumTextBytes);
+                threadId = exactStringAt(data, {"params", "threadId"});
+            } else if (*method == "windows/worldWritableWarning") {
+                category = "windows_world_writable";
+                const Json* failedScan = exactValueAt(data, {"params", "failedScan"});
+                const Json* samplePaths = exactValueAt(data, {"params", "samplePaths"});
+                const Json* extraCount = exactValueAt(data, {"params", "extraCount"});
+                if (failedScan == nullptr || !failedScan->is_boolean() || samplePaths == nullptr || !samplePaths->is_array() ||
+                    extraCount == nullptr || (!extraCount->is_number_unsigned() && !extraCount->is_number_integer())) {
+                    snapshotRequired = true;
+                    return Json::object();
+                }
+                summary = failedScan->get<bool>() ? "world-writable path scan failed" : "world-writable paths detected";
+                details = "sample paths: " + std::to_string(samplePaths->size()) + ", additional paths: " + extraCount->dump();
+            } else {
+                snapshotRequired = true;
+                return Json::object();
+            }
+            if (!summary.has_value()) {
+                snapshotRequired = true;
+                return Json::object();
+            }
+
+            Json notice{{"category", category},
+                        {"summary", *summary},
+                        {"stamp", stampJson({snapshot.provider.generation, backend::Freshness::Current})}};
+            if (details.has_value()) {
+                notice["details"] = *details;
+            }
             if (threadId.has_value()) {
-                item["threadId"] = *threadId;
+                notice["threadId"] = *threadId;
             }
-            if (turnId.has_value()) {
-                item["turnId"] = *turnId;
-            }
-            return item;
+            return notice;
         }
 
-        Json eventData(ExpandedEventType type, const Json& legacyData, const backend::Snapshot& snapshot) {
-            const std::optional<std::string> threadId = eventThreadId(legacyData);
-            const std::optional<std::string> turnId = eventTurnId(legacyData);
-            const std::optional<std::string> itemId = eventItemId(legacyData);
+        Json eventData(ExpandedEventType type, const Json& legacyData, const backend::Snapshot& snapshot, bool& snapshotRequired) {
             switch (type) {
                 case ExpandedEventType::ProviderUpdated:
                     return Json{{"provider", providerJson(snapshot.provider)}};
@@ -1179,46 +1588,139 @@ namespace ai::openai::codex::frontend::detail {
                     return Json{{"controller", controllerJson(snapshot)}};
                 case ExpandedEventType::SessionsUpdated:
                     return Json{{"sessions", sessionsJson(snapshot)}};
+                case ExpandedEventType::ThreadListUpdated:
+                    return Json{{"threadList", threadListProjection(snapshot.threadList)}};
                 case ExpandedEventType::ThreadUpserted: {
-                    const backend::ThreadSnapshot* thread = threadId.has_value() ? findThread(snapshot, *threadId) : nullptr;
-                    if (thread == nullptr && !snapshot.threads.empty()) {
-                        thread = &snapshot.threads.back();
+                    const std::optional<std::string> threadId = threadUpsertedId(legacyData);
+                    if (!threadId.has_value()) {
+                        snapshotRequired = true;
+                        return Json{{"thread", Json::object()}};
                     }
-                    return Json{
-                        {"thread",
-                         thread != nullptr ? threadJson(*thread, false).value_or(minimumThread(threadId)) : minimumThread(threadId)}};
+                    const backend::ThreadSnapshot* thread = findThread(snapshot, *threadId);
+                    if (thread == nullptr) {
+                        snapshotRequired = true;
+                        return Json{{"thread", minimumThread(*threadId)}};
+                    }
+                    const auto encoded = threadJson(*thread, false);
+                    if (!encoded.has_value()) {
+                        snapshotRequired = true;
+                        return Json{{"thread", minimumThread(*threadId)}};
+                    }
+                    return Json{{"thread", *encoded}};
                 }
-                case ExpandedEventType::ThreadRemoved:
-                    return Json{{"threadId", threadId.value_or("unavailable")}};
-                case ExpandedEventType::TurnUpserted: {
-                    const backend::TurnSnapshot* turn = turnId.has_value() ? findTurn(snapshot, *turnId) : nullptr;
-                    if (turn == nullptr && !snapshot.threads.empty() && !snapshot.threads.back().turns.empty()) {
-                        turn = &snapshot.threads.back().turns.back();
+                case ExpandedEventType::ThreadRemoved: {
+                    const std::optional<std::string> threadId = threadRemovedId(legacyData);
+                    if (!threadId.has_value()) {
+                        snapshotRequired = true;
+                        return Json::object();
                     }
-                    return Json{
-                        {"turn",
-                         turn != nullptr ? turnJson(*turn, false).value_or(minimumTurn(turnId, threadId)) : minimumTurn(turnId, threadId)}};
+                    return Json{{"threadId", *threadId}};
+                }
+                case ExpandedEventType::TurnUpserted: {
+                    const std::optional<TurnEventIdentity> identity = turnUpsertedIdentity(legacyData);
+                    if (!identity.has_value()) {
+                        snapshotRequired = true;
+                        return Json{{"turn", Json::object()}};
+                    }
+                    const backend::TurnSnapshot* turn = findTurn(snapshot, identity->turnId);
+                    if (turn == nullptr || turn->threadId != identity->threadId) {
+                        snapshotRequired = true;
+                        return Json{{"turn", minimumTurn(identity->turnId, identity->threadId)}};
+                    }
+                    const auto encoded = turnJson(*turn, false);
+                    if (!encoded.has_value()) {
+                        snapshotRequired = true;
+                        return Json{{"turn", minimumTurn(identity->turnId, identity->threadId)}};
+                    }
+                    return Json{{"turn", *encoded}};
                 }
                 case ExpandedEventType::ItemUpserted: {
-                    ItemLocation location = itemId.has_value() ? findItem(snapshot, *itemId) : ItemLocation{};
-                    if (location.item == nullptr && !snapshot.threads.empty() && !snapshot.threads.back().turns.empty() &&
-                        !snapshot.threads.back().turns.back().items.empty()) {
-                        location = {&snapshot.threads.back().turns.back().items.back(), &snapshot.threads.back().turns.back()};
+                    const std::optional<ItemEventIdentity> identity = itemUpsertedIdentity(legacyData);
+                    if (!identity.has_value()) {
+                        snapshotRequired = true;
+                        return Json{{"item", Json::object()}};
                     }
-                    Json item = minimumItem(itemId, threadId, turnId);
-                    if (location.item != nullptr && location.turn != nullptr) {
-                        item = itemJson(*location.item, location.turn->threadId, location.turn->id).value_or(std::move(item));
+                    // The canonical occurrence owns identity, not Frontend
+                    // Protocol representation. Always resolve the exact
+                    // backend entity and pass it through the shared expanded
+                    // item projector. Raw canonical/legacy item JSON must never
+                    // be copied directly into an expanded frontend event.
+                    const ItemLocation location = findItem(snapshot, identity->threadId, identity->turnId, identity->itemId);
+                    if (location.item == nullptr || location.turn == nullptr) {
+                        snapshotRequired = true;
+                        return Json{{"item", Json::object()}};
                     }
-                    return Json{{"item", std::move(item)}};
+                    const auto encoded = expandedItemJson(*location.item, identity->threadId, identity->turnId);
+                    if (!encoded.has_value()) {
+                        snapshotRequired = true;
+                        return Json{{"item", Json::object()}};
+                    }
+                    return Json{{"item", *encoded}};
                 }
                 case ExpandedEventType::ItemContentUpdated: {
-                    Json result{{"threadId", threadId.value_or("unavailable")},
-                                {"turnId", turnId.value_or("unavailable")},
-                                {"itemId", itemId.value_or("unavailable")},
-                                {"content", boundedText(legacyData.value("content", std::string()))}};
-                    if (const auto channel = legacyData.find("channel"); channel != legacyData.end() && channel->is_string()) {
-                        result["channel"] = boundedText(channel->get_ref<const std::string&>(), 256);
+                    const std::optional<ItemEventIdentity> identity = itemContentUpdatedIdentity(legacyData);
+                    if (!identity.has_value()) {
+                        snapshotRequired = true;
+                        return Json::object();
                     }
+                    const ItemLocation location = findItem(snapshot, identity->threadId, identity->turnId, identity->itemId);
+                    if (location.item == nullptr || location.turn == nullptr) {
+                        snapshotRequired = true;
+                        return Json::object();
+                    }
+                    const Json* payload = exactValueAt(legacyData, {"params"});
+                    const Json& contentData = payload != nullptr && payload->is_object() ? *payload : legacyData;
+                    std::string channel;
+                    std::string content;
+                    bool contentTruncated = false;
+                    std::uint64_t droppedContentBytes = 0;
+                    if (const auto method = exactStringAt(legacyData, {"method"}, 256); method.has_value()) {
+                        if (*method == "item/agentMessage/delta") {
+                            channel = "agentText";
+                            content = location.item->agentText;
+                        } else if (*method == "item/reasoning/textDelta") {
+                            channel = "reasoningText";
+                            content = location.item->reasoningText;
+                        } else if (*method == "item/reasoning/summaryTextDelta") {
+                            channel = "reasoningSummary";
+                            content = location.item->reasoningSummary;
+                        } else if (*method == "item/commandExecution/outputDelta" || *method == "item/fileChange/outputDelta") {
+                            channel = "commandOutput";
+                            content = location.item->commandOutput;
+                        } else {
+                            snapshotRequired = true;
+                            return Json::object();
+                        }
+                        contentTruncated = location.item->contentTruncated;
+                        droppedContentBytes = location.item->droppedContentBytes;
+                    } else {
+                        const auto projectedChannel = exactStringAt(contentData, {"channel"}, 256);
+                        const Json* projectedContent = exactValueAt(contentData, {"content"});
+                        if (!projectedChannel.has_value() || projectedContent == nullptr || !projectedContent->is_string()) {
+                            snapshotRequired = true;
+                            return Json::object();
+                        }
+                        channel = *projectedChannel;
+                        content = boundedText(projectedContent->get_ref<const std::string&>());
+                        if (const auto truncated = contentData.find("contentTruncated");
+                            truncated != contentData.end() && truncated->is_boolean()) {
+                            contentTruncated = truncated->get<bool>();
+                        }
+                        if (const auto dropped = contentData.find("droppedContentBytes"); dropped != contentData.end()) {
+                            if (dropped->is_number_unsigned()) {
+                                droppedContentBytes = dropped->get<std::uint64_t>();
+                            } else if (dropped->is_number_integer() && dropped->get<std::int64_t>() >= 0) {
+                                droppedContentBytes = static_cast<std::uint64_t>(dropped->get<std::int64_t>());
+                            }
+                        }
+                    }
+                    Json result{{"threadId", location.turn->threadId},
+                                {"turnId", location.turn->id},
+                                {"itemId", identity->itemId},
+                                {"channel", std::move(channel)},
+                                {"content", std::move(content)},
+                                {"contentTruncated", contentTruncated},
+                                {"droppedContentBytes", droppedContentBytes}};
                     return result;
                 }
                 case ExpandedEventType::PendingRequestsUpdated: {
@@ -1236,24 +1738,33 @@ namespace ai::openai::codex::frontend::detail {
                     return Json{{"domain", domainJson(snapshot.models)}};
                 case ExpandedEventType::ConfigurationUpdated:
                     return Json{{"domain", domainJson(snapshot.configuration, configurationDetails(snapshot.configuration))}};
-                case ExpandedEventType::ProcessUpdated:
-                    return Json{{"process",
-                                 snapshot.processes.empty() ? Json{{"processHandle", "unavailable"},
-                                                                   {"lifecycle", "unknown"},
-                                                                   {"stamp", stampJson({})},
-                                                                   {"stateUnavailable", true}}
-                                                            : processJson(snapshot.processes.back())}};
-                case ExpandedEventType::FilesystemWatchUpdated:
-                    return Json{{"filesystemWatch",
-                                 snapshot.filesystemWatches.empty()
-                                     ? Json{{"watchId", "unavailable"}, {"stamp", stampJson({})}, {"stateUnavailable", true}}
-                                     : filesystemWatchJson(snapshot.filesystemWatches.back())}};
-                case ExpandedEventType::FuzzySearchUpdated:
-                    return Json{
-                        {"fuzzySearch",
-                         snapshot.fuzzySearchSessions.empty()
-                             ? Json{{"sessionId", "unavailable"}, {"complete", false}, {"stamp", stampJson({})}, {"stateUnavailable", true}}
-                             : fuzzySearchJson(snapshot.fuzzySearchSessions.back())}};
+                case ExpandedEventType::ProcessUpdated: {
+                    const auto id = processUpdatedId(legacyData);
+                    const backend::ProcessSnapshot* process = id.has_value() ? findProcess(snapshot, *id) : nullptr;
+                    if (process == nullptr) {
+                        snapshotRequired = true;
+                        return Json::object();
+                    }
+                    return Json{{"process", processJson(*process)}};
+                }
+                case ExpandedEventType::FilesystemWatchUpdated: {
+                    const auto id = filesystemWatchUpdatedId(legacyData);
+                    const backend::FilesystemWatchSnapshot* watch = id.has_value() ? findFilesystemWatch(snapshot, *id) : nullptr;
+                    if (watch == nullptr) {
+                        snapshotRequired = true;
+                        return Json::object();
+                    }
+                    return Json{{"filesystemWatch", filesystemWatchJson(*watch)}};
+                }
+                case ExpandedEventType::FuzzySearchUpdated: {
+                    const auto id = fuzzySearchUpdatedId(legacyData);
+                    const backend::FuzzySearchSnapshot* search = id.has_value() ? findFuzzySearch(snapshot, *id) : nullptr;
+                    if (search == nullptr) {
+                        snapshotRequired = true;
+                        return Json::object();
+                    }
+                    return Json{{"fuzzySearch", fuzzySearchJson(*search)}};
+                }
                 case ExpandedEventType::ReviewsUpdated:
                     return Json{{"domain", domainJson(snapshot.reviews)}};
                 case ExpandedEventType::IntegrationsUpdated:
@@ -1266,20 +1777,15 @@ namespace ai::openai::codex::frontend::detail {
                 case ExpandedEventType::PlatformUpdated:
                     return Json{{"domain", domainJson(snapshot.platform, platformDetails(snapshot.platform))}};
                 case ExpandedEventType::NoticeAdded:
-                    return Json{{"notice",
-                                 snapshot.notices.empty() ? Json{{"category", "warning"},
-                                                                 {"summary", "provider notice"},
-                                                                 {"stamp", stampJson({})},
-                                                                 {"stateUnavailable", true}}
-                                                          : noticeJson(snapshot.notices.back())}};
-                case ExpandedEventType::ActivityUpdated:
-                    return Json{{"activity",
-                                 snapshot.activities.empty() ? Json{{"kind", "unknown"},
-                                                                    {"lifecycle", "unknown"},
-                                                                    {"active", false},
-                                                                    {"stamp", stampJson({})},
-                                                                    {"stateUnavailable", true}}
-                                                             : activityJson(snapshot.activities.back())}};
+                    return Json{{"notice", exactNoticeEvent(legacyData, snapshot, snapshotRequired)}};
+                case ExpandedEventType::ActivityUpdated: {
+                    if (const Json* direct = exactValueAt(legacyData, {"activity"});
+                        direct != nullptr && direct->is_object() && exactStringAt(*direct, {"key"}).has_value()) {
+                        return Json{{"activity", *direct}};
+                    }
+                    snapshotRequired = true;
+                    return Json::object();
+                }
                 case ExpandedEventType::CapacityUpdated:
                     return Json{{"capacity", capacityJson(snapshot)}};
                 case ExpandedEventType::DiagnosticsUpdated:
@@ -1313,12 +1819,75 @@ namespace ai::openai::codex::frontend::detail {
             return metadata == generated::AllCapabilities.end() ? std::nullopt : frontendCapabilityFromString(metadata->key);
         }
 
-        std::vector<CanonicalExpandedEvent>
-        normalizedExpandedEvents(std::string_view legacyType, const Json& legacyData, const backend::Snapshot& snapshot) {
+        std::optional<FrontendScope> itemContentScope(std::string_view channel) {
+            const std::string normalized = normalizedName(channel);
+            if (normalized == "commandoutput" || normalized == "processoutput" || normalized == "stdout" || normalized == "stderr" ||
+                normalized == "shelloutput") {
+                return FrontendScope::CommandExecution;
+            }
+            if (normalized == "patch" || normalized == "diff" || normalized == "filechange") {
+                return FrontendScope::FilesystemWrite;
+            }
+            if (normalized == "path" || normalized == "filesystem") {
+                return FrontendScope::FilesystemRead;
+            }
+            return std::nullopt;
+        }
+
+        void appendUniqueScopes(std::vector<FrontendScope>& destination, std::span<const FrontendScope> scopes) {
+            for (const FrontendScope scope : scopes) {
+                if (std::find(destination.begin(), destination.end(), scope) == destination.end()) {
+                    destination.push_back(scope);
+                }
+            }
+        }
+
+        std::vector<FrontendScope> itemContentRequiredScopes(const CanonicalExpandedEvent& event, const backend::Snapshot& snapshot) {
+            const auto channel = exactStringAt(event.data.value, {"channel"}, 256);
+            if (!channel.has_value()) {
+                return {};
+            }
+            if (normalizedName(*channel) != "commandoutput") {
+                const auto scope = itemContentScope(*channel);
+                return scope.has_value() ? std::vector<FrontendScope>{*scope} : std::vector<FrontendScope>{};
+            }
+
+            const auto itemId = exactStringAt(event.data.value, {"itemId"});
+            const auto threadId = exactStringAt(event.data.value, {"threadId"});
+            const auto turnId = exactStringAt(event.data.value, {"turnId"});
+            if (!itemId.has_value() || !threadId.has_value() || !turnId.has_value()) {
+                return {FrontendScope::CommandExecution, FrontendScope::FilesystemWrite};
+            }
+            const ItemLocation location = findItem(snapshot, *threadId, *turnId, *itemId);
+            if (location.item == nullptr || location.turn == nullptr) {
+                return {FrontendScope::CommandExecution, FrontendScope::FilesystemWrite};
+            }
+            const auto encoded = expandedItemJson(*location.item, *threadId, *turnId);
+            return encoded.has_value() ? itemCommandOutputRequiredScopes(*encoded)
+                                       : std::vector<FrontendScope>{FrontendScope::CommandExecution, FrontendScope::FilesystemWrite};
+        }
+
+        void appendItemContentScopeRule(CanonicalExpandedEvent& event,
+                                        const backend::Snapshot& snapshot,
+                                        std::span<const FrontendScope> methodScopes = {}) {
+            if (event.type != ExpandedEventType::ItemContentUpdated) {
+                return;
+            }
+            event.requiredScopes.assign(methodScopes.begin(), methodScopes.end());
+            const std::vector<FrontendScope> semanticScopes = itemContentRequiredScopes(event, snapshot);
+            appendUniqueScopes(event.requiredScopes, semanticScopes);
+        }
+
+        std::vector<CanonicalExpandedEvent> normalizedExpandedEvents(std::string_view legacyType,
+                                                                     const Json& legacyData,
+                                                                     const backend::Snapshot& snapshot,
+                                                                     bool& snapshotRequired) {
             std::vector<CanonicalExpandedEvent> events;
             const auto append = [&](ExpandedEventType type) {
-                events.push_back(
-                    CanonicalExpandedEvent{type, ScopedProjectionValue{eventData(type, legacyData, snapshot), expandedEventRules(type)}});
+                Json data = eventData(type, legacyData, snapshot, snapshotRequired);
+                CanonicalExpandedEvent event{type, ScopedProjectionValue{data, expandedEventRules(type)}, {}};
+                appendItemContentScopeRule(event, snapshot);
+                events.push_back(std::move(event));
             };
             if (legacyType == "backend.lifecycle.changed") {
                 append(ExpandedEventType::ProviderUpdated);
@@ -1329,14 +1898,7 @@ namespace ai::openai::codex::frontend::detail {
             } else if (legacyType == "thread.updated") {
                 append(ExpandedEventType::ThreadUpserted);
             } else if (legacyType == "thread.list.updated") {
-                if (snapshot.threads.empty()) {
-                    append(ExpandedEventType::ThreadUpserted);
-                } else {
-                    for (const backend::ThreadSnapshot& thread : snapshot.threads) {
-                        const Json data{{"thread", threadJson(thread, false).value_or(minimumThread(thread.id))}};
-                        events.push_back(CanonicalExpandedEvent{ExpandedEventType::ThreadUpserted, ScopedProjectionValue{data, {}}});
-                    }
-                }
+                append(ExpandedEventType::ThreadListUpdated);
             } else if (legacyType == "thread.removed") {
                 append(ExpandedEventType::ThreadRemoved);
             } else if (legacyType == "turn.updated") {
@@ -1360,6 +1922,7 @@ namespace ai::openai::codex::frontend::detail {
                 Json expanded{{"provider", providerJson({})},
                               {"controller", Json{{"present", false}}},
                               {"sessions", Json::array()},
+                              {"threadList", threadListProjection({})},
                               {"capacity", Json::object()},
                               {"truncation", Json{{"truncated", true}, {"omittedEntries", 1}, {"droppedBytes", 0}}}};
                 return canonicalizeSnapshot(
@@ -1371,11 +1934,34 @@ namespace ai::openai::codex::frontend::detail {
 
     } // namespace
 
+    Json threadListProjection(const backend::ThreadListSnapshot& threadList) noexcept {
+        try {
+            Json projected{{"hasLoadedPage", threadList.hasLoadedPage},
+                           {"complete", threadList.complete},
+                           {"pagesLoaded", threadList.pagesLoaded},
+                           {"stamp", stampJson(threadList.stamp)}};
+            if (threadList.nextCursor.has_value()) {
+                projected["nextCursor"] = *threadList.nextCursor;
+            }
+            if (threadList.backwardsCursor.has_value()) {
+                projected["backwardsCursor"] = *threadList.backwardsCursor;
+            }
+            return projected;
+        } catch (...) {
+            return Json{{"hasLoadedPage", false},
+                        {"complete", false},
+                        {"pagesLoaded", 0},
+                        {"stamp", stampJson({})},
+                        {"projectionTruncated", true}};
+        }
+    }
+
     Json expandedSnapshotState(const backend::Snapshot& snapshot) noexcept {
         try {
             Json state{{"provider", providerJson(snapshot.provider)},
                        {"controller", controllerJson(snapshot)},
                        {"sessions", sessionsJson(snapshot)},
+                       {"threadList", threadListProjection(snapshot.threadList)},
                        {"threads", Json::array()},
                        {"turns", Json::array()},
                        {"items", Json::array()},
@@ -1414,7 +2000,7 @@ namespace ai::openai::codex::frontend::detail {
                         saturatingAdd(omitted, std::size_t{1});
                     }
                     for (const backend::ItemSnapshot& item : turn.items) {
-                        if (const auto encodedItem = itemJson(item, turn.threadId, turn.id); encodedItem.has_value()) {
+                        if (const auto encodedItem = expandedItemJson(item, turn.threadId, turn.id); encodedItem.has_value()) {
                             state["items"].push_back(*encodedItem);
                         } else {
                             saturatingAdd(omitted, std::size_t{1});
@@ -1461,6 +2047,7 @@ namespace ai::openai::codex::frontend::detail {
             return Json{{"provider", providerJson({})},
                         {"controller", Json{{"present", false}}},
                         {"sessions", Json::array()},
+                        {"threadList", threadListProjection({})},
                         {"capacity", Json::object()},
                         {"truncation", Json{{"truncated", true}, {"omittedEntries", 1}, {"droppedBytes", 0}}}};
         }
@@ -1494,33 +2081,14 @@ namespace ai::openai::codex::frontend::detail {
             record.legacyType = std::move(legacyType);
             record.legacyData.value = std::move(legacyData);
             record.legacyData.rules = legacyEventRules(record.legacyType);
-            record.expandedEvents = normalizedExpandedEvents(record.legacyType, record.legacyData.value, snapshot);
+            record.expandedEvents = normalizedExpandedEvents(record.legacyType, record.legacyData.value, snapshot, record.snapshotRequired);
             if (record.legacyType == "request.pending" || record.legacyType == "request.resolved") {
                 record.expansionCapability = FrontendCapability::DedicatedPendingRequests;
             } else if (record.legacyType == "item.updated" || record.legacyType == "item.content.updated") {
                 record.expansionCapability = FrontendCapability::CompleteThreadItems;
             }
-            if (record.legacyType == "item.content.updated") {
-                const auto channel = record.legacyData.value.find("channel");
-                if (channel != record.legacyData.value.end() && channel->is_string()) {
-                    const std::string normalized = normalizedName(channel->get_ref<const std::string&>());
-                    std::optional<FrontendScope> contentScope;
-                    if (normalized == "commandoutput" || normalized == "processoutput" || normalized == "stdout" ||
-                        normalized == "stderr" || normalized == "shelloutput") {
-                        contentScope = FrontendScope::CommandExecution;
-                    } else if (normalized == "patch" || normalized == "diff" || normalized == "filechange") {
-                        contentScope = FrontendScope::FilesystemWrite;
-                    } else if (normalized == "path" || normalized == "filesystem") {
-                        contentScope = FrontendScope::FilesystemRead;
-                    }
-                    if (contentScope.has_value()) {
-                        const ScopeProjectionRule outputRule{"/content", {*contentScope}, ScopeProjectionAction::Omit};
-                        record.legacyData.rules.push_back(outputRule);
-                        for (CanonicalExpandedEvent& event : record.expandedEvents) {
-                            event.data.rules.push_back(outputRule);
-                        }
-                    }
-                }
+            if (record.legacyType == "item.content.updated" && record.expandedEvents.size() == 1) {
+                appendUniqueScopes(record.requiredScopes, record.expandedEvents.front().requiredScopes);
             }
             if (record.legacyType == "codex.extension") {
                 const auto method = record.legacyData.value.find("method");
@@ -1541,9 +2109,10 @@ namespace ai::openai::codex::frontend::detail {
                         record.expandedEvents.clear();
                         for (const std::string_view mapping : metadata->expandedMappings) {
                             if (const auto type = expandedEventTypeFromString(mapping); type.has_value()) {
-                                record.expandedEvents.push_back(CanonicalExpandedEvent{
-                                    *type,
-                                    ScopedProjectionValue{eventData(*type, record.legacyData.value, snapshot), expandedEventRules(*type)}});
+                                Json data = eventData(*type, record.legacyData.value, snapshot, record.snapshotRequired);
+                                CanonicalExpandedEvent event{*type, ScopedProjectionValue{data, expandedEventRules(*type)}, {}};
+                                appendItemContentScopeRule(event, snapshot, scopes);
+                                record.expandedEvents.push_back(std::move(event));
                             }
                         }
                     }
@@ -1555,8 +2124,9 @@ namespace ai::openai::codex::frontend::detail {
             failed.sequence = sequence;
             failed.legacyType = "diagnostics.updated";
             failed.legacyData.value = Json{{"received", snapshot.diagnostics.received}, {"recent", Json::array()}};
-            failed.expandedEvents = {CanonicalExpandedEvent{
-                ExpandedEventType::DiagnosticsUpdated, ScopedProjectionValue{Json{{"diagnostic", Json{{"detailsOmitted", true}}}}, {}}}};
+            failed.expandedEvents = {CanonicalExpandedEvent{ExpandedEventType::DiagnosticsUpdated,
+                                                            ScopedProjectionValue{Json{{"diagnostic", Json{{"detailsOmitted", true}}}}, {}},
+                                                            {}}};
             return canonicalizeEvent(std::move(failed));
         }
     }

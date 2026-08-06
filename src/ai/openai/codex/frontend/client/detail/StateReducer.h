@@ -26,13 +26,13 @@ namespace ai::openai::codex::frontend::client::detail {
         // Builds a private synchronization cursor in the representation
         // selected by the new session.  A projection-refresh replay must not
         // be reduced into state retained from a different projection.
-        [[nodiscard]] static std::optional<State> synchronizationStaging(const SessionInfo& session,
-                                                                         std::optional<frontend::SequenceNumber> resumeAfter,
-                                                                         std::size_t maximumBytes,
-                                                                         bool allowLegacyV1,
-                                                                         std::string& error,
-                                                                         std::optional<ProjectionFingerprintMetadata> projectionFingerprint =
-                                                                             std::nullopt);
+        [[nodiscard]] static std::optional<State>
+        synchronizationStaging(const SessionInfo& session,
+                               std::optional<frontend::SequenceNumber> resumeAfter,
+                               std::size_t maximumBytes,
+                               bool allowLegacyV1,
+                               std::string& error,
+                               std::optional<ProjectionFingerprintMetadata> projectionFingerprint = std::nullopt);
         // Rebinds a retained compatible projection to the new physical
         // session before any replay event is exposed to applications.
         [[nodiscard]] static std::optional<State>
@@ -41,15 +41,25 @@ namespace ai::openai::codex::frontend::client::detail {
                              std::size_t maximumBytes,
                              std::string& error,
                              std::optional<ProjectionFingerprintMetadata> projectionFingerprint = std::nullopt);
-        [[nodiscard]] static std::optional<StateReduction> snapshot(const State& current,
-                                                                    const frontend::Snapshot& snapshot,
-                                                                    const SessionInfo& session,
-                                                                    std::size_t maximumBytes,
-                                                                    std::size_t maximumRetainedDiagnostics,
-                                                                    bool allowLegacyV1,
-                                                                    std::string& error,
-                                                                    std::optional<ProjectionFingerprintMetadata> projectionFingerprint =
-                                                                        std::nullopt);
+        [[nodiscard]] static std::optional<StateReduction>
+        snapshot(const State& current,
+                 const frontend::Snapshot& snapshot,
+                 const SessionInfo& session,
+                 std::size_t maximumBytes,
+                 std::size_t maximumRetainedDiagnostics,
+                 bool allowLegacyV1,
+                 std::string& error,
+                 std::optional<ProjectionFingerprintMetadata> projectionFingerprint = std::nullopt);
+        // Applies a bounded complete-State replacement received while the
+        // physical connection remains Ready. Unlike synchronization snapshot
+        // handling, this is one atomic commit and advances both public
+        // cursors without entering Synchronizing or awaiting SyncComplete.
+        [[nodiscard]] static std::optional<StateReduction> liveSnapshot(const State& current,
+                                                                        const frontend::Snapshot& snapshot,
+                                                                        std::size_t maximumBytes,
+                                                                        std::size_t maximumRetainedDiagnostics,
+                                                                        bool allowLegacyV1,
+                                                                        std::string& error);
         [[nodiscard]] static std::optional<StateReduction> events(const State& current,
                                                                   const frontend::EventBatch& batch,
                                                                   bool synchronizing,
@@ -62,15 +72,25 @@ namespace ai::openai::codex::frontend::client::detail {
         // incompatible retained projection is awaiting snapshot replacement.
         [[nodiscard]] static std::optional<StateReduction> validateSynchronizationEvents(
             const State& staging, const frontend::EventBatch& batch, std::size_t maximumBytes, bool allowLegacyV1, std::string& error);
-        [[nodiscard]] static std::optional<StateReduction> synchronized(const State& current,
-                                                                        frontend::SequenceNumber sequence,
-                                                                        const SessionInfo& session,
-                                                                        std::size_t maximumBytes,
-                                                                        std::string& error,
-                                                                        std::optional<ProjectionFingerprintMetadata> projectionFingerprint =
-                                                                            std::nullopt);
+        [[nodiscard]] static std::optional<StateReduction>
+        synchronized(const State& current,
+                     frontend::SequenceNumber sequence,
+                     const SessionInfo& session,
+                     std::size_t maximumBytes,
+                     std::string& error,
+                     std::optional<ProjectionFingerprintMetadata> projectionFingerprint = std::nullopt);
         [[nodiscard]] static frontend::Json serializeForTesting(const State& state) noexcept;
         [[nodiscard]] static frontend::Json serializeChangesForTesting(std::span<const Change> changes) noexcept;
+        [[nodiscard]] static std::optional<std::size_t> accountedBytesForTesting(const State& state) noexcept;
+        [[nodiscard]] static std::optional<std::size_t> referenceBytesForTesting(const State& state) noexcept;
+        [[nodiscard]] static bool accountingIsConsistentForTesting(const State& state) noexcept;
+        [[nodiscard]] static bool accountingRejectsOverflowForTesting() noexcept;
+        [[nodiscard]] static bool accountingRejectsUnderflowForTesting() noexcept;
+        [[nodiscard]] static bool debugAccountingInvariantEnabledForTesting() noexcept;
+        [[nodiscard]] static std::size_t debugAccountingVerificationCountForTesting() noexcept;
+        [[nodiscard]] static std::size_t debugAccountingRebuildCountForTesting() noexcept;
+        static void resetDebugAccountingVerificationCountForTesting() noexcept;
+        static void resetDebugAccountingRebuildCountForTesting() noexcept;
         [[nodiscard]] static State withRevisionForTesting(const State& state, std::uint64_t revision);
         [[nodiscard]] static std::optional<ThreadState> decodeThreadState(const frontend::Json& value, std::string& error);
         [[nodiscard]] static std::optional<TurnState> decodeTurnState(const frontend::Json& value, std::string& error);

@@ -1481,6 +1481,36 @@ namespace ai::openai::codex::frontend::client {
             }
         }
 
+        void handleLiveSnapshot(Connection::Control& control, const frontend::Snapshot& snapshot, bool& semanticallyAccepted) {
+            std::string reductionError;
+            auto reduction = detail::StateReducer::liveSnapshot(currentState,
+                                                                snapshot,
+                                                                options.maximumDecodedStateBytes,
+                                                                options.maximumRetainedDiagnostics,
+                                                                options.allowLegacyV1,
+                                                                reductionError);
+            if (!reduction) {
+                fail(control,
+                     protocolError(ClientErrorCode::StateDivergence, std::move(reductionError)),
+                     "frontend live-snapshot reduction failed");
+                return;
+            }
+            const bool cursorAdvanced = std::any_of(reduction->changes.begin(), reduction->changes.end(), [](const Change& change) {
+                return std::holds_alternative<CursorAdvancedChange>(change);
+            });
+            stateUpdated(std::move(*reduction), UpdateCause::SnapshotFallback, snapshot.sequence, snapshot.sequence);
+            semanticallyAccepted = true;
+            if (owns(control) && cursorAdvanced && callbacks.onCursorAdvanced) {
+                try {
+                    callbacks.onCursorAdvanced(snapshot.sequence);
+                } catch (...) {
+                    diagnostic(Diagnostic::Severity::Warning,
+                               "frontend client cursor callback threw",
+                               clientError(ClientErrorCode::CallbackFailure, "cursor callback failed"));
+                }
+            }
+        }
+
         void handleProtocolError(Connection::Control& control,
                                  const frontend::ProtocolErrorMessage& message,
                                  bool& semanticallyAccepted,
@@ -1530,6 +1560,9 @@ namespace ai::openai::codex::frontend::client {
                 } else {
                     handleResponse(control, *response, semanticallyAccepted);
                 }
+            } else if (const auto* snapshot = std::get_if<frontend::Snapshot>(&message);
+                       snapshot && connectionState == ConnectionState::Ready) {
+                handleLiveSnapshot(control, *snapshot, semanticallyAccepted);
             } else if (const auto* batch = std::get_if<frontend::EventBatch>(&message);
                        batch && connectionState == ConnectionState::Ready) {
                 handleLiveEvents(control, *batch, semanticallyAccepted);

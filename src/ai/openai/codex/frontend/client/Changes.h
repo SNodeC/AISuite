@@ -36,6 +36,7 @@ namespace ai::openai::codex::frontend::client {
         ControllerState state;
     };
     struct SessionsUpdatedChange {};
+    struct ThreadListUpdatedChange {};
     struct ThreadUpsertedChange {
         typed::ThreadId threadId;
     };
@@ -90,6 +91,7 @@ namespace ai::openai::codex::frontend::client {
                                 ProviderUpdatedChange,
                                 ControllerUpdatedChange,
                                 SessionsUpdatedChange,
+                                ThreadListUpdatedChange,
                                 ThreadUpsertedChange,
                                 ThreadRemovedChange,
                                 TurnUpsertedChange,
