@@ -3,6 +3,7 @@
 
 #include "ai/openai/codex/frontend/GeneratedProtocol.h"
 #include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/client/StateTypes.h"
 #include "ai/openai/codex/typed/Results.h"
 
 #include <compare>
@@ -10,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace ai::openai::codex::frontend::client {
 
@@ -77,6 +79,61 @@ namespace ai::openai::codex::frontend::client {
     template <typename T>
     using CompletionHandler = std::function<void(const OperationResult<T>&)>;
     using DoneHandler = CompletionHandler<typed::Unit>;
+
+    // Frontend Protocol thread and turn command results carry complete nested
+    // projections.  Keep those values together instead of reducing them to
+    // the ordered identifier indexes used by the canonical client State.
+    struct TurnResultState {
+        TurnState state;
+        std::vector<ItemState> items;
+
+        [[nodiscard]] const ItemState* item(const typed::ItemId& id) const noexcept {
+            for (const ItemState& candidate : items) {
+                if (candidate.id == id) {
+                    return &candidate;
+                }
+            }
+            return nullptr;
+        }
+
+        bool operator==(const TurnResultState&) const = default;
+    };
+
+    struct ThreadResultState {
+        ThreadState state;
+        std::vector<TurnResultState> turns;
+
+        [[nodiscard]] const TurnResultState* turn(const typed::TurnId& id) const noexcept {
+            for (const TurnResultState& candidate : turns) {
+                if (candidate.state.id == id) {
+                    return &candidate;
+                }
+            }
+            return nullptr;
+        }
+
+        bool operator==(const ThreadResultState&) const = default;
+    };
+
+    struct ProjectedThreadResult {
+        typed::ThreadId threadId;
+        std::optional<ThreadResultState> thread;
+    };
+
+    using ThreadStartResult = ProjectedThreadResult;
+    using ThreadResumeResult = ProjectedThreadResult;
+    using ThreadReadResult = ProjectedThreadResult;
+
+    struct ThreadListResult {
+        std::vector<ThreadResultState> threads;
+        std::optional<std::string> nextCursor;
+        std::optional<std::string> backwardsCursor;
+    };
+
+    struct TurnStartResult {
+        typed::TurnId turnId;
+        std::optional<TurnResultState> turn;
+    };
 
     struct Submission {
         std::optional<RequestId> requestId;

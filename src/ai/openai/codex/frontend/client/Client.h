@@ -3,6 +3,7 @@
 
 #include "ai/openai/codex/frontend/client/Changes.h"
 #include "ai/openai/codex/frontend/client/Connection.h"
+#include "ai/openai/codex/frontend/client/Export.h"
 #include "ai/openai/codex/frontend/client/Types.h"
 
 #include <memory>
@@ -10,6 +11,11 @@
 #include <string>
 
 namespace ai::openai::codex::frontend::client {
+
+    namespace detail {
+        struct BoundOperationCompletion;
+        struct ClientTestAccess;
+    }
 
     class Accounts;
     class Apps;
@@ -30,11 +36,12 @@ namespace ai::openai::codex::frontend::client {
     class Reviews;
     class Skills;
     class Synchronization;
+    struct SynchronizationResult;
     class Threads;
     class Turns;
     class WindowsSandbox;
 
-    class Client {
+    class AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT Client {
     public:
         explicit Client(ClientOptions options = {}, ClientCallbacks callbacks = {});
         Client(const Client&) = delete;
@@ -84,8 +91,41 @@ namespace ai::openai::codex::frontend::client {
         WindowsSandbox& windowsSandbox() noexcept;
 
     private:
+        friend class Accounts;
+        friend class Apps;
+        friend class Commands;
+        friend class Configuration;
+        friend class Controller;
         friend class Connection;
-        struct Impl;
+        friend class ExternalAgents;
+        friend class Feedback;
+        friend class Filesystem;
+        friend class Hooks;
+        friend class Marketplace;
+        friend class Mcp;
+        friend class Models;
+        friend class PermissionProfiles;
+        friend class Plugins;
+        friend class Provider;
+        friend class Requests;
+        friend class Reviews;
+        friend class Skills;
+        friend class Synchronization;
+        friend class Threads;
+        friend class Turns;
+        friend class WindowsSandbox;
+        friend struct detail::ClientTestAccess;
+        AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT [[nodiscard]] Submission
+        submitBound(frontend::generated::CompleteCommandParameters parameters, detail::BoundOperationCompletion completion);
+        AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT [[nodiscard]] Submission
+        submitReverseBound(const PendingRequestId& pendingRequestId,
+                           frontend::generated::CompleteCommandParameters parameters,
+                           detail::BoundOperationCompletion completion);
+        AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT [[nodiscard]] Submission
+        beginSynchronization(frontend::SyncMode mode,
+                             std::optional<frontend::SequenceNumber> after,
+                             CompletionHandler<SynchronizationResult> handler);
+        struct AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT Impl;
         std::unique_ptr<Impl> impl;
     };
 

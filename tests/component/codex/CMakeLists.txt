@@ -43,6 +43,24 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
             LABELS "component;ai;openai;codex;frontend;client;api;generated;a1-7c-1"
             TIMEOUT 5
     )
+
+    snodec_add_test(
+        CodexFrontendClientLifecycleTest
+        CodexFrontendClientLifecycleTest.cpp
+    )
+    target_link_libraries(
+        CodexFrontendClientLifecycleTest
+        PRIVATE
+            snodec-test-support
+            AISuite::OpenAICodexFrontendClient
+    )
+    target_compile_features(CodexFrontendClientLifecycleTest PRIVATE cxx_std_20)
+    set_tests_properties(
+        CodexFrontendClientLifecycleTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;lifecycle;correlation;a1-7c-1"
+            TIMEOUT 5
+    )
 endif()
 
 set(CODEX_PHASE_A0_SCHEMA_ROOT

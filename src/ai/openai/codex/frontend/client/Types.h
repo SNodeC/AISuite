@@ -5,6 +5,7 @@
 #include "ai/openai/codex/frontend/Messages.h"
 #include "ai/openai/codex/frontend/Security.h"
 #include "ai/openai/codex/frontend/client/Results.h"
+#include "ai/openai/codex/typed/ServerRequests.h"
 
 #include <cstddef>
 #include <functional>
@@ -72,9 +73,73 @@ namespace ai::openai::codex::frontend::client {
         std::vector<frontend::FrontendCapability> observedMechanismCapabilities;
         std::vector<frontend::FrontendCapability> observedTopologyCapabilities;
         std::vector<frontend::FrontendCapability> observedProductCapabilities;
-        std::vector<frontend::generated::MethodId> availableMethods;
-        std::vector<frontend::generated::MethodId> permittedMethods;
-        std::vector<frontend::FrontendScope> permittedScopes;
+        std::optional<std::vector<frontend::generated::MethodId>> availableMethods;
+        std::optional<std::vector<frontend::generated::MethodId>> permittedMethods;
+        std::optional<std::vector<frontend::FrontendScope>> permittedScopes;
+    };
+
+    // Reverse-request parameters deliberately combine the frontend journal's
+    // stable pending-request identity with the existing typed App Server
+    // response value. The encoder flattens or nests that value exactly as the
+    // Frontend Protocol schema requires.
+    struct ApprovalRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::ApprovalDecision decision;
+    };
+
+    struct UserInputRespondParams {
+        PendingRequestId pendingRequestId;
+        std::vector<typed::UserInputAnswer> answers;
+    };
+
+    struct AuthenticationRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::AuthenticationResponse response;
+    };
+
+    struct UnknownRequestRespondParams {
+        PendingRequestId pendingRequestId;
+        frontend::Json result = nullptr;
+    };
+
+    struct UnknownRequestRejectParams {
+        PendingRequestId pendingRequestId;
+        ::ai::openai::codex::ProtocolError error;
+    };
+
+    struct ApplyPatchApprovalRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::ApplyPatchApprovalResponse response;
+    };
+
+    struct AttestationRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::AttestationGenerateResponse response;
+    };
+
+    struct DynamicToolRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::DynamicToolCallResponse response;
+    };
+
+    struct ExecCommandApprovalRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::ExecCommandApprovalResponse response;
+    };
+
+    struct KnownRequestRejectParams {
+        PendingRequestId pendingRequestId;
+        ::ai::openai::codex::ProtocolError error;
+    };
+
+    struct McpElicitationRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::McpServerElicitationRequestResponse response;
+    };
+
+    struct PermissionsApprovalRespondParams {
+        PendingRequestId pendingRequestId;
+        typed::PermissionsRequestApprovalResponse response;
     };
 
 } // namespace ai::openai::codex::frontend::client
