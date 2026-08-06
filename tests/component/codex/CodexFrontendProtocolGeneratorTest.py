@@ -471,6 +471,28 @@ def validate_additive_schema_contract(
         raise AssertionError(
             f"expanded snapshot/event schema counts changed: {expanded_contract_counts}"
         )
+    expanded_state = definitions["ExpandedBackendSnapshotState"]
+    thread_list = definitions.get("ExpandedThreadListState", {})
+    if (
+        "threadList" not in expanded_state.get("required", [])
+        or expanded_state.get("properties", {}).get("threadList")
+        != {"$ref": "#/$defs/ExpandedThreadListState"}
+        or thread_list.get("required")
+        != ["hasLoadedPage", "complete", "pagesLoaded"]
+        or "stamp" not in thread_list.get("properties", {})
+    ):
+        raise AssertionError("expanded snapshots must carry the authoritative typed thread-list projection")
+    thread_list_events = [
+        branch
+        for branch in definitions["ExpandedFrontendEvent"]["oneOf"]
+        if branch["properties"]["type"].get("const") == "threadList.updated"
+    ]
+    if (
+        len(thread_list_events) != 1
+        or thread_list_events[0]["properties"]["data"].get("required")
+        != ["threadList"]
+    ):
+        raise AssertionError("threadList.updated must have one exact threadList wrapper")
     if definitions["PendingRequestKind"]["enum"] != [
         mapping["kind"] for mapping in manifest["pendingRequestMappings"]
     ]:
@@ -646,9 +668,9 @@ def main() -> int:
     if generated_fixtures != json.loads(args.fixtures.read_text(encoding="utf-8")):
         raise AssertionError("committed frontend golden fixtures are stale")
     if (
-        generated_fixtures["counts"] != {"methods": 105, "expandedEvents": 25}
+        generated_fixtures["counts"] != {"methods": 105, "expandedEvents": 26}
         or len(generated_fixtures["methods"]) != 105
-        or len(generated_fixtures["expandedEvents"]) != 25
+        or len(generated_fixtures["expandedEvents"]) != 26
     ):
         raise AssertionError("frontend golden fixture coverage changed")
     validate_additive_schema_contract(schema_template, generated_schema, manifest)
@@ -796,6 +818,7 @@ def main() -> int:
         "notifications": 68,
         "threadItems": 18,
         "pendingRequests": 10,
+        "expandedEventFamilies": 26,
     }
     if counts != expected_counts:
         raise AssertionError(f"method/review denominator changed: {counts}")
@@ -886,6 +909,14 @@ def main() -> int:
     }
     if implemented_capabilities != generator.IMPLEMENTED_MECHANISM_CAPABILITIES:
         raise AssertionError("the exact A1.7b mechanism/build capabilities changed")
+
+    missing_event_family = copy.deepcopy(source)
+    missing_event_family["eventFamilies"].remove("threadList.updated")
+    expect_failure(generator, missing_event_family, "26 unique expanded event families")
+
+    duplicate_event_family = copy.deepcopy(source)
+    duplicate_event_family["eventFamilies"][-1] = duplicate_event_family["eventFamilies"][0]
+    expect_failure(generator, duplicate_event_family, "26 unique expanded event families")
 
     prefix_pairs = {
         (left, right)

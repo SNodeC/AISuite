@@ -677,35 +677,35 @@ namespace ai::openai::codex::frontend::generated {
     inline constexpr std::array<FrontendScope, 1> NotificationProjection18Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection19Mappings{"item.content.updated"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection19Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection20Mappings{"item.content.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection20Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection20Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection21Mappings{"item.content.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection21Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection21Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection22Mappings{"item.content.updated"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection22Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection23Mappings{"item.content.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection23Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection23Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection24Mappings{"item.content.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection24Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection24Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection25Mappings{"item.content.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection25Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection25Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection26Mappings{"item.content.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection26Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection26Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection27Mappings{"item.content.updated"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection27Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection28Mappings{"item.content.updated"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection28Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection29Mappings{"item.content.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection29Mappings{"item.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection29Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection30Mappings{"mcp.updated"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection30Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection31Mappings{"mcp.updated"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection31Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection32Mappings{"models.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection32Mappings{"turn.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection32Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection33Mappings{"models.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection33Mappings{"turn.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection33Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection34Mappings{"models.updated"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection34Mappings{"turn.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection34Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection35Mappings{"process.updated"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection35Scopes{FrontendScope::Observe};
@@ -721,9 +721,9 @@ namespace ai::openai::codex::frontend::generated {
     inline constexpr std::array<FrontendScope, 1> NotificationProjection40Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection41Mappings{"thread.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection41Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection42Mappings{"thread.upserted"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection42Mappings{"turn.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection42Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection43Mappings{"thread.upserted"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection43Mappings{"thread.removed"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection43Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection44Mappings{"thread.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection44Scopes{FrontendScope::Observe};
@@ -753,7 +753,7 @@ namespace ai::openai::codex::frontend::generated {
     inline constexpr std::array<FrontendScope, 1> NotificationProjection56Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection57Mappings{"thread.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection57Scopes{FrontendScope::Observe};
-    inline constexpr std::array<std::string_view, 1> NotificationProjection58Mappings{"thread.upserted"};
+    inline constexpr std::array<std::string_view, 1> NotificationProjection58Mappings{"turn.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection58Scopes{FrontendScope::Observe};
     inline constexpr std::array<std::string_view, 1> NotificationProjection59Mappings{"thread.upserted"};
     inline constexpr std::array<FrontendScope, 1> NotificationProjection59Scopes{FrontendScope::Observe};
@@ -1250,21 +1250,21 @@ namespace ai::openai::codex::frontend::generated {
         {"server_notification:ServerNotification:method:item/autoApprovalReview/completed", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "reviews.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:item/autoApprovalReview/started", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "reviews.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:item/commandExecution/outputDelta", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_normalized", false, true},
-        {"server_notification:ServerNotification:method:item/commandExecution/terminalInteraction", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:item/completed", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_normalized", false, true},
+        {"server_notification:ServerNotification:method:item/commandExecution/terminalInteraction", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:item/completed", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
         {"server_notification:ServerNotification:method:item/fileChange/outputDelta", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:item/fileChange/patchUpdated", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_normalized", false, true},
-        {"server_notification:ServerNotification:method:item/mcpToolCall/progress", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:item/plan/delta", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:item/reasoning/summaryPartAdded", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:item/fileChange/patchUpdated", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
+        {"server_notification:ServerNotification:method:item/mcpToolCall/progress", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:item/plan/delta", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:item/reasoning/summaryPartAdded", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "item.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:item/reasoning/summaryTextDelta", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_normalized", false, true},
         {"server_notification:ServerNotification:method:item/reasoning/textDelta", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_normalized", false, true},
-        {"server_notification:ServerNotification:method:item/started", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.content.updated", "bounded_domain_projection", "legacy_normalized", false, true},
+        {"server_notification:ServerNotification:method:item/started", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "item.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
         {"server_notification:ServerNotification:method:mcpServer/oauthLogin/completed", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "mcp.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:mcpServer/startupStatus/updated", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "mcp.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:model/rerouted", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "models.updated", "bounded_domain_projection", "legacy_normalized", false, true},
-        {"server_notification:ServerNotification:method:model/safetyBuffering/updated", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "models.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:model/verification", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "models.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:model/rerouted", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "turn.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
+        {"server_notification:ServerNotification:method:model/safetyBuffering/updated", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "turn.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:model/verification", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "turn.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:process/exited", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "process.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:process/outputDelta", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "process.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:remoteControl/status/changed", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "platform.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
@@ -1272,8 +1272,8 @@ namespace ai::openai::codex::frontend::generated {
         {"server_notification:ServerNotification:method:skills/changed", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "skills.updated", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:thread/archived", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:thread/closed", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:thread/compacted", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
-        {"server_notification:ServerNotification:method:thread/deleted", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:thread/compacted", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "turn.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
+        {"server_notification:ServerNotification:method:thread/deleted", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.removed", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:thread/goal/cleared", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:thread/goal/updated", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:thread/name/updated", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
@@ -1288,7 +1288,7 @@ namespace ai::openai::codex::frontend::generated {
         {"server_notification:ServerNotification:method:thread/settings/updated", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:thread/started", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
         {"server_notification:ServerNotification:method:thread/status/changed", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
-        {"server_notification:ServerNotification:method:thread/tokenUsage/updated", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
+        {"server_notification:ServerNotification:method:thread/tokenUsage/updated", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "turn.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
         {"server_notification:ServerNotification:method:thread/unarchived", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "thread.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},
         {"server_notification:ServerNotification:method:turn/completed", "ExistingEventContractApproved", "ScopeProjectedStateEventApproved", "turn.upserted", "bounded_domain_projection", "legacy_normalized", false, true},
         {"server_notification:ServerNotification:method:turn/diff/updated", "DedicatedEventWithLegacyExtensionCompatibility", "ScopeProjectedStateEventApproved", "turn.upserted", "bounded_domain_projection", "legacy_redacted_extension", false, true},

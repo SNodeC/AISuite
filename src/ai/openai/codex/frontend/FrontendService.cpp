@@ -269,6 +269,27 @@ namespace ai::openai::codex::frontend {
             return false;
         }
 
+        std::string boundedSerializationFailureReason(const CodecError& error) noexcept {
+            constexpr std::string_view Prefix = "frontend protocol serialization failed: ";
+            constexpr std::size_t MaximumReasonBytes = 512;
+
+            try {
+                const std::size_t maximumDetailBytes = MaximumReasonBytes - Prefix.size();
+                std::size_t detailBytes = std::min(error.message.size(), maximumDetailBytes);
+                if (detailBytes < error.message.size()) {
+                    while (detailBytes > 0 && (static_cast<unsigned char>(error.message[detailBytes]) & 0xC0U) == 0x80U) {
+                        --detailBytes;
+                    }
+                }
+
+                std::string reason(Prefix);
+                reason.append(error.message, 0, detailBytes);
+                return reason;
+            } catch (...) {
+                return "frontend protocol serialization failed";
+            }
+        }
+
         Json errorSnapshotJson(const backend::ErrorSnapshot& error) {
             // Provider error text is not structured strongly enough to prove
             // that it cannot contain credential material. Keep the stable
@@ -801,7 +822,7 @@ namespace ai::openai::codex::frontend {
             }
             const auto serialized = Codec::serializeServer(message);
             if (!serialized) {
-                closeControl(control, "frontend protocol serialization failed");
+                closeControl(control, boundedSerializationFailureReason(serialized.error()));
                 return false;
             }
             const std::size_t size = serialized.value().size();

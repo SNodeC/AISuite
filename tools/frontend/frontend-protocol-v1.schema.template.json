@@ -686,7 +686,8 @@
         "complete": { "type": "boolean" },
         "pagesLoaded": { "$ref": "#/$defs/UInt64" },
         "nextCursor": { "type": "string" },
-        "backwardsCursor": { "type": "string" }
+        "backwardsCursor": { "type": "string" },
+        "stamp": { "$ref": "#/$defs/SourceStamp" }
       },
       "additionalProperties": true
     },

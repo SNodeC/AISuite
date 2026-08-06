@@ -35,6 +35,34 @@
     "observe",
     "control"
   ],
+  "eventFamilies": [
+    "provider.updated",
+    "controller.updated",
+    "sessions.updated",
+    "threadList.updated",
+    "thread.upserted",
+    "thread.removed",
+    "turn.upserted",
+    "item.upserted",
+    "item.content.updated",
+    "pendingRequests.updated",
+    "account.updated",
+    "models.updated",
+    "configuration.updated",
+    "process.updated",
+    "filesystemWatch.updated",
+    "fuzzySearch.updated",
+    "reviews.updated",
+    "integrations.updated",
+    "plugins.updated",
+    "skills.updated",
+    "mcp.updated",
+    "platform.updated",
+    "notice.added",
+    "activity.updated",
+    "capacity.updated",
+    "diagnostics.updated"
+  ],
   "entries": [
     {
       "registryKey": {
@@ -44304,7 +44332,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -44448,7 +44476,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -44563,7 +44591,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -44618,7 +44646,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -44673,7 +44701,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -44728,7 +44756,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -44988,7 +45016,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -45154,7 +45182,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -45217,7 +45245,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -45269,7 +45297,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -45669,7 +45697,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "thread.upserted"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -45715,7 +45743,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "thread.upserted"
+        "thread.removed"
       ],
       "requiredScopes": [
         "observe"
@@ -46658,7 +46686,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "thread.upserted"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"

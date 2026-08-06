@@ -144,10 +144,11 @@ namespace ai::openai::codex::frontend::detail {
         std::optional<FrontendScope> privilegedScope;
     };
 
-    inline constexpr std::array<ExpandedEventProjectionMetadata, 25> AllExpandedEventProjections{{
+    inline constexpr std::array<ExpandedEventProjectionMetadata, 26> AllExpandedEventProjections{{
         {ExpandedEventType::ProviderUpdated, std::nullopt},
         {ExpandedEventType::ControllerUpdated, std::nullopt},
         {ExpandedEventType::SessionsUpdated, std::nullopt},
+        {ExpandedEventType::ThreadListUpdated, std::nullopt},
         {ExpandedEventType::ThreadUpserted, std::nullopt},
         {ExpandedEventType::ThreadRemoved, std::nullopt},
         {ExpandedEventType::TurnUpserted, std::nullopt},
@@ -181,7 +182,7 @@ namespace ai::openai::codex::frontend::detail {
     [[nodiscard]] bool projectionMetadataIsComplete() noexcept;
 
     static_assert(generated::AllPendingRequestProjections.size() == 10);
-    static_assert(AllExpandedEventProjections.size() == 25);
+    static_assert(AllExpandedEventProjections.size() == 26);
 
 } // namespace ai::openai::codex::frontend::detail
 

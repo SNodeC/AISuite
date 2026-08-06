@@ -3447,6 +3447,39 @@ FRONTEND_SCOPE_STRINGS = (
 )
 FRONTEND_DEFAULT_REMOTE_SCOPES = ("observe", "control")
 
+# Owner-reviewed additive Frontend Protocol v1 event-family authority.  Keep
+# this inventory independent of current runtime implementation truth: the
+# downstream protocol generator consumes it verbatim and validates the schema
+# alternatives against it.
+FRONTEND_EXPANDED_EVENT_FAMILIES = (
+    "provider.updated",
+    "controller.updated",
+    "sessions.updated",
+    "threadList.updated",
+    "thread.upserted",
+    "thread.removed",
+    "turn.upserted",
+    "item.upserted",
+    "item.content.updated",
+    "pendingRequests.updated",
+    "account.updated",
+    "models.updated",
+    "configuration.updated",
+    "process.updated",
+    "filesystemWatch.updated",
+    "fuzzySearch.updated",
+    "reviews.updated",
+    "integrations.updated",
+    "plugins.updated",
+    "skills.updated",
+    "mcp.updated",
+    "platform.updated",
+    "notice.added",
+    "activity.updated",
+    "capacity.updated",
+    "diagnostics.updated",
+)
+
 FRONTEND_SERVER_REQUEST_RESPONSE_METHODS = {
     "item/commandExecution/requestApproval": ("request.approval.respond",),
     "item/fileChange/requestApproval": ("request.approval.respond",),
@@ -3486,8 +3519,18 @@ def notification_event_mapping(provider_method: str) -> tuple[str, ...]:
         return ("account.updated",)
     if provider_method == "configWarning":
         return ("configuration.updated", "notice.added")
+    if provider_method in {
+        "thread/compacted",
+        "thread/tokenUsage/updated",
+        "model/rerouted",
+        "model/safetyBuffering/updated",
+        "model/verification",
+    }:
+        return ("turn.upserted",)
     if provider_method.startswith("model/"):
         return ("models.updated",)
+    if provider_method == "thread/deleted":
+        return ("thread.removed",)
     if provider_method.startswith("thread/"):
         return ("thread.upserted",)
     if provider_method.startswith("turn/"):
@@ -3495,7 +3538,15 @@ def notification_event_mapping(provider_method: str) -> tuple[str, ...]:
     if provider_method.startswith("item/"):
         if "ApprovalReview" in provider_method or provider_method == "guardianWarning":
             return ("reviews.updated",)
-        return ("item.content.updated",)
+        if provider_method in {
+            "item/agentMessage/delta",
+            "item/commandExecution/outputDelta",
+            "item/fileChange/outputDelta",
+            "item/reasoning/summaryTextDelta",
+            "item/reasoning/textDelta",
+        }:
+            return ("item.content.updated",)
+        return ("item.upserted",)
     if provider_method.startswith("command/") or provider_method.startswith("process/"):
         return ("process.updated",)
     if provider_method == "fs/changed":
@@ -10963,6 +11014,7 @@ def frontend_registry_source(
         },
         "scopeStrings": list(FRONTEND_SCOPE_STRINGS),
         "defaultRemoteScopes": list(FRONTEND_DEFAULT_REMOTE_SCOPES),
+        "eventFamilies": list(FRONTEND_EXPANDED_EVENT_FAMILIES),
         "entries": rows,
     }
 

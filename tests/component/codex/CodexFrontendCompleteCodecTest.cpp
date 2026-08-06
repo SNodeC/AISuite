@@ -253,8 +253,12 @@ namespace {
         if (decodedSnapshot) {
             result.expectTrue(decodedSnapshot.value().state.items.has_value() && decodedSnapshot.value().state.items->size() == 18 &&
                                   decodedSnapshot.value().state.pendingRequests.has_value() &&
-                                  decodedSnapshot.value().state.pendingRequests->size() == 10,
-                              "expanded state preserves all 18 safe item projections and ten dedicated pending-request kinds");
+                                  decodedSnapshot.value().state.pendingRequests->size() == 10 &&
+                                  decodedSnapshot.value().state.threadList.contains("hasLoadedPage") &&
+                                  decodedSnapshot.value().state.threadList.contains("complete") &&
+                                  decodedSnapshot.value().state.threadList.contains("pagesLoaded"),
+                              "expanded state preserves authoritative thread-list metadata, all 18 safe item projections, and ten "
+                              "dedicated pending-request kinds");
             result.expectTrue(decodedSnapshot.value().state.items->front().agentText.has_value() &&
                                   decodedSnapshot.value().state.items->front().data.has_value(),
                               "expanded ThreadItem value types retain bounded renderable content and safe detail fields");
@@ -286,8 +290,8 @@ namespace {
             eventsRoundTrip = eventsRoundTrip && decoded.hasValue() && encoded.hasValue() && encoded.value() == eventFixture;
             ++eventCount;
         }
-        result.expectTrue(eventsRoundTrip && eventCount == 25,
-                          "all 25 complete-backend event families use exact bounded schema-valid codec fixtures");
+        result.expectTrue(eventsRoundTrip && eventCount == 26,
+                          "all 26 complete-backend event families use exact bounded schema-valid codec fixtures");
 
         frontend::Json largeSnapshot = snapshotFixture;
         const frontend::Json representativeItem = largeSnapshot.at("state").at("items").at(0);

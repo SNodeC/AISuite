@@ -212,6 +212,8 @@ namespace ai::openai::codex::frontend {
                 return "controller.updated";
             case ExpandedEventType::SessionsUpdated:
                 return "sessions.updated";
+            case ExpandedEventType::ThreadListUpdated:
+                return "threadList.updated";
             case ExpandedEventType::ThreadUpserted:
                 return "thread.upserted";
             case ExpandedEventType::ThreadRemoved:
@@ -409,6 +411,7 @@ namespace ai::openai::codex::frontend {
         FRONTEND_EXPANDED_EVENT_TYPE(ProviderUpdated, "provider.updated")
         FRONTEND_EXPANDED_EVENT_TYPE(ControllerUpdated, "controller.updated")
         FRONTEND_EXPANDED_EVENT_TYPE(SessionsUpdated, "sessions.updated")
+        FRONTEND_EXPANDED_EVENT_TYPE(ThreadListUpdated, "threadList.updated")
         FRONTEND_EXPANDED_EVENT_TYPE(ThreadUpserted, "thread.upserted")
         FRONTEND_EXPANDED_EVENT_TYPE(ThreadRemoved, "thread.removed")
         FRONTEND_EXPANDED_EVENT_TYPE(TurnUpserted, "turn.upserted")

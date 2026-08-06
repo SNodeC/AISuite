@@ -8,6 +8,7 @@
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <limits>
@@ -19,6 +20,27 @@ namespace ai::openai::codex::frontend::detail {
     namespace {
 
         constexpr std::size_t DefaultMaximumReportedPaths = 64;
+        constexpr std::string_view ThreadItemRegistryKeyPrefix = "item_discriminator:ThreadItem:type:";
+        constexpr std::array<ThreadItemKind, 18> StableThreadItemKinds{
+            ThreadItemKind::AgentMessage,
+            ThreadItemKind::CollabAgentToolCall,
+            ThreadItemKind::CommandExecution,
+            ThreadItemKind::ContextCompaction,
+            ThreadItemKind::DynamicToolCall,
+            ThreadItemKind::EnteredReviewMode,
+            ThreadItemKind::ExitedReviewMode,
+            ThreadItemKind::FileChange,
+            ThreadItemKind::HookPrompt,
+            ThreadItemKind::ImageGeneration,
+            ThreadItemKind::ImageView,
+            ThreadItemKind::McpToolCall,
+            ThreadItemKind::Plan,
+            ThreadItemKind::Reasoning,
+            ThreadItemKind::Sleep,
+            ThreadItemKind::SubAgentActivity,
+            ThreadItemKind::UserMessage,
+            ThreadItemKind::WebSearch,
+        };
 
         template <typename Value>
         void saturatingIncrement(Value& value) noexcept {
@@ -482,6 +504,56 @@ namespace ai::openai::codex::frontend::detail {
             return true;
         }
 
+        std::optional<std::string_view> generatedThreadItemDiscriminator(std::string_view registryKey) noexcept {
+            if (!registryKey.starts_with(ThreadItemRegistryKeyPrefix)) {
+                return std::nullopt;
+            }
+            const std::string_view discriminator = registryKey.substr(ThreadItemRegistryKeyPrefix.size());
+            return discriminator.empty() ? std::nullopt : std::optional<std::string_view>{discriminator};
+        }
+
+        bool threadItemVocabularyIsComplete() noexcept {
+            if (generated::AllThreadItemProjections.size() != StableThreadItemKinds.size()) {
+                return false;
+            }
+
+            for (const ThreadItemKind kind : StableThreadItemKinds) {
+                const std::string_view spelling = toString(kind);
+                if (spelling.empty() || threadItemKindFromString(spelling) != kind) {
+                    return false;
+                }
+                const std::size_t matches =
+                    static_cast<std::size_t>(std::count_if(generated::AllThreadItemProjections.begin(),
+                                                           generated::AllThreadItemProjections.end(),
+                                                           [spelling](const generated::ProjectionMetadata& metadata) {
+                                                               return generatedThreadItemDiscriminator(metadata.registryKey) == spelling;
+                                                           }));
+                if (matches != 1) {
+                    return false;
+                }
+            }
+
+            for (std::size_t left = 0; left < generated::AllThreadItemProjections.size(); ++left) {
+                const auto leftDiscriminator = generatedThreadItemDiscriminator(generated::AllThreadItemProjections[left].registryKey);
+                if (!leftDiscriminator.has_value()) {
+                    return false;
+                }
+                const std::optional<ThreadItemKind> leftKind = threadItemKindFromString(*leftDiscriminator);
+                if (!leftKind.has_value() || toString(*leftKind) != *leftDiscriminator) {
+                    return false;
+                }
+                for (std::size_t right = left + 1; right < generated::AllThreadItemProjections.size(); ++right) {
+                    const auto rightDiscriminator =
+                        generatedThreadItemDiscriminator(generated::AllThreadItemProjections[right].registryKey);
+                    if (!rightDiscriminator.has_value() || *leftDiscriminator == *rightDiscriminator ||
+                        threadItemKindFromString(*rightDiscriminator) == leftKind) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
     } // namespace
 
     bool FrontendProjectionContext::hasScope(FrontendScope scope) const noexcept {
@@ -816,7 +888,7 @@ namespace ai::openai::codex::frontend::detail {
 
     bool projectionMetadataIsComplete() noexcept {
         try {
-            if (!uniqueNotificationAndItemKeys()) {
+            if (!uniqueNotificationAndItemKeys() || !threadItemVocabularyIsComplete()) {
                 return false;
             }
 

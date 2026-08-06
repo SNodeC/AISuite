@@ -4,6 +4,47 @@
 
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
 
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    add_test(
+        NAME CodexFrontendClientBindingsCurrentnessTest
+        COMMAND
+            ${Python3_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/tools/frontend/generate_cpp_frontend_client.py
+            --check
+    )
+    add_test(
+        NAME CodexFrontendClientGeneratorTest
+        COMMAND
+            ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendClientGeneratorTest.py
+    )
+    set_tests_properties(
+        CodexFrontendClientBindingsCurrentnessTest
+        CodexFrontendClientGeneratorTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;generated;a1-7c-1"
+            TIMEOUT 10
+    )
+
+    snodec_add_test(
+        CodexFrontendClientBindingTest
+        CodexFrontendClientBindingTest.cpp
+    )
+    target_link_libraries(
+        CodexFrontendClientBindingTest
+        PRIVATE
+            snodec-test-support
+            AISuite::OpenAICodexFrontendClient
+    )
+    target_compile_features(CodexFrontendClientBindingTest PRIVATE cxx_std_20)
+    set_tests_properties(
+        CodexFrontendClientBindingTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;api;generated;a1-7c-1"
+            TIMEOUT 5
+    )
+endif()
+
 set(CODEX_PHASE_A0_SCHEMA_ROOT
     ${PROJECT_SOURCE_DIR}/tools/codex/app-server-schema/0.144.6
 )

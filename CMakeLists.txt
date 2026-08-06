@@ -12,6 +12,11 @@ include(CMakePackageConfigHelpers)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
 option(AISUITE_BUILD_TESTS "Build AISuite tests" OFF)
+option(
+    AISUITE_BUILD_CODEX_FRONTEND_CLIENT
+    "Build the transport-neutral Codex C++ Frontend SDK"
+    ON
+)
 option(AISUITE_ENABLE_ASAN "Build AISuite with AddressSanitizer" OFF)
 option(AISUITE_DISABLE_LOGLEVEL_LOGGING "Disable SNode.C LOG/PLOG logging" OFF)
 option(AISUITE_DISABLE_VERBOSE_LOGGING "Disable SNode.C VLOG logging" OFF)

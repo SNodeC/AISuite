@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard the legacy v1 schema bytes inside the additive A1.7 contract."""
+"""Guard the reviewed Frontend Protocol v1 schema-template bytes."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 
-LEGACY_V1_SHA256 = "a27721164607b79a8b268c3adb035211a6efa82cb4645632b9b9a59302734c04"
+FRONTEND_V1_SHA256 = "db00d248835371b337854f8c0b256d6dd04fb826021ad92cbd181675fe1fd51e"
 LEGACY_METHODS = (
     "controller.acquire",
     "controller.release",
@@ -54,10 +54,10 @@ def main() -> int:
 
     template_bytes = schema_template.read_bytes()
     digest = hashlib.sha256(template_bytes).hexdigest()
-    if digest != LEGACY_V1_SHA256:
+    if digest != FRONTEND_V1_SHA256:
         raise SystemExit(
-            "legacy Frontend Protocol v1 schema template bytes changed: "
-            f"expected {LEGACY_V1_SHA256}, got {digest}"
+            "Frontend Protocol v1 schema template bytes changed: "
+            f"expected {FRONTEND_V1_SHA256}, got {digest}"
         )
 
     template = json.loads(template_bytes)

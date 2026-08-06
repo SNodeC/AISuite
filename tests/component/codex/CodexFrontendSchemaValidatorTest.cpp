@@ -684,11 +684,11 @@ namespace {
             corpus.observe(statistics);
         }
         result.expectTrue(
-            valid && corpus.validations == 558 && corpus.maximumVisits <= CorpusVisitCeiling && corpus.maximumDepth <= CorpusDepthCeiling &&
+            valid && corpus.validations == 559 && corpus.maximumVisits <= CorpusVisitCeiling && corpus.maximumDepth <= CorpusDepthCeiling &&
                 corpus.maximumReferences <= CorpusReferenceCeiling && corpus.maximumAlternatives <= CorpusAlternativeCeiling &&
                 corpus.maximumDiscriminatorFastPaths <= CorpusDiscriminatorCeiling &&
                 corpus.maximumRegularExpressions <= CorpusRegexCeiling && corpus.maximumUniqueComparisons == 0,
-            "all 558 generated minimal, complete, nullable, snapshot, and event fixtures stay within fixed production ceilings");
+            "all 559 generated minimal, complete, nullable, snapshot, and event fixtures stay within fixed production ceilings");
 
         Statistics generatedDepthStatistics;
         const frontend::Json& generatedSnapshot = fixtures.at("expandedSnapshot");
