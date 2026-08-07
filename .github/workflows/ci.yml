@@ -49,6 +49,23 @@ jobs:
           ninja --version
           dpkg-query -W -f='${Version}\n' nlohmann-json3-dev
 
+      - name: Select CI parallelism
+        run: |
+          build_jobs="$(nproc)"
+          if [ "${build_jobs}" -gt 8 ]; then
+            build_jobs=8
+          fi
+
+          test_jobs="${build_jobs}"
+          if [ "${test_jobs}" -gt 4 ]; then
+            test_jobs=4
+          fi
+
+          {
+            echo "AISUITE_BUILD_PARALLEL=${build_jobs}"
+            echo "AISUITE_CTEST_PARALLEL=${test_jobs}"
+          } >> "$GITHUB_ENV"
+
       - name: Prepare SNode.C 2.0-or-newer dependency
         run: |
           git clone --depth 1 --branch master \
@@ -63,7 +80,7 @@ jobs:
             -DSNODEC_BUILD_APPS=OFF
           cmake --build ../snodec-build \
             --target all \
-            --parallel 26
+            --parallel "${AISUITE_BUILD_PARALLEL}"
           cmake --install ../snodec-build
           for component in \
             core \
@@ -102,7 +119,7 @@ jobs:
             -DAISUITE_ENABLE_CODEX_FRONTEND_RFCOMM=ON
 
       - name: Build all targets
-        run: cmake --build build --target all --parallel 26
+        run: cmake --build build --target all --parallel "${AISUITE_BUILD_PARALLEL}"
 
       - name: Check generated frontend authorities
         run: |
@@ -124,7 +141,7 @@ jobs:
 
       - name: Verify complete validation inventory
         run: |
-          ctest --test-dir build -N --parallel 26 > build/ctest-inventory.txt
+          ctest --test-dir build -N --parallel "${AISUITE_CTEST_PARALLEL}" > build/ctest-inventory.txt
           for required_test in \
             CodexFrontendProtocolGeneratedArtifactsGuardTest \
             CodexFrontendClientBindingsCurrentnessTest \
@@ -149,4 +166,4 @@ jobs:
         run: |
           ctest --test-dir build \
             --output-on-failure \
-            --parallel 26
+            --parallel "${AISUITE_CTEST_PARALLEL}"
