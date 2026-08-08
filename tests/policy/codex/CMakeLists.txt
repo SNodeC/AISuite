@@ -107,3 +107,24 @@ set_tests_properties(
                TIMEOUT
                300
 )
+
+add_test(
+    NAME CodexArchitectureReductionBaselineTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexArchitectureReductionBaselineTest.py
+        --source-dir ${PROJECT_SOURCE_DIR}
+        --tool
+        ${PROJECT_SOURCE_DIR}/tools/codex/capture_architecture_baseline.py
+        --baseline
+        ${PROJECT_SOURCE_DIR}/docs/ai/openai/codex/architecture-reduction/p0-baseline.json
+        --roadmap
+        ${PROJECT_SOURCE_DIR}/docs/ai/openai/codex/architecture-reduction/README.md
+)
+set_tests_properties(
+    CodexArchitectureReductionBaselineTest
+    PROPERTIES
+        LABELS "codex;architecture;baseline;policy;p0;reduction"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 60
+)
