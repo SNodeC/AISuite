@@ -887,6 +887,37 @@ namespace ai::openai::codex::frontend {
             return event;
         }
 
+        void addLegacyDiagnosticsCompatibilityProjection(Json& encoded) {
+            if (encoded.at("type") != toString(ExpandedEventType::DiagnosticsUpdated)) {
+                return;
+            }
+
+            Json& data = encoded.at("data");
+            if (data.contains("diagnostic")) {
+                return;
+            }
+            const auto received = data.find("received");
+            const auto recent = data.find("recent");
+            const bool receivedIsUnsigned =
+                received != data.end() &&
+                (received->is_number_unsigned() || (received->is_number_integer() && received->get<std::int64_t>() >= 0));
+            const bool recentIsLegacyStringArray =
+                recent != data.end() && recent->is_array() && std::all_of(recent->begin(), recent->end(), [](const Json& entry) {
+                    return entry.is_string();
+                });
+            if (!receivedIsUnsigned || !recentIsLegacyStringArray) {
+                return;
+            }
+
+            // diagnostics.updated is the sole event family whose legacy and
+            // expanded representations share a wire spelling while requiring
+            // different members. Preserve the legacy received/recent contract
+            // and add its bounded expanded view before the generic producer
+            // validator runs. No other malformed expanded event receives a
+            // compatibility bypass.
+            data["diagnostic"] = Json{{"received", *received}, {"detailsOmitted", true}};
+        }
+
         Json encodeEventImpl(const FrontendEvent& event) {
             if (event.sequence.value() == 0) {
                 fail(ErrorCode::InvalidField, "event sequence must be greater than zero");
@@ -901,6 +932,10 @@ namespace ai::openai::codex::frontend {
             encoded["sequence"] = event.sequence.value();
             encoded["type"] = event.type;
             encoded["data"] = event.data;
+            if (expandedEventTypeFromString(event.type).has_value()) {
+                addLegacyDiagnosticsCompatibilityProjection(encoded);
+                validateGeneratedSchema("#/$defs/ExpandedFrontendEvent", encoded, "expanded event");
+            }
             return encoded;
         }
 
@@ -1167,6 +1202,7 @@ namespace ai::openai::codex::frontend {
             state.provider = requireObject(requireMember(encoded, "provider"), "provider");
             state.controller = requireObject(requireMember(encoded, "controller"), "controller");
             state.sessions = requireObjectArray(encoded, "sessions");
+            state.threadList = requireObject(requireMember(encoded, "threadList"), "threadList");
             state.capacity = requireObject(requireMember(encoded, "capacity"), "capacity");
             state.truncation = requireObject(requireMember(encoded, "truncation"), "truncation");
 
@@ -1216,20 +1252,36 @@ namespace ai::openai::codex::frontend {
             state.remoteControl = optionalObject(encoded, "remoteControl");
             state.notices = optionalObject(encoded, "notices");
             state.activities = optionalObject(encoded, "activities");
-            state.extensions = extensionsOf(encoded, {"provider",        "controller",
-                                                      "sessions",        "threads",
-                                                      "turns",           "items",
-                                                      "pendingRequests", "accounts",
-                                                      "models",          "configuration",
-                                                      "processes",       "filesystemWatches",
-                                                      "fuzzySearches",   "permissionProfiles",
-                                                      "reviews",         "apps",
-                                                      "externalAgents",  "hooks",
-                                                      "marketplace",     "plugins",
-                                                      "skills",          "mcp",
-                                                      "windowsSandbox",  "remoteControl",
-                                                      "notices",         "activities",
-                                                      "capacity",        "truncation"});
+            state.extensions = extensionsOf(encoded,
+                                            {"provider",
+                                             "controller",
+                                             "sessions",
+                                             "threadList",
+                                             "threads",
+                                             "turns",
+                                             "items",
+                                             "pendingRequests",
+                                             "accounts",
+                                             "models",
+                                             "configuration",
+                                             "processes",
+                                             "filesystemWatches",
+                                             "fuzzySearches",
+                                             "permissionProfiles",
+                                             "reviews",
+                                             "apps",
+                                             "externalAgents",
+                                             "hooks",
+                                             "marketplace",
+                                             "plugins",
+                                             "skills",
+                                             "mcp",
+                                             "windowsSandbox",
+                                             "remoteControl",
+                                             "notices",
+                                             "activities",
+                                             "capacity",
+                                             "truncation"});
             return state;
         }
 
@@ -1241,6 +1293,7 @@ namespace ai::openai::codex::frontend {
             for (const Json& session : state.sessions) {
                 (void) requireObject(session, "sessions");
             }
+            encoded["threadList"] = requireObject(state.threadList, "threadList");
             encoded["capacity"] = requireObject(state.capacity, "capacity");
             encoded["truncation"] = requireObject(state.truncation, "truncation");
             addOptional(encoded, "threads", state.threads);

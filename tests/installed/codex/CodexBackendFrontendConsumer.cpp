@@ -56,6 +56,7 @@ namespace {
             {"recovery", {{"status", "idle"}, {"attempts", 0}}},
         };
         state.controller = {{"present", false}};
+        state.threadList = {{"hasLoadedPage", false}, {"complete", false}, {"pagesLoaded", std::uint64_t{0}}};
         state.truncation = {{"truncated", false}};
         const frontend::ExpandedSnapshot snapshot{frontend::SequenceNumber{0}, std::move(state)};
         const auto encodedSnapshot = frontend::Codec::encodeExpandedSnapshot(snapshot);

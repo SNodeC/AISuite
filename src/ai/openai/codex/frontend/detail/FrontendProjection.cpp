@@ -8,6 +8,7 @@
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <limits>
@@ -19,6 +20,27 @@ namespace ai::openai::codex::frontend::detail {
     namespace {
 
         constexpr std::size_t DefaultMaximumReportedPaths = 64;
+        constexpr std::string_view ThreadItemRegistryKeyPrefix = "item_discriminator:ThreadItem:type:";
+        constexpr std::array<ThreadItemKind, 18> StableThreadItemKinds{
+            ThreadItemKind::AgentMessage,
+            ThreadItemKind::CollabAgentToolCall,
+            ThreadItemKind::CommandExecution,
+            ThreadItemKind::ContextCompaction,
+            ThreadItemKind::DynamicToolCall,
+            ThreadItemKind::EnteredReviewMode,
+            ThreadItemKind::ExitedReviewMode,
+            ThreadItemKind::FileChange,
+            ThreadItemKind::HookPrompt,
+            ThreadItemKind::ImageGeneration,
+            ThreadItemKind::ImageView,
+            ThreadItemKind::McpToolCall,
+            ThreadItemKind::Plan,
+            ThreadItemKind::Reasoning,
+            ThreadItemKind::Sleep,
+            ThreadItemKind::SubAgentActivity,
+            ThreadItemKind::UserMessage,
+            ThreadItemKind::WebSearch,
+        };
 
         template <typename Value>
         void saturatingIncrement(Value& value) noexcept {
@@ -364,6 +386,167 @@ namespace ai::openai::codex::frontend::detail {
             return value;
         }
 
+        enum class ItemCommandOutputCeiling { CommandExecution, FilesystemWrite, Conservative };
+
+        ItemCommandOutputCeiling itemCommandOutputCeiling(const Json& item) {
+            if (!item.is_object()) {
+                return ItemCommandOutputCeiling::Conservative;
+            }
+            const auto type = item.find("type");
+            if (type == item.end() || !type->is_string()) {
+                return ItemCommandOutputCeiling::Conservative;
+            }
+            const std::string normalized = normalizedName(type->get_ref<const std::string&>());
+            const ItemCommandOutputCeiling ceiling = normalized == "commandexecution" ? ItemCommandOutputCeiling::CommandExecution
+                                                     : normalized == "filechange"     ? ItemCommandOutputCeiling::FilesystemWrite
+                                                                                      : ItemCommandOutputCeiling::Conservative;
+            if (ceiling == ItemCommandOutputCeiling::Conservative) {
+                return ceiling;
+            }
+
+            // A compatibility discriminator, when present, must agree with
+            // the stable type. Treat malformed or conflicting data as an
+            // unknown ceiling instead of trusting whichever field is most
+            // permissive for the current principal.
+            const auto agrees = [&normalized](const Json& owner, std::string_view member) {
+                const auto candidate = owner.find(std::string(member));
+                return candidate == owner.end() ||
+                       (candidate->is_string() && normalizedName(candidate->get_ref<const std::string&>()) == normalized);
+            };
+            if (!agrees(item, "codexType")) {
+                return ItemCommandOutputCeiling::Conservative;
+            }
+            const auto data = item.find("data");
+            if (data != item.end() && (!data->is_object() || !agrees(*data, "codexType"))) {
+                return ItemCommandOutputCeiling::Conservative;
+            }
+            return ceiling;
+        }
+
+        bool itemCommandOutputVisible(const Json& item, const FrontendProjectionContext& context) {
+            switch (itemCommandOutputCeiling(item)) {
+                case ItemCommandOutputCeiling::CommandExecution:
+                    return context.hasScope(FrontendScope::CommandExecution);
+                case ItemCommandOutputCeiling::FilesystemWrite:
+                    return context.hasScope(FrontendScope::FilesystemWrite);
+                case ItemCommandOutputCeiling::Conservative:
+                    break;
+            }
+
+            // commandOutput is shared by two item contracts with different
+            // information ceilings. An absent or unknown discriminator cannot
+            // select either ceiling, so retain the value only for a principal
+            // satisfying both. This semantic pass is deliberately O(items):
+            // per-item rules would consume the bounded generic-rule budget and
+            // could expose tail entries after that budget was exhausted.
+            return context.hasScope(FrontendScope::CommandExecution) && context.hasScope(FrontendScope::FilesystemWrite);
+        }
+
+        void projectItemCommandOutput(Json& item, std::string_view path, ProjectionState& state) {
+            if (!item.is_object()) {
+                return;
+            }
+            const auto output = item.find("commandOutput");
+            if (output == item.end() || itemCommandOutputVisible(item, state.context)) {
+                return;
+            }
+            item.erase(output);
+            state.report(state.omittedFields, childPath(path, "commandOutput"));
+        }
+
+        void projectItemArrayCommandOutput(Json& items, std::string_view path, ProjectionState& state) {
+            if (!items.is_array()) {
+                return;
+            }
+            for (std::size_t index = 0; index < items.size(); ++index) {
+                projectItemCommandOutput(items[index], childPath(path, std::to_string(index)), state);
+            }
+        }
+
+        void projectTurnArrayItemCommandOutput(Json& turns, std::string_view path, ProjectionState& state) {
+            if (!turns.is_array()) {
+                return;
+            }
+            for (std::size_t index = 0; index < turns.size(); ++index) {
+                Json& turn = turns[index];
+                if (!turn.is_object()) {
+                    continue;
+                }
+                const auto items = turn.find("items");
+                if (items != turn.end()) {
+                    projectItemArrayCommandOutput(*items, childPath(childPath(path, std::to_string(index)), "items"), state);
+                }
+            }
+        }
+
+        void projectLegacySnapshotItemCommandOutput(Json& value, ProjectionState& state) {
+            if (!value.is_object()) {
+                return;
+            }
+            const auto threads = value.find("threads");
+            if (threads == value.end() || !threads->is_array()) {
+                return;
+            }
+            for (std::size_t index = 0; index < threads->size(); ++index) {
+                Json& thread = (*threads)[index];
+                if (!thread.is_object()) {
+                    continue;
+                }
+                const auto turns = thread.find("turns");
+                if (turns != thread.end()) {
+                    projectTurnArrayItemCommandOutput(*turns, childPath(childPath("/threads", std::to_string(index)), "turns"), state);
+                }
+            }
+        }
+
+        void projectExpandedSnapshotItemCommandOutput(Json& value, ProjectionState& state) {
+            if (!value.is_object()) {
+                return;
+            }
+            const auto items = value.find("items");
+            if (items != value.end()) {
+                projectItemArrayCommandOutput(*items, "/items", state);
+            }
+        }
+
+        void projectLegacyEventItemCommandOutput(std::string_view type, Json& data, ProjectionState& state) {
+            if (!data.is_object()) {
+                return;
+            }
+            if (type == "thread.updated") {
+                const auto thread = data.find("thread");
+                if (thread != data.end() && thread->is_object()) {
+                    const auto turns = thread->find("turns");
+                    if (turns != thread->end()) {
+                        projectTurnArrayItemCommandOutput(*turns, "/thread/turns", state);
+                    }
+                }
+            } else if (type == "turn.updated") {
+                const auto turn = data.find("turn");
+                if (turn != data.end() && turn->is_object()) {
+                    const auto items = turn->find("items");
+                    if (items != turn->end()) {
+                        projectItemArrayCommandOutput(*items, "/turn/items", state);
+                    }
+                }
+            } else if (type == "item.updated") {
+                const auto item = data.find("item");
+                if (item != data.end()) {
+                    projectItemCommandOutput(*item, "/item", state);
+                }
+            }
+        }
+
+        void projectExpandedEventItemCommandOutput(ExpandedEventType type, Json& data, ProjectionState& state) {
+            if (type != ExpandedEventType::ItemUpserted || !data.is_object()) {
+                return;
+            }
+            const auto item = data.find("item");
+            if (item != data.end()) {
+                projectItemCommandOutput(*item, "/item", state);
+            }
+        }
+
         const ExpandedEventProjectionMetadata* eventMetadata(ExpandedEventType type) noexcept {
             const auto iterator = std::find_if(AllExpandedEventProjections.begin(),
                                                AllExpandedEventProjections.end(),
@@ -373,17 +556,26 @@ namespace ai::openai::codex::frontend::detail {
             return iterator == AllExpandedEventProjections.end() ? nullptr : &*iterator;
         }
 
-        Json metadataCompatibleItems(const Json& items) {
+        Json metadataCompatibleItems(const Json& items, ProjectionState& state) {
             if (!items.is_array()) {
                 return Json::array();
             }
             Json result = Json::array();
-            for (const Json& item : items) {
+            for (std::size_t index = 0; index < items.size(); ++index) {
+                const Json& item = items[index];
+                const std::string itemPath = childPath("/items", std::to_string(index));
                 if (!item.is_object()) {
+                    state.report(state.omittedFields, itemPath);
                     continue;
                 }
                 const auto type = item.find("type");
                 if (type == item.end() || !type->is_string()) {
+                    state.report(state.omittedFields, itemPath);
+                    continue;
+                }
+                const auto id = item.find("id");
+                if (id == item.end() || !id->is_string() || id->get_ref<const std::string&>().empty()) {
+                    state.report(state.omittedFields, itemPath);
                     continue;
                 }
                 const std::string& typeName = type->get_ref<const std::string&>();
@@ -393,7 +585,7 @@ namespace ai::openai::codex::frontend::detail {
                     result.push_back(item);
                     continue;
                 }
-                Json compatible{{"id", item.value("id", std::string("unavailable"))}, {"type", typeName}, {"codexType", typeName}};
+                Json compatible{{"id", *id}, {"type", typeName}, {"codexType", typeName}};
                 if (const auto error = item.find("decodingError"); error != item.end() && error->is_string()) {
                     compatible["decodingError"] = *error;
                 }
@@ -482,6 +674,56 @@ namespace ai::openai::codex::frontend::detail {
             return true;
         }
 
+        std::optional<std::string_view> generatedThreadItemDiscriminator(std::string_view registryKey) noexcept {
+            if (!registryKey.starts_with(ThreadItemRegistryKeyPrefix)) {
+                return std::nullopt;
+            }
+            const std::string_view discriminator = registryKey.substr(ThreadItemRegistryKeyPrefix.size());
+            return discriminator.empty() ? std::nullopt : std::optional<std::string_view>{discriminator};
+        }
+
+        bool threadItemVocabularyIsComplete() noexcept {
+            if (generated::AllThreadItemProjections.size() != StableThreadItemKinds.size()) {
+                return false;
+            }
+
+            for (const ThreadItemKind kind : StableThreadItemKinds) {
+                const std::string_view spelling = toString(kind);
+                if (spelling.empty() || threadItemKindFromString(spelling) != kind) {
+                    return false;
+                }
+                const std::size_t matches =
+                    static_cast<std::size_t>(std::count_if(generated::AllThreadItemProjections.begin(),
+                                                           generated::AllThreadItemProjections.end(),
+                                                           [spelling](const generated::ProjectionMetadata& metadata) {
+                                                               return generatedThreadItemDiscriminator(metadata.registryKey) == spelling;
+                                                           }));
+                if (matches != 1) {
+                    return false;
+                }
+            }
+
+            for (std::size_t left = 0; left < generated::AllThreadItemProjections.size(); ++left) {
+                const auto leftDiscriminator = generatedThreadItemDiscriminator(generated::AllThreadItemProjections[left].registryKey);
+                if (!leftDiscriminator.has_value()) {
+                    return false;
+                }
+                const std::optional<ThreadItemKind> leftKind = threadItemKindFromString(*leftDiscriminator);
+                if (!leftKind.has_value() || toString(*leftKind) != *leftDiscriminator) {
+                    return false;
+                }
+                for (std::size_t right = left + 1; right < generated::AllThreadItemProjections.size(); ++right) {
+                    const auto rightDiscriminator =
+                        generatedThreadItemDiscriminator(generated::AllThreadItemProjections[right].registryKey);
+                    if (!rightDiscriminator.has_value() || *leftDiscriminator == *rightDiscriminator ||
+                        threadItemKindFromString(*rightDiscriminator) == leftKind) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
     } // namespace
 
     bool FrontendProjectionContext::hasScope(FrontendScope scope) const noexcept {
@@ -517,6 +759,21 @@ namespace ai::openai::codex::frontend::detail {
         } catch (...) {
             return {};
         }
+    }
+
+    std::vector<FrontendScope> itemCommandOutputRequiredScopes(const Json& item) noexcept {
+        try {
+            switch (itemCommandOutputCeiling(item)) {
+                case ItemCommandOutputCeiling::CommandExecution:
+                    return {FrontendScope::CommandExecution};
+                case ItemCommandOutputCeiling::FilesystemWrite:
+                    return {FrontendScope::FilesystemWrite};
+                case ItemCommandOutputCeiling::Conservative:
+                    return {FrontendScope::CommandExecution, FrontendScope::FilesystemWrite};
+            }
+        } catch (...) {
+        }
+        return {FrontendScope::CommandExecution, FrontendScope::FilesystemWrite};
     }
 
     CanonicalSnapshotRecord canonicalizeSnapshot(CanonicalSnapshotRecord input, FrontendProjectionLimits limits) noexcept {
@@ -562,6 +819,14 @@ namespace ai::openai::codex::frontend::detail {
             }
             for (CanonicalExpandedEvent& event : input.expandedEvents) {
                 event.data = sanitizeScopedValue(std::move(event.data), limits, remainingVisits, input.sanitization);
+                if (event.requiredScopes.size() > LocalTrustedScopes.size()) {
+                    event.requiredScopes.resize(LocalTrustedScopes.size());
+                    saturatingIncrement(input.sanitization.valuesOmittedByBounds);
+                    input.sanitization.truncated = true;
+                }
+                std::sort(event.requiredScopes.begin(), event.requiredScopes.end());
+                event.requiredScopes.erase(std::unique(event.requiredScopes.begin(), event.requiredScopes.end()),
+                                           event.requiredScopes.end());
             }
             if (input.registryKey.has_value() && input.registryKey->size() > limits.maximumStringBytes) {
                 input.registryKey->resize(utf8PrefixLength(*input.registryKey, limits.maximumStringBytes));
@@ -609,6 +874,13 @@ namespace ai::openai::codex::frontend::detail {
             ProjectionState expandedProjection{context, {}, {}, record.maximumReportedPaths};
             Json projectedLegacy = projectValue(record.legacyState.value, record.legacyState.rules, legacyProjection);
             Json projectedExpanded = projectValue(record.expandedState.value, record.expandedState.rules, expandedProjection);
+            projectLegacySnapshotItemCommandOutput(projectedLegacy, legacyProjection);
+            projectExpandedSnapshotItemCommandOutput(projectedExpanded, expandedProjection);
+            if (expanded && !completeItems && projectedExpanded.is_object()) {
+                if (const auto items = projectedExpanded.find("items"); items != projectedExpanded.end()) {
+                    projectedExpanded["items"] = metadataCompatibleItems(*items, expandedProjection);
+                }
+            }
 
             Json selected = expanded ? std::move(projectedExpanded) : std::move(projectedLegacy);
             std::vector<std::string> omittedFields =
@@ -616,11 +888,6 @@ namespace ai::openai::codex::frontend::detail {
             std::vector<std::string> redactedFields =
                 expanded ? std::move(expandedProjection.redactedFields) : std::move(legacyProjection.redactedFields);
             if (expanded) {
-                if (!completeItems && selected.is_object()) {
-                    if (const auto items = selected.find("items"); items != selected.end()) {
-                        selected["items"] = metadataCompatibleItems(*items);
-                    }
-                }
                 if (!dedicatedPending && selected.is_object()) {
                     selected.erase("pendingRequests");
                 }
@@ -662,7 +929,7 @@ namespace ai::openai::codex::frontend::detail {
                                  std::optional<SequenceNumber> replayAfter) noexcept {
         EventProjection projection;
         try {
-            if (record.sanitization.failed || !context.hasAllScopes(record.requiredScopes)) {
+            if (record.snapshotRequired || record.sanitization.failed || !context.hasAllScopes(record.requiredScopes)) {
                 return projection;
             }
             if (replayAfter.has_value() && record.sequence <= *replayAfter) {
@@ -671,6 +938,7 @@ namespace ai::openai::codex::frontend::detail {
 
             ProjectionState legacyState{context, {}, {}, record.maximumReportedPaths};
             Json legacyData = projectValue(record.legacyData.value, record.legacyData.rules, legacyState);
+            projectLegacyEventItemCommandOutput(record.legacyType, legacyData, legacyState);
 
             struct FilteredExpandedEvent {
                 ExpandedEventType type;
@@ -682,12 +950,14 @@ namespace ai::openai::codex::frontend::detail {
             std::vector<std::string> omittedEventFamilies;
             for (const CanonicalExpandedEvent& expanded : record.expandedEvents) {
                 const ExpandedEventProjectionMetadata* metadata = eventMetadata(expanded.type);
-                if (metadata == nullptr || (metadata->privilegedScope.has_value() && !context.hasScope(*metadata->privilegedScope))) {
+                if (metadata == nullptr || (metadata->privilegedScope.has_value() && !context.hasScope(*metadata->privilegedScope)) ||
+                    !context.hasAllScopes(expanded.requiredScopes)) {
                     omittedEventFamilies.push_back("/event/" + std::string(toString(expanded.type)));
                     continue;
                 }
                 ProjectionState eventState{context, {}, {}, record.maximumReportedPaths};
                 Json data = projectValue(expanded.data.value, expanded.data.rules, eventState);
+                projectExpandedEventItemCommandOutput(expanded.type, data, eventState);
                 filteredExpanded.push_back(FilteredExpandedEvent{expanded.type, std::move(data), std::move(eventState)});
             }
 
@@ -742,7 +1012,7 @@ namespace ai::openai::codex::frontend::detail {
 
     std::optional<std::size_t> canonicalEventRetainedBytes(const CanonicalEventRecord& record) noexcept {
         try {
-            if (record.sanitization.failed || record.legacyType.empty() ||
+            if (record.snapshotRequired || record.sanitization.failed || record.legacyType.empty() ||
                 !canonicalValueContainsNoKnownStructuredSecrets(record.legacyData.value) ||
                 !canonicalValueContainsNoKnownStructuredSecrets(record.extensions)) {
                 return std::nullopt;
@@ -776,6 +1046,7 @@ namespace ai::openai::codex::frontend::detail {
                 add(toString(expanded.type).size());
                 add(expanded.data.value.dump().size());
                 addRules(expanded.data.rules);
+                add(expanded.requiredScopes.size() * sizeof(FrontendScope));
             }
             return retainedBytes;
         } catch (...) {
@@ -816,7 +1087,7 @@ namespace ai::openai::codex::frontend::detail {
 
     bool projectionMetadataIsComplete() noexcept {
         try {
-            if (!uniqueNotificationAndItemKeys()) {
+            if (!uniqueNotificationAndItemKeys() || !threadItemVocabularyIsComplete()) {
                 return false;
             }
 

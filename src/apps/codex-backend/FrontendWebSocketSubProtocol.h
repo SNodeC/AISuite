@@ -40,6 +40,7 @@ namespace apps::codex_backend {
         bool onSignal(int signal) override;
 
         bool sendOutbound(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
+        void serviceClosed(std::string reason) noexcept;
         void closeBounded(std::uint16_t status, const char* reason) noexcept;
         void detachFrontend(std::string reason) noexcept;
 

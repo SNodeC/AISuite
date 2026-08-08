@@ -117,7 +117,7 @@ time, while their payload is retained in `nlohmann::json`. The tags provide
 exact method correlation, generated metadata, schema validation, and wire
 conformance. They are not yet the ergonomic, domain-typed C++ application API.
 
-A1.7c-1 will introduce `AISuite::OpenAICodexFrontendClient` with domain-oriented
+A1.7c-1 introduces `AISuite::OpenAICodexFrontendClient` with domain-oriented
 façades, callback-last asynchronous operations, typed client-side state,
 replay/reconnection, and no raw-JSON requirement for stable application
 workflows. A1.7a therefore supplies method-tagged schema-validated protocol
@@ -159,16 +159,18 @@ are contained at the `Codec` boundary. A generated `uniqueItems: true` array is
 accepted only when generation can prove a finite maximum cardinality and bound
 the resulting pair comparisons.
 
-The fixed regression corpus contains 558 generated validations. Its observed
-maxima are 3,323 visits, depth 16, 1,806 resolved references, 38 evaluated
+The fixed regression corpus contains 559 generated validations. Its observed
+maxima are 3,549 visits, depth 23, 1,896 resolved references, 65 evaluated
 alternatives, 28 discriminator fast paths, zero unique-item comparisons, and 11
-regular-expression evaluations. A valid 2,000-item expanded snapshot consumes
-225,307 visits at depth 12. The generated `$defs` graph is currently acyclic;
-the private test seam therefore exercises the exact 128/129 depth boundary with
-a synthetic schema, while generated snapshots are tested at their exact
-measured depth and again through the public codec. The generated sensitive-field
-guard is separately driven past depth 128 through a real method result; the
-public codec rejects it with the bounded complexity error and remains reusable.
+regular-expression evaluations. A valid 2,000-item expanded snapshot is
+739,169 bytes and consumes 225,533 visits at depth 23, with 2,047 alternatives
+and 2,010 discriminator fast paths. The generated `$defs` graph is currently
+acyclic; the private test seam therefore exercises the exact 128/129 depth
+boundary with a synthetic schema, while generated snapshots are tested at their
+exact measured depth and again through the public codec. The generated
+sensitive-field guard is separately driven past depth 128 through a real method
+result; the public codec rejects it with the bounded complexity error and
+remains reusable.
 
 Unknown non-conflicting fields are deliberately accepted for additive v1
 compatibility. Known fields retain full validation, while unknown values retain
@@ -299,6 +301,17 @@ server sends the command response first, then snapshot or event batches, then
 `sync.complete`. Explicit replay from a future sequence fails with
 `invalid_command`.
 
+After initial synchronization, FrontendService may send one bare `snapshot`
+to a connection that is already Ready when one atomic canonical occurrence
+cannot fit a bounded event batch. This live snapshot barrier has no preceding
+`welcome` and no following `sync.complete`. It transactionally replaces the
+projected state while preserving the physical session and pending command
+correlation. Its sequence becomes both the last visible sequence and the
+durable reconnect cursor: a lower sequence is invalid, an equal sequence is an
+authoritative idempotent replacement, and a higher sequence advances the
+cursor. This barrier is not an explicit synchronization and does not produce a
+synchronization-completed callback.
+
 Before hello, any other message receives one bounded `protocol.error` and the
 connection closes. Malformed JSON, a wrong identity, or an unsupported version
 also closes only that frontend connection. An unsupported-version response
@@ -344,17 +357,21 @@ authenticated_frontend           scope_projected_state
 provider_lifecycle
 ```
 
-The conditional capabilities remain implemented when their methods are
+The invocation-policy capabilities remain implemented when their methods are
 deployment-disabled; method activation is represented by `availableMethods`.
-The four future product capabilities `cpp_client_sdk`,
-`typescript_client_sdk`, `browser_ui`, and `qt_ui` remain unimplemented.
+Capability category and current truth are independent. The 13 entries above
+are static service mechanisms. `multi_transport` is the one conditional
+topology capability: one declared transport family yields false and more than
+one yields true. Product capabilities are a third category. `cpp_client_sdk`
+is build-derived true when the AISuite C++ SDK product is enabled and built;
+`typescript_client_sdk`, `browser_ui`, and `qt_ui` remain false.
 
-The generated `multi_transport` capability identity remains defined for v1
-compatibility. A1.7b does not implement or advertise it: SNode.C owns listener
-configuration and lifecycle, and the service keeps no duplicate runtime
-transport registry. A deployment may still run several listeners, all borrowing
-the same FrontendService, while Welcome advertises the same 13 implemented
-mechanism capabilities.
+The implemented total is therefore `13 + topology(0|1) + product(0|1)`, not
+one unconditional mechanism count. The SDK requests only the five v1
+representation selectors: `complete_backend_domains`,
+`dedicated_pending_requests`, `dedicated_notification_events`,
+`complete_thread_items`, and `scope_projected_state`. It observes mechanism,
+topology, and product facts without requesting them as representation choices.
 
 For methods, `availableMethods` means implemented and deployment-enabled.
 `permittedMethods` further filters that set by the authenticated principal's
@@ -500,6 +517,15 @@ A failed response contains `error` and no `result`:
 {"protocol":"snodec.codex-frontend","version":1,"kind":"response","requestId":"client-42","ok":false,"error":{"code":"permission_denied","message":"The controller role is required."}}
 ```
 
+`ok:false` is the terminal result of that command, not a request to close the
+Frontend Protocol connection. The peer removes that request's correlation
+exactly once and may submit later commands on the same connection. Connection
+closure occurs only through a separate transport failure or a closing
+`protocol.error`/protocol-state failure. In particular, controller denial,
+ordinary invalid parameters, not-found/conflict, cancellation, provider
+unavailability, and rate limiting do not by themselves terminate a valid
+session.
+
 The stable v1 error codes are:
 
 ```text
@@ -597,8 +623,10 @@ objects rather than as a raw ordinary App Server envelope.
 
 A1.7a defines the scope-projectable expanded snapshot model and A1.7b activates
 it for connections that negotiate the relevant capabilities. Its mandatory
-core is `provider`, `controller`,
-`sessions`, `capacity`, and `truncation`. Optional authorized domains are
+core is `provider`, `controller`, `sessions`, `threadList`, `capacity`, and
+`truncation`. `threadList` carries `hasLoadedPage`, `complete`, `pagesLoaded`,
+optional forward/backward cursors, and source generation/freshness when
+available. Optional authorized domains are
 `threads`, `turns`, `items`, `pendingRequests`, `accounts`, `models`,
 `configuration`, `processes`, `filesystemWatches`, `fuzzySearches`,
 `permissionProfiles`, `reviews`, `apps`, `externalAgents`, `hooks`,
@@ -681,20 +709,81 @@ The stable normalized event names and their principal data are:
 | `session.changed` | `sessionId`, `connected`, `role` |
 | `codex.extension` | bounded `method`, sanitized bounded `params`, optional bounded `decodingError`, optional `truncation` |
 
-The additive contract also defines 25 capability-gated expanded event
+The additive contract also defines 26 capability-gated expanded event
 families:
 
 ```text
 provider.updated         controller.updated       sessions.updated
-thread.upserted          thread.removed            turn.upserted
-item.upserted            item.content.updated      pendingRequests.updated
-account.updated          models.updated            configuration.updated
-process.updated          filesystemWatch.updated   fuzzySearch.updated
-reviews.updated          integrations.updated      plugins.updated
-skills.updated           mcp.updated               platform.updated
-notice.added             activity.updated          capacity.updated
-diagnostics.updated
+threadList.updated       thread.upserted           thread.removed
+turn.upserted            item.upserted             item.content.updated
+pendingRequests.updated  account.updated           models.updated
+configuration.updated    process.updated           filesystemWatch.updated
+fuzzySearch.updated      reviews.updated           integrations.updated
+plugins.updated          skills.updated            mcp.updated
+platform.updated         notice.added              activity.updated
+capacity.updated         diagnostics.updated
 ```
+
+`threadList.updated` contains one required `threadList` wrapper with the same
+stable shape used by expanded snapshots. A legacy `thread.list.updated`
+occurrence projects to exactly that one compact expanded event when dedicated
+notification events are selected; it does not repeat every retained thread or
+fabricate a thread for an empty page. Threads returned by the page are carried
+by their own ordinary `thread.upserted` occurrences. Legacy connections retain
+the original `thread.list.updated` representation, and one connection never
+receives both forms for one occurrence.
+
+### Expanded-event identity
+
+An identity-bearing expanded event takes its identity from the exact canonical
+occurrence. If the projection resolves richer data through the captured
+snapshot, the selected entity must carry that same identity. It must never
+substitute another retained entity merely because that entity is first, last,
+newest, or nonempty, and it must not recursively guess an arbitrary nested
+field named `id`.
+
+The stable normalized identity paths are:
+
+| Expanded family | Canonical identity/parent path |
+| --- | --- |
+| `thread.upserted` | `data.thread.id` |
+| `thread.removed` | `data.threadId` |
+| `turn.upserted` | `data.turn.id`, parent `data.turn.threadId` |
+| `item.upserted` | `data.item.id`, parents `data.threadId` and `data.turnId` |
+| `item.content.updated` | `data.itemId`, parents `data.threadId` and `data.turnId` |
+| `process.updated` | `data.process.processHandle` |
+| `filesystemWatch.updated` | `data.filesystemWatch.watchId` |
+| `fuzzySearch.updated` | `data.fuzzySearch.sessionId` |
+| `activity.updated` | `data.activity.key` |
+| `notice.added` | the exact `data.notice` occurrence |
+
+Reviewed notification-extension mappings use the corresponding explicit
+`params` path. They do not turn recursive identity discovery into a wire
+contract. When a proven identity has no resolvable target, a family may emit a
+contract-approved same-ID minimum only where its schema permits that state;
+otherwise projection selects bounded Snapshot fallback. An unproven identity
+cannot become a fabricated `"unavailable"` upsert or an unrelated entity.
+
+The remaining families are aggregate/singleton projections and may carry their
+complete reviewed projected domain. Live delivery and replay project the same
+canonical record through the same scope filter, so exact identity and data are
+equivalent. A page of 25 distinct threads therefore yields at most 25 exact,
+unique `thread.upserted` occurrences plus one `threadList.updated`; it cannot
+yield 25 copies of one retained tail thread.
+
+Notification mapping follows the stable transition semantics. In particular,
+`thread/deleted` maps to `thread.removed`. Only
+`item/agentMessage/delta`, `item/commandExecution/outputDelta`,
+`item/fileChange/outputDelta`, `item/reasoning/summaryTextDelta`, and
+`item/reasoning/textDelta` map to accumulated `item.content.updated`
+replacement. Item lifecycle, terminal-interaction, patch, progress, plan, and
+summary-part notifications map to `item.upserted`.
+
+`commandOutput` is projected according to the enclosing stable item type:
+`commandExecution` requires `command_execution`, and `fileChange` requires
+`filesystem_write`. This semantic item walk is not limited by the generic
+projection-rule budget. Missing, unknown, or conflicting discriminators require
+both scopes or cause `commandOutput` to be omitted and reported.
 
 Compatibility is explicit and mechanically complete. All 68 stable server
 notifications retain one legacy path: 14 already use normalized state/events
@@ -786,6 +875,10 @@ so a stale client cannot mistake the changed snapshot state for an empty replay.
 An explicit snapshot of unchanged state does not advance that barrier. Latency is
 bounded by the next event-loop tick unless an immediate transition flushes it
 earlier.
+
+For an already Ready connection this fallback is delivered as the bare live
+snapshot barrier described above. The atomic occurrence is not split, limits
+are not raised, and the client remains Ready after the replacement.
 
 The journal stores only bounded post-coalescing canonical records. Before
 canonical retention, AISuite removes known structured authentication material,
@@ -919,8 +1012,8 @@ provider lifecycle exposure, and Unix/TCP/TLS/WebSocket/WSS/RFCOMM
 composition. The default application remains Unix-only; optional transport
 support does not alter the protocol identity or method catalog.
 
-A1.7c-1 is next and owns the C++ Frontend SDK plus
-`codex-backend-client` migration. A1.7c-2 immediately follows and migrates the
+A1.7c-1 supplies the C++ Frontend SDK and migrated
+`codex-backend-client`. A1.7c-2 immediately follows and migrates the
 existing `codex-ui` into the canonical standalone AI IDE; no extra roadmap PR
 is inserted before it. A1.7d owns the TypeScript Frontend SDK and browser
 frontend.

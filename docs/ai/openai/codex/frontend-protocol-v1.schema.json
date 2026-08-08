@@ -2153,6 +2153,9 @@
         },
         "backwardsCursor": {
           "type": "string"
+        },
+        "stamp": {
+          "$ref": "#/$defs/SourceStamp"
         }
       },
       "additionalProperties": true
@@ -4972,7 +4975,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "minItems": 1
         },
         "cwd": {
           "description": "Optional working directory. Defaults to the server cwd.",
@@ -32083,6 +32087,44 @@
         "$ref": "#/$defs/SafePropertyName"
       }
     },
+    "ExpandedThreadListState": {
+      "type": "object",
+      "required": [
+        "hasLoadedPage",
+        "complete",
+        "pagesLoaded"
+      ],
+      "properties": {
+        "hasLoadedPage": {
+          "type": "boolean"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "pagesLoaded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nextCursor": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "backwardsCursor": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "stamp": {
+          "$ref": "#/$defs/SourceStamp"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/SafeDetailValue"
+      },
+      "maxProperties": 512,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      }
+    },
     "SafeDetailScalar": {
       "anyOf": [
         {
@@ -33818,6 +33860,7 @@
         "provider.updated",
         "controller.updated",
         "sessions.updated",
+        "threadList.updated",
         "thread.upserted",
         "thread.removed",
         "turn.upserted",
@@ -33876,6 +33919,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -33991,6 +34037,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -34104,6 +34153,126 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
+                "thread": {
+                  "$ref": "#/$defs/ExpandedThreadState"
+                },
+                "threadId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "turn": {
+                  "$ref": "#/$defs/ExpandedTurnState"
+                },
+                "turnId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "item": {
+                  "$ref": "#/$defs/ExpandedThreadItem"
+                },
+                "itemId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "channel": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "content": {
+                  "type": "string",
+                  "maxLength": 16384
+                },
+                "pendingRequests": {
+                  "type": "array",
+                  "maxItems": 1024,
+                  "items": {
+                    "$ref": "#/$defs/ExpandedPendingRequest"
+                  }
+                },
+                "domain": {
+                  "$ref": "#/$defs/DomainProjection"
+                },
+                "process": {
+                  "$ref": "#/$defs/ProcessState"
+                },
+                "filesystemWatch": {
+                  "$ref": "#/$defs/FilesystemWatchState"
+                },
+                "fuzzySearch": {
+                  "$ref": "#/$defs/FuzzySearchState"
+                },
+                "notice": {
+                  "$ref": "#/$defs/NoticeState"
+                },
+                "activity": {
+                  "$ref": "#/$defs/ActivityState"
+                },
+                "capacity": {
+                  "$ref": "#/$defs/CapacityProjection"
+                },
+                "diagnostic": {
+                  "$ref": "#/$defs/SafeDetailObject"
+                }
+              },
+              "maxProperties": 32,
+              "additionalProperties": {
+                "$ref": "#/$defs/SafeDetailValue"
+              },
+              "propertyNames": {
+                "$ref": "#/$defs/SafePropertyName"
+              }
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/SafeDetailValue"
+          },
+          "maxProperties": 512,
+          "propertyNames": {
+            "$ref": "#/$defs/SafePropertyName"
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "sequence",
+            "type",
+            "data"
+          ],
+          "properties": {
+            "sequence": {
+              "$ref": "#/$defs/PositiveUInt64"
+            },
+            "type": {
+              "const": "threadList.updated"
+            },
+            "data": {
+              "type": "object",
+              "required": [
+                "threadList"
+              ],
+              "properties": {
+                "provider": {
+                  "$ref": "#/$defs/ProviderSnapshotState"
+                },
+                "controller": {
+                  "$ref": "#/$defs/ControllerSnapshotState"
+                },
+                "sessions": {
+                  "type": "array",
+                  "maxItems": 128,
+                  "items": {
+                    "$ref": "#/$defs/SessionSnapshotState"
+                  }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -34219,6 +34388,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -34332,6 +34504,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -34447,6 +34622,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -34560,6 +34738,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -34678,6 +34859,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -34791,6 +34975,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -34906,6 +35093,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -35019,6 +35209,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -35134,6 +35327,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -35247,6 +35443,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -35362,6 +35561,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -35475,6 +35677,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -35590,6 +35795,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -35703,6 +35911,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -35818,6 +36029,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -35931,6 +36145,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -36046,6 +36263,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -36159,6 +36379,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -36274,6 +36497,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -36387,6 +36613,9 @@
                   "items": {
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
+                },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
                 },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
@@ -36502,6 +36731,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -36616,6 +36848,9 @@
                     "$ref": "#/$defs/SessionSnapshotState"
                   }
                 },
+                "threadList": {
+                  "$ref": "#/$defs/ExpandedThreadListState"
+                },
                 "thread": {
                   "$ref": "#/$defs/ExpandedThreadState"
                 },
@@ -36705,6 +36940,7 @@
         "provider",
         "controller",
         "sessions",
+        "threadList",
         "capacity",
         "truncation"
       ],
@@ -36721,6 +36957,9 @@
           "items": {
             "$ref": "#/$defs/SessionSnapshotState"
           }
+        },
+        "threadList": {
+          "$ref": "#/$defs/ExpandedThreadListState"
         },
         "threads": {
           "type": "array",

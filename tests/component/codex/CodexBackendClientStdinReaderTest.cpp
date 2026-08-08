@@ -13,6 +13,7 @@
 #include "utils/Timeval.h"
 
 #include <cerrno>
+#include <csignal>
 #include <exception>
 #include <fcntl.h>
 #include <initializer_list>
@@ -22,6 +23,16 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+
+namespace apps::codex_backend_client {
+
+    struct StdinReaderTestAccess {
+        static void readNow(StdinReader& reader) {
+            reader.readEvent();
+        }
+    };
+
+} // namespace apps::codex_backend_client
 
 namespace {
 
@@ -112,7 +123,10 @@ int main(int argc, char* argv[]) {
     Pipe blockingPipe;
     Pipe nonblockingPipe;
     Pipe shutdownPipe;
-    const bool pipesCreated = blockingPipe.valid() && nonblockingPipe.valid() && shutdownPipe.valid();
+    Pipe eagainPipe;
+    Pipe signalPipe;
+    const bool pipesCreated =
+        blockingPipe.valid() && nonblockingPipe.valid() && shutdownPipe.valid() && eagainPipe.valid() && signalPipe.valid();
     testResult.expectTrue(pipesCreated, "stdin reader test pipes are created");
     if (!pipesCreated) {
         core::SNodeC::free();
@@ -157,7 +171,7 @@ int main(int argc, char* argv[]) {
         if (eofCount == 2 && !stopScheduled) {
             stopScheduled = true;
             core::EventReceiver::atNextTick([]() {
-                core::SNodeC::stop();
+                static_cast<void>(::kill(::getpid(), SIGINT));
             });
         }
     };
@@ -165,6 +179,12 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<apps::codex_backend_client::StdinReader> blockingReader;
     std::unique_ptr<apps::codex_backend_client::StdinReader> nonblockingReader;
     std::unique_ptr<apps::codex_backend_client::StdinReader> shutdownReader;
+    std::unique_ptr<apps::codex_backend_client::StdinReader> eagainReader;
+    std::unique_ptr<apps::codex_backend_client::StdinReader> signalReader;
+    std::size_t eagainLineCount = 0;
+    std::size_t eagainEofCount = 0;
+    std::size_t eagainErrorCount = 0;
+    std::size_t shutdownNotificationCount = 0;
 
     try {
         blockingReader = std::make_unique<apps::codex_backend_client::StdinReader>(
@@ -205,16 +225,44 @@ int main(int argc, char* argv[]) {
                 core::SNodeC::stop();
             },
             shutdownPipe.readFd);
+
+        eagainReader = std::make_unique<apps::codex_backend_client::StdinReader>(
+            [&](std::string) {
+                ++eagainLineCount;
+            },
+            [&]() {
+                ++eagainEofCount;
+            },
+            [&](std::string) {
+                ++eagainErrorCount;
+            },
+            eagainPipe.readFd);
+
+        signalReader = std::make_unique<apps::codex_backend_client::StdinReader>(
+            [](std::string) {
+            },
+            []() {
+            },
+            [&errors](std::string error) {
+                errors.push_back(std::move(error));
+            },
+            signalPipe.readFd,
+            [&]() {
+                ++shutdownNotificationCount;
+            });
     } catch (const std::exception& exception) {
         errors.emplace_back(exception.what());
     }
 
-    testResult.expectTrue(blockingReader != nullptr && nonblockingReader != nullptr && shutdownReader != nullptr,
+    testResult.expectTrue(blockingReader != nullptr && nonblockingReader != nullptr && shutdownReader != nullptr &&
+                              eagainReader != nullptr && signalReader != nullptr,
                           "stdin readers register all real pipe descriptors");
-    if (!blockingReader || !nonblockingReader || !shutdownReader) {
+    if (!blockingReader || !nonblockingReader || !shutdownReader || !eagainReader || !signalReader) {
         blockingReader.reset();
         nonblockingReader.reset();
         shutdownReader.reset();
+        eagainReader.reset();
+        signalReader.reset();
         core::SNodeC::free();
         return testResult.processResult();
     }
@@ -234,6 +282,13 @@ int main(int argc, char* argv[]) {
     testResult.expectTrue(!shutdownReader->active() && shutdownFlagsAfterStop == shutdownOriginalFlags,
                           "explicit stdin shutdown restores descriptor flags without waiting for EOF");
 
+    // The writer deliberately remains open and has produced no bytes. A
+    // direct nonblocking drain therefore returns EAGAIN, not EOF.
+    apps::codex_backend_client::StdinReaderTestAccess::readNow(*eagainReader);
+    testResult.expectTrue(eagainReader->active() && eagainLineCount == 0 && eagainEofCount == 0 && eagainErrorCount == 0,
+                          "stdin EAGAIN leaves the reader active and does not synthesize EOF or failure");
+    eagainReader->stop();
+
     core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
         [&]() {
             watchdogExpired = true;
@@ -244,7 +299,7 @@ int main(int argc, char* argv[]) {
     const int eventLoopResult = core::SNodeC::start(utils::Timeval({3, 0}));
 
     testResult.expectTrue(!watchdogExpired, "both pipe EOF callbacks complete before the safety watchdog");
-    testResult.expectEqual(0, eventLoopResult, "stdin reader test event loop stops cleanly");
+    testResult.expectEqual(-SIGINT, eventLoopResult, "stdin reader test event loop preserves the framework signal result");
     testResult.expectTrue(errors.empty(), "reading the pipes produces no stdin errors");
     testResult.expectEqual(2, eofCount, "EOF is reported exactly once for each pipe");
     testResult.expectTrue(callbacksMatch(blockingCallbacks, {"line:first", "line:second", "line:final-without-newline", "eof"}),
@@ -254,10 +309,16 @@ int main(int argc, char* argv[]) {
                           "blocking descriptor flags are restored exactly before its EOF callback");
     testResult.expectTrue(nonblockingFlagsInsideEof == nonblockingOriginalFlags,
                           "preexisting O_NONBLOCK is preserved exactly inside its EOF callback");
+    testResult.expectEqual(std::size_t{1},
+                           shutdownNotificationCount,
+                           "the registered stdin receiver publishes one intentional local-shutdown notification before signal teardown");
+    testResult.expectTrue(!signalReader->active(), "signal shutdown disables stdin without synthesizing EOF");
 
     blockingReader.reset();
     nonblockingReader.reset();
     shutdownReader.reset();
+    eagainReader.reset();
+    signalReader.reset();
 
     const int blockingFlagsAfterDestruction = ::fcntl(blockingPipe.readFd, F_GETFL);
     const int nonblockingFlagsAfterDestruction = ::fcntl(nonblockingPipe.readFd, F_GETFL);

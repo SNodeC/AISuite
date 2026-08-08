@@ -7,6 +7,7 @@
 
 #include "apps/codex-backend/FrontendWebSocketSubProtocol.h"
 
+#include "apps/codex-backend/FrontendCloseReason.h"
 #include "core/socket/stream/SocketConnection.h"
 #include "web/websocket/SubProtocolContext.h"
 
@@ -50,10 +51,10 @@ namespace apps::codex_backend {
                                                const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                return locked && locked->subProtocol && locked->subProtocol->sendOutbound(message);
                                            },
-                                           [weakLifetime]([[maybe_unused]] const std::string& reason) {
+                                           [weakLifetime](const std::string& reason) {
                                                const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                if (locked && locked->subProtocol) {
-                                                   locked->subProtocol->closeBounded(ClosePolicyViolation, "frontend connection closed");
+                                                   locked->subProtocol->serviceClosed(reason);
                                                }
                                            },
                                        });
@@ -123,6 +124,14 @@ namespace apps::codex_backend {
         } catch (...) {
             return false;
         }
+    }
+
+    void FrontendWebSocketSubProtocol::serviceClosed(std::string reason) noexcept {
+        if (closeStarted) {
+            return;
+        }
+        logFrontendCloseReason("WebSocket transport", reason);
+        closeBounded(ClosePolicyViolation, "frontend connection closed");
     }
 
     void FrontendWebSocketSubProtocol::closeBounded(std::uint16_t status, const char* reason) noexcept {

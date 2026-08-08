@@ -11,6 +11,7 @@
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
 
+#include <optional>
 #include <string>
 
 namespace ai::openai::codex::frontend::detail {
@@ -20,6 +21,13 @@ namespace ai::openai::codex::frontend::detail {
     // Builds the complete safe A1.6b domain view consumed by the generated
     // ExpandedBackendSnapshotState schema. The returned object has no protocol
     // envelope; FrontendProjection selects and wraps it for each connection.
+    [[nodiscard]] Json threadListProjection(const backend::ThreadListSnapshot& threadList) noexcept;
+
+    // Resolves the exact production backend-to-frontend item-kind mapping used
+    // by every expanded item projection. This detail-only seam also lets
+    // currentness tests prove the reviewed mapping without duplicating it.
+    [[nodiscard]] std::optional<ThreadItemKind> expandedItemKind(const backend::ItemSnapshot& item) noexcept;
+
     [[nodiscard]] Json expandedSnapshotState(const backend::Snapshot& snapshot) noexcept;
 
     [[nodiscard]] CanonicalSnapshotRecord makeCanonicalSnapshotRecord(Json legacyState,

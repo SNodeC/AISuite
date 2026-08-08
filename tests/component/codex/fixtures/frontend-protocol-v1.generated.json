@@ -2,7 +2,7 @@
   "generatedBy": "tools/frontend/generate_frontend_protocol.py",
   "counts": {
     "methods": 105,
-    "expandedEvents": 25
+    "expandedEvents": 26
   },
   "methods": [
     {
@@ -661,10 +661,14 @@
     {
       "method": "command.exec",
       "minimalParams": {
-        "command": []
+        "command": [
+          "x"
+        ]
       },
       "completeParams": {
-        "command": [],
+        "command": [
+          "x"
+        ],
         "cwd": "x",
         "disableOutputCap": false,
         "disableTimeout": false,
@@ -695,31 +699,45 @@
       },
       "nullableParams": [
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "cwd": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "env": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "outputBytesCap": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "processId": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "sandboxPolicy": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "size": null
         },
         {
-          "command": [],
+          "command": [
+            "x"
+          ],
           "timeoutMs": null
         }
       ],
@@ -3965,6 +3983,17 @@
           "truncated": false
         }
       },
+      "threadList": {
+        "backwardsCursor": "x",
+        "complete": false,
+        "hasLoadedPage": false,
+        "nextCursor": "x",
+        "pagesLoaded": 0,
+        "stamp": {
+          "freshness": "unknown",
+          "generation": 0
+        }
+      },
       "threads": [],
       "truncation": {
         "droppedBytes": 0,
@@ -4023,6 +4052,17 @@
       },
       "sequence": 1,
       "type": "sessions.updated"
+    },
+    {
+      "data": {
+        "threadList": {
+          "complete": false,
+          "hasLoadedPage": false,
+          "pagesLoaded": 0
+        }
+      },
+      "sequence": 1,
+      "type": "threadList.updated"
     },
     {
       "data": {

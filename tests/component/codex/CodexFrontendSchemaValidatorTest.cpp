@@ -331,6 +331,61 @@ namespace {
                               unknownKindStatistics.alternativesEvaluated == 0 && unknownTypeStatistics.alternativesEvaluated == 0,
                           "actual generated method, kind, and type unions reject unknown discriminators without payload traversal");
 
+        frontend::Json invalidExpandedItemEvent = fixtures.at("expandedEvents").at(7);
+        invalidExpandedItemEvent["data"]["item"]["type"] = "user_message";
+        invalidExpandedItemEvent["data"]["item"]["credential"] = "NESTED_SECRET_MUST_NOT_APPEAR";
+        const Validation exactItemDiagnostic = validator::validateGeneratedSchema(
+            root, "#/$defs/ExpandedFrontendEvent", invalidExpandedItemEvent, "expanded event", Limits{}, nullptr);
+        result.expectTrue(!exactItemDiagnostic.valid &&
+                              exactItemDiagnostic.message ==
+                                  "expanded event.data.item.type value 'user_message' is not a schema-defined discriminator" &&
+                              exactItemDiagnostic.message.find("NESTED_SECRET_MUST_NOT_APPEAR") == std::string::npos,
+                          "expanded item diagnostics include only the exact path and bounded rejected string discriminator");
+
+        invalidExpandedItemEvent["data"]["item"]["type"] = "bad'\n\\type";
+        const Validation escapedItemDiagnostic = validator::validateGeneratedSchema(
+            root, "#/$defs/ExpandedFrontendEvent", invalidExpandedItemEvent, "expanded event", Limits{}, nullptr);
+        result.expectTrue(escapedItemDiagnostic.message ==
+                              "expanded event.data.item.type value 'bad\\'\\n\\\\type' is not a schema-defined discriminator",
+                          "discriminator diagnostics deterministically escape quotes, controls, and backslashes");
+
+        std::string longUtf8Discriminator;
+        std::string boundedUtf8Prefix;
+        for (std::size_t index = 0; index < 80; ++index) {
+            longUtf8Discriminator += "\xC3\xA9";
+            if (index < 62) {
+                boundedUtf8Prefix += "\xC3\xA9";
+            }
+        }
+        longUtf8Discriminator += "TRUNCATED_SECRET";
+        invalidExpandedItemEvent["data"]["item"]["type"] = longUtf8Discriminator;
+        const Validation boundedUtf8Diagnostic = validator::validateGeneratedSchema(
+            root, "#/$defs/ExpandedFrontendEvent", invalidExpandedItemEvent, "expanded event", Limits{}, nullptr);
+        const std::string expectedBoundedUtf8 =
+            "expanded event.data.item.type value '" + boundedUtf8Prefix + "...' is not a schema-defined discriminator";
+        result.expectTrue(boundedUtf8Diagnostic.message == expectedBoundedUtf8 &&
+                              boundedUtf8Diagnostic.message.find("TRUNCATED_SECRET") == std::string::npos,
+                          "long discriminator diagnostics retain a valid UTF-8 prefix within the 128-byte value bound");
+
+        std::string invalidUtf8 = "ok";
+        invalidUtf8.push_back(static_cast<char>(0xC3));
+        invalidUtf8 += "INVALID_UTF8_SECRET";
+        invalidExpandedItemEvent["data"]["item"]["type"] = invalidUtf8;
+        const Validation invalidUtf8Diagnostic = validator::validateGeneratedSchema(
+            root, "#/$defs/ExpandedFrontendEvent", invalidExpandedItemEvent, "expanded event", Limits{}, nullptr);
+        result.expectTrue(invalidUtf8Diagnostic.message ==
+                                  "expanded event.data.item.type value 'ok...' is not a schema-defined discriminator" &&
+                              invalidUtf8Diagnostic.message.find("INVALID_UTF8_SECRET") == std::string::npos,
+                          "invalid UTF-8 discriminator tails are contained without leaking subsequent bytes");
+
+        invalidExpandedItemEvent["data"]["item"]["type"] = frontend::Json{{"secret", "OBJECT_SECRET_MUST_NOT_APPEAR"}};
+        const Validation nonStringDiagnostic = validator::validateGeneratedSchema(
+            root, "#/$defs/ExpandedFrontendEvent", invalidExpandedItemEvent, "expanded event", Limits{}, nullptr);
+        result.expectTrue(nonStringDiagnostic.message ==
+                                  "expanded event.data.item.type value has JSON type 'object' is not a schema-defined discriminator" &&
+                              nonStringDiagnostic.message.find("OBJECT_SECRET_MUST_NOT_APPEAR") == std::string::npos,
+                          "non-string discriminator diagnostics report only the JSON type and exact path");
+
         frontend::Json duplicateGeneratedRoot = root;
         frontend::Json& generatedCommandBranches = duplicateGeneratedRoot["$defs"]["Command"]["allOf"][1]["oneOf"];
         generatedCommandBranches[1]["properties"]["method"]["const"] = generatedCommandBranches[0]["properties"]["method"]["const"];
@@ -684,11 +739,11 @@ namespace {
             corpus.observe(statistics);
         }
         result.expectTrue(
-            valid && corpus.validations == 558 && corpus.maximumVisits <= CorpusVisitCeiling && corpus.maximumDepth <= CorpusDepthCeiling &&
+            valid && corpus.validations == 559 && corpus.maximumVisits <= CorpusVisitCeiling && corpus.maximumDepth <= CorpusDepthCeiling &&
                 corpus.maximumReferences <= CorpusReferenceCeiling && corpus.maximumAlternatives <= CorpusAlternativeCeiling &&
                 corpus.maximumDiscriminatorFastPaths <= CorpusDiscriminatorCeiling &&
                 corpus.maximumRegularExpressions <= CorpusRegexCeiling && corpus.maximumUniqueComparisons == 0,
-            "all 558 generated minimal, complete, nullable, snapshot, and event fixtures stay within fixed production ceilings");
+            "all 559 generated minimal, complete, nullable, snapshot, and event fixtures stay within fixed production ceilings");
 
         Statistics generatedDepthStatistics;
         const frontend::Json& generatedSnapshot = fixtures.at("expandedSnapshot");

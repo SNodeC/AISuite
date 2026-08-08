@@ -4,6 +4,12 @@ if(NOT DEFINED AISUITE_BUILD_DIR OR NOT DEFINED AISUITE_SOURCE_DIR)
             "UserIntegrationInstalledConsumerNotInstalled: AISUITE_BUILD_DIR and AISUITE_SOURCE_DIR are required"
     )
 endif()
+if(NOT DEFINED AISUITE_BUILD_APPS)
+    set(AISUITE_BUILD_APPS ON)
+endif()
+if(NOT DEFINED AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    set(AISUITE_BUILD_CODEX_FRONTEND_CLIENT ON)
+endif()
 if(DEFINED AISUITE_INSTALLED_CONSUMER_TEMP_ROOT AND
    NOT "${AISUITE_INSTALLED_CONSUMER_TEMP_ROOT}" STREQUAL "")
     set(temporary_root "${AISUITE_INSTALLED_CONSUMER_TEMP_ROOT}")
@@ -268,19 +274,32 @@ string(FIND "${installed_aisuite_targets_text}"
 string(FIND "${installed_aisuite_targets_text}"
        "AISuite::OpenAICodexFrontendClient" frontend_client_target_index
 )
-if(frontend_target_index EQUAL -1 OR NOT frontend_client_target_index EQUAL -1)
+if(frontend_target_index EQUAL -1)
     fail_installed(
-        "installed target boundary must expose OpenAICodexFrontend without an A1.7c frontend-client target"
+        "installed target boundary must expose OpenAICodexFrontend"
+    )
+endif()
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT AND
+   frontend_client_target_index EQUAL -1)
+    fail_installed(
+        "SDK-enabled install must expose OpenAICodexFrontendClient"
+    )
+elseif(NOT AISUITE_BUILD_CODEX_FRONTEND_CLIENT AND
+       NOT frontend_client_target_index EQUAL -1)
+    fail_installed(
+        "SDK-disabled install unexpectedly exposes OpenAICodexFrontendClient"
     )
 endif()
 
-foreach(
-    codex_library
-    IN ITEMS
-       aisuite-openai-codex
-       aisuite-openai-codex-backend
-       aisuite-openai-codex-frontend
+set(codex_libraries
+    aisuite-openai-codex
+    aisuite-openai-codex-backend
+    aisuite-openai-codex-frontend
 )
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    list(APPEND codex_libraries aisuite-openai-codex-frontend-client)
+endif()
+foreach(codex_library IN LISTS codex_libraries)
     set(codex_soversion_library
         "${aisuite_install}/lib/lib${codex_library}.so.2"
     )
@@ -321,6 +340,39 @@ foreach(
         )
     endif()
 endforeach()
+
+if(AISUITE_BUILD_APPS AND AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    set(installed_frontend_client
+        "${aisuite_install}/bin/codex-backend-client"
+    )
+    if(NOT EXISTS "${installed_frontend_client}")
+        fail_installed(
+            "SDK-enabled application install is missing ${installed_frontend_client}"
+        )
+    endif()
+    execute_process(
+        COMMAND
+            ${isolated_environment}
+            "${readelf_executable}" -d "${installed_frontend_client}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE frontend_client_dynamic_metadata
+        ERROR_VARIABLE error
+    )
+    require_success(
+        "${result}" "${frontend_client_dynamic_metadata}" "${error}"
+        "codex-backend-client ELF dependency inspection"
+    )
+    string(
+        FIND "${frontend_client_dynamic_metadata}"
+        "Shared library: [libaisuite-openai-codex-frontend-client.so.2]"
+        frontend_client_sdk_needed
+    )
+    if(frontend_client_sdk_needed EQUAL -1)
+        fail_installed(
+            "installed codex-backend-client does not record the canonical Frontend SDK as a direct runtime dependency"
+        )
+    endif()
+endif()
 
 file(
     COPY "${AISUITE_SOURCE_DIR}/tests/installed/codex/"
@@ -372,7 +424,7 @@ require_path_under("${snodec_dir}" "${snodec_install}" "snodec_DIR")
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 28 --verbose
+        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 26 --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE consumer_build_output
     ERROR_VARIABLE consumer_build_error
@@ -461,7 +513,7 @@ require_success(
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 28
+        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 26
         --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE module_consumer_build_output
@@ -507,9 +559,13 @@ set(installed_consumers
     AISuiteInstalledCodexApplicationProjectionConsumer
     AISuiteInstalledCodexBackendFrontendConsumer
 )
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    list(APPEND installed_consumers AISuiteInstalledCodexFrontendClientConsumer)
+endif()
 set(saw_aisuite_main_runtime_library FALSE)
 set(saw_aisuite_backend_runtime_library FALSE)
 set(saw_aisuite_frontend_runtime_library FALSE)
+set(saw_aisuite_frontend_client_runtime_library FALSE)
 set(saw_snodec_runtime_library FALSE)
 foreach(consumer IN LISTS installed_consumers)
     set(executable "${consumer_build}/${consumer}")
@@ -572,9 +628,14 @@ foreach(consumer IN LISTS installed_consumers)
                "libaisuite-openai-codex-frontend.so.1"
                linked_legacy_frontend
         )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend-client.so.1"
+               linked_legacy_frontend_client
+        )
         if(NOT linked_legacy_main EQUAL -1 OR
            NOT linked_legacy_backend EQUAL -1 OR
-           NOT linked_legacy_frontend EQUAL -1)
+           NOT linked_legacy_frontend EQUAL -1 OR
+           NOT linked_legacy_frontend_client EQUAL -1)
             fail_installed(
                 "${consumer} resolved an obsolete AISuite Codex .so.1 runtime"
             )
@@ -590,6 +651,10 @@ foreach(consumer IN LISTS installed_consumers)
                "libaisuite-openai-codex-frontend.so.2"
                linked_frontend
         )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend-client.so.2"
+               linked_frontend_client
+        )
         if(NOT linked_main EQUAL -1)
             set(saw_aisuite_main_runtime_library TRUE)
         endif()
@@ -598,6 +663,9 @@ foreach(consumer IN LISTS installed_consumers)
         endif()
         if(NOT linked_frontend EQUAL -1)
             set(saw_aisuite_frontend_runtime_library TRUE)
+        endif()
+        if(NOT linked_frontend_client EQUAL -1)
+            set(saw_aisuite_frontend_client_runtime_library TRUE)
         endif()
     endif()
     string(FIND "${linked_libraries}" "libsnodec-" uses_snodec)
@@ -623,6 +691,27 @@ foreach(consumer IN LISTS installed_consumers)
                 "direct installed SNode.C consumer did not resolve snodec::core from ${snodec_install}"
             )
         endif()
+    endif()
+    if(consumer STREQUAL "AISuiteInstalledCodexFrontendClientConsumer")
+        foreach(
+            forbidden_sdk_runtime
+            IN ITEMS
+               libsnodec-net-
+               libsnodec-http
+               libsnodec-websocket
+               libssl
+               libcrypto
+               libbluetooth
+        )
+            string(FIND "${linked_libraries}" "${forbidden_sdk_runtime}"
+                   forbidden_sdk_runtime_index
+            )
+            if(NOT forbidden_sdk_runtime_index EQUAL -1)
+                fail_cross_repo(
+                    "transport-neutral SDK consumer resolves forbidden runtime ${forbidden_sdk_runtime}: ${linked_libraries}"
+                )
+            endif()
+        endforeach()
     endif()
 
     execute_process(
@@ -701,9 +790,11 @@ require_success(
 if(NOT saw_aisuite_main_runtime_library OR
    NOT saw_aisuite_backend_runtime_library OR
    NOT saw_aisuite_frontend_runtime_library OR
+   (AISUITE_BUILD_CODEX_FRONTEND_CLIENT AND
+    NOT saw_aisuite_frontend_client_runtime_library) OR
    NOT saw_snodec_runtime_library)
     fail_cross_repo(
-        "consumer runtime proof did not observe all three AISuite Codex .so.2 libraries and SNode.C from their isolated install prefixes"
+        "consumer runtime proof did not observe every configured AISuite Codex .so.2 library and SNode.C from their isolated install prefixes"
     )
 endif()
 

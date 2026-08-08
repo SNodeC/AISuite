@@ -10,6 +10,7 @@
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/frontend/EventCoalescer.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -44,6 +45,10 @@ namespace {
 
     Json agentItemValue(const std::string& id, const std::string& text = {}) {
         return {{"type", "agentMessage"}, {"id", id}, {"text", text}};
+    }
+
+    Json resultTurnValue(const std::string& threadId, const std::string& turnId, const std::string& itemId, const std::string& text) {
+        return tests::codex::turnValue(threadId, turnId, "completed", Json::array({agentItemValue(itemId, text)}));
     }
 
     struct LegacyMetadataItemFixture {
@@ -288,11 +293,14 @@ namespace {
         std::size_t schedulingRequests = 0;
         for (std::size_t index = 0; index < 1000; ++index) {
             accumulated += static_cast<char>('a' + static_cast<int>(index % 26));
-            const frontend::CoalescerMarkResult marked =
-                coalescer.mark({agentKey,
-                                "item.content.updated",
-                                frontend::Json{{"itemId", "item-1"}, {"channel", "agentText"}, {"content", accumulated}},
-                                frontend::FlushUrgency::Deferred});
+            const frontend::CoalescerMarkResult marked = coalescer.mark({agentKey,
+                                                                         "item.content.updated",
+                                                                         frontend::Json{{"threadId", "thread-1"},
+                                                                                        {"turnId", "turn-1"},
+                                                                                        {"itemId", "item-1"},
+                                                                                        {"channel", "agentText"},
+                                                                                        {"content", accumulated}},
+                                                                         frontend::FlushUrgency::Deferred});
             schedulingRequests += marked.scheduleRequired ? 1U : 0U;
         }
         result.expectTrue(coalescer.dirtyCount() == 1 && schedulingRequests == 1 && coalescer.flushScheduled(),
@@ -312,15 +320,27 @@ namespace {
 
         const auto reasoning = coalescer.mark({frontend::CoalescingKey::itemContent("thread-1", "turn-1", "item-1", "reasoningText"),
                                                "item.content.updated",
-                                               frontend::Json{{"content", "reasoning-final"}},
+                                               frontend::Json{{"threadId", "thread-1"},
+                                                              {"turnId", "turn-1"},
+                                                              {"itemId", "item-1"},
+                                                              {"channel", "reasoningText"},
+                                                              {"content", "reasoning-final"}},
                                                frontend::FlushUrgency::Deferred});
         const auto commandOutput = coalescer.mark({frontend::CoalescingKey::itemContent("thread-1", "turn-1", "item-1", "commandOutput"),
                                                    "item.content.updated",
-                                                   frontend::Json{{"content", "command-final"}},
+                                                   frontend::Json{{"threadId", "thread-1"},
+                                                                  {"turnId", "turn-1"},
+                                                                  {"itemId", "item-1"},
+                                                                  {"channel", "commandOutput"},
+                                                                  {"content", "command-final"}},
                                                    frontend::FlushUrgency::Deferred});
         const auto otherTurn = coalescer.mark({frontend::CoalescingKey::itemContent("thread-1", "turn-2", "item-1", "reasoningText"),
                                                "item.content.updated",
-                                               frontend::Json{{"content", "other-turn"}},
+                                               frontend::Json{{"threadId", "thread-1"},
+                                                              {"turnId", "turn-2"},
+                                                              {"itemId", "item-1"},
+                                                              {"channel", "reasoningText"},
+                                                              {"content", "other-turn"}},
                                                frontend::FlushUrgency::Deferred});
         result.expectTrue(reasoning.accepted() && commandOutput.accepted() && otherTurn.accepted() && coalescer.dirtyCount() == 3,
                           "reasoning, command output, and a same-named item in another turn never coalesce together");
@@ -346,7 +366,11 @@ namespace {
         result.expectTrue(terminalOrdering
                               .mark({frontend::CoalescingKey::itemContent("thread-order", "turn-order", "item-order", "agentText"),
                                      "item.content.updated",
-                                     frontend::Json{{"itemId", "item-order"}, {"channel", "agentText"}, {"content", "final"}},
+                                     frontend::Json{{"threadId", "thread-order"},
+                                                    {"turnId", "turn-order"},
+                                                    {"itemId", "item-order"},
+                                                    {"channel", "agentText"},
+                                                    {"content", "final"}},
                                      frontend::FlushUrgency::Deferred})
                               .accepted(),
                           "final item content remains independently dirty from its turn");
@@ -374,6 +398,63 @@ namespace {
             {frontend::CoalescingKey::thread("two"), "thread.updated", frontend::Json::object(), frontend::FlushUrgency::Deferred});
         result.expectTrue(overflow.status == frontend::CoalescerMarkStatus::SnapshotRequired && bounded.dirtyCount() == 1,
                           "dirty-entity capacity is bounded and degrades to a snapshot instead of growing");
+    }
+
+    void testProducerRejectsMalformedExpandedEventBeforeTransport(tests::support::TestResult& result) {
+        constexpr std::string_view FixtureSecret = "fixture-secret-that-must-never-reach-the-close-reason";
+
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(backendOptions, transport);
+
+        frontend::FrontendServiceOptions serviceOptions;
+        enableVerifiedTestTrust(serviceOptions);
+        serviceOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        frontend::FrontendService service(core, serviceOptions);
+
+        Observations observations;
+        frontend::FrontendConnection connection = service.openConnection(trustedPeer(), callbacksFor(observations));
+        frontend::FrontendEvent malformed{
+            frontend::SequenceNumber{123},
+            "item.upserted",
+            Json{{"item",
+                  Json{{"id", "item-serialization-failure"},
+                       {"threadId", "thread-serialization-failure"},
+                       {"turnId", "turn-serialization-failure"},
+                       {"type", "user_message"},
+                       {"opaqueFixture", FixtureSecret}}}},
+            Json::object(),
+        };
+        frontend::EventBatch batch{frontend::SequenceNumber{123}, frontend::SequenceNumber{123}, {std::move(malformed)}, Json::object()};
+
+        const bool enqueued = frontend::FrontendServiceTestAccess::enqueue(service, connection, frontend::ServerMessage{std::move(batch)});
+        result.expectTrue(!enqueued && !connection.isOpen() && connection.queuedMessages() == 0 && connection.queuedBytes() == 0 &&
+                              service.isOpen() && service.connectionCount() == 0,
+                          "producer-side schema failure closes only the offending connection without queuing malformed bytes");
+        result.expectTrue(observations.messages.empty() && observations.compactJson.empty() && observations.serializedBytes.empty(),
+                          "producer-side schema failure invokes no transport callback and writes no partial frame");
+
+        scheduler.drain();
+        const bool oneBoundedSafeReason =
+            observations.closeReasons.size() == 1 && observations.closeReasons.front().size() <= 512 &&
+            observations.closeReasons.front().find(
+                "expanded event.data.item.type value 'user_message' is not a schema-defined discriminator") != std::string::npos &&
+            observations.closeReasons.front().find(FixtureSecret) == std::string::npos &&
+            observations.closeReasons.front().find("item-serialization-failure") == std::string::npos &&
+            observations.closeReasons.front().find("thread-serialization-failure") == std::string::npos &&
+            observations.closeReasons.front().find("turn-serialization-failure") == std::string::npos &&
+            observations.closeReasons.front().find("opaqueFixture") == std::string::npos;
+        result.expectTrue(oneBoundedSafeReason,
+                          "producer-side schema failure reports only the bounded discriminator path and rejected value");
+
+        service.close("producer serialization failure test complete");
+        scheduler.drain();
     }
 
     void testAuthenticationAdmissionAndTopology(tests::support::TestResult& result) {
@@ -600,17 +681,22 @@ namespace {
         for (Observations& observations : unixClientObservations) {
             unixClients.push_back(service.openConnection(trustedPeer(), callbacksFor(observations)));
         }
-        result.expectTrue(runtimeCapabilities.size() == 13 && service.connectionCount() == 5 &&
-                              std::find(runtimeCapabilities.begin(),
-                                        runtimeCapabilities.end(),
-                                        frontend::FrontendCapability::MultiTransport) == runtimeCapabilities.end(),
-                          "the runtime reports thirteen mechanisms and never advertises the legacy multi_transport capability");
+        result.expectTrue(
+            runtimeCapabilities.size() == 14 && service.connectionCount() == 5 &&
+                std::find(runtimeCapabilities.begin(), runtimeCapabilities.end(), frontend::FrontendCapability::CppClientSdk) !=
+                    runtimeCapabilities.end() &&
+                std::find(runtimeCapabilities.begin(), runtimeCapabilities.end(), frontend::FrontendCapability::MultiTransport) ==
+                    runtimeCapabilities.end(),
+            "the SDK-enabled runtime reports thirteen static mechanisms plus cpp_client_sdk with no topology capability");
         const frontend::Welcome* firstWelcome = welcome(authenticated);
         result.expectTrue(firstWelcome && firstWelcome->capabilities &&
                               std::find(firstWelcome->capabilities->implemented.begin(),
                                         firstWelcome->capabilities->implemented.end(),
                                         frontend::FrontendCapability::MultiTransport) == firstWelcome->capabilities->implemented.end(),
-                          "Welcome omits the legacy multi_transport capability");
+                          "a handshake made without multiple declared transport families omits multi_transport");
+
+        service.declareTransportFamily(frontend::FrontendTransportKind::Unix);
+        service.declareTransportFamily(frontend::FrontendTransportKind::WebSocket);
 
         frontend::FrontendPeerContext multiTopologyPeer = otherRemote;
         multiTopologyPeer.remoteAddress = "127.0.0.3:34000";
@@ -623,9 +709,10 @@ namespace {
         result.expectTrue(initialMultiTopologyWelcome && initialMultiTopologyWelcome->capabilities &&
                               std::find(initialMultiTopologyWelcome->capabilities->implemented.begin(),
                                         initialMultiTopologyWelcome->capabilities->implemented.end(),
-                                        frontend::FrontendCapability::MultiTransport) ==
+                                        frontend::FrontendCapability::MultiTransport) !=
                                   initialMultiTopologyWelcome->capabilities->implemented.end(),
-                          "new handshakes also omit multi_transport");
+                          "a new handshake advertises multi_transport for two declared transport families");
+        service.withdrawTransportFamily(frontend::FrontendTransportKind::WebSocket);
         frontend::FrontendPeerContext reducedTopologyPeer = otherRemote;
         reducedTopologyPeer.remoteAddress = "127.0.0.4:35000";
         Observations reducedTopologyHandshake;
@@ -644,8 +731,8 @@ namespace {
                 retainedMultiTopologyWelcome && retainedMultiTopologyWelcome->capabilities &&
                 std::find(retainedMultiTopologyWelcome->capabilities->implemented.begin(),
                           retainedMultiTopologyWelcome->capabilities->implemented.end(),
-                          frontend::FrontendCapability::MultiTransport) == retainedMultiTopologyWelcome->capabilities->implemented.end(),
-            "all authenticated handshakes retain the same thirteen static mechanism capabilities");
+                          frontend::FrontendCapability::MultiTransport) != retainedMultiTopologyWelcome->capabilities->implemented.end(),
+            "topology truth is evaluated per handshake while an existing Welcome remains immutable");
 
         Observations timedOut;
         frontend::FrontendConnection timeoutConnection = service.openConnection(otherRemote, callbacksFor(timedOut));
@@ -1067,9 +1154,9 @@ namespace {
 
         const frontend::Welcome* discovery = welcome(observations);
         result.expectTrue(discovery != nullptr && discovery->capabilities.has_value() && discovery->capabilities->defined.size() == 18 &&
-                              discovery->capabilities->implemented.size() == 13 &&
+                              discovery->capabilities->implemented.size() == 14 &&
                               discovery->capabilities->permitted == discovery->capabilities->implemented,
-                          "A1.7b Welcome distinguishes 18 definitions from thirteen implemented service mechanisms");
+                          "Welcome distinguishes 18 definitions from thirteen static mechanisms plus the built C++ SDK product");
         result.expectTrue(discovery != nullptr && discovery->availableMethods.has_value() && discovery->availableMethods->size() == 90 &&
                               discovery->permittedMethods == discovery->availableMethods &&
                               std::all_of(discovery->availableMethods->begin(),
@@ -1078,6 +1165,13 @@ namespace {
                                               return frontend::generated::runtimeMethodFromString(method).has_value();
                                           }),
                           "the local_trusted A1.7b runtime advertises and permits all 90 deployment-enabled methods");
+        frontend::Json expectedScopes = frontend::Json::array();
+        for (const frontend::FrontendScope scope : frontend::LocalTrustedScopes) {
+            expectedScopes.push_back(std::string(frontend::toString(scope)));
+        }
+        result.expectTrue(discovery != nullptr && discovery->extensions.contains("permittedScopes") &&
+                              discovery->extensions.at("permittedScopes") == expectedScopes,
+                          "the modern Welcome advertises the exact local_trusted permitted-scope set alongside both method sets");
 
         const std::size_t providerSubmissions = transport->outgoing.size();
         const frontend::ConnectionReceiveResult unavailable = connection.receive(frontend::Json{
@@ -1718,6 +1812,7 @@ namespace {
             const std::string backendText = terminalBackendText();
             const std::string frontendTextA = latestFrontendText(observerA);
             const std::string frontendTextB = latestFrontendText(observerB);
+            const std::string closeReason = observerA.closeReasons.empty() ? "open" : observerA.closeReasons.front();
             return "backend=" + std::to_string(backendText.size()) + "/" + std::to_string(expectedText.size()) +
                    ", frontendA=" + std::to_string(frontendTextA.size()) + ", frontendB=" + std::to_string(frontendTextB.size()) +
                    ", user=" +
@@ -1726,14 +1821,8 @@ namespace {
                    "/" +
                    std::to_string(hasCompletedItemUpdate(
                        observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs)) +
-                   ", unknown=" +
-                   std::to_string(hasCompletedItemUpdate(
-                       observerA, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs)) +
-                   "/" +
-                   std::to_string(hasCompletedItemUpdate(
-                       observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs)) +
                    ", legacy=" + std::to_string(hasMetadataOnlyLegacyItemUpdates(observerA)) + "/" +
-                   std::to_string(hasMetadataOnlyLegacyItemUpdates(observerB));
+                   std::to_string(hasMetadataOnlyLegacyItemUpdates(observerB)) + ", connection=" + closeReason;
         }
 
     private:
@@ -1789,22 +1878,38 @@ namespace {
             if (*method == "thread/list") {
                 const Json params = message.value("params", Json::object());
                 const bool frontendRequest = params.value("cursor", "") == wrapperCursor;
+                Json page = Json::array();
+                if (frontendRequest) {
+                    page.push_back(tests::codex::threadValue(
+                        wrapperThreadId,
+                        Json::array({resultTurnValue(wrapperThreadId, wrapperListTurnId, wrapperListItemId, "list nested item")})));
+                }
+                tests::codex::inject(
+                    callbacks,
+                    Json{{"id", *id}, {"result", {{"data", std::move(page)}, {"nextCursor", nullptr}, {"backwardsCursor", nullptr}}}});
+            } else if (*method == "thread/start" || *method == "thread/resume") {
+                tests::codex::inject(callbacks,
+                                     Json{{"id", *id},
+                                          {"result",
+                                           tests::codex::threadOperationResult(
+                                               wrapperThreadId,
+                                               Json::array({resultTurnValue(
+                                                   wrapperThreadId, wrapperStartTurnId, wrapperStartItemId, "start nested item")}))}});
+            } else if (*method == "thread/read") {
+                const std::string threadId = message.value("params", Json::object()).value("threadId", wrapperReadThreadId);
                 tests::codex::inject(
                     callbacks,
                     Json{{"id", *id},
                          {"result",
-                          {{"data", frontendRequest ? Json::array({tests::codex::threadValue(wrapperThreadId)}) : Json::array()},
-                           {"nextCursor", nullptr},
-                           {"backwardsCursor", nullptr}}}});
-            } else if (*method == "thread/start" || *method == "thread/resume") {
-                tests::codex::inject(callbacks, Json{{"id", *id}, {"result", tests::codex::threadOperationResult(wrapperThreadId)}});
-            } else if (*method == "thread/read") {
-                const std::string threadId = message.value("params", Json::object()).value("threadId", wrapperReadThreadId);
-                tests::codex::inject(callbacks, Json{{"id", *id}, {"result", {{"thread", tests::codex::threadValue(threadId)}}}});
+                          {{"thread",
+                            tests::codex::threadValue(
+                                threadId,
+                                Json::array({resultTurnValue(threadId, wrapperReadTurnId, wrapperReadItemId, "read nested item")}))}}}});
             } else if (*method == "turn/start") {
                 tests::codex::inject(
                     callbacks,
-                    Json{{"id", *id}, {"result", {{"turn", tests::codex::turnValue(wrapperThreadId, wrapperTurnId, "completed")}}}});
+                    Json{{"id", *id},
+                         {"result", {{"turn", resultTurnValue(wrapperThreadId, wrapperTurnId, wrapperTurnItemId, "turn nested item")}}}});
             } else if (*method == "turn/interrupt") {
                 tests::codex::inject(callbacks, Json{{"id", *id}, {"result", Json::object()}});
             }
@@ -1951,6 +2056,8 @@ namespace {
                     turnStart.threadId = wrapperThreadId;
                     turnStart.input = {frontend::TextInput{"Hello from the v1 wrapper regression"}};
 
+                    wrapperEventBaseline = events(observerA).size();
+
                     expect(
                         connectionA->receive(command(wrapperThreadStartRequestId, frontend::ThreadStart{})).accepted() &&
                             connectionA->receive(command(wrapperThreadResumeRequestId, std::move(resume))).accepted() &&
@@ -1968,7 +2075,8 @@ namespace {
                                    response(observerA, wrapperThreadResumeRequestId) != nullptr &&
                                    response(observerA, wrapperThreadListRequestId) != nullptr &&
                                    response(observerA, wrapperTurnStartRequestId) != nullptr &&
-                                   response(observerA, wrapperTurnInterruptRequestId) != nullptr;
+                                   response(observerA, wrapperTurnInterruptRequestId) != nullptr &&
+                                   familyEventsAfter(observerA, wrapperEventBaseline, {"threadList.updated"}).size() == 1;
                         },
                         [this]() {
                             verifyExactWrapperProjectionBeforeRead();
@@ -2000,27 +2108,72 @@ namespace {
         }
 
         void verifyExactWrapperProjectionBeforeRead() {
-            const auto exactThreadResult = [this](const char* requestId, const char* expectedThreadId, bool fullyLoaded) {
+            const auto responseResult = [this](const char* requestId) {
+                const frontend::Response* value = response(observerA, requestId);
+                return value != nullptr && value->result ? value->result->dump() : std::string{"missing"};
+            };
+            const auto containsNested = [](const Json& thread, const char* expectedTurnId, const char* expectedItemId) {
+                const Json turns = thread.value("turns", Json::array());
+                const auto turn = std::find_if(turns.begin(), turns.end(), [expectedTurnId](const Json& candidate) {
+                    return candidate.value("id", "") == expectedTurnId;
+                });
+                if (turn == turns.end()) {
+                    return false;
+                }
+                const Json items = turn->value("items", Json::array());
+                return std::find_if(items.begin(), items.end(), [expectedItemId](const Json& candidate) {
+                           return candidate.value("id", "") == expectedItemId;
+                       }) != items.end();
+            };
+            const auto exactThreadResult = [this](const char* requestId,
+                                                  const char* expectedThreadId,
+                                                  bool fullyLoaded,
+                                                  const char* expectedTurnId,
+                                                  const char* expectedItemId,
+                                                  const auto& containsNested) {
                 const frontend::Response* value = response(observerA, requestId);
                 return value != nullptr && value->ok && value->result.has_value() && value->result->size() == 1 &&
                        value->result->contains("thread") && (*value->result)["thread"].is_object() &&
                        (*value->result)["thread"].value("id", "") == expectedThreadId &&
-                       (*value->result)["thread"].value("fullyLoaded", !fullyLoaded) == fullyLoaded;
+                       (*value->result)["thread"].value("fullyLoaded", !fullyLoaded) == fullyLoaded &&
+                       containsNested((*value->result)["thread"], expectedTurnId, expectedItemId);
             };
-            expect(exactThreadResult(wrapperThreadStartRequestId, wrapperThreadId, false) &&
-                       exactThreadResult(wrapperThreadResumeRequestId, wrapperThreadId, false),
-                   "thread start/resume exact result wrappers preserve the v1 envelope and summary-load semantics");
+            expect(exactThreadResult(
+                       wrapperThreadStartRequestId, wrapperThreadId, false, wrapperStartTurnId, wrapperStartItemId, containsNested) &&
+                       exactThreadResult(
+                           wrapperThreadResumeRequestId, wrapperThreadId, false, wrapperStartTurnId, wrapperStartItemId, containsNested),
+                   "thread start/resume exact result wrappers preserve nested turn/item values and summary-load semantics (start=" +
+                       responseResult(wrapperThreadStartRequestId) + ", resume=" + responseResult(wrapperThreadResumeRequestId) + ")");
 
             const frontend::Response* list = response(observerA, wrapperThreadListRequestId);
+            const std::vector<frontend::FrontendEvent> threadListEvents =
+                familyEventsAfter(observerA, wrapperEventBaseline, {"threadList.updated"});
+            const std::vector<frontend::FrontendEvent> threadEvents =
+                familyEventsAfter(observerA, wrapperEventBaseline, {"thread.upserted"});
+            const bool reservedLookingThreadPreserved =
+                std::any_of(threadEvents.begin(), threadEvents.end(), [](const frontend::FrontendEvent& event) {
+                    const auto thread = event.data.find("thread");
+                    return thread != event.data.end() && thread->is_object() && thread->value("id", "") == wrapperThreadId;
+                });
             expect(list != nullptr && list->ok && list->result.has_value() && list->result->size() == 1 &&
                        list->result->contains("threads") && (*list->result)["threads"].is_array() &&
-                       (*list->result)["threads"].size() == 1 && (*list->result)["threads"][0].value("id", "") == wrapperThreadId,
-                   "thread list exact result wrapper preserves the unchanged v1 page envelope");
+                       (*list->result)["threads"].size() == 1 && (*list->result)["threads"][0].value("id", "") == wrapperThreadId &&
+                       containsNested((*list->result)["threads"][0], wrapperListTurnId, wrapperListItemId) &&
+                       (*list->result)["threads"][0].value("turns", Json::array()).size() >= 3 &&
+                       (*list->result)["threads"][0]["turns"][0].value("id", "") == wrapperStartTurnId &&
+                       (*list->result)["threads"][0]["turns"][1].value("id", "") == wrapperListTurnId &&
+                       (*list->result)["threads"][0]["turns"][2].value("id", "") == wrapperTurnId && threadListEvents.size() == 1 &&
+                       threadListEvents.front().data.contains("threadList") && !threadListEvents.front().data.contains("thread") &&
+                       reservedLookingThreadPreserved,
+                   "thread list exact result wrapper preserves its ordered nested page projection (actual=" +
+                       responseResult(wrapperThreadListRequestId) + ")");
 
             const frontend::Response* turn = response(observerA, wrapperTurnStartRequestId);
             expect(turn != nullptr && turn->ok && turn->result.has_value() && turn->result->size() == 1 && turn->result->contains("turn") &&
-                       (*turn->result)["turn"].is_object() && (*turn->result)["turn"].value("id", "") == wrapperTurnId,
-                   "turn start exact result wrapper projects only the unchanged v1 turn envelope");
+                       (*turn->result)["turn"].is_object() && (*turn->result)["turn"].value("id", "") == wrapperTurnId &&
+                       (*turn->result)["turn"].value("items", Json::array()).size() == 1 &&
+                       (*turn->result)["turn"]["items"][0].value("id", "") == wrapperTurnItemId,
+                   "turn start exact result wrapper preserves its ordered nested item projection");
 
             const frontend::Response* interrupt = response(observerA, wrapperTurnInterruptRequestId);
             expect(interrupt != nullptr && interrupt->ok && interrupt->result.has_value() && interrupt->result->empty(),
@@ -2032,8 +2185,12 @@ namespace {
             expect(value != nullptr && value->ok && value->result.has_value() && value->result->size() == 1 &&
                        value->result->contains("thread") && (*value->result)["thread"].is_object() &&
                        (*value->result)["thread"].value("id", "") == wrapperReadThreadId &&
-                       (*value->result)["thread"].value("fullyLoaded", false),
-                   "thread read exact result wrapper preserves the v1 envelope and full-load semantics");
+                       (*value->result)["thread"].value("fullyLoaded", false) &&
+                       (*value->result)["thread"].value("turns", Json::array()).size() == 1 &&
+                       (*value->result)["thread"]["turns"][0].value("id", "") == wrapperReadTurnId &&
+                       (*value->result)["thread"]["turns"][0].value("items", Json::array()).size() == 1 &&
+                       (*value->result)["thread"]["turns"][0]["items"][0].value("id", "") == wrapperReadItemId,
+                   "thread read exact result wrapper preserves its full nested projection and full-load semantics");
         }
 
         void emitBurst() {
@@ -2075,18 +2232,6 @@ namespace {
                    {"turnId", turnId},
                    {"item", {{"id", userMessageItemId}, {"type", "userMessage"}, {"clientId", nullptr}, {"content", userMessageContent}}},
                    {"completedAtMs", userMessageCompletedAtMs}}}});
-            transport->inject({{"method", "item/started"},
-                               {"params",
-                                {{"threadId", threadId},
-                                 {"turnId", turnId},
-                                 {"item", {{"id", unknownItemId}, {"type", unknownItemType}, {"futureField", Json{{"value", 7}}}}},
-                                 {"startedAtMs", unknownItemStartedAtMs}}}});
-            transport->inject({{"method", "item/completed"},
-                               {"params",
-                                {{"threadId", threadId},
-                                 {"turnId", turnId},
-                                 {"item", {{"id", unknownItemId}, {"type", unknownItemType}, {"futureField", Json{{"value", 7}}}}},
-                                 {"completedAtMs", unknownItemCompletedAtMs}}}});
             std::int64_t legacyCompletedAtMs = 70;
             for (const LegacyMetadataItemFixture& fixture : legacyMetadataItems) {
                 transport->inject(
@@ -2105,11 +2250,7 @@ namespace {
                            hasCompletedItemUpdate(
                                observerA, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) &&
                            hasCompletedItemUpdate(
-                               observerA, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) &&
-                           hasCompletedItemUpdate(
                                observerB, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) &&
-                           hasCompletedItemUpdate(
-                               observerB, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) &&
                            hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB) &&
                            hasTerminalTurnAfter(observerA, baselineEventsA) && hasTerminalTurnAfter(observerB, baselineEventsB);
                 },
@@ -2426,8 +2567,6 @@ namespace {
             };
             expect(countCompletedItemUpdates(userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs) == 1,
                    "userMessage start/completion coalesce into one canonical completed frontend item update");
-            expect(countCompletedItemUpdates(unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs) == 1,
-                   "an unknown item with common metadata coalesces into one canonical completed frontend item update");
             const auto userMessageUpdate = std::find_if(receivedA.begin(), receivedA.end(), [&](const frontend::FrontendEvent& event) {
                 return isCompletedItemUpdate(event, userMessageItemId, "user_message", userMessageStartedAtMs, userMessageCompletedAtMs);
             });
@@ -2456,13 +2595,6 @@ namespace {
                 !userMessageItem.value("contentTruncated", true) && userMessageItem.value("droppedContentBytes", std::uint64_t{1}) == 0;
             expect(userMessageDataPreserved,
                    "Decoder through FrontendService preserves a bounded array prefix and independent user-message truncation metadata");
-            const auto unknownUpdate = std::find_if(receivedA.begin(), receivedA.end(), [&](const frontend::FrontendEvent& event) {
-                return isCompletedItemUpdate(event, unknownItemId, unknownItemType, unknownItemStartedAtMs, unknownItemCompletedAtMs);
-            });
-            const Json unknownData =
-                unknownUpdate == receivedA.end() ? Json::object() : unknownUpdate->data.at("item").value("data", Json::object());
-            expect(unknownData.is_object() && unknownData.value("codexType", "") == unknownItemType,
-                   "the canonical frontend unknown item preserves its future discriminator");
             expect(hasMetadataOnlyLegacyItemUpdates(observerA) && hasMetadataOnlyLegacyItemUpdates(observerB),
                    "all ten newly rich backend ThreadItem projections retain their metadata-only Frontend Protocol v1 payloads");
 
@@ -2477,7 +2609,7 @@ namespace {
                            decodingError.find("item event omitted threadId or turnId") != std::string::npos;
                 });
             expect(!hasItemLifecycleExtension,
-                   "valid userMessage and unknown item lifecycle events never become location-error codex.extension events");
+                   "valid userMessage item lifecycle events never become location-error codex.extension events");
 
             verifyCapacityEvictionSnapshot();
         }
@@ -2674,10 +2806,6 @@ namespace {
         }();
         static constexpr std::int64_t userMessageStartedAtMs = 30;
         static constexpr std::int64_t userMessageCompletedAtMs = 40;
-        const std::string unknownItemId = "unknown-item-burst";
-        const std::string unknownItemType = "futureServiceItem";
-        static constexpr std::int64_t unknownItemStartedAtMs = 50;
-        static constexpr std::int64_t unknownItemCompletedAtMs = 60;
         const std::vector<LegacyMetadataItemFixture> legacyMetadataItems = legacyMetadataItemFixtures();
 
         tests::support::TestResult& result;
@@ -2703,6 +2831,7 @@ namespace {
         std::size_t pendingBaselineB = 0;
         std::size_t resolvedBaselineA = 0;
         std::size_t resolvedBaselineB = 0;
+        std::size_t wrapperEventBaseline = 0;
         frontend::SequenceNumber rangeBeforeConfig;
         frontend::SequenceNumber configSequence;
         std::size_t rangeExpandedBaseline = 0;
@@ -2715,9 +2844,18 @@ namespace {
         static constexpr const char* wrapperTurnStartRequestId = "wrapper-turn-start";
         static constexpr const char* wrapperTurnInterruptRequestId = "wrapper-turn-interrupt";
         static constexpr const char* wrapperCursor = "wrapper-page";
-        static constexpr const char* wrapperThreadId = "wrapper-thread";
+        // Deliberately resembles the private metadata coalescer identity. A
+        // real thread and the list-metadata occurrence must remain distinct.
+        static constexpr const char* wrapperThreadId = "thread-list";
         static constexpr const char* wrapperReadThreadId = "wrapper-read-thread";
         static constexpr const char* wrapperTurnId = "wrapper-turn";
+        static constexpr const char* wrapperStartTurnId = "wrapper-start-turn";
+        static constexpr const char* wrapperStartItemId = "wrapper-start-item";
+        static constexpr const char* wrapperListTurnId = "wrapper-list-turn";
+        static constexpr const char* wrapperListItemId = "wrapper-list-item";
+        static constexpr const char* wrapperReadTurnId = "wrapper-read-turn";
+        static constexpr const char* wrapperReadItemId = "wrapper-read-item";
+        static constexpr const char* wrapperTurnItemId = "wrapper-turn-item";
         static constexpr const char* resolvedProviderRequestId = "v1-permissions-request";
         static constexpr const char* resolvedThreadId = "v1-permissions-thread";
         bool finished = false;
@@ -2735,6 +2873,7 @@ int main(int argc, char* argv[]) {
     } else {
         core::SNodeC::init(argc, argv);
         testCoalescingAndBounds(result);
+        testProducerRejectsMalformedExpandedEventBeforeTransport(result);
         testAuthenticationAdmissionAndTopology(result);
         testServiceHandshakeRolesReplayAndIsolation(result);
         testCapabilityDiscoveryHandshake(result);

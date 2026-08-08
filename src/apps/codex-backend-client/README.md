@@ -1,9 +1,11 @@
 # Codex backend reference client
 
-`codex-backend-client` is a small terminal client for the local
-`codex-backend` reference server. It speaks only Codex Frontend Protocol v1
-over an SNode.C Unix-domain stream connection; it never connects to the Codex
-App Server directly.
+`codex-backend-client` is the reference terminal application for
+`AISuite::OpenAICodexFrontendClient`. The SDK owns Hello, authentication
+placement, request IDs, response correlation, synchronization, replay cursors,
+sparse sequence handling, typed state, and operation completion. The
+application owns command parsing, presentation, workflows, and physical
+SNode.C transports. It never connects to the Codex App Server directly.
 
 Start the backend in one terminal and the client in another:
 
@@ -17,19 +19,42 @@ The client connects to
 nonempty. Otherwise it uses
 `/tmp/snodec-codex-backend-<numeric-uid>.sock`.
 
-The ordinary SNode.C remote-address option overrides that default:
+Unix is the only transport enabled by default. Its ordinary SNode.C
+remote-address option overrides that default:
 
 ```sh
-codex-backend-client codex-backend-client remote \
+codex-backend-client codex-backend-client-unix remote \
   --sun-path /run/user/1000/my-codex-backend.sock
 ```
 
-The client sends `hello` automatically after connecting. Interactive commands
-are:
+The executable also composes disabled-by-default named SNode.C clients for
+IPv4/IPv6 JSONL, IPv4/IPv6 TLS JSONL, RFCOMM JSONL, RFCOMM TLS JSONL,
+WebSocket, and WSS when those features are compiled. Enable and configure
+exactly one named outgoing instance through SNode.C's native configuration.
+WebSocket and WSS use SNode.C framing and request the exact `codex`
+subprotocol. The SDK has no transport registry.
+
+Remote transports require a protected bearer-token file:
+
+```sh
+install -m 600 /dev/null "$XDG_CONFIG_HOME/aisuite/codex.token"
+# Write the token without placing it in process arguments or configuration dumps.
+codex-backend-client --bearer-token-file "$XDG_CONFIG_HOME/aisuite/codex.token" \
+  codex-backend-client-ipv4 --disabled=false remote --host 127.0.0.1
+```
+
+The file must satisfy the same owner, regular-file, no-symlink, and permission
+checks as the backend reference authentication policy. Verified local Unix use
+may use `NoCredential` and a continuity key derived from the effective UID.
+The SDK itself neither knows a token-file path nor persists credentials.
+
+The SDK sends Hello automatically only after the physical transport reports
+connected. Interactive commands are:
 
 ```text
 help
 quit
+reconnect
 snapshot
 replay <sequence>
 acquire
@@ -55,10 +80,51 @@ watch on
 watch off
 ```
 
-Normal commands are encoded from the public typed frontend message classes.
-`raw` accepts only JSON that the public frontend codec validates as a client
-message. `watch` is local: disabling it suppresses event-batch presentation but
-does not change backend state or synchronization.
+The application distinguishes command, physical-connection, and process
+lifetimes. Unknown/malformed local input, a pre-acceptance command-local SDK
+rejection, or a normal failed command response ends only that input command. A
+transport/send rejection remains connection-level; temporary pending-capacity
+and active-synchronization conditions are bounded deferrals. A command-local
+failure does not stop
+stdin, close a valid transport, or terminate the event loop. A protocol/state
+failure or transport loss still closes that physical attachment and fails its
+accepted operations exactly once, but the interactive application remains
+running in `Disconnected` with stale retained State.
+
+While Disconnected, `help`, `watch`, `reconnect`, and `quit` remain available.
+Remote commands are rejected locally with reconnect guidance and are not saved
+for later surprise execution. `reconnect` creates one new physical attempt
+using the selected configured transport and the same SDK Client. Repeated
+attempts are explicit: there is no automatic reconnect, no command retry, and
+no automatic controller reacquisition. `reconnect` does not overlap an active
+connection attempt or disrupt an already Ready connection.
+
+Each physical attempt carries one immutable generation. Native factories
+capture that generation, while WebSocket/WSS upgrade callbacks additionally
+bind it to the exact originating socket connection. Late HTTP or subprotocol
+callbacks from a retired connection cannot claim or retire a later attempt.
+
+The application-owned command queue has finite configurable limits:
+
+```sh
+codex-backend-client \
+  --maximum-queued-commands 256 \
+  --maximum-queued-command-bytes 16777216
+```
+
+Those are the defaults. Zero means zero queue capacity. The byte limit covers
+retained command-owned UTF-8 input; checked arithmetic rejects the newest
+overflowing command without evicting older entries. Connecting and
+Synchronizing may queue remote input, and Ready may temporarily queue a first
+submission blocked by pending capacity or active synchronization. Disconnected
+never queues remote input. One queued compound `new` counts as one command.
+
+Normal commands use SDK submissions. `raw` accepts only a known one-of-105
+generated command, validates it through generated schema authority, discards
+caller request IDs, and uses normal SDK correlation. It cannot send Hello,
+unknown methods, or raw App Server messages. `watch` is local: disabling it
+suppresses event-batch presentation but does not change backend state or
+synchronization.
 
 ## Thread lifecycle
 
@@ -116,19 +182,48 @@ new Explain the current repository architecture.
 When options are present, `--` ends option parsing and everything after it is
 the prompt, including words that begin with `--`. `new` is implemented only by
 `codex-backend-client`: it sends `thread.start`, waits for that request's
-successful response, extracts and validates `result.thread.id`, and then sends
-`turn.start` with one text input containing the complete prompt. It does not add
-a backend command or Frontend Protocol method, and it does not establish
-implicit current-thread state.
+successful typed result, carries its validated `ThreadId`, and then sends
+typed `turn.start` with one text input containing the complete prompt. It does
+not add a backend command or Frontend Protocol method, and it does not
+establish implicit current-thread state.
 
 If thread creation succeeds but the initial turn cannot be submitted or later
 fails, the diagnostic preserves the created thread ID and reports the compound
-operation as failed. The successful thread creation is not rolled back.
+operation as failed. The successful thread creation is not rolled back and the
+turn is not retried. One explicit active workflow is separate from later queued
+`new` commands, so a failure clears only the active workflow and later input
+continues in order. A failure before thread creation likewise ends only that
+workflow.
 
 Human mode reports when the connection is waiting for its initial
 synchronization and when commands are ready. Commands entered during that
 handshake are acknowledged as queued and remain behind the `sync.complete`
 barrier.
+
+After Ready, the backend may send a bounded live Snapshot barrier when one
+atomic event occurrence cannot fit a batch. The SDK applies it as one
+authoritative State replacement without leaving Ready, canceling pending
+commands, or fabricating another synchronization completion. Expanded
+snapshots and `threadList.updated` events carry real thread-list page,
+completeness, cursor, and freshness state, so the CLI no longer reports that
+metadata as unknown after expanded synchronization.
+
+Expanded entity events preserve exact canonical identity. In the original
+live failure, a `threads` response contained 25 distinct IDs but all 25
+`thread.upserted` lines named one retained tail thread. Projection had missed
+`data.thread.id` and substituted an unrelated last entity. The corrected
+stream carries every returned page ID exactly once with its own title/preview,
+preserves unrelated retained threads, and emits one compact
+`threadList.updated`. Equivalent exact-ID rules cover turns, items, processes,
+filesystem watches, fuzzy searches, activities, and the triggering notice
+occurrence; an unresolved identity selects bounded Snapshot fallback rather
+than another entity.
+
+`thread/deleted` maps to `thread.removed`. Exactly five accumulated-content
+notifications map to `item.content.updated`: agent-message delta,
+command-execution output delta, file-change output delta, reasoning-summary
+text delta, and reasoning text delta. Other item lifecycle, progress, plan, and
+summary-part notifications map to `item.upserted`.
 
 Human-readable output is the default. It gives concise stage summaries for
 started and resumed threads and for both stages of `new`, rather than dumping
@@ -147,14 +242,29 @@ rejected because POSIX cannot make those reads nonblocking (pipe the file's
 contents instead). Socket JSONL framing tolerates both fragmented records and
 several records in one read.
 
-Piped commands are retained until the connection's initial `sync.complete`,
-then sent once in input order. EOF enters a deterministic drain: the client
-waits for every command's correlated response and, for `snapshot` and
-`replay`, the resulting `sync.complete` before disconnecting and exiting. A
-pending `new` keeps the client alive through both its start and turn stages.
-Connection, protocol, send, compound-operation, or premature-disconnect
-failures during that drain produce a nonzero exit status. An explicit
-interactive `quit` remains an immediate shutdown.
+Piped commands are retained by the CLI until the SDK becomes Ready after the
+initial `sync.complete`, then submitted once in input order. EOF enters a
+deterministic accumulating drain using SDK pending-operation counts and
+callbacks: local parse errors and ordinary failed responses mark the final
+status but do not stop later queued commands. The client waits until the queue,
+accepted operations, active `new`, and explicit snapshot/replay synchronization
+are all terminal before disconnecting and exiting. All-success input exits
+zero; any line/command failure exits nonzero after the complete drain. If the
+connection is lost, unsubmitted entries are explicitly accounted as failed and
+discarded, so drain finishes nonzero without waiting for manual reconnect. No
+accepted request is retried. An explicit interactive `quit` remains an
+immediate successful shutdown even after earlier interactive command failures.
+
+The first concrete typed SDK or transport failure is retained and presented;
+a later socket detach does not overwrite it with a generic unexpected-close
+message. Human diagnostics remain on the diagnostic stream and JSON mode keeps
+stdout protocol-only. `quit`, Ctrl-C, and the SNode.C application-shutdown
+signal are classified as intentional before transport detachment. Remote EOF
+while the application is otherwise running remains an error. Nonblocking
+terminal input continues to distinguish `EAGAIN` from real `read() == 0` EOF.
+The registered stdin receiver publishes the framework shutdown notification
+before any pending connect or WebSocket-upgrade failure callback, covering the
+short interval before a transport context exists without synthesizing EOF.
 
 For example, this waits for the handshake and both command responses before
 returning:

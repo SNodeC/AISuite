@@ -37,7 +37,8 @@
     "reviewedIdentities": 234,
     "notifications": 68,
     "threadItems": 18,
-    "pendingRequests": 10
+    "pendingRequests": 10,
+    "expandedEventFamilies": 26
   },
   "scopeProfiles": {
     "default_remote": [
@@ -89,108 +90,126 @@
       "key": "method_discovery",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "security_scopes",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_provider_operations",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_reverse_requests",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_backend_domains",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "conditional_filesystem",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "conditional_command_execution",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "dedicated_pending_requests",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "dedicated_notification_events",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "complete_thread_items",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7a-contract"
     },
     {
       "key": "authenticated_frontend",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7b"
     },
     {
       "key": "scope_projected_state",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7b"
     },
     {
       "key": "provider_lifecycle",
       "defined": true,
       "implementedByCurrentRuntime": true,
+      "category": "static_mechanism",
       "futurePhase": "A1.7b"
     },
     {
       "key": "multi_transport",
       "defined": true,
       "implementedByCurrentRuntime": false,
+      "category": "conditional_topology",
       "futurePhase": "A1.7b"
     },
     {
       "key": "cpp_client_sdk",
       "defined": true,
       "implementedByCurrentRuntime": false,
+      "category": "product",
       "futurePhase": "A1.7c"
     },
     {
       "key": "typescript_client_sdk",
       "defined": true,
       "implementedByCurrentRuntime": false,
+      "category": "product",
       "futurePhase": "A1.7d"
     },
     {
       "key": "browser_ui",
       "defined": true,
       "implementedByCurrentRuntime": false,
+      "category": "product",
       "futurePhase": "A1.7d"
     },
     {
       "key": "qt_ui",
       "defined": true,
       "implementedByCurrentRuntime": false,
+      "category": "product",
       "futurePhase": "A1.7c"
     }
   ],
@@ -198,6 +217,7 @@
     "provider.updated",
     "controller.updated",
     "sessions.updated",
+    "threadList.updated",
     "thread.upserted",
     "thread.removed",
     "turn.upserted",
@@ -4825,7 +4845,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -4842,7 +4862,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_normalized",
       "expandedMappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -4876,7 +4896,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_normalized",
       "expandedMappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -4893,7 +4913,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -4910,7 +4930,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -4927,7 +4947,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -4978,7 +4998,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_normalized",
       "expandedMappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -5029,7 +5049,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_normalized",
       "expandedMappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -5046,7 +5066,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -5063,7 +5083,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -5199,7 +5219,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "thread.upserted"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -5216,7 +5236,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_redacted_extension",
       "expandedMappings": [
-        "thread.upserted"
+        "thread.removed"
       ],
       "requiredScopes": [
         "observe"
@@ -5471,7 +5491,7 @@
       "securityDecision": "ScopeProjectedStateEventApproved",
       "legacyContract": "legacy_normalized",
       "expandedMappings": [
-        "thread.upserted"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10675,7 +10695,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10699,7 +10719,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10747,7 +10767,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10771,7 +10791,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10795,7 +10815,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10819,7 +10839,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10891,7 +10911,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "item.content.updated"
+        "item.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10963,7 +10983,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -10987,7 +11007,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -11011,7 +11031,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "models.updated"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -11203,7 +11223,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "thread.upserted"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"
@@ -11227,7 +11247,7 @@
       "exposure": "DedicatedEventWithLegacyExtensionCompatibility",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "thread.upserted"
+        "thread.removed"
       ],
       "requiredScopes": [
         "observe"
@@ -11587,7 +11607,7 @@
       "exposure": "ExistingEventContractApproved",
       "securityDecision": "ScopeProjectedStateEventApproved",
       "mappings": [
-        "thread.upserted"
+        "turn.upserted"
       ],
       "requiredScopes": [
         "observe"

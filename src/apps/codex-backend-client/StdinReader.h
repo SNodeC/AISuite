@@ -21,8 +21,9 @@ namespace apps::codex_backend_client {
         using LineHandler = std::function<void(std::string)>;
         using EofHandler = std::function<void()>;
         using ErrorHandler = std::function<void(std::string)>;
+        using ShutdownHandler = std::function<void()>;
 
-        explicit StdinReader(LineHandler onLine, EofHandler onEof, ErrorHandler onError = {}, int fd = 0);
+        explicit StdinReader(LineHandler onLine, EofHandler onEof, ErrorHandler onError = {}, int fd = 0, ShutdownHandler onShutdown = {});
         StdinReader(const StdinReader&) = delete;
         StdinReader(StdinReader&&) = delete;
 
@@ -35,8 +36,11 @@ namespace apps::codex_backend_client {
         void stop() noexcept;
 
     private:
+        friend struct StdinReaderTestAccess;
+
         void readEvent() override;
         void unobservedEvent() override;
+        void shutdownEvent(const core::ShutdownContext& context) override;
 
         void emitLines();
         void finishEof() noexcept;
@@ -47,6 +51,7 @@ namespace apps::codex_backend_client {
         LineHandler onLine;
         EofHandler onEof;
         ErrorHandler onError;
+        ShutdownHandler onShutdown;
         int inputFd;
         int originalFlags = -1;
         bool restoreOriginalFlags = false;

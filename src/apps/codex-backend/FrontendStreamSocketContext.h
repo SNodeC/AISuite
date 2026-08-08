@@ -46,7 +46,7 @@ namespace apps::codex_backend {
         bool onSignal(int signum) override;
 
         bool send(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
-        void serviceClosed() noexcept;
+        void serviceClosed(std::string reason) noexcept;
         void rejectFrame(ai::openai::codex::frontend::ErrorCode code, std::string message) noexcept;
 
         ai::openai::codex::frontend::FrontendService& service;

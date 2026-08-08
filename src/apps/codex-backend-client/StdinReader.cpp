@@ -26,11 +26,12 @@ namespace apps::codex_backend_client {
         constexpr std::size_t MaximumBufferedLineBytes = 1024 * 1024;
     }
 
-    StdinReader::StdinReader(LineHandler onLine, EofHandler onEof, ErrorHandler onError, int fd)
+    StdinReader::StdinReader(LineHandler onLine, EofHandler onEof, ErrorHandler onError, int fd, ShutdownHandler onShutdown)
         : core::eventreceiver::ReadEventReceiver("codex-backend-client stdin", core::DescriptorEventReceiver::TIMEOUT::DISABLE)
         , onLine(std::move(onLine))
         , onEof(std::move(onEof))
         , onError(std::move(onError))
+        , onShutdown(std::move(onShutdown))
         , inputFd(fd) {
         originalFlags = ::fcntl(inputFd, F_GETFL);
         if (originalFlags < 0) {
@@ -137,6 +138,16 @@ namespace apps::codex_backend_client {
         activeReader = false;
         invalidateDeferredRead();
         restoreFlags();
+    }
+
+    void StdinReader::shutdownEvent([[maybe_unused]] const core::ShutdownContext& context) {
+        try {
+            if (onShutdown) {
+                onShutdown();
+            }
+        } catch (...) {
+        }
+        stop();
     }
 
     void StdinReader::emitLines() {

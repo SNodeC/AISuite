@@ -144,6 +144,7 @@ namespace ai::openai::codex::frontend {
         ProviderUpdated,
         ControllerUpdated,
         SessionsUpdated,
+        ThreadListUpdated,
         ThreadUpserted,
         ThreadRemoved,
         TurnUpserted,
@@ -276,6 +277,7 @@ namespace ai::openai::codex::frontend {
         Json provider = Json::object();
         Json controller = Json::object();
         std::vector<Json> sessions;
+        Json threadList = Json::object();
         std::optional<std::vector<Json>> threads;
         std::optional<std::vector<Json>> turns;
         std::optional<std::vector<ExpandedThreadItem>> items;

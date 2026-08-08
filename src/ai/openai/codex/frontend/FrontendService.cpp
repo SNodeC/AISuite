@@ -17,7 +17,9 @@
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/detail/BackendCommandMapper.h"
 #include "ai/openai/codex/frontend/detail/BackendProjectionBuilder.h"
+#include "ai/openai/codex/frontend/detail/FrontendCapabilities.h"
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
+#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #include "ai/openai/codex/frontend/detail/ProviderResultProjection.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
 #include "ai/openai/codex/typed/Threads.h"
@@ -64,23 +66,6 @@ namespace ai::openai::codex::frontend {
 
         template <typename T>
         concept ProviderOperationResult = VariantContains<std::remove_cvref_t<T>, backend::ProviderOperationValue>::value;
-
-        CapabilityAdvertisement currentCapabilityAdvertisement() {
-            CapabilityAdvertisement advertisement;
-            for (const generated::CapabilityMetadata& metadata : generated::AllCapabilities) {
-                const auto capability = frontendCapabilityFromString(metadata.key);
-                if (!capability.has_value()) {
-                    continue;
-                }
-                advertisement.defined.push_back(*capability);
-                const bool implemented = metadata.implementedByCurrentRuntime;
-                if (implemented) {
-                    advertisement.implemented.push_back(*capability);
-                    advertisement.permitted.push_back(*capability);
-                }
-            }
-            return advertisement;
-        }
 
         bool hasScope(const FrontendPrincipal& principal, FrontendScope scope) noexcept {
             return std::find(principal.scopes.begin(), principal.scopes.end(), scope) != principal.scopes.end();
@@ -269,6 +254,27 @@ namespace ai::openai::codex::frontend {
             return false;
         }
 
+        std::string boundedSerializationFailureReason(const CodecError& error) noexcept {
+            constexpr std::string_view Prefix = "frontend protocol serialization failed: ";
+            constexpr std::size_t MaximumReasonBytes = 512;
+
+            try {
+                const std::size_t maximumDetailBytes = MaximumReasonBytes - Prefix.size();
+                std::size_t detailBytes = std::min(error.message.size(), maximumDetailBytes);
+                if (detailBytes < error.message.size()) {
+                    while (detailBytes > 0 && (static_cast<unsigned char>(error.message[detailBytes]) & 0xC0U) == 0x80U) {
+                        --detailBytes;
+                    }
+                }
+
+                std::string reason(Prefix);
+                reason.append(error.message, 0, detailBytes);
+                return reason;
+            } catch (...) {
+                return "frontend protocol serialization failed";
+            }
+        }
+
         Json errorSnapshotJson(const backend::ErrorSnapshot& error) {
             // Provider error text is not structured strongly enough to prove
             // that it cannot contain credential material. Keep the stable
@@ -282,7 +288,10 @@ namespace ai::openai::codex::frontend {
                    type == "plan" || type == "sleep" || type == "subAgentActivity";
         }
 
-        Json itemSnapshotJson(const backend::ItemSnapshot& item) {
+        // This is the legacy/canonical backend representation. It is not an
+        // ExpandedThreadItem and must never be copied directly into an expanded
+        // frontend event.
+        Json legacyItemSnapshotJson(const backend::ItemSnapshot& item) {
             const Json frontendData = isFrontendV1MetadataOnlyItem(item.type) ? Json::object({{"codexType", item.type}}) : item.data;
             Json encoded{{"id", item.id},
                          {"type", item.type},
@@ -319,7 +328,7 @@ namespace ai::openai::codex::frontend {
                 encoded["tokenUsage"] = *turn.tokenUsage;
             }
             for (const backend::ItemSnapshot& item : turn.items) {
-                encoded["items"].push_back(itemSnapshotJson(item));
+                encoded["items"].push_back(legacyItemSnapshotJson(item));
             }
             return encoded;
         }
@@ -801,7 +810,7 @@ namespace ai::openai::codex::frontend {
             }
             const auto serialized = Codec::serializeServer(message);
             if (!serialized) {
-                closeControl(control, "frontend protocol serialization failed");
+                closeControl(control, boundedSerializationFailureReason(serialized.error()));
                 return false;
             }
             const std::size_t size = serialized.value().size();
@@ -1315,7 +1324,41 @@ namespace ai::openai::codex::frontend {
         }
 
         std::vector<FrontendCapability> implementedCapabilities() const {
-            return currentCapabilityAdvertisement().implemented;
+            return capabilityAdvertisement().implemented;
+        }
+
+        CapabilityAdvertisement capabilityAdvertisement() const {
+            return detail::computeCapabilities(AISUITE_CODEX_CPP_CLIENT_SDK_BUILT != 0, declaredTransportCounts.size()).advertisement;
+        }
+
+        void declareTransportFamily(FrontendTransportKind transport) {
+            std::size_t& declarations = declaredTransportCounts[transport];
+            if (declarations != std::numeric_limits<std::size_t>::max()) {
+                ++declarations;
+            }
+        }
+
+        void withdrawTransportFamily(FrontendTransportKind transport) noexcept {
+            const auto found = declaredTransportCounts.find(transport);
+            if (found == declaredTransportCounts.end()) {
+                return;
+            }
+            if (found->second > 1) {
+                --found->second;
+            } else {
+                declaredTransportCounts.erase(found);
+            }
+        }
+
+        std::vector<FrontendTransportKind> enabledTransportFamilies() const {
+            std::vector<FrontendTransportKind> result;
+            result.reserve(declaredTransportCounts.size());
+            for (const auto& [transport, declarations] : declaredTransportCounts) {
+                if (declarations != 0) {
+                    result.push_back(transport);
+                }
+            }
+            return result;
         }
 
         std::vector<FrontendCapability> negotiatedCapabilities(const Hello& hello, const CapabilityAdvertisement& advertisement) const {
@@ -1351,7 +1394,7 @@ namespace ai::openai::codex::frontend {
                 return;
             }
 
-            const CapabilityAdvertisement handshakeAdvertisement = currentCapabilityAdvertisement();
+            const CapabilityAdvertisement handshakeAdvertisement = capabilityAdvertisement();
             control->negotiatedCapabilities = negotiatedCapabilities(hello, handshakeAdvertisement);
 
             flushNow();
@@ -1424,6 +1467,11 @@ namespace ai::openai::codex::frontend {
                 welcome.capabilities = handshakeAdvertisement;
                 welcome.availableMethods = availableMethods();
                 welcome.permittedMethods = permittedMethods(*control->principal);
+                Json permittedScopes = Json::array();
+                for (const FrontendScope scope : control->principal->scopes) {
+                    permittedScopes.push_back(std::string(toString(scope)));
+                }
+                welcome.extensions["permittedScopes"] = std::move(permittedScopes);
             }
             if (!enqueue(control, ServerMessage{std::move(welcome)})) {
                 return;
@@ -1690,11 +1738,7 @@ namespace ai::openai::codex::frontend {
                 bool controllerRequired = metadata->controllerRequired;
                 bool scopeAllowed = hasRequiredScopes(*control->principal, metadata->requiredScopes);
                 if (method == generated::MethodId::AccountRead) {
-                    const Json& params = std::visit(
-                        [](const auto& value) -> const Json& {
-                            return value.value;
-                        },
-                        command.parameters);
+                    const Json& params = validatedCommand.value().at("params");
                     const bool refreshToken = params.contains("refreshToken") && params.at("refreshToken").get<bool>();
                     if (refreshToken) {
                         scopeAllowed = hasScope(*control->principal, FrontendScope::Control) &&
@@ -2022,16 +2066,7 @@ namespace ai::openai::codex::frontend {
         }
 
         Json threadListEventData(const backend::Snapshot& snapshot) const {
-            Json data{{"hasLoadedPage", snapshot.threadList.hasLoadedPage},
-                      {"complete", snapshot.threadList.complete},
-                      {"pagesLoaded", snapshot.threadList.pagesLoaded}};
-            if (snapshot.threadList.nextCursor.has_value()) {
-                data["nextCursor"] = *snapshot.threadList.nextCursor;
-            }
-            if (snapshot.threadList.backwardsCursor.has_value()) {
-                data["backwardsCursor"] = *snapshot.threadList.backwardsCursor;
-            }
-            return data;
+            return detail::threadListProjection(snapshot.threadList);
         }
 
         CoalescerMarkResult
@@ -2069,7 +2104,7 @@ namespace ai::openai::codex::frontend {
             }
             return markNormalized(CoalescingKey::item(std::string(threadId), std::string(turnId), std::string(itemId)),
                                   "item.updated",
-                                  Json{{"threadId", threadId}, {"turnId", turnId}, {"item", itemSnapshotJson(*item)}},
+                                  Json{{"threadId", threadId}, {"turnId", turnId}, {"item", legacyItemSnapshotJson(*item)}},
                                   urgency);
         }
 
@@ -2535,6 +2570,7 @@ namespace ai::openai::codex::frontend {
         backend::BackendObserverSubscription observer;
         std::map<std::uint64_t, std::shared_ptr<FrontendConnection::Control>> connections;
         std::map<std::string, FailedAuthenticationWindow> failedAuthentications;
+        std::map<FrontendTransportKind, std::size_t> declaredTransportCounts;
         std::uint64_t nextConnectionId = 0;
         std::uint64_t nextFailureWindowGeneration = 0;
         std::size_t unauthenticatedConnections = 0;
@@ -2726,6 +2762,18 @@ namespace ai::openai::codex::frontend {
         return impl ? impl->recordPreAuthenticationFailure(peer, failure) : AuthenticationFailureCode::RateLimited;
     }
 
+    void FrontendService::declareTransportFamily(FrontendTransportKind transport) {
+        if (impl) {
+            impl->declareTransportFamily(transport);
+        }
+    }
+
+    void FrontendService::withdrawTransportFamily(FrontendTransportKind transport) noexcept {
+        if (impl) {
+            impl->withdrawTransportFamily(transport);
+        }
+    }
+
     void FrontendService::flush() {
         if (impl) {
             impl->flushNow();
@@ -2763,6 +2811,10 @@ namespace ai::openai::codex::frontend {
         return impl ? impl->authenticatedConnectionCount() : 0;
     }
 
+    bool FrontendServiceTestAccess::enqueue(FrontendService& service, FrontendConnection& connection, ServerMessage message) noexcept {
+        return service.impl && connection.control && service.impl->enqueue(connection.control, std::move(message));
+    }
+
     std::optional<std::string> FrontendService::currentController() const {
         if (!impl) {
             return std::nullopt;
@@ -2785,6 +2837,10 @@ namespace ai::openai::codex::frontend {
 
     std::vector<FrontendMethod> FrontendService::permittedMethods(const FrontendPrincipal& principal) const {
         return impl ? impl->permittedMethods(principal) : std::vector<FrontendMethod>{};
+    }
+
+    std::vector<FrontendTransportKind> FrontendService::enabledTransportFamilies() const {
+        return impl ? impl->enabledTransportFamilies() : std::vector<FrontendTransportKind>{};
     }
 
     std::vector<FrontendCapability> FrontendService::implementedCapabilities() const {

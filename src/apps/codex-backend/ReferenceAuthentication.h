@@ -56,6 +56,7 @@ namespace apps::codex_backend {
 
         [[nodiscard]] bool matches(std::string_view candidate) const noexcept;
         [[nodiscard]] std::size_t size() const noexcept;
+        [[nodiscard]] ai::openai::codex::frontend::BearerCredential credential() const;
 
     private:
         explicit ProtectedBearerToken(std::string value) noexcept;

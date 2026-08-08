@@ -214,7 +214,7 @@ invocation time.
 
 The current implementation is safe because the codec rejects defined-field
 and extension collisions before this policy reads the tagged parameters; this
-is not considered an exploitable condition. A1.7c-1 shall remove the
+is not considered an exploitable condition. A1.7c-1 removes the
 cross-translation-unit coupling by deriving the `account.read` `refreshToken`
 policy from the already validated normalized params object rather than
 rereading the original tagged parameter value.
@@ -348,16 +348,14 @@ provider_lifecycle
 
 `conditional_filesystem` and `conditional_command_execution` describe working
 mechanisms and remain implemented when their 15 methods are deployment-off.
-The future product capabilities `cpp_client_sdk`, `typescript_client_sdk`,
-`browser_ui`, and `qt_ui` remain unimplemented.
+Product capabilities remain a separate category from these 13 static
+mechanisms. A1.7c-1 makes `cpp_client_sdk` build-derived; TypeScript, browser,
+and Qt products remain false.
 
-The generated `multi_transport` identity remains defined for Protocol v1
-compatibility, but A1.7b no longer implements or advertises it. SNode.C owns
-listener configuration and lifecycle, and AISuite deliberately maintains no
-second transport-family registry. Multi-listener operation remains real: each
-listener borrows the same BackendCore, FrontendService, controller, sequence,
-and journal. Welcome therefore advertises the same 13 implemented mechanism
-capabilities regardless of which listener accepted the connection.
+`multi_transport` is a separate conditional topology capability. It is false
+for one declared transport family and true for more than one. SNode.C owns
+listener configuration and lifecycle; the service-side declaration fact exists
+only to derive protocol topology truth and is not a listener registry.
 
 ## Transport composition
 
@@ -539,8 +537,8 @@ schema-validated JSON layer: generated parameter/result tags distinguish all
 wire contract in the server; it does not pretend to be the ergonomic,
 domain-typed application SDK.
 
-A1.7c-1 is the next PR and implements the C++ Frontend SDK plus
-`codex-backend-client` migration. A1.7c-2 immediately follows and migrates the
+A1.7c-1 implements the C++ Frontend SDK plus `codex-backend-client`
+migration. A1.7c-2 immediately follows and migrates the
 existing `codex-ui` into the canonical standalone AI IDE. No additional PR is
 inserted before `codex-ui`. A1.7d owns the TypeScript Frontend SDK and browser
 frontend.

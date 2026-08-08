@@ -107,6 +107,22 @@ namespace {
         return "unknown native transport";
     }
 
+    frontend::FrontendTransportKind transportKind(ClientKind kind) noexcept {
+        switch (kind) {
+            case ClientKind::Unix:
+                return frontend::FrontendTransportKind::Unix;
+            case ClientKind::Ipv4:
+                return frontend::FrontendTransportKind::Ipv4;
+            case ClientKind::Ipv6:
+                return frontend::FrontendTransportKind::Ipv6;
+            case ClientKind::Tls:
+                return frontend::FrontendTransportKind::TcpTls;
+            case ClientKind::Count:
+                break;
+        }
+        return frontend::FrontendTransportKind::InMemory;
+    }
+
     bool hasCapability(const std::vector<frontend::FrontendCapability>& capabilities, frontend::FrontendCapability expected) {
         return std::find(capabilities.begin(), capabilities.end(), expected) != capabilities.end();
     }
@@ -407,9 +423,9 @@ namespace {
             peer.transport = frontend::FrontendTransportKind::Unix;
             connections.push_back(service.openConnection(std::move(peer), {{}, {}}));
         }
-        result.expectTrue(service.connectionCount() == 6 && service.implementedCapabilities().size() == 13 &&
+        result.expectTrue(service.connectionCount() == 6 && service.implementedCapabilities().size() == 14 &&
                               !hasCapability(service.implementedCapabilities(), frontend::FrontendCapability::MultiTransport),
-                          "connections do not affect the thirteen static mechanism capabilities and multi_transport is not advertised");
+                          "connections do not affect the thirteen static mechanisms, SDK product truth, or topology capability");
         for (frontend::FrontendConnection& connection : connections) {
             connection.close();
         }
@@ -612,9 +628,12 @@ namespace {
                     return;
                 }
                 connecting = true;
+                for (const ClientKind kind : activeKinds) {
+                    service.declareTransportFamily(transportKind(kind));
+                }
                 state.topologyObservedBeforeClients =
-                    service.connectionCount() == 0 && service.implementedCapabilities().size() == 13 &&
-                    !hasCapability(service.implementedCapabilities(), frontend::FrontendCapability::MultiTransport);
+                    service.connectionCount() == 0 && service.implementedCapabilities().size() == 15 &&
+                    hasCapability(service.implementedCapabilities(), frontend::FrontendCapability::MultiTransport);
 
                 unixClient.connect(*unixAddress, [&state](const net::un::SocketAddress&, core::socket::State status) {
                     state.connectResult(ClientKind::Unix, status);
@@ -706,7 +725,7 @@ namespace {
             eventLoopResult = core::SNodeC::start(utils::Timeval({10, 0}));
 
             result.expectTrue(state.topologyObservedBeforeClients,
-                              "native listeners share one service while multi_transport remains unadvertised before clients connect");
+                              "multiple bound native families advertise multi_transport before any client connects");
             result.expectTrue(!state.timedOut && state.completed,
                               "all real native SNode.C loopback clients finish Frontend Protocol v1 synchronization before timeout");
             result.expectTrue(eventLoopResult == 0 && state.listenFailures == 0 && state.listenSuccesses == activeKinds.size() &&
@@ -718,7 +737,7 @@ namespace {
                 const ClientObservation& observation = state.clients[clientIndex(kind)];
                 result.expectTrue(
                     observation.connected == 1 && observation.welcome == 1 && observation.snapshot == 1 && observation.syncComplete == 1 &&
-                        observation.protocolErrors == 0 && !observation.advertisedMultiTransport && observation.availableMethods == 90,
+                        observation.protocolErrors == 0 && observation.advertisedMultiTransport && observation.availableMethods == 90,
                     std::string(clientName(kind)) + " carries one Hello/Welcome/snapshot/sync exchange over the shared FrontendService");
                 const std::size_t expectedPermitted = kind == ClientKind::Unix && app::unixPeerCredentialsSupported() ? 90U : 53U;
                 result.expectTrue(observation.permittedMethods == expectedPermitted,

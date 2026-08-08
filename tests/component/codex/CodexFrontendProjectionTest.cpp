@@ -9,11 +9,13 @@
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/detail/BackendProjectionBuilder.h"
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
+#include "ai/openai/codex/frontend/detail/GeneratedSchemaValidator.h"
 #include "support/TestResult.h"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <initializer_list>
 #include <set>
 #include <span>
 #include <string>
@@ -77,11 +79,29 @@ namespace {
                                              std::span<const frontend::FrontendCapability>{capabilities.begin(), capabilities.size()});
     }
 
+    detail::FrontendProjectionContext scopedContext(std::initializer_list<frontend::FrontendScope> scopes, bool expanded) {
+        const frontend::FrontendPrincipal restricted =
+            principal("restricted", std::span<const frontend::FrontendScope>{scopes.begin(), scopes.size()}, "restricted_projection_test");
+        std::vector<frontend::FrontendCapability> capabilities{frontend::FrontendCapability::ScopeProjectedState};
+        if (expanded) {
+            capabilities.push_back(frontend::FrontendCapability::CompleteBackendDomains);
+            capabilities.push_back(frontend::FrontendCapability::CompleteThreadItems);
+        }
+        return detail::makeProjectionContext(restricted, capabilities);
+    }
+
     frontend::Json expandedState() {
         return {
             {"provider", {{"lifecycle", "ready"}, {"generation", 9}}},
             {"controller", {{"present", true}, {"controllerSessionId", "1"}}},
             {"sessions", frontend::Json::array({frontend::Json{{"sessionId", "1"}, {"role", "controller"}}})},
+            {"threadList",
+             {{"hasLoadedPage", true},
+              {"complete", false},
+              {"pagesLoaded", 3},
+              {"nextCursor", "next-thread-page"},
+              {"backwardsCursor", "previous-thread-page"},
+              {"stamp", {{"generation", 9}, {"freshness", "current"}}}}},
             {"threads", frontend::Json::array()},
             {"turns", frontend::Json::array()},
             {"items",
@@ -148,10 +168,12 @@ namespace {
                  {"stamp", {{"generation", 9}, {"freshness", "current"}}},
                  {"password", SecretSentinel}}}},
               {{"/process/command", {frontend::FrontendScope::CommandExecution}, detail::ScopeProjectionAction::Omit},
-               {"/process/stdout", {frontend::FrontendScope::CommandExecution}, detail::ScopeProjectionAction::Omit}}}},
+               {"/process/stdout", {frontend::FrontendScope::CommandExecution}, detail::ScopeProjectionAction::Omit}}},
+             {}},
             {frontend::ExpandedEventType::NoticeAdded,
              {{{"notice", {{"category", "review"}, {"summary", "safe notice"}, {"stamp", {{"generation", 9}, {"freshness", "current"}}}}}},
-              {}}},
+              {}},
+             {}},
         };
         input.registryKey = "server_notification:ServerNotification:method:process/outputDelta";
         input.extensions = {{"safeExtension", true}, {"apiKey", SecretSentinel}};
@@ -171,6 +193,12 @@ namespace {
         snapshot.provider.recovery.status = backend::RecoveryStatus::Idle;
         snapshot.controller = backend::SessionId{1};
         snapshot.sessions.push_back({backend::SessionId{1}, backend::SessionRole::Controller});
+        snapshot.threadList.hasLoadedPage = true;
+        snapshot.threadList.complete = false;
+        snapshot.threadList.pagesLoaded = 3;
+        snapshot.threadList.nextCursor = "next-thread-page";
+        snapshot.threadList.backwardsCursor = "previous-thread-page";
+        snapshot.threadList.stamp = {9, backend::Freshness::Current};
 
         backend::ItemSnapshot item;
         item.id = "item-1";
@@ -221,6 +249,26 @@ namespace {
         watch.root = "/private/worktree";
         watch.stamp = {9, backend::Freshness::Current};
         snapshot.filesystemWatches.push_back(std::move(watch));
+        backend::FuzzySearchSnapshot search;
+        search.sessionId = "search-1";
+        search.resultCount = 2;
+        search.complete = false;
+        search.stamp = {9, backend::Freshness::Current};
+        snapshot.fuzzySearchSessions.push_back(std::move(search));
+        backend::NoticeSnapshot notice;
+        notice.occurrence = 1;
+        notice.category = backend::NoticeCategory::Warning;
+        notice.summary = "representative notice";
+        notice.stamp = {9, backend::Freshness::Current};
+        snapshot.notices.push_back(std::move(notice));
+        backend::ActivitySnapshot activity;
+        activity.key = "activity-1";
+        activity.subjectId = "subject-1";
+        activity.kind = "test";
+        activity.lifecycle = "running";
+        activity.active = true;
+        activity.stamp = {9, backend::Freshness::Current};
+        snapshot.activities.push_back(std::move(activity));
         snapshot.diagnostics.received = 1;
         return snapshot;
     }
@@ -268,6 +316,70 @@ namespace {
         constexpr std::string_view marker = ":type:";
         const std::size_t offset = registryKey.rfind(marker);
         return offset == std::string_view::npos ? std::string_view{} : registryKey.substr(offset + marker.size());
+    }
+
+    struct BackendItemKindMapping {
+        std::string_view backendType;
+        frontend::ThreadItemKind frontendKind;
+        bool mcpServer = false;
+    };
+
+    constexpr std::array BackendItemKindMappings{
+        BackendItemKindMapping{"agent_message", frontend::ThreadItemKind::AgentMessage},
+        BackendItemKindMapping{"collabAgentToolCall", frontend::ThreadItemKind::CollabAgentToolCall},
+        BackendItemKindMapping{"command_execution", frontend::ThreadItemKind::CommandExecution},
+        BackendItemKindMapping{"contextCompaction", frontend::ThreadItemKind::ContextCompaction},
+        BackendItemKindMapping{"tool_call", frontend::ThreadItemKind::DynamicToolCall},
+        BackendItemKindMapping{"enteredReviewMode", frontend::ThreadItemKind::EnteredReviewMode},
+        BackendItemKindMapping{"exitedReviewMode", frontend::ThreadItemKind::ExitedReviewMode},
+        BackendItemKindMapping{"file_change", frontend::ThreadItemKind::FileChange},
+        BackendItemKindMapping{"hookPrompt", frontend::ThreadItemKind::HookPrompt},
+        BackendItemKindMapping{"imageGeneration", frontend::ThreadItemKind::ImageGeneration},
+        BackendItemKindMapping{"imageView", frontend::ThreadItemKind::ImageView},
+        BackendItemKindMapping{"tool_call", frontend::ThreadItemKind::McpToolCall, true},
+        BackendItemKindMapping{"plan", frontend::ThreadItemKind::Plan},
+        BackendItemKindMapping{"reasoning", frontend::ThreadItemKind::Reasoning},
+        BackendItemKindMapping{"sleep", frontend::ThreadItemKind::Sleep},
+        BackendItemKindMapping{"subAgentActivity", frontend::ThreadItemKind::SubAgentActivity},
+        BackendItemKindMapping{"user_message", frontend::ThreadItemKind::UserMessage},
+        BackendItemKindMapping{"web_search", frontend::ThreadItemKind::WebSearch},
+    };
+
+    ai::openai::codex::backend::Snapshot itemSnapshot(const BackendItemKindMapping& mapping,
+                                                      std::string itemId,
+                                                      std::string threadId = "thread-mapping",
+                                                      std::string turnId = "turn-mapping") {
+        namespace backend = ai::openai::codex::backend;
+        backend::ItemSnapshot item;
+        item.id = std::move(itemId);
+        item.type = std::string(mapping.backendType);
+        item.status = "completed";
+        item.agentText = "bounded projected text";
+        item.data = {{"safeLabel", "projected-from-snapshot"}};
+        if (mapping.mcpServer) {
+            item.data["server"] = "reviewed-mcp-server";
+        }
+        item.stamp = {23, backend::Freshness::Current};
+
+        backend::TurnSnapshot turn;
+        turn.id = std::move(turnId);
+        turn.threadId = threadId;
+        turn.status = "completed";
+        turn.terminal = true;
+        turn.items.push_back(std::move(item));
+        turn.stamp = {23, backend::Freshness::Current};
+
+        backend::ThreadSnapshot thread;
+        thread.id = std::move(threadId);
+        thread.fullyLoaded = true;
+        thread.turns.push_back(std::move(turn));
+        thread.stamp = {23, backend::Freshness::Current};
+
+        backend::Snapshot snapshot;
+        snapshot.provider.lifecycle = backend::ProviderLifecycle::Ready;
+        snapshot.provider.generation = 23;
+        snapshot.threads.push_back(std::move(thread));
+        return snapshot;
     }
 
     std::string backendPendingType(std::string_view kind) {
@@ -371,7 +483,7 @@ namespace {
         eventInput.legacyData = {inputValue, rules};
         eventInput.requiredScopes = {frontend::FrontendScope::CommandExecution};
         eventInput.expandedEvents = {
-            {frontend::ExpandedEventType::ProcessUpdated, {inputValue, rules}},
+            {frontend::ExpandedEventType::ProcessUpdated, {inputValue, rules}, {}},
         };
         const detail::CanonicalEventRecord event = detail::canonicalizeEvent(std::move(eventInput));
         const auto retainedBytes = detail::canonicalEventRetainedBytes(event);
@@ -413,6 +525,13 @@ namespace {
         result.expectTrue(local && remote && local->snapshot.sequence == record.sequence && remote->snapshot.sequence == record.sequence &&
                               local->expanded && remote->expanded,
                           "local and default projections retain the canonical snapshot sequence and negotiated expanded representation");
+        result.expectTrue(local && local->snapshot.state.at("threadList").at("hasLoadedPage") == true &&
+                              local->snapshot.state.at("threadList").at("complete") == false &&
+                              local->snapshot.state.at("threadList").at("pagesLoaded") == 3 &&
+                              local->snapshot.state.at("threadList").at("nextCursor") == "next-thread-page" &&
+                              local->snapshot.state.at("threadList").at("backwardsCursor") == "previous-thread-page" &&
+                              local->snapshot.state.at("threadList").at("stamp").at("generation") == 9,
+                          "expanded snapshots carry authoritative thread-list paging, cursor, and source-stamp state");
 
         const bool metadataOnlyDifference =
             remote && remoteWithoutMetadata && remote->snapshot.state == remoteWithoutMetadata->snapshot.state &&
@@ -455,6 +574,21 @@ namespace {
                               projected->snapshot.state.at("entries").front().at("value") == "first" &&
                               projected->omittedFields == std::vector<std::string>{"/entries/1"},
                           "scope rules can omit an entire array element without leaving a placeholder or traversing its value");
+
+        detail::CanonicalSnapshotRecord identityInput;
+        identityInput.sequence = frontend::SequenceNumber{31};
+        identityInput.legacyState.value = frontend::Json::object();
+        identityInput.expandedState.value = {
+            {"items", frontend::Json::array({frontend::Json{{"id", "stable-item"}, {"type", "plan"}}, frontend::Json{{"type", "plan"}}})}};
+        const detail::CanonicalSnapshotRecord identityRecord = detail::canonicalizeSnapshot(std::move(identityInput));
+        const auto identityProjected = detail::projectSnapshot(
+            identityRecord,
+            localContext({frontend::FrontendCapability::CompleteBackendDomains, frontend::FrontendCapability::ScopeProjectedState}));
+        result.expectTrue(identityProjected && identityProjected->snapshot.state.at("items").size() == 1 &&
+                              identityProjected->snapshot.state.at("items").front().at("id") == "stable-item" &&
+                              std::find(identityProjected->omittedFields.begin(), identityProjected->omittedFields.end(), "/items/1") !=
+                                  identityProjected->omittedFields.end(),
+                          "metadata-compatible snapshot projection omits an identity-less item instead of fabricating an ID");
     }
 
     void testIndependentSnapshotCapabilities(tests::support::TestResult& result) {
@@ -676,28 +810,42 @@ namespace {
             "fuzzySearch.updated",
             "integrations.updated",
             "item.content.updated",
+            "item.upserted",
             "mcp.updated",
-            "models.updated",
             "notice.added",
             "pendingRequests.updated",
             "platform.updated",
             "process.updated",
             "reviews.updated",
             "skills.updated",
+            "thread.removed",
             "thread.upserted",
             "turn.upserted",
         };
         for (std::size_t index = 0; index < generated::AllNotificationProjections.size(); ++index) {
             const generated::ProjectionMetadata& metadata = generated::AllNotificationProjections[index];
             const std::string_view method = notificationMethod(metadata.registryKey);
-            detail::CanonicalEventRecord eventRecord = detail::makeCanonicalEventRecord("codex.extension",
-                                                                                        frontend::Json{{"method", method},
-                                                                                                       {"threadId", "thread-1"},
-                                                                                                       {"turnId", "turn-1"},
-                                                                                                       {"itemId", "item-1"},
-                                                                                                       {"accessToken", SecretSentinel}},
-                                                                                        snapshot,
-                                                                                        frontend::SequenceNumber{100 + index});
+            frontend::Json params{{"threadId", "thread-1"},
+                                  {"turnId", "turn-1"},
+                                  {"itemId", "item-1"},
+                                  {"processHandle", "process-1"},
+                                  {"processId", "process-1"},
+                                  {"watchId", "watch-1"},
+                                  {"sessionId", "search-1"},
+                                  {"summary", "exact projected notice"},
+                                  {"message", "exact projected warning"},
+                                  {"details", "exact projected details"},
+                                  {"failedScan", false},
+                                  {"samplePaths", frontend::Json::array()},
+                                  {"extraCount", 0}};
+            params["thread"] = frontend::Json{{"id", "thread-1"}};
+            params["turn"] = frontend::Json{{"id", "turn-1"}, {"threadId", "thread-1"}};
+            params["item"] = frontend::Json{{"id", "item-1"}};
+            detail::CanonicalEventRecord eventRecord = detail::makeCanonicalEventRecord(
+                "codex.extension",
+                frontend::Json{{"method", method}, {"params", std::move(params)}, {"accessToken", SecretSentinel}},
+                snapshot,
+                frontend::SequenceNumber{100 + index});
             std::vector<std::string_view> families;
             for (const detail::CanonicalExpandedEvent& event : eventRecord.expandedEvents) {
                 families.push_back(frontend::toString(event.type));
@@ -729,7 +877,7 @@ namespace {
         result.expectTrue(
             everyNotificationMapped && everyProjectedEventSchemaValid && noDuplicateFamily && exactOccurrenceSequences &&
                 exactlyOneCompatibilityRepresentation && mappedFamilies == expectedNotificationFamilies,
-            "all 68 notification mappings cover 17 dedicated families with one canonical sequence and one legacy representation");
+            "all 68 notification mappings cover 18 dedicated families with one canonical sequence and one legacy representation");
 
         backend::Snapshot multiThreadSnapshot = snapshot;
         backend::ThreadSnapshot secondThread;
@@ -741,16 +889,31 @@ namespace {
         const detail::CanonicalEventRecord multiThreadRecord = detail::makeCanonicalEventRecord(
             "thread.list.updated", frontend::Json::object(), multiThreadSnapshot, frontend::SequenceNumber{199});
         const detail::EventProjection multiThreadProjection = detail::projectEvent(multiThreadRecord, localExpandedContext());
+        const detail::EventProjection multiThreadReplay =
+            detail::projectEvent(multiThreadRecord, localExpandedContext(), frontend::SequenceNumber{198});
+        const detail::EventProjection multiThreadAlreadyApplied =
+            detail::projectEvent(multiThreadRecord, localExpandedContext(), frontend::SequenceNumber{199});
+        const detail::EventProjection multiThreadLegacy = detail::projectEvent(multiThreadRecord, localContext({}));
         const frontend::EventBatch multiThreadBatch{
             frontend::SequenceNumber{199}, frontend::SequenceNumber{199}, multiThreadProjection.events, frontend::Json::object()};
-        result.expectTrue(multiThreadProjection.events.size() == 2 &&
-                              std::all_of(multiThreadProjection.events.begin(),
-                                          multiThreadProjection.events.end(),
-                                          [](const frontend::FrontendEvent& event) {
-                                              return event.type == "thread.upserted" && event.sequence == frontend::SequenceNumber{199};
-                                          }) &&
+        result.expectTrue(multiThreadProjection.events.size() == 1 && multiThreadProjection.events.front().type == "threadList.updated" &&
+                              multiThreadProjection.events.front().sequence == frontend::SequenceNumber{199} &&
+                              multiThreadProjection.events.front().data.at("threadList").at("pagesLoaded") == 3 &&
+                              multiThreadReplay.events == multiThreadProjection.events && multiThreadReplay.expanded &&
+                              multiThreadAlreadyApplied.events.empty() && multiThreadLegacy.events.size() == 1 &&
+                              multiThreadLegacy.events.front().type == "thread.list.updated" &&
                               frontend::Codec::encodeServer(frontend::ServerMessage{multiThreadBatch}).hasValue(),
-                          "one thread-list occurrence may repeat an expanded family for distinct entities without splitting its sequence");
+                          "live and replay select the same compact thread-list event, while the replay cursor suppresses an already "
+                          "represented occurrence and legacy selects exactly one compatibility representation");
+
+        backend::Snapshot emptyThreadSnapshot = snapshot;
+        emptyThreadSnapshot.threads.clear();
+        const detail::CanonicalEventRecord emptyThreadRecord = detail::makeCanonicalEventRecord(
+            "thread.list.updated", frontend::Json::object(), emptyThreadSnapshot, frontend::SequenceNumber{200});
+        const detail::EventProjection emptyThreadProjection = detail::projectEvent(emptyThreadRecord, localExpandedContext());
+        result.expectTrue(emptyThreadProjection.events.size() == 1 && emptyThreadProjection.events.front().type == "threadList.updated" &&
+                              !emptyThreadProjection.events.front().data.contains("thread"),
+                          "an empty thread-list page emits one metadata event and fabricates no thread");
     }
 
     void testAllThreadItemRuntimeMappings(tests::support::TestResult& result) {
@@ -842,7 +1005,8 @@ namespace {
             const std::string expectedType(itemDiscriminator(generated::AllThreadItemProjections[index].registryKey));
             const detail::CanonicalEventRecord event = detail::makeCanonicalEventRecord(
                 "item.updated",
-                frontend::Json{{"threadId", "thread-all-items"}, {"turnId", "turn-all-items"}, {"itemId", "item-" + std::to_string(index)}},
+                frontend::Json{
+                    {"threadId", "thread-all-items"}, {"turnId", "turn-all-items"}, {"item", {{"id", "item-" + std::to_string(index)}}}},
                 snapshot,
                 frontend::SequenceNumber{240 + index});
             const detail::EventProjection projected =
@@ -857,6 +1021,210 @@ namespace {
             allUsefulAndSafe && exactLocations && remoteKeepsItemsButFiltersOutput && exactCompatibilityForms && normalizedCount == 8 &&
                 metadataOnlyCount == 10 && schemaValid && allItemEvents && !serializedContainsSecret(record.expandedState.value),
             "all 18 ThreadItems retain useful safe fields, stable locations, exact 8/10 compatibility, and scope-filtered content");
+    }
+
+    void testBackendItemKindNormalizationAndWireBoundary(tests::support::TestResult& result) {
+        namespace backend = ai::openai::codex::backend;
+
+        std::set<frontend::ThreadItemKind> mappedKinds;
+        std::set<std::string> mappedSpellings;
+        std::set<std::string> generatedSpellings;
+        bool everyKindMapped = true;
+        bool everyKindRoundTrips = true;
+        bool everyItemSchemaValid = true;
+        bool everyEventRoundTrips = true;
+        bool everyIdentityExact = true;
+        bool noRawOccurrenceRepresentation = true;
+        bool liveReplayEquivalent = true;
+        bool userWireNormalized = false;
+        bool agentWireNormalized = false;
+
+        for (const auto& metadata : generated::AllThreadItemProjections) {
+            generatedSpellings.emplace(itemDiscriminator(metadata.registryKey));
+        }
+
+        for (std::size_t index = 0; index < BackendItemKindMappings.size(); ++index) {
+            const BackendItemKindMapping& mapping = BackendItemKindMappings[index];
+            const std::string itemId = "item-mapping-" + std::to_string(index);
+            backend::Snapshot snapshot = itemSnapshot(mapping, itemId);
+            const backend::ItemSnapshot& backendItem = snapshot.threads.front().turns.front().items.front();
+            const std::optional<frontend::ThreadItemKind> mapped = detail::expandedItemKind(backendItem);
+            const std::string stableType(frontend::toString(mapping.frontendKind));
+            const std::optional<frontend::ThreadItemKind> reversed = frontend::threadItemKindFromString(stableType);
+            mappedKinds.emplace(mapping.frontendKind);
+            mappedSpellings.emplace(stableType);
+            everyKindMapped = everyKindMapped && mapped == mapping.frontendKind && !stableType.empty();
+            everyKindRoundTrips = everyKindRoundTrips && reversed == mapping.frontendKind;
+
+            const frontend::SequenceNumber sequence{600 + index};
+            const detail::CanonicalEventRecord record =
+                detail::makeCanonicalEventRecord("item.updated",
+                                                 frontend::Json{{"threadId", "thread-mapping"},
+                                                                {"turnId", "turn-mapping"},
+                                                                {"item",
+                                                                 {{"id", itemId},
+                                                                  {"type", mapping.backendType},
+                                                                  {"rawOccurrenceOnly", "must-not-cross-projection-boundary"},
+                                                                  {"data", {{"occurrenceOnly", true}}}}}},
+                                                 snapshot,
+                                                 sequence);
+            const detail::EventProjection live = detail::projectEvent(record, localExpandedContext());
+            const detail::EventProjection replay =
+                detail::projectEvent(record, localExpandedContext(), frontend::SequenceNumber{sequence.value() - 1});
+            liveReplayEquivalent = liveReplayEquivalent && live.events == replay.events && live.expanded == replay.expanded &&
+                                   live.omittedFields == replay.omittedFields && live.redactedFields == replay.redactedFields;
+            if (live.events.size() != 1 || live.events.front().type != "item.upserted" || !live.events.front().data.contains("item")) {
+                everyItemSchemaValid = false;
+                everyEventRoundTrips = false;
+                everyIdentityExact = false;
+                noRawOccurrenceRepresentation = false;
+                continue;
+            }
+
+            const frontend::Json& projectedItem = live.events.front().data.at("item");
+            everyIdentityExact = everyIdentityExact && projectedItem.value("id", "") == itemId &&
+                                 projectedItem.value("threadId", "") == "thread-mapping" &&
+                                 projectedItem.value("turnId", "") == "turn-mapping";
+            noRawOccurrenceRepresentation = noRawOccurrenceRepresentation && projectedItem.value("type", "") == stableType &&
+                                            !projectedItem.contains("rawOccurrenceOnly") &&
+                                            (!projectedItem.contains("data") || !projectedItem.at("data").contains("occurrenceOnly"));
+
+            const detail::GeneratedSchemaValidation itemValidation = detail::validateGeneratedSchema(
+                detail::generatedProtocolSchema(), "#/$defs/ExpandedThreadItem", projectedItem, "expanded item");
+            const auto typedEvent = frontend::Codec::encodeExpandedEvent(
+                frontend::ExpandedFrontendEvent{sequence, frontend::ExpandedEventType::ItemUpserted, live.events.front().data});
+            everyItemSchemaValid = everyItemSchemaValid && itemValidation.valid && typedEvent.hasValue();
+
+            const frontend::EventBatch batch{sequence, sequence, live.events, frontend::Json::object()};
+            const auto serialized = frontend::Codec::serializeServer(frontend::ServerMessage{batch});
+            bool decodedExact = false;
+            std::string itemWire;
+            if (serialized) {
+                const auto decoded = frontend::Codec::decodeServer(std::string_view{serialized.value()});
+                const frontend::Json wire = frontend::Json::parse(serialized.value(), nullptr, false);
+                if (!wire.is_discarded() && wire.contains("events") && wire.at("events").is_array() && !wire.at("events").empty()) {
+                    itemWire = wire.at("events").front().at("data").at("item").dump();
+                }
+                if (decoded) {
+                    if (const auto* decodedBatch = std::get_if<frontend::EventBatch>(&decoded.value());
+                        decodedBatch != nullptr && decodedBatch->events.size() == 1) {
+                        decodedExact = decodedBatch->events.front().data.at("item").value("type", "") == stableType;
+                    }
+                }
+            }
+            const std::string stableWire = "\"type\":\"" + stableType + "\"";
+            const std::string backendWire = "\"type\":\"" + std::string(mapping.backendType) + "\"";
+            const bool noBackendDiscriminator = mapping.backendType == stableType || itemWire.find(backendWire) == std::string::npos;
+            everyEventRoundTrips = everyEventRoundTrips && serialized.hasValue() && decodedExact &&
+                                   itemWire.find(stableWire) != std::string::npos && noBackendDiscriminator;
+            userWireNormalized = userWireNormalized ||
+                                 (mapping.backendType == "user_message" && itemWire.find("\"type\":\"userMessage\"") != std::string::npos &&
+                                  itemWire.find("\"type\":\"user_message\"") == std::string::npos);
+            agentWireNormalized = agentWireNormalized || (mapping.backendType == "agent_message" &&
+                                                          itemWire.find("\"type\":\"agentMessage\"") != std::string::npos &&
+                                                          itemWire.find("\"type\":\"agent_message\"") == std::string::npos);
+        }
+
+        result.expectTrue(everyKindMapped && mappedKinds.size() == 18,
+                          "the production backend item-kind mapper covers all 18 reviewed alternatives, including both tool-call forms");
+        result.expectTrue(everyKindRoundTrips && mappedSpellings.size() == 18 && generatedSpellings == mappedSpellings,
+                          "all 18 enum spellings are unique, generated-authority-defined, and round-trip through ThreadItemKind");
+        result.expectTrue(everyItemSchemaValid && everyEventRoundTrips && everyIdentityExact,
+                          "all 18 projected items satisfy ExpandedThreadItem and serialize/decode with exact parent identity");
+        result.expectTrue(
+            noRawOccurrenceRepresentation && userWireNormalized && agentWireNormalized && liveReplayEquivalent,
+            "wire projection normalizes backend discriminators, copies no raw occurrence representation, and is live/replay stable");
+
+        const BackendItemKindMapping userMapping{"user_message", frontend::ThreadItemKind::UserMessage};
+        const BackendItemKindMapping agentMapping{"agent_message", frontend::ThreadItemKind::AgentMessage};
+        backend::Snapshot exact = itemSnapshot(userMapping, "duplicate-item", "thread-exact", "turn-exact");
+        backend::Snapshot unrelated = itemSnapshot(agentMapping, "duplicate-item", "thread-unrelated", "turn-unrelated");
+        exact.threads.insert(exact.threads.begin(), std::move(unrelated.threads.front()));
+        const detail::CanonicalEventRecord exactRecord = detail::makeCanonicalEventRecord(
+            "item.updated",
+            frontend::Json{
+                {"threadId", "thread-exact"}, {"turnId", "turn-exact"}, {"item", {{"id", "duplicate-item"}, {"type", "user_message"}}}},
+            exact,
+            frontend::SequenceNumber{700});
+        const detail::EventProjection exactProjection = detail::projectEvent(exactRecord, localExpandedContext());
+        const detail::CanonicalEventRecord exactContentRecord =
+            detail::makeCanonicalEventRecord("item.content.updated",
+                                             frontend::Json{{"threadId", "thread-exact"},
+                                                            {"turnId", "turn-exact"},
+                                                            {"itemId", "duplicate-item"},
+                                                            {"channel", "agentText"},
+                                                            {"content", "exact replacement"}},
+                                             exact,
+                                             frontend::SequenceNumber{701});
+        const detail::EventProjection exactContentProjection = detail::projectEvent(exactContentRecord, localExpandedContext());
+        const detail::CanonicalEventRecord mismatchRecord = detail::makeCanonicalEventRecord(
+            "item.updated",
+            frontend::Json{
+                {"threadId", "thread-exact"}, {"turnId", "turn-missing"}, {"item", {{"id", "duplicate-item"}, {"type", "user_message"}}}},
+            exact,
+            frontend::SequenceNumber{702});
+
+        backend::Snapshot inconsistentParent = itemSnapshot(userMapping, "duplicate-item", "thread-exact", "turn-exact");
+        inconsistentParent.threads.front().turns.front().threadId = "thread-inconsistent";
+        const detail::CanonicalEventRecord inconsistentParentRecord = detail::makeCanonicalEventRecord(
+            "item.updated",
+            frontend::Json{
+                {"threadId", "thread-exact"}, {"turnId", "turn-exact"}, {"item", {{"id", "duplicate-item"}, {"type", "user_message"}}}},
+            inconsistentParent,
+            frontend::SequenceNumber{703});
+        result.expectTrue(
+            !exactRecord.snapshotRequired && exactProjection.events.size() == 1 &&
+                exactProjection.events.front().data.at("item").at("type") == "userMessage" &&
+                exactProjection.events.front().data.at("item").at("threadId") == "thread-exact" &&
+                exactContentProjection.events.size() == 1 && exactContentProjection.events.front().data.at("threadId") == "thread-exact" &&
+                exactContentProjection.events.front().data.at("turnId") == "turn-exact" && mismatchRecord.snapshotRequired &&
+                detail::projectEvent(mismatchRecord, localExpandedContext()).events.empty() && inconsistentParentRecord.snapshotRequired &&
+                detail::projectEvent(inconsistentParentRecord, localExpandedContext()).events.empty(),
+            "item upsert and content projection resolve the full thread/turn/item triple, reject inconsistent parent metadata, and "
+            "never substitute a duplicate ID");
+    }
+
+    void testUnknownBackendItemContainment(tests::support::TestResult& result) {
+        namespace backend = ai::openai::codex::backend;
+        const BackendItemKindMapping knownMapping{"user_message", frontend::ThreadItemKind::UserMessage};
+        backend::Snapshot snapshot = itemSnapshot(knownMapping, "known-item", "thread-unknown", "turn-unknown");
+        backend::ItemSnapshot unknown;
+        unknown.id = "future-item";
+        unknown.type = "future_codex_item_kind";
+        unknown.status = "completed";
+        unknown.data = {{"safeLabel", "future item retained only in the backend"}};
+        unknown.stamp = {23, backend::Freshness::Current};
+        snapshot.threads.front().turns.front().items.push_back(std::move(unknown));
+
+        const detail::CanonicalEventRecord event =
+            detail::makeCanonicalEventRecord("item.updated",
+                                             frontend::Json{{"threadId", "thread-unknown"},
+                                                            {"turnId", "turn-unknown"},
+                                                            {"item", {{"id", "future-item"}, {"type", "future_codex_item_kind"}}}},
+                                             snapshot,
+                                             frontend::SequenceNumber{710});
+        const detail::EventProjection live = detail::projectEvent(event, localExpandedContext());
+        const detail::EventProjection replay = detail::projectEvent(event, localExpandedContext(), frontend::SequenceNumber{709});
+
+        const detail::CanonicalSnapshotRecord snapshotRecord = detail::makeCanonicalSnapshotRecord(
+            frontend::Json{{"items", frontend::Json::array()}}, snapshot, frontend::SequenceNumber{711});
+        const auto projectedSnapshot = detail::projectSnapshot(snapshotRecord, localExpandedContext());
+        bool validBoundedSnapshot = false;
+        if (projectedSnapshot) {
+            const frontend::Json& state = projectedSnapshot->snapshot.state;
+            const auto decoded = frontend::Codec::decodeExpandedSnapshot(expandedSnapshotEnvelope(*projectedSnapshot));
+            validBoundedSnapshot = decoded.hasValue() && state.at("items").size() == 1 &&
+                                   state.at("items").front().at("id") == "known-item" &&
+                                   state.at("items").front().at("type") == "userMessage" && state.at("truncation").at("truncated") &&
+                                   state.at("truncation").at("omittedEntries").get<std::size_t>() >= 1 &&
+                                   state.dump().find("future_codex_item_kind") == std::string::npos &&
+                                   state.dump().find("\"type\":\"unknown\"") == std::string::npos;
+        }
+        result.expectTrue(event.snapshotRequired && !detail::canonicalEventRetainedBytes(event).has_value() && live.events.empty() &&
+                              replay.events.empty(),
+                          "an unrecognized backend item emits no fabricated item event and requests authoritative Snapshot fallback");
+        result.expectTrue(validBoundedSnapshot,
+                          "expanded snapshots omit unsupported items through explicit truncation accounting while retaining known items");
     }
 
     void testAllPendingRequestRuntimeMappings(tests::support::TestResult& result) {
@@ -938,11 +1306,12 @@ namespace {
         namespace backend = ai::openai::codex::backend;
         const backend::Snapshot snapshot = representativeBackendSnapshot();
         const std::set<std::string> expected{
-            "provider.updated", "controller.updated",    "sessions.updated",     "thread.upserted",         "thread.removed",
-            "turn.upserted",    "item.upserted",         "item.content.updated", "pendingRequests.updated", "account.updated",
-            "models.updated",   "configuration.updated", "process.updated",      "filesystemWatch.updated", "fuzzySearch.updated",
-            "reviews.updated",  "integrations.updated",  "plugins.updated",      "skills.updated",          "mcp.updated",
-            "platform.updated", "notice.added",          "activity.updated",     "capacity.updated",        "diagnostics.updated",
+            "provider.updated",    "controller.updated", "sessions.updated",      "threadList.updated",   "thread.upserted",
+            "thread.removed",      "turn.upserted",      "item.upserted",         "item.content.updated", "pendingRequests.updated",
+            "account.updated",     "models.updated",     "configuration.updated", "process.updated",      "filesystemWatch.updated",
+            "fuzzySearch.updated", "reviews.updated",    "integrations.updated",  "plugins.updated",      "skills.updated",
+            "mcp.updated",         "platform.updated",   "notice.added",          "activity.updated",     "capacity.updated",
+            "diagnostics.updated",
         };
         std::set<std::string> observed;
         bool localValid = true;
@@ -950,11 +1319,41 @@ namespace {
         bool exactSequence = true;
         for (std::size_t index = 0; index < detail::AllExpandedEventProjections.size(); ++index) {
             const frontend::ExpandedEventType type = detail::AllExpandedEventProjections[index].type;
-            const detail::CanonicalEventRecord record =
-                detail::makeCanonicalEventRecord(std::string(frontend::toString(type)),
-                                                 frontend::Json{{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"itemId", "item-1"}},
-                                                 snapshot,
-                                                 frontend::SequenceNumber{300 + index});
+            frontend::Json data{{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"itemId", "item-1"}};
+            if (type == frontend::ExpandedEventType::ThreadUpserted) {
+                data = {{"thread", {{"id", "thread-1"}}}};
+            } else if (type == frontend::ExpandedEventType::ThreadRemoved) {
+                data = {{"threadId", "thread-1"}};
+            } else if (type == frontend::ExpandedEventType::TurnUpserted) {
+                data = {{"turn", {{"id", "turn-1"}, {"threadId", "thread-1"}}}};
+            } else if (type == frontend::ExpandedEventType::ItemUpserted) {
+                data = {{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"item", {{"id", "item-1"}}}};
+            } else if (type == frontend::ExpandedEventType::ItemContentUpdated) {
+                data = {{"threadId", "thread-1"},
+                        {"turnId", "turn-1"},
+                        {"itemId", "item-1"},
+                        {"channel", "agentText"},
+                        {"content", "exact replacement"}};
+            } else if (type == frontend::ExpandedEventType::ProcessUpdated) {
+                data = {{"process", {{"processHandle", "process-1"}}}};
+            } else if (type == frontend::ExpandedEventType::FilesystemWatchUpdated) {
+                data = {{"filesystemWatch", {{"watchId", "watch-1"}}}};
+            } else if (type == frontend::ExpandedEventType::FuzzySearchUpdated) {
+                data = {{"fuzzySearch", {{"sessionId", "search-1"}}}};
+            } else if (type == frontend::ExpandedEventType::NoticeAdded) {
+                data = {{"notice",
+                         {{"category", "warning"}, {"summary", "exact notice"}, {"stamp", {{"generation", 9}, {"freshness", "current"}}}}}};
+            } else if (type == frontend::ExpandedEventType::ActivityUpdated) {
+                data = {{"activity",
+                         {{"key", "activity-1"},
+                          {"subjectId", "subject-1"},
+                          {"kind", "test"},
+                          {"lifecycle", "running"},
+                          {"active", true},
+                          {"stamp", {{"generation", 9}, {"freshness", "current"}}}}}};
+            }
+            const detail::CanonicalEventRecord record = detail::makeCanonicalEventRecord(
+                std::string(frontend::toString(type)), std::move(data), snapshot, frontend::SequenceNumber{300 + index});
             const detail::EventProjection local = detail::projectEvent(record, localExpandedContext());
             const detail::EventProjection remote = detail::projectEvent(record, defaultExpandedContext());
             localValid = localValid && local.events.size() == 1 && local.events.front().type == frontend::toString(type);
@@ -975,8 +1374,8 @@ namespace {
                 exactSequence = exactSequence && local.events.front().sequence.value() == 300 + index;
             }
         }
-        result.expectTrue(localValid && remoteScopeCorrect && exactSequence && observed == expected && expected.size() == 25,
-                          "all 25 expanded event families are schema-valid, sequence-stable, and obey full-family scope policy");
+        result.expectTrue(localValid && remoteScopeCorrect && exactSequence && observed == expected && expected.size() == 26,
+                          "all 26 expanded event families are schema-valid, sequence-stable, and obey full-family scope policy");
     }
 
     void testCapabilitySelectionAndUnknownFallback(tests::support::TestResult& result) {
@@ -1052,28 +1451,254 @@ namespace {
                 principal("remote-expanded", frontend::DefaultRemoteScopes, std::string(frontend::DefaultRemoteScopeProfile.name)),
                 std::array{frontend::FrontendCapability::CompleteThreadItems, frontend::FrontendCapability::ScopeProjectedState}));
 
-        const bool localAuthorized = localLegacyProjection.events.size() == 1 && localExpanded.events.size() == 1 &&
-                                     localLegacyProjection.events.front().data.contains("content") &&
-                                     localExpanded.events.front().data.contains("content") &&
-                                     localLegacyProjection.events.front().data.at("content") == "PRIVILEGED_COMMAND_OUTPUT" &&
-                                     localExpanded.events.front().data.at("content") == "PRIVILEGED_COMMAND_OUTPUT";
-        const bool remoteAlwaysFiltered = remoteLegacyProjection.events.size() == 1 && remoteExpanded.events.size() == 1 &&
-                                          !remoteLegacyProjection.events.front().data.contains("content") &&
-                                          !remoteExpanded.events.front().data.contains("content") &&
-                                          remoteLegacyProjection.events.front().sequence == remoteExpanded.events.front().sequence;
-        const bool metadataOnly = remoteExpandedWithMetadata.events.size() == 1 &&
-                                  remoteExpandedWithMetadata.events.front().data == remoteExpanded.events.front().data &&
-                                  remoteExpandedWithMetadata.events.front().extensions.contains("scopeProjection") &&
-                                  !remoteExpanded.events.front().extensions.contains("scopeProjection");
-        result.expectTrue(localAuthorized && remoteAlwaysFiltered && metadataOnly,
-                          "command output is scope-filtered before legacy/expanded selection and scope metadata changes no information");
+        const bool localAuthorized =
+            localLegacyProjection.events.size() == 1 && localExpanded.events.size() == 1 &&
+            localLegacyProjection.events.front().data.contains("content") && localExpanded.events.front().data.contains("content") &&
+            localLegacyProjection.events.front().data.at("content") == "PRIVILEGED_COMMAND_OUTPUT" &&
+            localExpanded.events.front().data.at("content") == "PRIVILEGED_COMMAND_OUTPUT" &&
+            frontend::Codec::encodeExpandedEvent(frontend::ExpandedFrontendEvent{localExpanded.events.front().sequence,
+                                                                                 frontend::ExpandedEventType::ItemContentUpdated,
+                                                                                 localExpanded.events.front().data,
+                                                                                 localExpanded.events.front().extensions})
+                .hasValue();
+        const bool remoteAlwaysFiltered =
+            remoteLegacyProjection.events.empty() && remoteExpanded.events.empty() && remoteExpandedWithMetadata.events.empty();
+        result.expectTrue(localAuthorized && remoteAlwaysFiltered,
+                          "a required-member content occurrence is schema-valid when authorized and wholly hidden below its scope ceiling");
+    }
+
+    void testSemanticItemOutputProjectionBeyondRuleBound(tests::support::TestResult& result) {
+        namespace backend = ai::openai::codex::backend;
+        constexpr std::size_t ItemCount = 200;
+
+        backend::Snapshot snapshot;
+        snapshot.provider.lifecycle = backend::ProviderLifecycle::Ready;
+        snapshot.provider.generation = 17;
+        snapshot.threadList.hasLoadedPage = true;
+        snapshot.threadList.stamp = {17, backend::Freshness::Current};
+
+        backend::TurnSnapshot turn;
+        turn.id = "scope-turn";
+        turn.threadId = "scope-thread";
+        turn.status = "completed";
+        turn.terminal = true;
+        turn.stamp = {17, backend::Freshness::Current};
+        frontend::Json legacyItems = frontend::Json::array();
+        for (std::size_t index = 0; index < ItemCount; ++index) {
+            const bool command = index % 2 == 0;
+            const std::string id = "scope-item-" + std::to_string(index);
+            const std::string type = command ? "commandExecution" : "fileChange";
+            const std::string output = "scoped-output-" + std::to_string(index);
+
+            backend::ItemSnapshot item;
+            item.id = id;
+            item.type = type;
+            item.status = "completed";
+            item.commandOutput = output;
+            item.stamp = {17, backend::Freshness::Current};
+            turn.items.push_back(std::move(item));
+            legacyItems.push_back(frontend::Json{{"id", id},
+                                                 {"threadId", "scope-thread"},
+                                                 {"turnId", "scope-turn"},
+                                                 {"type", type},
+                                                 {"status", "completed"},
+                                                 {"commandOutput", output}});
+        }
+        backend::ThreadSnapshot thread;
+        thread.id = "scope-thread";
+        thread.fullyLoaded = true;
+        thread.stamp = {17, backend::Freshness::Current};
+        thread.turns.push_back(std::move(turn));
+        snapshot.threads.push_back(std::move(thread));
+
+        const frontend::Json legacyState{
+            {"threads",
+             frontend::Json::array({frontend::Json{
+                 {"id", "scope-thread"},
+                 {"turns",
+                  frontend::Json::array({frontend::Json{{"id", "scope-turn"}, {"threadId", "scope-thread"}, {"items", legacyItems}}})}}})},
+            {"pendingRequests", frontend::Json::array()},
+            {"codexExtensions", frontend::Json::array()},
+        };
+        const detail::CanonicalSnapshotRecord record =
+            detail::makeCanonicalSnapshotRecord(legacyState, snapshot, frontend::SequenceNumber{421});
+
+        const auto observeExpanded = detail::projectSnapshot(record, scopedContext({frontend::FrontendScope::Observe}, true));
+        const auto commandExpanded = detail::projectSnapshot(
+            record, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, true));
+        const auto filesystemExpanded = detail::projectSnapshot(
+            record, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, true));
+        const auto bothExpanded = detail::projectSnapshot(
+            record,
+            scopedContext(
+                {frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution, frontend::FrontendScope::FilesystemWrite},
+                true));
+        const auto observeLegacy = detail::projectSnapshot(record, scopedContext({frontend::FrontendScope::Observe}, false));
+        const auto commandLegacy = detail::projectSnapshot(
+            record, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, false));
+        const auto filesystemLegacy = detail::projectSnapshot(
+            record, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, false));
+
+        const auto outputsMatch = [](const frontend::Json& items, bool commandVisible, bool filesystemVisible) {
+            if (!items.is_array() || items.size() != ItemCount) {
+                return false;
+            }
+            for (std::size_t index = 0; index < items.size(); ++index) {
+                const bool expected = index % 2 == 0 ? commandVisible : filesystemVisible;
+                if (items[index].contains("commandOutput") != expected) {
+                    return false;
+                }
+                if (expected && items[index].at("commandOutput") != "scoped-output-" + std::to_string(index)) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        const auto legacyItemsFrom = [](const detail::SnapshotProjection& projection) -> const frontend::Json& {
+            return projection.snapshot.state.at("threads").at(0).at("turns").at(0).at("items");
+        };
+
+        const bool exactAcrossBound =
+            observeExpanded && commandExpanded && filesystemExpanded && bothExpanded && observeLegacy && commandLegacy &&
+            filesystemLegacy && outputsMatch(observeExpanded->snapshot.state.at("items"), false, false) &&
+            outputsMatch(commandExpanded->snapshot.state.at("items"), true, false) &&
+            outputsMatch(filesystemExpanded->snapshot.state.at("items"), false, true) &&
+            outputsMatch(bothExpanded->snapshot.state.at("items"), true, true) &&
+            outputsMatch(legacyItemsFrom(*observeLegacy), false, false) && outputsMatch(legacyItemsFrom(*commandLegacy), true, false) &&
+            outputsMatch(legacyItemsFrom(*filesystemLegacy), false, true) &&
+            !observeExpanded->snapshot.state.at("items").at(ItemCount - 1).contains("commandOutput") &&
+            filesystemExpanded->snapshot.state.at("items").at(ItemCount - 1).contains("commandOutput");
+        result.expectTrue(
+            exactAcrossBound && record.expandedState.rules.size() < detail::FrontendProjectionLimits{}.maximumProjectionRules &&
+                record.legacyState.rules.size() < detail::FrontendProjectionLimits{}.maximumProjectionRules &&
+                !record.sanitization.truncated,
+            "type-specific commandOutput projection remains exact beyond 128 items without consuming the bounded rule budget");
+
+        const frontend::Json& commandItem = legacyItems.at(198);
+        const frontend::Json& fileItem = legacyItems.at(199);
+        const detail::CanonicalEventRecord commandEvent =
+            detail::makeCanonicalEventRecord("item.updated",
+                                             frontend::Json{{"threadId", "scope-thread"}, {"turnId", "scope-turn"}, {"item", commandItem}},
+                                             snapshot,
+                                             frontend::SequenceNumber{422});
+        const detail::CanonicalEventRecord fileEvent =
+            detail::makeCanonicalEventRecord("item.updated",
+                                             frontend::Json{{"threadId", "scope-thread"}, {"turnId", "scope-turn"}, {"item", fileItem}},
+                                             snapshot,
+                                             frontend::SequenceNumber{423});
+        const detail::EventProjection commandVisible = detail::projectEvent(
+            commandEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, true));
+        const detail::EventProjection commandHidden = detail::projectEvent(
+            commandEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, true));
+        const detail::EventProjection fileVisible = detail::projectEvent(
+            fileEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, true));
+        const detail::EventProjection fileHidden = detail::projectEvent(
+            fileEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, true));
+        const detail::EventProjection fileReplay =
+            detail::projectEvent(fileEvent,
+                                 scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, true),
+                                 frontend::SequenceNumber{422});
+        const detail::EventProjection commandVisibleLegacy = detail::projectEvent(
+            commandEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, false));
+        const detail::EventProjection commandHiddenLegacy = detail::projectEvent(
+            commandEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, false));
+        const detail::EventProjection fileVisibleLegacy = detail::projectEvent(
+            fileEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, false));
+        const detail::EventProjection fileHiddenLegacy = detail::projectEvent(
+            fileEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, false));
+        result.expectTrue(
+            commandVisible.events.size() == 1 && commandHidden.events.size() == 1 && fileVisible.events.size() == 1 &&
+                fileHidden.events.size() == 1 && commandVisibleLegacy.events.size() == 1 && commandHiddenLegacy.events.size() == 1 &&
+                fileVisibleLegacy.events.size() == 1 && fileHiddenLegacy.events.size() == 1 &&
+                commandVisible.events.front().data.at("item").contains("commandOutput") &&
+                !commandHidden.events.front().data.at("item").contains("commandOutput") &&
+                fileVisible.events.front().data.at("item").contains("commandOutput") &&
+                !fileHidden.events.front().data.at("item").contains("commandOutput") &&
+                commandVisibleLegacy.events.front().data.at("item").contains("commandOutput") &&
+                !commandHiddenLegacy.events.front().data.at("item").contains("commandOutput") &&
+                fileVisibleLegacy.events.front().data.at("item").contains("commandOutput") &&
+                !fileHiddenLegacy.events.front().data.at("item").contains("commandOutput") && fileReplay.events == fileVisible.events,
+            "legacy item.updated and expanded item.upserted apply the discriminator-specific ceiling identically in live "
+            "and replay projection");
+
+        const detail::CanonicalEventRecord fileContentEvent =
+            detail::makeCanonicalEventRecord("item.content.updated",
+                                             frontend::Json{{"threadId", "scope-thread"},
+                                                            {"turnId", "scope-turn"},
+                                                            {"itemId", "scope-item-199"},
+                                                            {"channel", "commandOutput"},
+                                                            {"content", "scoped-output-199"}},
+                                             snapshot,
+                                             frontend::SequenceNumber{425});
+        const detail::EventProjection fileContentCommand = detail::projectEvent(
+            fileContentEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, true));
+        const detail::EventProjection fileContentFilesystem = detail::projectEvent(
+            fileContentEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, true));
+        const detail::EventProjection fileContentCommandLegacy = detail::projectEvent(
+            fileContentEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution}, false));
+        const detail::EventProjection fileContentFilesystemLegacy = detail::projectEvent(
+            fileContentEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, false));
+        result.expectTrue(fileContentCommand.events.empty() && fileContentFilesystem.events.size() == 1 &&
+                              fileContentCommandLegacy.events.empty() && fileContentFilesystemLegacy.events.size() == 1 &&
+                              fileContentFilesystem.events.front().data.at("content") == "scoped-output-199" &&
+                              fileContentFilesystemLegacy.events.front().data.at("content") == "scoped-output-199",
+                          "a normalized file-change commandOutput occurrence uses the exact item type for whole-event scope suppression "
+                          "in expanded and legacy representations");
+
+        const auto semanticItemEvent = [&snapshot](std::string id, frontend::Json item, std::uint64_t sequence) {
+            item["id"] = id;
+            return detail::makeCanonicalEventRecord(
+                "item.updated",
+                frontend::Json{{"threadId", "scope-thread"}, {"turnId", "scope-turn"}, {"item", std::move(item)}},
+                snapshot,
+                frontend::SequenceNumber{sequence});
+        };
+        const detail::CanonicalEventRecord unknownItem = semanticItemEvent(
+            "scope-item-unknown", frontend::Json{{"type", "futureOutputItem"}, {"commandOutput", "unknown-ceiling-output"}}, 426);
+        const detail::CanonicalEventRecord inconsistentItem = semanticItemEvent(
+            "scope-item-inconsistent",
+            frontend::Json{
+                {"type", "commandExecution"}, {"commandOutput", "inconsistent-ceiling-output"}, {"data", {{"codexType", "fileChange"}}}},
+            427);
+        bool conservativeUnknownAndInconsistent = true;
+        const std::array unsafeItems{
+            frontend::Json{{"type", "futureOutputItem"}, {"commandOutput", "unknown-ceiling-output"}},
+            frontend::Json{
+                {"type", "commandExecution"}, {"commandOutput", "inconsistent-ceiling-output"}, {"data", {{"codexType", "fileChange"}}}},
+        };
+        for (std::size_t index = 0; index < unsafeItems.size(); ++index) {
+            const std::vector<frontend::FrontendScope> scopes = detail::itemCommandOutputRequiredScopes(unsafeItems[index]);
+            const detail::CanonicalEventRecord& record = index == 0 ? unknownItem : inconsistentItem;
+            conservativeUnknownAndInconsistent =
+                conservativeUnknownAndInconsistent && scopes.size() == 2 &&
+                std::find(scopes.begin(), scopes.end(), frontend::FrontendScope::CommandExecution) != scopes.end() &&
+                std::find(scopes.begin(), scopes.end(), frontend::FrontendScope::FilesystemWrite) != scopes.end() &&
+                record.snapshotRequired && detail::projectEvent(record, localExpandedContext()).events.empty();
+        }
+        result.expectTrue(conservativeUnknownAndInconsistent,
+                          "unknown or inconsistent item discriminators retain conservative information ceilings and emit no raw item");
+
+        const detail::CanonicalEventRecord nestedThreadEvent = detail::makeCanonicalEventRecord(
+            "thread.updated", frontend::Json{{"thread", legacyState.at("threads").at(0)}}, snapshot, frontend::SequenceNumber{424});
+        const detail::EventProjection nestedObserve =
+            detail::projectEvent(nestedThreadEvent, scopedContext({frontend::FrontendScope::Observe}, false));
+        const detail::EventProjection nestedFilesystem = detail::projectEvent(
+            nestedThreadEvent, scopedContext({frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite}, false));
+        const auto nestedItems = [](const detail::EventProjection& projection) -> const frontend::Json& {
+            return projection.events.front().data.at("thread").at("turns").at(0).at("items");
+        };
+        result.expectTrue(nestedObserve.events.size() == 1 && nestedFilesystem.events.size() == 1 &&
+                              outputsMatch(nestedItems(nestedObserve), false, false) &&
+                              outputsMatch(nestedItems(nestedFilesystem), false, true),
+                          "a legacy nested thread event projects all 200 item outputs semantically without per-item rules or tail leaks");
     }
 
     void testLegacyNestedProjectionParity(tests::support::TestResult& result) {
         const auto snapshot = representativeBackendSnapshot();
         const frontend::Json legacy = representativeLegacyState();
         const frontend::Json& thread = legacy.at("threads").at(0);
-        const frontend::Json& turn = thread.at("turns").at(0);
+        frontend::Json turn = thread.at("turns").at(0);
+        turn["threadId"] = "thread-1";
         const frontend::Json& item = turn.at("items").at(0);
         const detail::FrontendProjectionContext local = detail::makeProjectionContext(
             principal("local-legacy", frontend::LocalTrustedScopes, std::string(frontend::LocalTrustedScopeProfile.name)));
@@ -1112,6 +1737,457 @@ namespace {
         result.expectTrue(localRetains && remoteFiltersLiveReplayAndExpanded,
                           "legacy snapshot/live/replay filtering covers nested thread, turn, item, command, filesystem, and extension data "
                           "before representation selection");
+    }
+
+    void testExactExpandedEntityIdentity(tests::support::TestResult& result) {
+        namespace backend = ai::openai::codex::backend;
+        backend::Snapshot snapshot = representativeBackendSnapshot();
+
+        backend::ItemSnapshot fileItem;
+        fileItem.id = "file-item-1";
+        fileItem.type = "fileChange";
+        fileItem.status = "completed";
+        fileItem.commandOutput = "bounded privileged output";
+        fileItem.stamp = {9, backend::Freshness::Current};
+        snapshot.threads.front().turns.front().items.push_back(std::move(fileItem));
+
+        backend::ItemSnapshot otherItem;
+        otherItem.id = "item-last";
+        otherItem.type = "agentMessage";
+        otherItem.status = "completed";
+        otherItem.agentText = "last item text";
+        otherItem.stamp = {9, backend::Freshness::Current};
+        backend::TurnSnapshot otherTurn;
+        otherTurn.id = "turn-last";
+        otherTurn.threadId = "thread-last";
+        otherTurn.status = "unrelated-last-status";
+        otherTurn.terminal = true;
+        otherTurn.stamp = {9, backend::Freshness::Current};
+        otherTurn.items.push_back(std::move(otherItem));
+        backend::ThreadSnapshot otherThread;
+        otherThread.id = "thread-last";
+        otherThread.title = "Unrelated last thread";
+        otherThread.preview = "unrelated last preview";
+        otherThread.fullyLoaded = true;
+        otherThread.stamp = {9, backend::Freshness::Current};
+        otherThread.turns.push_back(std::move(otherTurn));
+        snapshot.threads.push_back(std::move(otherThread));
+        snapshot.processes.push_back(
+            {"process-last", "running", 0, 0, false, false, 0, std::nullopt, {9, backend::Freshness::Current}, false});
+        snapshot.filesystemWatches.push_back({"watch-last", std::nullopt, 7, {9, backend::Freshness::Current}, false});
+        snapshot.fuzzySearchSessions.push_back({"search-last", 9, true, {9, backend::Freshness::Current}, false});
+
+        const auto projected = [&snapshot](std::string type, frontend::Json data, std::uint64_t sequence) {
+            const detail::CanonicalEventRecord record =
+                detail::makeCanonicalEventRecord(std::move(type), std::move(data), snapshot, frontend::SequenceNumber{sequence});
+            return std::pair{record, detail::projectEvent(record, localExpandedContext(), frontend::SequenceNumber{sequence - 1})};
+        };
+
+        const auto [threadRecord, threadProjection] = projected("thread.updated", frontend::Json{{"thread", {{"id", "thread-1"}}}}, 500);
+        const auto [turnRecord, turnProjection] =
+            projected("turn.updated", frontend::Json{{"turn", {{"id", "turn-1"}, {"threadId", "thread-1"}}}}, 501);
+        const detail::CanonicalEventRecord turnStartedRecord = detail::makeCanonicalEventRecord(
+            "codex.extension",
+            frontend::Json{{"method", "turn/started"}, {"params", {{"threadId", "thread-1"}, {"turn", {{"id", "turn-1"}}}}}},
+            snapshot,
+            frontend::SequenceNumber{520});
+        const detail::EventProjection turnStartedProjection = detail::projectEvent(turnStartedRecord, localExpandedContext());
+        const auto [itemRecord, itemProjection] =
+            projected("item.updated", frontend::Json{{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"item", {{"id", "item-1"}}}}, 502);
+        const auto [contentRecord, contentProjection] = projected("item.content.updated",
+                                                                  frontend::Json{{"threadId", "thread-1"},
+                                                                                 {"turnId", "turn-1"},
+                                                                                 {"itemId", "item-1"},
+                                                                                 {"channel", "agentText"},
+                                                                                 {"content", "exact replacement"}},
+                                                                  503);
+        const detail::CanonicalEventRecord fileOutputRecord =
+            detail::makeCanonicalEventRecord("codex.extension",
+                                             frontend::Json{{"method", "item/fileChange/outputDelta"},
+                                                            {"params",
+                                                             {{"threadId", "thread-1"},
+                                                              {"turnId", "turn-1"},
+                                                              {"itemId", "file-item-1"},
+                                                              {"delta", "provider delta is not the accumulated value"}}}},
+                                             snapshot,
+                                             frontend::SequenceNumber{504});
+        const detail::EventProjection fileOutputProjection = detail::projectEvent(fileOutputRecord, localExpandedContext());
+        detail::FrontendProjectionContext commandOnly = localExpandedContext();
+        commandOnly.scopes = {frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution};
+        detail::FrontendProjectionContext filesystemWrite = localExpandedContext();
+        filesystemWrite.scopes = {frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite};
+        const detail::EventProjection fileOutputCommandOnly = detail::projectEvent(fileOutputRecord, commandOnly);
+        const detail::EventProjection fileOutputFilesystemWrite = detail::projectEvent(fileOutputRecord, filesystemWrite);
+        const detail::CanonicalEventRecord mcpProgressRecord = detail::makeCanonicalEventRecord(
+            "codex.extension",
+            frontend::Json{
+                {"method", "item/mcpToolCall/progress"},
+                {"params", {{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"itemId", "item-1"}, {"message", "bounded progress"}}}},
+            snapshot,
+            frontend::SequenceNumber{505});
+        const detail::EventProjection mcpProgressProjection = detail::projectEvent(mcpProgressRecord, localExpandedContext());
+        const auto [processRecord, processProjection] =
+            projected("process.updated", frontend::Json{{"process", {{"processHandle", "process-1"}}}}, 506);
+        const auto [watchRecord, watchProjection] =
+            projected("filesystemWatch.updated", frontend::Json{{"filesystemWatch", {{"watchId", "watch-1"}}}}, 507);
+        const auto [searchRecord, searchProjection] =
+            projected("fuzzySearch.updated", frontend::Json{{"fuzzySearch", {{"sessionId", "search-1"}}}}, 508);
+        const auto [noticeRecord, noticeProjection] =
+            projected("notice.added",
+                      frontend::Json{{"notice",
+                                      {{"category", "warning"},
+                                       {"summary", "triggering notice, not the retained tail"},
+                                       {"stamp", {{"generation", 9}, {"freshness", "current"}}}}}},
+                      509);
+        const auto [activityRecord, activityProjection] =
+            projected("activity.updated",
+                      frontend::Json{{"activity",
+                                      {{"key", "activity-trigger"},
+                                       {"subjectId", "subject-trigger"},
+                                       {"kind", "test"},
+                                       {"lifecycle", "completed"},
+                                       {"active", false},
+                                       {"stamp", {{"generation", 9}, {"freshness", "current"}}}}}},
+                      510);
+        const detail::CanonicalEventRecord deleted =
+            detail::makeCanonicalEventRecord("codex.extension",
+                                             frontend::Json{{"method", "thread/deleted"}, {"params", {{"threadId", "thread-1"}}}},
+                                             snapshot,
+                                             frontend::SequenceNumber{511});
+        const detail::EventProjection deletedProjection = detail::projectEvent(deleted, localExpandedContext());
+
+        const auto providerRecord = [&snapshot](std::string method, frontend::Json params, std::uint64_t sequence) {
+            return detail::makeCanonicalEventRecord("codex.extension",
+                                                    frontend::Json{{"method", std::move(method)}, {"params", std::move(params)}},
+                                                    snapshot,
+                                                    frontend::SequenceNumber{sequence});
+        };
+        const std::array turnProviderRecords{
+            providerRecord("thread/compacted", {{"threadId", "thread-1"}, {"turnId", "turn-1"}}, 521),
+            providerRecord("thread/tokenUsage/updated",
+                           {{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"tokenUsage", frontend::Json::object()}},
+                           522),
+            providerRecord("model/rerouted",
+                           {{"threadId", "thread-1"},
+                            {"turnId", "turn-1"},
+                            {"fromModel", "model-before"},
+                            {"toModel", "model-after"},
+                            {"reason", "test"}},
+                           523),
+            providerRecord("model/safetyBuffering/updated",
+                           {{"threadId", "thread-1"},
+                            {"turnId", "turn-1"},
+                            {"model", "model-after"},
+                            {"reasons", frontend::Json::array()},
+                            {"showBufferingUi", false},
+                            {"useCases", frontend::Json::array()}},
+                           524),
+            providerRecord(
+                "model/verification", {{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"verifications", frontend::Json::array()}}, 525),
+        };
+        bool exactTurnProviderMappings = true;
+        for (const detail::CanonicalEventRecord& record : turnProviderRecords) {
+            const detail::EventProjection projection = detail::projectEvent(record, localExpandedContext());
+            const detail::EventProjection replay =
+                detail::projectEvent(record, localExpandedContext(), frontend::SequenceNumber{record.sequence.value() - 1});
+            exactTurnProviderMappings =
+                exactTurnProviderMappings && projection.events.size() == 1 && projection.events.front().type == "turn.upserted" &&
+                projection.events.front().data.at("turn").at("id") == "turn-1" &&
+                projection.events.front().data.at("turn").at("threadId") == "thread-1" &&
+                projection.events.front().data.at("turn").at("status") == "completed" && projection.events == replay.events;
+        }
+        const detail::CanonicalEventRecord threadProviderRecord = providerRecord("thread/archived", {{"threadId", "thread-1"}}, 526);
+        const detail::EventProjection threadProviderProjection = detail::projectEvent(threadProviderRecord, localExpandedContext());
+        const detail::CanonicalEventRecord itemProviderRecord = providerRecord(
+            "item/started", {{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"item", {{"id", "item-1"}}}, {"startedAtMs", 1}}, 527);
+        const detail::EventProjection itemProviderProjection = detail::projectEvent(itemProviderRecord, localExpandedContext());
+        const detail::CanonicalEventRecord processProviderRecord =
+            providerRecord("process/outputDelta", {{"processHandle", "process-1"}, {"deltaBase64", ""}, {"stream", "stdout"}}, 528);
+        const detail::EventProjection processProviderProjection = detail::projectEvent(processProviderRecord, localExpandedContext());
+        const detail::CanonicalEventRecord watchProviderRecord =
+            providerRecord("fs/changed", {{"watchId", "watch-1"}, {"changedPaths", frontend::Json::array()}}, 529);
+        const detail::EventProjection watchProviderProjection = detail::projectEvent(watchProviderRecord, localExpandedContext());
+        const detail::CanonicalEventRecord searchProviderRecord =
+            providerRecord("fuzzyFileSearch/sessionCompleted", {{"sessionId", "search-1"}}, 530);
+        const detail::EventProjection searchProviderProjection = detail::projectEvent(searchProviderRecord, localExpandedContext());
+        const detail::CanonicalEventRecord noticeProviderRecord =
+            providerRecord("warning", {{"message", "exact provider notice occurrence"}}, 531);
+        const detail::EventProjection noticeProviderProjection = detail::projectEvent(noticeProviderRecord, localExpandedContext());
+
+        result.expectTrue(threadProjection.events.size() == 1 && threadProjection.events.front().data.at("thread").at("id") == "thread-1" &&
+                              threadProjection.events.front().data.at("thread").at("title") == "Projection thread",
+                          "thread projection selects the exact canonical target instead of the last retained thread");
+        result.expectTrue(turnProjection.events.size() == 1 && turnProjection.events.front().data.at("turn").at("id") == "turn-1" &&
+                              turnProjection.events.front().data.at("turn").at("threadId") == "thread-1",
+                          "turn projection selects the exact canonical target and parent instead of the last retained turn");
+        result.expectTrue(turnStartedProjection.events.size() == 1 && turnStartedProjection.events.front().type == "turn.upserted" &&
+                              turnStartedProjection.events.front().data.at("turn").at("id") == "turn-1" &&
+                              turnStartedProjection.events.front().data.at("turn").at("threadId") == "thread-1",
+                          "turn/started resolves the reviewed params.turn.id plus params.threadId provider shape exactly");
+        result.expectTrue(itemProjection.events.size() == 1 && itemProjection.events.front().data.at("item").at("id") == "item-1" &&
+                              itemProjection.events.front().data.at("item").at("turnId") == "turn-1" &&
+                              itemProjection.events.front().data.at("item").at("threadId") == "thread-1",
+                          "item projection selects the exact canonical target and parents instead of the last retained item");
+        result.expectTrue(contentProjection.events.size() == 1 && contentProjection.events.front().data.at("itemId") == "item-1" &&
+                              contentProjection.events.front().data.at("turnId") == "turn-1" &&
+                              contentProjection.events.front().data.at("threadId") == "thread-1" &&
+                              contentProjection.events.front().data.at("content") == "exact replacement",
+                          "item-content projection preserves the exact canonical target, parents, and replacement content");
+        result.expectTrue(fileOutputProjection.events.size() == 1 && fileOutputProjection.events.front().type == "item.content.updated" &&
+                              fileOutputProjection.events.front().data.at("itemId") == "file-item-1" &&
+                              fileOutputProjection.events.front().data.at("channel") == "commandOutput" &&
+                              fileOutputProjection.events.front().data.at("content") == "bounded privileged output" &&
+                              fileOutputCommandOnly.events.empty() && fileOutputFilesystemWrite.events.size() == 1 &&
+                              fileOutputFilesystemWrite.events.front().data.at("content") == "bounded privileged output",
+                          "file-change output projects the exact accumulated item channel under the filesystem-write ceiling and hides "
+                          "the complete required-member event below that ceiling");
+        result.expectTrue(mcpProgressProjection.events.size() == 1 && mcpProgressProjection.events.front().type == "item.upserted" &&
+                              mcpProgressProjection.events.front().data.at("item").at("id") == "item-1",
+                          "non-content item notifications refresh the exact item instead of fabricating a content replacement");
+        result.expectTrue(processProjection.events.size() == 1 &&
+                              processProjection.events.front().data.at("process").at("processHandle") == "process-1",
+                          "process projection selects the exact canonical process instead of the last retained process");
+        result.expectTrue(watchProjection.events.size() == 1 &&
+                              watchProjection.events.front().data.at("filesystemWatch").at("watchId") == "watch-1",
+                          "filesystem-watch projection selects the exact canonical watch instead of the last retained watch");
+        result.expectTrue(searchProjection.events.size() == 1 &&
+                              searchProjection.events.front().data.at("fuzzySearch").at("sessionId") == "search-1",
+                          "fuzzy-search projection selects the exact canonical search instead of the last retained search");
+        result.expectTrue(noticeProjection.events.size() == 1 &&
+                              noticeProjection.events.front().data.at("notice").at("summary") == "triggering notice, not the retained tail",
+                          "notice projection preserves the exact canonical occurrence instead of the last retained notice");
+        result.expectTrue(activityProjection.events.size() == 1 &&
+                              activityProjection.events.front().data.at("activity").at("key") == "activity-trigger",
+                          "activity projection preserves the exact canonical occurrence instead of the last retained activity");
+        result.expectTrue(deletedProjection.events.size() == 1 && deletedProjection.events.front().type == "thread.removed" &&
+                              deletedProjection.events.front().data.at("threadId") == "thread-1",
+                          "thread/deleted projects the exact identity through the thread.removed family");
+        result.expectTrue(exactTurnProviderMappings,
+                          "turn-mutating thread and model notifications project the exact non-last turn identity, parent, and content");
+        result.expectTrue(threadProviderProjection.events.size() == 1 &&
+                              threadProviderProjection.events.front().data.at("thread").at("id") == "thread-1" &&
+                              threadProviderProjection.events.front().data.at("thread").at("title") == "Projection thread" &&
+                              itemProviderProjection.events.size() == 1 &&
+                              itemProviderProjection.events.front().data.at("item").at("id") == "item-1" &&
+                              itemProviderProjection.events.front().data.at("item").at("status") == "completed",
+                          "provider thread and item wrappers resolve exact identities and matching retained content");
+        result.expectTrue(processProviderProjection.events.size() == 1 &&
+                              processProviderProjection.events.front().data.at("process").at("processHandle") == "process-1" &&
+                              processProviderProjection.events.front().data.at("process").at("stdoutBytes") == 24 &&
+                              watchProviderProjection.events.size() == 1 &&
+                              watchProviderProjection.events.front().data.at("filesystemWatch").at("watchId") == "watch-1" &&
+                              watchProviderProjection.events.front().data.at("filesystemWatch").at("root") == "/private/worktree" &&
+                              searchProviderProjection.events.size() == 1 &&
+                              searchProviderProjection.events.front().data.at("fuzzySearch").at("sessionId") == "search-1" &&
+                              searchProviderProjection.events.front().data.at("fuzzySearch").at("resultCount") == 2,
+                          "provider process, watch, and search wrappers select exact non-last entities and matching content");
+        result.expectTrue(noticeProviderProjection.events.size() == 1 &&
+                              noticeProviderProjection.events.front().data.at("notice").at("summary") == "exact provider notice occurrence",
+                          "provider notice projection carries the triggering occurrence rather than a retained snapshot tail");
+
+        bool liveReplayEqual = true;
+        for (const detail::CanonicalEventRecord* record : {&threadRecord,
+                                                           &turnRecord,
+                                                           &turnStartedRecord,
+                                                           &itemRecord,
+                                                           &contentRecord,
+                                                           &fileOutputRecord,
+                                                           &mcpProgressRecord,
+                                                           &processRecord,
+                                                           &watchRecord,
+                                                           &searchRecord,
+                                                           &noticeRecord,
+                                                           &activityRecord,
+                                                           &threadProviderRecord,
+                                                           &itemProviderRecord,
+                                                           &processProviderRecord,
+                                                           &watchProviderRecord,
+                                                           &searchProviderRecord,
+                                                           &noticeProviderRecord}) {
+            const detail::EventProjection live = detail::projectEvent(*record, localExpandedContext());
+            const detail::EventProjection replay =
+                detail::projectEvent(*record, localExpandedContext(), frontend::SequenceNumber{record->sequence.value() - 1});
+            liveReplayEqual = liveReplayEqual && live.events == replay.events;
+        }
+        result.expectTrue(liveReplayEqual, "exact identity and content are byte-identical in live and replay projection");
+
+        const detail::CanonicalEventRecord missing = detail::makeCanonicalEventRecord(
+            "thread.updated", frontend::Json{{"thread", frontend::Json::object()}}, snapshot, frontend::SequenceNumber{512});
+        result.expectTrue(missing.snapshotRequired && !detail::canonicalEventRetainedBytes(missing).has_value() &&
+                              detail::projectEvent(missing, localExpandedContext()).events.empty(),
+                          "an unprovable identity requests snapshot fallback instead of fabricating or substituting an entity");
+
+        const std::array conflictingRecords{
+            detail::makeCanonicalEventRecord(
+                "thread.updated", frontend::Json{{"turn", {{"threadId", "thread-1"}}}}, snapshot, frontend::SequenceNumber{513}),
+            detail::makeCanonicalEventRecord(
+                "thread.removed", frontend::Json{{"thread", {{"id", "thread-1"}}}}, snapshot, frontend::SequenceNumber{514}),
+            detail::makeCanonicalEventRecord("turn.updated",
+                                             frontend::Json{{"turn", {{"id", "turn-1"}}}, {"threadId", "thread-1"}},
+                                             snapshot,
+                                             frontend::SequenceNumber{515}),
+            detail::makeCanonicalEventRecord(
+                "item.updated",
+                frontend::Json{{"item", {{"id", "item-1"}}}, {"params", {{"threadId", "thread-1"}, {"turnId", "turn-1"}}}},
+                snapshot,
+                frontend::SequenceNumber{516}),
+        };
+        result.expectTrue(std::all_of(conflictingRecords.begin(),
+                                      conflictingRecords.end(),
+                                      [](const auto& record) {
+                                          return record.snapshotRequired && !detail::canonicalEventRetainedBytes(record).has_value();
+                                      }),
+                          "identity-bearing families reject cross-family or mixed-wrapper paths instead of guessing a target");
+
+        const std::array conflictingProviderRecords{
+            detail::makeCanonicalEventRecord(
+                "codex.extension",
+                frontend::Json{{"method", "thread/started"}, {"params", {{"thread", {{"id", "thread-1"}}}, {"threadId", "thread-last"}}}},
+                snapshot,
+                frontend::SequenceNumber{532}),
+            detail::makeCanonicalEventRecord(
+                "codex.extension",
+                frontend::Json{{"method", "turn/started"},
+                               {"params", {{"threadId", "thread-1"}, {"turn", {{"id", "turn-1"}, {"threadId", "thread-last"}}}}}},
+                snapshot,
+                frontend::SequenceNumber{533}),
+            detail::makeCanonicalEventRecord(
+                "codex.extension",
+                frontend::Json{
+                    {"method", "item/started"},
+                    {"params", {{"threadId", "thread-1"}, {"turnId", "turn-1"}, {"itemId", "item-last"}, {"item", {{"id", "item-1"}}}}}},
+                snapshot,
+                frontend::SequenceNumber{534}),
+            detail::makeCanonicalEventRecord("codex.extension",
+                                             frontend::Json{{"method", "process/outputDelta"},
+                                                            {"params", {{"processHandle", "process-1"}}},
+                                                            {"process", {{"processHandle", "process-last"}}}},
+                                             snapshot,
+                                             frontend::SequenceNumber{535}),
+        };
+        result.expectTrue(std::all_of(conflictingProviderRecords.begin(),
+                                      conflictingProviderRecords.end(),
+                                      [](const auto& record) {
+                                          return record.snapshotRequired && !detail::canonicalEventRetainedBytes(record).has_value() &&
+                                                 detail::projectEvent(record, localExpandedContext()).events.empty();
+                                      }),
+                          "conflicting recognized provider identity paths fail closed to deterministic snapshot fallback");
+
+        backend::Snapshot redactedCollisionSnapshot = snapshot;
+        redactedCollisionSnapshot.processes.push_back(
+            {"[redacted]", "running", 3, 0, false, false, 0, std::nullopt, {9, backend::Freshness::Current}, false});
+        redactedCollisionSnapshot.filesystemWatches.push_back(
+            {"[redacted]", std::optional<std::string>{"/must-not-project"}, 3, {9, backend::Freshness::Current}, false});
+        redactedCollisionSnapshot.fuzzySearchSessions.push_back({"[redacted]", 3, false, {9, backend::Freshness::Current}, false});
+        const std::array redactedIdentityRecords{
+            detail::makeCanonicalEventRecord("codex.extension",
+                                             frontend::Json{{"method", "command/exec/outputDelta"},
+                                                            {"params", {{"processId", "[redacted]"}}},
+                                                            {"sensitiveFieldsRedacted", true}},
+                                             redactedCollisionSnapshot,
+                                             frontend::SequenceNumber{536}),
+            detail::makeCanonicalEventRecord(
+                "codex.extension",
+                frontend::Json{{"method", "fs/changed"}, {"params", {{"watchId", "[redacted]"}}}, {"sensitiveFieldsRedacted", true}},
+                redactedCollisionSnapshot,
+                frontend::SequenceNumber{537}),
+            detail::makeCanonicalEventRecord("codex.extension",
+                                             frontend::Json{{"method", "fuzzyFileSearch/sessionUpdated"},
+                                                            {"params", {{"sessionId", "[redacted]"}}},
+                                                            {"sensitiveFieldsRedacted", true}},
+                                             redactedCollisionSnapshot,
+                                             frontend::SequenceNumber{538}),
+            detail::makeCanonicalEventRecord("codex.extension",
+                                             frontend::Json{{"method", "process/outputDelta"},
+                                                            {"params", {{"processHandle", "process-1"}}},
+                                                            {"truncation", {{"params", frontend::Json::object()}}}},
+                                             redactedCollisionSnapshot,
+                                             frontend::SequenceNumber{539}),
+        };
+        const detail::CanonicalEventRecord unrelatedRedactionRecord =
+            detail::makeCanonicalEventRecord("codex.extension",
+                                             frontend::Json{{"method", "thread/archived"},
+                                                            {"params", {{"threadId", "thread-1"}, {"cwd", "[redacted]"}}},
+                                                            {"sensitiveFieldsRedacted", true}},
+                                             redactedCollisionSnapshot,
+                                             frontend::SequenceNumber{540});
+        const detail::EventProjection unrelatedRedactionProjection = detail::projectEvent(unrelatedRedactionRecord, localExpandedContext());
+        const detail::CanonicalEventRecord literalIdentityRecord = detail::makeCanonicalEventRecord(
+            "codex.extension",
+            frontend::Json{{"method", "command/exec/outputDelta"}, {"params", {{"processId", "[redacted]"}}}},
+            redactedCollisionSnapshot,
+            frontend::SequenceNumber{541});
+        const detail::EventProjection literalIdentityProjection = detail::projectEvent(literalIdentityRecord, localExpandedContext());
+        result.expectTrue(std::all_of(redactedIdentityRecords.begin(),
+                                      redactedIdentityRecords.end(),
+                                      [](const auto& record) {
+                                          return record.snapshotRequired && !detail::canonicalEventRetainedBytes(record).has_value() &&
+                                                 detail::projectEvent(record, localExpandedContext()).events.empty();
+                                      }),
+                          "redacted or truncated provider identity cannot collide with a literal retained sentinel entity");
+        result.expectTrue(unrelatedRedactionProjection.events.size() == 1 &&
+                              unrelatedRedactionProjection.events.front().data.at("thread").at("id") == "thread-1" &&
+                              literalIdentityProjection.events.size() == 1 &&
+                              literalIdentityProjection.events.front().data.at("process").at("processHandle") == "[redacted]",
+                          "unrelated field redaction preserves a proven identity while an unflagged literal sentinel remains legitimate");
+
+        const detail::CanonicalEventRecord missingTarget = detail::makeCanonicalEventRecord(
+            "thread.updated", frontend::Json{{"thread", {{"id", "thread-missing"}}}}, snapshot, frontend::SequenceNumber{517});
+        result.expectTrue(missingTarget.snapshotRequired && !detail::canonicalEventRetainedBytes(missingTarget).has_value(),
+                          "a proven identity missing from the captured snapshot requests snapshot fallback without substitution");
+
+        backend::Snapshot boundedIdentitySnapshot = snapshot;
+        backend::ThreadSnapshot prefixThread;
+        prefixThread.id = std::string(1'024, 'x');
+        prefixThread.title = "bounded prefix must not collide";
+        boundedIdentitySnapshot.threads.push_back(std::move(prefixThread));
+        const detail::CanonicalEventRecord oversizedIdentity =
+            detail::makeCanonicalEventRecord("thread.updated",
+                                             frontend::Json{{"thread", {{"id", std::string(1'025, 'x')}}}},
+                                             boundedIdentitySnapshot,
+                                             frontend::SequenceNumber{518});
+        std::string invalidUtf8Identity{"thread-invalid-"};
+        invalidUtf8Identity.push_back(static_cast<char>(0xc0));
+        invalidUtf8Identity.push_back(static_cast<char>(0xaf));
+        const detail::CanonicalEventRecord invalidIdentity =
+            detail::makeCanonicalEventRecord("thread.updated",
+                                             frontend::Json{{"thread", {{"id", std::move(invalidUtf8Identity)}}}},
+                                             boundedIdentitySnapshot,
+                                             frontend::SequenceNumber{519});
+        result.expectTrue(oversizedIdentity.snapshotRequired && invalidIdentity.snapshotRequired,
+                          "oversized or invalid-UTF-8 identities fail exact resolution instead of truncating into another entity");
+
+        backend::Snapshot pageSnapshot;
+        std::set<std::string> expectedPageIds;
+        std::set<std::string> projectedPageIds;
+        bool exactPageContent = true;
+        for (std::size_t index = 0; index < 35; ++index) {
+            backend::ThreadSnapshot pageThread;
+            pageThread.id = "page-thread-" + std::to_string(index);
+            pageThread.title = "page title " + std::to_string(index);
+            pageThread.preview = "page preview " + std::to_string(index);
+            pageThread.stamp = {9, backend::Freshness::Current};
+            pageSnapshot.threads.push_back(std::move(pageThread));
+            if (index < 25) {
+                expectedPageIds.emplace("page-thread-" + std::to_string(index));
+            }
+        }
+        for (std::size_t index = 0; index < 25; ++index) {
+            const std::string id = "page-thread-" + std::to_string(index);
+            const detail::CanonicalEventRecord record = detail::makeCanonicalEventRecord(
+                "thread.updated", frontend::Json{{"thread", {{"id", id}}}}, pageSnapshot, frontend::SequenceNumber{600 + index});
+            const detail::EventProjection event = detail::projectEvent(record, localExpandedContext());
+            if (event.events.size() != 1) {
+                exactPageContent = false;
+                continue;
+            }
+            const frontend::Json& thread = event.events.front().data.at("thread");
+            projectedPageIds.emplace(thread.at("id").get<std::string>());
+            exactPageContent = exactPageContent && thread.at("title") == "page title " + std::to_string(index) &&
+                               thread.at("preview") == "page preview " + std::to_string(index);
+        }
+        result.expectTrue(projectedPageIds == expectedPageIds && projectedPageIds.size() == 25 && exactPageContent,
+                          "a 25-thread page projects the exact 25 unique IDs and matching per-ID content over 35 retained threads");
     }
 
     void testCompleteProjectionMetadata(tests::support::TestResult& result) {
@@ -1165,8 +2241,8 @@ namespace {
                             return frontend::expandedEventTypeFromString(frontend::toString(metadata.type)) == metadata.type;
                         });
         result.expectTrue(pendingKinds && eventKinds && generated::AllPendingRequestProjections.size() == 10 &&
-                              detail::AllExpandedEventProjections.size() == 25,
-                          "the runtime seam consumes the generated ten pending-request contracts and covers 25 expanded event families");
+                              detail::AllExpandedEventProjections.size() == 26,
+                          "the runtime seam consumes the generated ten pending-request contracts and covers 26 expanded event families");
 
         const auto normalizedNotifications = std::count_if(generated::AllNotificationProjections.begin(),
                                                            generated::AllNotificationProjections.end(),
@@ -1189,7 +2265,7 @@ int main() {
     static_assert(generated::AllNotificationProjections.size() == 68);
     static_assert(generated::AllThreadItemProjections.size() == 18);
     static_assert(generated::AllPendingRequestProjections.size() == 10);
-    static_assert(detail::AllExpandedEventProjections.size() == 25);
+    static_assert(detail::AllExpandedEventProjections.size() == 26);
 
     testKnownStructuredSecretRemovalAndBounds(result);
     testKnownStructuredSecretsAndPotentiallySensitiveText(result);
@@ -1199,11 +2275,15 @@ int main() {
     testEventProjectionAndReuse(result);
     testBackendProjectionBuilderAndGeneratedMappings(result);
     testAllThreadItemRuntimeMappings(result);
+    testBackendItemKindNormalizationAndWireBoundary(result);
+    testUnknownBackendItemContainment(result);
     testAllPendingRequestRuntimeMappings(result);
     testAllExpandedEventFamilies(result);
     testCapabilitySelectionAndUnknownFallback(result);
     testCapabilityIndependentFieldFiltering(result);
+    testSemanticItemOutputProjectionBeyondRuleBound(result);
     testLegacyNestedProjectionParity(result);
+    testExactExpandedEntityIdentity(result);
     testCompleteProjectionMetadata(result);
 
     return result.processResult();
