@@ -157,6 +157,9 @@ for initialization and canonical error behavior, and the
 [Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
 for the exact source-compatibility boundary. A1.7c-1 provides
 `AISuite::OpenAICodexFrontendClient` and migrates `codex-backend-client`.
+The normative [Codex P0–P6 architecture-reduction roadmap](docs/ai/openai/codex/architecture-reduction/README.md)
+freezes the current external contract and records non-blocking architecture
+measurements before reduction begins.
 A1.7c-2 immediately follows
 and migrates the existing `codex-ui` into the canonical standalone AI IDE; no
 additional PR is inserted before it. A1.7d owns the TypeScript Frontend SDK and

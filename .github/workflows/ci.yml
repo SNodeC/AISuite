@@ -89,6 +89,11 @@ jobs:
 
       - name: Configure
         run: |
+          cmake -E make_directory build/.cmake/api/v1/query
+          cmake -E touch \
+            build/.cmake/api/v1/query/codemodel-v2 \
+            build/.cmake/api/v1/query/cache-v2 \
+            build/.cmake/api/v1/query/toolchains-v1
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
@@ -122,6 +127,17 @@ jobs:
             --check
           python3 -B tools/frontend/generate_cpp_frontend_client.py --check
 
+      - name: Verify P0 Codex architecture baseline contract
+        run: |
+          cmake --install build --prefix build/p0-contract-install
+          python3 -B tools/codex/capture_architecture_baseline.py \
+            verify-contract \
+            --source-dir . \
+            --build-dir build \
+            --install-dir build/p0-contract-install \
+            --baseline \
+              docs/ai/openai/codex/architecture-reduction/p0-baseline.json
+
       - name: Verify complete validation inventory
         run: |
           ctest --test-dir build -N > build/ctest-inventory.txt
@@ -141,7 +157,8 @@ jobs:
             AISuiteSourcePackageTest \
             AISuiteBinaryPackageTest \
             CodexPublicHeaderPolicyTest \
-            CodexPublicHeaderSelfContainmentTest
+            CodexPublicHeaderSelfContainmentTest \
+            CodexArchitectureReductionBaselineTest
           do
             grep -F "${required_test}" build/ctest-inventory.txt
           done
