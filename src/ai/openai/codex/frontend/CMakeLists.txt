@@ -62,6 +62,36 @@ target_link_libraries(
     PUBLIC AISuite::OpenAICodexFrontendProtocol
 )
 
+add_library(
+    ai-openai-codex-frontend-server-core STATIC
+    internal/server/BackendProjection.cpp
+    internal/server/ServerCore.cpp
+)
+set_target_properties(
+    ai-openai-codex-frontend-server-core
+    PROPERTIES POSITION_INDEPENDENT_CODE ON
+)
+target_include_directories(
+    ai-openai-codex-frontend-server-core
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+)
+target_compile_features(
+    ai-openai-codex-frontend-server-core PUBLIC cxx_std_20
+)
+target_compile_definitions(
+    ai-openai-codex-frontend-server-core
+    PRIVATE
+        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
+)
+target_link_libraries(
+    ai-openai-codex-frontend-server-core
+    PUBLIC
+        ai-openai-codex-frontend-model
+        AISuite::OpenAICodexFrontendProtocol
+        AISuite::OpenAICodexBackend
+        AISuite::OpenAICodex
+)
+
 add_library(ai-openai-codex-frontend SHARED ${AI_OPENAI_CODEX_FRONTEND_CPP})
 add_library(AISuite::OpenAICodexFrontend ALIAS ai-openai-codex-frontend)
 set_target_properties(

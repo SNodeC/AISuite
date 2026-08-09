@@ -1830,6 +1830,33 @@ foreach(
     )
 endforeach()
 
+foreach(
+    frontend_server_core_test
+    IN ITEMS
+       CodexFrontendServerCoreLifecycleTest
+       CodexFrontendServerCoreSynchronizationTest
+       CodexFrontendServerCoreCommandTest
+       CodexFrontendServerCoreSecurityTest
+       CodexFrontendServerCoreBackpressureTest
+)
+    snodec_add_test(
+        ${frontend_server_core_test} ${frontend_server_core_test}.cpp
+    )
+    target_link_libraries(
+        ${frontend_server_core_test}
+        PRIVATE
+            snodec-test-support
+            ai-openai-codex-frontend-server-core
+    )
+    target_compile_features(${frontend_server_core_test} PRIVATE cxx_std_20)
+    set_tests_properties(
+        ${frontend_server_core_test}
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;server;core;p2"
+            TIMEOUT 30
+    )
+endforeach()
+
 snodec_add_test(
     CodexFrontendJsonLineFramerTest CodexFrontendJsonLineFramerTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
