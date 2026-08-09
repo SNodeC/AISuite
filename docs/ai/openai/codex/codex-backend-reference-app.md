@@ -678,7 +678,10 @@ WSS, optional RFCOMM composition, provider lifecycle, and scope-projected
 state. A1.7c-1 adds the transport-neutral C++ Frontend SDK and migrates the
 reference client while leaving the UI and browser unchanged.
 
-A1.7c-2 immediately follows and migrates the
-existing `codex-ui` into the canonical standalone AI IDE. No additional PR is
-inserted before `codex-ui`. A1.7d owns the TypeScript Frontend SDK and browser
-frontend. Provider-neutral architecture remains A2.
+The owner-approved P0–P3 architecture reduction follows A1.7c-1 while
+`codex-ui` remains untouched. P1 supplies generic SNode.C prerequisites, P2
+builds the complete greenfield frontend beside the executable oracle, and P3
+cuts over all applications/transports and deletes the legacy frontend. A1.7c-2
+begins after P3 and migrates the UI against the reduced canonical frontend
+architecture. A1.7d owns the TypeScript Frontend SDK and browser frontend.
+Provider-neutral architecture remains A2.

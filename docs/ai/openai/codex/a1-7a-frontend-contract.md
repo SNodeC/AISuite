@@ -372,8 +372,11 @@ version 3 is introduced.
   capability/state projection, all approved handlers and mappings, provider
   lifecycle exposure, and multi-transport composition;
 - A1.7c-1: C++ Frontend SDK and `codex-backend-client` migration;
-- A1.7c-2: migration of the existing `codex-ui` into the canonical standalone
-  AI IDE, immediately after A1.7c-1 with no additional intervening PR;
+- P0–P3: owner-approved architecture reduction after A1.7c-1, with generic
+  SNode.C prerequisites and the complete greenfield frontend built in parallel
+  before final cutover and legacy deletion;
+- A1.7c-2: migration of the existing `codex-ui` into the reduced canonical
+  standalone AI IDE after P3;
 - A1.7d: TypeScript Frontend SDK and browser frontend.
 
 A1.7a itself started none of those runtime or product deliverables. Persistence,

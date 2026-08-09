@@ -53,6 +53,7 @@ jobs:
         run: |
           git clone --depth 1 --branch master \
             https://github.com/SNodeC/snode.c.git ../snodec
+          git -C ../snodec rev-parse HEAD
 
       - name: Build and install SNode.C 2.0-or-newer dependency
         run: |
@@ -89,14 +90,21 @@ jobs:
 
       - name: Configure
         run: |
+          cmake -E make_directory build/.cmake/api/v1/query
+          cmake -E touch \
+            build/.cmake/api/v1/query/codemodel-v2 \
+            build/.cmake/api/v1/query/cache-v2 \
+            build/.cmake/api/v1/query/toolchains-v1
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_INSTALL_PREFIX="$PWD/../aisuite-p0-contract-install" \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
             -DCMAKE_JOB_POOLS='aisuite_compile=4;aisuite_link=2' \
             -DCMAKE_JOB_POOL_COMPILE=aisuite_compile \
             -DCMAKE_JOB_POOL_LINK=aisuite_link \
             -DAISUITE_BUILD_TESTS=ON \
             -DAISUITE_BUILD_APPS=ON \
+            -DAISUITE_BUILD_CODEX_FRONTEND_CLIENT=ON \
             -DAISUITE_ENABLE_CODEX_FRONTEND_TLS=ON \
             -DAISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET=ON \
             -DAISUITE_ENABLE_CODEX_FRONTEND_RFCOMM=ON
@@ -122,6 +130,24 @@ jobs:
             --check
           python3 -B tools/frontend/generate_cpp_frontend_client.py --check
 
+      - name: Verify P0 Codex architecture baseline contract
+        run: |
+          cmake --install build
+          python3 -B tools/codex/capture_architecture_baseline.py \
+            validate-baseline \
+            --source-dir . \
+            --baseline \
+              docs/ai/openai/codex/architecture-reduction/p0-baseline.json
+          python3 -B tools/codex/capture_architecture_baseline.py \
+            verify-contract \
+            --source-dir . \
+            --build-dir build \
+            --install-dir "$PWD/../aisuite-p0-contract-install" \
+            --snodec-source-dir "$PWD/../snodec" \
+            --snodec-build-dir "$PWD/../snodec-build" \
+            --baseline \
+              docs/ai/openai/codex/architecture-reduction/p0-baseline.json
+
       - name: Verify complete validation inventory
         run: |
           ctest --test-dir build -N > build/ctest-inventory.txt
@@ -141,7 +167,8 @@ jobs:
             AISuiteSourcePackageTest \
             AISuiteBinaryPackageTest \
             CodexPublicHeaderPolicyTest \
-            CodexPublicHeaderSelfContainmentTest
+            CodexPublicHeaderSelfContainmentTest \
+            CodexArchitectureReductionBaselineTest
           do
             grep -F "${required_test}" build/ctest-inventory.txt
           done
@@ -150,4 +177,31 @@ jobs:
         run: |
           ctest --test-dir build \
             --output-on-failure \
+            --output-junit "$PWD/build/ctest-results.xml" \
             --parallel 2
+
+      - name: Prove deterministic P0 capture and comparison
+        run: |
+          # Install-backed tests use temporary prefixes and may replace CMake's
+          # install manifest. Restore the configured P0 install evidence first.
+          cmake --install build
+          for capture in a b
+          do
+            python3 -B tools/codex/capture_architecture_baseline.py capture \
+              --source-dir . \
+              --build-dir build \
+              --install-dir "$PWD/../aisuite-p0-contract-install" \
+              --snodec-source-dir "$PWD/../snodec" \
+              --snodec-build-dir "$PWD/../snodec-build" \
+              --ctest-results build/ctest-results.xml \
+              --ctest-parallelism 2 \
+              --baseline-parent \
+                4c0cfbf99667fef64c9fed010d84031248ceaba2 \
+              --output "build/p0-capture-${capture}.json"
+          done
+          cmp build/p0-capture-a.json build/p0-capture-b.json
+          python3 -B tools/codex/capture_architecture_baseline.py compare \
+            --baseline \
+              docs/ai/openai/codex/architecture-reduction/p0-baseline.json \
+            --current build/p0-capture-a.json \
+            --output build/p0-comparison.json

@@ -1,0 +1,27 @@
+Commands:
+  help
+  quit
+  reconnect
+  snapshot
+  replay <sequence>
+  acquire
+  release
+  threads
+  start [--cwd <path>] [--model <model>]
+        [--model-provider <provider>]
+        [--approval-policy <policy>]
+        [--sandbox-mode <mode>]
+        [--ephemeral]
+  resume <thread-id>
+         [--cwd <path>] [--model <model>]
+         [--model-provider <provider>]
+         [--approval-policy <policy>]
+         [--sandbox-mode <mode>]
+  new [thread-start-options] -- <prompt>
+  new <prompt>
+  read <thread-id>
+  turn <thread-id> <prompt>
+  interrupt <thread-id> <turn-id>
+  raw <json>
+  watch on
+  watch off

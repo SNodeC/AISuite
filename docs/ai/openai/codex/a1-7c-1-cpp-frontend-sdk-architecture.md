@@ -24,6 +24,13 @@ It is not an invitation to redesign the SDK during implementation.
 
 Codex must implement this architecture rather than inventing another one.
 
+That freeze governed the A1.7c-1 delivery represented by PR #14. The later,
+owner-approved P0–P3 roadmap supersedes its internal-implementation direction:
+P0 freezes the public SDK API/ABI and Frontend Protocol behavior, while P2
+builds the complete greenfield server and client beside the old executable
+oracles. P3 cuts production over and deletes the legacy implementations after
+the differential and compatibility gates close.
+
 ======================================================================
 1. Purpose
 ======================================================================
@@ -112,7 +119,8 @@ A1.7c-1 does not:
 - persist authentication credentials;
 - introduce a generic string-and-JSON command escape hatch.
 
-A1.7c-2 remains the next PR after A1.7c-1.
+The owner-approved P0–P3 architecture reduction follows A1.7c-1. A1.7c-2 is
+deferred until P3 is merged and targets the reduced canonical frontend.
 
 A1.7d remains the TypeScript SDK and browser PR.
 
@@ -2505,7 +2513,8 @@ It does not contain:
 - browser frontend;
 - provider abstraction.
 
-A1.7c-2 follows immediately.
+A1.7c-2 follows the owner-approved P0–P3 architecture reduction and starts only
+after P3 is merged.
 
 ======================================================================
 49. Hard architectural completion gates
