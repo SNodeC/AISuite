@@ -1890,6 +1890,138 @@ foreach(
 endforeach()
 
 snodec_add_test(
+    CodexFrontendServerDifferentialTest
+    CodexFrontendServerDifferentialTest.cpp
+)
+target_link_libraries(
+    CodexFrontendServerDifferentialTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexFrontend
+        ai-openai-codex-frontend-server-core
+        snodec::core
+)
+target_compile_features(CodexFrontendServerDifferentialTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexFrontendServerDifferentialTest
+    PRIVATE
+        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
+        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_COVERAGE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json"
+        AISUITE_CODEX_FRONTEND_SERVER_DIFFERENTIAL_LEDGER="${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendServerDifferentialTest.ledger.json"
+)
+set_tests_properties(
+    CodexFrontendServerDifferentialTest
+    PROPERTIES
+        FIXTURES_SETUP CodexFrontendServerDifferentialLedger
+        LABELS "component;ai;openai;codex;frontend;server;differential;p2"
+        TIMEOUT 30
+)
+
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+snodec_add_test(
+    CodexFrontendClientDifferentialTest
+    CodexFrontendClientDifferentialTest.cpp
+)
+target_link_libraries(
+    CodexFrontendClientDifferentialTest
+    PRIVATE
+        snodec-test-support
+        ai-openai-codex-frontend-client-test-support
+        ai-openai-codex-frontend-client-core
+        ai-openai-codex-frontend-server-core
+)
+target_compile_features(CodexFrontendClientDifferentialTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexFrontendClientDifferentialTest
+    PRIVATE
+        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
+        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_COVERAGE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json"
+        AISUITE_CODEX_FRONTEND_CLIENT_DIFFERENTIAL_LEDGER="${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendClientDifferentialTest.ledger.json"
+)
+set_tests_properties(
+    CodexFrontendClientDifferentialTest
+    PROPERTIES
+        FIXTURES_SETUP CodexFrontendClientDifferentialLedger
+        LABELS "component;ai;openai;codex;frontend;client;differential;p2"
+        TIMEOUT 60
+)
+
+snodec_add_test(
+    CodexFrontendCompatibilityAdaptersTest
+    CodexFrontendCompatibilityAdaptersTest.cpp
+)
+target_link_libraries(
+    CodexFrontendCompatibilityAdaptersTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexFrontend
+        ai-openai-codex-frontend-client-test-support
+        ai-openai-codex-frontend-model
+        ai-openai-codex-frontend-server-core
+        ai-openai-codex-frontend-client-core
+)
+target_compile_features(CodexFrontendCompatibilityAdaptersTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendCompatibilityAdaptersTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;compatibility;adapters;p2"
+        TIMEOUT 30
+)
+
+add_test(
+    NAME CodexFrontendDifferentialCoverageGuardTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendDifferentialCoverageGuardTest.py
+        --coverage ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json
+        --server-ledger ${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendServerDifferentialTest.ledger.json
+        --client-ledger ${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendClientDifferentialTest.ledger.json
+)
+set_tests_properties(
+    CodexFrontendDifferentialCoverageGuardTest
+    PROPERTIES
+        FIXTURES_REQUIRED "CodexFrontendServerDifferentialLedger;CodexFrontendClientDifferentialLedger"
+        FIXTURES_SETUP CodexFrontendDifferentialCoverageProof
+        LABELS "component;ai;openai;codex;frontend;differential;coverage;p2"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 30
+)
+endif()
+
+add_executable(
+    CodexFrontendDifferentialMutationProbe
+    CodexFrontendDifferentialMutationProbe.cpp
+)
+target_link_libraries(
+    CodexFrontendDifferentialMutationProbe
+    PRIVATE AISuite::OpenAICodexFrontendProtocol
+)
+target_compile_features(
+    CodexFrontendDifferentialMutationProbe PRIVATE cxx_std_20
+)
+
+add_test(
+    NAME CodexFrontendDifferentialMutationTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendDifferentialMutationTest.py
+        --probe $<TARGET_FILE:CodexFrontendDifferentialMutationProbe>
+)
+set_tests_properties(
+    CodexFrontendDifferentialMutationTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;differential;mutation;p2"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 30
+)
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    set_tests_properties(
+        CodexFrontendDifferentialMutationTest
+        PROPERTIES FIXTURES_REQUIRED CodexFrontendDifferentialCoverageProof
+    )
+endif()
+
+snodec_add_test(
     CodexFrontendJsonLineFramerTest CodexFrontendJsonLineFramerTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
 )
