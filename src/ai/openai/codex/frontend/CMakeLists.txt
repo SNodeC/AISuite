@@ -41,6 +41,27 @@ target_link_libraries(
     PUBLIC nlohmann_json::nlohmann_json
 )
 
+add_library(
+    ai-openai-codex-frontend-model STATIC
+    internal/model/Journal.cpp
+    internal/model/Model.cpp
+    internal/model/Occurrence.cpp
+    internal/model/Projection.cpp
+)
+set_target_properties(
+    ai-openai-codex-frontend-model
+    PROPERTIES POSITION_INDEPENDENT_CODE ON
+)
+target_include_directories(
+    ai-openai-codex-frontend-model
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+)
+target_compile_features(ai-openai-codex-frontend-model PUBLIC cxx_std_20)
+target_link_libraries(
+    ai-openai-codex-frontend-model
+    PUBLIC AISuite::OpenAICodexFrontendProtocol
+)
+
 add_library(ai-openai-codex-frontend SHARED ${AI_OPENAI_CODEX_FRONTEND_CPP})
 add_library(AISuite::OpenAICodexFrontend ALIAS ai-openai-codex-frontend)
 set_target_properties(

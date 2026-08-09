@@ -1807,6 +1807,29 @@ set_tests_properties(
                SKIP_RETURN_CODE 77 TIMEOUT 15
 )
 
+foreach(
+    typed_frontend_test
+    IN ITEMS
+       CodexFrontendTypedModelTest
+       CodexFrontendTypedOccurrenceTest
+       CodexFrontendTypedSnapshotTest
+       CodexFrontendTypedJournalTest
+       CodexFrontendProjectionSecurityTest
+)
+    snodec_add_test(${typed_frontend_test} ${typed_frontend_test}.cpp)
+    target_link_libraries(
+        ${typed_frontend_test}
+        PRIVATE snodec-test-support ai-openai-codex-frontend-model
+    )
+    target_compile_features(${typed_frontend_test} PRIVATE cxx_std_20)
+    set_tests_properties(
+        ${typed_frontend_test}
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;typed;model;p2"
+            TIMEOUT 30
+    )
+endforeach()
+
 snodec_add_test(
     CodexFrontendJsonLineFramerTest CodexFrontendJsonLineFramerTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
