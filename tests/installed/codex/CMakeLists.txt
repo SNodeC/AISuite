@@ -4,6 +4,45 @@ project(AISuiteInstalledCodexConsumer LANGUAGES CXX)
 
 find_package(AISuite CONFIG REQUIRED)
 
+if(NOT TARGET AISuite::OpenAICodexFrontendProtocol)
+    message(FATAL_ERROR "OpenAICodexFrontendProtocol is not exported")
+endif()
+get_target_property(
+    frontend_protocol_links
+    AISuite::OpenAICodexFrontendProtocol
+    INTERFACE_LINK_LIBRARIES
+)
+if(NOT frontend_protocol_links)
+    message(FATAL_ERROR "OpenAICodexFrontendProtocol has no JSON dependency")
+endif()
+list(
+    FIND frontend_protocol_links nlohmann_json::nlohmann_json
+    frontend_protocol_json_index
+)
+if(frontend_protocol_json_index EQUAL -1)
+    message(
+        FATAL_ERROR
+            "OpenAICodexFrontendProtocol does not export nlohmann_json: ${frontend_protocol_links}"
+    )
+endif()
+foreach(
+    forbidden_protocol_dependency
+    IN ITEMS OpenAICodex OpenAICodexBackend OpenAICodexFrontend
+             OpenAICodexFrontendClient snodec net- http websocket OpenSSL
+             Bluetooth Qt Curses CURSES
+)
+    string(
+        FIND "${frontend_protocol_links}" "${forbidden_protocol_dependency}"
+        forbidden_protocol_dependency_index
+    )
+    if(NOT forbidden_protocol_dependency_index EQUAL -1)
+        message(
+            FATAL_ERROR
+                "OpenAICodexFrontendProtocol leaks ${forbidden_protocol_dependency}: ${frontend_protocol_links}"
+        )
+    endif()
+endforeach()
+
 if(TARGET AISuite::OpenAICodexFrontendClient)
     get_target_property(
         frontend_client_links
@@ -50,6 +89,18 @@ if(TARGET AISuite::OpenAICodexFrontendClient)
         endif()
     endforeach()
 endif()
+
+add_executable(
+    AISuiteInstalledCodexFrontendProtocolConsumer
+    CodexFrontendProtocolConsumer.cpp
+)
+target_compile_features(
+    AISuiteInstalledCodexFrontendProtocolConsumer PRIVATE cxx_std_20
+)
+target_link_libraries(
+    AISuiteInstalledCodexFrontendProtocolConsumer
+    PRIVATE AISuite::OpenAICodexFrontendProtocol
+)
 
 add_executable(
     AISuiteInstalledSNodeCoreConsumer

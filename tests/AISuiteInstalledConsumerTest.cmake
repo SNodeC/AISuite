@@ -272,11 +272,19 @@ string(FIND "${installed_aisuite_targets_text}"
        "AISuite::OpenAICodexFrontend" frontend_target_index
 )
 string(FIND "${installed_aisuite_targets_text}"
+       "AISuite::OpenAICodexFrontendProtocol" frontend_protocol_target_index
+)
+string(FIND "${installed_aisuite_targets_text}"
        "AISuite::OpenAICodexFrontendClient" frontend_client_target_index
 )
 if(frontend_target_index EQUAL -1)
     fail_installed(
         "installed target boundary must expose OpenAICodexFrontend"
+    )
+endif()
+if(frontend_protocol_target_index EQUAL -1)
+    fail_installed(
+        "installed target boundary must expose OpenAICodexFrontendProtocol"
     )
 endif()
 if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT AND
@@ -294,6 +302,7 @@ endif()
 set(codex_libraries
     aisuite-openai-codex
     aisuite-openai-codex-backend
+    aisuite-openai-codex-frontend-protocol
     aisuite-openai-codex-frontend
 )
 if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
@@ -549,6 +558,7 @@ set(installed_consumers
     AISuiteInstalledSNodeCoreConsumer
     AISuiteInstalledCodexConsumer
     AISuiteInstalledCodexApiConsumer
+    AISuiteInstalledCodexFrontendProtocolConsumer
     AISuiteInstalledCodexAccountsHeaderConsumer
     AISuiteInstalledCodexModelsHeaderConsumer
     AISuiteInstalledCodexConfigurationHeaderConsumer
@@ -712,6 +722,38 @@ foreach(consumer IN LISTS installed_consumers)
                 )
             endif()
         endforeach()
+    endif()
+    if(consumer STREQUAL "AISuiteInstalledCodexFrontendProtocolConsumer")
+        foreach(
+            forbidden_protocol_runtime
+            IN ITEMS
+               libaisuite-openai-codex.so.2
+               libaisuite-openai-codex-backend.so.2
+               libaisuite-openai-codex-frontend.so.2
+               libaisuite-openai-codex-frontend-client.so.2
+               libsnodec-
+               libssl
+               libcrypto
+               libbluetooth
+        )
+            string(FIND "${linked_libraries}" "${forbidden_protocol_runtime}"
+                   forbidden_protocol_runtime_index
+            )
+            if(NOT forbidden_protocol_runtime_index EQUAL -1)
+                fail_cross_repo(
+                    "protocol-only consumer resolves forbidden runtime ${forbidden_protocol_runtime}: ${linked_libraries}"
+                )
+            endif()
+        endforeach()
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend-protocol.so.2"
+               protocol_runtime_index
+        )
+        if(protocol_runtime_index EQUAL -1)
+            fail_installed(
+                "protocol-only consumer does not resolve the protocol DSO"
+            )
+        endif()
     endif()
 
     execute_process(

@@ -1563,6 +1563,63 @@ set_tests_properties(
 )
 
 snodec_add_test(
+    CodexFrontendProtocolTargetIsolationTest
+    CodexFrontendProtocolTargetIsolationTest.cpp
+)
+target_link_libraries(
+    CodexFrontendProtocolTargetIsolationTest
+    PRIVATE AISuite::OpenAICodexFrontendProtocol
+)
+target_compile_features(
+    CodexFrontendProtocolTargetIsolationTest PRIVATE cxx_std_20
+)
+set_tests_properties(
+    CodexFrontendProtocolTargetIsolationTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;protocol;target;isolation;p2"
+        TIMEOUT 10
+)
+
+add_test(
+    NAME CodexFrontendProtocolMinimalConfigurationTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendProtocolMinimalConfigurationTest.py
+        --source-dir ${PROJECT_SOURCE_DIR}
+        --build-dir ${PROJECT_BINARY_DIR}
+        --snodec-dir ${snodec_DIR}
+)
+set_tests_properties(
+    CodexFrontendProtocolMinimalConfigurationTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;protocol;minimal;p2"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 900
+)
+
+add_test(
+    NAME CodexFrontendProtocolLegacyBinaryCompatibilityTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendProtocolLegacyBinaryCompatibilityTest.py
+        --source-dir ${PROJECT_SOURCE_DIR}
+        --build-dir ${PROJECT_BINARY_DIR}
+        --snodec-dir ${snodec_DIR}
+        --p0-base fa93297df89cd555ae08914fe33f82d8c7017ec6
+        --temp-root ${PROJECT_BINARY_DIR}
+        --parallel 4
+)
+set_tests_properties(
+    CodexFrontendProtocolLegacyBinaryCompatibilityTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;protocol;abi;elf;p0;p2"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        RUN_SERIAL TRUE
+        TIMEOUT 900
+)
+
+snodec_add_test(
     CodexFrontendContractMetadataTest
     ${PROJECT_SOURCE_DIR}/tests/ai/openai/codex/CodexFrontendContractMetadataTest.cpp
 )

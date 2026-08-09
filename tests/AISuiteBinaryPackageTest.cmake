@@ -137,6 +137,7 @@ set(required_package_entries
     "include/aisuite/ai/openai/codex/frontend/FrontendService.h"
     "lib/libaisuite-openai-codex.so.2"
     "lib/libaisuite-openai-codex-backend.so.2"
+    "lib/libaisuite-openai-codex-frontend-protocol.so.2"
     "lib/libaisuite-openai-codex-frontend.so.2"
     "lib/cmake/AISuite/AISuiteConfig.cmake"
 )
@@ -175,6 +176,7 @@ set(forbidden_package_entries
     "include/aisuite/ai/openai/codex/frontend/FrontendClient.h"
     "lib/libaisuite-openai-codex.so.1"
     "lib/libaisuite-openai-codex-backend.so.1"
+    "lib/libaisuite-openai-codex-frontend-protocol.so.1"
     "lib/libaisuite-openai-codex-frontend.so.1"
     "lib/libaisuite-openai-codex-frontend-client.so.1"
     "tools/codex/"
