@@ -102,7 +102,7 @@ namespace {
             return false;
         }
         for (const auto& part : path) {
-            if (part == ".." || part == "detail" || part == "private") {
+            if (part == ".." || part == "detail" || part == "internal" || part == "private") {
                 return false;
             }
         }
@@ -223,7 +223,7 @@ namespace {
                         const std::filesystem::path installedPath = (destinationSuffix / sourceHeader.filename()).lexically_normal();
                         if (!isSafePublicPath(installedPath)) {
                             aisuite::source_policy::diagnostic(
-                                kInventoryDiagnostic, "private/detail header would be installed: " + installedPath.generic_string());
+                                kInventoryDiagnostic, "private/detail/internal header would be installed: " + installedPath.generic_string());
                             valid = false;
                         }
                         installed.push_back(installedPath.generic_string());

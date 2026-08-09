@@ -59,7 +59,7 @@ set(codex_frontend_client_header_count 0)
 foreach(archive_entry IN LISTS archive_entries)
     string(STRIP "${archive_entry}" archive_entry)
     if(archive_entry MATCHES
-       "(^|/)include/aisuite/ai/openai/codex/(.+/)?(detail|private)(/|$)")
+       "(^|/)include/aisuite/ai/openai/codex/(.+/)?(detail|internal|private)(/|$)")
         message(
             FATAL_ERROR
                 "CodexPolicyBinaryPackageLeak: binary package contains private Codex include path ${archive_entry}"
@@ -71,7 +71,7 @@ foreach(archive_entry IN LISTS archive_entries)
     endif()
 
     set(codex_header "${CMAKE_MATCH_2}")
-    if(codex_header MATCHES "(^|/)(detail|private)(/|$)")
+    if(codex_header MATCHES "(^|/)(detail|internal|private)(/|$)")
         message(
             FATAL_ERROR
                 "CodexPolicyBinaryPackageLeak: binary package contains private Codex header ${codex_header}"
@@ -134,12 +134,18 @@ set(required_package_entries
     "include/aisuite/ai/openai/codex/typed/WindowsSandbox.h"
     "include/aisuite/ai/openai/codex/typed/Plugins.h"
     "include/aisuite/ai/openai/codex/typed/Skills.h"
+    "include/aisuite/ai/openai/codex/frontend/Codec.h"
+    "include/aisuite/ai/openai/codex/frontend/GeneratedProtocol.h"
+    "include/aisuite/ai/openai/codex/frontend/Messages.h"
+    "include/aisuite/ai/openai/codex/frontend/Protocol.h"
+    "include/aisuite/ai/openai/codex/frontend/Security.h"
     "include/aisuite/ai/openai/codex/frontend/FrontendService.h"
     "lib/libaisuite-openai-codex.so.2"
     "lib/libaisuite-openai-codex-backend.so.2"
     "lib/libaisuite-openai-codex-frontend-protocol.so.2"
     "lib/libaisuite-openai-codex-frontend.so.2"
     "lib/cmake/AISuite/AISuiteConfig.cmake"
+    "lib/cmake/AISuite/AISuiteTargets.cmake"
 )
 if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     list(
@@ -196,6 +202,7 @@ set(forbidden_package_entries
     "CodexSemanticLoggerPolicyTest"
     "CodexPolicyMutationTest"
     "src/ai/openai/codex/detail/"
+    "src/ai/openai/codex/frontend/internal/"
     "ProtocolSurfaceRegistryData.inc"
 )
 if(NOT AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
@@ -218,3 +225,62 @@ foreach(forbidden IN LISTS forbidden_package_entries)
         )
     endif()
 endforeach()
+
+# The library file alone is insufficient: prove that the binary archive ships
+# the additive imported target through which an installed protocol-only
+# consumer resolves it.
+set(
+    binary_package_export_extract
+    "${AISUITE_BUILD_DIR}/binary-package-export-extract"
+)
+file(REMOVE_RECURSE "${binary_package_export_extract}")
+file(MAKE_DIRECTORY "${binary_package_export_extract}")
+execute_process(
+    COMMAND "${CMAKE_COMMAND}" -E tar xzf "${archive}"
+    WORKING_DIRECTORY "${binary_package_export_extract}"
+    RESULT_VARIABLE result
+)
+if(NOT result EQUAL 0)
+    message(FATAL_ERROR "unable to extract binary package target export")
+endif()
+file(
+    GLOB binary_package_root_candidates
+    LIST_DIRECTORIES TRUE
+    "${binary_package_export_extract}/AISuite-*"
+)
+set(binary_package_roots)
+foreach(candidate IN LISTS binary_package_root_candidates)
+    if(IS_DIRECTORY "${candidate}")
+        list(APPEND binary_package_roots "${candidate}")
+    endif()
+endforeach()
+list(LENGTH binary_package_roots binary_package_root_count)
+if(NOT binary_package_root_count EQUAL 1)
+    message(
+        FATAL_ERROR
+            "expected one extracted binary-package root, found ${binary_package_root_count}"
+    )
+endif()
+list(GET binary_package_roots 0 binary_package_root)
+set(
+    binary_package_targets
+    "${binary_package_root}/lib/cmake/AISuite/AISuiteTargets.cmake"
+)
+if(NOT EXISTS "${binary_package_targets}")
+    message(
+        FATAL_ERROR
+            "binary package is missing the AISuite imported-target export"
+    )
+endif()
+file(READ "${binary_package_targets}" binary_package_targets_text)
+string(
+    FIND "${binary_package_targets_text}"
+         "add_library(AISuite::OpenAICodexFrontendProtocol SHARED IMPORTED)"
+         binary_package_protocol_target_index
+)
+if(binary_package_protocol_target_index EQUAL -1)
+    message(
+        FATAL_ERROR
+            "binary package target export omits the shared AISuite::OpenAICodexFrontendProtocol imported target"
+    )
+endif()

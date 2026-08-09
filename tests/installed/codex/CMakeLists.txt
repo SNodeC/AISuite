@@ -12,36 +12,13 @@ get_target_property(
     AISuite::OpenAICodexFrontendProtocol
     INTERFACE_LINK_LIBRARIES
 )
-if(NOT frontend_protocol_links)
-    message(FATAL_ERROR "OpenAICodexFrontendProtocol has no JSON dependency")
-endif()
-list(
-    FIND frontend_protocol_links nlohmann_json::nlohmann_json
-    frontend_protocol_json_index
-)
-if(frontend_protocol_json_index EQUAL -1)
+if(NOT "${frontend_protocol_links}" STREQUAL
+   "nlohmann_json::nlohmann_json")
     message(
         FATAL_ERROR
-            "OpenAICodexFrontendProtocol does not export nlohmann_json: ${frontend_protocol_links}"
+            "OpenAICodexFrontendProtocol must export exactly nlohmann_json::nlohmann_json: ${frontend_protocol_links}"
     )
 endif()
-foreach(
-    forbidden_protocol_dependency
-    IN ITEMS OpenAICodex OpenAICodexBackend OpenAICodexFrontend
-             OpenAICodexFrontendClient snodec net- http websocket OpenSSL
-             Bluetooth Qt Curses CURSES
-)
-    string(
-        FIND "${frontend_protocol_links}" "${forbidden_protocol_dependency}"
-        forbidden_protocol_dependency_index
-    )
-    if(NOT forbidden_protocol_dependency_index EQUAL -1)
-        message(
-            FATAL_ERROR
-                "OpenAICodexFrontendProtocol leaks ${forbidden_protocol_dependency}: ${frontend_protocol_links}"
-        )
-    endif()
-endforeach()
 
 if(TARGET AISuite::OpenAICodexFrontendClient)
     get_target_property(

@@ -163,6 +163,7 @@ def main() -> int:
         run(
             ["cmake", "--build", str(p0_build), "--target", "ai-openai-codex-frontend", "--parallel", str(arguments.parallel)],
             cwd=root,
+            timeout=600,
         )
         run(["cmake", "--install", str(p0_build)], cwd=root)
         frontend_soname = "libaisuite-openai-codex-frontend.so.2"

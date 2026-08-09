@@ -128,3 +128,46 @@ set_tests_properties(
         ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
         TIMEOUT 60
 )
+
+if(TARGET ai-openai-codex-frontend-server-core AND
+   TARGET ai-openai-codex-frontend-client-core AND
+   TARGET codex-backend AND
+   TARGET codex-backend-client
+)
+    set(
+        frontend_core_dependency_manifest
+        "${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendCoreDependencyPolicy-$<CONFIG>.txt"
+    )
+    string(
+        CONCAT frontend_core_dependency_manifest_content
+        "ai-openai-codex-frontend-protocol|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-protocol,LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-protocol|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-protocol,INTERFACE_LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-model|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-model,LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-model|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-model,INTERFACE_LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-server-core|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-server-core,LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-server-core|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-server-core,INTERFACE_LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client-core|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-core,LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client-core|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-core,INTERFACE_LINK_LIBRARIES>\n"
+    )
+    file(
+        GENERATE
+        OUTPUT "${frontend_core_dependency_manifest}"
+        CONTENT "${frontend_core_dependency_manifest_content}"
+    )
+    add_test(
+        NAME CodexFrontendCoreDependencyPolicyTest
+        COMMAND
+            ${Python3_EXECUTABLE} -B
+            ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendCoreDependencyPolicyTest.py
+            --source-dir ${PROJECT_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --link-manifest ${frontend_core_dependency_manifest}
+    )
+    set_tests_properties(
+        CodexFrontendCoreDependencyPolicyTest
+        PROPERTIES
+            LABELS "policy;ai;openai;codex;frontend;dependency;file-api;p2"
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+            TIMEOUT 60
+    )
+endif()

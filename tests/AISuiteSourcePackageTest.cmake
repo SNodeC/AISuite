@@ -70,6 +70,32 @@ foreach(required
     src/ai/openai/codex/typed/WindowsSandbox.h
     src/ai/openai/codex/frontend/FrontendService.cpp
     src/ai/openai/codex/frontend/FrontendService.h
+    src/ai/openai/codex/frontend/CMakeLists.txt
+    src/ai/openai/codex/frontend/Codec.cpp
+    src/ai/openai/codex/frontend/Codec.h
+    src/ai/openai/codex/frontend/GeneratedProtocol.h
+    src/ai/openai/codex/frontend/GeneratedProtocolSchema.inc
+    src/ai/openai/codex/frontend/Messages.cpp
+    src/ai/openai/codex/frontend/Messages.h
+    src/ai/openai/codex/frontend/Protocol.h
+    src/ai/openai/codex/frontend/Security.h
+    src/ai/openai/codex/frontend/detail/EventRepresentation.h
+    src/ai/openai/codex/frontend/detail/GeneratedSchemaValidator.cpp
+    src/ai/openai/codex/frontend/detail/GeneratedSchemaValidator.h
+    src/ai/openai/codex/frontend/internal/model/Journal.cpp
+    src/ai/openai/codex/frontend/internal/model/Journal.h
+    src/ai/openai/codex/frontend/internal/model/Model.cpp
+    src/ai/openai/codex/frontend/internal/model/Model.h
+    src/ai/openai/codex/frontend/internal/model/Occurrence.cpp
+    src/ai/openai/codex/frontend/internal/model/Occurrence.h
+    src/ai/openai/codex/frontend/internal/model/Projection.cpp
+    src/ai/openai/codex/frontend/internal/model/Projection.h
+    src/ai/openai/codex/frontend/internal/server/BackendProjection.cpp
+    src/ai/openai/codex/frontend/internal/server/BackendProjection.h
+    src/ai/openai/codex/frontend/internal/server/ServerCore.cpp
+    src/ai/openai/codex/frontend/internal/server/ServerCore.h
+    src/ai/openai/codex/frontend/internal/client/ClientCore.cpp
+    src/ai/openai/codex/frontend/internal/client/ClientCore.h
     src/ai/openai/codex/frontend/client/Client.cpp
     src/ai/openai/codex/frontend/client/Client.h
     src/ai/openai/codex/frontend/client/CMakeLists.txt
@@ -113,6 +139,7 @@ foreach(required
     tests/CMakeLists.txt
     tests/AISuiteCodexFrontendDependencyPolicyTest.cmake
     tests/AISuiteBinaryPackageTest.cmake
+    tests/AISuiteInstalledConsumerTest.cmake
     tests/AISuiteSourcePackageTest.cmake
     tests/policy/CMakeLists.txt
     tests/policy/support/AISuiteSourcePolicyTestRoot.h
@@ -120,6 +147,7 @@ foreach(required
     tests/policy/codex/CMakeLists.txt
     tests/policy/codex/CodexPublicHeaderPolicyTest.cpp
     tests/policy/codex/CodexPublicHeaderSelfContainmentTest.cmake
+    tests/policy/codex/CodexFrontendCoreDependencyPolicyTest.py
     tests/policy/codex/CodexLoggingApiSurfacePolicyTest.cpp
     tests/policy/codex/CodexPolicyMutationTest.py
     tests/policy/codex/CodexSemanticLoggerPolicyTest.cpp
@@ -128,6 +156,7 @@ foreach(required
     tests/policy/security/CMakeLists.txt
     tests/policy/security/CodexSyntheticSecretLeakGuardTest.py
     tests/component/codex/CodexA14RuntimePlatformCurrentStateTest.py
+    tests/component/codex/CMakeLists.txt
     tests/component/codex/CodexBackendClientAuthenticationTest.cpp
     tests/component/codex/CodexFrontendClientBindingTest.cpp
     tests/component/codex/CodexFrontendClientGeneratorTest.py
@@ -135,8 +164,40 @@ foreach(required
     tests/component/codex/CodexFrontendClientSymbolVisibilityTest.cmake
     tests/component/codex/CodexFrontendClientSynchronizationTest.cpp
     tests/component/codex/CodexFrontendServiceClientIntegrationTest.cpp
+    tests/component/codex/CodexFrontendProtocolTargetIsolationTest.cpp
+    tests/component/codex/CodexFrontendProtocolMinimalConfigurationTest.py
+    tests/component/codex/CodexFrontendProtocolLegacyBinaryCompatibilityTest.py
+    tests/component/codex/CodexFrontendLegacyBinaryConsumer.cpp
+    tests/component/codex/CodexFrontendTypedModelTest.cpp
+    tests/component/codex/CodexFrontendTypedOccurrenceTest.cpp
+    tests/component/codex/CodexFrontendTypedSnapshotTest.cpp
+    tests/component/codex/CodexFrontendTypedJournalTest.cpp
+    tests/component/codex/CodexFrontendProjectionSecurityTest.cpp
+    tests/component/codex/CodexFrontendServerCoreLifecycleTest.cpp
+    tests/component/codex/CodexFrontendServerCoreSynchronizationTest.cpp
+    tests/component/codex/CodexFrontendServerCoreCommandTest.cpp
+    tests/component/codex/CodexFrontendServerCoreSecurityTest.cpp
+    tests/component/codex/CodexFrontendServerCoreBackpressureTest.cpp
+    tests/component/codex/CodexFrontendClientCoreLifecycleTest.cpp
+    tests/component/codex/CodexFrontendClientCoreSynchronizationTest.cpp
+    tests/component/codex/CodexFrontendClientCoreOperationTest.cpp
+    tests/component/codex/CodexFrontendClientCoreStateTest.cpp
+    tests/component/codex/CodexFrontendClientCoreCapacityTest.cpp
+    tests/component/codex/CodexFrontendServerDifferentialTest.cpp
+    tests/component/codex/CodexFrontendClientDifferentialTest.cpp
+    tests/component/codex/CodexFrontendDifferentialAuthority.h
+    tests/component/codex/CodexFrontendDifferentialComparison.h
+    tests/component/codex/CodexFrontendDifferentialCoverageGuardTest.py
+    tests/component/codex/CodexFrontendDifferentialExecutionLedger.h
+    tests/component/codex/CodexFrontendDifferentialMutationProbe.cpp
+    tests/component/codex/CodexFrontendDifferentialMutationTest.py
+    tests/component/codex/CodexFrontendCompatibilityAdapters.h
+    tests/component/codex/CodexFrontendCompatibilityAdaptersTest.cpp
+    tests/component/codex/fixtures/p2-frontend-differential-coverage.json
+    tests/component/codex/fixtures/frontend-protocol-v1.generated.json
     tests/component/codex/fixtures/frontend-client-reducer/conformance.json
     tests/installed/codex/CMakeLists.txt
+    tests/installed/codex/CodexFrontendProtocolConsumer.cpp
     tests/installed/codex/CodexApiConsumer.cpp
     tests/installed/codex/CodexApiExample.cpp
     tests/installed/codex/CodexApplicationProjectionConsumer.cpp
@@ -152,6 +213,7 @@ foreach(required
     docs/ai/openai/codex/a1-7c-1-cpp-frontend-sdk-architecture.md
     docs/ai/openai/codex/a1-7c-1-cpp-frontend-sdk.md
     docs/ai/openai/codex/a1-final-abi-transition.md
+    docs/ai/openai/codex/architecture-reduction/p2-greenfield-frontend.md
     src/apps/codex-backend/FrontendCloseReason.h
     src/apps/codex-backend/README.md
 )

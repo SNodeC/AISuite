@@ -1421,6 +1421,10 @@ target_compile_definitions(
     CodexConversationCodecTest
     PRIVATE CODEX_A1_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tools/codex/app-server-fixtures/0.144.6"
 )
+set_tests_properties(
+    CodexConversationCodecTest
+    PROPERTIES TIMEOUT 30
+)
 target_compile_definitions(
     CodexConversationB3NestedCodecTest
     PRIVATE CODEX_A1_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tools/codex/app-server-fixtures/0.144.6"

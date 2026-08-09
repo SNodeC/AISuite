@@ -18,19 +18,22 @@ elseif(DEFINED ENV{RUNNER_TEMP} AND NOT "$ENV{RUNNER_TEMP}" STREQUAL "")
 elseif(DEFINED ENV{TMPDIR} AND NOT "$ENV{TMPDIR}" STREQUAL "")
     set(temporary_root "$ENV{TMPDIR}")
 else()
-    set(temporary_root "/tmp")
+    get_filename_component(aisuite_source_parent "${AISUITE_SOURCE_DIR}" DIRECTORY)
+    set(temporary_root
+        "${aisuite_source_parent}/.aisuite-ic"
+    )
 endif()
 string(SHA256 stage_identity "${AISUITE_SOURCE_DIR};${AISUITE_BUILD_DIR}")
 string(SUBSTRING "${stage_identity}" 0 16 stage_identity)
 set(stage
-    "${temporary_root}/aisuite-genuine-installed-consumer-${stage_identity}"
+    "${temporary_root}/ic-${stage_identity}"
 )
 set(aisuite_install "${stage}/aisuite-install")
 set(consumer_source "${stage}/consumer-source")
 set(consumer_build "${stage}/consumer-build")
 set(module_consumer_source "${stage}/module-consumer-source")
 set(module_consumer_build "${stage}/module-consumer-build")
-set(runtime_directory "${stage}/runtime")
+set(runtime_directory "${stage}/r")
 
 file(REMOVE_RECURSE "${stage}")
 file(MAKE_DIRECTORY
@@ -269,13 +272,16 @@ if(NOT EXISTS "${installed_aisuite_targets}")
 endif()
 file(READ "${installed_aisuite_targets}" installed_aisuite_targets_text)
 string(FIND "${installed_aisuite_targets_text}"
-       "AISuite::OpenAICodexFrontend" frontend_target_index
+       "add_library(AISuite::OpenAICodexFrontend SHARED IMPORTED)"
+       frontend_target_index
 )
 string(FIND "${installed_aisuite_targets_text}"
-       "AISuite::OpenAICodexFrontendProtocol" frontend_protocol_target_index
+       "add_library(AISuite::OpenAICodexFrontendProtocol SHARED IMPORTED)"
+       frontend_protocol_target_index
 )
 string(FIND "${installed_aisuite_targets_text}"
-       "AISuite::OpenAICodexFrontendClient" frontend_client_target_index
+       "add_library(AISuite::OpenAICodexFrontendClient SHARED IMPORTED)"
+       frontend_client_target_index
 )
 if(frontend_target_index EQUAL -1)
     fail_installed(
@@ -347,6 +353,24 @@ foreach(codex_library IN LISTS codex_libraries)
         fail_installed(
             "${codex_library} does not declare the required .so.2 SONAME"
         )
+    endif()
+    if(codex_library STREQUAL "aisuite-openai-codex-frontend")
+        set(frontend_protocol_needed FALSE)
+        string(REPLACE "\n" ";" codex_dynamic_lines
+                       "${codex_dynamic_metadata}"
+        )
+        foreach(codex_dynamic_line IN LISTS codex_dynamic_lines)
+            if(codex_dynamic_line MATCHES
+               "\\(NEEDED\\).*Shared library: \\[libaisuite-openai-codex-frontend-protocol\\.so\\.2\\][ \t]*$"
+            )
+                set(frontend_protocol_needed TRUE)
+            endif()
+        endforeach()
+        if(NOT frontend_protocol_needed)
+            fail_installed(
+                "installed frontend DSO does not directly need libaisuite-openai-codex-frontend-protocol.so.2"
+            )
+        endif()
     endif()
 endforeach()
 
@@ -433,7 +457,7 @@ require_path_under("${snodec_dir}" "${snodec_install}" "snodec_DIR")
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 26 --verbose
+        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 4 --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE consumer_build_output
     ERROR_VARIABLE consumer_build_error
@@ -522,7 +546,7 @@ require_success(
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 26
+        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 4
         --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE module_consumer_build_output
