@@ -1857,6 +1857,38 @@ foreach(
     )
 endforeach()
 
+foreach(
+    frontend_client_core_test
+    IN ITEMS
+       CodexFrontendClientCoreLifecycleTest
+       CodexFrontendClientCoreSynchronizationTest
+       CodexFrontendClientCoreOperationTest
+       CodexFrontendClientCoreStateTest
+       CodexFrontendClientCoreCapacityTest
+)
+    snodec_add_test(
+        ${frontend_client_core_test} ${frontend_client_core_test}.cpp
+    )
+    target_link_libraries(
+        ${frontend_client_core_test}
+        PRIVATE
+            snodec-test-support
+            ai-openai-codex-frontend-client-core
+    )
+    target_compile_features(${frontend_client_core_test} PRIVATE cxx_std_20)
+    target_compile_definitions(
+        ${frontend_client_core_test}
+        PRIVATE
+            CODEX_FRONTEND_GOLDEN_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
+    )
+    set_tests_properties(
+        ${frontend_client_core_test}
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;core;p2"
+            TIMEOUT 30
+    )
+endforeach()
+
 snodec_add_test(
     CodexFrontendJsonLineFramerTest CodexFrontendJsonLineFramerTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
