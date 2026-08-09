@@ -157,10 +157,16 @@ for initialization and canonical error behavior, and the
 [Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
 for the exact source-compatibility boundary. A1.7c-1 provides
 `AISuite::OpenAICodexFrontendClient` and migrates `codex-backend-client`.
-A1.7c-2 immediately follows
-and migrates the existing `codex-ui` into the canonical standalone AI IDE; no
-additional PR is inserted before it. A1.7d owns the TypeScript Frontend SDK and
-browser frontend. Provider-neutral architecture remains A2.
+The normative [Codex P0–P3 architecture-reduction roadmap](docs/ai/openai/codex/architecture-reduction/README.md)
+freezes the current external contract and records non-blocking architecture
+measurements before reduction begins.
+The final owner-approved delivery order is PR #14 / A1.7c-1, then P0, parallel
+P1 SNode.C prerequisite and P2 complete greenfield frontend work, P3 production
+cutover and legacy deletion, and finally A1.7c-2. `codex-ui` remains untouched
+throughout P0–P3 and will migrate against the reduced canonical frontend
+architecture after P3. P0–P3 do not implement the Qt UI.
+A1.7d owns the TypeScript Frontend SDK and browser frontend. Provider-neutral
+architecture remains A2.
 
 AISuite validates build and runtime compatibility with installed SNode.C 2.0
 or newer. CI builds the current SNode.C `master` branch once, installs

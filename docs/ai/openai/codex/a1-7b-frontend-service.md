@@ -537,8 +537,10 @@ schema-validated JSON layer: generated parameter/result tags distinguish all
 wire contract in the server; it does not pretend to be the ergonomic,
 domain-typed application SDK.
 
-A1.7c-1 implements the C++ Frontend SDK plus `codex-backend-client`
-migration. A1.7c-2 immediately follows and migrates the
-existing `codex-ui` into the canonical standalone AI IDE. No additional PR is
-inserted before `codex-ui`. A1.7d owns the TypeScript Frontend SDK and browser
-frontend.
+A1.7c-1 implements the C++ Frontend SDK plus `codex-backend-client` migration.
+The owner-approved P0–P3 architecture reduction follows A1.7c-1: P1 provides
+generic SNode.C prerequisites, P2 builds the complete greenfield frontend
+beside the old executable oracle, and P3 cuts over and deletes the legacy
+frontend. A1.7c-2 follows P3, leaves `codex-ui` untouched through P0–P3, and
+then migrates it against the reduced canonical frontend architecture. A1.7d
+owns the TypeScript Frontend SDK and browser frontend.

@@ -1013,9 +1013,12 @@ composition. The default application remains Unix-only; optional transport
 support does not alter the protocol identity or method catalog.
 
 A1.7c-1 supplies the C++ Frontend SDK and migrated
-`codex-backend-client`. A1.7c-2 immediately follows and migrates the
-existing `codex-ui` into the canonical standalone AI IDE; no extra roadmap PR
-is inserted before it. A1.7d owns the TypeScript Frontend SDK and browser
+`codex-backend-client`. The owner-approved P0–P3 architecture reduction follows
+A1.7c-1: P1 provides generic SNode.C prerequisites, P2 builds the complete
+greenfield frontend beside the old executable oracle, and P3 cuts over and
+deletes the legacy implementation. `codex-ui` remains untouched throughout it.
+A1.7c-2 begins after P3 and migrates the UI against the reduced canonical
+frontend architecture. A1.7d owns the TypeScript Frontend SDK and browser
 frontend.
 Persistence, multiple controllers, forced takeover, and provider-neutral
 architecture are not implied by any capability name; provider neutrality

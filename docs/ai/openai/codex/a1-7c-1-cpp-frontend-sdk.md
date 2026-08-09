@@ -442,5 +442,9 @@ acceptance also advertises topology-derived `multi_transport`, for 15 total.
 Injected SDK-disabled truth covers the corresponding 13- and 14-capability
 cases without a second build tree.
 
-A1.7c-2 remains the next PR and owns `codex-ui`; TypeScript/browser work remains
-A1.7d and provider abstraction remains later.
+The owner-approved P0–P3 architecture reduction follows A1.7c-1. P1 provides
+generic SNode.C prerequisites while P2 builds the complete greenfield server
+and client beside the executable oracle; P3 cuts production over and deletes
+the legacy frontend. A1.7c-2 owns `codex-ui` only after P3 is merged and targets
+the reduced canonical frontend; TypeScript/browser work remains A1.7d and
+provider abstraction remains later.
