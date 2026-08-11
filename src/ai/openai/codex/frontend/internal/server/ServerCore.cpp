@@ -79,6 +79,32 @@ namespace ai::openai::codex::frontend::internal::server {
                 command.parameters);
         }
 
+        [[nodiscard]] Json invocationPolicyParameters(const generated::DefinedCommand& command) {
+            Json parameters = commandParameters(command);
+            for (const auto& [key, value] : command.parameterExtensions.items()) {
+                parameters[key] = value;
+            }
+            return parameters;
+        }
+
+        [[nodiscard]] bool hasCurrentProtocolEnvelope(const Json& message) noexcept {
+            const auto protocol = message.find("protocol");
+            const auto version = message.find("version");
+            const auto messageKind = message.find("kind");
+            if (protocol == message.end() || !protocol->is_string() || protocol->get_ref<const std::string&>() != ProtocolIdentity ||
+                version == message.end() || messageKind == message.end() || !messageKind->is_string()) {
+                return false;
+            }
+            if (version->is_number_unsigned()) {
+                return version->get<std::uint64_t>() == ProtocolVersion;
+            }
+            if (version->is_number_integer()) {
+                const std::int64_t signedVersion = version->get<std::int64_t>();
+                return signedVersion >= 0 && static_cast<std::uint64_t>(signedVersion) == ProtocolVersion;
+            }
+            return false;
+        }
+
         [[nodiscard]] bool containsScope(std::span<const FrontendScope> scopes, FrontendScope required) noexcept {
             return std::find(scopes.begin(), scopes.end(), required) != scopes.end();
         }
@@ -392,10 +418,14 @@ namespace ai::openai::codex::frontend::internal::server {
         std::uint64_t nextConnectionIdentity = 1;
         std::uint64_t nextConnectionGeneration = 1;
         std::uint64_t nextSessionIdentity = 1;
+        std::uint64_t nextExternalSessionIdentity = std::numeric_limits<std::uint64_t>::max();
         std::map<ConnectionIdentity, Connection> connections;
         std::map<std::string, FailedAuthenticationWindow, std::less<>> authenticationFailures;
         std::uint64_t nextAuthenticationFailureGeneration = 0;
         std::optional<ConnectionIdentity> controller;
+        std::map<model::SessionIdentity, model::SessionState> externalSessions;
+        std::optional<model::SessionIdentity> externalController;
+        std::optional<CommandToken> controllerTransaction;
         std::optional<ProviderLifecycleAction> providerLifecycleAction;
         std::uint64_t providerLifecycleGeneration = 0;
         std::map<FrontendTransportKind, std::size_t> transportFamilies;
@@ -421,17 +451,13 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (!capability) {
                     continue;
                 }
-                bool implemented = metadata.category == generated::CapabilityCategory::StaticMechanism &&
-                                   metadata.implementedByCurrentRuntime;
+                bool implemented =
+                    metadata.category == generated::CapabilityCategory::StaticMechanism && metadata.implementedByCurrentRuntime;
                 if (metadata.category == generated::CapabilityCategory::ConditionalTopology) {
                     implemented = *capability == FrontendCapability::MultiTransport && transportFamilies.size() > 1;
                 }
                 if (metadata.category == generated::CapabilityCategory::Product) {
-#if defined(AISUITE_CODEX_CPP_CLIENT_SDK_BUILT) && AISUITE_CODEX_CPP_CLIENT_SDK_BUILT
-                    implemented = *capability == FrontendCapability::CppClientSdk;
-#else
                     implemented = false;
-#endif
                 }
                 if (implemented) {
                     addCapability(result, *capability);
@@ -520,8 +546,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 *providerLifecycleAction == ProviderLifecycleAction::Stop
                     ? provider.lifecycle == model::ProviderLifecycle::Stopped ||
                           (provider.lifecycle == model::ProviderLifecycle::Failed && !provider.desiredRunning)
-                    : provider.lifecycle == model::ProviderLifecycle::Ready ||
-                          provider.lifecycle == model::ProviderLifecycle::Failed;
+                    : provider.lifecycle == model::ProviderLifecycle::Ready || provider.lifecycle == model::ProviderLifecycle::Failed;
             if (complete) {
                 setProviderLifecycleAction(std::nullopt);
             }
@@ -739,9 +764,8 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] ReceiveResult receiveClientLocked(ConnectionIdentity identity, const ClientMessage& message);
         [[nodiscard]] ReceiveResult receiveHelloLocked(ConnectionIdentity identity, const Hello& hello);
         [[nodiscard]] ReceiveResult receiveDefinedCommandLocked(ConnectionIdentity identity, const generated::DefinedCommand& command);
-        [[nodiscard]] ReceiveStatus executeFrontendNative(ConnectionToken token,
-                                                          const generated::DefinedCommand& command,
-                                                          const generated::MethodMetadata& metadata);
+        [[nodiscard]] ReceiveStatus
+        executeFrontendNative(ConnectionToken token, const generated::DefinedCommand& command, const generated::MethodMetadata& metadata);
         [[nodiscard]] bool respondSuccess(ConnectionIdentity identity, std::string requestId, generated::MethodId method, Json value);
         [[nodiscard]] bool respondFailure(ConnectionIdentity identity,
                                           std::string requestId,
@@ -749,21 +773,18 @@ namespace ai::openai::codex::frontend::internal::server {
                                           std::string message,
                                           std::optional<model::SafeDetail> details = std::nullopt);
         [[nodiscard]] SnapshotBarrier captureSnapshotBarrier() const;
-        [[nodiscard]] model::CanonicalSnapshot
-        applySnapshotBarrier(model::CanonicalSnapshot snapshot, const SnapshotBarrier& barrier);
+        [[nodiscard]] model::CanonicalSnapshot applySnapshotBarrier(model::CanonicalSnapshot snapshot, const SnapshotBarrier& barrier);
         [[nodiscard]] std::optional<FrozenSnapshotRecipient> freezeSnapshotRecipient(ConnectionToken token) const;
         [[nodiscard]] bool enqueueFrozenSnapshot(const FrozenSnapshotRecipient& recipient,
                                                  const model::CanonicalSnapshot& snapshot,
                                                  bool deferUntilSnapshotBarrier = false);
-        [[nodiscard]] std::optional<model::FrontendSequence>
-        enqueueSnapshot(ConnectionToken token, const SnapshotBarrier* suppliedBarrier = nullptr);
-        [[nodiscard]] BatchBuildResult
-        buildOccurrenceBatches(ConnectionIdentity identity,
-                               const Connection& connection,
-                               std::span<const model::CanonicalOccurrence> occurrences) const;
+        [[nodiscard]] std::optional<model::FrontendSequence> enqueueSnapshot(ConnectionToken token,
+                                                                             const SnapshotBarrier* suppliedBarrier = nullptr);
+        [[nodiscard]] BatchBuildResult buildOccurrenceBatches(ConnectionIdentity identity,
+                                                              const Connection& connection,
+                                                              std::span<const model::CanonicalOccurrence> occurrences) const;
         [[nodiscard]] bool enqueueBuiltBatches(ConnectionIdentity identity, std::span<const EventBatch> batches);
-        [[nodiscard]] bool emitOccurrencesOrSnapshot(ConnectionToken token,
-                                                     std::span<const model::CanonicalOccurrence> occurrences);
+        [[nodiscard]] bool emitOccurrencesOrSnapshot(ConnectionToken token, std::span<const model::CanonicalOccurrence> occurrences);
         void broadcastPendingDelivery();
         void drainDirtyOccurrences();
         void materializePendingDeliveryLocked();
@@ -776,9 +797,8 @@ namespace ai::openai::codex::frontend::internal::server {
                                                const Connection& connection,
                                                const std::optional<SequenceNumber>& requestedAfter) const;
         [[nodiscard]] bool complete(BackendCompletion completion);
-        [[nodiscard]] OccurrenceStageResult stageOccurrenceLocked(OccurrenceCoalescingKey key,
-                                                                  model::OccurrenceDraft occurrence,
-                                                                  OccurrenceFlushUrgency urgency) noexcept;
+        [[nodiscard]] OccurrenceStageResult
+        stageOccurrenceLocked(OccurrenceCoalescingKey key, model::OccurrenceDraft occurrence, OccurrenceFlushUrgency urgency) noexcept;
         [[nodiscard]] std::vector<model::SessionState> sessionStatesLocked() const;
         [[nodiscard]] model::ControllerState controllerStateLocked() const;
         void stageSessionChangedLocked(model::SessionState changedSession, bool connected) noexcept;
@@ -807,22 +827,19 @@ namespace ai::openai::codex::frontend::internal::server {
 
     ServerCore::Impl::Connection* ServerCore::Impl::findConnection(ConnectionContinuation continuation) noexcept {
         Connection* connection = findConnection(continuation.token);
-        return connection && connection->helloComplete == continuation.helloComplete &&
-                       connection->closing == continuation.closing
+        return connection && connection->helloComplete == continuation.helloComplete && connection->closing == continuation.closing
                    ? connection
                    : nullptr;
     }
 
     const ServerCore::Impl::Connection* ServerCore::Impl::findConnection(ConnectionContinuation continuation) const noexcept {
         const Connection* connection = findConnection(continuation.token);
-        return connection && connection->helloComplete == continuation.helloComplete &&
-                       connection->closing == continuation.closing
+        return connection && connection->helloComplete == continuation.helloComplete && connection->closing == continuation.closing
                    ? connection
                    : nullptr;
     }
 
-    std::optional<ServerCore::Impl::ConnectionToken>
-    ServerCore::Impl::connectionToken(ConnectionIdentity identity) const noexcept {
+    std::optional<ServerCore::Impl::ConnectionToken> ServerCore::Impl::connectionToken(ConnectionIdentity identity) const noexcept {
         const Connection* connection = findConnection(identity);
         if (!connection) {
             return std::nullopt;
@@ -834,7 +851,7 @@ namespace ai::openai::codex::frontend::internal::server {
         TimerCancellation cancellation;
         ConnectionCallbacks callbacks;
         std::optional<model::SessionState> closedSessionState;
-        std::optional<model::SessionIdentity> closedSession;
+        std::optional<FrontendSessionToken> closedSession;
         bool releasedController = false;
         {
             const auto found = connections.find(identity);
@@ -847,10 +864,15 @@ namespace ai::openai::codex::frontend::internal::server {
                 closedSessionState.emplace(*found->second.session);
                 closedSessionState->role = SessionRole::Observer;
             }
-            closedSession = std::move(found->second.session);
+            if (found->second.session) {
+                closedSession.emplace(identity, found->second.generation, *found->second.session);
+            }
             releasedController = controller && *controller == identity;
             if (releasedController) {
                 controller.reset();
+            }
+            if (controllerTransaction && controllerTransaction->connection == identity) {
+                controllerTransaction.reset();
             }
             connections.erase(found);
         }
@@ -867,12 +889,6 @@ namespace ai::openai::codex::frontend::internal::server {
         if (cancellation) {
             try {
                 cancellation();
-            } catch (...) {
-            }
-        }
-        if (releasedController) {
-            try {
-                backend.controllerChanged(std::nullopt);
             } catch (...) {
             }
         }
@@ -918,8 +934,7 @@ namespace ai::openai::codex::frontend::internal::server {
         const std::size_t bytes = encoded.value().size();
         const bool messageCapacityExceeded =
             connection->outbound.size() >= options.maxOutboundMessagesPerConnection ||
-            connection->deferredSnapshotOutbound.size() >=
-                options.maxOutboundMessagesPerConnection - connection->outbound.size();
+            connection->deferredSnapshotOutbound.size() >= options.maxOutboundMessagesPerConnection - connection->outbound.size();
         if (messageCapacityExceeded || bytes > options.maxOutboundBytesPerConnection ||
             connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
             closeNow(identity, ConnectionClose{"frontend outbound backpressure limit exceeded", ErrorCode::CapacityExceeded, false});
@@ -927,8 +942,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         try {
-            std::deque<QueuedMessage>& destination =
-                deferredSnapshot ? connection->deferredSnapshotOutbound : connection->outbound;
+            std::deque<QueuedMessage>& destination = deferredSnapshot ? connection->deferredSnapshotOutbound : connection->outbound;
             destination.push_back(QueuedMessage{std::move(message), bytes});
             connection->outboundBytes += bytes;
             return true;
@@ -973,8 +987,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 released = true;
             } catch (...) {
                 connection = nullptr;
-                closeNow(token.identity,
-                         ConnectionClose{"frontend deferred Snapshot queueing failed", ErrorCode::InternalError, false});
+                closeNow(token.identity, ConnectionClose{"frontend deferred Snapshot queueing failed", ErrorCode::InternalError, false});
             }
         }
         return released;
@@ -1152,8 +1165,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 return;
             }
             if (!accepted) {
-                closeNow(token.identity,
-                         ConnectionClose{"frontend transport rejected outbound data", ErrorCode::CapacityExceeded, false});
+                closeNow(token.identity, ConnectionClose{"frontend transport rejected outbound data", ErrorCode::CapacityExceeded, false});
                 return;
             }
             ++delivered;
@@ -1250,8 +1262,7 @@ namespace ai::openai::codex::frontend::internal::server {
             return {ReceiveStatus::Closed, std::move(error)};
         }
         if (error.closeConnection) {
-            closeAfterQueuedMessages(
-                identity, ConnectionClose{"frontend protocol requested connection close", error.code, false});
+            closeAfterQueuedMessages(identity, ConnectionClose{"frontend protocol requested connection close", error.code, false});
         }
         requestFlush();
         return {error.closeConnection ? ReceiveStatus::Closing : ReceiveStatus::Rejected, std::move(error)};
@@ -1321,7 +1332,29 @@ namespace ai::openai::codex::frontend::internal::server {
             return protocolFailure(identity, codecFailure(ErrorCode::MalformedJson, "frontend message must be an object"));
         }
         const auto kindMember = message.find("kind");
+        const bool currentEnvelope = hasCurrentProtocolEnvelope(message);
+        if (currentEnvelope && kindMember->get_ref<const std::string&>() != kind::Hello) {
+            const Connection* connection = findConnection(identity);
+            if (!connection || !connection->helloComplete || !connection->principal || !connection->session) {
+                return protocolFailure(
+                    identity,
+                    codecFailure(ErrorCode::AuthenticationRequired, "frontend authentication must complete before commands are accepted"));
+            }
+        }
         if (kindMember != message.end() && kindMember->is_string() && kindMember->get_ref<const std::string&>() == kind::Command) {
+            if (currentEnvelope) {
+                const auto methodMember = message.find("method");
+                const auto requestIdMember = message.find("requestId");
+                if (methodMember != message.end() && methodMember->is_string() && requestIdMember != message.end() &&
+                    requestIdMember->is_string() && !requestIdMember->get_ref<const std::string&>().empty()) {
+                    const auto method = generated::definedMethodFromString(methodMember->get_ref<const std::string&>());
+                    if (method && !methodEnabled(methodMetadata(*method))) {
+                        CodecError error = codecFailure(ErrorCode::UnknownMethod, "frontend command method is unavailable", false);
+                        error.requestId = requestIdMember->get<std::string>();
+                        return protocolFailure(identity, std::move(error));
+                    }
+                }
+            }
             const auto decoded = Codec::decodeDefinedCommand(message);
             if (!decoded) {
                 return protocolFailure(identity, decoded.error());
@@ -1448,7 +1481,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 identity,
                 codecFailure(ErrorCode::AuthenticationFailed, authenticationErrorMessage(AuthenticationFailureCode::AuthenticationFailed)));
         }
-        if (nextSessionIdentity == std::numeric_limits<std::uint64_t>::max()) {
+        if (nextSessionIdentity == 0 || nextSessionIdentity > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
             return protocolFailure(identity, codecFailure(ErrorCode::CapacityExceeded, "frontend session identity space exhausted"));
         }
         model::SessionIdentity session(std::to_string(nextSessionIdentity++));
@@ -1483,23 +1516,35 @@ namespace ai::openai::codex::frontend::internal::server {
             return {ReceiveStatus::Closed, std::nullopt};
         }
         connection->principal = principal;
-        connection->session = session;
         connection->negotiatedCapabilities = std::move(negotiated);
         const ConnectionContinuation openingSession{*token, false, false};
+        const FrontendSessionToken backendSessionToken{token->identity, token->generation, session};
         connection = nullptr;
 
+        bool backendSessionOpened = false;
         try {
-            backend.sessionOpened(session, principal);
+            backendSessionOpened = backend.sessionOpened(backendSessionToken, principal);
         } catch (...) {
-            if (findConnection(openingSession)) {
-                closeNow(identity, ConnectionClose{"backend rejected frontend session", ErrorCode::BackendUnavailable, false});
+            backendSessionOpened = false;
+        }
+        if (!backendSessionOpened) {
+            if (!findConnection(openingSession)) {
+                return {ReceiveStatus::Closed, std::nullopt};
             }
-            return {ReceiveStatus::Closed, codecFailure(ErrorCode::BackendUnavailable, "backend rejected frontend session", false)};
+            // Authentication has succeeded, so report this post-authentication
+            // admission failure on the wire and close only after the bounded
+            // ProtocolError has drained. No frontend session has been committed.
+            return protocolFailure(identity, codecFailure(ErrorCode::BackendUnavailable, "backend rejected frontend session", false));
         }
         connection = findConnection(openingSession);
         if (!connection) {
+            try {
+                backend.sessionClosed(backendSessionToken);
+            } catch (...) {
+            }
             return {ReceiveStatus::Closed, std::nullopt};
         }
+        connection->session = session;
         connection->helloComplete = true;
         const ConnectionContinuation active{*token, true, false};
         connection = findConnection(active);
@@ -1588,72 +1633,101 @@ namespace ai::openai::codex::frontend::internal::server {
             return respondFailure(identity, requestId, code, std::move(message)) ? ReceiveStatus::Rejected : ReceiveStatus::Closed;
         };
         const auto acceptResponse = [&](Json value) {
-            return respondSuccess(identity, requestId, metadata.id, std::move(value)) ? ReceiveStatus::Accepted
-                                                                                      : ReceiveStatus::Closed;
+            return respondSuccess(identity, requestId, metadata.id, std::move(value)) ? ReceiveStatus::Accepted : ReceiveStatus::Closed;
         };
         switch (metadata.id) {
             case generated::MethodId::ControllerAcquire: {
-                if (controller && *controller != identity) {
-                    return respondFailure(
-                               identity, requestId, ErrorCode::Conflict, "frontend command conflicts with current state")
+                if (controllerTransaction) {
+                    return rejectResponse(ErrorCode::Conflict, "another frontend controller transaction is in progress");
+                }
+                if (externalController || (controller && *controller != identity)) {
+                    return respondFailure(identity, requestId, ErrorCode::Conflict, "frontend command conflicts with current state")
                                ? ReceiveStatus::Accepted
                                : ReceiveStatus::Closed;
                 }
                 Connection* connection = findConnection(token);
-                if (!connection || !connection->session) {
+                if (!connection || !connection->session || !connection->principal) {
                     return ReceiveStatus::Closed;
                 }
                 const model::SessionIdentity session = *connection->session;
+                const FrontendPrincipal principal = *connection->principal;
+                const CommandToken commandToken{identity, token.generation, requestId, metadata.id};
+                connection->outstanding.emplace(requestId, metadata.id);
+                controllerTransaction = commandToken;
                 connection = nullptr;
-                const bool changed = !controller;
-                controller = identity;
-                if (changed) {
-                    stageControllerChangedLocked();
-                }
+                BackendSubmitStatus status = BackendSubmitStatus::Rejected;
                 try {
-                    backend.controllerChanged(session);
+                    status = backend.submit(BackendInvocation{commandToken, session, principal, command});
                 } catch (...) {
+                    status = BackendSubmitStatus::Unavailable;
                 }
-                if (!findConnection(active)) {
+                connection = findConnection(active);
+                if (!connection) {
                     return ReceiveStatus::Closed;
                 }
-                if (!controller || *controller != identity) {
-                    return rejectResponse(ErrorCode::Conflict, "frontend controller changed during acquisition");
+                if (status == BackendSubmitStatus::Accepted || !connection->outstanding.contains(requestId)) {
+                    return ReceiveStatus::Accepted;
                 }
-                if (changed) {
-                    materializePendingDeliveryLocked();
-                    if (!findConnection(active)) {
-                        return ReceiveStatus::Closed;
-                    }
+                connection->outstanding.erase(requestId);
+                if (controllerTransaction == commandToken) {
+                    controllerTransaction.reset();
                 }
-                return acceptResponse(Json{{"controllerSessionId", session.value()}, {"role", "controller"}});
+                connection = nullptr;
+                const ErrorCode code = status == BackendSubmitStatus::Unavailable
+                                           ? ErrorCode::BackendUnavailable
+                                           : (status == BackendSubmitStatus::CapacityExceeded ? ErrorCode::CapacityExceeded
+                                                                                              : ErrorCode::LocalSubmissionFailure);
+                return rejectResponse(code, "frontend controller acquisition submission failed");
             }
             case generated::MethodId::ControllerRelease: {
-                controller.reset();
-                stageControllerChangedLocked();
+                if (controllerTransaction) {
+                    return rejectResponse(ErrorCode::Conflict, "another frontend controller transaction is in progress");
+                }
+                if (externalController) {
+                    return respondFailure(identity, requestId, ErrorCode::Conflict, "frontend command conflicts with current state")
+                               ? ReceiveStatus::Accepted
+                               : ReceiveStatus::Closed;
+                }
+                Connection* connection = findConnection(token);
+                if (!connection || !connection->session || !connection->principal || !controller || *controller != identity) {
+                    return ReceiveStatus::Closed;
+                }
+                const model::SessionIdentity session = *connection->session;
+                const FrontendPrincipal principal = *connection->principal;
+                const CommandToken commandToken{identity, token.generation, requestId, metadata.id};
+                connection->outstanding.emplace(requestId, metadata.id);
+                controllerTransaction = commandToken;
+                connection = nullptr;
+                BackendSubmitStatus status = BackendSubmitStatus::Rejected;
                 try {
-                    backend.controllerChanged(std::nullopt);
+                    status = backend.submit(BackendInvocation{commandToken, session, principal, command});
                 } catch (...) {
+                    status = BackendSubmitStatus::Unavailable;
                 }
-                if (!findConnection(active)) {
+                connection = findConnection(active);
+                if (!connection) {
                     return ReceiveStatus::Closed;
                 }
-                if (controller) {
-                    return rejectResponse(ErrorCode::Conflict, "frontend controller changed during release");
+                if (status == BackendSubmitStatus::Accepted || !connection->outstanding.contains(requestId)) {
+                    return ReceiveStatus::Accepted;
                 }
-                materializePendingDeliveryLocked();
-                if (!findConnection(active)) {
-                    return ReceiveStatus::Closed;
+                connection->outstanding.erase(requestId);
+                if (controllerTransaction == commandToken) {
+                    controllerTransaction.reset();
                 }
-                return acceptResponse(Json{{"role", "observer"}});
+                connection = nullptr;
+                const ErrorCode code = status == BackendSubmitStatus::Unavailable
+                                           ? ErrorCode::BackendUnavailable
+                                           : (status == BackendSubmitStatus::CapacityExceeded ? ErrorCode::CapacityExceeded
+                                                                                              : ErrorCode::LocalSubmissionFailure);
+                return rejectResponse(code, "frontend controller release submission failed");
             }
             case generated::MethodId::SnapshotGet: {
                 const SnapshotBarrier barrier = captureSnapshotBarrier();
                 if (!respondSuccess(identity, requestId, metadata.id, Json{{"sequence", barrier.sequence.value()}})) {
                     return ReceiveStatus::Closed;
                 }
-                return findConnection(active) && synchronizeSnapshot(token, &barrier) ? ReceiveStatus::Accepted
-                                                                                       : ReceiveStatus::Closed;
+                return findConnection(active) && synchronizeSnapshot(token, &barrier) ? ReceiveStatus::Accepted : ReceiveStatus::Closed;
             }
             case generated::MethodId::EventsReplay: {
                 const Json& parameters = commandParameters(command);
@@ -1670,10 +1744,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (!connection) {
                     return ReceiveStatus::Closed;
                 }
-                const SyncMode mode = replay.status == model::JournalReplayStatus::Available &&
-                                              buildOccurrenceBatches(identity, *connection, replay.records).status == BatchBuildStatus::Success
-                                          ? SyncMode::Replay
-                                          : SyncMode::Snapshot;
+                const SyncMode mode =
+                    replay.status == model::JournalReplayStatus::Available &&
+                            buildOccurrenceBatches(identity, *connection, replay.records).status == BatchBuildStatus::Success
+                        ? SyncMode::Replay
+                        : SyncMode::Snapshot;
                 const SnapshotBarrier snapshotBarrier = captureSnapshotBarrier();
                 connection = nullptr;
                 if (!respondSuccess(identity,
@@ -1682,8 +1757,8 @@ namespace ai::openai::codex::frontend::internal::server {
                                     Json{{"sequence", replay.currentSequence.value()}, {"syncMode", toString(mode)}})) {
                     return ReceiveStatus::Closed;
                 }
-                return findConnection(active) && (mode == SyncMode::Replay ? synchronizeReplay(token, replay)
-                                                                           : synchronizeSnapshot(token, &snapshotBarrier))
+                return findConnection(active) &&
+                               (mode == SyncMode::Replay ? synchronizeReplay(token, replay) : synchronizeSnapshot(token, &snapshotBarrier))
                            ? ReceiveStatus::Accepted
                            : ReceiveStatus::Closed;
             }
@@ -1744,10 +1819,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (providerLifecycleGeneration != submittedLifecycleGeneration && providerLifecycleAction) {
                     return rejectResponse(ErrorCode::Conflict, "provider lifecycle changed during action dispatch");
                 }
-                const bool actionStillPending = providerLifecycleGeneration == submittedLifecycleGeneration &&
-                                                providerLifecycleAction && *providerLifecycleAction == action;
-                if (actionStillPending &&
-                    (action == ProviderLifecycleAction::Start || action == ProviderLifecycleAction::Restart)) {
+                const bool actionStillPending = providerLifecycleGeneration == submittedLifecycleGeneration && providerLifecycleAction &&
+                                                *providerLifecycleAction == action;
+                if (actionStillPending && (action == ProviderLifecycleAction::Start || action == ProviderLifecycleAction::Restart)) {
                     model::ProviderState transitioned = provider;
                     transitioned.desiredRunning = true;
                     transitioned.recovery = {};
@@ -1758,14 +1832,12 @@ namespace ai::openai::codex::frontend::internal::server {
                         transitioned.lifecycle = model::ProviderLifecycle::Starting;
                         transitioned.initialization.reset();
                     }
-                    model::OccurrenceDraft occurrence{
-                        model::SourceStamp{"backend-event:0"},
-                        model::OccurrencePayload{model::ProviderUpdatedOccurrence{std::move(transitioned)}}};
+                    model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:0"},
+                                                      model::OccurrencePayload{model::ProviderUpdatedOccurrence{std::move(transitioned)}}};
                     OccurrenceCoalescingKey key;
                     key.kind = OccurrenceEntityKind::BackendLifecycle;
                     key.entityId = "provider";
-                    static_cast<void>(stageOccurrenceLocked(
-                        std::move(key), std::move(occurrence), OccurrenceFlushUrgency::Immediate));
+                    static_cast<void>(stageOccurrenceLocked(std::move(key), std::move(occurrence), OccurrenceFlushUrgency::Immediate));
                     materializePendingDeliveryLocked();
                     if (!findConnection(active)) {
                         return ReceiveStatus::Closed;
@@ -1785,9 +1857,9 @@ namespace ai::openai::codex::frontend::internal::server {
             return {ReceiveStatus::UnknownConnection, std::nullopt};
         }
         if (!connection->helloComplete || !connection->principal || !connection->session) {
-            return protocolFailure(identity,
-                                   codecFailure(ErrorCode::AuthenticationRequired,
-                                                "frontend authentication must complete before commands are accepted"));
+            return protocolFailure(
+                identity,
+                codecFailure(ErrorCode::AuthenticationRequired, "frontend authentication must complete before commands are accepted"));
         }
 
         const generated::MethodId method = generated::commandMethod(command.parameters);
@@ -1814,25 +1886,23 @@ namespace ai::openai::codex::frontend::internal::server {
             const auto refreshToken = parameters.find("refreshToken");
             const bool privilegedRead = refreshToken != parameters.end() && refreshToken->is_boolean() && refreshToken->get<bool>();
             if (privilegedRead) {
-                scopeAllowed = containsScope(principal, FrontendScope::Control) &&
-                               containsScope(principal, FrontendScope::AccountManagement);
+                scopeAllowed =
+                    containsScope(principal, FrontendScope::Control) && containsScope(principal, FrontendScope::AccountManagement);
                 controllerRequired = true;
             }
         }
         connection = nullptr;
-        const std::optional<bool> policyPermits =
-            invocationPolicyPermits(active, principal, metadata, commandParameters(command));
+        const Json policyParameters = invocationPolicyParameters(command);
+        const std::optional<bool> policyPermits = invocationPolicyPermits(active, principal, metadata, policyParameters);
         connection = findConnection(active);
         if (!connection || !policyPermits) {
             return {ReceiveStatus::Closed, std::nullopt};
         }
         if (!*policyPermits) {
-            return rejectCommand(
-                identity, command.requestId, ErrorCode::PermissionDenied, "frontend deployment policy denied the command");
+            return rejectCommand(identity, command.requestId, ErrorCode::PermissionDenied, "frontend deployment policy denied the command");
         }
         if (!scopeAllowed) {
-            return rejectCommand(
-                identity, command.requestId, ErrorCode::PermissionDenied, "frontend principal lacks a required scope");
+            return rejectCommand(identity, command.requestId, ErrorCode::PermissionDenied, "frontend principal lacks a required scope");
         }
         if (controllerRequired && (!controller || *controller != identity)) {
             return rejectCommand(identity, command.requestId, ErrorCode::PermissionDenied, "the current controller is required");
@@ -1845,8 +1915,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 return {ReceiveStatus::Closed, std::nullopt};
             }
             if (!providerReady) {
-                return rejectCommand(
-                    identity, command.requestId, ErrorCode::BackendUnavailable, "the Codex App Server is not ready");
+                return rejectCommand(identity, command.requestId, ErrorCode::BackendUnavailable, "the Codex App Server is not ready");
             }
         }
         if (controllerRequired && (!controller || *controller != identity)) {
@@ -1854,10 +1923,8 @@ namespace ai::openai::codex::frontend::internal::server {
             return rejectCommand(identity, command.requestId, ErrorCode::PermissionDenied, "the current controller is required");
         }
         if (connection->outstanding.contains(command.requestId)) {
-            return rejectCommand(identity,
-                                 command.requestId,
-                                 ErrorCode::DuplicateRequestId,
-                                 "requestId is already pending in this frontend session");
+            return rejectCommand(
+                identity, command.requestId, ErrorCode::DuplicateRequestId, "requestId is already pending in this frontend session");
         }
 
         if (options.maxOutstandingCommandsPerConnection == 0 ||
@@ -1932,8 +1999,7 @@ namespace ai::openai::codex::frontend::internal::server {
         return barrier;
     }
 
-    model::CanonicalSnapshot
-    ServerCore::Impl::applySnapshotBarrier(model::CanonicalSnapshot snapshot, const SnapshotBarrier& barrier) {
+    model::CanonicalSnapshot ServerCore::Impl::applySnapshotBarrier(model::CanonicalSnapshot snapshot, const SnapshotBarrier& barrier) {
         // Session/controller ownership and the replay cursor are captured
         // before a BackendPort callback can re-enter and advance the stream.
         // The resulting Snapshot is therefore one exact canonical barrier;
@@ -1955,14 +2021,12 @@ namespace ai::openai::codex::frontend::internal::server {
         return snapshot;
     }
 
-    std::optional<ServerCore::Impl::FrozenSnapshotRecipient>
-    ServerCore::Impl::freezeSnapshotRecipient(ConnectionToken token) const {
+    std::optional<ServerCore::Impl::FrozenSnapshotRecipient> ServerCore::Impl::freezeSnapshotRecipient(ConnectionToken token) const {
         const Connection* connection = findConnection(ConnectionContinuation{token, true, false});
         if (!connection) {
             return std::nullopt;
         }
-        return FrozenSnapshotRecipient{
-            token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities};
+        return FrozenSnapshotRecipient{token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities};
     }
 
     bool ServerCore::Impl::enqueueFrozenSnapshot(const FrozenSnapshotRecipient& recipient,
@@ -1980,19 +2044,16 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             const model::CanonicalSnapshot& snapshot = projected.value();
 
-            const model::ModelResult<Snapshot> encoded =
-                model::encodeProjectedSnapshot(snapshot, recipient.negotiatedCapabilities);
-            return encoded &&
-                   (deferUntilSnapshotBarrier
-                        ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
-                        : enqueue(recipient.token.identity, ServerMessage{encoded.value()}));
+            const model::ModelResult<Snapshot> encoded = model::encodeProjectedSnapshot(snapshot, recipient.negotiatedCapabilities);
+            return encoded && (deferUntilSnapshotBarrier ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
+                                                         : enqueue(recipient.token.identity, ServerMessage{encoded.value()}));
         } catch (...) {
             return false;
         }
     }
 
-    std::optional<model::FrontendSequence>
-    ServerCore::Impl::enqueueSnapshot(ConnectionToken token, const SnapshotBarrier* suppliedBarrier) {
+    std::optional<model::FrontendSequence> ServerCore::Impl::enqueueSnapshot(ConnectionToken token,
+                                                                             const SnapshotBarrier* suppliedBarrier) {
         const ConnectionContinuation active{token, true, false};
         const std::optional<FrozenSnapshotRecipient> recipient = freezeSnapshotRecipient(token);
         if (!recipient) {
@@ -2014,10 +2075,8 @@ namespace ai::openai::codex::frontend::internal::server {
         return enqueueFrozenSnapshot(*recipient, canonical) ? std::optional<model::FrontendSequence>{barrier.sequence} : std::nullopt;
     }
 
-    ServerCore::Impl::BatchBuildResult
-    ServerCore::Impl::buildOccurrenceBatches(ConnectionIdentity identity,
-                                             const Connection& connection,
-                                             std::span<const model::CanonicalOccurrence> occurrences) const {
+    ServerCore::Impl::BatchBuildResult ServerCore::Impl::buildOccurrenceBatches(
+        ConnectionIdentity identity, const Connection& connection, std::span<const model::CanonicalOccurrence> occurrences) const {
         BatchBuildResult result;
         if (options.maxEventsPerBatch == 0 || options.maxBatchBytes == 0) {
             return result;
@@ -2099,10 +2158,17 @@ namespace ai::openai::codex::frontend::internal::server {
                                                      [&](const model::OccurrencePayload& payload) {
                                                          return supportsExpandedOccurrence(connection, model::occurrenceType(payload));
                                                      });
+                if (legacyKind == model::LegacyCompatibilityKind::DirectExpanded && !useExpanded) {
+                    // This family has no legacy representation.  Keep the
+                    // canonical journal occurrence, but do not expose an
+                    // expanded-only event to a connection that did not
+                    // negotiate its representation capability.
+                    begin = end;
+                    continue;
+                }
                 std::vector<FrontendEvent> groupEvents;
                 if (useExpanded) {
-                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded =
-                        model::encodeExpandedOccurrence(*projected);
+                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded = model::encodeExpandedOccurrence(*projected);
                     if (!encoded) {
                         result.batches.clear();
                         return result;
@@ -2182,8 +2248,7 @@ namespace ai::openai::codex::frontend::internal::server {
         return true;
     }
 
-    bool ServerCore::Impl::emitOccurrencesOrSnapshot(ConnectionToken token,
-                                                     std::span<const model::CanonicalOccurrence> occurrences) {
+    bool ServerCore::Impl::emitOccurrencesOrSnapshot(ConnectionToken token, std::span<const model::CanonicalOccurrence> occurrences) {
         Connection* connection = findConnection(ConnectionContinuation{token, true, false});
         if (!connection) {
             return false;
@@ -2415,8 +2480,7 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             snapshot = applySnapshotBarrier(std::move(snapshot), barrier);
             for (const FrozenSnapshotRecipient& recipient : recipients) {
-                if (findConnection(ConnectionContinuation{recipient.token, true, false}) &&
-                    !enqueueFrozenSnapshot(recipient, snapshot)) {
+                if (findConnection(ConnectionContinuation{recipient.token, true, false}) && !enqueueFrozenSnapshot(recipient, snapshot)) {
                     closeNow(recipient.token.identity,
                              ConnectionClose{"frontend snapshot fallback projection or queueing failed", ErrorCode::InternalError, false});
                 }
@@ -2492,16 +2556,14 @@ namespace ai::openai::codex::frontend::internal::server {
         if (!findConnection(ConnectionContinuation{token, true, false})) {
             return false;
         }
-        const bool completed =
-            enqueue(token.identity, ServerMessage{SyncComplete{sequence->protocolValue(), Json::object()}});
+        const bool completed = enqueue(token.identity, ServerMessage{SyncComplete{sequence->protocolValue(), Json::object()}});
         if (completed) {
             requestFlush();
         }
         return completed;
     }
 
-    bool
-    ServerCore::Impl::synchronizeReplay(ConnectionToken token, const model::JournalReplayResult& replay) {
+    bool ServerCore::Impl::synchronizeReplay(ConnectionToken token, const model::JournalReplayResult& replay) {
         if (replay.status != model::JournalReplayStatus::Available) {
             return false;
         }
@@ -2511,8 +2573,7 @@ namespace ai::openai::codex::frontend::internal::server {
         if (!findConnection(ConnectionContinuation{token, true, false})) {
             return false;
         }
-        const bool completed =
-            enqueue(token.identity, ServerMessage{SyncComplete{replay.currentSequence.protocolValue(), Json::object()}});
+        const bool completed = enqueue(token.identity, ServerMessage{SyncComplete{replay.currentSequence.protocolValue(), Json::object()}});
         if (completed) {
             requestFlush();
         }
@@ -2529,16 +2590,30 @@ namespace ai::openai::codex::frontend::internal::server {
         if (pending == connection->outstanding.end() || pending->second != completion.token.method) {
             return false;
         }
-        connection->outstanding.erase(pending);
-        connection = nullptr;
+        const bool controllerCompletion = completion.token.method == generated::MethodId::ControllerAcquire ||
+                                          completion.token.method == generated::MethodId::ControllerRelease;
+        if (controllerCompletion && (!controllerTransaction || *controllerTransaction != completion.token)) {
+            return false;
+        }
+        const auto clearControllerTransaction = [&] {
+            if (controllerCompletion && controllerTransaction && *controllerTransaction == completion.token) {
+                controllerTransaction.reset();
+            }
+        };
 
         if (const auto* failure = std::get_if<BackendCommandFailure>(&completion.value)) {
+            connection->outstanding.erase(pending);
+            clearControllerTransaction();
+            connection = nullptr;
             return respondFailure(
                 completion.token.connection, std::move(completion.token.requestId), failure->code, failure->message, failure->details);
         }
 
         BackendCommandSuccess success = std::get<BackendCommandSuccess>(std::move(completion.value));
         if (generated::commandMethod(success.result) != completion.token.method) {
+            connection->outstanding.erase(pending);
+            clearControllerTransaction();
+            connection = nullptr;
             return respondFailure(completion.token.connection,
                                   std::move(completion.token.requestId),
                                   ErrorCode::TypedDecodingFailure,
@@ -2546,11 +2621,74 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         const auto encoded = Codec::encodeDefinedResult(success.result);
         if (!encoded) {
+            connection->outstanding.erase(pending);
+            clearControllerTransaction();
+            connection = nullptr;
             return respondFailure(completion.token.connection,
                                   std::move(completion.token.requestId),
                                   ErrorCode::TypedDecodingFailure,
                                   "backend completion violates the generated result schema");
         }
+        clearControllerTransaction();
+
+        // Controller ownership is one transaction spanning BackendCore and
+        // ServerCore.  No canonical owner changes until the matching backend
+        // command has completed successfully for this exact generation.
+        if (completion.token.method == generated::MethodId::ControllerAcquire) {
+            if (externalController || (controller && *controller != completion.token.connection)) {
+                connection->outstanding.erase(pending);
+                connection = nullptr;
+                return respondFailure(completion.token.connection,
+                                      std::move(completion.token.requestId),
+                                      ErrorCode::Conflict,
+                                      "frontend controller changed during acquisition");
+            }
+            externalController.reset();
+            const bool changed = !controller;
+            controller = completion.token.connection;
+            if (changed) {
+                stageControllerChangedLocked();
+                materializePendingDeliveryLocked();
+            }
+        } else if (completion.token.method == generated::MethodId::ControllerRelease) {
+            if (!controller && externalController) {
+                connection->outstanding.erase(completion.token.requestId);
+                connection = nullptr;
+                const bool queued = enqueue(completion.token.connection,
+                                            ServerMessage{Response::success(std::move(completion.token.requestId), encoded.value())});
+                if (queued) {
+                    requestFlush();
+                }
+                return queued;
+            }
+            if (!controller && !externalController) {
+                connection->outstanding.erase(completion.token.requestId);
+                connection = nullptr;
+                const bool queued = enqueue(completion.token.connection,
+                                            ServerMessage{Response::success(std::move(completion.token.requestId), encoded.value())});
+                if (queued) {
+                    requestFlush();
+                }
+                return queued;
+            }
+            if (!controller || *controller != completion.token.connection) {
+                connection->outstanding.erase(pending);
+                connection = nullptr;
+                return respondFailure(completion.token.connection,
+                                      std::move(completion.token.requestId),
+                                      ErrorCode::Conflict,
+                                      "frontend controller changed during release");
+            }
+            controller.reset();
+            stageControllerChangedLocked();
+            materializePendingDeliveryLocked();
+        }
+        connection = findConnection(ConnectionContinuation{token, true, false});
+        if (!connection) {
+            return false;
+        }
+        connection->outstanding.erase(completion.token.requestId);
+        connection = nullptr;
         const bool queued =
             enqueue(completion.token.connection, ServerMessage{Response::success(std::move(completion.token.requestId), encoded.value())});
         if (queued) {
@@ -2561,7 +2699,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
     std::vector<model::SessionState> ServerCore::Impl::sessionStatesLocked() const {
         std::vector<model::SessionState> sessions;
-        sessions.reserve(connections.size());
+        sessions.reserve(connections.size() + externalSessions.size());
         for (const auto& [identity, connection] : connections) {
             if (!connection.helloComplete || !connection.session || connection.closing) {
                 continue;
@@ -2570,12 +2708,19 @@ namespace ai::openai::codex::frontend::internal::server {
             session.role = controller && *controller == identity ? SessionRole::Controller : SessionRole::Observer;
             sessions.push_back(std::move(session));
         }
+        for (const auto& [identity, external] : externalSessions) {
+            static_cast<void>(identity);
+            sessions.push_back(external);
+        }
         return sessions;
     }
 
     model::ControllerState ServerCore::Impl::controllerStateLocked() const {
         model::ControllerState state;
         if (!controller) {
+            if (externalController) {
+                state.session = externalController;
+            }
             return state;
         }
         const Connection* connection = findConnection(*controller);
@@ -2681,10 +2826,12 @@ namespace ai::openai::codex::frontend::internal::server {
 
     ServerCore::ServerCore(BackendPort& backend, ServerCoreOptions options)
         : impl(std::make_shared<Impl>(backend, std::move(options))) {
+        backend.bind(*this);
     }
 
     ServerCore::~ServerCore() {
         close();
+        impl->backend.unbind(*this);
     }
 
     void ServerCore::start() {
@@ -2709,6 +2856,8 @@ namespace ai::openai::codex::frontend::internal::server {
             impl->pendingDelivery.clear();
             impl->pendingDeliveryGroups = 0;
             impl->pendingDeliverySnapshotMode = Impl::PendingSnapshotSequenceMode::None;
+            impl->externalSessions.clear();
+            impl->externalController.reset();
 
             while (!impl->connections.empty()) {
                 const ConnectionIdentity identity = impl->connections.begin()->first;
@@ -2792,14 +2941,15 @@ namespace ai::openai::codex::frontend::internal::server {
             try {
                 TimerCancellation cancellation =
                     impl->options.timerScheduler(impl->options.handshakeTimeoutMs, [weak, identity, generation] {
-                    if (const std::shared_ptr<Impl> self = weak.lock()) {
-                        Impl::DispatchScope timerDispatch(*self);
-                        const Impl::ConnectionToken token{identity, generation};
-                        if (self->findConnection(Impl::ConnectionContinuation{token, false, false})) {
-                            self->closeNow(identity, ConnectionClose{"frontend Hello timeout", ErrorCode::AuthenticationRequired, false});
+                        if (const std::shared_ptr<Impl> self = weak.lock()) {
+                            Impl::DispatchScope timerDispatch(*self);
+                            const Impl::ConnectionToken token{identity, generation};
+                            if (self->findConnection(Impl::ConnectionContinuation{token, false, false})) {
+                                self->closeNow(identity,
+                                               ConnectionClose{"frontend Hello timeout", ErrorCode::AuthenticationRequired, false});
+                            }
                         }
-                    }
-                });
+                    });
                 Impl::Connection* inserted = impl->findConnection(awaitingHello);
                 if (inserted) {
                     inserted->handshakeTimer = std::move(cancellation);
@@ -2809,8 +2959,7 @@ namespace ai::openai::codex::frontend::internal::server {
             } catch (...) {
                 if (impl->findConnection(awaitingHello)) {
                     impl->closeNow(identity,
-                                   ConnectionClose{
-                                       "frontend handshake timer scheduling failed", ErrorCode::InternalError, false});
+                                   ConnectionClose{"frontend handshake timer scheduling failed", ErrorCode::InternalError, false});
                 }
                 const Impl::Connection* remaining = impl->findConnection(token);
                 return remaining && !remaining->closing ? std::optional<ConnectionIdentity>{identity} : std::nullopt;
@@ -2925,6 +3074,15 @@ namespace ai::openai::codex::frontend::internal::server {
         }
     }
 
+    bool ServerCore::enqueueForTesting(ConnectionIdentity identity, ServerMessage message) noexcept {
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            return impl->enqueue(identity, std::move(message));
+        } catch (...) {
+            return false;
+        }
+    }
+
     AuthenticationFailureCode ServerCore::recordPreAuthenticationFailure(const FrontendPeerContext& peer,
                                                                          AuthenticationFailureCode failure) noexcept {
         try {
@@ -2947,9 +3105,8 @@ namespace ai::openai::codex::frontend::internal::server {
         }
     }
 
-    OccurrenceStageResult ServerCore::stageGroup(OccurrenceCoalescingKey key,
-                                                 model::OccurrenceDraft occurrence,
-                                                 OccurrenceFlushUrgency urgency) noexcept {
+    OccurrenceStageResult
+    ServerCore::stageGroup(OccurrenceCoalescingKey key, model::OccurrenceDraft occurrence, OccurrenceFlushUrgency urgency) noexcept {
         try {
             Impl::DispatchScope dispatch(*impl);
             return impl->stageOccurrenceLocked(std::move(key), std::move(occurrence), urgency);
@@ -2962,6 +3119,41 @@ namespace ai::openai::codex::frontend::internal::server {
             } catch (...) {
             }
             return {OccurrenceStageStatus::AllocationFailure, false, urgency == OccurrenceFlushUrgency::Immediate};
+        }
+    }
+
+    OccurrenceStageResult ServerCore::stageGroups(std::vector<OccurrenceStageRequest> groups) noexcept {
+        OccurrenceStageResult aggregate{OccurrenceStageStatus::Accepted, false, false};
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            for (OccurrenceStageRequest& group : groups) {
+                const OccurrenceStageResult staged =
+                    impl->stageOccurrenceLocked(std::move(group.key), std::move(group.occurrence), group.urgency);
+                aggregate.scheduleRequired = aggregate.scheduleRequired || staged.scheduleRequired;
+                aggregate.immediateFlush = aggregate.immediateFlush || staged.immediateFlush;
+                if (staged.status == OccurrenceStageStatus::Accepted) {
+                    continue;
+                }
+                aggregate.status = staged.status;
+                if (staged.status == OccurrenceStageStatus::InvalidOccurrence) {
+                    impl->dirtySnapshotRequired = true;
+                    impl->requirePendingDeliverySnapshot(Impl::PendingSnapshotSequenceMode::AdvanceSequence);
+                    impl->requestFlush();
+                    aggregate.status = OccurrenceStageStatus::SnapshotRequired;
+                    aggregate.immediateFlush = true;
+                }
+                break;
+            }
+            return aggregate;
+        } catch (...) {
+            try {
+                Impl::DispatchScope dispatch(*impl);
+                impl->dirtySnapshotRequired = true;
+                impl->requirePendingDeliverySnapshot(Impl::PendingSnapshotSequenceMode::AdvanceSequence);
+                impl->requestFlush();
+            } catch (...) {
+            }
+            return {OccurrenceStageStatus::AllocationFailure, aggregate.scheduleRequired, true};
         }
     }
 
@@ -3045,6 +3237,115 @@ namespace ai::openai::codex::frontend::internal::server {
             result.accepted = false;
             result.error = ErrorCode::InternalError;
             return result;
+        }
+    }
+
+    std::optional<model::SessionIdentity> ServerCore::reserveExternalSessionIdentity() noexcept {
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            if (!impl->open || impl->nextExternalSessionIdentity <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                return std::nullopt;
+            }
+            model::SessionIdentity identity(std::to_string(impl->nextExternalSessionIdentity));
+            --impl->nextExternalSessionIdentity;
+            return identity;
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    bool ServerCore::replaceExternalTopology(std::vector<model::SessionState> sessions,
+                                             std::optional<model::SessionIdentity> controller,
+                                             bool bridgeControllerPresent) noexcept {
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            if (!impl->open) {
+                return false;
+            }
+            std::map<model::SessionIdentity, model::SessionState> replacement;
+            for (model::SessionState& session : sessions) {
+                if (!replacement.emplace(session.id, std::move(session)).second) {
+                    return false;
+                }
+            }
+            if (controller && !replacement.contains(*controller)) {
+                return false;
+            }
+            for (auto& [identity, session] : replacement) {
+                session.role = controller && *controller == identity ? SessionRole::Controller : SessionRole::Observer;
+            }
+            impl->externalSessions = std::move(replacement);
+            if (controller) {
+                impl->controller.reset();
+            } else if (!bridgeControllerPresent && !impl->controllerTransaction) {
+                // An authoritative BackendCore Snapshot says no bridge-owned
+                // command session owns the controller. Preserve an in-flight
+                // acquire/release transaction until its typed completion, but
+                // otherwise clear stale local ownership before composing the
+                // canonical Snapshot barrier.
+                impl->controller.reset();
+            }
+            impl->externalController = std::move(controller);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    bool ServerCore::externalSessionChanged(model::SessionState session, bool connected) noexcept {
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            if (!impl->open) {
+                return false;
+            }
+            const model::SessionIdentity identity = session.id;
+            if (connected) {
+                session.role =
+                    impl->externalController && *impl->externalController == identity ? SessionRole::Controller : SessionRole::Observer;
+                if (const auto existing = impl->externalSessions.find(identity);
+                    existing != impl->externalSessions.end() && existing->second == session) {
+                    return true;
+                }
+                impl->externalSessions.insert_or_assign(identity, session);
+            } else {
+                if (!impl->externalSessions.contains(identity)) {
+                    return true;
+                }
+                if (impl->externalController && *impl->externalController == identity) {
+                    impl->externalController.reset();
+                    impl->stageControllerChangedLocked();
+                }
+                impl->externalSessions.erase(identity);
+                session.role = SessionRole::Observer;
+            }
+            impl->stageSessionChangedLocked(std::move(session), connected);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    bool ServerCore::externalControllerChanged(std::optional<model::SessionIdentity> controller) noexcept {
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            if (!impl->open || (controller && !impl->externalSessions.contains(*controller))) {
+                return false;
+            }
+            const std::optional<model::SessionIdentity> before = impl->controllerStateLocked().session;
+            if (controller) {
+                impl->controller.reset();
+            }
+            impl->externalController = std::move(controller);
+            for (auto& [identity, session] : impl->externalSessions) {
+                session.role =
+                    impl->externalController && *impl->externalController == identity ? SessionRole::Controller : SessionRole::Observer;
+            }
+            if (before != impl->controllerStateLocked().session) {
+                impl->stageControllerChangedLocked();
+            }
+            return true;
+        } catch (...) {
+            return false;
         }
     }
 
@@ -3172,11 +3473,11 @@ namespace ai::openai::codex::frontend::internal::server {
     }
 
     std::optional<model::SessionIdentity> ServerCore::currentController() const {
-        if (!impl->controller) {
-            return std::nullopt;
+        if (impl->controller) {
+            const Impl::Connection* connection = impl->findConnection(*impl->controller);
+            return connection ? connection->session : std::nullopt;
         }
-        const Impl::Connection* connection = impl->findConnection(*impl->controller);
-        return connection ? connection->session : std::nullopt;
+        return impl->externalController;
     }
 
     std::optional<model::SessionIdentity> ServerCore::session(ConnectionIdentity identity) const {

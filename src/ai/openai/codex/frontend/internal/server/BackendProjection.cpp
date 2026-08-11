@@ -98,6 +98,11 @@ namespace ai::openai::codex::frontend::internal::server {
             return offset;
         }
 
+        std::string boundedThreadPreview(std::string_view value) {
+            constexpr std::size_t MaximumThreadPreviewBytes = 16U * 1024U;
+            return std::string(value.substr(0, utf8PrefixLength(value, MaximumThreadPreviewBytes)));
+        }
+
         bool validUtf8(std::string_view value) noexcept {
             for (std::size_t offset = 0; offset < value.size();) {
                 const unsigned char lead = static_cast<unsigned char>(value[offset]);
@@ -451,6 +456,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     if (!questions->is_array()) {
                         throw ProjectionFailure("/pendingRequests/details/questions", "user-input questions must be an array");
                     }
+                    data.questionsPresent = true;
                     const std::size_t count = std::min(questions->size(), MaximumPresentationEntries);
                     data.truncation.truncated = data.truncation.truncated || count != questions->size();
                     data.questions.reserve(count);
@@ -1579,7 +1585,12 @@ namespace ai::openai::codex::frontend::internal::server {
                     threadDetails["modelProvider"] = *thread.modelProvider;
                 }
                 if (thread.preview) {
-                    threadDetails["preview"] = *thread.preview;
+                    // Backend snapshots retain up to 32 KiB here, while the
+                    // frozen frontend ThreadState preview is bounded to
+                    // 16 KiB. Keep this projection-only conversion identical
+                    // to the legacy production border; provider command
+                    // results continue to carry their exact backend value.
+                    threadDetails["preview"] = boundedThreadPreview(*thread.preview);
                 }
                 if (thread.status) {
                     threadDetails["status"] = *thread.status;
@@ -1806,6 +1817,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 projected.truncation.truncated || snapshot.capacity.truncated || omittedEntries != 0 || droppedBytes != 0;
             projected.truncation.omittedEntries = omittedEntries;
             projected.truncation.droppedBytes = droppedBytes;
+            projected.processesState.truncation = projected.truncation;
             projected.filesystemWatches.state.truncation = projected.truncation;
             projected.fuzzySearches.state.truncation = projected.truncation;
             projected.notices.state.truncation = projected.truncation;

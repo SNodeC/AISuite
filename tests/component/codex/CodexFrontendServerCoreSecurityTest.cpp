@@ -30,9 +30,29 @@ namespace {
             return state;
         }
 
-        [[nodiscard]] server::BackendSubmitStatus submit(server::BackendInvocation) override {
+        [[nodiscard]] server::BackendSubmitStatus submit(server::BackendInvocation invocation) override {
             ++submissions;
+            if (core && (invocation.token.method == generated::MethodId::ControllerAcquire ||
+                         invocation.token.method == generated::MethodId::ControllerRelease)) {
+                const bool acquire = invocation.token.method == generated::MethodId::ControllerAcquire;
+                static_cast<void>(core->complete(server::BackendCompletion{
+                    invocation.token,
+                    server::BackendCommandSuccess{generated::makeResult(
+                        invocation.token.method,
+                        acquire ? frontend::Json{{"controllerSessionId", invocation.session.value()}, {"role", "controller"}}
+                                : frontend::Json{{"role", "observer"}})}}));
+            }
             return server::BackendSubmitStatus::Accepted;
+        }
+
+        void bind(server::ServerCore& boundCore) noexcept override {
+            core = &boundCore;
+        }
+
+        void unbind(server::ServerCore& boundCore) noexcept override {
+            if (core == &boundCore) {
+                core = nullptr;
+            }
         }
 
         [[nodiscard]] bool performProviderLifecycleAction(server::ProviderLifecycleAction) override {
@@ -47,6 +67,7 @@ namespace {
         bool ready = true;
         std::size_t submissions = 0;
         std::vector<std::string> principalIds;
+        server::ServerCore* core = nullptr;
     };
 
     struct Sink {
@@ -197,13 +218,14 @@ namespace {
         server::ServerCore core(backend, std::move(options));
         core.start();
 
-        const auto attempt = [&core](std::string address, Sink& sink) {
-            frontend::FrontendPeerContext peer;
-            peer.transport = frontend::FrontendTransportKind::Ipv4;
-            peer.remoteAddress = std::move(address);
-            const auto connection = core.openConnection(std::move(peer), sink.callbacks());
-            return core.receive(*connection, frontend::ClientMessage{frontend::Hello{}});
-        };
+        const auto attempt =
+            [&core](std::string address, Sink& sink, frontend::FrontendTransportKind transport = frontend::FrontendTransportKind::Ipv4) {
+                frontend::FrontendPeerContext peer;
+                peer.transport = transport;
+                peer.remoteAddress = std::move(address);
+                const auto connection = core.openConnection(std::move(peer), sink.callbacks());
+                return core.receive(*connection, frontend::ClientMessage{frontend::Hello{}});
+            };
 
         Sink first;
         Sink samePeer;
@@ -226,9 +248,45 @@ namespace {
         result.expectTrue(authenticatorCalls == 3 && full && full->code == frontend::ErrorCode::RateLimited,
                           "failure windows expire deterministically and one-off peer accounting is bounded by maxConnections");
 
+        now = 202;
+        Sink rawIpv6;
+        Sink bracketedIpv6;
+        (void) attempt("2001:db8::1", rawIpv6, frontend::FrontendTransportKind::Ipv6);
+        (void) attempt("[2001:db8::1]:4400", bracketedIpv6, frontend::FrontendTransportKind::Ipv6);
+        const auto* ipv6Limited =
+            !bracketedIpv6.messages.empty() ? std::get_if<frontend::ProtocolErrorMessage>(&bracketedIpv6.messages.front()) : nullptr;
+        result.expectTrue(authenticatorCalls == 4 && ipv6Limited && ipv6Limited->code == frontend::ErrorCode::RateLimited,
+                          "raw and bracketed IPv6 peer forms share one failed-authentication admission key");
+
+        now = 303;
+        Sink rfcomm;
+        Sink rfcommTls;
+        (void) attempt("01:23:45:67:89:AB:7", rfcomm, frontend::FrontendTransportKind::Rfcomm);
+        (void) attempt("01:23:45:67:89:AB:19", rfcommTls, frontend::FrontendTransportKind::RfcommTls);
+        const auto* rfcommLimited =
+            !rfcommTls.messages.empty() ? std::get_if<frontend::ProtocolErrorMessage>(&rfcommTls.messages.front()) : nullptr;
+        result.expectTrue(authenticatorCalls == 5 && rfcommLimited && rfcommLimited->code == frontend::ErrorCode::RateLimited,
+                          "RFCOMM and RFCOMM/TLS channel forms share one Bluetooth-address failed-authentication key");
+
         Backend sanitizedBackend;
         server::ServerCore sanitized(sanitizedBackend);
         sanitized.start();
+        Sink malformedPreauthenticationSink;
+        const auto malformedPreauthenticationConnection = sanitized.openConnection({}, malformedPreauthenticationSink.callbacks());
+        const frontend::Json malformedPreauthenticationCommand{{"protocol", frontend::ProtocolIdentity},
+                                                               {"version", frontend::ProtocolVersion},
+                                                               {"kind", frontend::kind::Command},
+                                                               {"requestId", "preauthentication-malformed"},
+                                                               {"method", "fs.readFile"},
+                                                               {"params", frontend::Json{{"path", 42}}}};
+        const auto malformedPreauthenticationResult =
+            sanitized.receive(*malformedPreauthenticationConnection, malformedPreauthenticationCommand);
+        const auto* malformedPreauthenticationError = latestProtocolError(malformedPreauthenticationSink);
+        result.expectTrue(malformedPreauthenticationResult.status == server::ReceiveStatus::Closing && malformedPreauthenticationError &&
+                              malformedPreauthenticationError->code == frontend::ErrorCode::AuthenticationRequired &&
+                              !malformedPreauthenticationError->requestId,
+                          "authentication precedes command method and parameter validation for a current protocol envelope");
+
         Sink sanitizedSink;
         const auto connection = sanitized.openConnection({}, sanitizedSink.callbacks());
         const auto failure = sanitized.receiveError(
@@ -290,7 +348,7 @@ namespace {
         const bool acquired = controlCore.receiveDefinedCommand(*controlConnection, acquire).accepted();
         const bool submitted = controlCore.receiveDefinedCommand(*controlConnection, startAfterController).accepted();
         result.expectTrue(
-            denied.status == server::ReceiveStatus::Rejected && acquired && submitted && controlBackend.submissions == 1,
+            denied.status == server::ReceiveStatus::Rejected && acquired && submitted && controlBackend.submissions == 2,
             "scope possession does not imply controller ownership, while explicit acquisition enables controller-required dispatch");
     }
 
@@ -332,12 +390,75 @@ namespace {
         server::ServerCore disabledCore(disabledBackend, std::move(disabledOptions));
         Sink disabledSink;
         const auto disabledConnection = connect(disabledCore, disabledSink, true);
+        const frontend::Json malformedDisabledCommand{{"protocol", frontend::ProtocolIdentity},
+                                                      {"version", frontend::ProtocolVersion},
+                                                      {"kind", frontend::kind::Command},
+                                                      {"requestId", "conditional-disabled-malformed"},
+                                                      {"method", "fs.readFile"},
+                                                      {"params", frontend::Json{{"path", 42}}}};
+        const auto malformedDisabledResult =
+            disabledConnection ? disabledCore.receive(*disabledConnection, malformedDisabledCommand) : server::ReceiveResult{};
+        const frontend::ProtocolErrorMessage* malformedDisabledError = latestProtocolError(disabledSink);
+        const bool disabledPrecedesSchema =
+            malformedDisabledResult.status == server::ReceiveStatus::Rejected && malformedDisabledError &&
+            malformedDisabledError->code == frontend::ErrorCode::UnknownMethod &&
+            malformedDisabledError->requestId == std::optional<std::string>{"conditional-disabled-malformed"};
+        frontend::Json invalidRequestDisabledCommand = malformedDisabledCommand;
+        invalidRequestDisabledCommand["requestId"] = "";
+        const auto invalidRequestDisabledResult =
+            disabledConnection ? disabledCore.receive(*disabledConnection, invalidRequestDisabledCommand) : server::ReceiveResult{};
+        const frontend::ProtocolErrorMessage* invalidRequestDisabledError = latestProtocolError(disabledSink);
+        const bool commandEnvelopePrecedesDeployment = invalidRequestDisabledResult.status == server::ReceiveStatus::Rejected &&
+                                                       invalidRequestDisabledError &&
+                                                       invalidRequestDisabledError->code == frontend::ErrorCode::InvalidField;
+
+        Backend wrongProtocolBackend;
+        server::ServerCoreOptions wrongProtocolOptions = conditionalOptions(allScopesPrincipal("conditional-wrong-protocol"));
+        wrongProtocolOptions.enableFilesystemReadMethods = false;
+        server::ServerCore wrongProtocolCore(wrongProtocolBackend, std::move(wrongProtocolOptions));
+        Sink wrongProtocolSink;
+        const auto wrongProtocolConnection = connect(wrongProtocolCore, wrongProtocolSink, false);
+        frontend::Json wrongProtocolCommand = malformedDisabledCommand;
+        wrongProtocolCommand["protocol"] = "wrong.frontend.protocol";
+        const auto wrongProtocolResult =
+            wrongProtocolConnection ? wrongProtocolCore.receive(*wrongProtocolConnection, wrongProtocolCommand) : server::ReceiveResult{};
+        const frontend::ProtocolErrorMessage* wrongProtocolError = latestProtocolError(wrongProtocolSink);
+        const bool protocolEnvelopePrecedesDeployment = wrongProtocolResult.status == server::ReceiveStatus::Closing &&
+                                                        wrongProtocolError &&
+                                                        wrongProtocolError->code == frontend::ErrorCode::WrongProtocol;
 
         Backend policyBackend;
         policyBackend.ready = false;
         server::ServerCore policyCore(policyBackend, conditionalOptions(allScopesPrincipal("conditional-policy"), false));
         Sink policySink;
         const auto policyConnection = connect(policyCore, policySink, true);
+
+        bool policyReceivedExtensions = false;
+        Backend extensionPolicyBackend;
+        extensionPolicyBackend.ready = false;
+        server::ServerCoreOptions extensionPolicyOptions = conditionalOptions(allScopesPrincipal("conditional-policy-extensions"));
+        extensionPolicyOptions.filesystemReadPolicy =
+            [&policyReceivedExtensions](const auto&, std::string_view method, const frontend::Json& policyParameters) {
+                policyReceivedExtensions = method == "fs.readFile" && policyParameters.value("path", "") == "/tmp/policy" &&
+                                           policyParameters.value("traceNote", "") == "validated-extension";
+                return true;
+            };
+        server::ServerCore extensionPolicyCore(extensionPolicyBackend, std::move(extensionPolicyOptions));
+        Sink extensionPolicySink;
+        const auto extensionPolicyConnection = connect(extensionPolicyCore, extensionPolicySink, true);
+        const frontend::Json extensionPolicyCommand{
+            {"protocol", frontend::ProtocolIdentity},
+            {"version", frontend::ProtocolVersion},
+            {"kind", frontend::kind::Command},
+            {"requestId", "conditional-policy-extension"},
+            {"method", "fs.readFile"},
+            {"params", frontend::Json{{"path", "/tmp/policy"}, {"traceNote", "validated-extension"}}}};
+        const auto extensionPolicyResult = extensionPolicyConnection
+                                               ? extensionPolicyCore.receive(*extensionPolicyConnection, extensionPolicyCommand)
+                                               : server::ReceiveResult{};
+        const frontend::CommandError* extensionPolicyError = latestCommandError(extensionPolicySink);
+        const bool completePolicyParameters = extensionPolicyResult.status == server::ReceiveStatus::Rejected && policyReceivedExtensions &&
+                                              extensionPolicyError && extensionPolicyError->code == frontend::ErrorCode::BackendUnavailable;
 
         frontend::FrontendPrincipal observeOnly;
         observeOnly.id = "conditional-scope";
@@ -416,11 +537,13 @@ namespace {
             providerError->code == frontend::ErrorCode::BackendUnavailable &&
             providerError->message == "the Codex App Server is not ready";
 
-        result.expectTrue(parameters.size() == generated::AllMethods.size() && conditional.size() == 15 && accepted == conditional.size() &&
-                              disabledRejected == conditional.size() && policyRejected == conditional.size() &&
-                              scopeRejected == conditional.size() && providerRejected == conditional.size() &&
-                              controllerCorrect == conditional.size() && exactOrderedErrors,
-                          "all 15 non-default generated methods apply the exact oracle deployment, policy, scope, controller, and provider order");
+        result.expectTrue(
+            parameters.size() == generated::AllMethods.size() && conditional.size() == 15 && accepted == conditional.size() &&
+                disabledRejected == conditional.size() && policyRejected == conditional.size() && scopeRejected == conditional.size() &&
+                providerRejected == conditional.size() && controllerCorrect == conditional.size() && exactOrderedErrors &&
+                disabledPrecedesSchema && commandEnvelopePrecedesDeployment && protocolEnvelopePrecedesDeployment &&
+                completePolicyParameters,
+            "all 15 non-default generated methods apply the exact oracle deployment, policy, scope, controller, and provider order");
     }
 } // namespace
 

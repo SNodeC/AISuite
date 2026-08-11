@@ -19,6 +19,8 @@ namespace ai::openai::codex::frontend {
     // only private friend declarations appear in FrontendService.h.
     struct FrontendServiceTestAccess {
         [[nodiscard]] static bool enqueue(FrontendService& service, FrontendConnection& connection, ServerMessage message) noexcept;
+        [[nodiscard]] static bool
+        closeBackendSession(FrontendService& service, FrontendConnection& connection, std::string reason) noexcept;
     };
 
 } // namespace ai::openai::codex::frontend

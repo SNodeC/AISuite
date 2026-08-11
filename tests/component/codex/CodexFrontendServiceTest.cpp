@@ -5,12 +5,12 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "oracle/LegacyFrontendService.h"
+
 #include "CodexBackendTestSupport.h"
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/backend/Snapshot.h"
 #include "ai/openai/codex/frontend/EventCoalescer.h"
-#include "ai/openai/codex/frontend/FrontendService.h"
-#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
@@ -35,7 +35,7 @@
 
 namespace {
     namespace backend = ai::openai::codex::backend;
-    namespace frontend = ai::openai::codex::frontend;
+    namespace frontend = ai::openai::codex::frontend::oracle;
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
 

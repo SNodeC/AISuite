@@ -51,7 +51,38 @@ namespace {
             if (onSubmit) {
                 return onSubmit(std::move(invocation));
             }
+            if (core && invocation.token.method == generated::MethodId::ControllerAcquire) {
+                const bool conflict = controller && *controller != invocation.session;
+                if (!conflict) {
+                    controller = invocation.session;
+                }
+                static_cast<void>(core->complete(server::BackendCompletion{
+                    invocation.token,
+                    conflict ? server::BackendCompletionValue{server::BackendCommandFailure{
+                                   frontend::ErrorCode::Conflict, "frontend command conflicts with current state", std::nullopt}}
+                             : server::BackendCompletionValue{server::BackendCommandSuccess{generated::makeResult(
+                                   invocation.token.method,
+                                   frontend::Json{{"controllerSessionId", invocation.session.value()}, {"role", "controller"}})}}}));
+                return server::BackendSubmitStatus::Accepted;
+            }
+            if (core && invocation.token.method == generated::MethodId::ControllerRelease) {
+                controller.reset();
+                static_cast<void>(core->complete(server::BackendCompletion{
+                    invocation.token,
+                    server::BackendCommandSuccess{generated::makeResult(invocation.token.method, frontend::Json{{"role", "observer"}})}}));
+                return server::BackendSubmitStatus::Accepted;
+            }
             return submissionStatus;
+        }
+
+        void bind(server::ServerCore& boundCore) noexcept override {
+            core = &boundCore;
+        }
+
+        void unbind(server::ServerCore& boundCore) noexcept override {
+            if (core == &boundCore) {
+                core = nullptr;
+            }
         }
 
         [[nodiscard]] bool performProviderLifecycleAction(server::ProviderLifecycleAction action) override {
@@ -85,6 +116,8 @@ namespace {
         std::vector<server::CommandToken> tokens;
         std::vector<server::ProviderLifecycleAction> lifecycleActions;
         std::function<server::BackendSubmitStatus(server::BackendInvocation)> onSubmit;
+        server::ServerCore* core = nullptr;
+        std::optional<model::SessionIdentity> controller;
         mutable std::function<void()> onProviderReady;
         mutable std::function<void()> onSnapshot;
         std::function<void()> onLifecycleAction;
@@ -215,7 +248,7 @@ namespace {
             authorityOrder = definedMethods[index] == generated::AllMethods[index].method;
         }
         result.expectTrue(allAccepted && authorityOrder && generated::AllMethods.size() == 105 && nativeCount == 7 && providerCount == 86 &&
-                              reverseCount == 12 && backend.submissionCount == 98 && backend.lifecycleActions.size() == 3,
+                              reverseCount == 12 && backend.submissionCount == 101 && backend.lifecycleActions.size() == 3,
                           "one generated authority dispatches all 105 paths with the frozen 7/86/12 split; first failure=" +
                               (failedMethod.empty() ? std::string{"none"} : failedMethod));
 
@@ -228,7 +261,10 @@ namespace {
                               duplicateResponse->error->message == "requestId is already pending in this frontend session" && closes.empty(),
                           "an outstanding request ID is rejected without closing the connection");
 
-        const server::CommandToken completedToken = backend.tokens.front();
+        const auto completionCandidate = std::find_if(backend.tokens.begin(), backend.tokens.end(), [](const server::CommandToken& token) {
+            return token.method != generated::MethodId::ControllerAcquire && token.method != generated::MethodId::ControllerRelease;
+        });
+        const server::CommandToken completedToken = *completionCandidate;
         const bool completed = core.complete(server::BackendCompletion{
             completedToken,
             server::BackendCommandFailure{frontend::ErrorCode::RemoteAppServerError, "deterministic backend failure", std::nullopt}});
@@ -264,6 +300,7 @@ namespace {
         const bool acquired = first && core.receiveDefinedCommand(*first, acquire).accepted();
         firstMessages.clear();
         secondMessages.clear();
+        const std::size_t submissionsAfterAcquire = backend.submissionCount;
         const server::ReceiveResult conflictResult = core.receiveDefinedCommand(*second, conflict);
         const auto* conflictResponse = !secondMessages.empty() ? std::get_if<frontend::Response>(&secondMessages.back()) : nullptr;
         const std::optional<frontend::CommandError> conflictError = conflictResponse ? conflictResponse->error : std::nullopt;
@@ -294,19 +331,19 @@ namespace {
         const auto* snapshotFailureResponse =
             !firstMessages.empty() ? std::get_if<frontend::Response>(&firstMessages.back()) : nullptr;
 
-        result.expectTrue(synchronized && acquired && conflictResult.status == server::ReceiveStatus::Accepted && conflictError &&
-                              conflictError->code == frontend::ErrorCode::Conflict &&
-                              conflictError->message == "frontend command conflicts with current state" &&
-                              replayResult.status == server::ReceiveStatus::Rejected && replayError &&
-                              replayError->code == frontend::ErrorCode::InvalidCommand &&
-                              lifecycleResult.status == server::ReceiveStatus::Rejected && lifecycleError &&
-                              lifecycleError->code == frontend::ErrorCode::InternalError &&
-                              lifecycleError->message == "provider lifecycle action failed locally" &&
-                              snapshotFailureResult.status == server::ReceiveStatus::Rejected && snapshotFailureResponse &&
-                              snapshotFailureResponse->error &&
-                              snapshotFailureResponse->error->code == frontend::ErrorCode::InternalError &&
-                              snapshotFailureResponse->error->message == "failed to dispatch frontend command" && closes.empty(),
-                          "frontend-native service failures reject locally while controller conflict preserves accepted backend submission");
+        result.expectTrue(
+            synchronized && acquired && conflictResult.status == server::ReceiveStatus::Accepted && conflictError &&
+                conflictError->code == frontend::ErrorCode::Conflict &&
+                conflictError->message == "frontend command conflicts with current state" &&
+                backend.submissionCount == submissionsAfterAcquire && replayResult.status == server::ReceiveStatus::Rejected &&
+                replayError && replayError->code == frontend::ErrorCode::InvalidCommand &&
+                lifecycleResult.status == server::ReceiveStatus::Rejected && lifecycleError &&
+                lifecycleError->code == frontend::ErrorCode::InternalError &&
+                lifecycleError->message == "provider lifecycle action failed locally" &&
+                snapshotFailureResult.status == server::ReceiveStatus::Rejected && snapshotFailureResponse &&
+                snapshotFailureResponse->error && snapshotFailureResponse->error->code == frontend::ErrorCode::InternalError &&
+                snapshotFailureResponse->error->message == "failed to dispatch frontend command" && closes.empty(),
+            "frontend-native service failures reject locally and a known controller conflict never reaches the backend");
     }
 
     void testBackendSubmissionErrors(tests::support::TestResult& result) {
@@ -518,7 +555,7 @@ namespace {
         result.expectTrue(synchronized && acquired && outer && nestedRelease.accepted() &&
                               outerResult.status == server::ReceiveStatus::Rejected && outerResponse && outerResponse->error &&
                               outerResponse->error->code == frontend::ErrorCode::PermissionDenied &&
-                              backend.submissionCount == submissionsBefore && !core.currentController() && closes.empty(),
+                              backend.submissionCount == submissionsBefore + 1 && !core.currentController() && closes.empty(),
                           "controller ownership lost inside providerReady is revalidated before backend submission");
     }
 

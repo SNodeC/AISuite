@@ -31,9 +31,35 @@ namespace {
             return state;
         }
 
-        [[nodiscard]] server::BackendSubmitStatus submit(server::BackendInvocation) override {
+        [[nodiscard]] server::BackendSubmitStatus submit(server::BackendInvocation invocation) override {
             ++submissionCount;
+            if (core && (invocation.token.method == generated::MethodId::ControllerAcquire ||
+                         invocation.token.method == generated::MethodId::ControllerRelease)) {
+                const bool acquire = invocation.token.method == generated::MethodId::ControllerAcquire;
+                controller = acquire ? std::optional<model::SessionIdentity>{invocation.session} : std::nullopt;
+                controllerSessions.push_back(acquire ? invocation.session.value() : std::string{});
+                if (onControllerChanged) {
+                    std::function<void()> callback = std::move(onControllerChanged);
+                    callback();
+                }
+                static_cast<void>(core->complete(server::BackendCompletion{
+                    invocation.token,
+                    server::BackendCommandSuccess{generated::makeResult(
+                        invocation.token.method,
+                        acquire ? frontend::Json{{"controllerSessionId", invocation.session.value()}, {"role", "controller"}}
+                                : frontend::Json{{"role", "observer"}})}}));
+            }
             return server::BackendSubmitStatus::Accepted;
+        }
+
+        void bind(server::ServerCore& boundCore) noexcept override {
+            core = &boundCore;
+        }
+
+        void unbind(server::ServerCore& boundCore) noexcept override {
+            if (core == &boundCore) {
+                core = nullptr;
+            }
         }
 
         [[nodiscard]] bool performProviderLifecycleAction(server::ProviderLifecycleAction) override {
@@ -51,6 +77,14 @@ namespace {
 
         void sessionClosed(const model::SessionIdentity& session) noexcept override {
             closedSessions.push_back(session.value());
+            if (controller && *controller == session) {
+                controller.reset();
+                controllerSessions.emplace_back();
+                if (onControllerChanged) {
+                    std::function<void()> callback = std::move(onControllerChanged);
+                    callback();
+                }
+            }
         }
 
         void controllerChanged(const std::optional<model::SessionIdentity>& session) noexcept override {
@@ -70,6 +104,8 @@ namespace {
         std::size_t submissionCount = 0;
         std::function<void()> onSessionOpened;
         std::function<void()> onControllerChanged;
+        server::ServerCore* core = nullptr;
+        std::optional<model::SessionIdentity> controller;
     };
 
     struct Timer {
@@ -89,6 +125,10 @@ namespace {
         model::ProviderState provider;
         provider.lifecycle = model::ProviderLifecycle::Ready;
         return {model::SourceStamp{"backend-event:" + source}, model::ProviderUpdatedOccurrence{std::move(provider)}};
+    }
+
+    bool containsCapability(const std::vector<frontend::FrontendCapability>& capabilities, frontend::FrontendCapability capability) {
+        return std::find(capabilities.begin(), capabilities.end(), capability) != capabilities.end();
     }
 
     frontend::Json wrongProtocolMessage() {
@@ -172,6 +212,80 @@ namespace {
         core.start();
         result.expectTrue(!core.isOpen() && !core.openConnection({}, callbacks(firstMessages)),
                           "service close is terminal and a later start cannot reopen the core");
+    }
+
+    void testCapabilityTruthAndHandshakeFreeze(tests::support::TestResult& result) {
+        const auto configuredCapabilities = [](bool cppClientSdkBuilt, bool multipleTransportFamilies) {
+            Backend backend;
+            server::ServerCoreOptions options;
+            if (cppClientSdkBuilt) {
+                options.implementedCapabilities.push_back(frontend::FrontendCapability::CppClientSdk);
+            }
+            server::ServerCore core(backend, std::move(options));
+            core.start();
+            core.declareTransportFamily(frontend::FrontendTransportKind::Unix);
+            if (multipleTransportFamilies) {
+                core.declareTransportFamily(frontend::FrontendTransportKind::WebSocket);
+            }
+            return core.implementedCapabilities();
+        };
+        const std::vector<frontend::FrontendCapability> noSdkSingle = configuredCapabilities(false, false);
+        const std::vector<frontend::FrontendCapability> noSdkMultiple = configuredCapabilities(false, true);
+        const std::vector<frontend::FrontendCapability> sdkSingle = configuredCapabilities(true, false);
+        const std::vector<frontend::FrontendCapability> sdkMultiple = configuredCapabilities(true, true);
+        result.expectTrue(noSdkSingle.size() == 13 && !containsCapability(noSdkSingle, frontend::FrontendCapability::CppClientSdk) &&
+                              !containsCapability(noSdkSingle, frontend::FrontendCapability::MultiTransport) &&
+                              noSdkMultiple.size() == 14 &&
+                              !containsCapability(noSdkMultiple, frontend::FrontendCapability::CppClientSdk) &&
+                              containsCapability(noSdkMultiple, frontend::FrontendCapability::MultiTransport) && sdkSingle.size() == 14 &&
+                              containsCapability(sdkSingle, frontend::FrontendCapability::CppClientSdk) &&
+                              !containsCapability(sdkSingle, frontend::FrontendCapability::MultiTransport) && sdkMultiple.size() == 15 &&
+                              containsCapability(sdkMultiple, frontend::FrontendCapability::CppClientSdk) &&
+                              containsCapability(sdkMultiple, frontend::FrontendCapability::MultiTransport),
+                          "ServerCore exercises all four SDK on/off and one/two-family capability-truth cells");
+
+        Backend backend;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.implementedCapabilities.push_back(frontend::FrontendCapability::CppClientSdk);
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+        core.declareTransportFamily(frontend::FrontendTransportKind::Unix);
+        core.declareTransportFamily(frontend::FrontendTransportKind::WebSocket);
+
+        std::vector<frontend::ServerMessage> firstMessages;
+        const auto callbacks = [](std::vector<frontend::ServerMessage>& messages) {
+            return server::ConnectionCallbacks{[&messages](const frontend::ServerMessage& message) {
+                                                   messages.push_back(message);
+                                                   return true;
+                                               },
+                                               [](const server::ConnectionClose&) {
+                                               }};
+        };
+        const auto first = core.openConnection({}, callbacks(firstMessages));
+        frontend::Hello hello;
+        hello.capabilities = std::vector<frontend::FrontendCapability>{frontend::FrontendCapability::MethodDiscovery};
+        const bool firstAccepted = first && core.receive(*first, frontend::ClientMessage{hello}).accepted();
+        const auto* firstWelcome = !firstMessages.empty() ? std::get_if<frontend::Welcome>(&firstMessages.front()) : nullptr;
+        const std::optional<frontend::CapabilityAdvertisement> frozenAdvertisement =
+            firstWelcome ? firstWelcome->capabilities : std::nullopt;
+
+        core.withdrawTransportFamily(frontend::FrontendTransportKind::WebSocket);
+        const std::vector<frontend::FrontendCapability> reduced = core.implementedCapabilities();
+        std::vector<frontend::ServerMessage> secondMessages;
+        const auto second = core.openConnection({}, callbacks(secondMessages));
+        const bool secondAccepted = second && core.receive(*second, frontend::ClientMessage{hello}).accepted();
+        const auto* retainedWelcome = !firstMessages.empty() ? std::get_if<frontend::Welcome>(&firstMessages.front()) : nullptr;
+        const auto* secondWelcome = !secondMessages.empty() ? std::get_if<frontend::Welcome>(&secondMessages.front()) : nullptr;
+
+        result.expectTrue(
+            firstAccepted && frozenAdvertisement &&
+                containsCapability(frozenAdvertisement->implemented, frontend::FrontendCapability::MultiTransport) && retainedWelcome &&
+                retainedWelcome->capabilities == frozenAdvertisement &&
+                !containsCapability(reduced, frontend::FrontendCapability::MultiTransport) && secondAccepted && secondWelcome &&
+                secondWelcome->capabilities &&
+                !containsCapability(secondWelcome->capabilities->implemented, frontend::FrontendCapability::MultiTransport),
+            "capability truth is captured per Hello: a later topology change affects a new Welcome but cannot mutate the issued Welcome");
     }
 
     void testExceptionBoundaries(tests::support::TestResult& result) {
@@ -627,11 +741,10 @@ namespace {
         });
         const auto* releaseResponse =
             releaseResponseIterator != releaseMessages.end() ? std::get_if<frontend::Response>(&*releaseResponseIterator) : nullptr;
-        result.expectTrue(releaseReady && initiallyAcquired && nestedReacquire.accepted() &&
-                              releaseResult.status == server::ReceiveStatus::Rejected && releaseResponse && releaseResponse->error &&
-                              releaseResponse->error->code == frontend::ErrorCode::Conflict &&
-                              releaseIdentity && releaseCore.currentController() == releaseCore.session(*releaseIdentity),
-                          "controller release reports Conflict rather than stale observer state after callback-driven reacquisition");
+        result.expectTrue(releaseReady && initiallyAcquired && nestedReacquire.status == server::ReceiveStatus::Rejected &&
+                              releaseResult.status == server::ReceiveStatus::Accepted && releaseResponse && releaseResponse->ok &&
+                              releaseIdentity && !releaseCore.currentController(),
+                          "an in-flight release rejects reentrant acquisition and commits one backend-confirmed observer transition");
 
         Backend policyBackend;
         server::ServerCore* policyCorePointer = nullptr;
@@ -883,6 +996,7 @@ namespace {
 int main() {
     tests::support::TestResult result;
     testLifecycle(result);
+    testCapabilityTruthAndHandshakeFreeze(result);
     testExceptionBoundaries(result);
     testExplicitReentrancy(result);
     testFrozenSnapshotBarrier(result);

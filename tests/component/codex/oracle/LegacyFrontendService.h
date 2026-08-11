@@ -13,13 +13,16 @@
 #define FrontendService LegacyFrontendService
 #define FrontendServiceTestAccess LegacyFrontendServiceTestAccess
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #undef FrontendServiceTestAccess
 #undef FrontendService
 #undef FrontendConnection
 
-namespace ai::openai::codex::frontend {
+namespace ai::openai::codex::frontend::oracle {
+    using namespace ai::openai::codex::frontend;
     using FrontendConnection = LegacyFrontendConnection;
     using FrontendService = LegacyFrontendService;
-} // namespace ai::openai::codex::frontend
+    using FrontendServiceTestAccess = LegacyFrontendServiceTestAccess;
+} // namespace ai::openai::codex::frontend::oracle
 
 #endif // TESTS_COMPONENT_CODEX_ORACLE_LEGACYFRONTENDSERVICE_H

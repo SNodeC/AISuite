@@ -4,9 +4,9 @@ set(AI_OPENAI_CODEX_FRONTEND_PROTOCOL_CPP
 
 set(AI_OPENAI_CODEX_FRONTEND_CPP
     FrontendService.cpp EventCoalescer.cpp EventJournal.cpp UpdateBatch.cpp
-    detail/BackendCommandMapper.cpp detail/BackendProjectionBuilder.cpp
-    detail/FrontendCapabilities.cpp detail/FrontendProjection.cpp
+    detail/BackendCommandMapper.cpp detail/FrontendProjection.cpp
     detail/ProviderResultProjection.cpp
+    internal/server/BackendCoreBridge.cpp
 )
 set(AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
     FrontendService.h Codec.h EventCoalescer.h EventJournal.h GeneratedProtocol.h
@@ -78,11 +78,6 @@ target_include_directories(
 target_compile_features(
     ai-openai-codex-frontend-server-core PUBLIC cxx_std_20
 )
-target_compile_definitions(
-    ai-openai-codex-frontend-server-core
-    PRIVATE
-        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
-)
 target_link_libraries(
     ai-openai-codex-frontend-server-core
     PUBLIC
@@ -137,7 +132,9 @@ target_link_libraries(
     PUBLIC
         AISuite::OpenAICodexBackend
         AISuite::OpenAICodexFrontendProtocol
-    PRIVATE snodec::core
+    PRIVATE
+        ai-openai-codex-frontend-server-core
+        snodec::core
 )
 set_target_properties(
     ai-openai-codex-frontend

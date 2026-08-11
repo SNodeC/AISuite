@@ -1677,8 +1677,10 @@ snodec_add_test(
     CodexFrontendProjectionTest CodexFrontendProjectionTest.cpp
 )
 target_link_libraries(
-    CodexFrontendProjectionTest PRIVATE snodec-test-support
-                                        AISuite::OpenAICodexFrontend
+    CodexFrontendProjectionTest
+    PRIVATE
+        snodec-test-support
+        ai-openai-codex-frontend-legacy-server-oracle
 )
 target_compile_features(CodexFrontendProjectionTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1736,7 +1738,9 @@ snodec_add_test(
 )
 target_link_libraries(
     CodexFrontendAuthorizationMetadataTest
-    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+    PRIVATE
+        snodec-test-support
+        ai-openai-codex-frontend-legacy-server-oracle
 )
 target_compile_features(
     CodexFrontendAuthorizationMetadataTest PRIVATE cxx_std_20
@@ -1801,7 +1805,10 @@ set_tests_properties(
 snodec_add_test(CodexFrontendServiceTest CodexFrontendServiceTest.cpp)
 target_link_libraries(
     CodexFrontendServiceTest
-    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
+    PRIVATE
+        snodec-test-support
+        ai-openai-codex-frontend-legacy-server-oracle
+        snodec::core
 )
 target_compile_features(CodexFrontendServiceTest PRIVATE cxx_std_20)
 set_tests_properties(
@@ -1809,6 +1816,30 @@ set_tests_properties(
     PROPERTIES LABELS
                "component;ai;openai;codex;frontend;service;coalescing;session"
                SKIP_RETURN_CODE 77 TIMEOUT 15
+)
+
+snodec_add_test(
+    CodexFrontendPublicServiceAdapterTest
+    CodexFrontendPublicServiceAdapterTest.cpp
+)
+target_link_libraries(
+    CodexFrontendPublicServiceAdapterTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexFrontend
+        snodec::core
+)
+target_compile_features(CodexFrontendPublicServiceAdapterTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexFrontendPublicServiceAdapterTest
+    PRIVATE
+        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
+)
+set_tests_properties(
+    CodexFrontendPublicServiceAdapterTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;server;adapter;p3"
+        TIMEOUT 20
 )
 
 foreach(
@@ -2061,6 +2092,7 @@ target_compile_features(CodexFrontendServerDifferentialTest PRIVATE cxx_std_20)
 target_compile_definitions(
     CodexFrontendServerDifferentialTest
     PRIVATE
+        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
         AISUITE_CODEX_FRONTEND_DIFFERENTIAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
         AISUITE_CODEX_FRONTEND_DIFFERENTIAL_COVERAGE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json"
         AISUITE_CODEX_FRONTEND_SERVER_DIFFERENTIAL_LEDGER="${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendServerDifferentialTest.ledger.json"

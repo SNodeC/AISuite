@@ -546,15 +546,21 @@ def main() -> int:
     reject_dependency_patterns(targets, server, transport_target_patterns)
     reject_dependency_patterns(targets, client, transport_target_patterns)
 
-    # P2 deliberately leaves the production application wiring on the oracle
-    # implementations.  The client reaches its public SDK through the support
-    # library, so prove the transitive closure rather than assuming a direct
-    # executable-to-DSO edge.
-    require_dependency_closure(targets, "codex-backend", [old_server], [server, client])
+    # P3 Commit 2 binds the preserved public server DSO to ServerCore.  The
+    # application still composes through that public DSO, so assert the new
+    # transitive core edge without exposing the internal target directly.
+    # The public client remains on its pre-cutover implementation until the
+    # following logical commit.
+    require_dependency_closure(targets, "codex-backend", [old_server, server], [client])
     require_dependency_closure(
-        targets, "codex-backend-client-support", [old_client], [server, client]
+        targets,
+        "codex-backend-client-support",
+        [old_client, old_server, server],
+        [client],
     )
-    require_dependency_closure(targets, "codex-backend-client", [old_client], [server, client])
+    require_dependency_closure(
+        targets, "codex-backend-client", [old_client, old_server, server], [client]
+    )
 
     reject_link_fragments(
         targets,

@@ -60,7 +60,7 @@
 
 namespace {
     namespace backend = ai::openai::codex::backend;
-    namespace frontend = ai::openai::codex::frontend;
+    namespace frontend = ai::openai::codex::frontend::oracle;
     namespace generated = ai::openai::codex::frontend::generated;
     namespace legacy = ai::openai::codex::frontend::detail;
     namespace model = ai::openai::codex::frontend::internal::model;
@@ -137,7 +137,42 @@ namespace {
         }
 
         [[nodiscard]] permanent::BackendSubmitStatus submit(permanent::BackendInvocation invocation) override {
+            const permanent::CommandToken token = invocation.token;
+            const model::SessionIdentity session = invocation.session;
             invocations.push_back(std::move(invocation));
+            if (token.method == generated::MethodId::ControllerAcquire) {
+                permanent::BackendCompletionValue value = permanent::BackendCommandSuccess{
+                    generated::makeResult(token.method,
+                                          frontend::Json{{"controllerSessionId", session.value()}, {"role", "controller"}})};
+                if (controller && *controller != session.value()) {
+                    value = permanent::BackendCommandFailure{frontend::ErrorCode::Conflict,
+                                                             "frontend command conflicts with current state",
+                                                             std::nullopt};
+                } else {
+                    controller = session.value();
+                    advanceRevision();
+                }
+                if (complete) {
+                    complete(permanent::BackendCompletion{token, std::move(value)});
+                }
+                return permanent::BackendSubmitStatus::Accepted;
+            }
+            if (token.method == generated::MethodId::ControllerRelease) {
+                permanent::BackendCompletionValue value = permanent::BackendCommandSuccess{
+                    generated::makeResult(token.method, frontend::Json{{"role", "observer"}})};
+                if (!controller || *controller != session.value()) {
+                    value = permanent::BackendCommandFailure{frontend::ErrorCode::PermissionDenied,
+                                                             "frontend command was denied",
+                                                             std::nullopt};
+                } else {
+                    controller.reset();
+                    advanceRevision();
+                }
+                if (complete) {
+                    complete(permanent::BackendCompletion{token, std::move(value)});
+                }
+                return permanent::BackendSubmitStatus::Accepted;
+            }
             return submitStatus;
         }
 
@@ -169,6 +204,7 @@ namespace {
         std::vector<permanent::ProviderLifecycleAction> lifecycleActions;
         std::vector<std::string> sessions;
         std::optional<std::string> controller;
+        std::function<void(permanent::BackendCompletion)> complete;
 
     private:
         void advanceRevision() noexcept {
@@ -300,6 +336,8 @@ namespace {
         return encoded.value();
     }
 
+    std::string messageSequenceSummary(const std::vector<frontend::ServerMessage>& messages);
+
     bool compareMessages(tests::support::TestResult& result,
                          const std::vector<frontend::ServerMessage>& oldMessages,
                          const std::vector<frontend::ServerMessage>& newMessages,
@@ -307,7 +345,8 @@ namespace {
         if (oldMessages.size() != newMessages.size()) {
             result.expectTrue(false,
                               std::string(identity) + " message-count mismatch: old=" + std::to_string(oldMessages.size()) +
-                                  " new=" + std::to_string(newMessages.size()));
+                                  " new=" + std::to_string(newMessages.size()) + " old-sequence=" +
+                                  messageSequenceSummary(oldMessages) + " new-sequence=" + messageSequenceSummary(newMessages));
             return false;
         }
         for (std::size_t index = 0; index < oldMessages.size(); ++index) {
@@ -445,6 +484,9 @@ namespace {
             }
             oldServer = std::make_unique<frontend::FrontendService>(oldBackend, oldOptions());
             newServer = std::make_unique<permanent::ServerCore>(newBackend, newOptions());
+            newBackend.complete = [this](permanent::BackendCompletion completion) {
+                static_cast<void>(newServer->complete(std::move(completion)));
+            };
             newServer->start();
 
             if (settings.readyBackend) {
@@ -560,6 +602,9 @@ namespace {
             options.enableFilesystemReadMethods = settings.enableFilesystemRead;
             options.enableFilesystemWriteMethods = settings.enableFilesystemWrite;
             options.enableCommandExecutionMethods = settings.enableCommandExecution;
+#if defined(AISUITE_CODEX_CPP_CLIENT_SDK_BUILT) && AISUITE_CODEX_CPP_CLIENT_SDK_BUILT
+            options.implementedCapabilities.push_back(frontend::FrontendCapability::CppClientSdk);
+#endif
             options.authenticator = settings.newAuthenticator;
             options.filesystemReadPolicy = settings.newFilesystemReadPolicy;
             return options;
