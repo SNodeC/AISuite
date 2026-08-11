@@ -69,6 +69,23 @@ namespace apps::codex_backend_client {
             return {sdk_client::ErrorOrigin::Client, code, std::nullopt, std::move(message), std::nullopt, std::nullopt, false};
         }
 
+        bool isControllerTransition(const RemoteCommand& command) noexcept {
+            return std::visit(
+                []<typename Command>(const Command& typedCommand) {
+                    using T = std::remove_cvref_t<Command>;
+                    if constexpr (std::is_same_v<T, ControllerAcquireCommand> || std::is_same_v<T, ControllerReleaseCommand>) {
+                        return true;
+                    } else if constexpr (std::is_same_v<T, RawCommand>) {
+                        const frontend::generated::MethodId method = frontend::generated::commandMethod(typedCommand.parameters);
+                        return method == frontend::generated::MethodId::ControllerAcquire ||
+                               method == frontend::generated::MethodId::ControllerRelease;
+                    } else {
+                        return false;
+                    }
+                },
+                command);
+        }
+
     } // namespace
 
     CommandDrainController::CommandDrainController(sdk_client::Client& sdk, CommandDrainCallbacks callbacks, CommandQueueLimits queueLimits)
@@ -88,7 +105,8 @@ namespace apps::codex_backend_client {
         if (currentSessionState == SessionState::ShuttingDown || currentSessionState == SessionState::Closed) {
             return false;
         }
-        if (currentSessionState != SessionState::Ready || !queuedMessages.empty() || activeNew || activeExplicitSynchronization) {
+        if (currentSessionState != SessionState::Ready || !queuedMessages.empty() || activeNew || activeExplicitSynchronization ||
+            activeControllerTransition) {
             return queue(QueuedEntry{std::move(command), retainedInputBytes});
         }
 
@@ -114,7 +132,8 @@ namespace apps::codex_backend_client {
         if (currentSessionState == SessionState::ShuttingDown || currentSessionState == SessionState::Closed) {
             return false;
         }
-        if (currentSessionState != SessionState::Ready || !queuedMessages.empty() || activeNew || activeExplicitSynchronization) {
+        if (currentSessionState != SessionState::Ready || !queuedMessages.empty() || activeNew || activeExplicitSynchronization ||
+            activeControllerTransition) {
             return queue(QueuedEntry{std::move(command), retainedInputBytes});
         }
 
@@ -251,12 +270,17 @@ namespace apps::codex_backend_client {
         queuedBytes = 0;
         activeNew.reset();
         activeExplicitSynchronization = false;
+        activeControllerTransition = false;
         finish(Outcome::Success);
     }
 
     CommandDrainController::SubmissionAttempt CommandDrainController::submit(const RemoteCommand& command) {
-        const auto operationHandler = [this](const auto& result) {
-            operationCompleted(static_cast<bool>(result), result.error);
+        const bool controllerTransition = isControllerTransition(command);
+        if (controllerTransition) {
+            activeControllerTransition = true;
+        }
+        const auto operationHandler = [this, controllerTransition](const auto& result) {
+            operationCompleted(static_cast<bool>(result), result.error, controllerTransition);
         };
         const auto synchronizationHandler = [this](const sdk_client::OperationResult<sdk_client::SynchronizationResult>& result) {
             synchronizationCompleted(result);
@@ -292,6 +316,9 @@ namespace apps::codex_backend_client {
             },
             command);
         SubmissionAttempt attempt = classifySubmission(submission);
+        if (controllerTransition && attempt.disposition != SubmissionDisposition::Accepted) {
+            activeControllerTransition = false;
+        }
         if (attempt.disposition == SubmissionDisposition::Accepted &&
             (std::holds_alternative<SnapshotCommand>(command) || std::holds_alternative<ReplayCommand>(command))) {
             activeExplicitSynchronization = true;
@@ -441,12 +468,13 @@ namespace apps::codex_backend_client {
 
     void CommandDrainController::flushQueued() {
         if (flushingQueue || currentOutcome != Outcome::Running || currentSessionState != SessionState::Ready ||
-            activeExplicitSynchronization) {
+            activeExplicitSynchronization || activeControllerTransition) {
             maybeCompleteDrain();
             return;
         }
         flushingQueue = true;
-        while (currentOutcome == Outcome::Running && currentSessionState == SessionState::Ready && !activeExplicitSynchronization) {
+        while (currentOutcome == Outcome::Running && currentSessionState == SessionState::Ready && !activeExplicitSynchronization &&
+               !activeControllerTransition) {
             if (activeNew) {
                 if (activeNew->stage != NewStage::WaitingToSubmitTurn) {
                     break;
@@ -495,7 +523,10 @@ namespace apps::codex_backend_client {
         maybeCompleteDrain();
     }
 
-    void CommandDrainController::operationCompleted(bool succeeded, const std::optional<sdk_client::Error>&) {
+    void CommandDrainController::operationCompleted(bool succeeded, const std::optional<sdk_client::Error>&, bool controllerTransition) {
+        if (controllerTransition) {
+            activeControllerTransition = false;
+        }
         if (currentOutcome != Outcome::Running || intentionalLocalShutdown) {
             return;
         }
@@ -622,6 +653,7 @@ namespace apps::codex_backend_client {
         disconnectHandled = true;
         currentSessionState = SessionState::Disconnected;
         activeExplicitSynchronization = false;
+        activeControllerTransition = false;
         if (activeNew) {
             recordCommandFailure();
             activeNew.reset();
@@ -664,7 +696,7 @@ namespace apps::codex_backend_client {
 
     void CommandDrainController::maybeCompleteDrain() {
         if (currentOutcome != Outcome::Running || currentInputState != InputState::DrainOnEof || !queuedMessages.empty() || activeNew ||
-            activeExplicitSynchronization || sdk.pendingOperationCount() != 0) {
+            activeExplicitSynchronization || activeControllerTransition || sdk.pendingOperationCount() != 0) {
             return;
         }
         finish(encounteredWorkFailure ? Outcome::Failure : Outcome::Success);

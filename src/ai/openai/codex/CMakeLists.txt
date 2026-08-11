@@ -1,14 +1,13 @@
-set(AI_OPENAI_CODEX_CPP
-    AppServerClient.cpp
+set(
+    AI_OPENAI_CODEX_FRONTEND_CLIENT_DETAIL_CPP
     detail/AccountCodec.cpp
     detail/AppCodec.cpp
     detail/ApprovalCodec.cpp
-    detail/CodexErrorInfoCodec.cpp
     detail/ClientOperationCodec.cpp
+    detail/CodexErrorInfoCodec.cpp
     detail/CommandCodec.cpp
     detail/ConfigurationCodec.cpp
     detail/ConversationCodec.cpp
-    detail/EventDecoder.cpp
     detail/ExternalAgentCodec.cpp
     detail/FeedbackCodec.cpp
     detail/FilesystemCodec.cpp
@@ -19,23 +18,34 @@ set(AI_OPENAI_CODEX_CPP
     detail/McpReverseRequestCodec.cpp
     detail/ModelCodec.cpp
     detail/PluginCodec.cpp
-    detail/ProtocolCodec.cpp
     detail/ProtocolSurfaceRegistry.cpp
     detail/ReviewCodec.cpp
-    detail/RuntimePlatformCodec.cpp
-    detail/ServerRequestDecoder.cpp
     detail/SkillCodec.cpp
     detail/ThreadCodec.cpp
-    detail/Transport.cpp
     detail/TurnCodec.cpp
     detail/WindowsSandboxCodec.cpp
-    stdio/Client.cpp
-    stdio/StdioTransport.cpp
+)
+
+set(
+    AI_OPENAI_CODEX_FRONTEND_CLIENT_TYPED_CPP
     typed/Accounts.cpp
     typed/Configuration.cpp
-    typed/Facades.cpp
     typed/Models.cpp
     typed/Types.cpp
+)
+
+set(AI_OPENAI_CODEX_CPP
+    AppServerClient.cpp
+    ${AI_OPENAI_CODEX_FRONTEND_CLIENT_DETAIL_CPP}
+    ${AI_OPENAI_CODEX_FRONTEND_CLIENT_TYPED_CPP}
+    detail/EventDecoder.cpp
+    detail/ProtocolCodec.cpp
+    detail/RuntimePlatformCodec.cpp
+    detail/ServerRequestDecoder.cpp
+    detail/Transport.cpp
+    stdio/Client.cpp
+    stdio/StdioTransport.cpp
+    typed/Facades.cpp
 )
 
 set(AI_OPENAI_CODEX_PUBLIC_H

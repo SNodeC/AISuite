@@ -742,9 +742,9 @@ namespace {
         shortCredentialConnection.transportConnected();
         result.expectTrue(
             shortCredentialHarness.messages.size() == 1 && shortCredentialHarness.messages.front().sensitive &&
-                client::detail::ClientTestAccess::verifiedMovedFromStringScrubs(shortCredentialClient) >= 3 &&
+                client::detail::ClientTestAccess::verifiedMovedFromStringScrubs(shortCredentialClient) >= 2 &&
                 client::detail::ClientTestAccess::shortStringStorageScrubbed(),
-            "successful sensitive Hello handoff scrubs codec, outbound, and transport moved-from storage including cleared SSO capacity");
+            "successful sensitive Hello handoff scrubs both public serialized/transport moved-from stores and clears SSO capacity");
 
         client::Client counterClient(options());
         const std::size_t maximumCount = std::numeric_limits<std::size_t>::max();
@@ -1330,7 +1330,17 @@ namespace {
 
     void testRepeatedDisconnectedStateIsIdempotent(tests::support::TestResult& result) {
         Harness harness;
-        client::Client sdk(options(), harness.callbacks());
+        bool cleanDisconnectObserved = false;
+        bool cleanDisconnectHadError = true;
+        client::ClientCallbacks callbacks = harness.callbacks();
+        callbacks.onConnectionStateChanged = [&](const client::ConnectionStateChange& change) {
+            harness.states.push_back(change.current);
+            if (change.current == client::ConnectionState::Disconnected && !cleanDisconnectObserved) {
+                cleanDisconnectObserved = true;
+                cleanDisconnectHadError = change.error.has_value();
+            }
+        };
+        client::Client sdk(options(), std::move(callbacks));
         client::Connection connection = sdk.openConnection(harness.transport());
         connection.transportConnected();
         makeReady(connection, frontend::SequenceNumber(9));
@@ -1340,18 +1350,22 @@ namespace {
         client::Connection failedReconnect = sdk.openConnection(harness.transport());
         failedReconnect.transportConnected();
         failedReconnect.transportDisconnected(client::TransportError{"reconnect failed before Welcome", true});
-        result.expectTrue(staleRevision != 0 && sdk.state().revision() == staleRevision &&
-                              sdk.state().freshness() == client::StateFreshness::Stale && !sdk.state().session() &&
-                              sdk.connectionState() == client::ConnectionState::Disconnected && !sdk.hasActiveConnection(),
-                          "a failed reconnect does not repeatedly copy or grow an already-stale retained State");
+        result.expectTrue(cleanDisconnectObserved && !cleanDisconnectHadError && staleRevision != 0 &&
+                              sdk.state().revision() == staleRevision && sdk.state().freshness() == client::StateFreshness::Stale &&
+                              !sdk.state().session() && sdk.connectionState() == client::ConnectionState::Disconnected &&
+                              !sdk.hasActiveConnection(),
+                          "a clean disconnect reports no Error, and a failed reconnect does not repeatedly grow stale State");
     }
 
     void testAtomicDisconnectCallbacks(tests::support::TestResult& result) {
         Harness harness;
         client::Client* sdkPointer = nullptr;
+        client::Connection connection;
         bool callbacksSawCommittedDisconnect = true;
+        bool reentrantReceiveRejected = false;
         std::size_t staleCallbacks = 0;
         std::size_t operationCompletions = 0;
+        std::size_t protocolMessages = 0;
         client::ClientCallbacks callbacks = harness.callbacks();
         callbacks.onStateUpdated = [&](const client::StateUpdate& update) {
             if (update.cause != client::UpdateCause::ConnectionBecameStale) {
@@ -1361,7 +1375,9 @@ namespace {
             callbacksSawCommittedDisconnect = callbacksSawCommittedDisconnect &&
                                               sdkPointer->connectionState() == client::ConnectionState::Disconnected &&
                                               !sdkPointer->hasActiveConnection() && sdkPointer->pendingOperationCount() == 0 &&
-                                              update.state.freshness() == client::StateFreshness::Stale;
+                                              update.state.freshness() == client::StateFreshness::Stale && !connection.isOpen();
+            reentrantReceiveRejected =
+                !connection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(12)}}).accepted;
         };
         callbacks.onConnectionStateChanged = [&](const client::ConnectionStateChange& change) {
             harness.states.push_back(change.current);
@@ -1371,9 +1387,12 @@ namespace {
                                                   sdkPointer->state().freshness() == client::StateFreshness::Stale;
             }
         };
+        callbacks.onProtocolMessage = [&](const frontend::ServerMessage&) {
+            ++protocolMessages;
+        };
         client::Client sdk(options(), std::move(callbacks));
         sdkPointer = &sdk;
-        client::Connection connection = sdk.openConnection(harness.transport());
+        connection = sdk.openConnection(harness.transport());
         connection.transportConnected();
         makeReady(connection, frontend::SequenceNumber(12));
         const client::Submission pending = sdk.submit(
@@ -1383,13 +1402,167 @@ namespace {
                 callbacksSawCommittedDisconnect = callbacksSawCommittedDisconnect && operation.error &&
                                                   operation.error->origin == client::ErrorOrigin::Transport &&
                                                   sdk.connectionState() == client::ConnectionState::Disconnected &&
-                                                  !sdk.hasActiveConnection() && sdk.pendingOperationCount() == 0;
+                                                  !sdk.hasActiveConnection() && sdk.pendingOperationCount() == 0 && !connection.isOpen();
             });
+        const std::size_t protocolBeforeDisconnect = protocolMessages;
         connection.transportDisconnected(client::TransportError{"atomic disconnect", true});
         result.expectTrue(
-            pending && staleCallbacks == 1 && operationCompletions == 1 && callbacksSawCommittedDisconnect &&
-                sdk.connectionState() == client::ConnectionState::Disconnected && !sdk.hasActiveConnection(),
-            "disconnect commits stale State, clears active/pending ownership, and enters Disconnected before invoking any user callback");
+            pending && staleCallbacks == 1 && operationCompletions == 1 && callbacksSawCommittedDisconnect && reentrantReceiveRejected &&
+                protocolMessages == protocolBeforeDisconnect && sdk.connectionState() == client::ConnectionState::Disconnected &&
+                !sdk.hasActiveConnection(),
+            "disconnect retires its public handle before stale/completion callbacks and rejects reentrant protocol observation");
+    }
+
+    void testProtocolFailureCallbackCommitOrdering(tests::support::TestResult& result) {
+        Harness harness;
+        Harness replacementHarness;
+        client::Client* sdkPointer = nullptr;
+        client::Connection connection;
+        std::vector<std::string> order;
+        bool closingFacts = false;
+        bool transportCloseFacts = false;
+        bool staleFacts = false;
+        bool operationFacts = false;
+        bool disconnectedFacts = false;
+        bool staleAttachRejected = false;
+        bool operationAttachRejected = false;
+        bool operationHadProtocolError = false;
+
+        client::ClientCallbacks callbacks = harness.callbacks();
+        callbacks.onConnectionStateChanged = [&](const client::ConnectionStateChange& change) {
+            if (change.current == client::ConnectionState::Closing) {
+                order.emplace_back("closing");
+                closingFacts = sdkPointer->connectionState() == client::ConnectionState::Closing && sdkPointer->hasActiveConnection() &&
+                               connection.isOpen() && connection.isTransportConnected() && sdkPointer->pendingOperationCount() == 1;
+            } else if (change.current == client::ConnectionState::Disconnected) {
+                order.emplace_back("disconnected");
+                disconnectedFacts = change.previous == client::ConnectionState::Closing &&
+                                    sdkPointer->connectionState() == client::ConnectionState::Disconnected &&
+                                    !sdkPointer->hasActiveConnection() && !connection.isOpen() && sdkPointer->pendingOperationCount() == 0;
+            }
+        };
+        callbacks.onStateUpdated = [&](const client::StateUpdate& update) {
+            if (update.cause != client::UpdateCause::ConnectionBecameStale) {
+                return;
+            }
+            order.emplace_back("stale");
+            staleFacts = sdkPointer->connectionState() == client::ConnectionState::Disconnected && !sdkPointer->hasActiveConnection() &&
+                         !connection.isOpen() && sdkPointer->pendingOperationCount() == 0 &&
+                         sdkPointer->state().freshness() == client::StateFreshness::Stale &&
+                         update.state.freshness() == client::StateFreshness::Stale;
+            client::Connection replacement = sdkPointer->openConnection(replacementHarness.transport());
+            staleAttachRejected = !replacement.isOpen();
+        };
+        client::Client sdk(options(), std::move(callbacks));
+        sdkPointer = &sdk;
+        client::TransportCallbacks transport{
+            [&](client::OutboundMessage message) {
+                harness.messages.push_back(std::move(message));
+                return client::SendResult{client::SendStatus::Accepted, std::nullopt};
+            },
+            [&](std::string) {
+                ++harness.closes;
+                order.emplace_back("transport-close");
+                transportCloseFacts = sdk.connectionState() == client::ConnectionState::Closing && sdk.hasActiveConnection() &&
+                                      connection.isOpen() && connection.isTransportConnected() && sdk.pendingOperationCount() == 1;
+            },
+        };
+        connection = sdk.openConnection(std::move(transport));
+        connection.transportConnected();
+        makeReady(connection, frontend::SequenceNumber(17));
+        const client::Submission pending = sdk.submit(
+            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
+            [&](const client::GeneratedOperationResult& completion) {
+                order.emplace_back("operation");
+                operationFacts = sdk.connectionState() == client::ConnectionState::Disconnected && !sdk.hasActiveConnection() &&
+                                 !connection.isOpen() && sdk.pendingOperationCount() == 0;
+                operationHadProtocolError = completion.error.has_value() && completion.error->origin == client::ErrorOrigin::Protocol &&
+                                            completion.error->clientCode == client::ClientErrorCode::UnexpectedMessage;
+                client::Connection replacement = sdk.openConnection(replacementHarness.transport());
+                operationAttachRejected = !replacement.isOpen();
+            });
+
+        const client::ReceiveResult received =
+            connection.receive(frontend::ServerMessage{frontend::Response::success("uncorrelated-request", frontend::Json::object())});
+        result.expectTrue(
+            pending && !received.accepted && harness.closes == 1 && closingFacts && transportCloseFacts && staleFacts && operationFacts &&
+                disconnectedFacts && staleAttachRejected && operationAttachRejected && operationHadProtocolError &&
+                order == std::vector<std::string>({"closing", "transport-close", "stale", "operation", "disconnected"}) &&
+                sdk.connectionState() == client::ConnectionState::Disconnected && !sdk.hasActiveConnection() && !connection.isOpen(),
+            "the public adapter preserves protocol-failure Closing/close ordering, exposes the committed Disconnected view to stale and "
+            "pending callbacks, blocks callback-phase reattachment, and reports Disconnected last");
+    }
+
+    void testExplicitCloseCallbackCommitOrdering(tests::support::TestResult& result) {
+        Harness harness;
+        client::Client* sdkPointer = nullptr;
+        client::Connection connection;
+        std::vector<std::string> order;
+        bool closingFacts = false;
+        bool operationFacts = false;
+        bool transportCloseFacts = false;
+        bool staleFacts = false;
+        bool closedFacts = false;
+        bool operationHadClosedError = false;
+
+        client::ClientCallbacks callbacks = harness.callbacks();
+        callbacks.onConnectionStateChanged = [&](const client::ConnectionStateChange& change) {
+            if (change.current == client::ConnectionState::Closing) {
+                order.emplace_back("closing");
+                closingFacts = sdkPointer->connectionState() == client::ConnectionState::Closing && sdkPointer->hasActiveConnection() &&
+                               connection.isOpen() && connection.isTransportConnected() && sdkPointer->pendingOperationCount() == 1;
+            } else if (change.current == client::ConnectionState::Closed) {
+                order.emplace_back("closed");
+                closedFacts = change.previous == client::ConnectionState::Closing &&
+                              sdkPointer->connectionState() == client::ConnectionState::Closed && !sdkPointer->hasActiveConnection() &&
+                              !connection.isOpen() && sdkPointer->pendingOperationCount() == 0;
+            }
+        };
+        callbacks.onStateUpdated = [&](const client::StateUpdate& update) {
+            if (update.cause != client::UpdateCause::ConnectionBecameStale) {
+                return;
+            }
+            order.emplace_back("stale");
+            staleFacts = sdkPointer->connectionState() == client::ConnectionState::Closed && !sdkPointer->hasActiveConnection() &&
+                         !connection.isOpen() && sdkPointer->pendingOperationCount() == 0 &&
+                         sdkPointer->state().freshness() == client::StateFreshness::Stale &&
+                         update.state.freshness() == client::StateFreshness::Stale;
+        };
+        client::Client sdk(options(), std::move(callbacks));
+        sdkPointer = &sdk;
+        client::TransportCallbacks transport{
+            [&](client::OutboundMessage message) {
+                harness.messages.push_back(std::move(message));
+                return client::SendResult{client::SendStatus::Accepted, std::nullopt};
+            },
+            [&](std::string) {
+                ++harness.closes;
+                order.emplace_back("transport-close");
+                transportCloseFacts = sdk.connectionState() == client::ConnectionState::Closing && sdk.hasActiveConnection() &&
+                                      connection.isOpen() && connection.isTransportConnected() && sdk.pendingOperationCount() == 0;
+            },
+        };
+        connection = sdk.openConnection(std::move(transport));
+        connection.transportConnected();
+        makeReady(connection, frontend::SequenceNumber(18));
+        const client::Submission pending = sdk.submit(
+            generated::CompleteCommandParameters{generated::MethodParameters<generated::MethodId::ProviderStart>{frontend::Json::object()}},
+            [&](const client::GeneratedOperationResult& completion) {
+                order.emplace_back("operation");
+                operationFacts = sdk.connectionState() == client::ConnectionState::Closing && sdk.hasActiveConnection() &&
+                                 connection.isOpen() && connection.isTransportConnected() && sdk.pendingOperationCount() == 0;
+                operationHadClosedError = completion.error.has_value() && completion.error->origin == client::ErrorOrigin::Client &&
+                                          completion.error->clientCode == client::ClientErrorCode::Closed;
+            });
+
+        sdk.close("explicit close ordering fixture");
+        result.expectTrue(
+            pending && harness.closes == 1 && closingFacts && operationFacts && transportCloseFacts && staleFacts && closedFacts &&
+                operationHadClosedError &&
+                order == std::vector<std::string>({"closing", "operation", "transport-close", "stale", "closed"}) && !sdk.isOpen() &&
+                !sdk.hasActiveConnection() && !connection.isOpen(),
+            "the public adapter retains Closing/active state for explicit-close completions and transport close, commits Closed before "
+            "the stale callback, and reports Closed last");
     }
 
     void testGeneratedReverseRequestRejectsStaleSession(tests::support::TestResult& result) {
@@ -1612,6 +1785,8 @@ int main() {
     testRepeatedDisconnectedStateIsIdempotent(result);
     testMalformedOptionalLegacySnapshotsAreContained(result);
     testAtomicDisconnectCallbacks(result);
+    testProtocolFailureCallbackCommitOrdering(result);
+    testExplicitCloseCallbackCommitOrdering(result);
     testGeneratedReverseRequestRejectsStaleSession(result);
     testReentrantConnectionCloseDuringClientClose(result);
     testSynchronousCloseDisconnect(result);

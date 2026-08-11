@@ -278,7 +278,7 @@ namespace {
         std::size_t trailingEventBatchCount = 0;
         std::size_t fragmentedWrites = 0;
         std::size_t coalescedHandshakeMessages = 0;
-        std::size_t coalescedDrainMessages = 0;
+        std::size_t drainMessageCount = 0;
         std::size_t lifecycleExitRequests = 0;
         std::size_t controlledDisconnects = 0;
         std::vector<std::string> serverRequestOrder;
@@ -372,14 +372,18 @@ namespace {
             if (acquire) {
                 state.acquireRequestId = command->requestId;
                 ++state.acquireCount;
+                const auto acquireResponse = frame(
+                    frontend::ServerMessage{frontend::Response::success(state.acquireRequestId, frontend::Json{{"role", "controller"}})});
+                if (acquireResponse) {
+                    sendToPeer(acquireResponse->data(), acquireResponse->size());
+                    ++state.drainMessageCount;
+                }
             } else {
                 state.threadsRequestId = command->requestId;
                 ++state.threadsCount;
             }
 
             if (state.commandCount == 2) {
-                const auto acquireResponse = frame(
-                    frontend::ServerMessage{frontend::Response::success(state.acquireRequestId, frontend::Json{{"role", "controller"}})});
                 const auto threadsResponse = frame(frontend::ServerMessage{
                     frontend::Response::success(state.threadsRequestId, frontend::Json{{"threads", frontend::Json::array()}})});
                 const auto trailingEvents = frame(frontend::ServerMessage{
@@ -391,10 +395,10 @@ namespace {
                                                                                  {"params", frontend::Json{{"presented", true}}}},
                                                                   frontend::Json::object()}},
                                          frontend::Json::object()}});
-                if (acquireResponse && threadsResponse && trailingEvents) {
-                    coalescedDrain = *acquireResponse + *threadsResponse + *trailingEvents;
+                if (threadsResponse && trailingEvents) {
+                    coalescedDrain = *threadsResponse + *trailingEvents;
                     sendToPeer(coalescedDrain.data(), coalescedDrain.size());
-                    state.coalescedDrainMessages = 3;
+                    state.drainMessageCount += 2;
                 }
             }
         }
@@ -685,8 +689,9 @@ int main(int argc, char* argv[]) {
         result.expectTrue(state.serverRequestOrder == std::vector<std::string>{state.acquireRequestId, state.threadsRequestId},
                           "queued command request IDs reach the server exactly once and in input order");
         result.expectEqual(2, static_cast<int>(state.responseCount), "production client presents both correlated responses");
-        result.expectEqual(
-            3, static_cast<int>(state.coalescedDrainMessages), "fake server coalesces both responses and one trailing protocol frame");
+        result.expectEqual(3,
+                           static_cast<int>(state.drainMessageCount),
+                           "fake server emits acquire response before the queued thread response and trailing protocol frame");
         result.expectEqual(
             1, static_cast<int>(state.trailingEventBatchCount), "production client presents the frame decoded after the final response");
         result.expectEqual(1, static_cast<int>(state.lifecycleExitRequests), "completed drain requests one controlled exit");

@@ -144,10 +144,10 @@ namespace {
 
         client.transportDisconnected(generation, {"state becomes stale", true});
         const std::shared_ptr<const core::PublishedState> stale = client.state();
-        result.expectTrue(stale != current && stale->revision > current->revision &&
-                              current->freshness == core::PublishedFreshness::Current &&
+        result.expectTrue(stale != current && current->revision != std::numeric_limits<std::uint64_t>::max() &&
+                              stale->revision == current->revision + 1 && current->freshness == core::PublishedFreshness::Current &&
                               stale->freshness == core::PublishedFreshness::Stale,
-                          "disconnect publishes a later immutable stale State");
+                          "disconnect publishes exactly the next immutable stale-State revision");
         result.expectTrue(current->snapshot && stale->snapshot && !current->snapshot->threads.empty() &&
                               !stale->snapshot->threads.empty() &&
                               stale->snapshot->threads.front().freshness == current->snapshot->threads.front().freshness,

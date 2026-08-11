@@ -5,9 +5,12 @@
 #include "ai/openai/codex/frontend/client/State.h"
 
 #include "ai/openai/codex/frontend/Codec.h"
+#include "ai/openai/codex/frontend/client/detail/OperationCodecs.h"
 #include "ai/openai/codex/frontend/client/detail/StateReducer.h"
 #include "ai/openai/codex/frontend/detail/EventRepresentation.h"
 #include "ai/openai/codex/frontend/detail/FrontendProjection.h"
+#include "ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
+#include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 
 #include <algorithm>
 #include <array>
@@ -15,6 +18,7 @@
 #include <cstdio>
 #include <initializer_list>
 #include <limits>
+#include <set>
 #include <type_traits>
 #include <utility>
 
@@ -6347,6 +6351,1019 @@ namespace ai::openai::codex::frontend::client {
         return impl->compatibilityExtensions;
     }
 
+    namespace {
+        namespace canonical = frontend::internal::model;
+        namespace canonical_client = frontend::internal::client;
+
+        StateFreshness publicFreshness(canonical_client::PublishedFreshness value) noexcept {
+            switch (value) {
+                case canonical_client::PublishedFreshness::Current:
+                    return StateFreshness::Current;
+                case canonical_client::PublishedFreshness::Stale:
+                    return StateFreshness::Stale;
+                case canonical_client::PublishedFreshness::Synchronizing:
+                    return StateFreshness::Synchronizing;
+            }
+            return StateFreshness::Stale;
+        }
+
+        RepresentationMode publicRepresentation(canonical_client::RepresentationMode value) noexcept {
+            switch (value) {
+                case canonical_client::RepresentationMode::Unknown:
+                    return RepresentationMode::Unknown;
+                case canonical_client::RepresentationMode::LegacyV1:
+                    return RepresentationMode::LegacyV1;
+                case canonical_client::RepresentationMode::ExpandedV1:
+                    return RepresentationMode::ExpandedV1;
+            }
+            return RepresentationMode::Unknown;
+        }
+
+        frontend::StateFreshness publicSourceFreshness(canonical::Freshness value) noexcept {
+            switch (value) {
+                case canonical::Freshness::Unknown:
+                    return frontend::StateFreshness::Unknown;
+                case canonical::Freshness::Current:
+                    return frontend::StateFreshness::Current;
+                case canonical::Freshness::Stale:
+                    return frontend::StateFreshness::Stale;
+            }
+            return frontend::StateFreshness::Unknown;
+        }
+
+        SourceStamp publicStamp(const canonical::SourceMetadata& value) {
+            return SourceStamp{value.generation, publicSourceFreshness(value.freshness), value.extensions.json()};
+        }
+
+        TruncationMetadata publicTruncation(const canonical::TruncationMetadata& value) {
+            TruncationMetadata result;
+            result.truncated = value.truncated;
+            result.omittedFields = value.omittedPaths;
+            result.omittedEntries = value.omittedEntries;
+            if (value.droppedBytesPresent || value.droppedBytes != 0) {
+                result.droppedBytes = value.droppedBytes;
+            }
+            result.extensions = value.extensions.json();
+            return result;
+        }
+
+        std::string_view informationName(canonical::InformationState value) noexcept {
+            switch (value) {
+                case canonical::InformationState::Present:
+                    return "present";
+                case canonical::InformationState::Omitted:
+                    return "omitted";
+                case canonical::InformationState::Redacted:
+                    return "redacted";
+                case canonical::InformationState::Truncated:
+                    return "truncated";
+                case canonical::InformationState::Unavailable:
+                    return "unavailable";
+                case canonical::InformationState::Stale:
+                    return "stale";
+                case canonical::InformationState::Unknown:
+                    return "unknown";
+                case canonical::InformationState::Absent:
+                    return "absent";
+                case canonical::InformationState::NullValue:
+                    return "null";
+            }
+            return "unknown";
+        }
+
+        bool represented(canonical::InformationState value) noexcept {
+            return value != canonical::InformationState::Absent && value != canonical::InformationState::Omitted &&
+                   value != canonical::InformationState::NullValue;
+        }
+
+        std::optional<std::size_t> publicSize(const std::optional<std::uint64_t>& value) noexcept {
+            if (!value.has_value() || *value > std::numeric_limits<std::size_t>::max()) {
+                return std::nullopt;
+            }
+            return static_cast<std::size_t>(*value);
+        }
+
+        SessionInfo publicSession(const canonical_client::SessionInfo& value) {
+            SessionInfo result;
+            result.sessionId = value.id.value();
+            result.role = value.role;
+            result.syncMode = value.synchronizationMode;
+            result.serverCurrentSequence = value.serverCurrentSequence.protocolValue();
+            result.serverVersion = value.serverVersion;
+            result.requestedRepresentationCapabilities = value.requestedCapabilities;
+            result.selectedRepresentationCapabilities = value.selectedCapabilities;
+            result.availableMethods = value.availableMethods;
+            result.permittedMethods = value.permittedMethods;
+            result.permittedScopes = value.permittedScopes;
+            for (frontend::FrontendCapability capability : value.observedCapabilities) {
+                const auto metadata = std::ranges::find_if(frontend::generated::AllCapabilities, [capability](const auto& candidate) {
+                    return candidate.id == static_cast<frontend::generated::Capability>(capability);
+                });
+                if (metadata == frontend::generated::AllCapabilities.end()) {
+                    continue;
+                }
+                switch (metadata->category) {
+                    case frontend::generated::CapabilityCategory::StaticMechanism:
+                        result.observedMechanismCapabilities.push_back(capability);
+                        break;
+                    case frontend::generated::CapabilityCategory::ConditionalTopology:
+                        result.observedTopologyCapabilities.push_back(capability);
+                        break;
+                    case frontend::generated::CapabilityCategory::Product:
+                        result.observedProductCapabilities.push_back(capability);
+                        break;
+                }
+            }
+            return result;
+        }
+
+        ProviderLifecycle publicProviderLifecycle(canonical::ProviderLifecycle value) noexcept {
+            return static_cast<ProviderLifecycle>(value);
+        }
+
+        ProviderRecoveryStatus publicRecoveryStatus(canonical::ProviderRecoveryStatus value) noexcept {
+            return static_cast<ProviderRecoveryStatus>(value);
+        }
+
+        bool buildProvider(const canonical::ProviderState& source, ProviderState& result, std::string& error) {
+            result.lifecycle = publicProviderLifecycle(source.lifecycle);
+            result.generation = source.generation;
+            result.desiredRunning = source.desiredRunning;
+            result.ready = source.ready();
+            result.recovery.status = publicRecoveryStatus(source.recovery.status);
+            if (source.recovery.attempts > std::numeric_limits<std::size_t>::max()) {
+                error = "provider recovery attempts exceed the public State size range";
+                return false;
+            }
+            result.recovery.attempts = static_cast<std::size_t>(source.recovery.attempts);
+            result.recovery.delayMs = source.recovery.delayMs;
+            result.recovery.extensions = source.recovery.extensions.json();
+            if (source.lastError.has_value()) {
+                ProviderErrorState decoded;
+                if (!decodeProviderError(source.lastError->json(), decoded, error, false)) {
+                    return false;
+                }
+                result.lastError = std::move(decoded);
+            }
+            if (source.initialization.has_value()) {
+                ProviderInitializationState decoded;
+                if (!decodeProviderInitialization(source.initialization->json(), decoded, error)) {
+                    return false;
+                }
+                result.initialization = std::move(decoded);
+            }
+            result.extensions = source.extensions.json();
+            if (source.provider.has_value()) {
+                result.extensions["provider"] = *source.provider;
+            }
+            return true;
+        }
+
+        DomainProjectionState publicDomainProjection(const canonical::DomainState& source) {
+            DomainProjectionState result;
+            if (source.stampKnown) {
+                result.stamp = publicStamp(source.stamp);
+            }
+            result.status = source.status;
+            result.summary = source.summary;
+            result.nextCursor = source.nextCursor;
+            result.complete = source.completeKnown ? std::optional<bool>{source.complete} : std::nullopt;
+            result.itemCount = publicSize(source.itemCount);
+            result.latestResults.reserve(source.latestResults.size());
+            for (const canonical::DomainResultSummary& entry : source.latestResults) {
+                DomainResultSummaryState decoded;
+                decoded.method = entry.method;
+                decoded.status = entry.status;
+                decoded.subjectId = entry.subjectId;
+                decoded.nextCursor = entry.nextCursor;
+                decoded.itemCount = publicSize(entry.itemCount);
+                decoded.complete = entry.completeKnown ? std::optional<bool>{entry.complete} : std::nullopt;
+                decoded.stamp = publicStamp(entry.stamp);
+                decoded.extensions = entry.extensions.json();
+                result.latestResults.push_back(std::move(decoded));
+            }
+            if (source.safeDetailsKnown) {
+                const frontend::Json& details = source.safeDetails.json();
+                result.notificationCount = optionalSize(details, "notificationCount");
+                if (const auto methods = details.find("latestNotificationMethods"); methods != details.end() && methods->is_array()) {
+                    for (const frontend::Json& method : *methods) {
+                        if (method.is_string()) {
+                            result.latestNotificationMethods.push_back(method.get<std::string>());
+                        }
+                    }
+                }
+                result.opaqueDetails = extensionsOf(details, {"notificationCount", "latestNotificationMethods"});
+            }
+            if (source.truncationKnown) {
+                result.truncation = publicTruncation(source.truncation);
+            }
+            result.extensions = source.extensions.json();
+            if (source.information != canonical::InformationState::Present) {
+                result.extensions["informationState"] = informationName(source.information);
+            }
+            return result;
+        }
+
+        template <typename PublicDomain>
+        bool buildDomain(const canonical::DomainState& source, Projected<PublicDomain>& destination, std::string& error) {
+            if (!represented(source.information)) {
+                return true;
+            }
+            PublicDomain value;
+            value.projection = publicDomainProjection(source);
+            const frontend::Json* details = source.safeDetailsKnown ? &source.safeDetails.json() : nullptr;
+            if (!decodeSpecificDomainDetails(details, value, error)) {
+                return false;
+            }
+            destination.value = std::move(value);
+            destination.truncated = source.information == canonical::InformationState::Truncated || source.truncation.truncated;
+            destination.omittedFields = source.truncation.omittedPaths;
+            return true;
+        }
+
+        frontend::Json domainCollectionExtensions(const canonical::DomainState& source) {
+            frontend::Json result = source.extensions.json();
+            if (source.information != canonical::InformationState::Present) {
+                result["informationState"] = informationName(source.information);
+            }
+            if (source.stampKnown) {
+                result["stamp"] = frontend::Json{{"generation", source.stamp.generation},
+                                                 {"freshness", frontend::toString(publicSourceFreshness(source.stamp.freshness))}};
+                for (auto member = source.stamp.extensions.json().begin(); member != source.stamp.extensions.json().end(); ++member) {
+                    result["stamp"][member.key()] = member.value();
+                }
+            }
+            if (source.status.has_value()) {
+                result["status"] = *source.status;
+            }
+            if (source.summary.has_value()) {
+                result["summary"] = *source.summary;
+            }
+            if (source.nextCursor.has_value()) {
+                result["nextCursor"] = *source.nextCursor;
+            }
+            if (source.itemCount.has_value()) {
+                result["itemCount"] = *source.itemCount;
+            }
+            if (source.completeKnown) {
+                result["complete"] = source.complete;
+            }
+            if (source.safeDetailsKnown) {
+                result["details"] = source.safeDetails.json();
+            }
+            return result;
+        }
+
+        ItemState publicItem(const canonical::ItemData& source, ItemKind kind) {
+            ItemState result;
+            result.id = typed::ItemId{source.id.value()};
+            if (source.threadId.has_value()) {
+                result.threadId = typed::ThreadId{source.threadId->value()};
+            }
+            if (source.turnId.has_value()) {
+                result.turnId = typed::TurnId{source.turnId->value()};
+            }
+            result.kind = std::move(kind);
+            result.status = source.status;
+            result.summary = source.summary;
+            if (source.location.has_value()) {
+                result.location = source.location->json();
+            }
+            result.agentText = source.agentText;
+            result.reasoningText = source.reasoningText;
+            result.reasoningSummary = source.reasoningSummary;
+            result.commandOutput = source.commandOutput;
+            result.droppedContentBytes = source.droppedContentBytes;
+            result.contentTruncated = source.contentTruncated;
+            result.startedAtMs = source.startedAtMs;
+            result.completedAtMs = source.completedAtMs;
+            if (source.safeDetails.has_value()) {
+                result.data = source.safeDetails->json();
+            }
+            result.truncated = source.truncation.truncated;
+            result.omittedFields = source.truncation.omittedPaths;
+            result.connectionInvalidated = source.connectionInvalidated;
+            if (source.generation.has_value()) {
+                result.stamp = SourceStamp{*source.generation, publicSourceFreshness(source.freshness), source.stampExtensions.json()};
+            }
+            result.extensions = source.legacyExtensions.json();
+            for (auto member = source.extensions.json().begin(); member != source.extensions.json().end(); ++member) {
+                result.extensions[member.key()] = member.value();
+            }
+            return result;
+        }
+
+        PendingRequestState publicPending(const canonical::PendingRequestData& source, frontend::PendingRequestKind kind) {
+            PendingRequestState result;
+            result.id = PendingRequestId{source.id.value()};
+            result.kind = kind;
+            if (source.threadId.has_value()) {
+                result.threadId = typed::ThreadId{source.threadId->value()};
+            }
+            if (source.turnId.has_value()) {
+                result.turnId = typed::TurnId{source.turnId->value()};
+            }
+            if (source.itemId.has_value()) {
+                result.itemId = typed::ItemId{source.itemId->value()};
+            }
+            result.summary = source.summary;
+            if (source.safeDetails.has_value()) {
+                result.opaqueDetails = source.safeDetails->json();
+            }
+            if (source.questionsPresent || !source.questions.empty()) {
+                result.questions.emplace();
+                for (const canonical::PendingRequestQuestion& question : source.questions) {
+                    PendingRequestQuestionState decoded;
+                    decoded.id = question.id;
+                    decoded.header = question.header;
+                    decoded.prompt = question.prompt;
+                    decoded.allowsFreeText = question.allowsFreeText;
+                    decoded.isSecret = question.secretAnswer;
+                    decoded.extensions = question.extensions.json();
+                    for (const canonical::PendingRequestOption& option : question.options) {
+                        decoded.options.push_back({option.label, option.description, option.extensions.json()});
+                    }
+                    result.questions->push_back(std::move(decoded));
+                }
+            }
+            result.autoResolutionMs = source.autoResolutionMs;
+            result.truncated = source.truncation.truncated;
+            result.omittedFields = source.truncation.omittedPaths;
+            result.connectionInvalidated = source.connectionInvalidated;
+            result.extensions = source.extensions.json();
+            return result;
+        }
+
+        bool rootListed(const std::vector<std::string>& paths, std::string_view root) {
+            return std::ranges::any_of(paths, [root](const std::string& path) {
+                return path == root;
+            });
+        }
+
+        bool rootUnrepresented(const canonical::ProjectionMetadata& projection, std::string_view root) {
+            return rootListed(projection.omittedPaths, root) || rootListed(projection.absentPaths, root) ||
+                   rootListed(projection.nullPaths, root);
+        }
+
+        bool insertCanonicalIdentity(std::set<std::string>& identities,
+                                     std::string_view identity,
+                                     std::string_view collection,
+                                     std::string& error) {
+            if (identity.empty()) {
+                error = "canonical state contains an empty " + std::string(collection) + " identity";
+                return false;
+            }
+            if (identities.emplace(identity).second) {
+                return true;
+            }
+            error = "canonical state contains a duplicate " + std::string(collection) + " identity";
+            return false;
+        }
+
+        bool validateCanonicalLookupIdentities(const canonical::CanonicalSnapshot& source, std::string& error) {
+            std::set<std::string> identities;
+            for (const canonical::SessionState& session : source.sessions) {
+                if (!insertCanonicalIdentity(identities, session.id.value(), "session", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::ThreadState& thread : source.threads) {
+                if (!insertCanonicalIdentity(identities, thread.id.value(), "thread", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::TurnState& turn : source.turns) {
+                if (!insertCanonicalIdentity(identities, turn.id.value(), "turn", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::ThreadItem& item : source.items) {
+                if (!insertCanonicalIdentity(identities, canonical::itemData(item).id.value(), "item", error)) {
+                    return false;
+                }
+            }
+            for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
+                if (!insertCanonicalIdentity(identities, item.value.id.value(), "item", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::PendingRequest& request : source.pendingRequests) {
+                if (!insertCanonicalIdentity(identities, canonical::pendingRequestData(request).id.value(), "pending request", error)) {
+                    return false;
+                }
+            }
+            for (const canonical::LegacyPendingRequestCompatibility& request : source.legacyPendingRequests) {
+                if (!insertCanonicalIdentity(identities, request.value.id.value(), "pending request", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::ProcessState& process : source.processes) {
+                if (!insertCanonicalIdentity(identities, process.handle.value(), "process", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::FilesystemWatchRecord& watch : source.filesystemWatches.entries) {
+                if (!insertCanonicalIdentity(identities, watch.watchId, "filesystem watch", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::FuzzySearchRecord& search : source.fuzzySearches.entries) {
+                if (!insertCanonicalIdentity(identities, search.sessionId, "fuzzy search", error)) {
+                    return false;
+                }
+            }
+
+            identities.clear();
+            for (const canonical::ActivityRecord& activity : source.activities.entries) {
+                if (!insertCanonicalIdentity(identities, activity.key, "activity", error)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    } // namespace
+
+    std::optional<std::shared_ptr<const detail::StateStorage>>
+    detail::CanonicalStateBuilder::build(const canonical_client::PublishedState& publication,
+                                         std::size_t maximumBytes,
+                                         std::size_t maximumRetainedDiagnostics,
+                                         std::string& error,
+                                         CanonicalStateBuildFailure* failure) noexcept {
+        if (failure != nullptr) {
+            *failure = CanonicalStateBuildFailure::StateDivergence;
+        }
+        try {
+            auto result = std::make_shared<StateStorage>();
+            result->revision = publication.revision;
+            result->freshness = publicFreshness(publication.freshness);
+            result->representationMode = publicRepresentation(publication.representation);
+            if (publication.visibleSequence.has_value()) {
+                result->visibleSequence = publication.visibleSequence->protocolValue();
+            }
+            if (publication.synchronizedThrough.has_value()) {
+                result->synchronizedThrough = publication.synchronizedThrough->protocolValue();
+            }
+            if (publication.session.has_value()) {
+                result->session = publicSession(*publication.session);
+            }
+            if (publication.projectionFingerprint.has_value()) {
+                result->projectionFingerprint = ProjectionFingerprintMetadata{*publication.projectionFingerprint};
+            }
+
+            if (publication.snapshot) {
+                const canonical::CanonicalSnapshot& source = *publication.snapshot;
+                if (!validateCanonicalLookupIdentities(source, error)) {
+                    return std::nullopt;
+                }
+                if (!source.legacyPendingRequests.empty()) {
+                    error =
+                        "canonical state contains a legacy pending-request kind that the frozen public PendingRequestKind cannot represent";
+                    return std::nullopt;
+                }
+                result->backendCursor.backendRevision = source.backendCursor.backendRevision;
+                if (source.backendCursor.oldestReplayableAfter.has_value()) {
+                    result->backendCursor.oldestReplayableAfter = source.backendCursor.oldestReplayableAfter->protocolValue();
+                }
+                if (source.backendCursor.currentSequence.has_value()) {
+                    result->backendCursor.currentSequence = source.backendCursor.currentSequence->protocolValue();
+                }
+                if (source.backendCursor.oldestRetainedSequence.has_value()) {
+                    result->backendCursor.oldestRetainedSequence = source.backendCursor.oldestRetainedSequence->protocolValue();
+                }
+                if (source.backendCursor.newestRetainedSequence.has_value()) {
+                    result->backendCursor.newestRetainedSequence = source.backendCursor.newestRetainedSequence->protocolValue();
+                }
+                result->backendCursor.backendSequenceExhausted = source.backendCursor.backendSequenceExhausted;
+                result->backendCursor.frontendSequenceExhausted = source.backendCursor.frontendSequenceExhausted;
+
+                result->projectionMetadata.omittedFields = source.projection.omittedPaths;
+                result->projectionMetadata.redactedFields = source.projection.redactedPaths;
+
+                ProviderState provider;
+                if (!buildProvider(source.provider, provider, error)) {
+                    return std::nullopt;
+                }
+                result->provider.value = std::move(provider);
+
+                ControllerState controller;
+                if (source.controller.session.has_value()) {
+                    controller.sessionId = FrontendSessionId{source.controller.session->value()};
+                }
+                frontend::Json controllerExtensions = source.controller.safeDetails.json();
+                controller.present = optionalBool(controllerExtensions, "present")
+                                         .value_or(source.controller.session.has_value() || source.controller.controller.has_value());
+                controller.ownedByThisClient = result->session.has_value() && controller.sessionId.has_value() &&
+                                               controller.sessionId->value == result->session->sessionId;
+                controllerExtensions.erase("present");
+                controller.extensions = std::move(controllerExtensions);
+                if (source.controller.controller.has_value()) {
+                    controller.extensions["controllerId"] = source.controller.controller->value();
+                }
+                result->controller.value = std::move(controller);
+
+                if (source.sessionsPresent) {
+                    result->sessions.value.emplace();
+                    result->sessions.value->reserve(source.sessions.size());
+                    for (const canonical::SessionState& session : source.sessions) {
+                        frontend::Json extensions = session.safeDetails.json();
+                        if (session.principalId.has_value()) {
+                            extensions["principalId"] = *session.principalId;
+                        }
+                        result->sessions.value->push_back(
+                            SessionState{FrontendSessionId{session.id.value()}, session.role, std::move(extensions)});
+                    }
+                }
+
+                if (source.threadListPresent) {
+                    ThreadListState threadList;
+                    threadList.hasLoadedPage = source.threadList.hasLoadedPage;
+                    threadList.complete = source.threadList.complete;
+                    if (source.threadList.pagesLoaded > std::numeric_limits<std::size_t>::max()) {
+                        error = "thread-list page count exceeds the public State size range";
+                        return std::nullopt;
+                    }
+                    threadList.pagesLoaded = static_cast<std::size_t>(source.threadList.pagesLoaded);
+                    threadList.nextCursor = source.threadList.nextCursor;
+                    threadList.backwardsCursor = source.threadList.backwardsCursor;
+                    if (source.threadList.stampKnown) {
+                        threadList.stamp = publicStamp(source.threadList.stamp);
+                    }
+                    threadList.extensions = source.threadList.safeDetails.json();
+                    result->threadList.value = std::move(threadList);
+                }
+
+                result->threadProjectionPresent = source.threadsPresent && !rootUnrepresented(source.projection, "/threads");
+                result->turnProjectionPresent = source.turnsPresent && !rootUnrepresented(source.projection, "/turns");
+                result->itemProjectionPresent = source.itemsPresent && !rootUnrepresented(source.projection, "/items");
+                result->pendingRequestProjectionPresent =
+                    source.pendingRequestsPresent && !rootUnrepresented(source.projection, "/pendingRequests");
+
+                result->threads.reserve(source.threads.size());
+                for (const canonical::ThreadState& thread : source.threads) {
+                    ThreadState decoded;
+                    decoded.id = typed::ThreadId{thread.id.value()};
+                    decoded.title = thread.title;
+                    decoded.fullyLoaded = thread.fullyLoaded;
+                    decoded.createdAtMs = thread.createdAtMs;
+                    decoded.updatedAtMs = thread.updatedAtMs;
+                    if (thread.stampKnown) {
+                        decoded.stamp = publicStamp(thread.stamp);
+                    }
+                    const frontend::Json& details = thread.safeDetails.json();
+                    if (!decoded.title.has_value()) {
+                        decoded.title = stringMember(details, "name");
+                    }
+                    decoded.preview = stringMember(details, "preview");
+                    if (const auto cwd = stringMember(details, "cwd")) {
+                        decoded.cwd = typed::AbsolutePath{*cwd};
+                    }
+                    if (const auto model = stringMember(details, "model")) {
+                        decoded.model = typed::ModelId{*model};
+                    }
+                    decoded.modelProvider = stringMember(details, "modelProvider");
+                    decoded.status = stringMember(details, "status");
+                    if (const auto realtime = details.find("realtime"); realtime != details.end()) {
+                        ThreadRealtimeState value;
+                        if (!decodeThreadRealtime(*realtime, value, error)) {
+                            return std::nullopt;
+                        }
+                        decoded.realtime = std::move(value);
+                    }
+                    frontend::Json canonicalExtensions;
+                    if (!decodeExtensions(details,
+                                          {"name", "preview", "cwd", "model", "modelProvider", "status", "realtime", "extensions"},
+                                          canonicalExtensions,
+                                          "canonical thread",
+                                          error)) {
+                        return std::nullopt;
+                    }
+                    decoded.extensions = thread.legacyExtensions.json();
+                    for (auto member = canonicalExtensions.begin(); member != canonicalExtensions.end(); ++member) {
+                        decoded.extensions[member.key()] = member.value();
+                    }
+                    for (const canonical::TurnState& turn : source.turns) {
+                        if (turn.threadId == thread.id) {
+                            decoded.orderedTurns.push_back(typed::TurnId{turn.id.value()});
+                        }
+                    }
+                    result->threads.push_back(std::move(decoded));
+                }
+
+                result->turns.reserve(source.turns.size());
+                for (const canonical::TurnState& turn : source.turns) {
+                    TurnState decoded;
+                    decoded.id = typed::TurnId{turn.id.value()};
+                    decoded.threadId = typed::ThreadId{turn.threadId.value()};
+                    decoded.status = typed::TurnStatus{turn.status.value_or("unknown")};
+                    decoded.active = turn.active;
+                    decoded.terminal = turn.terminal;
+                    decoded.connectionInvalidated = turn.connectionInvalidated;
+                    if (turn.stampKnown) {
+                        decoded.stamp = publicStamp(turn.stamp);
+                    }
+                    const frontend::Json& details = turn.safeDetails.json();
+                    if (const auto failure = details.find("failure"); failure != details.end()) {
+                        decoded.failure = *failure;
+                    }
+                    if (const auto usage = details.find("tokenUsage"); usage != details.end()) {
+                        decoded.tokenUsage = *usage;
+                    }
+                    frontend::Json canonicalExtensions;
+                    if (!decodeExtensions(details, {"failure", "tokenUsage", "extensions"}, canonicalExtensions, "canonical turn", error)) {
+                        return std::nullopt;
+                    }
+                    decoded.extensions = turn.legacyExtensions.json();
+                    for (auto member = canonicalExtensions.begin(); member != canonicalExtensions.end(); ++member) {
+                        decoded.extensions[member.key()] = member.value();
+                    }
+                    std::vector<std::pair<std::size_t, typed::ItemId>> orderedTurnItems;
+                    std::size_t fallbackTurnItemIndex = 0;
+                    for (const canonical::ThreadItem& item : source.items) {
+                        const canonical::ItemData& data = canonical::itemData(item);
+                        if (data.turnId.has_value() && *data.turnId == turn.id) {
+                            orderedTurnItems.emplace_back(data.sourceIndex.value_or(fallbackTurnItemIndex++),
+                                                          typed::ItemId{data.id.value()});
+                        }
+                    }
+                    for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
+                        if (item.value.turnId.has_value() && *item.value.turnId == turn.id) {
+                            orderedTurnItems.emplace_back(item.sourceIndex, typed::ItemId{item.value.id.value()});
+                        }
+                    }
+                    std::stable_sort(orderedTurnItems.begin(), orderedTurnItems.end(), [](const auto& left, const auto& right) {
+                        return left.first < right.first;
+                    });
+                    for (auto& [index, item] : orderedTurnItems) {
+                        (void) index;
+                        decoded.orderedItems.push_back(std::move(item));
+                    }
+                    result->turns.push_back(std::move(decoded));
+                }
+
+                std::vector<std::pair<std::size_t, ItemState>> orderedItems;
+                orderedItems.reserve(source.items.size() + source.legacyItems.size());
+                std::size_t fallbackItemIndex = 0;
+                for (const canonical::ThreadItem& item : source.items) {
+                    const canonical::ItemData& data = canonical::itemData(item);
+                    orderedItems.emplace_back(data.sourceIndex.value_or(fallbackItemIndex++),
+                                              publicItem(data, ItemKind{canonical::threadItemKind(item)}));
+                }
+                for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
+                    const auto known = frontend::threadItemKindFromString(item.discriminator);
+                    orderedItems.emplace_back(item.sourceIndex, publicItem(item.value, ItemKind{item.discriminator, known}));
+                }
+                std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const auto& left, const auto& right) {
+                    return left.first < right.first;
+                });
+                result->items.reserve(orderedItems.size());
+                for (auto& [index, item] : orderedItems) {
+                    (void) index;
+                    result->items.push_back(std::move(item));
+                }
+
+                std::vector<std::pair<std::size_t, PendingRequestState>> orderedPending;
+                orderedPending.reserve(source.pendingRequests.size());
+                std::size_t fallbackPendingIndex = 0;
+                for (const canonical::PendingRequest& request : source.pendingRequests) {
+                    const canonical::PendingRequestData& data = canonical::pendingRequestData(request);
+                    orderedPending.emplace_back(data.sourceIndex.value_or(fallbackPendingIndex++),
+                                                publicPending(data, canonical::pendingRequestKind(request)));
+                }
+                std::stable_sort(orderedPending.begin(), orderedPending.end(), [](const auto& left, const auto& right) {
+                    return left.first < right.first;
+                });
+                result->pendingRequests.reserve(orderedPending.size());
+                for (auto& [index, request] : orderedPending) {
+                    (void) index;
+                    result->pendingRequests.push_back(std::move(request));
+                }
+
+                const bool legacyRepresentation = publication.representation == canonical_client::RepresentationMode::LegacyV1;
+                const canonical::DomainState& permissionProfiles =
+                    legacyRepresentation && !represented(source.permissionProfiles.state.information) ? source.reviews.state
+                                                                                                      : source.permissionProfiles.state;
+                const canonical::DomainState& apps =
+                    legacyRepresentation && !represented(source.apps.state.information) ? source.integrations.state : source.apps.state;
+                const canonical::DomainState& externalAgents = legacyRepresentation && !represented(source.externalAgents.state.information)
+                                                                   ? source.integrations.state
+                                                                   : source.externalAgents.state;
+                const canonical::DomainState& hooks =
+                    legacyRepresentation && !represented(source.hooks.state.information) ? source.integrations.state : source.hooks.state;
+                const canonical::DomainState& marketplace = legacyRepresentation && !represented(source.marketplace.state.information)
+                                                                ? source.integrations.state
+                                                                : source.marketplace.state;
+                const canonical::DomainState& skills =
+                    legacyRepresentation && !represented(source.skills.state.information) ? source.plugins.state : source.skills.state;
+                const canonical::DomainState& platform = !legacyRepresentation || represented(source.remoteControl.state.information)
+                                                             ? source.remoteControl.state
+                                                             : source.platform.state;
+                const canonical::DomainState& windowsSandbox = legacyRepresentation && !represented(source.windowsSandbox.state.information)
+                                                                   ? source.platform.state
+                                                                   : source.windowsSandbox.state;
+
+#define AISUITE_BUILD_CANONICAL_DOMAIN(sourceMember, destinationMember)                                                                    \
+    if (!buildDomain(sourceMember, result->destinationMember, error)) {                                                                    \
+        return std::nullopt;                                                                                                               \
+    }
+                AISUITE_BUILD_CANONICAL_DOMAIN(source.accounts.state, accounts)
+                AISUITE_BUILD_CANONICAL_DOMAIN(source.models.state, models)
+                AISUITE_BUILD_CANONICAL_DOMAIN(source.configuration.state, configuration)
+                AISUITE_BUILD_CANONICAL_DOMAIN(permissionProfiles, permissionProfiles)
+                AISUITE_BUILD_CANONICAL_DOMAIN(source.reviews.state, reviews)
+                AISUITE_BUILD_CANONICAL_DOMAIN(apps, apps)
+                AISUITE_BUILD_CANONICAL_DOMAIN(externalAgents, externalAgents)
+                AISUITE_BUILD_CANONICAL_DOMAIN(hooks, hooks)
+                AISUITE_BUILD_CANONICAL_DOMAIN(marketplace, marketplace)
+                AISUITE_BUILD_CANONICAL_DOMAIN(source.plugins.state, plugins)
+                AISUITE_BUILD_CANONICAL_DOMAIN(skills, skills)
+                AISUITE_BUILD_CANONICAL_DOMAIN(source.mcp.state, mcp)
+                AISUITE_BUILD_CANONICAL_DOMAIN(windowsSandbox, windowsSandbox)
+                AISUITE_BUILD_CANONICAL_DOMAIN(platform, platform)
+#undef AISUITE_BUILD_CANONICAL_DOMAIN
+
+                if (!rootUnrepresented(source.projection, "/processes") && represented(source.processesState.information)) {
+                    ProcessCollectionState processes;
+                    processes.truncation = publicTruncation(source.processesState.truncation);
+                    processes.extensions = domainCollectionExtensions(source.processesState);
+                    for (const canonical::ProcessState& process : source.processes) {
+                        ProcessState decoded;
+                        decoded.processHandle = ProcessHandle{process.handle.value()};
+                        decoded.lifecycle = process.lifecycle.value_or(process.status.value_or("unknown"));
+                        decoded.stdoutBytes = publicSize(process.stdoutBytes);
+                        decoded.stderrBytes = publicSize(process.stderrBytes);
+                        decoded.stdoutTruncated = process.stdoutTruncated;
+                        decoded.stderrTruncated = process.stderrTruncated;
+                        decoded.droppedOutputBytes = process.droppedOutputBytes;
+                        decoded.exitCode = process.exitCode;
+                        decoded.stamp = publicStamp(process.stamp);
+                        decoded.connectionInvalidated = process.connectionInvalidated;
+                        frontend::Json canonicalExtensions = process.extensions.json();
+                        decoded.standardOutput = stringMember(canonicalExtensions, "stdout");
+                        decoded.standardError = stringMember(canonicalExtensions, "stderr");
+                        decoded.stateUnavailable = optionalBool(canonicalExtensions, "stateUnavailable").value_or(false) ||
+                                                   source.processesState.information == canonical::InformationState::Unavailable;
+                        if (process.publicExtensionsKnown) {
+                            decoded.extensions = process.publicExtensions.json();
+                        } else {
+                            canonicalExtensions.erase("stdout");
+                            canonicalExtensions.erase("stderr");
+                            canonicalExtensions.erase("stateUnavailable");
+                            decoded.extensions = std::move(canonicalExtensions);
+                            if (!process.safeDetails.empty()) {
+                                decoded.extensions["details"] = process.safeDetails.json();
+                            }
+                        }
+                        processes.entries.push_back(std::move(decoded));
+                    }
+                    result->processes.value = std::move(processes);
+                    result->processes.truncated = result->processes.value->truncation.truncated;
+                    result->processes.omittedFields = result->processes.value->truncation.omittedFields;
+                }
+
+                if (represented(source.filesystemWatches.state.information)) {
+                    FilesystemWatchCollectionState watches;
+                    watches.truncation = publicTruncation(source.filesystemWatches.state.truncation);
+                    watches.extensions = domainCollectionExtensions(source.filesystemWatches.state);
+                    for (const canonical::FilesystemWatchRecord& watch : source.filesystemWatches.entries) {
+                        FilesystemWatchState decoded;
+                        decoded.watchId = typed::FsWatchId{watch.watchId};
+                        if (watch.root.has_value()) {
+                            decoded.root = typed::AbsolutePath{*watch.root};
+                        }
+                        decoded.changedPathCount = publicSize(watch.changedPathCount);
+                        decoded.stamp = publicStamp(watch.stamp);
+                        decoded.connectionInvalidated = watch.connectionInvalidated;
+                        frontend::Json canonicalExtensions = watch.extensions.json();
+                        decoded.stateUnavailable = optionalBool(canonicalExtensions, "stateUnavailable").value_or(false) ||
+                                                   source.filesystemWatches.state.information == canonical::InformationState::Unavailable;
+                        if (watch.publicExtensionsKnown) {
+                            decoded.extensions = watch.publicExtensions.json();
+                        } else {
+                            canonicalExtensions.erase("stateUnavailable");
+                            decoded.extensions = std::move(canonicalExtensions);
+                            if (!watch.safeDetails.empty()) {
+                                decoded.extensions["details"] = watch.safeDetails.json();
+                            }
+                        }
+                        watches.entries.push_back(std::move(decoded));
+                    }
+                    result->filesystemWatches.value = std::move(watches);
+                    result->filesystemWatches.truncated = result->filesystemWatches.value->truncation.truncated;
+                    result->filesystemWatches.omittedFields = result->filesystemWatches.value->truncation.omittedFields;
+                }
+
+                if (represented(source.fuzzySearches.state.information)) {
+                    FuzzySearchCollectionState searches;
+                    searches.truncation = publicTruncation(source.fuzzySearches.state.truncation);
+                    searches.extensions = domainCollectionExtensions(source.fuzzySearches.state);
+                    for (const canonical::FuzzySearchRecord& search : source.fuzzySearches.entries) {
+                        FuzzySearchState decoded;
+                        decoded.sessionId = FuzzySearchSessionId{search.sessionId};
+                        decoded.resultCount = publicSize(search.resultCount);
+                        decoded.complete = search.complete;
+                        decoded.stamp = publicStamp(search.stamp);
+                        decoded.connectionInvalidated = search.connectionInvalidated;
+                        frontend::Json canonicalExtensions = search.extensions.json();
+                        decoded.stateUnavailable = optionalBool(canonicalExtensions, "stateUnavailable").value_or(false) ||
+                                                   source.fuzzySearches.state.information == canonical::InformationState::Unavailable;
+                        if (search.publicExtensionsKnown) {
+                            decoded.extensions = search.publicExtensions.json();
+                        } else {
+                            canonicalExtensions.erase("stateUnavailable");
+                            decoded.extensions = std::move(canonicalExtensions);
+                            if (!search.safeDetails.empty()) {
+                                decoded.extensions["details"] = search.safeDetails.json();
+                            }
+                        }
+                        searches.entries.push_back(std::move(decoded));
+                    }
+                    result->fuzzySearches.value = std::move(searches);
+                    result->fuzzySearches.truncated = result->fuzzySearches.value->truncation.truncated;
+                    result->fuzzySearches.omittedFields = result->fuzzySearches.value->truncation.omittedFields;
+                }
+
+                if (represented(source.notices.state.information)) {
+                    NoticeCollectionState notices;
+                    notices.truncation = publicTruncation(source.notices.state.truncation);
+                    notices.extensions = domainCollectionExtensions(source.notices.state);
+                    for (const canonical::NoticeRecord& notice : source.notices.entries) {
+                        NoticeState decoded;
+                        if (notice.occurrence != 0) {
+                            decoded.occurrence = notice.occurrence;
+                        }
+                        decoded.category = notice.category;
+                        decoded.summary = notice.summary;
+                        decoded.details = notice.details;
+                        if (notice.threadId.has_value()) {
+                            decoded.threadId = typed::ThreadId{notice.threadId->value()};
+                        }
+                        decoded.stamp = publicStamp(notice.stamp);
+                        decoded.extensions = notice.extensions.json();
+                        decoded.stateUnavailable = optionalBool(decoded.extensions, "stateUnavailable").value_or(false) ||
+                                                   source.notices.state.information == canonical::InformationState::Unavailable;
+                        decoded.extensions.erase("stateUnavailable");
+                        if (!notice.safeDetails.empty()) {
+                            decoded.extensions["safeDetails"] = notice.safeDetails.json();
+                        }
+                        notices.entries.push_back(std::move(decoded));
+                    }
+                    result->notices.value = std::move(notices);
+                    result->notices.truncated = result->notices.value->truncation.truncated;
+                    result->notices.omittedFields = result->notices.value->truncation.omittedFields;
+                }
+
+                if (represented(source.activities.state.information)) {
+                    ActivityCollectionState activities;
+                    activities.truncation = publicTruncation(source.activities.state.truncation);
+                    activities.extensions = domainCollectionExtensions(source.activities.state);
+                    for (const canonical::ActivityRecord& activity : source.activities.entries) {
+                        ActivityState decoded;
+                        decoded.key = ActivityKey{activity.key};
+                        if (!activity.subjectId.empty()) {
+                            decoded.subjectId = activity.subjectId;
+                        }
+                        decoded.kind = activity.kind;
+                        decoded.lifecycle = activity.lifecycle;
+                        decoded.summary = activity.summary;
+                        decoded.details = activity.details;
+                        if (activity.threadId.has_value()) {
+                            decoded.threadId = typed::ThreadId{activity.threadId->value()};
+                        }
+                        if (activity.turnId.has_value()) {
+                            decoded.turnId = typed::TurnId{activity.turnId->value()};
+                        }
+                        decoded.active = activity.active;
+                        decoded.stamp = publicStamp(activity.stamp);
+                        decoded.extensions = activity.extensions.json();
+                        decoded.stateUnavailable = optionalBool(decoded.extensions, "stateUnavailable").value_or(false) ||
+                                                   source.activities.state.information == canonical::InformationState::Unavailable;
+                        decoded.extensions.erase("stateUnavailable");
+                        if (!activity.safeDetails.empty()) {
+                            decoded.extensions["safeDetails"] = activity.safeDetails.json();
+                        }
+                        activities.entries.push_back(std::move(decoded));
+                    }
+                    result->activities.value = std::move(activities);
+                    result->activities.truncated = result->activities.value->truncation.truncated;
+                    result->activities.omittedFields = result->activities.value->truncation.omittedFields;
+                }
+
+                if (source.capacityPresent) {
+                    CapacityState capacity;
+#define AISUITE_COPY_CAPACITY(member) capacity.member = source.capacity.member
+                    AISUITE_COPY_CAPACITY(sessions);
+                    AISUITE_COPY_CAPACITY(observers);
+                    AISUITE_COPY_CAPACITY(activeOperations);
+                    AISUITE_COPY_CAPACITY(pendingRequests);
+                    AISUITE_COPY_CAPACITY(retainedThreads);
+                    AISUITE_COPY_CAPACITY(retainedTurns);
+                    AISUITE_COPY_CAPACITY(retainedItems);
+                    AISUITE_COPY_CAPACITY(accumulatedContentBytes);
+                    AISUITE_COPY_CAPACITY(retainedNotices);
+                    AISUITE_COPY_CAPACITY(retainedProcesses);
+                    AISUITE_COPY_CAPACITY(accumulatedProcessOutputBytes);
+                    AISUITE_COPY_CAPACITY(retainedFilesystemWatches);
+                    AISUITE_COPY_CAPACITY(retainedFuzzySearchSessions);
+                    AISUITE_COPY_CAPACITY(retainedActivityRecords);
+                    AISUITE_COPY_CAPACITY(evictedNotices);
+                    AISUITE_COPY_CAPACITY(evictedProcesses);
+                    AISUITE_COPY_CAPACITY(droppedProcessOutputBytes);
+                    AISUITE_COPY_CAPACITY(evictedFilesystemWatches);
+                    AISUITE_COPY_CAPACITY(evictedFuzzySearchSessions);
+                    AISUITE_COPY_CAPACITY(evictedActivityRecords);
+#undef AISUITE_COPY_CAPACITY
+                    capacity.extensions = source.capacity.extensions.json();
+                    result->capacity.value = std::move(capacity);
+                }
+
+                result->truncation.value = publicTruncation(source.truncation);
+                result->truncation.truncated = source.truncation.truncated;
+                result->truncation.omittedFields = source.truncation.omittedPaths;
+
+                if (represented(source.diagnostics.state.information)) {
+                    DiagnosticCollectionState diagnostics;
+                    diagnostics.received = source.diagnostics.received;
+                    diagnostics.entries.reserve(source.diagnostics.entries.size());
+                    for (const canonical::DiagnosticRecord& diagnostic : source.diagnostics.entries) {
+                        DiagnosticState decoded;
+                        decoded.received = diagnostic.received;
+                        decoded.detailsOmitted = diagnostic.detailsOmitted;
+                        decoded.message = diagnostic.message;
+                        if (!diagnostic.safeDetails.empty()) {
+                            decoded.opaqueDetails = diagnostic.safeDetails.json();
+                        }
+                        decoded.extensions = diagnostic.extensions.json();
+                        diagnostics.entries.push_back(std::move(decoded));
+                    }
+                    result->diagnostics.value = std::move(diagnostics);
+                    result->diagnostics.truncated = source.diagnostics.state.information == canonical::InformationState::Truncated ||
+                                                    source.diagnostics.state.truncation.truncated;
+                    result->diagnostics.omittedFields = source.diagnostics.state.truncation.omittedPaths;
+                    trimDiagnostics(result->diagnostics, maximumRetainedDiagnostics);
+                }
+
+                for (const std::string& path : source.projection.omittedPaths) {
+                    applySnapshotProjectionOmission(*result, path);
+                }
+
+                frontend::Json stateExtensions = source.stateExtensions.json();
+                if (publication.representation == canonical_client::RepresentationMode::LegacyV1) {
+                    if (const auto codex = stateExtensions.find("codexExtensions"); codex != stateExtensions.end()) {
+                        if (!codex->is_array() || !codex->empty()) {
+                            result->compatibilityExtensions["codexExtensions"] = *codex;
+                        }
+                        stateExtensions.erase(codex);
+                    }
+                    for (auto member = stateExtensions.begin(); member != stateExtensions.end(); ++member) {
+                        result->compatibilityExtensions[member.key()] = member.value();
+                    }
+                    for (const canonical::LegacyRootExtension& extension : source.legacyRootExtensions) {
+                        result->compatibilityExtensions[extension.name] = extension.value.json();
+                    }
+                } else if (!stateExtensions.empty()) {
+                    result->compatibilityExtensions["state"] = std::move(stateExtensions);
+                }
+                for (auto member = source.extensions.json().begin(); member != source.extensions.json().end(); ++member) {
+                    if (member.key() != "scopeProjection") {
+                        result->compatibilityExtensions[member.key()] = member.value();
+                    }
+                }
+            }
+
+            if (!rebuildStateSizeLedger(*result) || !stateFits(*result, maximumBytes, error)) {
+                if (failure != nullptr) {
+                    *failure = CanonicalStateBuildFailure::Capacity;
+                }
+                if (error.empty()) {
+                    error = "canonical public State accounting failed";
+                }
+                return std::nullopt;
+            }
+            error.clear();
+            return std::shared_ptr<const StateStorage>{std::move(result)};
+        } catch (const std::exception& exception) {
+            error = std::string{"canonical public State construction failed: "} + exception.what();
+            return std::nullopt;
+        } catch (...) {
+            error = "canonical public State construction failed";
+            return std::nullopt;
+        }
+    }
+
     namespace detail {
         State StateReducer::initial() {
             return {};
@@ -6917,108 +7934,126 @@ namespace ai::openai::codex::frontend::client {
             return decoded;
         }
 
-        std::optional<TurnResultState> StateReducer::decodeTurnResultState(const frontend::Json& value, std::string& error) {
-            TurnResultState result;
-            if (!decodeTurn(value, result.state, error))
-                return std::nullopt;
-            if (const auto items = value.find("items"); items != value.end()) {
-                for (const frontend::Json& itemValue : *items) {
-                    ItemState item;
-                    if (!decodeLegacyItem(itemValue, item, error, result.state.threadId, result.state.id))
-                        return std::nullopt;
-                    if (!item.threadId || *item.threadId != result.state.threadId || !item.turnId || *item.turnId != result.state.id) {
-                        error = "turn result item does not belong to its containing turn";
-                        return std::nullopt;
+        std::optional<TurnResultState> decodeOperationTurnResultState(const frontend::Json& value, std::string& error) noexcept {
+            try {
+                TurnResultState result;
+                if (!decodeTurn(value, result.state, error))
+                    return std::nullopt;
+                if (const auto items = value.find("items"); items != value.end()) {
+                    for (const frontend::Json& itemValue : *items) {
+                        ItemState item;
+                        if (!decodeLegacyItem(itemValue, item, error, result.state.threadId, result.state.id))
+                            return std::nullopt;
+                        if (!item.threadId || *item.threadId != result.state.threadId || !item.turnId || *item.turnId != result.state.id) {
+                            error = "turn result item does not belong to its containing turn";
+                            return std::nullopt;
+                        }
+                        if (!appendDistinct(
+                                result.items,
+                                std::move(item),
+                                [](const ItemState& candidate) {
+                                    return candidate.id;
+                                },
+                                "turn result item collection",
+                                error))
+                            return std::nullopt;
                     }
-                    if (!appendDistinct(
-                            result.items,
-                            std::move(item),
-                            [](const ItemState& candidate) {
-                                return candidate.id;
-                            },
-                            "turn result item collection",
-                            error))
-                        return std::nullopt;
                 }
-            }
-            if (result.state.orderedItems.size() != result.items.size()) {
-                error = "turn result item ordering does not match its typed item collection";
-                return std::nullopt;
-            }
-            for (std::size_t index = 0; index < result.items.size(); ++index) {
-                if (result.state.orderedItems[index] != result.items[index].id) {
+                if (result.state.orderedItems.size() != result.items.size()) {
                     error = "turn result item ordering does not match its typed item collection";
                     return std::nullopt;
                 }
+                for (std::size_t index = 0; index < result.items.size(); ++index) {
+                    if (result.state.orderedItems[index] != result.items[index].id) {
+                        error = "turn result item ordering does not match its typed item collection";
+                        return std::nullopt;
+                    }
+                }
+                return result;
+            } catch (...) {
+                error = "turn result could not be decoded";
+                return std::nullopt;
             }
-            return result;
         }
 
-        std::optional<ThreadResultState> StateReducer::decodeThreadResultState(const frontend::Json& value, std::string& error) {
-            ThreadResultState result;
-            if (!decodeThread(value, result.state, error))
-                return std::nullopt;
-            if (const auto turns = value.find("turns"); turns != value.end()) {
-                for (const frontend::Json& turnValue : *turns) {
-                    TurnResultState turn;
-                    if (!decodeTurn(turnValue, turn.state, error, result.state.id))
-                        return std::nullopt;
-                    if (turn.state.threadId != result.state.id) {
-                        error = "thread result turn does not belong to its containing thread";
-                        return std::nullopt;
-                    }
-                    if (const auto items = turnValue.find("items"); items != turnValue.end()) {
-                        for (const frontend::Json& itemValue : *items) {
-                            ItemState item;
-                            if (!decodeLegacyItem(itemValue, item, error, result.state.id, turn.state.id))
-                                return std::nullopt;
-                            if (!item.threadId || *item.threadId != result.state.id || !item.turnId || *item.turnId != turn.state.id) {
-                                error = "thread result item does not belong to its containing turn";
-                                return std::nullopt;
-                            }
-                            if (!appendDistinct(
-                                    turn.items,
-                                    std::move(item),
-                                    [](const ItemState& candidate) {
-                                        return candidate.id;
-                                    },
-                                    "thread result item collection",
-                                    error))
-                                return std::nullopt;
+        std::optional<ThreadResultState> decodeOperationThreadResultState(const frontend::Json& value, std::string& error) noexcept {
+            try {
+                ThreadResultState result;
+                if (!decodeThread(value, result.state, error))
+                    return std::nullopt;
+                if (const auto turns = value.find("turns"); turns != value.end()) {
+                    for (const frontend::Json& turnValue : *turns) {
+                        TurnResultState turn;
+                        if (!decodeTurn(turnValue, turn.state, error, result.state.id))
+                            return std::nullopt;
+                        if (turn.state.threadId != result.state.id) {
+                            error = "thread result turn does not belong to its containing thread";
+                            return std::nullopt;
                         }
-                    }
-                    if (turn.state.orderedItems.size() != turn.items.size()) {
-                        error = "thread result item ordering does not match its typed item collection";
-                        return std::nullopt;
-                    }
-                    for (std::size_t index = 0; index < turn.items.size(); ++index) {
-                        if (turn.state.orderedItems[index] != turn.items[index].id) {
+                        if (const auto items = turnValue.find("items"); items != turnValue.end()) {
+                            for (const frontend::Json& itemValue : *items) {
+                                ItemState item;
+                                if (!decodeLegacyItem(itemValue, item, error, result.state.id, turn.state.id))
+                                    return std::nullopt;
+                                if (!item.threadId || *item.threadId != result.state.id || !item.turnId || *item.turnId != turn.state.id) {
+                                    error = "thread result item does not belong to its containing turn";
+                                    return std::nullopt;
+                                }
+                                if (!appendDistinct(
+                                        turn.items,
+                                        std::move(item),
+                                        [](const ItemState& candidate) {
+                                            return candidate.id;
+                                        },
+                                        "thread result item collection",
+                                        error))
+                                    return std::nullopt;
+                            }
+                        }
+                        if (turn.state.orderedItems.size() != turn.items.size()) {
                             error = "thread result item ordering does not match its typed item collection";
                             return std::nullopt;
                         }
+                        for (std::size_t index = 0; index < turn.items.size(); ++index) {
+                            if (turn.state.orderedItems[index] != turn.items[index].id) {
+                                error = "thread result item ordering does not match its typed item collection";
+                                return std::nullopt;
+                            }
+                        }
+                        if (!appendDistinct(
+                                result.turns,
+                                std::move(turn),
+                                [](const TurnResultState& candidate) {
+                                    return candidate.state.id;
+                                },
+                                "thread result turn collection",
+                                error))
+                            return std::nullopt;
                     }
-                    if (!appendDistinct(
-                            result.turns,
-                            std::move(turn),
-                            [](const TurnResultState& candidate) {
-                                return candidate.state.id;
-                            },
-                            "thread result turn collection",
-                            error))
-                        return std::nullopt;
                 }
-            }
-            if (result.state.orderedTurns.size() != result.turns.size()) {
-                error = "thread result turn ordering does not match its typed turn collection";
-                return std::nullopt;
-            }
-            for (std::size_t index = 0; index < result.turns.size(); ++index) {
-                if (result.state.orderedTurns[index] != result.turns[index].state.id) {
+                if (result.state.orderedTurns.size() != result.turns.size()) {
                     error = "thread result turn ordering does not match its typed turn collection";
                     return std::nullopt;
                 }
+                for (std::size_t index = 0; index < result.turns.size(); ++index) {
+                    if (result.state.orderedTurns[index] != result.turns[index].state.id) {
+                        error = "thread result turn ordering does not match its typed turn collection";
+                        return std::nullopt;
+                    }
+                }
+                return result;
+            } catch (...) {
+                error = "thread result could not be decoded";
+                return std::nullopt;
             }
-            return result;
+        }
+
+        std::optional<TurnResultState> StateReducer::decodeTurnResultState(const frontend::Json& value, std::string& error) {
+            return decodeOperationTurnResultState(value, error);
+        }
+
+        std::optional<ThreadResultState> StateReducer::decodeThreadResultState(const frontend::Json& value, std::string& error) {
+            return decodeOperationThreadResultState(value, error);
         }
     } // namespace detail
 

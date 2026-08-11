@@ -33,6 +33,35 @@ namespace ai::openai::codex::frontend::internal::client {
         };
         constexpr std::size_t MaximumContinuityKeyBytes = 256;
 
+        template <typename Callback>
+        class ScopeExit final {
+        public:
+            explicit ScopeExit(Callback callback) noexcept(std::is_nothrow_move_constructible_v<Callback>)
+                : callback(std::move(callback)) {
+            }
+
+            ScopeExit(const ScopeExit&) = delete;
+            ScopeExit& operator=(const ScopeExit&) = delete;
+
+            ~ScopeExit() noexcept {
+                run();
+            }
+
+            void run() noexcept {
+                if (active) {
+                    active = false;
+                    callback();
+                }
+            }
+
+        private:
+            Callback callback;
+            bool active = true;
+        };
+
+        template <typename Callback>
+        ScopeExit(Callback) -> ScopeExit<Callback>;
+
         template <typename Value>
         bool contains(const std::vector<Value>& values, Value value) noexcept {
             return std::find(values.begin(), values.end(), value) != values.end();
@@ -77,7 +106,12 @@ namespace ai::openai::codex::frontend::internal::client {
                    method == generated::MethodId::AccountLoginStart;
         }
 
-        void securelyErase(std::string& value) noexcept {
+        void addSaturated(std::size_t& target, std::size_t value) noexcept {
+            target = value > std::numeric_limits<std::size_t>::max() - target ? std::numeric_limits<std::size_t>::max() : target + value;
+        }
+
+        std::size_t securelyErase(std::string& value) noexcept {
+            const std::size_t bytesErased = value.capacity();
             try {
                 value.resize(value.capacity(), '\0');
                 volatile char* bytes = value.empty() ? nullptr : value.data();
@@ -92,45 +126,71 @@ namespace ai::openai::codex::frontend::internal::client {
                 }
                 value.clear();
             }
+            return bytesErased;
         }
 
-        void securelyErase(Json& value) noexcept {
+        std::size_t securelyErase(Json& value) noexcept {
+            std::size_t bytesErased = 0;
             try {
                 if (value.is_string()) {
-                    securelyErase(value.get_ref<std::string&>());
+                    bytesErased = securelyErase(value.get_ref<std::string&>());
                 } else if (value.is_array() || value.is_object()) {
                     for (Json& member : value) {
-                        securelyErase(member);
+                        addSaturated(bytesErased, securelyErase(member));
                     }
                 }
                 value = nullptr;
             } catch (...) {
                 value = nullptr;
             }
+            return bytesErased;
         }
 
-        void securelyErase(generated::DefinedCommand& command) noexcept {
-            std::visit(
+        std::size_t securelyErase(AuthenticationCredential& credential) noexcept {
+            std::size_t bytesErased = 0;
+            if (auto* bearer = std::get_if<BearerCredential>(&credential)) {
+                bytesErased = securelyErase(bearer->token);
+            }
+            credential = NoCredential{};
+            return bytesErased;
+        }
+
+        std::size_t securelyErase(AuthenticationContext& authentication) noexcept {
+            std::size_t bytesErased = securelyErase(authentication.credential);
+            if (authentication.continuityKey.has_value()) {
+                addSaturated(bytesErased, securelyErase(*authentication.continuityKey));
+                authentication.continuityKey.reset();
+            }
+            return bytesErased;
+        }
+
+        std::size_t securelyErase(generated::CompleteCommandParameters& parameters) noexcept {
+            return std::visit(
                 [](auto& parameters) {
-                    securelyErase(parameters.value);
+                    return securelyErase(parameters.value);
                 },
-                command.parameters);
-            securelyErase(command.extensions);
-            securelyErase(command.parameterExtensions);
+                parameters);
         }
 
-        void securelyErase(OutboundMessage& message) noexcept {
+        std::size_t securelyErase(generated::DefinedCommand& command) noexcept {
+            std::size_t bytesErased = securelyErase(command.parameters);
+            addSaturated(bytesErased, securelyErase(command.extensions));
+            addSaturated(bytesErased, securelyErase(command.parameterExtensions));
+            return bytesErased;
+        }
+
+        std::size_t securelyErase(OutboundMessage& message) noexcept {
+            std::size_t bytesErased = 0;
             if (auto* hello = std::get_if<Hello>(&message.value)) {
-                securelyErase(hello->extensions);
+                bytesErased = securelyErase(hello->extensions);
                 if (hello->authentication.has_value()) {
-                    if (auto* bearer = std::get_if<BearerCredential>(&*hello->authentication)) {
-                        securelyErase(bearer->token);
-                    }
+                    addSaturated(bytesErased, securelyErase(*hello->authentication));
                     hello->authentication = NoCredential{};
                 }
             } else if (auto* command = std::get_if<generated::DefinedCommand>(&message.value)) {
-                securelyErase(*command);
+                bytesErased = securelyErase(*command);
             }
+            return bytesErased;
         }
 
         bool validUniqueCapabilities(const std::vector<FrontendCapability>& capabilities) noexcept {
@@ -338,9 +398,11 @@ namespace ai::openai::codex::frontend::internal::client {
         }
 
         Json encodeTruncation(const model::TruncationMetadata& value) {
-            Json result{{"truncated", value.truncated}, {"omittedFields", value.omittedPaths}};
+            Json result = detailObject(value.extensions);
+            result["truncated"] = value.truncated;
+            result["omittedFields"] = value.omittedPaths;
             addOptional(result, "omittedEntries", value.omittedEntries);
-            if (value.droppedBytes != 0) {
+            if (value.droppedBytesPresent || value.droppedBytes != 0) {
                 result["droppedBytes"] = value.droppedBytes;
             }
             return result;
@@ -598,7 +660,7 @@ namespace ai::openai::codex::frontend::internal::client {
                 if (value.safeDetails.has_value()) {
                     result["details"] = value.safeDetails->json();
                 }
-                if (!value.questions.empty()) {
+                if (value.questionsPresent || !value.questions.empty()) {
                     result["questions"] = Json::array();
                     questions = &result["questions"];
                 }
@@ -953,8 +1015,15 @@ namespace ai::openai::codex::frontend::internal::client {
                 AISUITE_PROJECT_DOMAIN(platform);
 #undef AISUITE_PROJECT_DOMAIN
 
-                Json processes = encodeCollection(snapshot.processes, {}, encodeProcess);
-                result["processes"] = projected(snapshot.processes.empty() ? std::nullopt : std::optional<Json>{std::move(processes)});
+                Json processes = detailObject(snapshot.processesState.extensions);
+                processes["entries"] = Json::array();
+                for (const model::ProcessState& process : snapshot.processes) {
+                    processes["entries"].push_back(encodeProcess(process));
+                }
+                processes["truncation"] = encodeTruncation(snapshot.processesState.truncation);
+                result["processes"] = projected(
+                    informationRetainsValue(snapshot.processesState.information) ? std::optional<Json>{std::move(processes)} : std::nullopt,
+                    snapshot.processesState.truncation);
                 result["filesystemWatches"] = projected(
                     informationRetainsValue(snapshot.filesystemWatches.state.information) || !snapshot.filesystemWatches.entries.empty()
                         ? std::optional<Json>{encodeCollection(
@@ -979,12 +1048,13 @@ namespace ai::openai::codex::frontend::internal::client {
                                   : std::nullopt,
                               snapshot.activities.state.truncation);
                 const bool capacityPresent =
-                    representation == RepresentationMode::ExpandedV1 || snapshot.capacity.sessions.has_value() ||
-                    snapshot.capacity.observers.has_value() || snapshot.capacity.activeOperations.has_value() ||
-                    snapshot.capacity.pendingRequests.has_value() || snapshot.capacity.retainedThreads.has_value() ||
-                    snapshot.capacity.retainedTurns.has_value() || snapshot.capacity.retainedItems.has_value() ||
-                    snapshot.capacity.accumulatedContentBytes.has_value() || snapshot.capacity.retainedNotices.has_value() ||
-                    snapshot.capacity.retainedProcesses.has_value() || snapshot.capacity.accumulatedProcessOutputBytes.has_value() ||
+                    snapshot.capacityPresent || representation == RepresentationMode::ExpandedV1 ||
+                    snapshot.capacity.sessions.has_value() || snapshot.capacity.observers.has_value() ||
+                    snapshot.capacity.activeOperations.has_value() || snapshot.capacity.pendingRequests.has_value() ||
+                    snapshot.capacity.retainedThreads.has_value() || snapshot.capacity.retainedTurns.has_value() ||
+                    snapshot.capacity.retainedItems.has_value() || snapshot.capacity.accumulatedContentBytes.has_value() ||
+                    snapshot.capacity.retainedNotices.has_value() || snapshot.capacity.retainedProcesses.has_value() ||
+                    snapshot.capacity.accumulatedProcessOutputBytes.has_value() ||
                     snapshot.capacity.retainedFilesystemWatches.has_value() || snapshot.capacity.retainedFuzzySearchSessions.has_value() ||
                     snapshot.capacity.retainedActivityRecords.has_value() || snapshot.capacity.evictedNotices.has_value() ||
                     snapshot.capacity.evictedProcesses.has_value() || snapshot.capacity.droppedProcessOutputBytes.has_value() ||
@@ -1573,11 +1643,13 @@ namespace ai::openai::codex::frontend::internal::client {
             TransportCallbacks transport;
             bool connected = false;
             bool helloSent = false;
+            bool closeRequested = false;
         };
 
         struct PendingOperation {
             std::string requestId;
             generated::MethodId method = generated::MethodId::ControllerAcquire;
+            PhysicalGeneration generation = 0;
             OperationCompletion completion;
             bool synchronization = false;
         };
@@ -1626,7 +1698,7 @@ namespace ai::openai::codex::frontend::internal::client {
         void validateOptions();
         std::optional<PhysicalGeneration> attach(TransportCallbacks transport);
         void transportConnected(PhysicalGeneration generation);
-        void transportDisconnected(PhysicalGeneration generation, TransportError error);
+        void transportDisconnected(PhysicalGeneration generation, std::optional<TransportError> error);
         void detach(PhysicalGeneration generation, std::string_view reason);
         bool receive(PhysicalGeneration generation, const ServerMessage& message);
         bool receiveEncoded(PhysicalGeneration generation, std::string_view message);
@@ -1650,7 +1722,13 @@ namespace ai::openai::codex::frontend::internal::client {
             return owns(generation) && connectionState == expectedState;
         }
 
+        template <typename Value>
+        void eraseTransient(Value& value) noexcept {
+            addSaturated(erasedTransientBytes, securelyErase(value));
+        }
+
         void transition(ConnectionState next, std::optional<ClientError> error = std::nullopt) noexcept;
+        void notifyConnectionStateChanged(const StateChange& change) noexcept;
         void diagnostic(DiagnosticSeverity severity,
                         std::string message,
                         std::optional<ClientErrorCode> code = std::nullopt,
@@ -1660,18 +1738,32 @@ namespace ai::openai::codex::frontend::internal::client {
                                std::optional<model::FrontendSequence> fromSequence,
                                std::optional<model::FrontendSequence> toSequence,
                                std::vector<Change> changes) noexcept;
-        void publish(model::CanonicalSnapshot snapshot,
+        bool publish(model::CanonicalSnapshot snapshot,
                      PublishedFreshness freshness,
                      RepresentationMode representation,
                      std::optional<model::FrontendSequence> synchronizedThrough,
-                     bool emitCursor) noexcept;
-        void publishMetadata(PublishedFreshness freshness) noexcept;
-        void makeRetainedStateStale() noexcept;
-        void failConnection(ClientError error, std::string_view closeReason, bool requestTransportClose) noexcept;
+                     bool emitCursor,
+                     bool reportPreparationFailure = true) noexcept;
+        [[nodiscard]] std::shared_ptr<const PublishedState>
+        commitSnapshotPublication(model::CanonicalSnapshot snapshot,
+                                  PublishedFreshness freshness,
+                                  RepresentationMode representation,
+                                  std::optional<model::FrontendSequence> synchronizedThrough,
+                                  bool reportPreparationFailure = true) noexcept;
+        void notifyPublication(const std::shared_ptr<const PublishedState>& publication, bool emitCursor) noexcept;
+        bool
+        publishMetadata(PublishedFreshness freshness, bool reportPreparationFailure = true, bool notifyPublicationCallback = true) noexcept;
+        bool publishBoundedEmptyStale(bool notifyPublicationCallback = true) noexcept;
+        [[nodiscard]] std::uint64_t nextPublicationRevision() const noexcept;
+        bool commitPublication(std::shared_ptr<const PublishedState> candidate, bool reportPreparationFailure = true) noexcept;
+        [[nodiscard]] std::shared_ptr<const PublishedState> makeRetainedStateStale(bool notifyCallbacks = true) noexcept;
+        void requestTransportClose(PhysicalGeneration generation, std::string_view reason) noexcept;
+        void failConnection(ClientError error, std::string_view closeReason, bool requestTransportClose, bool reportError = true) noexcept;
         [[nodiscard]] bool failPending(ClientError error) noexcept;
         void complete(PendingOperation operation,
                       std::optional<generated::CompleteCommandResult> value,
-                      std::optional<ClientError> error) noexcept;
+                      std::optional<ClientError> error,
+                      std::optional<SynchronizationInfo> synchronizationInfo = std::nullopt) noexcept;
         void handleWelcome(const Welcome& welcome);
         void handleSnapshot(const Snapshot& snapshot);
         void handleEvents(const EventBatch& batch);
@@ -1714,9 +1806,19 @@ namespace ai::openai::codex::frontend::internal::client {
         std::optional<std::string> activeProjectionFingerprint;
         std::optional<std::string> projectionSnapshotRequestId;
         bool failureInProgress = false;
+        // Reject new semantic work while a failure commits its terminal view.
+        // Read-only lifecycle queries continue to report the actual committed
+        // state: Closing callbacks still own the retiring attachment, whereas
+        // stale-state and pending callbacks observe Disconnected with no
+        // attachment.
+        bool disconnectCommitInProgress = false;
         bool clientCloseInProgress = false;
         std::size_t dispatchDepth = 0;
         bool flushingDeferredCommands = false;
+        std::array<std::size_t, 3> testingSynchronizationCounts{};
+        bool testingCountsSeeded = false;
+        bool failAfterDispatchForTesting = false;
+        std::size_t erasedTransientBytes = 0;
     };
 
     void ClientCore::Impl::validateOptions() {
@@ -1802,6 +1904,10 @@ namespace ai::openai::codex::frontend::internal::client {
         }
         const StateChange change{connectionState, next, std::move(error), attachment ? attachment->generation : generationCounter};
         connectionState = next;
+        notifyConnectionStateChanged(change);
+    }
+
+    void ClientCore::Impl::notifyConnectionStateChanged(const StateChange& change) noexcept {
         if (callbacks.onConnectionStateChanged) {
             try {
                 callbacks.onConnectionStateChanged(change);
@@ -1812,15 +1918,106 @@ namespace ai::openai::codex::frontend::internal::client {
         }
     }
 
-    void ClientCore::Impl::publish(model::CanonicalSnapshot snapshot,
-                                   PublishedFreshness freshness,
-                                   RepresentationMode representation,
-                                   std::optional<model::FrontendSequence> synchronizedThrough,
-                                   bool emitCursor) noexcept {
+    std::uint64_t ClientCore::Impl::nextPublicationRevision() const noexcept {
+        return published->revision == std::numeric_limits<std::uint64_t>::max() ? published->revision : published->revision + 1;
+    }
+
+    bool ClientCore::Impl::commitPublication(std::shared_ptr<const PublishedState> candidate, bool reportPreparationFailure) noexcept {
+        if (published->revision == std::numeric_limits<std::uint64_t>::max()) {
+            const ClientError exhaustion = localError(ClientErrorCode::StateCapacityExceeded, "frontend state revision exhausted");
+            if (reportPreparationFailure) {
+                diagnostic(DiagnosticSeverity::Error, "immutable frontend state revision is exhausted", exhaustion.clientCode, exhaustion);
+                if (!failureInProgress) {
+                    failConnection(exhaustion, "frontend state revision exhausted", true);
+                }
+            }
+            return false;
+        }
+        const auto revisionIsExactNext = [this, &candidate]() noexcept {
+            return candidate && published->revision != std::numeric_limits<std::uint64_t>::max() &&
+                   candidate->revision == nextPublicationRevision();
+        };
+        const auto rejectDivergedRevision = [this, reportPreparationFailure]() noexcept {
+            const ClientError invalidRevision =
+                localError(ClientErrorCode::StateDivergence, "frontend state publication revision is not the exact next revision");
+            if (reportPreparationFailure) {
+                diagnostic(DiagnosticSeverity::Error,
+                           "immutable frontend state publication revision diverged",
+                           invalidRevision.clientCode,
+                           invalidRevision);
+                if (!failureInProgress) {
+                    failConnection(invalidRevision, "frontend state publication revision diverged", true);
+                }
+            }
+        };
+        if (!revisionIsExactNext()) {
+            rejectDivergedRevision();
+            return false;
+        }
+        if (callbacks.prepareStatePublication) {
+            std::optional<ClientError> preparationError;
+            try {
+                preparationError = callbacks.prepareStatePublication(*candidate);
+            } catch (...) {
+                preparationError =
+                    localError(ClientErrorCode::StateCapacityExceeded, "public frontend State preparation threw before canonical commit");
+            }
+            if (preparationError.has_value()) {
+                if (reportPreparationFailure) {
+                    diagnostic(DiagnosticSeverity::Error,
+                               "immutable frontend state preparation failed",
+                               preparationError->clientCode,
+                               *preparationError);
+                    if (!failureInProgress) {
+                        failConnection(*preparationError, "frontend public-State preparation failed", true);
+                    }
+                }
+                return false;
+            }
+        }
+        // Preparation is an internal callback seam and may reenter the core.
+        // Revalidate against the current publication immediately before the
+        // canonical commit so a stale outer candidate cannot overwrite a
+        // publication committed by the nested continuation.
+        if (!revisionIsExactNext()) {
+            if (published->revision == std::numeric_limits<std::uint64_t>::max()) {
+                const ClientError exhaustion = localError(ClientErrorCode::StateCapacityExceeded, "frontend state revision exhausted");
+                if (reportPreparationFailure) {
+                    diagnostic(
+                        DiagnosticSeverity::Error, "immutable frontend state revision is exhausted", exhaustion.clientCode, exhaustion);
+                    if (!failureInProgress) {
+                        failConnection(exhaustion, "frontend state revision exhausted", true);
+                    }
+                }
+                return false;
+            }
+            rejectDivergedRevision();
+            return false;
+        }
+
+        published = std::move(candidate);
+        if (callbacks.commitStatePublication) {
+            try {
+                callbacks.commitStatePublication(*published);
+            } catch (...) {
+                // The production adapter's commit is a noexcept shared-value
+                // swap. Contain third-party/internal test callbacks without
+                // allowing them to re-run preparation or publication.
+                diagnostic(DiagnosticSeverity::Error, "public frontend State commit callback threw", ClientErrorCode::CallbackFailure);
+            }
+        }
+        return true;
+    }
+
+    std::shared_ptr<const PublishedState>
+    ClientCore::Impl::commitSnapshotPublication(model::CanonicalSnapshot snapshot,
+                                                PublishedFreshness freshness,
+                                                RepresentationMode representation,
+                                                std::optional<model::FrontendSequence> synchronizedThrough,
+                                                bool reportPreparationFailure) noexcept {
         try {
             auto next = std::make_shared<PublishedState>();
-            next->revision =
-                published->revision == std::numeric_limits<std::uint64_t>::max() ? published->revision : published->revision + 1;
+            next->revision = nextPublicationRevision();
             next->freshness = freshness;
             next->representation = representation;
             next->visibleSequence = snapshot.sequence;
@@ -1828,42 +2025,71 @@ namespace ai::openai::codex::frontend::internal::client {
             next->session = session;
             next->projectionFingerprint = activeProjectionFingerprint;
             next->snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
-            published = std::move(next);
-
-            const LifecycleCheckpoint checkpoint = lifecycleCheckpoint();
-            const std::shared_ptr<const PublishedState> publication = published;
-
-            if (callbacks.onStatePublished) {
-                try {
-                    callbacks.onStatePublished(publication);
-                } catch (...) {
-                    diagnostic(DiagnosticSeverity::Warning,
-                               "a state-publication callback threw and was contained",
-                               ClientErrorCode::CallbackFailure);
-                }
+            if (!commitPublication(std::move(next), reportPreparationFailure)) {
+                return {};
             }
-            if (emitCursor && continues(checkpoint) && publication->visibleSequence.has_value() && callbacks.onCursorAdvanced) {
-                try {
-                    callbacks.onCursorAdvanced(*publication->visibleSequence);
-                } catch (...) {
-                    diagnostic(DiagnosticSeverity::Warning, "a cursor callback threw and was contained", ClientErrorCode::CallbackFailure);
-                }
-            }
+            return published;
         } catch (...) {
-            diagnostic(DiagnosticSeverity::Error, "immutable frontend state publication failed", ClientErrorCode::StateCapacityExceeded);
+            if (reportPreparationFailure) {
+                diagnostic(
+                    DiagnosticSeverity::Error, "immutable frontend state publication failed", ClientErrorCode::StateCapacityExceeded);
+                if (!failureInProgress) {
+                    failConnection(localError(ClientErrorCode::StateCapacityExceeded, "immutable frontend state publication failed"),
+                                   "frontend state publication failed",
+                                   true);
+                }
+            }
+            return {};
         }
     }
 
-    void ClientCore::Impl::publishMetadata(PublishedFreshness freshness) noexcept {
+    void ClientCore::Impl::notifyPublication(const std::shared_ptr<const PublishedState>& publication, bool emitCursor) noexcept {
+        const LifecycleCheckpoint checkpoint = lifecycleCheckpoint();
+        if (callbacks.onStatePublished) {
+            try {
+                callbacks.onStatePublished(publication);
+            } catch (...) {
+                diagnostic(
+                    DiagnosticSeverity::Warning, "a state-publication callback threw and was contained", ClientErrorCode::CallbackFailure);
+            }
+        }
+        if (emitCursor && continues(checkpoint) && publication->visibleSequence.has_value() && callbacks.onCursorAdvanced) {
+            try {
+                callbacks.onCursorAdvanced(*publication->visibleSequence);
+            } catch (...) {
+                diagnostic(DiagnosticSeverity::Warning, "a cursor callback threw and was contained", ClientErrorCode::CallbackFailure);
+            }
+        }
+    }
+
+    bool ClientCore::Impl::publish(model::CanonicalSnapshot snapshot,
+                                   PublishedFreshness freshness,
+                                   RepresentationMode representation,
+                                   std::optional<model::FrontendSequence> synchronizedThrough,
+                                   bool emitCursor,
+                                   bool reportPreparationFailure) noexcept {
+        std::shared_ptr<const PublishedState> publication =
+            commitSnapshotPublication(std::move(snapshot), freshness, representation, synchronizedThrough, reportPreparationFailure);
+        if (!publication) {
+            return false;
+        }
+        notifyPublication(publication, emitCursor);
+        return true;
+    }
+
+    bool ClientCore::Impl::publishMetadata(PublishedFreshness freshness,
+                                           bool reportPreparationFailure,
+                                           bool notifyPublicationCallback) noexcept {
         try {
             auto next = std::make_shared<PublishedState>(*published);
-            next->revision =
-                published->revision == std::numeric_limits<std::uint64_t>::max() ? published->revision : published->revision + 1;
+            next->revision = nextPublicationRevision();
             next->freshness = freshness;
             next->session = session;
             next->projectionFingerprint = activeProjectionFingerprint;
-            published = std::move(next);
-            if (callbacks.onStatePublished) {
+            if (!commitPublication(std::move(next), reportPreparationFailure)) {
+                return false;
+            }
+            if (notifyPublicationCallback && callbacks.onStatePublished) {
                 try {
                     callbacks.onStatePublished(published);
                 } catch (...) {
@@ -1872,51 +2098,107 @@ namespace ai::openai::codex::frontend::internal::client {
                                ClientErrorCode::CallbackFailure);
                 }
             }
+            return true;
         } catch (...) {
-            diagnostic(
-                DiagnosticSeverity::Error, "immutable frontend state metadata publication failed", ClientErrorCode::StateCapacityExceeded);
+            if (reportPreparationFailure) {
+                diagnostic(DiagnosticSeverity::Error,
+                           "immutable frontend state metadata publication failed",
+                           ClientErrorCode::StateCapacityExceeded);
+                if (!failureInProgress) {
+                    failConnection(
+                        localError(ClientErrorCode::StateCapacityExceeded, "immutable frontend state metadata publication failed"),
+                        "frontend state publication failed",
+                        true);
+                }
+            }
+            return false;
         }
     }
 
-    void ClientCore::Impl::makeRetainedStateStale() noexcept {
+    bool ClientCore::Impl::publishBoundedEmptyStale(bool notifyPublicationCallback) noexcept {
+        try {
+            auto fallback = std::make_shared<PublishedState>();
+            fallback->revision = nextPublicationRevision();
+            fallback->freshness = PublishedFreshness::Stale;
+            fallback->session.reset();
+            fallback->snapshot.reset();
+            if (!commitPublication(std::move(fallback))) {
+                return false;
+            }
+            if (notifyPublicationCallback && callbacks.onStatePublished) {
+                try {
+                    callbacks.onStatePublished(published);
+                } catch (...) {
+                    diagnostic(DiagnosticSeverity::Warning,
+                               "a state-publication callback threw and was contained",
+                               ClientErrorCode::CallbackFailure);
+                }
+            }
+            return true;
+        } catch (...) {
+            diagnostic(
+                DiagnosticSeverity::Error, "bounded empty stale frontend state publication failed", ClientErrorCode::StateCapacityExceeded);
+            if (!failureInProgress) {
+                failConnection(localError(ClientErrorCode::StateCapacityExceeded, "bounded empty stale frontend state publication failed"),
+                               "frontend stale-state publication failed",
+                               true);
+            }
+            return false;
+        }
+    }
+
+    std::shared_ptr<const PublishedState> ClientCore::Impl::makeRetainedStateStale(bool notifyCallbacks) noexcept {
+        if (published->freshness == PublishedFreshness::Stale && !published->session.has_value()) {
+            session.reset();
+            return {};
+        }
+        std::shared_ptr<const PublishedState> stalePublication;
         if (!published->snapshot) {
             if (published->freshness != PublishedFreshness::Stale || published->session.has_value()) {
                 session.reset();
-                const LifecycleCheckpoint checkpoint = lifecycleCheckpoint();
-                publishMetadata(PublishedFreshness::Stale);
-                if (continues(checkpoint)) {
-                    notifyStateUpdate(UpdateCause::ConnectionBecameStale, std::nullopt, std::nullopt, {});
+                const bool committed = publishMetadata(PublishedFreshness::Stale, false, false) || publishBoundedEmptyStale(false);
+                if (committed) {
+                    stalePublication = published;
                 }
             }
-            return;
-        }
-        try {
-            model::CanonicalSnapshot stale = *published->snapshot;
-            markSnapshotStale(stale);
-            session.reset();
-            const LifecycleCheckpoint checkpoint = lifecycleCheckpoint();
-            publish(std::move(stale), PublishedFreshness::Stale, published->representation, published->synchronizedThrough, false);
-            if (continues(checkpoint)) {
-                notifyStateUpdate(UpdateCause::ConnectionBecameStale, std::nullopt, std::nullopt, {});
-            }
-        } catch (...) {
-            session.reset();
-            const LifecycleCheckpoint checkpoint = lifecycleCheckpoint();
-            publishMetadata(PublishedFreshness::Stale);
-            if (continues(checkpoint)) {
-                notifyStateUpdate(UpdateCause::ConnectionBecameStale, std::nullopt, std::nullopt, {});
+        } else {
+            try {
+                model::CanonicalSnapshot stale = *published->snapshot;
+                markSnapshotStale(stale);
+                session.reset();
+                stalePublication = commitSnapshotPublication(
+                    std::move(stale), PublishedFreshness::Stale, published->representation, published->synchronizedThrough, false);
+                if (!stalePublication && publishBoundedEmptyStale(false)) {
+                    stalePublication = published;
+                }
+            } catch (...) {
+                session.reset();
+                if (publishBoundedEmptyStale(false)) {
+                    stalePublication = published;
+                }
             }
         }
+        if (notifyCallbacks && stalePublication) {
+            notifyPublication(stalePublication, false);
+            notifyStateUpdate(UpdateCause::ConnectionBecameStale, std::nullopt, std::nullopt, {});
+        }
+        return stalePublication;
     }
 
     void ClientCore::Impl::complete(PendingOperation operation,
                                     std::optional<generated::CompleteCommandResult> value,
-                                    std::optional<ClientError> error) noexcept {
+                                    std::optional<ClientError> error,
+                                    std::optional<SynchronizationInfo> synchronizationInfo) noexcept {
         if (!operation.completion) {
             return;
         }
         try {
-            operation.completion(OperationResult{std::move(operation.requestId), operation.method, std::move(value), std::move(error)});
+            operation.completion(OperationResult{std::move(operation.requestId),
+                                                 operation.method,
+                                                 std::move(value),
+                                                 std::move(error),
+                                                 std::move(synchronizationInfo),
+                                                 operation.generation});
         } catch (...) {
             diagnostic(
                 DiagnosticSeverity::Warning, "an operation completion callback threw and was contained", ClientErrorCode::CallbackFailure);
@@ -1928,7 +2210,7 @@ namespace ai::openai::codex::frontend::internal::client {
         std::vector<PendingOperation> abandoned = std::move(pending);
         pending.clear();
         for (DeferredCommand& deferred : deferredCommands) {
-            securelyErase(deferred.message);
+            eraseTransient(deferred.message);
         }
         deferredCommands.clear();
         for (PendingOperation& operation : abandoned) {
@@ -1941,43 +2223,55 @@ namespace ai::openai::codex::frontend::internal::client {
         return true;
     }
 
-    void ClientCore::Impl::failConnection(ClientError error, std::string_view closeReason, bool requestTransportClose) noexcept {
+    void ClientCore::Impl::requestTransportClose(PhysicalGeneration generation, std::string_view reason) noexcept {
+        if (!owns(generation) || attachment->closeRequested) {
+            return;
+        }
+        attachment->closeRequested = true;
+        try {
+            if (attachment->transport.close) {
+                attachment->transport.close(reason);
+            }
+        } catch (...) {
+            diagnostic(
+                DiagnosticSeverity::Warning, "the transport close callback threw and was contained", ClientErrorCode::CallbackFailure);
+        }
+    }
+
+    void ClientCore::Impl::failConnection(ClientError error,
+                                          std::string_view closeReason,
+                                          bool requestTransportClose,
+                                          bool reportError) noexcept {
         if (failureInProgress) {
             return;
         }
         failureInProgress = true;
+        disconnectCommitInProgress = true;
         const std::optional<PhysicalGeneration> failingGeneration =
             attachment ? std::optional<PhysicalGeneration>{attachment->generation} : std::nullopt;
         const auto invalidated = [this, &failingGeneration]() noexcept {
-            return connectionState == ConnectionState::Closed ||
-                   (failingGeneration.has_value() && !owns(*failingGeneration));
+            return connectionState == ConnectionState::Closed || (failingGeneration.has_value() && !owns(*failingGeneration));
         };
         const auto stopFailure = [this]() noexcept {
+            disconnectCommitInProgress = false;
             failureInProgress = false;
         };
-        std::optional<TransportCallbacks> transport;
-        if (attachment.has_value()) {
-            transport = attachment->transport;
+        if (reportError) {
+            notifyError(error);
         }
-        notifyError(error);
         if (invalidated()) {
             stopFailure();
             return;
         }
         if (requestTransportClose && connectionState != ConnectionState::Closed) {
-            transition(ConnectionState::Closing, error);
+            transition(ConnectionState::Closing, reportError ? std::optional<ClientError>{error} : std::nullopt);
             if (invalidated() || connectionState != ConnectionState::Closing) {
                 stopFailure();
                 return;
             }
         }
-        if (requestTransportClose && transport.has_value() && transport->close) {
-            try {
-                transport->close(closeReason);
-            } catch (...) {
-                diagnostic(
-                    DiagnosticSeverity::Warning, "the transport close callback threw and was contained", ClientErrorCode::CallbackFailure);
-            }
+        if (requestTransportClose && failingGeneration.has_value()) {
+            this->requestTransportClose(*failingGeneration, closeReason);
             if (invalidated()) {
                 stopFailure();
                 return;
@@ -1991,35 +2285,50 @@ namespace ai::openai::codex::frontend::internal::client {
         capabilities.reset();
         projectionSnapshotRequestId.reset();
         helloResumeAfter.reset();
-        makeRetainedStateStale();
-        if (invalidated()) {
-            stopFailure();
-            return;
+        const std::shared_ptr<const PublishedState> stalePublication = makeRetainedStateStale(false);
+        std::vector<PendingOperation> abandoned = std::move(pending);
+        pending.clear();
+        for (DeferredCommand& deferred : deferredCommands) {
+            eraseTransient(deferred.message);
         }
-        if (!failPending(error) || invalidated()) {
-            stopFailure();
-            return;
+        deferredCommands.clear();
+        const StateChange terminalChange{connectionState,
+                                         ConnectionState::Disconnected,
+                                         reportError ? std::optional<ClientError>{error} : std::nullopt,
+                                         failingGeneration.value_or(generationCounter)};
+        activeContinuityKey.reset();
+        activeProjectionFingerprint.reset();
+        attachment.reset();
+        connectionState = ConnectionState::Disconnected;
+
+        if (stalePublication) {
+            notifyPublication(stalePublication, false);
+            notifyStateUpdate(UpdateCause::ConnectionBecameStale, std::nullopt, std::nullopt, {});
         }
-        if (synchronizationOperation.has_value()) {
-            complete(std::move(*synchronizationOperation), std::nullopt, error);
-            if (invalidated()) {
+        const LifecycleCheckpoint callbackCheckpoint{std::nullopt, ConnectionState::Disconnected};
+        for (PendingOperation& operation : abandoned) {
+            rememberCompleted(operation.requestId);
+            complete(std::move(operation), std::nullopt, error);
+            if (!continues(callbackCheckpoint)) {
                 stopFailure();
                 return;
             }
         }
-        activeContinuityKey.reset();
-        activeProjectionFingerprint.reset();
-        attachment.reset();
-        if (connectionState != ConnectionState::Closed) {
-            stopFailure();
-            transition(ConnectionState::Disconnected, error);
-            return;
+        if (synchronizationOperation.has_value()) {
+            complete(std::move(*synchronizationOperation), std::nullopt, error);
+            if (!continues(callbackCheckpoint)) {
+                stopFailure();
+                return;
+            }
         }
         stopFailure();
+        if (connectionState == ConnectionState::Disconnected && !attachment.has_value()) {
+            notifyConnectionStateChanged(terminalChange);
+        }
     }
 
     std::optional<PhysicalGeneration> ClientCore::Impl::attach(TransportCallbacks transport) {
-        if (connectionState == ConnectionState::Closed || clientCloseInProgress) {
+        if (connectionState == ConnectionState::Closed || clientCloseInProgress || failureInProgress || disconnectCommitInProgress) {
             diagnostic(DiagnosticSeverity::Warning, "a closed frontend client rejected attachment", ClientErrorCode::Closed);
             return std::nullopt;
         }
@@ -2048,7 +2357,12 @@ namespace ai::openai::codex::frontend::internal::client {
 
         AuthenticationContext authentication;
         try {
-            authentication = options.credentialProvider();
+            AuthenticationContext provided = options.credentialProvider();
+            auto providedGuard = ScopeExit([this, &provided]() noexcept {
+                eraseTransient(provided);
+            });
+            authentication = provided;
+            providedGuard.run();
         } catch (...) {
             if (continues(generation, ConnectionState::Connecting)) {
                 failConnection(localError(ClientErrorCode::InvalidConfiguration, "credential provider failed"),
@@ -2057,6 +2371,9 @@ namespace ai::openai::codex::frontend::internal::client {
             }
             return;
         }
+        auto authenticationGuard = ScopeExit([this, &authentication]() noexcept {
+            eraseTransient(authentication);
+        });
         if (!continues(generation, ConnectionState::Connecting) || !attachment->connected) {
             return;
         }
@@ -2074,25 +2391,28 @@ namespace ai::openai::codex::frontend::internal::client {
         }
 
         const bool sensitive = std::holds_alternative<BearerCredential>(authentication.credential);
-        std::optional<AuthenticationCredential> wireCredential;
+        OutboundMessage outbound{Hello{helloResumeAfter ? std::optional<SequenceNumber>{helloResumeAfter->protocolValue()} : std::nullopt,
+                                       Json::object(),
+                                       options.requestedCapabilities,
+                                       std::nullopt},
+                                 sensitive};
         if (sensitive) {
-            wireCredential = std::move(authentication.credential);
+            // Keep the provider result sized until it has been overwritten;
+            // moving an SSO token first could leave credential bytes behind
+            // an empty source string.
+            std::get<Hello>(outbound.value).authentication = authentication.credential;
         }
-        Hello hello{helloResumeAfter ? std::optional<SequenceNumber>{helloResumeAfter->protocolValue()} : std::nullopt,
-                    Json::object(),
-                    options.requestedCapabilities,
-                    std::move(wireCredential)};
+        authenticationGuard.run();
         attachment->helloSent = true;
         SendResult sent;
         bool sendThrew = false;
-        OutboundMessage outbound{std::move(hello), sensitive};
         try {
             sent = attachment->transport.send(std::move(outbound));
         } catch (...) {
             sendThrew = true;
             sent = {SendStatus::Failed, TransportError{"transport send callback failed", true}};
         }
-        securelyErase(outbound);
+        eraseTransient(outbound);
         if (!continues(generation, ConnectionState::Connecting) || !attachment->connected) {
             return;
         }
@@ -2108,25 +2428,35 @@ namespace ai::openai::codex::frontend::internal::client {
         transition(ConnectionState::Authenticating);
     }
 
-    void ClientCore::Impl::transportDisconnected(PhysicalGeneration generation, TransportError error) {
+    void ClientCore::Impl::transportDisconnected(PhysicalGeneration generation, std::optional<TransportError> error) {
         if (clientCloseInProgress) {
             return;
         }
         if (!owns(generation)) {
+            return;
+        }
+        if (error.has_value()) {
+            failConnection(transportError(ClientErrorCode::TransportFailure, std::move(error->message), error->retryable),
+                           "transport disconnected",
+                           false);
             return;
         }
         failConnection(
-            transportError(ClientErrorCode::TransportFailure, std::move(error.message), error.retryable), "transport disconnected", false);
+            localError(ClientErrorCode::NotConnected, "frontend client connection closed", true), "transport disconnected", false, false);
     }
 
     void ClientCore::Impl::detach(PhysicalGeneration generation, std::string_view reason) {
-        if (clientCloseInProgress) {
+        if (clientCloseInProgress || failureInProgress) {
             return;
         }
         if (!owns(generation)) {
             return;
         }
-        failConnection(transportError(ClientErrorCode::TransportFailure, std::string(reason), true), reason, true);
+        requestTransportClose(generation, reason);
+        if (!owns(generation) || connectionState == ConnectionState::Closed) {
+            return;
+        }
+        failConnection(localError(ClientErrorCode::NotConnected, "frontend connection closed"), reason, false);
     }
 
     void ClientCore::Impl::handleWelcome(const Welcome& welcome) {
@@ -2300,9 +2630,10 @@ namespace ai::openai::codex::frontend::internal::client {
 
         session = std::move(decoded);
         synchronization = std::move(nextSync);
-        if (welcome.syncMode == SyncMode::Replay && published->synchronizedThrough.has_value() &&
-            !synchronization->projectionRefreshRequired) {
-            publishMetadata(PublishedFreshness::Synchronizing);
+        if (welcome.syncMode == SyncMode::Replay && !synchronization->projectionRefreshRequired) {
+            if (!publishMetadata(PublishedFreshness::Synchronizing)) {
+                return;
+            }
             if (!continues(generation, ConnectionState::Authenticating) || !synchronization.has_value()) {
                 return;
             }
@@ -2334,12 +2665,13 @@ namespace ai::openai::codex::frontend::internal::client {
             return;
         }
         const PhysicalGeneration generation = attachment->generation;
+        const bool publicLiveSnapshotCompatibility = connectionState == ConnectionState::Ready;
         RepresentationMode representation = RepresentationMode::Unknown;
         auto decoded = decodeSnapshot(snapshot, representation);
         if (!decoded.has_value() || decoded->sequence != model::FrontendSequence(snapshot.sequence)) {
-            failConnection(protocolError(ClientErrorCode::DecodeFailure, "frontend snapshot failed canonical typed decoding"),
-                           "frontend snapshot rejected",
-                           true);
+            ClientError error = protocolError(ClientErrorCode::DecodeFailure, "frontend snapshot failed canonical typed decoding");
+            error.publicLiveSnapshotStateDivergence = publicLiveSnapshotCompatibility;
+            failConnection(std::move(error), "frontend snapshot rejected", true);
             return;
         }
         boundProtocolDiagnostics(*decoded, options.limits.maximumRetainedDiagnostics);
@@ -2355,8 +2687,7 @@ namespace ai::openai::codex::frontend::internal::client {
                 capacitySynchronizedThrough = decoded->sequence;
             }
         }
-        const std::uint64_t capacityRevision =
-            published->revision == std::numeric_limits<std::uint64_t>::max() ? published->revision : published->revision + 1;
+        const std::uint64_t capacityRevision = nextPublicationRevision();
         if (!stateWithinCapacity(*decoded,
                                  options.limits,
                                  capacityRevision,
@@ -2369,9 +2700,10 @@ namespace ai::openai::codex::frontend::internal::client {
                                  capacityRetainedReplayThrough,
                                  std::nullopt,
                                  capacityError)) {
-            failConnection(protocolError(ClientErrorCode::StateCapacityExceeded, std::move(capacityError), ErrorCode::CapacityExceeded),
-                           "frontend state capacity exceeded",
-                           true);
+            ClientError error =
+                protocolError(ClientErrorCode::StateCapacityExceeded, std::move(capacityError), ErrorCode::CapacityExceeded);
+            error.publicLiveSnapshotStateDivergence = publicLiveSnapshotCompatibility;
+            failConnection(std::move(error), "frontend state capacity exceeded", true);
             return;
         }
 
@@ -2418,8 +2750,13 @@ namespace ai::openai::codex::frontend::internal::client {
                     : (synchronization->explicitRequest
                            ? UpdateCause::ExplicitSnapshot
                            : (synchronization->snapshotFallback ? UpdateCause::SnapshotFallback : UpdateCause::InitialSnapshot));
-            publish(
-                *synchronization->staging, PublishedFreshness::Synchronizing, representation, synchronization->representedThrough, false);
+            if (!publish(*synchronization->staging,
+                         PublishedFreshness::Synchronizing,
+                         representation,
+                         synchronization->representedThrough,
+                         false)) {
+                return;
+            }
             if (!continues(generation, ConnectionState::Synchronizing) || !synchronization.has_value()) {
                 return;
             }
@@ -2446,7 +2783,9 @@ namespace ai::openai::codex::frontend::internal::client {
         if (advanced) {
             changes.emplace_back(CursorAdvancedChange{sequence});
         }
-        publish(std::move(*decoded), PublishedFreshness::Current, representation, synchronizedThrough, false);
+        if (!publish(std::move(*decoded), PublishedFreshness::Current, representation, synchronizedThrough, false)) {
+            return;
+        }
         if (!continues(generation, ConnectionState::Ready)) {
             return;
         }
@@ -2573,6 +2912,16 @@ namespace ai::openai::codex::frontend::internal::client {
                 begin = end;
                 continue;
             }
+            if (synchronizing && sequence <= candidate.sequence) {
+                // A prior interrupted replay may already have published this
+                // complete equal-sequence run without advancing the durable
+                // synchronized-through cursor. The run has been decoded and
+                // representation-validated above; retain the prior canonical
+                // value and count it as overlap.
+                ignored += count;
+                begin = end;
+                continue;
+            }
             if (!synchronizing && published->synchronizedThrough.has_value() && sequence <= *published->synchronizedThrough) {
                 return false;
             }
@@ -2631,8 +2980,7 @@ namespace ai::openai::codex::frontend::internal::client {
                                           ? RepresentationMode::ExpandedV1
                                           : RepresentationMode::LegacyV1;
         }
-        const std::uint64_t candidateRevision =
-            published->revision == std::numeric_limits<std::uint64_t>::max() ? published->revision : published->revision + 1;
+        const std::uint64_t candidateRevision = nextPublicationRevision();
         return stateWithinCapacity(
             candidate,
             options.limits,
@@ -2723,11 +3071,13 @@ namespace ai::openai::codex::frontend::internal::client {
                 const UpdateCause cause = synchronization->explicitRequest
                                               ? UpdateCause::ExplicitReplay
                                               : (synchronization->initial ? UpdateCause::InitialReplay : UpdateCause::ReconnectReplay);
-                publish(*synchronization->staging,
-                        PublishedFreshness::Synchronizing,
-                        representation,
-                        synchronization->representedThrough,
-                        false);
+                if (!publish(*synchronization->staging,
+                             PublishedFreshness::Synchronizing,
+                             representation,
+                             synchronization->representedThrough,
+                             false)) {
+                    return;
+                }
                 if (!continues(generation, ConnectionState::Synchronizing) || !synchronization.has_value()) {
                     return;
                 }
@@ -2738,7 +3088,9 @@ namespace ai::openai::codex::frontend::internal::client {
         }
         if (applied != 0) {
             const model::FrontendSequence sequence = candidate->sequence;
-            publish(std::move(*candidate), PublishedFreshness::Current, representation, sequence, false);
+            if (!publish(std::move(*candidate), PublishedFreshness::Current, representation, sequence, false)) {
+                return;
+            }
             if (!continues(generation, ConnectionState::Ready)) {
                 return;
             }
@@ -2820,8 +3172,7 @@ namespace ai::openai::codex::frontend::internal::client {
         const RepresentationMode finishedRepresentation = synchronization->representation;
         model::CanonicalSnapshot finishedSnapshot = std::move(*synchronization->staging);
         std::string capacityError;
-        const std::uint64_t readyRevision =
-            published->revision == std::numeric_limits<std::uint64_t>::max() ? published->revision : published->revision + 1;
+        const std::uint64_t readyRevision = nextPublicationRevision();
         if (!stateWithinCapacity(finishedSnapshot,
                                  options.limits,
                                  readyRevision,
@@ -2839,13 +3190,42 @@ namespace ai::openai::codex::frontend::internal::client {
             return;
         }
         const bool cursorAdvanced = !published->synchronizedThrough.has_value() || sequence > *published->synchronizedThrough;
+        // Prepare and commit both canonical and public immutable authorities
+        // before Ready can be observed. Publication callbacks remain delayed
+        // until after Ready to preserve the frozen public callback order.
+        const std::shared_ptr<const PublishedState> readyPublication =
+            commitSnapshotPublication(std::move(finishedSnapshot), PublishedFreshness::Current, finishedRepresentation, sequence);
+        if (!readyPublication) {
+            return;
+        }
+        std::optional<PendingOperation> explicitOperation = std::move(synchronization->acceptedOperation);
+        std::optional<generated::CompleteCommandResult> explicitResult = std::move(synchronization->acceptedResult);
+        const auto failUnreportedExplicitOperation = [this, &explicitOperation]() noexcept {
+            if (!explicitOperation.has_value()) {
+                return;
+            }
+            PendingOperation operation = std::move(*explicitOperation);
+            explicitOperation.reset();
+            const ClientError error =
+                connectionState == ConnectionState::Closed
+                    ? localError(ClientErrorCode::Closed, "frontend client closed")
+                    : localError(ClientErrorCode::NotConnected, "frontend synchronization connection was retired", true);
+            complete(std::move(operation), std::nullopt, error);
+        };
+        // Retire the completed synchronization authority before the Ready and
+        // publication callbacks. A callback may then occupy the released
+        // bounded slot; its deferred command is flushed only after this outer
+        // receive dispatch has completed.
+        synchronization.reset();
         retainedContinuityKey = activeContinuityKey;
         transition(ConnectionState::Ready);
         if (!owns(completingGeneration) || connectionState != ConnectionState::Ready) {
+            failUnreportedExplicitOperation();
             return;
         }
-        publish(std::move(finishedSnapshot), PublishedFreshness::Current, finishedRepresentation, sequence, false);
+        notifyPublication(readyPublication, false);
         if (!owns(completingGeneration) || connectionState != ConnectionState::Ready) {
+            failUnreportedExplicitOperation();
             return;
         }
         std::vector<Change> synchronizationChanges;
@@ -2854,13 +3234,15 @@ namespace ai::openai::codex::frontend::internal::client {
         }
         notifyStateUpdate(UpdateCause::SynchronizationCompleted, std::nullopt, sequence, std::move(synchronizationChanges));
         if (!owns(completingGeneration) || connectionState != ConnectionState::Ready) {
+            failUnreportedExplicitOperation();
             return;
         }
-        std::optional<PendingOperation> explicitOperation = std::move(synchronization->acceptedOperation);
-        std::optional<generated::CompleteCommandResult> explicitResult = std::move(synchronization->acceptedResult);
-        synchronization.reset();
+        const SynchronizationInfo synchronizationInfo{
+            finishedMode, sequence, appliedOccurrences, ignoredOccurrences, initial, snapshotFallback, completingGeneration};
         if (explicitOperation.has_value()) {
-            this->complete(std::move(*explicitOperation), std::move(explicitResult), std::nullopt);
+            PendingOperation operation = std::move(*explicitOperation);
+            explicitOperation.reset();
+            this->complete(std::move(operation), std::move(explicitResult), std::nullopt, synchronizationInfo);
             if (!owns(completingGeneration) || connectionState != ConnectionState::Ready) {
                 return;
             }
@@ -2878,8 +3260,7 @@ namespace ai::openai::codex::frontend::internal::client {
 
         if (callbacks.onSynchronized) {
             try {
-                callbacks.onSynchronized(
-                    SynchronizationInfo{finishedMode, sequence, appliedOccurrences, ignoredOccurrences, initial, snapshotFallback});
+                callbacks.onSynchronized(synchronizationInfo);
             } catch (...) {
                 diagnostic(
                     DiagnosticSeverity::Warning, "a synchronization callback threw and was contained", ClientErrorCode::CallbackFailure);
@@ -2953,11 +3334,11 @@ namespace ai::openai::codex::frontend::internal::client {
         };
         auto validated = Codec::encodeDefinedCommand(command);
         if (!validated) {
-            securelyErase(command);
+            eraseTransient(command);
             return false;
         }
         Json validatedWire = std::move(validated).value();
-        securelyErase(validatedWire);
+        eraseTransient(validatedWire);
         projectionSnapshotRequestId = *requestId;
         synchronization->projectionSnapshotRequested = true;
         synchronization->projectionSnapshotResponseAccepted = false;
@@ -2968,7 +3349,7 @@ namespace ai::openai::codex::frontend::internal::client {
         } catch (...) {
             sent = {SendStatus::Failed, TransportError{"transport send callback failed", true}};
         }
-        securelyErase(outbound);
+        eraseTransient(outbound);
         if (!continues(generation, ConnectionState::Synchronizing) || !synchronization.has_value()) {
             return false;
         }
@@ -3004,14 +3385,14 @@ namespace ai::openai::codex::frontend::internal::client {
         try {
             while (!deferredCommands.empty()) {
                 DeferredCommand deferred = std::move(deferredCommands.front());
-                securelyErase(deferredCommands.front().message);
+                eraseTransient(deferredCommands.front().message);
                 deferredCommands.pop_front();
 
                 auto operationFound = std::find_if(pending.begin(), pending.end(), [&deferred](const PendingOperation& operation) {
                     return operation.requestId == deferred.requestId;
                 });
                 if (operationFound == pending.end()) {
-                    securelyErase(deferred.message);
+                    eraseTransient(deferred.message);
                     continue;
                 }
 
@@ -3025,7 +3406,7 @@ namespace ai::openai::codex::frontend::internal::client {
                         return operation.requestId == deferred.requestId;
                     });
                     if (operationFound == pending.end()) {
-                        securelyErase(deferred.message);
+                        eraseTransient(deferred.message);
                         continue;
                     }
                 }
@@ -3036,7 +3417,7 @@ namespace ai::openai::codex::frontend::internal::client {
                 if (!owns(deferred.generation) || !attachment->connected || !sendableState) {
                     PendingOperation operation = std::move(*operationFound);
                     pending.erase(operationFound);
-                    securelyErase(deferred.message);
+                    eraseTransient(deferred.message);
                     if (synchronizationCommand) {
                         if (!cancelSynchronization()) {
                             break;
@@ -3056,7 +3437,7 @@ namespace ai::openai::codex::frontend::internal::client {
                     sendThrew = true;
                     sent = {SendStatus::Failed, TransportError{"transport send callback failed", true}};
                 }
-                securelyErase(deferred.message);
+                eraseTransient(deferred.message);
                 if (!owns(deferred.generation)) {
                     continue;
                 }
@@ -3105,12 +3486,21 @@ namespace ai::openai::codex::frontend::internal::client {
 
     Submission ClientCore::Impl::submit(generated::CompleteCommandParameters parameters, OperationCompletion completion) {
         const generated::MethodId method = generated::commandMethod(parameters);
+        const bool sensitive = bindingIsSensitive(method);
+        auto parameterGuard = ScopeExit([this, &parameters, sensitive]() noexcept {
+            if (sensitive) {
+                eraseTransient(parameters);
+            }
+        });
         const generated::MethodMetadata* metadata = methodMetadata(method);
         if (metadata == nullptr) {
             return {std::nullopt, localError(ClientErrorCode::InvalidConfiguration, "unknown generated frontend method")};
         }
         if (connectionState == ConnectionState::Closed) {
             return {std::nullopt, localError(ClientErrorCode::Closed, "frontend client is closed")};
+        }
+        if (disconnectCommitInProgress) {
+            return {std::nullopt, localError(ClientErrorCode::NotConnected, "frontend transport is disconnected", true)};
         }
         if (connectionState != ConnectionState::Ready || !attachment.has_value() || !attachment->connected) {
             return {std::nullopt, localError(ClientErrorCode::NotReady, "frontend client is not ready")};
@@ -3150,15 +3540,17 @@ namespace ai::openai::codex::frontend::internal::client {
             return {std::nullopt, localError(ClientErrorCode::RequestIdExhausted, "frontend request IDs are exhausted")};
         }
         generated::DefinedCommand command{*requestId, std::move(parameters), Json::object(), Json::object()};
+        parameterGuard.run();
         auto validated = Codec::encodeDefinedCommand(command);
         if (!validated) {
-            securelyErase(command);
+            eraseTransient(command);
             return {std::nullopt, localError(ClientErrorCode::SerializationFailed, "generated frontend command failed schema validation")};
         }
         Json validatedWire = std::move(validated).value();
-        securelyErase(validatedWire);
+        eraseTransient(validatedWire);
 
-        PendingOperation operation{*requestId, method, std::move(completion), requestsSynchronization};
+        const PhysicalGeneration submittingGeneration = attachment->generation;
+        PendingOperation operation{*requestId, method, submittingGeneration, std::move(completion), requestsSynchronization};
         pending.push_back(operation);
 
         if (requestsSynchronization) {
@@ -3186,12 +3578,13 @@ namespace ai::openai::codex::frontend::internal::client {
             synchronization = std::move(next);
         }
 
-        const PhysicalGeneration submittingGeneration = attachment->generation;
-        const bool sensitive = bindingIsSensitive(method);
         OutboundMessage outbound{std::move(command), sensitive};
+        if (sensitive) {
+            eraseTransient(command);
+        }
         if (dispatchDepth != 0 || flushingDeferredCommands) {
             deferredCommands.push_back(DeferredCommand{submittingGeneration, *requestId, std::move(outbound)});
-            securelyErase(outbound);
+            eraseTransient(outbound);
             return {std::move(requestId), std::nullopt};
         }
 
@@ -3203,13 +3596,10 @@ namespace ai::openai::codex::frontend::internal::client {
             sendThrew = true;
             sent = {SendStatus::Failed, TransportError{"transport send callback failed", true}};
         }
-        securelyErase(outbound);
+        eraseTransient(outbound);
 
         if (!owns(submittingGeneration)) {
-            return {std::nullopt,
-                    localError(ClientErrorCode::NotConnected,
-                               "frontend connection changed during command send",
-                               true)};
+            return {std::nullopt, localError(ClientErrorCode::NotConnected, "frontend connection changed during command send", true)};
         }
 
         if (sent.status != SendStatus::Accepted) {
@@ -3262,6 +3652,7 @@ namespace ai::openai::codex::frontend::internal::client {
             synchronization->projectionSnapshotResponseAccepted = true;
             synchronization->projectionRefreshRequired = false;
             synchronization->mode = SyncMode::Snapshot;
+            synchronization->snapshotFallback = true;
             synchronization->staging.reset();
             synchronization->representation = RepresentationMode::Unknown;
             synchronization->lastBatchSequence.reset();
@@ -3319,6 +3710,21 @@ namespace ai::openai::codex::frontend::internal::client {
             return;
         }
         if (operation.synchronization && synchronization.has_value()) {
+            const Json synchronizationResult = std::visit(
+                [](const auto& value) {
+                    return value.value;
+                },
+                decoded.value());
+            if (operation.method == generated::MethodId::EventsReplay &&
+                synchronizationResult.value("syncMode", std::string{"replay"}) == "snapshot") {
+                synchronization->mode = SyncMode::Snapshot;
+                synchronization->snapshotFallback = true;
+                synchronization->staging.reset();
+                synchronization->representedThrough.reset();
+                synchronization->lastBatchSequence.reset();
+                synchronization->sawSnapshot = false;
+                synchronization->sawEvents = false;
+            }
             synchronization->responseAccepted = true;
             synchronization->acceptedOperation = std::move(operation);
             synchronization->acceptedResult = std::move(decoded).value();
@@ -3376,7 +3782,7 @@ namespace ai::openai::codex::frontend::internal::client {
     }
 
     bool ClientCore::Impl::receive(PhysicalGeneration generation, const ServerMessage& message) {
-        if (!owns(generation) || !attachment->connected || connectionState == ConnectionState::Connecting ||
+        if (disconnectCommitInProgress || !owns(generation) || !attachment->connected || connectionState == ConnectionState::Connecting ||
             connectionState == ConnectionState::Disconnected || connectionState == ConnectionState::Closing ||
             connectionState == ConnectionState::Closed) {
             return false;
@@ -3447,6 +3853,10 @@ namespace ai::openai::codex::frontend::internal::client {
                                ClientErrorCode::CallbackFailure);
                 }
             }
+            if (failAfterDispatchForTesting) {
+                failAfterDispatchForTesting = false;
+                throw std::runtime_error("injected frontend dispatch failure");
+            }
         } catch (...) {
             --dispatchDepth;
             if (owns(generation)) {
@@ -3464,7 +3874,7 @@ namespace ai::openai::codex::frontend::internal::client {
     }
 
     bool ClientCore::Impl::receiveEncoded(PhysicalGeneration generation, std::string_view message) {
-        if (!owns(generation)) {
+        if (disconnectCommitInProgress || !owns(generation)) {
             return false;
         }
         if (message.size() > options.limits.maximumInboundMessageBytes) {
@@ -3492,10 +3902,6 @@ namespace ai::openai::codex::frontend::internal::client {
         const std::optional<PhysicalGeneration> closingGeneration =
             attachment ? std::optional<PhysicalGeneration>{attachment->generation} : std::nullopt;
         transition(ConnectionState::Closing);
-        std::optional<TransportCallbacks> transport;
-        if (attachment.has_value()) {
-            transport = attachment->transport;
-        }
         std::optional<PendingOperation> synchronizationOperation;
         if (synchronization.has_value() && synchronization->acceptedOperation.has_value()) {
             synchronizationOperation = std::move(synchronization->acceptedOperation);
@@ -3506,23 +3912,25 @@ namespace ai::openai::codex::frontend::internal::client {
         if (synchronizationOperation.has_value()) {
             complete(std::move(*synchronizationOperation), std::nullopt, closedError);
         }
-        if (closingGeneration.has_value() && owns(*closingGeneration) && transport.has_value() && transport->close) {
-            try {
-                transport->close(reason);
-            } catch (...) {
-                diagnostic(
-                    DiagnosticSeverity::Warning, "the transport close callback threw and was contained", ClientErrorCode::CallbackFailure);
-            }
+        if (closingGeneration.has_value() && owns(*closingGeneration)) {
+            requestTransportClose(*closingGeneration, reason);
         }
         capabilities.reset();
         activeContinuityKey.reset();
         activeProjectionFingerprint.reset();
         projectionSnapshotRequestId.reset();
         helloResumeAfter.reset();
-        makeRetainedStateStale();
+        const std::shared_ptr<const PublishedState> stalePublication = makeRetainedStateStale(false);
+        const StateChange terminalChange{
+            connectionState, ConnectionState::Closed, closedError, closingGeneration.value_or(generationCounter)};
         attachment.reset();
-        transition(ConnectionState::Closed, closedError);
+        connectionState = ConnectionState::Closed;
+        if (stalePublication) {
+            notifyPublication(stalePublication, false);
+            notifyStateUpdate(UpdateCause::ConnectionBecameStale, std::nullopt, std::nullopt, {});
+        }
         clientCloseInProgress = false;
+        notifyConnectionStateChanged(terminalChange);
     }
 
     ClientCore::ClientCore(ClientOptions options, ClientCallbacks callbacks)
@@ -3548,6 +3956,10 @@ namespace ai::openai::codex::frontend::internal::client {
 
     void ClientCore::transportConnected(PhysicalGeneration generation) {
         impl->transportConnected(generation);
+    }
+
+    void ClientCore::transportDisconnected(PhysicalGeneration generation) {
+        impl->transportDisconnected(generation, std::nullopt);
     }
 
     void ClientCore::transportDisconnected(PhysicalGeneration generation, TransportError error) {
@@ -3596,6 +4008,10 @@ namespace ai::openai::codex::frontend::internal::client {
 
     std::size_t ClientCore::pendingOperationCount() const noexcept {
         return impl->outstandingOperationCount();
+    }
+
+    std::optional<SessionInfo> ClientCore::sessionInfo() const {
+        return impl->session;
     }
 
     std::shared_ptr<const PublishedState> ClientCore::state() const noexcept {
@@ -3651,6 +4067,87 @@ namespace ai::openai::codex::frontend::internal::client {
             result.permitted = contains(*impl->session->permittedMethods, method) ? Availability::Yes : Availability::No;
         }
         return result;
+    }
+
+    void ClientCoreTestAccess::setNextRequestId(ClientCore& core, std::uint64_t next) noexcept {
+        core.impl->nextRequestId = next;
+        core.impl->requestIdsExhausted = next == std::numeric_limits<std::uint64_t>::max();
+    }
+
+    void ClientCoreTestAccess::setGenerationCounter(ClientCore& core, PhysicalGeneration next) noexcept {
+        core.impl->generationCounter = next;
+    }
+
+    void ClientCoreTestAccess::setSynchronizationCounts(ClientCore& core,
+                                                        std::size_t received,
+                                                        std::size_t applied,
+                                                        std::size_t ignored) noexcept {
+        core.impl->testingSynchronizationCounts = {received, applied, ignored};
+        core.impl->testingCountsSeeded = true;
+        if (core.impl->synchronization.has_value()) {
+            core.impl->synchronization->appliedOccurrences = applied;
+            core.impl->synchronization->ignoredOccurrences = ignored;
+        }
+    }
+
+    bool ClientCoreTestAccess::tryAccumulateSynchronizationCounts(ClientCore& core,
+                                                                  std::size_t received,
+                                                                  std::size_t applied,
+                                                                  std::size_t ignored) noexcept {
+        auto current = synchronizationCounts(core);
+        if (received > std::numeric_limits<std::size_t>::max() - current[0] ||
+            applied > std::numeric_limits<std::size_t>::max() - current[1] ||
+            ignored > std::numeric_limits<std::size_t>::max() - current[2]) {
+            return false;
+        }
+        setSynchronizationCounts(core, current[0] + received, current[1] + applied, current[2] + ignored);
+        return true;
+    }
+
+    std::array<std::size_t, 3> ClientCoreTestAccess::synchronizationCounts(const ClientCore& core) noexcept {
+        if (core.impl->synchronization.has_value()) {
+            const std::size_t applied = core.impl->synchronization->appliedOccurrences;
+            const std::size_t ignored = core.impl->synchronization->ignoredOccurrences;
+            const std::size_t received =
+                applied > std::numeric_limits<std::size_t>::max() - ignored ? std::numeric_limits<std::size_t>::max() : applied + ignored;
+            return {core.impl->testingCountsSeeded ? core.impl->testingSynchronizationCounts[0] : received, applied, ignored};
+        }
+        return core.impl->testingSynchronizationCounts;
+    }
+
+    void ClientCoreTestAccess::failAfterNextDispatch(ClientCore& core) noexcept {
+        core.impl->failAfterDispatchForTesting = true;
+    }
+
+    void ClientCoreTestAccess::setPublishedRevision(ClientCore& core, std::uint64_t revision) noexcept {
+        try {
+            auto publication = std::make_shared<PublishedState>(*core.impl->published);
+            publication->revision = revision;
+            core.impl->published = std::move(publication);
+        } catch (...) {
+        }
+    }
+
+    bool ClientCoreTestAccess::tryCommitPublishedRevision(ClientCore& core, std::uint64_t revision) noexcept {
+        try {
+            auto publication = std::make_shared<PublishedState>(*core.impl->published);
+            publication->revision = revision;
+            return core.impl->commitPublication(std::move(publication), false);
+        } catch (...) {
+            return false;
+        }
+    }
+
+    std::size_t ClientCoreTestAccess::erasedTransientBytes(const ClientCore& core) noexcept {
+        return core.impl->erasedTransientBytes;
+    }
+
+    void ClientCore::rejectAdapterResult(PhysicalGeneration generation, std::string_view message) noexcept {
+        if (!impl->owns(generation)) {
+            return;
+        }
+        impl->failConnection(
+            protocolError(ClientErrorCode::ResponseTypeMismatch, std::string(message)), "frontend public result validation failed", true);
     }
 
 } // namespace ai::openai::codex::frontend::internal::client

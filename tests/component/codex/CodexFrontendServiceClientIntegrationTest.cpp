@@ -322,8 +322,17 @@ namespace {
                 const auto decoded = frontend::Codec::decodeClient(std::string_view(outbound.compactJson));
                 result.expectTrue(decoded.hasValue(), "the SDK emits a decodable Frontend Protocol object");
                 if (decoded && frontendConnection) {
-                    result.expectTrue(frontendConnection->receive(decoded.value()).accepted(),
-                                      "FrontendService accepts the SDK's queued in-memory message");
+                    const frontend::ConnectionReceiveResult received = frontendConnection->receive(decoded.value());
+                    std::string failureDetail = outbound.kind == client::OutboundKind::Hello ? "hello" : "command";
+                    failureDetail += ", status=" + std::to_string(static_cast<int>(received.status));
+                    if (received.error) {
+                        failureDetail += ", error=" + received.error->message;
+                    }
+                    if (!serviceCloseReasons.empty()) {
+                        failureDetail += ", close=" + serviceCloseReasons.back();
+                    }
+                    result.expectTrue(received.accepted(),
+                                      "FrontendService accepts the SDK's queued in-memory message (" + failureDetail + ")");
                 }
             }
             if (service) {

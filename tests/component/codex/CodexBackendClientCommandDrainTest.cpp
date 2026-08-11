@@ -186,6 +186,108 @@ namespace {
                           "the terminal SDK operation callback completes EOF drain exactly once");
     }
 
+    void testControllerTransitionsOrderQueuedCommands(tests::support::TestResult& result) {
+        Harness harness;
+        app::CommandDrainController* controller = nullptr;
+        sdk_client::ClientCallbacks callbacks;
+        callbacks.onConnectionStateChanged = [&controller](const sdk_client::ConnectionStateChange& change) {
+            if (controller != nullptr) {
+                controller->connectionStateChanged(change);
+            }
+        };
+        sdk_client::Client sdk(options(), std::move(callbacks));
+        app::CommandDrainController drain(sdk);
+        controller = &drain;
+        sdk_client::Connection connection = sdk.openConnection(harness.transport());
+        makeReady(connection);
+
+        app::CommandParser parser;
+        app::ParsedCommand acquireParsed;
+        app::ParsedCommand releaseParsed;
+        app::ParsedCommand startParsed;
+        const app::RemoteCommand* acquire = remoteCommand(parser, "acquire", acquireParsed);
+        const app::RemoteCommand* release = remoteCommand(parser, "release", releaseParsed);
+        const app::RemoteCommand* start = remoteCommand(parser, "start", startParsed);
+        if (acquire == nullptr || release == nullptr || start == nullptr) {
+            result.expectTrue(false, "controller-transition ordering commands parse");
+            return;
+        }
+
+        result.expectTrue(drain.enqueue(*acquire), "controller.acquire is submitted");
+        const std::optional<frontend::generated::DefinedCommand> acquireWire = lastCommand(harness);
+        const std::size_t outboundAfterAcquire = harness.outbound.size();
+        result.expectTrue(drain.enqueue(*start, 7) && acquireWire &&
+                              frontend::generated::commandMethod(acquireWire->parameters) ==
+                                  frontend::generated::MethodId::ControllerAcquire &&
+                              harness.outbound.size() == outboundAfterAcquire && drain.queuedCount() == 1 &&
+                              drain.queuedCommandBytes() == 7 && sdk.pendingOperationCount() == 1,
+                          "controller.acquire holds the next controller-required command until its operation completes");
+        if (!acquireWire) {
+            return;
+        }
+
+        (void) connection.receive(
+            frontend::ServerMessage{frontend::Response::success(acquireWire->requestId, frontend::Json{{"role", "controller"}})});
+        const std::optional<frontend::generated::DefinedCommand> firstStartWire = lastCommand(harness);
+        result.expectTrue(firstStartWire && firstStartWire->requestId != acquireWire->requestId &&
+                              frontend::generated::commandMethod(firstStartWire->parameters) ==
+                                  frontend::generated::MethodId::ThreadStart &&
+                              harness.outbound.size() == outboundAfterAcquire + 1 && drain.queuedCount() == 0 &&
+                              drain.queuedCommandBytes() == 0 && sdk.pendingOperationCount() == 1,
+                          "controller.acquire completion resumes the queued command exactly once");
+        if (!firstStartWire) {
+            return;
+        }
+        (void) connection.receive(
+            frontend::ServerMessage{frontend::Response::success(firstStartWire->requestId, frontend::Json{{"threadId", "after-acquire"}})});
+
+        result.expectTrue(drain.enqueue(*release), "controller.release is submitted");
+        const std::optional<frontend::generated::DefinedCommand> releaseWire = lastCommand(harness);
+        const std::size_t outboundAfterRelease = harness.outbound.size();
+        result.expectTrue(drain.enqueue(*start, 9) && releaseWire &&
+                              frontend::generated::commandMethod(releaseWire->parameters) ==
+                                  frontend::generated::MethodId::ControllerRelease &&
+                              harness.outbound.size() == outboundAfterRelease && drain.queuedCount() == 1 &&
+                              drain.queuedCommandBytes() == 9 && sdk.pendingOperationCount() == 1,
+                          "controller.release holds the next queued command until its operation completes");
+        if (!releaseWire) {
+            return;
+        }
+
+        (void) connection.receive(
+            frontend::ServerMessage{frontend::Response::success(releaseWire->requestId, frontend::Json{{"role", "observer"}})});
+        const std::optional<frontend::generated::DefinedCommand> secondStartWire = lastCommand(harness);
+        result.expectTrue(secondStartWire && secondStartWire->requestId != releaseWire->requestId &&
+                              frontend::generated::commandMethod(secondStartWire->parameters) ==
+                                  frontend::generated::MethodId::ThreadStart &&
+                              harness.outbound.size() == outboundAfterRelease + 1 && drain.queuedCount() == 0 &&
+                              drain.queuedCommandBytes() == 0 && sdk.pendingOperationCount() == 1,
+                          "controller.release completion resumes the queued command exactly once");
+        if (secondStartWire) {
+            (void) connection.receive(frontend::ServerMessage{
+                frontend::Response::success(secondStartWire->requestId, frontend::Json{{"threadId", "after-release"}})});
+        }
+
+        app::ParsedCommand rawAcquireParsed;
+        const app::RemoteCommand* rawAcquire =
+            remoteCommand(parser, R"(raw {"method":"controller.acquire","params":{}})", rawAcquireParsed);
+        if (rawAcquire == nullptr) {
+            result.expectTrue(false, "raw controller.acquire parses for the ordering-border probe");
+            return;
+        }
+        result.expectTrue(drain.enqueue(*rawAcquire), "raw controller.acquire is submitted");
+        const std::optional<frontend::generated::DefinedCommand> rawAcquireWire = lastCommand(harness);
+        const std::size_t outboundAfterRawAcquire = harness.outbound.size();
+        result.expectTrue(drain.enqueue(*start) && rawAcquireWire && harness.outbound.size() == outboundAfterRawAcquire,
+                          "the raw command border cannot bypass controller-transition ordering");
+        if (rawAcquireWire) {
+            (void) connection.receive(
+                frontend::ServerMessage{frontend::Response::success(rawAcquireWire->requestId, frontend::Json{{"role", "controller"}})});
+            result.expectTrue(harness.outbound.size() == outboundAfterRawAcquire + 1,
+                              "raw controller transition completion resumes the queued command");
+        }
+    }
+
     void testNewRemainsTwoTypedOperations(tests::support::TestResult& result) {
         Harness harness;
         app::CommandDrainController* controller = nullptr;
@@ -1620,6 +1722,7 @@ namespace {
 int main() {
     tests::support::TestResult result;
     testQueueAndEofDrain(result);
+    testControllerTransitionsOrderQueuedCommands(result);
     testNewRemainsTwoTypedOperations(result);
     testCommandFailureRemainsInteractive(result);
     testCommandFailureDispositionMatrix(result);

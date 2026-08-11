@@ -124,12 +124,35 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
             TIMEOUT 5
     )
 
+    snodec_add_test(
+        CodexFrontendPublicClientAdapterTest
+        CodexFrontendPublicClientAdapterTest.cpp
+    )
+    target_link_libraries(
+        CodexFrontendPublicClientAdapterTest
+        PRIVATE
+            snodec-test-support
+            ai-openai-codex-frontend-client-test-support
+            ai-openai-codex-frontend-client-core
+            ai-openai-codex-frontend-model
+    )
+    target_compile_features(
+        CodexFrontendPublicClientAdapterTest PRIVATE cxx_std_20
+    )
+    set_tests_properties(
+        CodexFrontendPublicClientAdapterTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;adapter;state-builder;transaction;p3"
+            TIMEOUT 10
+    )
+
     add_test(
         NAME CodexFrontendClientSymbolVisibilityTest
         COMMAND
             ${CMAKE_COMMAND}
             -DAISUITE_FRONTEND_CLIENT_LIBRARY=$<TARGET_FILE:ai-openai-codex-frontend-client>
             -DAISUITE_NM=${CMAKE_NM}
+            -DAISUITE_READELF=${CMAKE_READELF}
             -P
             ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendClientSymbolVisibilityTest.cmake
     )
@@ -137,6 +160,28 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         CodexFrontendClientSymbolVisibilityTest
         PROPERTIES
             LABELS "component;ai;openai;codex;frontend;client;abi;symbols;a1-7c-1"
+            TIMEOUT 5
+    )
+
+    add_executable(
+        CodexFrontendClientSourceCompatibilityTest
+        CodexFrontendClientSourceCompatibilityTest.cpp
+    )
+    target_compile_features(
+        CodexFrontendClientSourceCompatibilityTest PRIVATE cxx_std_20
+    )
+    target_link_libraries(
+        CodexFrontendClientSourceCompatibilityTest
+        PRIVATE AISuite::OpenAICodexFrontendClient
+    )
+    add_test(
+        NAME CodexFrontendClientSourceCompatibilityTest
+        COMMAND CodexFrontendClientSourceCompatibilityTest
+    )
+    set_tests_properties(
+        CodexFrontendClientSourceCompatibilityTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;source-compatibility;p3"
             TIMEOUT 5
     )
 endif()
@@ -2073,6 +2118,10 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         PROPERTIES
             LABELS "component;ai;openai;codex;frontend;p3;oracle;link"
             TIMEOUT 10
+    )
+    target_link_libraries(
+        CodexFrontendPublicClientAdapterTest
+        PRIVATE ai-openai-codex-frontend-legacy-client-oracle
     )
 endif()
 

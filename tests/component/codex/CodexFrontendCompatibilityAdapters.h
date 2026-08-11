@@ -482,7 +482,7 @@ namespace tests::codex::frontend_compatibility {
                 synchronized.mode = source.mode;
                 synchronized.synchronizedThrough = frontend::SequenceNumber(source.synchronizedThrough.value());
                 synchronized.state = *shared->latest;
-                synchronized.reconnect = !source.initial;
+                synchronized.reconnect = source.generation > 1;
                 synchronized.snapshotFallback = source.snapshotFallback;
                 shared->callbacks.onSynchronized(synchronized);
             }

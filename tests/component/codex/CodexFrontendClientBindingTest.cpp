@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -530,21 +531,46 @@ namespace {
 
         std::size_t callbacks = 0;
         std::optional<client::Error> callbackError;
-        const client::Submission submission = sdk.threads().start(
-            typed::ThreadStartParams{}, [&callbacks, &callbackError](const client::OperationResult<client::ThreadStartResult>& value) {
+        client::Connection replacement;
+        const client::Submission submission =
+            sdk.threads().start(typed::ThreadStartParams{}, [&](const client::OperationResult<client::ThreadStartResult>& value) {
                 ++callbacks;
                 callbackError = value.error;
+                connection.close("retire malformed-result generation");
+                replacement = sdk.openConnection(harness.transport());
             });
         const std::optional<frontend::generated::DefinedCommand> command = lastCommand(harness);
         if (command) {
             (void) connection.receive(
                 frontend::ServerMessage{frontend::Response::success(command->requestId, frontend::Json{{"threadId", std::uint64_t{7}}})});
         }
-        connection.transportDisconnected();
+        makeReady(replacement);
         result.expectTrue(submission && command && callbacks == 1 && callbackError &&
                               callbackError->clientCode == client::ClientErrorCode::ResponseTypeMismatch && !connection.isOpen() &&
-                              sdk.pendingOperationCount() == 0 && harness.closes == 1,
-                          "a malformed typed result fails its callback once, closes only the connection, and cannot complete twice");
+                              replacement.isOpen() && replacement.generation() == 2 && sdk.isReady() && sdk.pendingOperationCount() == 0 &&
+                              harness.closes == 1,
+                          "a malformed typed result rejects only its submitting generation even when its callback opens a new connection");
+
+        Harness throwingHarness;
+        client::Client throwingSdk{options()};
+        client::Connection throwingConnection = throwingSdk.openConnection(throwingHarness.transport());
+        makeReady(throwingConnection);
+        std::size_t throwingCallbacks = 0;
+        const client::Submission throwingSubmission = throwingSdk.threads().start(
+            typed::ThreadStartParams{}, [&](const client::OperationResult<client::ThreadStartResult>& operation) {
+                ++throwingCallbacks;
+                if (operation.error.has_value()) {
+                    throw std::runtime_error("malformed typed result callback sentinel");
+                }
+            });
+        const std::optional<frontend::generated::DefinedCommand> throwingCommand = lastCommand(throwingHarness);
+        if (throwingCommand.has_value()) {
+            (void) throwingConnection.receive(frontend::ServerMessage{
+                frontend::Response::success(throwingCommand->requestId, frontend::Json{{"threadId", std::uint64_t{7}}})});
+        }
+        result.expectTrue(throwingSubmission && throwingCommand && throwingCallbacks == 1 && !throwingConnection.isOpen() &&
+                              throwingSdk.connectionState() == client::ConnectionState::Disconnected && throwingHarness.closes == 1,
+                          "a throwing typed failure callback cannot bypass connection rejection for an invalid public adapter result");
     }
 
     void testNestedResultRelationshipValidation(tests::support::TestResult& result) {

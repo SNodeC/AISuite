@@ -808,7 +808,8 @@ int main(int argc, char* argv[]) {
         bool syncObservedWhileSynchronizing = false;
         bool reachedReady = false;
         bool queuedAcquireSentAfterSync = false;
-        bool postReadyCommandSentImmediately = false;
+        bool postReadyCommandQueuedBehindAcquire = false;
+        bool threadsSentAfterControllerCommit = false;
         bool invalidReportedBeforeThreadsResponse = false;
         bool interactiveStayedConnected = false;
         bool acquireResponseSucceeded = false;
@@ -1038,6 +1039,7 @@ int main(int argc, char* argv[]) {
                                 acquireRequestId = command.value().requestId;
                             } else if (method == frontend::generated::MethodId::ThreadList) {
                                 threadsRequestId = command.value().requestId;
+                                threadsSentAfterControllerCommit = frontendService.currentController().has_value();
                             }
                         },
                     .verifiedLocalUnix = true,
@@ -1081,10 +1083,10 @@ int main(int argc, char* argv[]) {
                                     }
                                 });
                             } else if (threads) {
-                                postReadyCommandSentImmediately =
+                                postReadyCommandQueuedBehindAcquire =
                                     accepted && !waiting &&
                                     lifecycle.sessionState() == client::CommandDrainController::SessionState::Ready &&
-                                    lifecycle.queuedCount() == 0;
+                                    lifecycle.queuedCount() == 1 && lifecycle.pendingResponseCount() == 1;
                             }
                         } else if constexpr (std::is_same_v<T, client::QuitCommand>) {
                             ++quitCount;
@@ -1263,7 +1265,10 @@ int main(int argc, char* argv[]) {
         result.expectTrue(syncObservedWhileSynchronizing && reachedReady,
                           "production lifecycle sees initial sync.complete in Synchronizing and transitions to Ready");
         result.expectTrue(queuedAcquireSentAfterSync, "the pre-ready acquire is sent exactly once only after sync.complete");
-        result.expectTrue(postReadyCommandSentImmediately, "threads entered in Ready is sent immediately without entering the queue");
+        result.expectTrue(postReadyCommandQueuedBehindAcquire,
+                          "threads entered in Ready is queued behind the incomplete controller.acquire operation");
+        result.expectTrue(threadsSentAfterControllerCommit,
+                          "queued threads is sent only after controller.acquire commits controller ownership");
         result.expectTrue(sentCommandIds == std::vector<std::string>{acquireRequestId, threadsRequestId},
                           "queued acquire and ready-state threads are sent exactly once and in input order");
         result.expectTrue(sentCommandStates ==

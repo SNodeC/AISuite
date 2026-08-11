@@ -6,7 +6,6 @@
 
 #include "ai/openai/codex/detail/ApprovalCodec.h"
 #include "ai/openai/codex/detail/McpReverseRequestCodec.h"
-#include "ai/openai/codex/frontend/client/detail/StateReducer.h"
 
 #include <utility>
 
@@ -295,7 +294,7 @@ namespace ai::openai::codex::frontend::client::detail {
 
                 ProjectedThreadResult result;
                 if (thread != value.end()) {
-                    std::optional<ThreadResultState> decoded = StateReducer::decodeThreadResultState(*thread, error);
+                    std::optional<ThreadResultState> decoded = decodeOperationThreadResultState(*thread, error);
                     if (!decoded) {
                         return std::nullopt;
                     }
@@ -348,7 +347,7 @@ namespace ai::openai::codex::frontend::client::detail {
             }
             ThreadListResult result;
             for (const frontend::Json& thread : *threads) {
-                std::optional<ThreadResultState> decoded = StateReducer::decodeThreadResultState(thread, error);
+                std::optional<ThreadResultState> decoded = decodeOperationThreadResultState(thread, error);
                 if (!decoded) {
                     return std::nullopt;
                 }
@@ -388,7 +387,7 @@ namespace ai::openai::codex::frontend::client::detail {
 
             TurnStartResult result;
             if (turn != value.end()) {
-                std::optional<TurnResultState> decoded = StateReducer::decodeTurnResultState(*turn, error);
+                std::optional<TurnResultState> decoded = decodeOperationTurnResultState(*turn, error);
                 if (!decoded) {
                     return std::nullopt;
                 }

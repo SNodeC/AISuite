@@ -97,7 +97,9 @@ namespace apps::codex_backend_client {
         void releaseQueuedAccounting(const QueuedEntry& entry);
         void clearQueued(std::string_view reason);
         void flushQueued();
-        void operationCompleted(bool succeeded, const std::optional<ai::openai::codex::frontend::client::Error>& error);
+        void operationCompleted(bool succeeded,
+                                const std::optional<ai::openai::codex::frontend::client::Error>& error,
+                                bool controllerTransition);
         void synchronizationCompleted(
             const ai::openai::codex::frontend::client::OperationResult<ai::openai::codex::frontend::client::SynchronizationResult>& result);
         void threadStartCompleted(
@@ -128,6 +130,7 @@ namespace apps::codex_backend_client {
         std::size_t queuedBytes = 0;
         std::uint64_t nextNewToken = 1;
         bool activeExplicitSynchronization = false;
+        bool activeControllerTransition = false;
         bool encounteredWorkFailure = false;
         bool intentionalLocalShutdown = false;
         bool disconnectHandled = false;

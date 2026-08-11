@@ -164,7 +164,9 @@ namespace ai::openai::codex::frontend::internal::model {
         bool truncated = false;
         std::optional<std::size_t> omittedEntries;
         std::uint64_t droppedBytes = 0;
+        bool droppedBytesPresent = false;
         std::vector<std::string> omittedPaths;
+        SafeDetail extensions;
 
         bool operator==(const TruncationMetadata&) const = default;
     };
@@ -207,6 +209,8 @@ namespace ai::openai::codex::frontend::internal::model {
         TruncationMetadata truncation;
         SafeDetail safeDetails;
         SafeDetail extensions;
+        SafeDetail publicExtensions;
+        bool publicExtensionsKnown = false;
         bool operator==(const FilesystemWatchRecord&) const = default;
     };
 
@@ -219,6 +223,8 @@ namespace ai::openai::codex::frontend::internal::model {
         TruncationMetadata truncation;
         SafeDetail safeDetails;
         SafeDetail extensions;
+        SafeDetail publicExtensions;
+        bool publicExtensionsKnown = false;
         bool operator==(const FuzzySearchRecord&) const = default;
     };
 
@@ -477,6 +483,11 @@ namespace ai::openai::codex::frontend::internal::model {
         bool connectionInvalidated = false;
         std::optional<std::uint64_t> generation;
         Freshness freshness = Freshness::Unknown;
+        // Legacy snapshots may carry additive fields inside their explicit
+        // stamp object.  Expanded Frontend Protocol v1 has no equivalent
+        // member, so retain those fields only for the private public-State
+        // compatibility adapter.
+        SafeDetail stampExtensions;
         SafeDetail extensions;
         std::optional<std::size_t> sourceIndex;
 
@@ -576,6 +587,7 @@ namespace ai::openai::codex::frontend::internal::model {
         std::optional<ItemIdentity> itemId;
         std::optional<std::string> summary;
         std::optional<SafeDetail> safeDetails;
+        bool questionsPresent = false;
         std::vector<PendingRequestQuestion> questions;
         std::optional<std::uint64_t> autoResolutionMs;
         // A retained request from an older physical connection is display-only:
@@ -635,7 +647,6 @@ namespace ai::openai::codex::frontend::internal::model {
         PendingRequestData value;
         std::size_t sourceIndex = 0;
         std::string omissionPath;
-
         bool operator==(const LegacyPendingRequestCompatibility&) const = default;
     };
     [[nodiscard]] const PendingRequestData& pendingRequestData(const PendingRequest& request) noexcept;
@@ -657,6 +668,8 @@ namespace ai::openai::codex::frontend::internal::model {
         TruncationMetadata truncation;
         SafeDetail safeDetails;
         SafeDetail extensions;
+        SafeDetail publicExtensions;
+        bool publicExtensionsKnown = false;
 
         explicit ProcessState(ProcessHandle processHandle)
             : handle(std::move(processHandle)) {
@@ -704,22 +717,36 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const BackendCursorMetadata&) const = default;
     };
 
+    struct LegacyRootExtension {
+        std::string name;
+        SafeDetail value;
+
+        bool operator==(const LegacyRootExtension&) const = default;
+    };
+
     struct CanonicalSnapshot {
         FrontendSequence sequence;
         ProviderState provider;
         ControllerState controller;
         std::vector<SessionState> sessions;
+        bool sessionsPresent = true;
         ThreadListState threadList;
+        bool threadListPresent = true;
         std::vector<ThreadState> threads;
+        bool threadsPresent = true;
         std::vector<TurnState> turns;
+        bool turnsPresent = true;
         std::vector<ThreadItem> items;
+        bool itemsPresent = true;
         std::vector<LegacyItemCompatibility> legacyItems;
         std::vector<PendingRequest> pendingRequests;
+        bool pendingRequestsPresent = true;
         std::vector<LegacyPendingRequestCompatibility> legacyPendingRequests;
         AccountsState accounts;
         ModelsState models;
         ConfigurationState configuration;
         std::vector<ProcessState> processes;
+        DomainState processesState = DomainState::present();
         FilesystemWatchesState filesystemWatches;
         FuzzySearchesState fuzzySearches;
         PermissionProfilesState permissionProfiles;
@@ -739,11 +766,16 @@ namespace ai::openai::codex::frontend::internal::model {
         ActivitiesState activities;
         DiagnosticsState diagnostics;
         CapacityState capacity;
+        bool capacityPresent = true;
         TruncationMetadata truncation;
         ProjectionMetadata projection;
         BackendCursorMetadata backendCursor;
         SafeDetail stateExtensions;
         SafeDetail extensions;
+        // Sanitized, bounded unknown members from a legacy snapshot's state
+        // root.  They remain separate so ExpandedV1 state extensions keep
+        // their established nested compatibility shape.
+        std::vector<LegacyRootExtension> legacyRootExtensions;
 
         bool operator==(const CanonicalSnapshot&) const = default;
     };

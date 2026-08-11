@@ -4,8 +4,7 @@ set(AI_OPENAI_CODEX_FRONTEND_PROTOCOL_CPP
 
 set(AI_OPENAI_CODEX_FRONTEND_CPP
     FrontendService.cpp EventCoalescer.cpp EventJournal.cpp UpdateBatch.cpp
-    detail/BackendCommandMapper.cpp detail/FrontendProjection.cpp
-    detail/ProviderResultProjection.cpp
+    detail/BackendCommandMapper.cpp detail/ProviderResultProjection.cpp
     internal/server/BackendCoreBridge.cpp
 )
 set(AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
@@ -50,7 +49,10 @@ add_library(
 )
 set_target_properties(
     ai-openai-codex-frontend-model
-    PROPERTIES POSITION_INDEPENDENT_CODE ON
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
 )
 target_include_directories(
     ai-openai-codex-frontend-model
@@ -69,7 +71,10 @@ add_library(
 )
 set_target_properties(
     ai-openai-codex-frontend-server-core
-    PROPERTIES POSITION_INDEPENDENT_CODE ON
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
 )
 target_include_directories(
     ai-openai-codex-frontend-server-core
@@ -93,7 +98,10 @@ add_library(
 )
 set_target_properties(
     ai-openai-codex-frontend-client-core
-    PROPERTIES POSITION_INDEPENDENT_CODE ON
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
 )
 target_include_directories(
     ai-openai-codex-frontend-client-core
@@ -107,7 +115,6 @@ target_link_libraries(
     PUBLIC
         ai-openai-codex-frontend-model
         AISuite::OpenAICodexFrontendProtocol
-        AISuite::OpenAICodex
 )
 
 add_library(ai-openai-codex-frontend SHARED ${AI_OPENAI_CODEX_FRONTEND_CPP})

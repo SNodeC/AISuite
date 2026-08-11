@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Enforce the permanent P2 Codex frontend target and include boundaries."""
+"""Enforce the permanent P2 cores and P3 public-client cutover boundaries."""
 
 from __future__ import annotations
 
@@ -55,17 +55,18 @@ def load_link_manifest(path: pathlib.Path) -> dict[str, dict[str, set[str]]]:
 
 def require_link_manifest(
     actual: dict[str, dict[str, set[str]]],
-    expected: dict[str, set[str]],
+    expected: dict[str, dict[str, set[str]]],
 ) -> None:
     if set(actual) != set(expected):
         raise PolicyFailure(
             "target link manifest inventory mismatch: "
             f"expected={sorted(expected)}, actual={sorted(actual)}"
         )
-    for target, expected_links in expected.items():
+    for target, expected_properties in expected.items():
         properties = actual[target]
         for property_name in ("LINK_LIBRARIES", "INTERFACE_LINK_LIBRARIES"):
             links = properties.get(property_name)
+            expected_links = expected_properties[property_name]
             if links != expected_links:
                 raise PolicyFailure(
                     f"{target}.{property_name} mismatch: "
@@ -424,6 +425,92 @@ def require_exact_entity_lookup_policy(source_dir: pathlib.Path) -> None:
         )
 
 
+def require_public_client_cutover_policy(source_dir: pathlib.Path) -> None:
+    client_path = source_dir / "src/ai/openai/codex/frontend/client/Client.cpp"
+    codecs_path = source_dir / "src/ai/openai/codex/frontend/client/OperationCodecs.cpp"
+    state_path = source_dir / "src/ai/openai/codex/frontend/client/State.cpp"
+    client = read_source(client_path)
+    codecs = read_source(codecs_path)
+    state = read_source(state_path)
+
+    forbidden_reducer_uses = [
+        source_label(source_dir, path)
+        for path, text in ((client_path, client), (codecs_path, codecs))
+        if re.search(r"\bStateReducer\b", text)
+    ]
+    if forbidden_reducer_uses:
+        raise PolicyFailure(
+            "production public-client dispatch must not use the legacy StateReducer: "
+            + ", ".join(forbidden_reducer_uses)
+        )
+
+    compatibility_utility_failures = [
+        f"{source_label(source_dir, path)}: {token}"
+        for path in source_files(
+            source_dir, [pathlib.Path("src/ai/openai/codex/frontend/client")]
+        )
+        for token in ("EventCoalescer", "EventJournal", "UpdateBatchBuilder")
+        if token in read_source(path)
+    ]
+    if compatibility_utility_failures:
+        raise PolicyFailure(
+            "server-DSO compatibility utilities leaked into the public client:\n  "
+            + "\n  ".join(compatibility_utility_failures)
+        )
+
+    builder_header_leaks = [
+        source_label(source_dir, path)
+        for path in source_files(
+            source_dir, [pathlib.Path("src/ai/openai/codex/frontend/client")]
+        )
+        if path.suffix in {".h", ".hpp"}
+        and "CanonicalStateBuilder" in read_source(path)
+    ]
+    if builder_header_leaks:
+        raise PolicyFailure(
+            "the internal CanonicalStateBuilder leaked into a client header: "
+            + ", ".join(builder_header_leaks)
+        )
+
+    required_client_borders = (
+        "std::make_unique<core::ClientCore>",
+        "coreClient->attach(",
+        "coreClient->transportConnected(",
+        "coreClient->transportDisconnected(",
+        "coreClient->receiveEncoded(",
+        "coreClient->receive(",
+        "coreClient->detach(",
+        "coreClient->submit(",
+        "detail::CanonicalStateBuilder::build(",
+        "prepareStatePublication",
+        "commitStatePublication",
+    )
+    missing_client_borders = [token for token in required_client_borders if token not in client]
+    if missing_client_borders or client.count("std::unique_ptr<core::ClientCore> coreClient") != 1:
+        raise PolicyFailure(
+            "public Client/Connection is not a single-ClientCore adapter: "
+            f"missing={missing_client_borders}, core-owner-count="
+            f"{client.count('std::unique_ptr<core::ClientCore> coreClient')}"
+        )
+
+    builder_marker = "detail::CanonicalStateBuilder::build("
+    builder_begin = state.find(builder_marker)
+    reducer_begin = state.find("StateReducer::initial()", builder_begin)
+    if builder_begin < 0 or reducer_begin < 0:
+        raise PolicyFailure("CanonicalStateBuilder implementation boundary is absent")
+    builder = state[builder_begin:reducer_begin]
+    rejected_builder_tokens = [
+        token
+        for token in ("StateReducer", "encodeProjectedSnapshot", "decodeProjectedSnapshot")
+        if token in builder
+    ]
+    if rejected_builder_tokens:
+        raise PolicyFailure(
+            "CanonicalStateBuilder must construct StateStorage directly from the typed publication: "
+            f"rejected={rejected_builder_tokens}"
+        )
+
+
 def require_include_allowlist(
     source_dir: pathlib.Path,
     roots: Iterable[pathlib.Path],
@@ -478,24 +565,60 @@ def main() -> int:
     client = "ai-openai-codex-frontend-client-core"
     codex = "ai-openai-codex"
     backend = "ai-openai-codex-backend"
-    old_server = "ai-openai-codex-frontend"
-    old_client = "ai-openai-codex-frontend-client"
+    public_server = "ai-openai-codex-frontend"
+    public_client = "ai-openai-codex-frontend-client"
+    public_client_objects = "ai-openai-codex-frontend-client-objects"
+    public_client_typed_support = (
+        "ai-openai-codex-frontend-client-typed-support-objects"
+    )
+
+    both = lambda links: {
+        "LINK_LIBRARIES": set(links),
+        "INTERFACE_LINK_LIBRARIES": set(links),
+    }
 
     require_link_manifest(
         load_link_manifest(arguments.link_manifest.resolve()),
         {
-            protocol: {"nlohmann_json::nlohmann_json"},
-            model: {"AISuite::OpenAICodexFrontendProtocol"},
-            server: {
+            protocol: both({"nlohmann_json::nlohmann_json"}),
+            model: both({"AISuite::OpenAICodexFrontendProtocol"}),
+            server: both({
                 "ai-openai-codex-frontend-model",
                 "AISuite::OpenAICodexFrontendProtocol",
                 "AISuite::OpenAICodexBackend",
                 "AISuite::OpenAICodex",
-            },
-            client: {
+            }),
+            client: both({
                 "ai-openai-codex-frontend-model",
                 "AISuite::OpenAICodexFrontendProtocol",
-                "AISuite::OpenAICodex",
+            }),
+            public_client_objects: {
+                "LINK_LIBRARIES": {
+                    "ai-openai-codex-frontend-client-core",
+                    "ai-openai-codex-frontend-model",
+                    "AISuite::OpenAICodexFrontendProtocol",
+                },
+                "INTERFACE_LINK_LIBRARIES": {
+                    "$<LINK_ONLY:ai-openai-codex-frontend-client-core>",
+                    "$<LINK_ONLY:ai-openai-codex-frontend-model>",
+                    "$<LINK_ONLY:AISuite::OpenAICodexFrontendProtocol>",
+                },
+            },
+            public_client_typed_support: {
+                "LINK_LIBRARIES": {"AISuite::OpenAICodexFrontendProtocol"},
+                "INTERFACE_LINK_LIBRARIES": {
+                    "$<LINK_ONLY:AISuite::OpenAICodexFrontendProtocol>"
+                },
+            },
+            public_client: {
+                "LINK_LIBRARIES": {
+                    "AISuite::OpenAICodexFrontendProtocol",
+                    "ai-openai-codex-frontend-client-core",
+                    "ai-openai-codex-frontend-model",
+                },
+                "INTERFACE_LINK_LIBRARIES": {
+                    "AISuite::OpenAICodexFrontendProtocol",
+                },
             },
         },
     )
@@ -504,12 +627,15 @@ def main() -> int:
     require_target_type(targets, model, "STATIC_LIBRARY")
     require_target_type(targets, server, "STATIC_LIBRARY")
     require_target_type(targets, client, "STATIC_LIBRARY")
+    require_target_type(targets, public_client_objects, "OBJECT_LIBRARY")
+    require_target_type(targets, public_client_typed_support, "OBJECT_LIBRARY")
+    require_target_type(targets, public_client, "SHARED_LIBRARY")
 
     # File API target references cover in-project targets.  Treat these as
     # exclusive allowlists so an unrelated AISuite production edge cannot hide
     # merely because it is not named in a forbidden list yet.
     require_dependencies(targets, protocol, [], [])
-    require_dependencies(targets, model, [protocol], [protocol, codex])
+    require_dependencies(targets, model, [protocol], [protocol])
     require_dependencies(
         targets,
         server,
@@ -519,21 +645,45 @@ def main() -> int:
     require_dependencies(
         targets,
         client,
-        [codex, protocol, model],
-        [codex, protocol, model],
+        [protocol, model],
+        [protocol, model],
+    )
+    require_dependencies(
+        targets,
+        public_client_objects,
+        [protocol, model, client],
+        [protocol, model, client],
+    )
+    require_dependencies(
+        targets,
+        public_client_typed_support,
+        [protocol],
+        [protocol],
+    )
+    require_dependencies(
+        targets,
+        public_client,
+        [protocol, model, client, public_client_objects, public_client_typed_support],
+        [protocol, model, client, public_client_objects, public_client_typed_support],
     )
 
     require_dependency_closure(
-        targets, protocol, [], [codex, backend, old_server, old_client, model, server, client]
+        targets, protocol, [], [codex, backend, public_server, public_client, model, server, client]
     )
     require_dependency_closure(
-        targets, model, [protocol], [backend, old_server, old_client, server, client]
+        targets, model, [protocol], [backend, public_server, public_client, server, client]
     )
     require_dependency_closure(
-        targets, server, [codex, backend, protocol, model], [old_server, old_client, client]
+        targets, server, [codex, backend, protocol, model], [public_server, public_client, client]
     )
     require_dependency_closure(
-        targets, client, [codex, protocol, model], [backend, old_server, old_client, server]
+        targets, client, [protocol, model], [codex, backend, public_server, public_client, server]
+    )
+    require_dependency_closure(
+        targets,
+        public_client,
+        [protocol, model, client, public_client_objects, public_client_typed_support],
+        [codex, backend, public_server, server],
     )
 
     transport_target_patterns = [
@@ -545,21 +695,23 @@ def main() -> int:
     reject_dependency_patterns(targets, model, transport_target_patterns)
     reject_dependency_patterns(targets, server, transport_target_patterns)
     reject_dependency_patterns(targets, client, transport_target_patterns)
+    reject_dependency_patterns(targets, public_client_objects, transport_target_patterns)
+    reject_dependency_patterns(targets, public_client_typed_support, transport_target_patterns)
+    reject_dependency_patterns(targets, public_client, transport_target_patterns)
 
-    # P3 Commit 2 binds the preserved public server DSO to ServerCore.  The
-    # application still composes through that public DSO, so assert the new
-    # transitive core edge without exposing the internal target directly.
-    # The public client remains on its pre-cutover implementation until the
-    # following logical commit.
-    require_dependency_closure(targets, "codex-backend", [old_server, server], [client])
+    # P3 Commits 2 and 3 bind the preserved public Pimpl DSOs to the permanent
+    # cores.  The client application still shares the server-owned reference
+    # authentication utility until later transport-composition commits, but
+    # the public client DSO and its core remain transport-free.
+    require_dependency_closure(targets, "codex-backend", [public_server, server], [client])
     require_dependency_closure(
         targets,
         "codex-backend-client-support",
-        [old_client, old_server, server],
-        [client],
+        [public_client, client, public_server, server],
+        [],
     )
     require_dependency_closure(
-        targets, "codex-backend-client", [old_client, old_server, server], [client]
+        targets, "codex-backend-client", [public_client, client, public_server, server], []
     )
 
     reject_link_fragments(
@@ -588,6 +740,21 @@ def main() -> int:
         targets,
         client,
         [
+            r"aisuite-openai-codex(?:[.]so|[.]a)",
+            r"aisuite-openai-codex-backend(?:[.]so|[.]a)",
+            r"aisuite-openai-codex-frontend-server-core",
+            r"aisuite-openai-codex-frontend(?:[.]so|[.]a)",
+            r"(?:^|[/_-])snodec(?:[/_.-]|$)",
+            r"(?:^|[/_-])(?:http|websocket|tls|rfcomm|tcp|unix|net-(?:un|in|in6|rc))(?:[/_.-]|$)",
+            r"(?:^|[/_-])(?:ssl|crypto|bluetooth)(?:[/_.-]|$)",
+            r"(?:^|[/_-])(?:Qt|curses|ncurses)(?:[/_.-]|$)",
+        ],
+    )
+    reject_link_fragments(
+        targets,
+        public_client,
+        [
+            r"aisuite-openai-codex(?:[.]so|[.]a)",
             r"aisuite-openai-codex-backend(?:[.]so|[.]a)",
             r"aisuite-openai-codex-frontend-server-core",
             r"aisuite-openai-codex-frontend(?:[.]so|[.]a)",
@@ -599,7 +766,36 @@ def main() -> int:
     )
 
     model_sources = [pathlib.Path("src/ai/openai/codex/frontend/internal/model")]
-    client_sources = [pathlib.Path("src/ai/openai/codex/frontend/internal/client")]
+    client_sources = source_files(
+        source_dir, [pathlib.Path("src/ai/openai/codex/frontend/internal/client")]
+    )
+    canonical_builder = (
+        source_dir
+        / "src/ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
+    ).resolve()
+    client_core_sources = [path for path in client_sources if path != canonical_builder]
+    public_client_sources = [pathlib.Path("src/ai/openai/codex/frontend/client")]
+    public_client_target_sources = target_source_paths(
+        targets, public_client_objects, source_dir, build_dir
+    )
+    public_client_typed_sources = target_source_paths(
+        targets, public_client_typed_support, source_dir, build_dir
+    )
+    expected_public_client_typed_sources = {
+        "src/ai/openai/codex/typed/Accounts.cpp",
+        "src/ai/openai/codex/typed/Configuration.cpp",
+        "src/ai/openai/codex/typed/Models.cpp",
+        "src/ai/openai/codex/typed/Types.cpp",
+    }
+    actual_public_client_typed_sources = {
+        source_label(source_dir, path) for path in public_client_typed_sources
+    }
+    if actual_public_client_typed_sources != expected_public_client_typed_sources:
+        raise PolicyFailure(
+            "frontend-client typed compatibility source inventory mismatch: "
+            f"expected={sorted(expected_public_client_typed_sources)}, "
+            f"actual={sorted(actual_public_client_typed_sources)}"
+        )
 
     reject_includes(
         source_dir,
@@ -616,7 +812,7 @@ def main() -> int:
     )
     reject_includes(
         source_dir,
-        client_sources,
+        client_core_sources,
         [
             "ai/openai/codex/backend/",
             "ai/openai/codex/AppServerClient.h",
@@ -624,6 +820,62 @@ def main() -> int:
             "ai/openai/codex/frontend/FrontendService.h",
             "ai/openai/codex/frontend/client/",
             "ai/openai/codex/frontend/internal/server/",
+            *TRANSPORT_INCLUDE_PREFIXES,
+        ],
+    )
+    reject_includes(
+        source_dir,
+        [canonical_builder],
+        [
+            "ai/openai/codex/backend/",
+            "ai/openai/codex/AppServerClient.h",
+            "ai/openai/codex/Api.h",
+            "ai/openai/codex/frontend/FrontendService.h",
+            "ai/openai/codex/frontend/internal/server/",
+            *TRANSPORT_INCLUDE_PREFIXES,
+        ],
+    )
+    reject_includes(
+        source_dir,
+        public_client_sources,
+        [
+            "ai/openai/codex/backend/",
+            "ai/openai/codex/AppServerClient.h",
+            "ai/openai/codex/Api.h",
+            "ai/openai/codex/frontend/FrontendService.h",
+            "ai/openai/codex/frontend/EventCoalescer.h",
+            "ai/openai/codex/frontend/EventJournal.h",
+            "ai/openai/codex/frontend/UpdateBatch.h",
+            "ai/openai/codex/frontend/UpdateBatchBuilder.h",
+            "ai/openai/codex/frontend/internal/server/",
+            *TRANSPORT_INCLUDE_PREFIXES,
+        ],
+    )
+    reject_includes(
+        source_dir,
+        public_client_target_sources,
+        [
+            "ai/openai/codex/backend/",
+            "ai/openai/codex/AppServerClient.h",
+            "ai/openai/codex/Api.h",
+            "ai/openai/codex/frontend/FrontendService.h",
+            "ai/openai/codex/frontend/EventCoalescer.h",
+            "ai/openai/codex/frontend/EventJournal.h",
+            "ai/openai/codex/frontend/UpdateBatch.h",
+            "ai/openai/codex/frontend/UpdateBatchBuilder.h",
+            "ai/openai/codex/frontend/internal/server/",
+            *TRANSPORT_INCLUDE_PREFIXES,
+        ],
+    )
+    reject_includes(
+        source_dir,
+        public_client_typed_sources,
+        [
+            "ai/openai/codex/backend/",
+            "ai/openai/codex/AppServerClient.h",
+            "ai/openai/codex/Api.h",
+            "ai/openai/codex/frontend/FrontendService.h",
+            "ai/openai/codex/frontend/internal/",
             *TRANSPORT_INCLUDE_PREFIXES,
         ],
     )
@@ -645,7 +897,7 @@ def main() -> int:
     )
     require_include_allowlist(
         source_dir,
-        client_sources,
+        client_core_sources,
         "ai/openai/codex/",
         [
             "ai/openai/codex/frontend/Codec.h",
@@ -656,6 +908,13 @@ def main() -> int:
             "ai/openai/codex/frontend/internal/client/",
             "ai/openai/codex/frontend/internal/model/",
         ],
+    )
+    require_include_allowlist(
+        source_dir,
+        [canonical_builder],
+        "ai/openai/codex/",
+        ["ai/openai/codex/frontend/client/State.h"],
+        [],
     )
     reject_includes(
         source_dir,
@@ -699,7 +958,9 @@ def main() -> int:
         ],
     )
 
-    print("Codex frontend P2 dependency and source-closure policy passed")
+    require_public_client_cutover_policy(source_dir)
+
+    print("Codex frontend P3 core/public-client dependency and source-closure policy passed")
     return 0
 
 
@@ -707,5 +968,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except PolicyFailure as error:
-        print(f"Codex frontend P2 dependency policy failure: {error}", file=sys.stderr)
+        print(f"Codex frontend P3 dependency policy failure: {error}", file=sys.stderr)
         raise SystemExit(1) from error

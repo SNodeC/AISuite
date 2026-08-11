@@ -6,7 +6,6 @@ endif()
 if(NOT DEFINED AISUITE_NM OR NOT EXISTS "${AISUITE_NM}")
     message(FATAL_ERROR "CMake nm tool is unavailable")
 endif()
-
 execute_process(
     COMMAND "${AISUITE_NM}" --dynamic --defined-only --demangle
             "${AISUITE_FRONTEND_CLIENT_LIBRARY}"
@@ -26,6 +25,8 @@ foreach(
     "ai::openai::codex::frontend::client::Client::Impl"
     "ai::openai::codex::frontend::client::Connection::Control"
     "ai::openai::codex::frontend::client::StateStorage"
+    "ai::openai::codex::frontend::internal::"
+    "ai::openai::codex::detail::"
 )
     string(FIND "${symbols}" "${forbidden}" forbidden_index)
     if(NOT forbidden_index EQUAL -1)
@@ -35,6 +36,47 @@ foreach(
         )
     endif()
 endforeach()
+
+foreach(
+    typed_compatibility_symbol
+    "ai::openai::codex::typed::AuthMode::chatgpt()"
+    "ai::openai::codex::typed::AutoCompactTokenLimitScope::total()"
+    "ai::openai::codex::typed::InputModality::text()"
+    "ai::openai::codex::typed::ReasoningEffort::high()"
+    "ai::openai::codex::typed::TurnStatus::completed()"
+)
+    string(FIND "${symbols}" "${typed_compatibility_symbol}" typed_symbol_index)
+    if(typed_symbol_index EQUAL -1)
+        message(
+            FATAL_ERROR
+                "frontend-client is missing required typed source-compatibility symbol: ${typed_compatibility_symbol}"
+        )
+    endif()
+endforeach()
+
+if(DEFINED AISUITE_READELF AND EXISTS "${AISUITE_READELF}")
+    execute_process(
+        COMMAND "${AISUITE_READELF}" -d "${AISUITE_FRONTEND_CLIENT_LIBRARY}"
+        RESULT_VARIABLE readelf_result
+        OUTPUT_VARIABLE dynamic_section
+        ERROR_VARIABLE readelf_error
+    )
+    if(NOT readelf_result EQUAL 0)
+        message(FATAL_ERROR "unable to inspect frontend-client dependencies: ${readelf_error}")
+    endif()
+    foreach(
+        forbidden_dependency
+        "libaisuite-openai-codex.so"
+        "libaisuite-openai-codex-backend.so"
+        "libaisuite-openai-codex-frontend.so"
+        "libsnodec-"
+    )
+        string(FIND "${dynamic_section}" "${forbidden_dependency}" forbidden_dependency_index)
+        if(NOT forbidden_dependency_index EQUAL -1)
+            message(FATAL_ERROR "frontend-client has forbidden runtime dependency: ${forbidden_dependency}")
+        endif()
+    endforeach()
+endif()
 
 set(public_classes
     Accounts

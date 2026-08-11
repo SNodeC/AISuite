@@ -7,6 +7,7 @@
 #include "ai/openai/codex/frontend/client/Client.h"
 #include "ai/openai/codex/frontend/client/ProjectionFingerprint.h"
 #include "ai/openai/codex/frontend/client/Synchronization.h"
+#include "ai/openai/codex/frontend/client/detail/ClientTestAccess.h"
 #include "ai/openai/codex/frontend/client/detail/StateReducer.h"
 #include "support/TestResult.h"
 
@@ -60,6 +61,7 @@ namespace {
         std::vector<frontend::SequenceNumber> cursors;
         std::size_t synchronized = 0;
         bool lastSnapshotFallback = false;
+        std::vector<bool> reconnectFacts;
         std::size_t closes = 0;
 
         client::TransportCallbacks transport() {
@@ -85,6 +87,7 @@ namespace {
             result.onSynchronized = [this](const client::SynchronizationInfo& info) {
                 ++synchronized;
                 lastSnapshotFallback = info.snapshotFallback;
+                reconnectFacts.push_back(info.reconnect);
             };
             return result;
         }
@@ -619,12 +622,12 @@ namespace {
         (void) moveConnection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(1)}});
         const frontend::EventBatch moves{
             frontend::SequenceNumber(2),
-            frontend::SequenceNumber(2),
+            frontend::SequenceNumber(3),
             {{frontend::SequenceNumber(2),
               "turn.upserted",
               frontend::Json{
                   {"turn", {{"id", "turn-1"}, {"threadId", "thread-2"}, {"status", "running"}, {"active", true}, {"terminal", false}}}}},
-             {frontend::SequenceNumber(2),
+             {frontend::SequenceNumber(3),
               "item.upserted",
               frontend::Json{{"item",
                               {{"id", "item-1"},
@@ -638,13 +641,15 @@ namespace {
         const client::TurnState* oldTurn = moving.state().turn("turn-1");
         const client::TurnState* newTurn = moving.state().turn("turn-2");
         result.expectTrue(
-            moveConnection.isOpen() && oldThread && oldThread->orderedTurns.empty() && newThread &&
+            moveConnection.isOpen() && moving.visibleSequence() == frontend::SequenceNumber(3) && oldThread &&
+                oldThread->orderedTurns.empty() && newThread &&
                 std::find(newThread->orderedTurns.begin(), newThread->orderedTurns.end(), ai::openai::codex::typed::TurnId{"turn-1"}) !=
                     newThread->orderedTurns.end() &&
                 oldTurn && oldTurn->orderedItems.empty() && newTurn &&
                 std::find(newTurn->orderedItems.begin(), newTurn->orderedItems.end(), ai::openai::codex::typed::ItemId{"item-1"}) !=
                     newTurn->orderedItems.end(),
-            "turn and item upserts remove moved identities from their old parent ordering before adding the new parent relation");
+            "successive turn and item upserts remove moved identities from their old parent ordering before adding the new parent "
+            "relation");
 
         auto duplicateRejected = [&](frontend::Json duplicateState, std::string_view description) {
             error.clear();
@@ -860,6 +865,14 @@ namespace {
         client::Client sdk(options(), harness.callbacks());
         client::Connection first = sdk.openConnection(harness.transport());
         connectAndSnapshot(sdk, first, frontend::SequenceNumber(51));
+        const client::Submission explicitSnapshot = sdk.synchronization().snapshot({});
+        const auto explicitCommand = frontend::Codec::decodeDefinedCommand(std::string_view(harness.messages.back().compactJson));
+        if (explicitSnapshot && explicitCommand) {
+            (void) first.receive(frontend::ServerMessage{
+                frontend::Response::success(explicitCommand.value().requestId, frontend::Json{{"sequence", std::uint64_t{51}}})});
+            (void) first.receive(frontend::ServerMessage{frontend::Snapshot{frontend::SequenceNumber(51), expandedState()}});
+            (void) first.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(51)}});
+        }
         first.transportDisconnected();
 
         client::Connection second = sdk.openConnection(harness.transport());
@@ -870,9 +883,10 @@ namespace {
             frontend::ServerMessage{welcome(frontend::SequenceNumber(53), frontend::SyncMode::Replay, frontend::Json::object(), "2")});
         (void) second.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(53)}});
         result.expectTrue(
-            hello && hello->resumeAfter == frontend::SequenceNumber(51) && sdk.isReady() &&
+            explicitSnapshot && explicitCommand && harness.reconnectFacts == std::vector<bool>({false, false, true}) && hello &&
+                hello->resumeAfter == frontend::SequenceNumber(51) && sdk.isReady() &&
                 sdk.visibleSequence() == frontend::SequenceNumber(51) && sdk.synchronizedThrough() == frontend::SequenceNumber(53),
-            "a replay with a hidden-only 52/53 suffix emits no batch yet advances synchronizedThrough beyond visibleSequence");
+            "generation-one initial/explicit synchronization report reconnect=false while generation two reports reconnect=true");
 
         const frontend::EventBatch later{
             frontend::SequenceNumber(54), frontend::SequenceNumber(54), {content(frontend::SequenceNumber(54), "later-visible")}};
@@ -1005,23 +1019,33 @@ namespace {
                           "expanded snapshots expose typed thread-list completeness, cursor, and freshness while projected collections "
                           "distinguish present empty projections from omitted projections");
 
-        const frontend::EventBatch sameOccurrence{frontend::SequenceNumber(21),
-                                                  frontend::SequenceNumber(21),
-                                                  {content(frontend::SequenceNumber(21), "same-occurrence-output"),
-                                                   frontend::FrontendEvent{frontend::SequenceNumber(21),
-                                                                           "item.content.updated",
-                                                                           frontend::Json{{"itemId", "item-1"},
-                                                                                          {"threadId", "thread-1"},
-                                                                                          {"turnId", "turn-1"},
-                                                                                          {"channel", "agentText"},
-                                                                                          {"content", "same-occurrence-agent"},
-                                                                                          {"contentTruncated", false},
-                                                                                          {"droppedContentBytes", std::uint64_t{0}}}}}};
+        const frontend::EventBatch sameOccurrence{
+            frontend::SequenceNumber(21),
+            frontend::SequenceNumber(21),
+            {{frontend::SequenceNumber(21),
+              "configuration.updated",
+              frontend::Json{{"domain",
+                              {{"stamp", {{"generation", std::uint64_t{1}}, {"freshness", "current"}}},
+                               {"status", "ready"},
+                               {"latestResults", frontend::Json::array()},
+                               {"details", {{"notificationCount", std::uint64_t{1}}}}}}}},
+             {frontend::SequenceNumber(21),
+              "notice.added",
+              frontend::Json{{"notice",
+                              {{"occurrence", std::uint64_t{21}},
+                               {"category", "warning"},
+                               {"summary", "same occurrence"},
+                               {"stamp", {{"generation", std::uint64_t{1}}, {"freshness", "current"}}}}}}}}};
         (void) connection.receive(frontend::ServerMessage{sameOccurrence});
-        result.expectTrue(connection.isOpen() && sdk.visibleSequence() == frontend::SequenceNumber(21) && sdk.state().item("item-1") &&
-                              sdk.state().item("item-1")->commandOutput == "same-occurrence-output" &&
-                              sdk.state().item("item-1")->agentText == "same-occurrence-agent",
-                          "adjacent expanded events may share one global occurrence sequence and retain their original order");
+        const bool orderedSameOccurrenceChanges =
+            !harness.updates.empty() && harness.updates.back().changes.size() == 2 &&
+            std::holds_alternative<client::ConfigurationUpdatedChange>(harness.updates.back().changes[0]) &&
+            std::holds_alternative<client::NoticeAddedChange>(harness.updates.back().changes[1]);
+        result.expectTrue(connection.isOpen() && sdk.visibleSequence() == frontend::SequenceNumber(21) &&
+                              sdk.state().configuration().value && sdk.state().configuration().value->projection.notificationCount == 1 &&
+                              sdk.state().notices().value && sdk.state().notices().value->entries.size() == 1 &&
+                              orderedSameOccurrenceChanges,
+                          "a generated multi-family occurrence shares one global sequence and retains its authoritative order");
 
         const std::vector<std::string> families{
             "provider.updated",    "controller.updated", "sessions.updated",      "threadList.updated",   "thread.upserted",
@@ -1096,11 +1120,29 @@ namespace {
                 data = {{"diagnostic", {{"received", std::uint64_t{1}}, {"detailsOmitted", true}}}};
             events.push_back({frontend::SequenceNumber(22 + index), family, std::move(data)});
         }
-        (void) connection.receive(
+        const client::ReceiveResult familyReceive = connection.receive(
             frontend::ServerMessage{frontend::EventBatch{events.front().sequence, events.back().sequence, std::move(events)}});
         const frontend::Json changes = harness.updates.empty()
                                            ? frontend::Json::array()
                                            : client::detail::StateReducer::serializeChangesForTesting(harness.updates.back().changes);
+        const auto projectedEntryCount = [](const auto& projection) {
+            return projection.value ? projection.value->entries.size() : std::size_t{0};
+        };
+        const std::string familyFacts =
+            ", threadList=" + std::to_string(sdk.state().threadList().value.has_value()) +
+            ", sessions=" + std::to_string(sdk.state().sessions().value.has_value()) +
+            ", session1=" + std::to_string(sdk.state().session(client::FrontendSessionId{"1"}) != nullptr) +
+            ", processes=" + std::to_string(projectedEntryCount(sdk.state().processes())) +
+            ", watches=" + std::to_string(projectedEntryCount(sdk.state().filesystemWatches())) +
+            ", searches=" + std::to_string(projectedEntryCount(sdk.state().fuzzySearches())) +
+            ", activities=" + std::to_string(projectedEntryCount(sdk.state().activities())) +
+            ", diagnostics=" + std::to_string(projectedEntryCount(sdk.state().diagnostics())) +
+            ", permissions=" + std::to_string(sdk.state().permissionProfiles().value.has_value()) +
+            ", agents=" + std::to_string(sdk.state().externalAgents().value.has_value()) +
+            ", skills=" + std::to_string(sdk.state().skills().value.has_value()) +
+            ", sandbox=" + std::to_string(sdk.state().windowsSandbox().value.has_value()) +
+            ", accounts=" + std::to_string(sdk.state().accounts().value.has_value()) + ", accountNotifications=" +
+            std::to_string(sdk.state().accounts().value ? sdk.state().accounts().value->projection.notificationCount.value_or(0) : 0);
         result.expectTrue(
             connection.isOpen() && sdk.visibleSequence() == frontend::SequenceNumber(47) && changes.size() == 26 &&
                 sdk.state().threadList().value && sdk.state().threadList().value->complete &&
@@ -1109,13 +1151,18 @@ namespace {
                 sdk.state().processes().value->entries.size() == 1 && sdk.state().filesystemWatches().value &&
                 sdk.state().filesystemWatches().value->entries.size() == 1 && sdk.state().fuzzySearches().value &&
                 sdk.state().fuzzySearches().value->entries.size() == 1 && sdk.state().notices().value &&
-                sdk.state().notices().value->entries.size() == 1 && sdk.state().activities().value &&
+                sdk.state().notices().value->entries.size() == 2 && sdk.state().activities().value &&
                 sdk.state().activities().value->entries.size() == 1 && sdk.state().diagnostics().value &&
                 sdk.state().diagnostics().value->entries.size() == 1 && sdk.state().permissionProfiles().value &&
                 sdk.state().externalAgents().value && sdk.state().skills().value && sdk.state().windowsSandbox().value &&
                 sdk.state().accounts().value && sdk.state().accounts().value->projection.notificationCount == 1 &&
                 sdk.state().accounts().value->projection.latestNotificationMethods == std::vector<std::string>{"domain/updated"},
-            "all 26 expanded event families produce typed changes and update the exact typed domain without losing aliases");
+            "all 26 expanded event families produce typed changes and update the exact typed domain without losing aliases [accepted=" +
+                std::to_string(familyReceive.accepted) +
+                ", error=" + (familyReceive.error ? familyReceive.error->message : std::string{"none"}) +
+                ", open=" + std::to_string(connection.isOpen()) + ", visible=" + std::to_string(sdk.visibleSequence().value().value()) +
+                ", changes=" + std::to_string(changes.size()) + ", notices=" +
+                std::to_string(sdk.state().notices().value ? sdk.state().notices().value->entries.size() : 0) + familyFacts + "]");
 
         const frontend::Json stamp{{"generation", std::uint64_t{2}}, {"freshness", "current"}};
         const std::vector<frontend::FrontendEvent> preserving{
@@ -1144,7 +1191,7 @@ namespace {
              "process.updated",
              frontend::Json{{"process", {{"processHandle", "process-second"}, {"lifecycle", "completed"}, {"stamp", stamp}}}}},
         };
-        (void) connection.receive(
+        const client::ReceiveResult preservingReceive = connection.receive(
             frontend::ServerMessage{frontend::EventBatch{preserving.front().sequence, preserving.back().sequence, preserving}});
         result.expectTrue(connection.isOpen() && sdk.state().processes().value && sdk.state().processes().value->entries.size() == 2 &&
                               sdk.state().process(client::ProcessHandle{"process-family"}) &&
@@ -1152,11 +1199,20 @@ namespace {
                               sdk.state().process(client::ProcessHandle{"process-second"})->lifecycle == "completed" &&
                               sdk.state().filesystemWatches().value && sdk.state().filesystemWatches().value->entries.size() == 2 &&
                               sdk.state().fuzzySearches().value && sdk.state().fuzzySearches().value->entries.size() == 2 &&
-                              sdk.state().notices().value && sdk.state().notices().value->entries.size() == 2 &&
+                              sdk.state().notices().value && sdk.state().notices().value->entries.size() == 3 &&
                               sdk.state().activities().value && sdk.state().activities().value->entries.size() == 2 &&
                               sdk.state().diagnostics().value && sdk.state().diagnostics().value->entries.size() == 2,
                           "singular process/watch/search/activity updates upsert while notices and diagnostics append without replacing "
-                          "unrelated records");
+                          "unrelated records [accepted=" +
+                              std::to_string(preservingReceive.accepted) +
+                              ", error=" + (preservingReceive.error ? preservingReceive.error->message : std::string{"none"}) + ", open=" +
+                              std::to_string(connection.isOpen()) + ", visible=" + std::to_string(sdk.visibleSequence().value().value()) +
+                              ", notices=" + std::to_string(sdk.state().notices().value ? sdk.state().notices().value->entries.size() : 0) +
+                              ", processes=" + std::to_string(projectedEntryCount(sdk.state().processes())) +
+                              ", watches=" + std::to_string(projectedEntryCount(sdk.state().filesystemWatches())) +
+                              ", searches=" + std::to_string(projectedEntryCount(sdk.state().fuzzySearches())) +
+                              ", activities=" + std::to_string(projectedEntryCount(sdk.state().activities())) +
+                              ", diagnostics=" + std::to_string(projectedEntryCount(sdk.state().diagnostics())) + "]");
     }
 
     void testDiagnosticRetentionAndLegacyState(tests::support::TestResult& result) {
@@ -1414,6 +1470,16 @@ namespace {
                               readyCloseSdk.connectionState() == client::ConnectionState::Closed && readyCloseHarness.closes == 1,
                           "closing Client from the explicit synchronization Ready transition fails the still-unreported operation exactly "
                           "once instead of reporting success after Closed");
+
+        Harness adapterHarness;
+        client::Client adapterSdk(options(), adapterHarness.callbacks());
+        client::Connection adapterConnection = adapterSdk.openConnection(adapterHarness.transport());
+        connectAndSnapshot(adapterSdk, adapterConnection, frontend::SequenceNumber(7));
+        const bool throwingAdapterCallbackInvoked =
+            client::detail::ClientTestAccess::rejectInvalidSynchronizationAdapterResultWithThrowingCallback(adapterSdk);
+        result.expectTrue(throwingAdapterCallbackInvoked && !adapterConnection.isOpen() && adapterHarness.closes == 1 &&
+                              adapterSdk.connectionState() == client::ConnectionState::Disconnected,
+                          "a throwing explicit-synchronization failure callback cannot bypass rejection of missing adapter context");
     }
 
     void testAdvancedGeneratedSynchronization(tests::support::TestResult& result) {
@@ -2770,30 +2836,40 @@ namespace {
         const std::size_t accountedEnd = source.find("thread_local std::size_t DebugAccountingVerificationCount", accountedBegin);
         const std::size_t applyExpandedBegin = source.find("bool applyExpanded(");
         const std::size_t ordinaryEventsEnd = source.find("frontend::Json serializeChanges(", applyExpandedBegin);
+        const std::size_t builderBegin = source.find("detail::CanonicalStateBuilder::build(");
+        const std::size_t builderEnd = source.find("State StateReducer::initial()", builderBegin);
         const bool rangesPresent = input.is_open() && stateFitsBegin != std::string::npos && stateFitsEnd != std::string::npos &&
                                    refreshBegin != std::string::npos && refreshEnd != std::string::npos &&
                                    accountedBegin != std::string::npos && accountedEnd != std::string::npos &&
-                                   applyExpandedBegin != std::string::npos && ordinaryEventsEnd != std::string::npos;
+                                   applyExpandedBegin != std::string::npos && ordinaryEventsEnd != std::string::npos &&
+                                   builderBegin != std::string::npos && builderEnd != std::string::npos;
         const std::string stateFitsBody = rangesPresent ? source.substr(stateFitsBegin, stateFitsEnd - stateFitsBegin) : std::string{};
         const std::string refreshBody = rangesPresent ? source.substr(refreshBegin, refreshEnd - refreshBegin) : std::string{};
         const std::string accountedBody = rangesPresent ? source.substr(accountedBegin, accountedEnd - accountedBegin) : std::string{};
         const std::string ordinaryEventHelpers =
             rangesPresent ? source.substr(applyExpandedBegin, ordinaryEventsEnd - applyExpandedBegin) : std::string{};
-        std::size_t rebuildMentions = 0;
-        for (std::size_t position = source.find("rebuildStateSizeLedger"); position != std::string::npos;
-             position = source.find("rebuildStateSizeLedger", position + 1))
-            ++rebuildMentions;
-        result.expectTrue(rangesPresent && stateFitsBody.find("accountedStateBytes(state)") != std::string::npos &&
-                              stateFitsBody.find("encodeState(") == std::string::npos &&
-                              stateFitsBody.find(".dump(") == std::string::npos &&
-                              stateFitsBody.find("#ifndef NDEBUG") != std::string::npos &&
-                              stateFitsBody.find("referenceStateBytes(state)") != std::string::npos &&
-                              refreshBody.find("rebuildStateSizeLedger") == std::string::npos &&
-                              accountedBody.find("rebuildStateSizeLedger") == std::string::npos &&
-                              ordinaryEventHelpers.find("rebuildStateSizeLedger") == std::string::npos &&
-                              ordinaryEventHelpers.find("encodeState(") == std::string::npos && rebuildMentions == 7,
-                          "ordinary production State admission consumes the ledger and cannot silently restore whole-State encoding; "
-                          "the reference serializer remains Debug-only, while complete initial/live snapshot replacement may rebuild");
+        const std::string builderBody = rangesPresent ? source.substr(builderBegin, builderEnd - builderBegin) : std::string{};
+        const std::string legacyBodies = rangesPresent ? source.substr(0, builderBegin) + source.substr(builderEnd) : std::string{};
+        const auto countRebuildMentions = [](const std::string& body) {
+            std::size_t mentions = 0;
+            for (std::size_t position = body.find("rebuildStateSizeLedger"); position != std::string::npos;
+                 position = body.find("rebuildStateSizeLedger", position + 1))
+                ++mentions;
+            return mentions;
+        };
+        const std::size_t builderRebuildMentions = countRebuildMentions(builderBody);
+        const std::size_t legacyRebuildMentions = countRebuildMentions(legacyBodies);
+        result.expectTrue(
+            rangesPresent && stateFitsBody.find("accountedStateBytes(state)") != std::string::npos &&
+                stateFitsBody.find("encodeState(") == std::string::npos && stateFitsBody.find(".dump(") == std::string::npos &&
+                stateFitsBody.find("#ifndef NDEBUG") != std::string::npos &&
+                stateFitsBody.find("referenceStateBytes(state)") != std::string::npos &&
+                refreshBody.find("rebuildStateSizeLedger") == std::string::npos &&
+                accountedBody.find("rebuildStateSizeLedger") == std::string::npos &&
+                ordinaryEventHelpers.find("rebuildStateSizeLedger") == std::string::npos &&
+                ordinaryEventHelpers.find("encodeState(") == std::string::npos && builderRebuildMentions == 1 && legacyRebuildMentions == 7,
+            "ordinary production State admission consumes the ledger and cannot silently restore whole-State encoding; "
+            "the direct canonical builder and complete legacy snapshot replacement are the only admitted rebuild borders");
     }
 
 } // namespace
