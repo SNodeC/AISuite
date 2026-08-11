@@ -1,0 +1,1740 @@
+/* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
+
+#include "ai/openai/codex/frontend/internal/server/BackendProjection.h"
+#include "ai/openai/codex/frontend/internal/server/ServerCore.h"
+#include "support/TestResult.h"
+
+#include <algorithm>
+#include <functional>
+#include <limits>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+namespace ai::openai::codex::frontend::internal::server {
+    struct BackendProjectionTestAccess {
+        static model::ModelResult<ProjectedBackendBatch>
+        projectActivity(const BackendProjection& projection,
+                        const backend::Snapshot& snapshot,
+                        std::optional<std::string_view> key) {
+            return projection.projectActivityForTesting(snapshot, key);
+        }
+    };
+} // namespace ai::openai::codex::frontend::internal::server
+
+namespace {
+    namespace backend = ai::openai::codex::backend;
+    namespace frontend = ai::openai::codex::frontend;
+    namespace generated = ai::openai::codex::frontend::generated;
+    namespace model = ai::openai::codex::frontend::internal::model;
+    namespace server = ai::openai::codex::frontend::internal::server;
+
+    constexpr std::string_view OpaqueDataKey = "futureProviderState";
+    constexpr std::string_view OpaqueDataValue = "safe-looking-but-opaque-sentinel";
+    constexpr std::string_view OpaqueExtensionKey = "futureProviderExtension";
+    constexpr std::string_view OpaqueExtensionValue = "safe-looking-extension-sentinel";
+    constexpr std::string_view SecretDataValue = "known-secret-item-sentinel";
+
+    class Backend final : public server::BackendPort {
+    public:
+        [[nodiscard]] bool providerReady() const noexcept override {
+            return true;
+        }
+
+        [[nodiscard]] model::CanonicalSnapshot snapshot() const override {
+            return state;
+        }
+
+        [[nodiscard]] server::BackendSubmitStatus submit(server::BackendInvocation) override {
+            return server::BackendSubmitStatus::Accepted;
+        }
+
+        [[nodiscard]] bool performProviderLifecycleAction(server::ProviderLifecycleAction) override {
+            return true;
+        }
+
+        model::CanonicalSnapshot state;
+    };
+
+    frontend::AuthenticationResult authenticate(const frontend::FrontendPeerContext&, const frontend::AuthenticationCredential&) {
+        frontend::FrontendPrincipal principal;
+        principal.id = "synchronization-principal";
+        principal.profile = "test";
+        principal.scopes = {frontend::FrontendScope::Observe};
+        return frontend::AuthenticationSuccess{std::move(principal)};
+    }
+
+    server::ConnectionCallbacks collect(std::vector<frontend::ServerMessage>& messages) {
+        return {[&messages](const frontend::ServerMessage& message) {
+                    messages.push_back(message);
+                    return true;
+                },
+                [](const server::ConnectionClose&) {
+                }};
+    }
+
+    bool excludesOpaqueStrings(const std::vector<frontend::ServerMessage>& messages, std::string_view key, std::string_view value) {
+        for (const frontend::ServerMessage& message : messages) {
+            const auto encoded = frontend::Codec::encodeServer(message);
+            if (!encoded) {
+                return false;
+            }
+            const std::string serialized = encoded.value().dump();
+            if (serialized.find(key) != std::string::npos || serialized.find(value) != std::string::npos) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    model::OccurrenceDraft providerOccurrence(std::string source, bool ready) {
+        model::ProviderState provider;
+        provider.lifecycle = ready ? model::ProviderLifecycle::Ready : model::ProviderLifecycle::Stopped;
+        return {model::SourceStamp{"backend-event:" + source}, model::ProviderUpdatedOccurrence{std::move(provider)}};
+    }
+
+    model::OccurrenceDraft expandedGroup() {
+        model::ConfigurationState configuration;
+        configuration.state = model::DomainState::present();
+        configuration.state.summary = "configuration warning";
+        model::NoticeRecord notice;
+        notice.occurrence = 1;
+        notice.category = "configuration";
+        notice.summary = "configuration warning";
+        model::LegacyCompatibilityPayload legacy;
+        legacy.kind = model::LegacyCompatibilityKind::CodexExtension;
+        legacy.sourcePayloadIndex = 0;
+        model::LegacySafeExtension extension;
+        extension.method = "configWarning";
+        extension.params = *model::SafeDetail::fromJson(frontend::Json{{"message", "configuration warning"}});
+        legacy.safeExtension = std::move(extension);
+        std::vector<model::OccurrencePayload> expanded;
+        expanded.emplace_back(model::ConfigurationUpdatedOccurrence{std::move(configuration)});
+        expanded.emplace_back(model::NoticeAddedOccurrence{std::move(notice)});
+        return {model::SourceStamp{"server_notification:ServerNotification:method:configWarning"}, std::move(legacy), std::move(expanded)};
+    }
+
+    model::OccurrenceDraft containedUnknownOccurrence() {
+        model::LegacyCompatibilityPayload legacy;
+        legacy.kind = model::LegacyCompatibilityKind::CodexExtension;
+        legacy.sourcePayloadIndex = 0;
+        model::LegacySafeExtension extension;
+        extension.method = "futureNotification";
+        extension.params = *model::SafeDetail::fromJson(frontend::Json{{"safe", "detail"}});
+        legacy.safeExtension = std::move(extension);
+        return {model::SourceStamp{"server_notification:unknown:futureNotification"}, std::move(legacy), {}};
+    }
+
+    model::OccurrenceDraft legacyItemOccurrence() {
+        model::LegacyItemCompatibility item{
+            model::ItemData{model::ItemIdentity{"future-live-item"},
+                            model::ThreadIdentity{"future-live-thread"},
+                            model::TurnIdentity{"future-live-turn"}},
+            "future_codex_item_kind",
+            0,
+            "/threads/0/turns/0/items/0"};
+        item.value.sourceIndex = 0;
+        model::LegacyCompatibilityPayload legacy;
+        legacy.kind = model::LegacyCompatibilityKind::LegacyItem;
+        legacy.legacyItem = std::move(item);
+        return {model::SourceStamp{"backend-event:future-live-item"}, std::move(legacy), {}};
+    }
+
+    model::OccurrenceDraft legacyPendingOccurrence() {
+        model::LegacyPendingRequestCompatibility request{
+            model::PendingRequestData{model::PendingRequestIdentity{"172"}}, 0, "/pendingRequests/0"};
+        request.value.sourceIndex = 0;
+        request.value.safeDetails =
+            *model::SafeDetail::fromJson(frontend::Json{{"method", "future/serverRequest"}, {"sensitiveFieldsRedacted", true}});
+        model::LegacyCompatibilityPayload legacy;
+        legacy.kind = model::LegacyCompatibilityKind::LegacyPendingRequest;
+        legacy.legacyPendingRequest = std::move(request);
+        return {model::SourceStamp{"backend-event:future-pending"}, std::move(legacy), {}};
+    }
+
+    model::OccurrenceDraft itemContentOccurrence() {
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-mixed"}};
+        update.threadId = model::ThreadIdentity{"thread-mixed"};
+        update.turnId = model::TurnIdentity{"turn-mixed"};
+        update.channel = "agentText";
+        update.content = "mixed representation";
+        model::LegacyCompatibilityPayload legacy;
+        legacy.kind = model::LegacyCompatibilityKind::ItemContentUpdated;
+        legacy.sourcePayloadIndex = 0;
+        std::vector<model::OccurrencePayload> expanded;
+        expanded.emplace_back(std::move(update));
+        return {model::SourceStamp{"server_notification:ServerNotification:method:item/agentMessage/delta"},
+                std::move(legacy),
+                std::move(expanded)};
+    }
+
+    model::OccurrenceDraft configurationOccurrence() {
+        model::ConfigurationState configuration;
+        configuration.state = model::DomainState::present();
+        return {model::SourceStamp{"backend-event:900"},
+                model::ConfigurationUpdatedOccurrence{std::move(configuration)}};
+    }
+
+    void drainOne(std::vector<std::function<void()>>& scheduled) {
+        std::function<void()> callback = std::move(scheduled.front());
+        scheduled.erase(scheduled.begin());
+        callback();
+    }
+
+    void drainAll(std::vector<std::function<void()>>& scheduled) {
+        std::size_t turns = 0;
+        while (!scheduled.empty()) {
+            drainOne(scheduled);
+            if (++turns > 64) {
+                throw std::runtime_error("synchronization scheduler did not quiesce");
+            }
+        }
+    }
+
+    void testSynchronization(tests::support::TestResult& result) {
+        Backend backend;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.journalInitialSequence = model::FrontendSequence{5};
+        options.maxInboundBurst = 1000;
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        const server::PublishResult retained = core.publishGroup(providerOccurrence("6", false));
+        result.expectTrue(retained.accepted && !retained.error.has_value() &&
+                              retained.deliveryMode == server::PublishDeliveryMode::Occurrences &&
+                              retained.sequence == model::FrontendSequence{6} && core.currentSequence() == retained.sequence,
+                          "the typed journal advances exactly once from the configured initial sequence");
+
+        std::vector<frontend::ServerMessage> expandedMessages;
+        const auto expandedConnection = core.openConnection({}, collect(expandedMessages));
+        frontend::Hello replayHello;
+        replayHello.resumeAfter = frontend::SequenceNumber{5};
+        replayHello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                               frontend::FrontendCapability::DedicatedNotificationEvents};
+        const auto replayAccepted = core.receive(*expandedConnection, frontend::ClientMessage{std::move(replayHello)});
+        const auto* replayWelcome = !expandedMessages.empty() ? std::get_if<frontend::Welcome>(&expandedMessages.front()) : nullptr;
+        const auto* replayBatch = expandedMessages.size() > 1 ? std::get_if<frontend::EventBatch>(&expandedMessages[1]) : nullptr;
+        result.expectTrue(replayAccepted.accepted() && replayWelcome && replayWelcome->syncMode == frontend::SyncMode::Replay &&
+                              replayBatch && replayBatch->fromSequence == frontend::SequenceNumber{6} &&
+                              replayBatch->toSequence == frontend::SequenceNumber{6} && replayBatch->events.size() == 1 &&
+                              expandedMessages.size() == 4 &&
+                              std::holds_alternative<frontend::SyncComplete>(expandedMessages[2]) &&
+                              std::holds_alternative<frontend::EventBatch>(expandedMessages[3]),
+                          "initial replay completes before the newly joined session occurrence is delivered live");
+
+        std::vector<frontend::ServerMessage> legacyMessages;
+        const auto legacyConnection = core.openConnection({}, collect(legacyMessages));
+        const bool legacyAccepted = core.receive(*legacyConnection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        const frontend::Snapshot* legacySnapshot =
+            legacyMessages.size() > 1 ? std::get_if<frontend::Snapshot>(&legacyMessages[1]) : nullptr;
+        result.expectTrue(legacyAccepted && legacyMessages.size() == 4 && legacySnapshot &&
+                              legacySnapshot->state.contains("backendRevision") &&
+                              legacySnapshot->state.contains("lifecycle") && legacySnapshot->state.contains("diagnostics") &&
+                              legacySnapshot->state.contains("journal") && !legacySnapshot->state.contains("provider") &&
+                              !legacySnapshot->state.contains("controller") && !legacySnapshot->state.contains("truncation"),
+                          "a client without representation capabilities receives the frozen legacy snapshot shape, not expanded state");
+
+        expandedMessages.clear();
+        legacyMessages.clear();
+        const server::PublishResult live = core.publishGroup(expandedGroup());
+        const auto* expandedBatch = expandedMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&expandedMessages.front()) : nullptr;
+        const auto* legacyBatch = legacyMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&legacyMessages.front()) : nullptr;
+        result.expectTrue(
+            live.accepted && live.sequence == model::FrontendSequence{9} && expandedBatch && expandedBatch->events.size() == 2 &&
+                legacyBatch && legacyBatch->events.size() == 1 && expandedBatch->fromSequence == legacyBatch->fromSequence,
+            "one canonical occurrence group is encoded atomically as all expanded events or one legacy event, never a mixture");
+
+        expandedMessages.clear();
+        legacyMessages.clear();
+        backend.state.provider.lifecycle = model::ProviderLifecycle::Ready;
+        const server::SnapshotPublishResult resynchronized = core.publishSnapshot(backend.state);
+        result.expectTrue(resynchronized.accepted &&
+                              resynchronized.sequence == model::FrontendSequence{live.sequence.value() + 1} &&
+                              resynchronized.recipientCount == 2 && expandedMessages.size() == 1 && legacyMessages.size() == 1 &&
+                              std::holds_alternative<frontend::Snapshot>(expandedMessages.front()) &&
+                              std::holds_alternative<frontend::Snapshot>(legacyMessages.front()),
+                          "authoritative resynchronization invalidates replay and broadcasts one live projected Snapshot per connection");
+
+        std::vector<frontend::ServerMessage> gapMessages;
+        const auto gapConnection = core.openConnection({}, collect(gapMessages));
+        frontend::Hello gapHello;
+        gapHello.resumeAfter = frontend::SequenceNumber{7};
+        gapHello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains};
+        result.expectTrue(core.receive(*gapConnection, frontend::ClientMessage{std::move(gapHello)}).accepted(),
+                          "a replay cursor before the resynchronization barrier remains a valid Hello");
+        const auto* gapWelcome = !gapMessages.empty() ? std::get_if<frontend::Welcome>(&gapMessages.front()) : nullptr;
+        result.expectTrue(gapWelcome && gapWelcome->syncMode == frontend::SyncMode::Snapshot && gapMessages.size() == 4 &&
+                              std::holds_alternative<frontend::Snapshot>(gapMessages[1]),
+                          "a replay gap deterministically falls back to Snapshot synchronization");
+
+        expandedMessages.clear();
+        legacyMessages.clear();
+        const server::PublishResult unknown = core.publishGroup(containedUnknownOccurrence());
+        const auto* expandedFallback =
+            expandedMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&expandedMessages.front()) : nullptr;
+        const auto* legacyFallback = legacyMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&legacyMessages.front()) : nullptr;
+        result.expectTrue(unknown.accepted && unknown.occurrenceCount == 1 && expandedFallback && legacyFallback &&
+                              expandedFallback->events.size() == 1 && legacyFallback->events.size() == 1 &&
+                              expandedFallback->events.front().type == "codex.extension" &&
+                              legacyFallback->events.front().type == "codex.extension",
+                          "an unknown safe notification remains one bounded codex.extension even for expanded clients");
+    }
+
+    void testTypedBatching(tests::support::TestResult& result) {
+        Backend backend;
+        std::vector<std::function<void()>> scheduled;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.maxEventsPerBatch = 2;
+        options.scheduler = [&scheduled](std::function<void()> callback) {
+            scheduled.push_back(std::move(callback));
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> liveMessages;
+        const auto live = core.openConnection({}, collect(liveMessages));
+        result.expectTrue(live && core.receive(*live, frontend::ClientMessage{frontend::Hello{}}).accepted() && !scheduled.empty(),
+                          "manual scheduler captures the initial delivery turn");
+        drainOne(scheduled);
+        liveMessages.clear();
+
+        result.expectTrue(core.publishGroup(providerOccurrence("101", false)).accepted &&
+                              core.publishGroup(providerOccurrence("102", true)).accepted &&
+                              core.publishGroup(providerOccurrence("103", false)).accepted && scheduled.size() == 1,
+                          "three adjacent typed groups request one pending delivery turn");
+        drainOne(scheduled);
+        const auto* firstBatch = liveMessages.size() > 0 ? std::get_if<frontend::EventBatch>(&liveMessages[0]) : nullptr;
+        const auto* secondBatch = liveMessages.size() > 1 ? std::get_if<frontend::EventBatch>(&liveMessages[1]) : nullptr;
+        result.expectTrue(liveMessages.size() == 2 && firstBatch && secondBatch && firstBatch->events.size() == 2 &&
+                              firstBatch->fromSequence == frontend::SequenceNumber{2} &&
+                              firstBatch->toSequence == frontend::SequenceNumber{3} && secondBatch->events.size() == 1 &&
+                              secondBatch->fromSequence == frontend::SequenceNumber{4},
+                          "live delivery batches adjacent sequences by the configured event count without splitting a group");
+
+        std::vector<frontend::ServerMessage> replayMessages;
+        const auto replay = core.openConnection({}, collect(replayMessages));
+        frontend::Hello replayHello;
+        replayHello.resumeAfter = frontend::SequenceNumber{1};
+        result.expectTrue(replay && core.receive(*replay, frontend::ClientMessage{std::move(replayHello)}).accepted() && !scheduled.empty(),
+                          "retained groups are available to a later replay connection");
+        drainOne(scheduled);
+        const auto* replayFirst = replayMessages.size() > 1 ? std::get_if<frontend::EventBatch>(&replayMessages[1]) : nullptr;
+        const auto* replaySecond = replayMessages.size() > 2 ? std::get_if<frontend::EventBatch>(&replayMessages[2]) : nullptr;
+        result.expectTrue(replayMessages.size() == 5 && replayFirst && replaySecond && replayFirst->events.size() == 2 &&
+                              replaySecond->events.size() == 1 &&
+                              std::holds_alternative<frontend::SyncComplete>(replayMessages[3]) &&
+                              std::holds_alternative<frontend::EventBatch>(replayMessages[4]),
+                          "replay uses the same typed batch builder and exact live batch boundaries");
+
+        Backend mixedBackend;
+        std::vector<std::function<void()>> mixedScheduled;
+        server::ServerCoreOptions mixedOptions;
+        mixedOptions.authenticator = authenticate;
+        mixedOptions.maxEventsPerBatch = 8;
+        mixedOptions.scheduler = [&mixedScheduled](std::function<void()> callback) {
+            mixedScheduled.push_back(std::move(callback));
+        };
+        server::ServerCore mixed(mixedBackend, std::move(mixedOptions));
+        mixed.start();
+        std::vector<frontend::ServerMessage> mixedMessages;
+        const auto mixedConnection = mixed.openConnection({}, collect(mixedMessages));
+        frontend::Hello mixedHello;
+        mixedHello.capabilities = std::vector{frontend::FrontendCapability::DedicatedNotificationEvents};
+        result.expectTrue(mixedConnection && mixed.receive(*mixedConnection, frontend::ClientMessage{std::move(mixedHello)}).accepted() &&
+                              !mixedScheduled.empty(),
+                          "mixed-capability client synchronizes with independent event-family capabilities");
+        drainOne(mixedScheduled);
+        mixedMessages.clear();
+        result.expectTrue(mixed.publishGroup(providerOccurrence("201", true)).accepted &&
+                              mixed.publishGroup(itemContentOccurrence()).accepted &&
+                              mixed.publishGroup(configurationOccurrence()).accepted,
+                          "mixed-capability occurrences enter one typed pending delivery turn");
+        drainOne(mixedScheduled);
+        const auto batchType = [](const frontend::ServerMessage& message) -> std::string {
+            const auto* batch = std::get_if<frontend::EventBatch>(&message);
+            return batch && !batch->events.empty() ? batch->events.front().type : std::string{};
+        };
+        result.expectTrue(mixedMessages.size() == 3 && batchType(mixedMessages[0]) == "provider.updated" &&
+                              batchType(mixedMessages[1]) == "item.content.updated" &&
+                              batchType(mixedMessages[2]) == "configuration.updated",
+                          "independent capabilities force expanded/legacy/expanded representation switches into separate batches");
+
+        Backend oversizedBackend;
+        std::vector<std::function<void()>> oversizedScheduled;
+        server::ServerCoreOptions oversizedOptions;
+        oversizedOptions.authenticator = authenticate;
+        oversizedOptions.maxEventsPerBatch = 1;
+        oversizedOptions.scheduler = [&oversizedScheduled](std::function<void()> callback) {
+            oversizedScheduled.push_back(std::move(callback));
+        };
+        server::ServerCore oversized(oversizedBackend, std::move(oversizedOptions));
+        oversized.start();
+        std::vector<frontend::ServerMessage> oversizedMessages;
+        const auto oversizedConnection = oversized.openConnection({}, collect(oversizedMessages));
+        frontend::Hello expandedHello;
+        expandedHello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                                 frontend::FrontendCapability::DedicatedNotificationEvents};
+        result.expectTrue(oversizedConnection &&
+                              oversized.receive(*oversizedConnection, frontend::ClientMessage{std::move(expandedHello)}).accepted() &&
+                              !oversizedScheduled.empty(),
+                          "expanded client synchronizes before the unsplittable-group probe");
+        drainOne(oversizedScheduled);
+        oversizedMessages.clear();
+        const server::PublishResult oversizedPublished = oversized.publishGroup(expandedGroup());
+        drainOne(oversizedScheduled);
+        result.expectTrue(oversizedPublished.accepted && oversizedMessages.size() == 1 &&
+                              std::holds_alternative<frontend::Snapshot>(oversizedMessages.front()) &&
+                              oversized.connectionOpen(*oversizedConnection),
+                          "one expanded occurrence that cannot fit atomically falls back to Snapshot instead of closing");
+
+        std::vector<frontend::ServerMessage> oversizedReplayMessages;
+        const auto oversizedReplay = oversized.openConnection({}, collect(oversizedReplayMessages));
+        frontend::Hello oversizedReplayHello;
+        oversizedReplayHello.resumeAfter = frontend::SequenceNumber{0};
+        oversizedReplayHello.capabilities = std::vector{frontend::FrontendCapability::DedicatedNotificationEvents};
+        result.expectTrue(oversizedReplay &&
+                              oversized.receive(*oversizedReplay, frontend::ClientMessage{std::move(oversizedReplayHello)}).accepted() &&
+                              !oversizedScheduled.empty(),
+                          "oversized retained occurrence is preflighted before the replay Welcome");
+        drainOne(oversizedScheduled);
+        const auto* oversizedWelcome =
+            !oversizedReplayMessages.empty() ? std::get_if<frontend::Welcome>(&oversizedReplayMessages.front()) : nullptr;
+        result.expectTrue(oversizedWelcome && oversizedWelcome->syncMode == frontend::SyncMode::Snapshot &&
+                              oversizedReplayMessages.size() == 4 &&
+                              std::holds_alternative<frontend::Snapshot>(oversizedReplayMessages[1]) &&
+                              std::holds_alternative<frontend::SyncComplete>(oversizedReplayMessages[2]) &&
+                              std::holds_alternative<frontend::EventBatch>(oversizedReplayMessages[3]),
+                          "initial synchronization advertises Snapshot when projected replay cannot preserve an atomic group");
+    }
+
+    void testIndependentSnapshotCapabilities(tests::support::TestResult& result) {
+        Backend backend;
+        backend.state.backendCursor.backendRevision = 9;
+        backend.state.items.emplace_back(model::PlanItem{model::ItemData{model::ItemIdentity{"item-capability"}}});
+        backend.state.pendingRequests.emplace_back(
+            model::CommandExecutionApprovalRequest{model::PendingRequestData{model::PendingRequestIdentity{"8"}}});
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        const auto synchronize = [&](std::vector<frontend::FrontendCapability> capabilities,
+                                     std::vector<frontend::ServerMessage>& messages) {
+            const auto connection = core.openConnection({}, collect(messages));
+            frontend::Hello hello;
+            hello.capabilities = std::move(capabilities);
+            return connection && core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted();
+        };
+        std::vector<frontend::ServerMessage> legacyMessages;
+        std::vector<frontend::ServerMessage> domainsMessages;
+        std::vector<frontend::ServerMessage> itemsMessages;
+        std::vector<frontend::ServerMessage> pendingMessages;
+        std::vector<frontend::ServerMessage> allMessages;
+        const bool synchronized = synchronize({}, legacyMessages) &&
+                                  synchronize({frontend::FrontendCapability::CompleteBackendDomains}, domainsMessages) &&
+                                  synchronize({frontend::FrontendCapability::CompleteThreadItems}, itemsMessages) &&
+                                  synchronize({frontend::FrontendCapability::DedicatedPendingRequests}, pendingMessages) &&
+                                  synchronize({frontend::FrontendCapability::CompleteBackendDomains,
+                                               frontend::FrontendCapability::CompleteThreadItems,
+                                               frontend::FrontendCapability::DedicatedPendingRequests},
+                                              allMessages);
+        const auto snapshotState = [](const std::vector<frontend::ServerMessage>& messages) -> const frontend::Json* {
+            const auto* snapshot = messages.size() > 1 ? std::get_if<frontend::Snapshot>(&messages[1]) : nullptr;
+            return snapshot ? &snapshot->state : nullptr;
+        };
+        const frontend::Json* legacy = snapshotState(legacyMessages);
+        const frontend::Json* domains = snapshotState(domainsMessages);
+        const frontend::Json* items = snapshotState(itemsMessages);
+        const frontend::Json* pending = snapshotState(pendingMessages);
+        const frontend::Json* all = snapshotState(allMessages);
+        const bool legacyOnly = legacy && legacy->contains("backendRevision") && !legacy->contains("items") &&
+                                !legacy->at("pendingRequests").at(0).contains("kind");
+        const bool domainsOnly = domains && domains->contains("provider") && domains->at("items").at(0).contains("codexType") &&
+                                 domains->contains("pendingRequests") && !domains->at("pendingRequests").at(0).contains("kind");
+        const bool itemsOnly = items && items->contains("backendRevision") && items->at("items").at(0).contains("type") &&
+                               !items->at("pendingRequests").at(0).contains("kind");
+        const bool pendingOnly = pending && pending->contains("backendRevision") && !pending->contains("items") &&
+                                 pending->at("pendingRequests").at(0).contains("kind");
+        const bool allExpanded = all && all->contains("provider") && all->at("items").at(0).contains("type") &&
+                                 all->at("pendingRequests").at(0).contains("kind");
+        result.expectTrue(synchronized && legacyOnly && domainsOnly && itemsOnly && pendingOnly && allExpanded,
+                          "complete domains, complete ThreadItems, and dedicated pending requests compose independently in snapshots");
+    }
+
+    void testLegacyOnlyPerConnectionContainment(tests::support::TestResult& result) {
+        Backend backend;
+        backend.state.provider.lifecycle = model::ProviderLifecycle::Ready;
+        backend.state.threads.emplace_back(model::ThreadIdentity{"future-live-thread"});
+        backend.state.turns.emplace_back(model::TurnIdentity{"future-live-turn"}, model::ThreadIdentity{"future-live-thread"});
+        backend.state.legacyItems.push_back(*legacyItemOccurrence().legacyCompatibility.legacyItem);
+        backend.state.legacyPendingRequests.push_back(*legacyPendingOccurrence().legacyCompatibility.legacyPendingRequest);
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> legacyMessages;
+        std::vector<frontend::ServerMessage> expandedMessages;
+        const auto legacy = core.openConnection({}, collect(legacyMessages));
+        const auto expanded = core.openConnection({}, collect(expandedMessages));
+        frontend::Hello legacyHello;
+        frontend::Hello expandedHello;
+        expandedHello.capabilities = {frontend::FrontendCapability::CompleteThreadItems,
+                                      frontend::FrontendCapability::DedicatedPendingRequests};
+        const bool ready = legacy && expanded && core.receive(*legacy, frontend::ClientMessage{std::move(legacyHello)}).accepted() &&
+                           core.receive(*expanded, frontend::ClientMessage{std::move(expandedHello)}).accepted();
+        legacyMessages.clear();
+        expandedMessages.clear();
+
+        const auto itemPublished = core.publishGroup(legacyItemOccurrence());
+        core.flush();
+        const auto* legacyItemBatch = legacyMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&legacyMessages.front()) : nullptr;
+        const auto* expandedItemSnapshot =
+            expandedMessages.size() == 1 ? std::get_if<frontend::Snapshot>(&expandedMessages.front()) : nullptr;
+        const bool itemSplit = itemPublished.accepted && legacyItemBatch && legacyItemBatch->events.size() == 1 &&
+                               legacyItemBatch->events.front().type == "item.updated" && expandedItemSnapshot &&
+                               expandedItemSnapshot->sequence == legacyItemBatch->toSequence;
+
+        legacyMessages.clear();
+        expandedMessages.clear();
+        const auto pendingPublished = core.publishGroup(legacyPendingOccurrence());
+        core.flush();
+        const auto* legacyPendingBatch = legacyMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&legacyMessages.front()) : nullptr;
+        const auto* expandedPendingSnapshot =
+            expandedMessages.size() == 1 ? std::get_if<frontend::Snapshot>(&expandedMessages.front()) : nullptr;
+        const bool pendingSplit = pendingPublished.accepted && legacyPendingBatch && legacyPendingBatch->events.size() == 1 &&
+                                  legacyPendingBatch->events.front().type == "request.pending" && expandedPendingSnapshot &&
+                                  expandedPendingSnapshot->sequence == legacyPendingBatch->toSequence;
+
+        std::vector<frontend::ServerMessage> legacyReplayMessages;
+        std::vector<frontend::ServerMessage> expandedReplayMessages;
+        const auto legacyReplay = core.openConnection({}, collect(legacyReplayMessages));
+        const auto expandedReplay = core.openConnection({}, collect(expandedReplayMessages));
+        frontend::Hello legacyReplayHello;
+        legacyReplayHello.resumeAfter = frontend::SequenceNumber{0};
+        frontend::Hello expandedReplayHello;
+        expandedReplayHello.resumeAfter = frontend::SequenceNumber{0};
+        expandedReplayHello.capabilities = {frontend::FrontendCapability::CompleteThreadItems,
+                                            frontend::FrontendCapability::DedicatedPendingRequests};
+        const bool replayAccepted = legacyReplay && expandedReplay &&
+                                    core.receive(*legacyReplay, frontend::ClientMessage{std::move(legacyReplayHello)}).accepted() &&
+                                    core.receive(*expandedReplay, frontend::ClientMessage{std::move(expandedReplayHello)}).accepted();
+        const auto* legacyWelcome =
+            !legacyReplayMessages.empty() ? std::get_if<frontend::Welcome>(&legacyReplayMessages.front()) : nullptr;
+        const auto* expandedWelcome =
+            !expandedReplayMessages.empty() ? std::get_if<frontend::Welcome>(&expandedReplayMessages.front()) : nullptr;
+        const bool replaySplit = replayAccepted && legacyWelcome && legacyWelcome->syncMode == frontend::SyncMode::Replay &&
+                                 expandedWelcome && expandedWelcome->syncMode == frontend::SyncMode::Snapshot &&
+                                 std::any_of(legacyReplayMessages.begin(), legacyReplayMessages.end(), [](const frontend::ServerMessage& message) {
+                                     const auto* batch = std::get_if<frontend::EventBatch>(&message);
+                                     return batch && std::any_of(batch->events.begin(), batch->events.end(), [](const frontend::FrontendEvent& event) {
+                                                return event.type == "item.updated" || event.type == "request.pending";
+                                            });
+                                 }) &&
+                                 std::any_of(expandedReplayMessages.begin(), expandedReplayMessages.end(), [](const frontend::ServerMessage& message) {
+                                     return std::holds_alternative<frontend::Snapshot>(message);
+                                 });
+        result.expectTrue(ready && itemSplit && pendingSplit && replaySplit,
+                          "legacy-only item and pending live/replay use legacy events while expanded connections receive same-sequence Snapshot containment");
+    }
+
+    void testSessionAndControllerJournal(tests::support::TestResult& result) {
+        Backend backend;
+        std::vector<std::function<void()>> scheduled;
+        server::ServerCoreOptions options;
+        options.authenticator = [](const frontend::FrontendPeerContext&, const frontend::AuthenticationCredential&) {
+            frontend::FrontendPrincipal principal;
+            principal.id = "topology-principal";
+            principal.profile = "test";
+            principal.scopes.assign(frontend::LocalTrustedScopes.begin(), frontend::LocalTrustedScopes.end());
+            return frontend::AuthenticationResult{frontend::AuthenticationSuccess{std::move(principal)}};
+        };
+        options.maxInboundBurst = 1000;
+        options.scheduler = [&scheduled](std::function<void()> callback) {
+            scheduled.push_back(std::move(callback));
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> firstMessages;
+        std::vector<frontend::ServerMessage> secondMessages;
+        const auto first = core.openConnection({}, collect(firstMessages));
+        frontend::Hello firstHello;
+        firstHello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                              frontend::FrontendCapability::DedicatedNotificationEvents};
+        const bool firstAccepted = first && core.receive(*first, frontend::ClientMessage{std::move(firstHello)}).accepted();
+        if (!scheduled.empty()) {
+            drainOne(scheduled);
+        }
+        firstMessages.clear();
+
+        const auto second = core.openConnection({}, collect(secondMessages));
+        frontend::Hello secondHello;
+        secondHello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                               frontend::FrontendCapability::DedicatedNotificationEvents};
+        const bool secondAccepted = second && core.receive(*second, frontend::ClientMessage{std::move(secondHello)}).accepted();
+        if (!scheduled.empty()) {
+            drainOne(scheduled);
+        }
+        const auto* secondSnapshot = secondMessages.size() > 1 ? std::get_if<frontend::Snapshot>(&secondMessages[1]) : nullptr;
+        const frontend::Json* sessions = secondSnapshot && secondSnapshot->state.contains("sessions")
+                                             ? &secondSnapshot->state.at("sessions")
+                                             : nullptr;
+        result.expectTrue(firstAccepted && secondAccepted && core.authenticatedConnectionCount() == 2 && sessions &&
+                              sessions->is_array() && sessions->size() == 2 &&
+                              sessions->at(0).at("sessionId") != sessions->at(1).at("sessionId"),
+                          "two observers receive distinct core-owned sessions in the canonical initial snapshot");
+
+        const model::FrontendSequence beforeController = core.currentSequence();
+        firstMessages.clear();
+        secondMessages.clear();
+        generated::DefinedCommand acquire{
+            "topology-acquire", generated::makeParameters(generated::MethodId::ControllerAcquire, frontend::Json::object())};
+        const bool acquired = first && core.receiveDefinedCommand(*first, acquire).accepted();
+        if (!scheduled.empty()) {
+            drainOne(scheduled);
+        }
+        const auto* acquiredBatch = !secondMessages.empty() ? std::get_if<frontend::EventBatch>(&secondMessages.front()) : nullptr;
+        result.expectTrue(acquired && acquiredBatch && acquiredBatch->events.size() == 1 &&
+                              acquiredBatch->events.front().type == "controller.updated" &&
+                              core.currentSequence() == model::FrontendSequence{beforeController.value() + 1},
+                          "controller acquisition advances the shared typed journal and is delivered live to the other observer");
+
+        secondMessages.clear();
+        if (first) {
+            core.closeConnection(*first, "topology disconnect");
+        }
+        if (!scheduled.empty()) {
+            drainOne(scheduled);
+        }
+        const auto* disconnectBatch = !secondMessages.empty() ? std::get_if<frontend::EventBatch>(&secondMessages.front()) : nullptr;
+        result.expectTrue(!core.currentController() && disconnectBatch && disconnectBatch->events.size() == 2 &&
+                              disconnectBatch->events[0].type == "controller.updated" &&
+                              disconnectBatch->events[1].type == "sessions.updated" &&
+                              core.currentSequence() == model::FrontendSequence{beforeController.value() + 3},
+                          "controller disconnect publishes controller release before session removal without a parallel sequence source");
+
+        secondMessages.clear();
+        generated::DefinedCommand replay{
+            "topology-replay",
+            generated::makeParameters(generated::MethodId::EventsReplay, frontend::Json{{"after", beforeController.value()}})};
+        const bool replayed = second && core.receiveDefinedCommand(*second, replay).accepted();
+        if (!scheduled.empty()) {
+            drainOne(scheduled);
+        }
+        const auto* replayBatch = secondMessages.size() > 1 ? std::get_if<frontend::EventBatch>(&secondMessages[1]) : nullptr;
+        result.expectTrue(replayed && replayBatch && replayBatch->events.size() == 3 &&
+                              replayBatch->events[0].type == "controller.updated" &&
+                              replayBatch->events[1].type == "controller.updated" &&
+                              replayBatch->events[2].type == "sessions.updated" &&
+                              std::holds_alternative<frontend::SyncComplete>(secondMessages.back()),
+                          "controller acquisition, implicit release, and session removal replay in the exact live sequence order");
+    }
+
+    backend::Snapshot entityProjectionSnapshot() {
+        backend::Snapshot snapshot;
+        snapshot.sequence = backend::SequenceNumber{40};
+        snapshot.provider.lifecycle = backend::ProviderLifecycle::Ready;
+        for (const std::string suffix : {"a", "b"}) {
+            backend::ThreadSnapshot thread;
+            thread.id = "thread-" + suffix;
+            thread.fullyLoaded = true;
+
+            backend::TurnSnapshot firstTurn;
+            firstTurn.id = "turn-" + suffix;
+            firstTurn.threadId = thread.id;
+            firstTurn.status = "inProgress";
+            for (const std::string itemSuffix : {"1", "2"}) {
+                backend::ItemSnapshot item;
+                item.id = "item-" + suffix + "-" + itemSuffix;
+                item.type = "plan";
+                item.status = "inProgress";
+                item.agentText = "content-" + suffix + "-" + itemSuffix;
+                firstTurn.items.push_back(std::move(item));
+            }
+            thread.turns.push_back(std::move(firstTurn));
+
+            backend::TurnSnapshot secondTurn;
+            secondTurn.id = "turn-" + suffix + "-2";
+            secondTurn.threadId = thread.id;
+            secondTurn.status = "inProgress";
+            backend::ItemSnapshot secondTurnItem;
+            secondTurnItem.id = "item-" + suffix + "-3";
+            secondTurnItem.type = "plan";
+            secondTurnItem.status = "inProgress";
+            secondTurn.items.push_back(std::move(secondTurnItem));
+            thread.turns.push_back(std::move(secondTurn));
+            snapshot.threads.push_back(std::move(thread));
+        }
+
+        for (const std::string suffix : {"a", "b"}) {
+            backend::ProcessSnapshot process;
+            process.processHandle = "process-" + suffix;
+            process.lifecycle = "running";
+            snapshot.processes.push_back(std::move(process));
+
+            backend::FilesystemWatchSnapshot watch;
+            watch.watchId = "watch-" + suffix;
+            snapshot.filesystemWatches.push_back(std::move(watch));
+
+            backend::FuzzySearchSnapshot search;
+            search.sessionId = "search-" + suffix;
+            snapshot.fuzzySearchSessions.push_back(std::move(search));
+
+            backend::ActivitySnapshot activity;
+            activity.key = "activity-" + suffix;
+            activity.subjectId = "subject-" + suffix;
+            activity.kind = "test";
+            activity.lifecycle = "active";
+            snapshot.activities.push_back(std::move(activity));
+        }
+        return snapshot;
+    }
+
+    model::ModelResult<server::ProjectedBackendBatch> projectExtension(server::BackendProjection& projection,
+                                                                       const backend::Snapshot& snapshot,
+                                                                       std::string method,
+                                                                       frontend::Json payload) {
+        backend::CodexExtensionReceived extension;
+        extension.method = std::move(method);
+        extension.payload = std::move(payload);
+        extension.safeProjection = true;
+        const std::vector<backend::SequencedBackendEvent> events{
+            {backend::SequenceNumber{41}, std::move(extension)}};
+        return projection.projectOccurrences(events, snapshot);
+    }
+
+    bool snapshotContained(const model::ModelResult<server::ProjectedBackendBatch>& projection) {
+        return projection && projection.value().snapshotRequired && projection.value().occurrences.empty();
+    }
+
+    template <typename Payload>
+    const Payload* solePayload(const model::ModelResult<server::ProjectedBackendBatch>& projection) {
+        if (!projection || projection.value().snapshotRequired || projection.value().occurrences.size() != 1 ||
+            projection.value().occurrences.front().occurrence.expandedPayloads.size() != 1) {
+            return nullptr;
+        }
+        return std::get_if<Payload>(&projection.value().occurrences.front().occurrence.expandedPayloads.front());
+    }
+
+    void testExactBackendOccurrenceIdentity(tests::support::TestResult& result) {
+        server::BackendProjection projection;
+        const backend::Snapshot source = entityProjectionSnapshot();
+        const std::string malformed(model::ThreadIdentity::MaximumBytes + 1, 'x');
+
+        const auto missingThread = projectExtension(projection, source, "thread/status/changed", frontend::Json::object());
+        const auto malformedThread =
+            projectExtension(projection, source, "thread/status/changed", frontend::Json{{"threadId", malformed}});
+        backend::Snapshot duplicateThreadSource = source;
+        duplicateThreadSource.threads.push_back(source.threads.front());
+        const auto duplicateThread = projectExtension(
+            projection, duplicateThreadSource, "thread/status/changed", frontend::Json{{"threadId", "thread-a"}});
+        result.expectTrue(snapshotContained(missingThread),
+                          "a missing thread identity requires Snapshot containment and never selects the last retained thread");
+        result.expectTrue(snapshotContained(malformedThread),
+                          "an unparseable thread identity requires Snapshot containment and never becomes a wildcard");
+        result.expectTrue(snapshotContained(duplicateThread),
+                          "an ambiguous duplicate thread identity requires Snapshot containment and never selects the first match");
+
+        const auto exactRemoved = projectExtension(
+            projection, source, "thread/deleted", frontend::Json{{"threadId", "thread-a"}});
+        const auto* removed = solePayload<model::ThreadRemovedOccurrence>(exactRemoved);
+        const auto missingRemoved = projectExtension(projection, source, "thread/deleted", frontend::Json::object());
+        const auto malformedRemoved =
+            projectExtension(projection, source, "thread/deleted", frontend::Json{{"threadId", malformed}});
+        const auto conflictingRemoved = projectExtension(projection,
+                                                         source,
+                                                         "thread/deleted",
+                                                         frontend::Json{{"threadId", "thread-a"},
+                                                                        {"thread", {{"id", "thread-b"}}}});
+        const auto incompleteRemoved = projectExtension(projection,
+                                                        source,
+                                                        "thread/deleted",
+                                                        frontend::Json{{"threadId", "thread-a"}, {"thread", frontend::Json::object()}});
+        const auto malformedRemovedWrapper = projectExtension(
+            projection,
+            source,
+            "thread/deleted",
+            frontend::Json{{"threadId", "thread-a"}, {"thread", frontend::Json::array()}});
+        result.expectTrue(removed && removed->threadId == model::ThreadIdentity{"thread-a"},
+                          "thread.removed carries the exact valid thread identity without requiring the removed entity to remain retained");
+        result.expectTrue(snapshotContained(missingRemoved) && snapshotContained(malformedRemoved) &&
+                              snapshotContained(conflictingRemoved) && snapshotContained(incompleteRemoved) &&
+                              snapshotContained(malformedRemovedWrapper),
+                          "thread.removed contains missing, malformed, conflicting, incomplete, and malformed-wrapper identities");
+
+        const auto exactNestedTurn = projectExtension(projection,
+                                                      source,
+                                                      "turn/completed",
+                                                      frontend::Json{{"threadId", "thread-a"},
+                                                                     {"turn", {{"id", "turn-a-2"}, {"threadId", "thread-a"}}}});
+        const auto* exactTurn = solePayload<model::TurnUpsertedOccurrence>(exactNestedTurn);
+        result.expectTrue(exactTurn && exactTurn->turn.id == model::TurnIdentity{"turn-a-2"} &&
+                              exactTurn->turn.threadId == model::ThreadIdentity{"thread-a"},
+                          "a nested turn identity selects that exact turn rather than the first turn under its parent");
+
+        const auto missingTurn =
+            projectExtension(projection, source, "thread/tokenUsage/updated", frontend::Json{{"threadId", "thread-a"}});
+        const auto malformedTurn = projectExtension(projection,
+                                                    source,
+                                                    "thread/tokenUsage/updated",
+                                                    frontend::Json{{"threadId", "thread-a"}, {"turnId", malformed}});
+        const auto mismatchingTurn = projectExtension(projection,
+                                                      source,
+                                                      "thread/tokenUsage/updated",
+                                                      frontend::Json{{"threadId", "thread-b"}, {"turnId", "turn-a"}});
+        backend::Snapshot duplicateTurnSource = source;
+        duplicateTurnSource.threads.front().turns.push_back(source.threads.front().turns.front());
+        const auto duplicateTurn = projectExtension(projection,
+                                                    duplicateTurnSource,
+                                                    "thread/tokenUsage/updated",
+                                                    frontend::Json{{"threadId", "thread-a"}, {"turnId", "turn-a"}});
+        const auto incompleteTurn = projectExtension(projection,
+                                                     source,
+                                                     "thread/tokenUsage/updated",
+                                                     frontend::Json{{"threadId", "thread-a"},
+                                                                    {"turnId", "turn-a"},
+                                                                    {"turn", frontend::Json::object()}});
+        result.expectTrue(snapshotContained(missingTurn),
+                          "a missing turn identity requires Snapshot containment and never selects the first turn under a thread");
+        result.expectTrue(snapshotContained(malformedTurn),
+                          "an unparseable turn identity requires Snapshot containment and never becomes a wildcard");
+        result.expectTrue(snapshotContained(mismatchingTurn),
+                          "a turn identity with mismatching parent thread requires Snapshot containment");
+        result.expectTrue(snapshotContained(duplicateTurn),
+                          "an ambiguous duplicate thread/turn tuple requires Snapshot containment");
+        result.expectTrue(snapshotContained(incompleteTurn),
+                          "a present but incomplete nested turn identity cannot be treated as an absent optional wrapper");
+
+        const auto exactNestedItem = projectExtension(projection,
+                                                      source,
+                                                      "item/started",
+                                                      frontend::Json{{"threadId", "thread-a"},
+                                                                     {"turnId", "turn-a"},
+                                                                     {"item", {{"id", "item-a-2"}, {"type", "plan"}}}});
+        const auto* exactItem = solePayload<model::ItemUpsertedOccurrence>(exactNestedItem);
+        result.expectTrue(exactItem && model::itemData(exactItem->item).id == model::ItemIdentity{"item-a-2"},
+                          "a nested item identity selects that exact item rather than the first item under its parents");
+
+        const auto missingItem = projectExtension(projection,
+                                                  source,
+                                                  "item/fileChange/patchUpdated",
+                                                  frontend::Json{{"threadId", "thread-a"}, {"turnId", "turn-a"}});
+        const auto malformedItem = projectExtension(projection,
+                                                    source,
+                                                    "item/fileChange/patchUpdated",
+                                                    frontend::Json{{"threadId", "thread-a"},
+                                                                   {"turnId", "turn-a"},
+                                                                   {"itemId", malformed}});
+        const auto mismatchingItem = projectExtension(projection,
+                                                      source,
+                                                      "item/fileChange/patchUpdated",
+                                                      frontend::Json{{"threadId", "thread-b"},
+                                                                     {"turnId", "turn-b"},
+                                                                     {"itemId", "item-a-1"}});
+        backend::Snapshot duplicateItemSource = source;
+        duplicateItemSource.threads.front().turns.front().items.push_back(source.threads.front().turns.front().items.front());
+        const auto duplicateItem = projectExtension(projection,
+                                                    duplicateItemSource,
+                                                    "item/fileChange/patchUpdated",
+                                                    frontend::Json{{"threadId", "thread-a"},
+                                                                   {"turnId", "turn-a"},
+                                                                   {"itemId", "item-a-1"}});
+        const auto incompleteItem = projectExtension(projection,
+                                                     source,
+                                                     "item/fileChange/patchUpdated",
+                                                     frontend::Json{{"threadId", "thread-a"},
+                                                                    {"turnId", "turn-a"},
+                                                                    {"itemId", "item-a-1"},
+                                                                    {"item", frontend::Json::object()}});
+        result.expectTrue(snapshotContained(missingItem),
+                          "a missing item identity requires Snapshot containment and never selects the first item under its parents");
+        result.expectTrue(snapshotContained(malformedItem),
+                          "an unparseable item identity requires Snapshot containment and never becomes a wildcard");
+        result.expectTrue(snapshotContained(mismatchingItem),
+                          "an item identity with mismatching thread and turn parents requires Snapshot containment");
+        result.expectTrue(snapshotContained(duplicateItem),
+                          "an ambiguous duplicate thread/turn/item tuple requires Snapshot containment");
+        result.expectTrue(snapshotContained(incompleteItem),
+                          "a present but incomplete nested item identity cannot be treated as an absent optional wrapper");
+
+        const auto exactContent = projectExtension(projection,
+                                                   source,
+                                                   "item/agentMessage/delta",
+                                                   frontend::Json{{"threadId", "thread-a"},
+                                                                  {"turnId", "turn-a"},
+                                                                  {"itemId", "item-a-2"}});
+        const auto* selectedContent = solePayload<model::ItemContentUpdatedOccurrence>(exactContent);
+        const auto missingContent = projectExtension(projection,
+                                                     source,
+                                                     "item/agentMessage/delta",
+                                                     frontend::Json{{"threadId", "thread-a"}, {"turnId", "turn-a"}});
+        const auto malformedContent = projectExtension(projection,
+                                                       source,
+                                                       "item/agentMessage/delta",
+                                                       frontend::Json{{"threadId", "thread-a"},
+                                                                      {"turnId", "turn-a"},
+                                                                      {"itemId", malformed}});
+        const auto mismatchingContent = projectExtension(projection,
+                                                         source,
+                                                         "item/agentMessage/delta",
+                                                         frontend::Json{{"threadId", "thread-b"},
+                                                                        {"turnId", "turn-b"},
+                                                                        {"itemId", "item-a-2"}});
+        const auto incompleteContent = projectExtension(projection,
+                                                        source,
+                                                        "item/agentMessage/delta",
+                                                        frontend::Json{{"threadId", "thread-a"},
+                                                                       {"turnId", "turn-a"},
+                                                                       {"itemId", "item-a-2"},
+                                                                       {"item", frontend::Json::object()}});
+        const auto conflictingContentParent = projectExtension(
+            projection,
+            source,
+            "item/agentMessage/delta",
+            frontend::Json{{"threadId", "thread-a"},
+                           {"turnId", "turn-a"},
+                           {"itemId", "item-a-2"},
+                           {"item", {{"id", "item-a-2"}, {"threadId", "thread-b"}, {"turnId", "turn-a"}}}});
+        result.expectTrue(selectedContent && selectedContent->itemId == model::ItemIdentity{"item-a-2"} &&
+                              selectedContent->threadId == model::ThreadIdentity{"thread-a"} &&
+                              selectedContent->turnId == model::TurnIdentity{"turn-a"} &&
+                              selectedContent->channel == std::optional<std::string>{"agentText"} &&
+                              selectedContent->content == std::optional<std::string>{"content-a-2"},
+                          "item.content.updated projects the exact item, parent identities, supported channel, and canonical content");
+        result.expectTrue(snapshotContained(missingContent) && snapshotContained(malformedContent) &&
+                              snapshotContained(mismatchingContent) && snapshotContained(incompleteContent) &&
+                              snapshotContained(conflictingContentParent),
+                          "item.content.updated contains missing, malformed, parent-mismatched, and incomplete-wrapper identities");
+
+        const auto missingProcess = projectExtension(projection, source, "process/outputDelta", frontend::Json::object());
+        const auto malformedProcess =
+            projectExtension(projection, source, "process/outputDelta", frontend::Json{{"processHandle", malformed}});
+        backend::Snapshot duplicateProcessSource = source;
+        duplicateProcessSource.processes.push_back(source.processes.front());
+        const auto duplicateProcess = projectExtension(
+            projection, duplicateProcessSource, "process/outputDelta", frontend::Json{{"processHandle", "process-a"}});
+        const auto exactCommandProcess =
+            projectExtension(projection, source, "command/exec/outputDelta", frontend::Json{{"processId", "process-b"}});
+        const auto* commandProcess = solePayload<model::ProcessUpdatedOccurrence>(exactCommandProcess);
+        result.expectTrue(snapshotContained(missingProcess),
+                          "a missing process handle requires Snapshot containment and never selects the first process");
+        result.expectTrue(snapshotContained(malformedProcess),
+                          "an unparseable process handle requires Snapshot containment and never becomes a wildcard");
+        result.expectTrue(snapshotContained(duplicateProcess),
+                          "an ambiguous duplicate process handle requires Snapshot containment");
+        result.expectTrue(commandProcess && commandProcess->process.handle == model::ProcessHandle{"process-b"},
+                          "command execution process events resolve their exact processId rather than the first retained process");
+
+        const auto missingWatch = projectExtension(projection, source, "fs/changed", frontend::Json::object());
+        const auto malformedWatch = projectExtension(projection, source, "fs/changed", frontend::Json{{"watchId", malformed}});
+        backend::Snapshot duplicateWatchSource = source;
+        duplicateWatchSource.filesystemWatches.push_back(source.filesystemWatches.front());
+        const auto duplicateWatch =
+            projectExtension(projection, duplicateWatchSource, "fs/changed", frontend::Json{{"watchId", "watch-a"}});
+        const auto missingSearch =
+            projectExtension(projection, source, "fuzzyFileSearch/sessionUpdated", frontend::Json::object());
+        const auto malformedSearch =
+            projectExtension(projection, source, "fuzzyFileSearch/sessionUpdated", frontend::Json{{"sessionId", malformed}});
+        backend::Snapshot duplicateSearchSource = source;
+        duplicateSearchSource.fuzzySearchSessions.push_back(source.fuzzySearchSessions.front());
+        const auto duplicateSearch = projectExtension(
+            projection, duplicateSearchSource, "fuzzyFileSearch/sessionUpdated", frontend::Json{{"sessionId", "search-a"}});
+        const auto exactSearch = projectExtension(
+            projection, source, "fuzzyFileSearch/sessionUpdated", frontend::Json{{"sessionId", "search-b"}});
+        const auto* selectedSearch = solePayload<model::FuzzySearchUpdatedOccurrence>(exactSearch);
+        result.expectTrue(snapshotContained(missingWatch),
+                          "a missing filesystem-watch identity requires Snapshot containment and never selects the first watch");
+        result.expectTrue(snapshotContained(malformedWatch),
+                          "a malformed filesystem-watch identity requires Snapshot containment");
+        result.expectTrue(snapshotContained(duplicateWatch),
+                          "an ambiguous duplicate filesystem-watch identity requires Snapshot containment");
+        result.expectTrue(snapshotContained(missingSearch),
+                          "a missing fuzzy-search session identity requires Snapshot containment and never selects the first session");
+        result.expectTrue(snapshotContained(malformedSearch),
+                          "a malformed fuzzy-search session identity requires Snapshot containment");
+        result.expectTrue(snapshotContained(duplicateSearch),
+                          "an ambiguous duplicate fuzzy-search session identity requires Snapshot containment");
+        result.expectTrue(selectedSearch && selectedSearch->fuzzySearch.sessionId == "search-b",
+                          "fuzzy-search notifications resolve their exact sessionId rather than the first retained session");
+
+        const auto missingActivity = server::BackendProjectionTestAccess::projectActivity(projection, source, std::nullopt);
+        const auto malformedActivity = server::BackendProjectionTestAccess::projectActivity(
+            projection, source, std::string_view{malformed.data(), malformed.size()});
+        backend::Snapshot duplicateActivitySource = source;
+        duplicateActivitySource.activities.push_back(source.activities.front());
+        const auto duplicateActivity = server::BackendProjectionTestAccess::projectActivity(
+            projection, duplicateActivitySource, std::string_view{"activity-a"});
+        const auto exactActivity =
+            server::BackendProjectionTestAccess::projectActivity(projection, source, std::string_view{"activity-b"});
+        const auto* selectedActivity = solePayload<model::ActivityUpdatedOccurrence>(exactActivity);
+        result.expectTrue(snapshotContained(missingActivity),
+                          "a missing activity key requires Snapshot containment and never selects the first activity");
+        result.expectTrue(snapshotContained(malformedActivity),
+                          "a malformed activity key requires Snapshot containment");
+        result.expectTrue(snapshotContained(duplicateActivity),
+                          "an ambiguous duplicate activity key requires Snapshot containment");
+        result.expectTrue(selectedActivity && selectedActivity->activity.key == "activity-b",
+                          "activity projection resolves the exact activity key through its private typed-boundary test seam");
+    }
+
+    backend::Snapshot unknownItemProjectionSnapshot() {
+        backend::Snapshot snapshot;
+        snapshot.sequence = backend::SequenceNumber{50};
+        snapshot.provider.lifecycle = backend::ProviderLifecycle::Ready;
+        backend::ThreadSnapshot thread;
+        thread.id = "thread-unknown-item";
+        thread.fullyLoaded = true;
+        backend::TurnSnapshot turn;
+        turn.id = "turn-unknown-item";
+        turn.threadId = thread.id;
+        turn.status = "inProgress";
+
+        backend::ItemSnapshot before;
+        before.id = "known-before";
+        before.type = "plan";
+        before.status = "completed";
+        turn.items.push_back(std::move(before));
+
+        backend::ItemSnapshot unknown;
+        unknown.id = "future-item";
+        unknown.type = "future_codex_item_kind";
+        unknown.status = "completed";
+        unknown.agentText = "visible agent text";
+        unknown.reasoningText = "visible reasoning text";
+        unknown.reasoningSummary = "visible reasoning summary";
+        unknown.commandOutput = "visible command output";
+        unknown.startedAtMs = 101;
+        unknown.completedAtMs = 202;
+        unknown.connectionInvalidated = true;
+        unknown.contentTruncated = false;
+        unknown.droppedContentBytes = 7;
+        unknown.stamp = {13, backend::Freshness::Current};
+        unknown.data = frontend::Json{{OpaqueDataKey, OpaqueDataValue}};
+        turn.items.push_back(std::move(unknown));
+
+        backend::ItemSnapshot after;
+        after.id = "known-after";
+        after.type = "user_message";
+        after.status = "completed";
+        turn.items.push_back(std::move(after));
+        thread.turns.push_back(std::move(turn));
+        snapshot.threads.push_back(std::move(thread));
+
+        backend::ThreadSnapshot unrelatedThread;
+        unrelatedThread.id = "thread-unrelated";
+        unrelatedThread.fullyLoaded = true;
+        backend::TurnSnapshot unrelatedTurn;
+        unrelatedTurn.id = "turn-unrelated";
+        unrelatedTurn.threadId = unrelatedThread.id;
+        unrelatedTurn.status = "completed";
+        backend::ItemSnapshot unrelatedItem;
+        unrelatedItem.id = "known-unrelated";
+        unrelatedItem.type = "web_search";
+        unrelatedItem.status = "completed";
+        unrelatedTurn.items.push_back(std::move(unrelatedItem));
+        unrelatedThread.turns.push_back(std::move(unrelatedTurn));
+        snapshot.threads.push_back(std::move(unrelatedThread));
+
+        backend::PendingRequestSnapshot pending;
+        pending.id = backend::PendingRequestId{73};
+        pending.type = "apply_patch_approval";
+        pending.threadId = "thread-unrelated";
+        snapshot.pendingRequests.push_back(std::move(pending));
+
+        backend::ProviderResultSummarySnapshot configurationResult;
+        configurationResult.method = "config/read";
+        configurationResult.status = "preserved";
+        configurationResult.itemCount = 3;
+        configurationResult.complete = true;
+        snapshot.configuration.latestResults.push_back(std::move(configurationResult));
+        return snapshot;
+    }
+
+    void testUnknownBackendItemContainment(tests::support::TestResult& result) {
+        server::BackendProjection projection;
+        const backend::Snapshot source = unknownItemProjectionSnapshot();
+        const auto snapshot = projection.projectSnapshot(source);
+        bool knownNeighborsRetained = false;
+        bool unrelatedStateRetained = false;
+        bool exactCompatibility = false;
+        bool exactOmission = false;
+        bool expandedContained = false;
+        bool legacyCompatible = false;
+        if (snapshot) {
+            knownNeighborsRetained = snapshot.value().items.size() == 3 &&
+                                     model::itemData(snapshot.value().items[0]).id == model::ItemIdentity{"known-before"} &&
+                                     model::itemData(snapshot.value().items[1]).id == model::ItemIdentity{"known-after"} &&
+                                     model::itemData(snapshot.value().items[2]).id == model::ItemIdentity{"known-unrelated"};
+            unrelatedStateRetained =
+                snapshot.value().threads.size() == 2 && snapshot.value().turns.size() == 2 &&
+                snapshot.value().pendingRequests.size() == 1 &&
+                model::pendingRequestData(snapshot.value().pendingRequests.front()).id == model::PendingRequestIdentity{"73"} &&
+                snapshot.value().configuration.state.latestResults.size() == 1 &&
+                snapshot.value().configuration.state.latestResults.front().status == "preserved";
+            if (snapshot.value().legacyItems.size() == 1) {
+                const model::LegacyItemCompatibility& item = snapshot.value().legacyItems.front();
+                exactCompatibility =
+                    item.value.id == model::ItemIdentity{"future-item"} && item.value.threadId &&
+                    *item.value.threadId == model::ThreadIdentity{"thread-unknown-item"} && item.value.turnId &&
+                    *item.value.turnId == model::TurnIdentity{"turn-unknown-item"} && item.sourceIndex == 1 &&
+                    item.value.sourceIndex == 1 && item.discriminator == "future_codex_item_kind" && item.value.status == "completed" &&
+                    item.value.agentText == "visible agent text" && item.value.reasoningText == "visible reasoning text" &&
+                    item.value.reasoningSummary == "visible reasoning summary" && item.value.commandOutput == "visible command output" &&
+                    item.value.startedAtMs == 101 && item.value.completedAtMs == 202 && item.value.connectionInvalidated &&
+                    item.value.generation == 13 && item.value.freshness == model::Freshness::Current &&
+                    item.value.contentTruncated == false && item.value.droppedContentBytes == 7 && !item.value.safeDetails.has_value() &&
+                    item.value.legacyExtensions.empty() && item.value.truncation.truncated && item.value.truncation.droppedBytes == 7 &&
+                    item.value.truncation.omittedPaths == std::vector<std::string>{"/threads/0/turns/0/items/1/data"};
+            }
+            const auto encoded =
+                model::encodeProjectedSnapshot(snapshot.value(), model::SnapshotRepresentationSelection{true, true, true, false});
+            if (encoded) {
+                const std::string serialized = encoded.value().state.dump();
+                const auto& truncation = encoded.value().state.at("truncation");
+                exactOmission = truncation.at("truncated") && truncation.at("omittedEntries") == 1 &&
+                                truncation.at("omittedFields") == std::vector<std::string>{"/threads/0/turns/0/items/1"};
+                expandedContained =
+                    serialized.find("future_codex_item_kind") == std::string::npos && serialized.find(OpaqueDataKey) == std::string::npos &&
+                    serialized.find(OpaqueDataValue) == std::string::npos && serialized.find("\"id\":\"future-item\"") == std::string::npos;
+            }
+            const auto legacy = model::encodeLegacySnapshot(snapshot.value());
+            if (legacy) {
+                const auto wire = frontend::Codec::encodeServer(frontend::ServerMessage{legacy.value()});
+                if (wire) {
+                    const std::string serialized = wire.value().dump();
+                    const auto& items = wire.value().at("state").at("threads").at(0).at("turns").at(0).at("items");
+                    legacyCompatible =
+                        items.size() == 3 && items.at(0).at("id") == "known-before" && items.at(1).at("id") == "future-item" &&
+                        items.at(1).at("type") == "future_codex_item_kind" && items.at(1).at("agentText") == "visible agent text" &&
+                        items.at(1).at("reasoningText") == "visible reasoning text" &&
+                        items.at(1).at("reasoningSummary") == "visible reasoning summary" &&
+                        items.at(1).at("commandOutput") == "visible command output" && items.at(1).at("contentTruncated") == true &&
+                        items.at(1).at("data").empty() && items.at(1).at("extensions").empty() && items.at(2).at("id") == "known-after" &&
+                        wire.value().at("state").at("threads").at(1).at("turns").at(0).at("items").at(0).at("id") == "known-unrelated" &&
+                        serialized.find(OpaqueDataKey) == std::string::npos && serialized.find(OpaqueDataValue) == std::string::npos;
+                }
+            }
+        }
+        result.expectTrue(snapshot && knownNeighborsRetained,
+                          "an unknown retained item is omitted while known items before and after it remain in canonical order");
+        result.expectTrue(snapshot && unrelatedStateRetained,
+                          "unknown-item omission preserves unrelated threads, turns, pending requests, and domain results");
+        result.expectTrue(snapshot && exactCompatibility,
+                          "safe-looking opaque item data is discarded while exact identity, parentage, order, visible content, and "
+                          "monotonic truncation remain");
+        result.expectTrue(
+            snapshot && exactOmission,
+            "an unknown retained item advances saturated omission/truncation accounting exactly once at its deterministic path");
+        result.expectTrue(snapshot && expandedContained && legacyCompatible,
+                          "an unknown outer discriminator remains bounded and ordered on the legacy wire but cannot enter expanded state");
+
+        const std::vector<backend::SequencedBackendEvent> unrelatedEvents{
+            {backend::SequenceNumber{51}, backend::CapacityChanged{backend::CapacityMetric::RejectedSessions, 1}}};
+        const auto unrelated = projection.projectOccurrences(unrelatedEvents, source);
+        const auto* capacity = solePayload<model::CapacityUpdatedOccurrence>(unrelated);
+        const auto unrelatedThreadEvent = projectExtension(
+            projection, source, "thread/status/changed", frontend::Json{{"threadId", "thread-unrelated"}});
+        const auto* unrelatedThread = solePayload<model::ThreadUpsertedOccurrence>(unrelatedThreadEvent);
+        result.expectTrue(capacity != nullptr && unrelatedThread &&
+                              unrelatedThread->thread.id == model::ThreadIdentity{"thread-unrelated"} &&
+                              unrelatedThread->turns.size() == 1 && unrelatedThread->items.size() == 1 &&
+                              model::itemData(unrelatedThread->items.front()).id == model::ItemIdentity{"known-unrelated"},
+                          "unrelated aggregate and thread occurrences remain projectable when an unknown item is retained elsewhere");
+
+        const auto targetedUnknown = projectExtension(projection,
+                                                      source,
+                                                      "item/fileChange/patchUpdated",
+                                                      frontend::Json{{"threadId", "thread-unknown-item"},
+                                                                     {"turnId", "turn-unknown-item"},
+                                                                     {"itemId", "future-item"}});
+        const bool legacyOnlyOccurrence =
+            targetedUnknown && !targetedUnknown.value().snapshotRequired && targetedUnknown.value().occurrences.size() == 1 &&
+            targetedUnknown.value().occurrences.front().occurrence.expandedPayloads.empty() &&
+            targetedUnknown.value().occurrences.front().occurrence.legacyCompatibility.kind ==
+                model::LegacyCompatibilityKind::LegacyItem &&
+            targetedUnknown.value().occurrences.front().occurrence.legacyCompatibility.legacyItem.has_value() &&
+            targetedUnknown.value().occurrences.front().occurrence.legacyCompatibility.legacyItem->value.id ==
+                model::ItemIdentity{"future-item"};
+        result.expectTrue(legacyOnlyOccurrence,
+                          "an occurrence targeting a future item retains its exact legacy identity without fabricating an expanded discriminator");
+
+        backend::Snapshot malformedKnownSource = source;
+        malformedKnownSource.threads.front().turns.front().items.front().id.clear();
+        const auto malformedKnown = projection.projectSnapshot(malformedKnownSource);
+        result.expectTrue(!malformedKnown && malformedKnown.error().code == model::ModelErrorCode::InvalidIdentifier &&
+                              malformedKnown.error().path == "/items/id",
+                          "a malformed instance of a known item kind remains a strict projection error rather than an omitted future item");
+
+        backend::Snapshot extensionSource = source;
+        backend::ItemSnapshot& extensionItem = extensionSource.threads.front().turns.front().items.at(1);
+        extensionItem.data = frontend::Json::object();
+        extensionItem.extensions = frontend::Json{{OpaqueExtensionKey, OpaqueExtensionValue}};
+        const auto extensionSnapshot = projection.projectSnapshot(extensionSource);
+        bool opaqueExtensionContained = false;
+        if (extensionSnapshot && extensionSnapshot.value().legacyItems.size() == 1) {
+            const model::LegacyItemCompatibility& item = extensionSnapshot.value().legacyItems.front();
+            const auto legacy = model::encodeLegacySnapshot(extensionSnapshot.value());
+            const auto wire = legacy ? frontend::Codec::encodeServer(frontend::ServerMessage{legacy.value()})
+                                     : frontend::CodecResult<frontend::Json>{frontend::CodecError{}};
+            opaqueExtensionContained =
+                !item.value.safeDetails.has_value() && item.value.legacyExtensions.empty() && item.value.truncation.truncated &&
+                item.value.truncation.omittedPaths == std::vector<std::string>{"/threads/0/turns/0/items/1/extensions"} && wire &&
+                wire.value().dump().find(OpaqueExtensionKey) == std::string::npos &&
+                wire.value().dump().find(OpaqueExtensionValue) == std::string::npos;
+        }
+        result.expectTrue(opaqueExtensionContained,
+                          "safe-looking opaque item extensions are unconditionally discarded and record their exact omission path");
+
+        backend::Snapshot secretSource = source;
+        backend::ItemSnapshot& secretItem = secretSource.threads.front().turns.front().items.at(1);
+        secretItem.data = frontend::Json{{"accessToken", SecretDataValue}};
+        const auto secretSnapshot = projection.projectSnapshot(secretSource);
+        bool secretContained = false;
+        if (secretSnapshot && secretSnapshot.value().legacyItems.size() == 1) {
+            const model::LegacyItemCompatibility& item = secretSnapshot.value().legacyItems.front();
+            const auto legacy = model::encodeLegacySnapshot(secretSnapshot.value());
+            const auto wire = legacy ? frontend::Codec::encodeServer(frontend::ServerMessage{legacy.value()})
+                                     : frontend::CodecResult<frontend::Json>{frontend::CodecError{}};
+            secretContained = !item.value.safeDetails.has_value() && item.value.truncation.truncated &&
+                              item.value.truncation.omittedPaths == std::vector<std::string>{"/threads/0/turns/0/items/1/data"} && wire &&
+                              wire.value().dump().find("accessToken") == std::string::npos &&
+                              wire.value().dump().find(SecretDataValue) == std::string::npos;
+        }
+        result.expectTrue(secretContained, "known secret-bearing unknown item data remains a distinct fail-closed containment case");
+
+        backend::Snapshot utf8Source = source;
+        backend::ItemSnapshot& utf8Item = utf8Source.threads.front().turns.front().items.at(1);
+        utf8Item.data = frontend::Json::object();
+        utf8Item.type = std::string(model::ItemIdentity::MaximumBytes - 1, 'u') + "\xE2\x82\xAC";
+        const auto utf8Snapshot = projection.projectSnapshot(utf8Source);
+        bool utf8Bounded = false;
+        if (utf8Snapshot && utf8Snapshot.value().legacyItems.size() == 1) {
+            const model::LegacyItemCompatibility& item = utf8Snapshot.value().legacyItems.front();
+            const auto legacy = model::encodeLegacySnapshot(utf8Snapshot.value());
+            const auto wire = legacy ? frontend::Codec::encodeServer(frontend::ServerMessage{legacy.value()})
+                                     : frontend::CodecResult<frontend::Json>{frontend::CodecError{}};
+            utf8Bounded = item.discriminator == std::string(model::ItemIdentity::MaximumBytes - 1, 'u') && !item.discriminator.empty() &&
+                          item.discriminator.size() <= model::ItemIdentity::MaximumBytes && item.value.truncation.truncated && wire &&
+                          wire.value().at("state").at("threads").at(0).at("turns").at(0).at("items").at(0).at("id") == "known-before" &&
+                          wire.value().at("state").at("threads").at(0).at("turns").at(0).at("items").at(2).at("id") == "known-after";
+        }
+        result.expectTrue(
+            utf8Bounded,
+            "an oversized multibyte unknown discriminator is bounded only at a valid UTF-8 boundary without disturbing neighbors");
+
+        backend::Snapshot emptyDiscriminatorSource = source;
+        backend::ItemSnapshot& emptyDiscriminatorItem = emptyDiscriminatorSource.threads.front().turns.front().items.at(1);
+        emptyDiscriminatorItem.data = frontend::Json::object();
+        emptyDiscriminatorItem.type.clear();
+        const auto emptyDiscriminatorSnapshot = projection.projectSnapshot(emptyDiscriminatorSource);
+        backend::Snapshot invalidDiscriminatorSource = source;
+        backend::ItemSnapshot& invalidDiscriminatorItem = invalidDiscriminatorSource.threads.front().turns.front().items.at(1);
+        invalidDiscriminatorItem.data = frontend::Json::object();
+        invalidDiscriminatorItem.type = std::string{"plan"} + static_cast<char>(0xff);
+        const auto invalidDiscriminatorSnapshot = projection.projectSnapshot(invalidDiscriminatorSource);
+        const bool discriminatorFallback = emptyDiscriminatorSnapshot && emptyDiscriminatorSnapshot.value().legacyItems.size() == 1 &&
+                                           emptyDiscriminatorSnapshot.value().legacyItems.front().discriminator == "unknown" &&
+                                           emptyDiscriminatorSnapshot.value().legacyItems.front().value.truncation.truncated &&
+                                           invalidDiscriminatorSnapshot && invalidDiscriminatorSnapshot.value().legacyItems.size() == 1 &&
+                                           invalidDiscriminatorSnapshot.value().legacyItems.front().discriminator == "unknown" &&
+                                           invalidDiscriminatorSnapshot.value().legacyItems.front().value.truncation.truncated;
+        result.expectTrue(
+            discriminatorFallback,
+            "empty or malformed UTF-8 future discriminators use the bounded unknown fallback instead of inventing a known kind");
+    }
+
+    bool exerciseUnknownItemWireContainment(backend::Snapshot source, std::string_view opaqueKey, std::string_view opaqueValue) {
+        server::BackendProjection projection;
+        const auto projectedSnapshot = projection.projectSnapshot(source);
+        const auto projectedOccurrence = projectExtension(
+            projection,
+            source,
+            "item/fileChange/patchUpdated",
+            frontend::Json{{"threadId", "thread-unknown-item"}, {"turnId", "turn-unknown-item"}, {"itemId", "future-item"}});
+        if (!projectedSnapshot || !projectedOccurrence || projectedOccurrence.value().snapshotRequired ||
+            projectedOccurrence.value().occurrences.size() != 1) {
+            return false;
+        }
+
+        Backend backend;
+        backend.state = projectedSnapshot.value();
+        std::vector<std::function<void()>> scheduled;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.maxInboundBurst = 1000;
+        options.scheduler = [&scheduled](std::function<void()> callback) {
+            scheduled.push_back(std::move(callback));
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> legacyMessages;
+        std::vector<frontend::ServerMessage> expandedMessages;
+        const auto legacy = core.openConnection({}, collect(legacyMessages));
+        const auto expanded = core.openConnection({}, collect(expandedMessages));
+        frontend::Hello expandedHello;
+        expandedHello.capabilities = {frontend::FrontendCapability::CompleteBackendDomains,
+                                      frontend::FrontendCapability::CompleteThreadItems};
+        const bool synchronized = legacy && expanded && core.receive(*legacy, frontend::ClientMessage{frontend::Hello{}}).accepted() &&
+                                  core.receive(*expanded, frontend::ClientMessage{std::move(expandedHello)}).accepted();
+        drainAll(scheduled);
+
+        const auto legacySnapshot = std::find_if(legacyMessages.begin(), legacyMessages.end(), [](const frontend::ServerMessage& message) {
+            return std::holds_alternative<frontend::Snapshot>(message);
+        });
+        const auto expandedSnapshot =
+            std::find_if(expandedMessages.begin(), expandedMessages.end(), [](const frontend::ServerMessage& message) {
+                return std::holds_alternative<frontend::Snapshot>(message);
+            });
+        bool snapshotContained = false;
+        if (legacySnapshot != legacyMessages.end() && expandedSnapshot != expandedMessages.end()) {
+            const frontend::Json& legacyState = std::get<frontend::Snapshot>(*legacySnapshot).state;
+            const frontend::Json& unknown = legacyState.at("threads").at(0).at("turns").at(0).at("items").at(1);
+            const frontend::Json& expandedState = std::get<frontend::Snapshot>(*expandedSnapshot).state;
+            snapshotContained =
+                unknown.at("id") == "future-item" && unknown.at("type") == "future_codex_item_kind" &&
+                unknown.at("agentText") == "visible agent text" && unknown.at("contentTruncated") == true && unknown.at("data").empty() &&
+                unknown.at("extensions").empty() && expandedState.at("truncation").at("omittedEntries") == 1 &&
+                expandedState.at("truncation").at("omittedFields") == std::vector<std::string>{"/threads/0/turns/0/items/1"} &&
+                expandedState.dump().find("future-item") == std::string::npos;
+        }
+        const bool snapshotOpaqueAbsent = excludesOpaqueStrings(legacyMessages, opaqueKey, opaqueValue) &&
+                                          excludesOpaqueStrings(expandedMessages, opaqueKey, opaqueValue);
+
+        legacyMessages.clear();
+        expandedMessages.clear();
+        const model::FrontendSequence replayAnchor = core.currentSequence();
+        const server::PublishResult published = core.publishGroup(projectedOccurrence.value().occurrences.front().occurrence);
+        drainAll(scheduled);
+        const auto liveItem = std::find_if(legacyMessages.begin(), legacyMessages.end(), [](const frontend::ServerMessage& message) {
+            const auto* batch = std::get_if<frontend::EventBatch>(&message);
+            return batch && std::any_of(batch->events.begin(), batch->events.end(), [](const frontend::FrontendEvent& event) {
+                       return event.type == "item.updated" && event.data.at("item").at("id") == "future-item" &&
+                              event.data.at("item").at("contentTruncated") == true && event.data.at("item").at("data").empty() &&
+                              event.data.at("item").at("extensions").empty();
+                   });
+        });
+        const bool expandedLiveSnapshot =
+            std::any_of(expandedMessages.begin(), expandedMessages.end(), [](const frontend::ServerMessage& message) {
+                return std::holds_alternative<frontend::Snapshot>(message);
+            });
+        const bool liveContained = published.accepted && !published.error.has_value() &&
+                                   published.deliveryMode == server::PublishDeliveryMode::Occurrences && liveItem != legacyMessages.end() &&
+                                   expandedLiveSnapshot && excludesOpaqueStrings(legacyMessages, opaqueKey, opaqueValue) &&
+                                   excludesOpaqueStrings(expandedMessages, opaqueKey, opaqueValue);
+
+        std::vector<frontend::ServerMessage> legacyReplayMessages;
+        std::vector<frontend::ServerMessage> expandedReplayMessages;
+        const auto legacyReplay = core.openConnection({}, collect(legacyReplayMessages));
+        const auto expandedReplay = core.openConnection({}, collect(expandedReplayMessages));
+        frontend::Hello legacyReplayHello;
+        legacyReplayHello.resumeAfter = replayAnchor.protocolValue();
+        frontend::Hello expandedReplayHello;
+        expandedReplayHello.resumeAfter = replayAnchor.protocolValue();
+        expandedReplayHello.capabilities = {frontend::FrontendCapability::CompleteBackendDomains,
+                                            frontend::FrontendCapability::CompleteThreadItems};
+        const bool replayAccepted = legacyReplay && expandedReplay &&
+                                    core.receive(*legacyReplay, frontend::ClientMessage{std::move(legacyReplayHello)}).accepted() &&
+                                    core.receive(*expandedReplay, frontend::ClientMessage{std::move(expandedReplayHello)}).accepted();
+        drainAll(scheduled);
+        const auto* legacyWelcome = !legacyReplayMessages.empty() ? std::get_if<frontend::Welcome>(&legacyReplayMessages.front()) : nullptr;
+        const auto* expandedWelcome =
+            !expandedReplayMessages.empty() ? std::get_if<frontend::Welcome>(&expandedReplayMessages.front()) : nullptr;
+        const bool replayItem =
+            std::any_of(legacyReplayMessages.begin(), legacyReplayMessages.end(), [](const frontend::ServerMessage& message) {
+                const auto* batch = std::get_if<frontend::EventBatch>(&message);
+                return batch && std::any_of(batch->events.begin(), batch->events.end(), [](const frontend::FrontendEvent& event) {
+                           return event.type == "item.updated" && event.data.at("item").at("id") == "future-item";
+                       });
+            });
+        const bool replayContained = replayAccepted && legacyWelcome && legacyWelcome->syncMode == frontend::SyncMode::Replay &&
+                                     expandedWelcome && expandedWelcome->syncMode == frontend::SyncMode::Snapshot && replayItem &&
+                                     excludesOpaqueStrings(legacyReplayMessages, opaqueKey, opaqueValue) &&
+                                     excludesOpaqueStrings(expandedReplayMessages, opaqueKey, opaqueValue);
+        return synchronized && snapshotContained && snapshotOpaqueAbsent && liveContained && replayContained;
+    }
+
+    void testUnknownBackendItemWireContainment(tests::support::TestResult& result) {
+        const backend::Snapshot dataSource = unknownItemProjectionSnapshot();
+        result.expectTrue(
+            exerciseUnknownItemWireContainment(dataSource, OpaqueDataKey, OpaqueDataValue),
+            "safe-looking opaque unknown item data cannot escape through legacy Snapshot, live, replay, or expanded containment");
+
+        backend::Snapshot extensionSource = unknownItemProjectionSnapshot();
+        backend::ItemSnapshot& extensionItem = extensionSource.threads.front().turns.front().items.at(1);
+        extensionItem.data = frontend::Json::object();
+        extensionItem.extensions = frontend::Json{{OpaqueExtensionKey, OpaqueExtensionValue}};
+        result.expectTrue(
+            exerciseUnknownItemWireContainment(extensionSource, OpaqueExtensionKey, OpaqueExtensionValue),
+            "safe-looking opaque unknown item extensions cannot escape through legacy Snapshot, live, replay, or expanded containment");
+    }
+
+    void testUnknownPendingRequestCompatibility(tests::support::TestResult& result) {
+        backend::Snapshot source = unknownItemProjectionSnapshot();
+        source.pendingRequests.clear();
+        for (const auto& [id, type] : std::array<std::pair<std::uint64_t, std::string_view>, 3>{
+                 {{71, "command_approval"}, {72, "unknown"}, {73, "file_change_approval"}}}) {
+            backend::PendingRequestSnapshot pending;
+            pending.id = backend::PendingRequestId{id};
+            pending.type = std::string(type);
+            pending.threadId = "thread-unrelated";
+            if (id == 72) {
+                pending.details = frontend::Json{{"method", "future/serverRequest"},
+                                                 {"params", {{"safeSentinel", "future-request-safe"}}},
+                                                 {"sensitiveFieldsRedacted", true}};
+            }
+            source.pendingRequests.push_back(std::move(pending));
+        }
+        server::BackendProjection projection;
+        const auto snapshot = projection.projectSnapshot(source);
+        bool legacyCompatible = false;
+        bool expandedContained = false;
+        if (snapshot) {
+            const auto legacy = model::encodeLegacySnapshot(snapshot.value());
+            const auto expanded = model::encodeProjectedSnapshot(
+                snapshot.value(), model::SnapshotRepresentationSelection{true, false, true, false});
+            if (legacy && expanded) {
+                const auto& pending = legacy.value().state.at("pendingRequests");
+                legacyCompatible = pending.size() == 3 && pending.at(0).at("id") == "71" && pending.at(1).at("id") == "72" &&
+                                   pending.at(1).at("type") == "unknown" && pending.at(2).at("id") == "73" &&
+                                   legacy.value().state.dump().find("future-request-safe") != std::string::npos;
+                const std::string serialized = expanded.value().state.dump();
+                const auto& truncation = expanded.value().state.at("truncation");
+                expandedContained = expanded.value().state.at("pendingRequests").size() == 2 &&
+                                    serialized.find("future/serverRequest") == std::string::npos && truncation.at("omittedEntries") == 1 &&
+                                    truncation.at("omittedFields") == std::vector<std::string>{"/pendingRequests/1"};
+            }
+        }
+        result.expectTrue(snapshot && legacyCompatible,
+                          "a generic unknown pending request remains bounded in legacy source order without poisoning the snapshot");
+        result.expectTrue(snapshot && expandedContained,
+                          "dedicated pending-request projection omits and accounts one generic request without losing known neighbors");
+    }
+
+    backend::Snapshot userInputPresentationSnapshot(frontend::Json question) {
+        backend::Snapshot source;
+        source.sequence = backend::SequenceNumber{60};
+        source.provider.lifecycle = backend::ProviderLifecycle::Ready;
+        backend::PendingRequestSnapshot pending;
+        pending.id = backend::PendingRequestId{80};
+        pending.type = "user_input";
+        pending.details = frontend::Json{{"questions", frontend::Json::array({std::move(question)})}};
+        source.pendingRequests.push_back(std::move(pending));
+        return source;
+    }
+
+    frontend::Json userInputPresentationQuestion(std::string id,
+                                                 std::string header,
+                                                 std::string prompt,
+                                                 std::string optionLabel,
+                                                 std::string optionDescription) {
+        return frontend::Json{{"id", std::move(id)},
+                              {"header", std::move(header)},
+                              {"prompt", std::move(prompt)},
+                              {"allowsFreeText", true},
+                              {"secret", false},
+                              {"options",
+                               frontend::Json::array({frontend::Json{{"label", std::move(optionLabel)},
+                                                                     {"description", std::move(optionDescription)}}})}};
+    }
+
+    void testPendingUserInputPresentationUtf8Containment(tests::support::TestResult& result) {
+        const std::string expectedId(1'023, 'i');
+        const std::string expectedHeader(16'383, 'h');
+        const std::string expectedPrompt(16'383, 'p');
+        const std::string expectedOptionLabel(16'383, 'l');
+        const std::string expectedOptionDescription(16'383, 'd');
+        const std::string euro = "\xE2\x82\xAC";
+        const backend::Snapshot oversizedSource = userInputPresentationSnapshot(userInputPresentationQuestion(
+            expectedId + euro,
+            expectedHeader + euro,
+            expectedPrompt + euro,
+            expectedOptionLabel + euro,
+            expectedOptionDescription + euro));
+
+        server::BackendProjection projection;
+        const auto oversized = projection.projectSnapshot(oversizedSource);
+        bool exactUtf8Prefixes = false;
+        bool truncationRecorded = false;
+        bool frontendWireEncodable = false;
+        if (oversized && oversized.value().pendingRequests.size() == 1) {
+            const model::PendingRequestData& pending = model::pendingRequestData(oversized.value().pendingRequests.front());
+            if (pending.questions.size() == 1 && pending.questions.front().options.size() == 1) {
+                const model::PendingRequestQuestion& question = pending.questions.front();
+                const model::PendingRequestOption& option = question.options.front();
+                exactUtf8Prefixes = question.id == expectedId && question.header == expectedHeader &&
+                                    question.prompt == expectedPrompt && option.label == expectedOptionLabel &&
+                                    option.description == expectedOptionDescription;
+                truncationRecorded =
+                    pending.truncation.truncated &&
+                    pending.truncation.omittedPaths ==
+                        std::vector<std::string>{"/pendingRequests/details/questions/0/id",
+                                                 "/pendingRequests/details/questions/0/header",
+                                                 "/pendingRequests/details/questions/0/prompt",
+                                                 "/pendingRequests/details/questions/0/options/0/label",
+                                                 "/pendingRequests/details/questions/0/options/0/description"};
+            }
+            const auto encoded = model::encodeProjectedSnapshot(
+                oversized.value(), model::SnapshotRepresentationSelection{true, true, true, false});
+            if (encoded) {
+                frontendWireEncodable = frontend::Codec::encodeServer(frontend::ServerMessage{encoded.value()}).hasValue();
+            }
+        }
+        result.expectTrue(oversized && exactUtf8Prefixes && truncationRecorded && frontendWireEncodable,
+                          "bounded user-input id, header, prompt, option label, and option description retain only complete UTF-8 "
+                          "code points and remain serializable");
+
+        std::string isolatedContinuation(1, static_cast<char>(0x80));
+        const auto malformedHeader = projection.projectSnapshot(userInputPresentationSnapshot(userInputPresentationQuestion(
+            "question-1", std::move(isolatedContinuation), "prompt", "label", "description")));
+        std::string truncatedMultibyteLead{"description"};
+        truncatedMultibyteLead.push_back(static_cast<char>(0xE2));
+        truncatedMultibyteLead.push_back(static_cast<char>(0x82));
+        const auto malformedOption = projection.projectSnapshot(userInputPresentationSnapshot(userInputPresentationQuestion(
+            "question-2", "header", "prompt", "label", std::move(truncatedMultibyteLead))));
+        std::string malformedBeyondBound(16'384, 'h');
+        malformedBeyondBound.push_back(static_cast<char>(0x80));
+        const auto malformedSuffix = projection.projectSnapshot(userInputPresentationSnapshot(userInputPresentationQuestion(
+            "question-3", std::move(malformedBeyondBound), "prompt", "label", "description")));
+        result.expectTrue(!malformedHeader && !malformedOption && !malformedSuffix,
+                          "malformed UTF-8 anywhere in pending user-input presentation is rejected before truncation, canonical "
+                          "retention, or serialization");
+    }
+
+    void testBackendProjection(tests::support::TestResult& result) {
+        ai::openai::codex::backend::Snapshot source;
+        source.sequence = ai::openai::codex::backend::SequenceNumber{17};
+        source.provider.lifecycle = ai::openai::codex::backend::ProviderLifecycle::Ready;
+        source.controller = ai::openai::codex::backend::SessionId{3};
+        source.sessions.push_back({ai::openai::codex::backend::SessionId{3},
+                                   ai::openai::codex::backend::SessionRole::Controller});
+        ai::openai::codex::backend::ThreadSnapshot thread;
+        thread.id = "thread-projection";
+        thread.title = "Projection thread";
+        thread.fullyLoaded = true;
+        ai::openai::codex::backend::TurnSnapshot turn;
+        turn.id = "turn-projection";
+        turn.threadId = thread.id;
+        turn.status = "inProgress";
+        ai::openai::codex::backend::ItemSnapshot item;
+        item.id = "item-projection";
+        item.type = "plan";
+        item.status = "inProgress";
+        item.agentText = "canonical accumulated content";
+        turn.items.push_back(item);
+        thread.turns.push_back(turn);
+        source.threads.push_back(thread);
+        ai::openai::codex::backend::PendingRequestSnapshot pending;
+        pending.id = ai::openai::codex::backend::PendingRequestId{9};
+        pending.type = "apply_patch_approval";
+        pending.threadId = thread.id;
+        pending.details = frontend::Json{{"apiKey", "must-not-enter-the-model"}};
+        source.pendingRequests.push_back(std::move(pending));
+        source.notices.push_back({1,
+                                  ai::openai::codex::backend::NoticeCategory::Configuration,
+                                  "configuration warning",
+                                  std::nullopt,
+                                  std::nullopt,
+                                  {}});
+        source.diagnostics.received = 1;
+        source.diagnostics.recent.push_back("bounded diagnostic");
+
+        server::BackendProjection projection;
+        const auto snapshot = projection.projectSnapshot(source);
+        const bool boundedPending = snapshot && snapshot.value().pendingRequests.size() == 1 &&
+                                    model::pendingRequestData(snapshot.value().pendingRequests.front()).safeDetails &&
+                                    model::pendingRequestData(snapshot.value().pendingRequests.front()).safeDetails->empty() &&
+                                    snapshot.value().truncation.truncated;
+        result.expectTrue(snapshot && snapshot.value().provider.ready() && snapshot.value().threads.size() == 1 &&
+                              snapshot.value().turns.size() == 1 && snapshot.value().items.size() == 1 && boundedPending,
+                          "backend snapshots convert once into strong identities and reject secret-bearing safe-detail extensions");
+
+        ai::openai::codex::backend::ItemContentChanged content;
+        content.threadId = ai::openai::codex::typed::ThreadId{thread.id};
+        content.turnId = ai::openai::codex::typed::TurnId{turn.id};
+        content.itemId = ai::openai::codex::typed::ItemId{item.id};
+        content.kind = ai::openai::codex::backend::ItemContentChanged::Kind::AgentText;
+        content.delta = "ignored delta";
+        ai::openai::codex::backend::CodexExtensionReceived warning;
+        warning.method = "configWarning";
+        warning.payload =
+            frontend::Json{{"summary", "event-derived configuration warning"}, {"details", "event-derived configuration detail"}};
+        warning.safeProjection = true;
+        ai::openai::codex::backend::CodexExtensionReceived secondWarning;
+        secondWarning.method = "warning";
+        secondWarning.payload = frontend::Json{{"message", "second event-derived warning"}, {"threadId", thread.id}};
+        secondWarning.safeProjection = true;
+        ai::openai::codex::backend::CodexExtensionReceived unknown;
+        unknown.method = "future/notification";
+        unknown.payload = frontend::Json{{"accessToken", "must-not-enter-the-model"}};
+        unknown.safeProjection = true;
+        std::vector<ai::openai::codex::backend::SequencedBackendEvent> events;
+        events.push_back({ai::openai::codex::backend::SequenceNumber{18}, std::move(content)});
+        events.push_back({ai::openai::codex::backend::SequenceNumber{19}, std::move(warning)});
+        events.push_back({ai::openai::codex::backend::SequenceNumber{20}, std::move(secondWarning)});
+        events.push_back({ai::openai::codex::backend::SequenceNumber{21}, std::move(unknown)});
+        const auto occurrences = projection.projectOccurrences(events, source);
+        const bool contentFromSnapshot =
+            occurrences && occurrences.value().occurrences.size() == 4 &&
+            occurrences.value().occurrences[0].occurrence.expandedPayloads.size() == 1 &&
+            std::get<model::ItemContentUpdatedOccurrence>(occurrences.value().occurrences[0].occurrence.expandedPayloads.front()).content ==
+                "canonical accumulated content";
+        const bool generatedGroup = occurrences &&
+                                    occurrences.value().occurrences[1].occurrence.expandedPayloads.size() == 2 &&
+                                    model::occurrenceType(
+                                        occurrences.value().occurrences[1].occurrence.expandedPayloads[0]) ==
+                                        frontend::ExpandedEventType::ConfigurationUpdated &&
+                                    model::occurrenceType(
+                                        occurrences.value().occurrences[1].occurrence.expandedPayloads[1]) ==
+                                        frontend::ExpandedEventType::NoticeAdded;
+        const auto* firstNotice =
+            generatedGroup ? &std::get<model::NoticeAddedOccurrence>(occurrences.value().occurrences[1].occurrence.expandedPayloads[1])
+                           : nullptr;
+        const auto* secondNotice =
+            occurrences && occurrences.value().occurrences[2].occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::NoticeAddedOccurrence>(&occurrences.value().occurrences[2].occurrence.expandedPayloads.front())
+                : nullptr;
+        const bool exactNoticeEvents = firstNotice != nullptr && secondNotice != nullptr &&
+                                       firstNotice->notice.summary == "event-derived configuration warning" &&
+                                       firstNotice->notice.details == std::optional<std::string>{"event-derived configuration detail"} &&
+                                       secondNotice->notice.summary == "second event-derived warning" &&
+                                       secondNotice->notice.threadId == model::ThreadIdentity::parse(thread.id);
+        const bool containedUnknown =
+            occurrences && occurrences.value().occurrences[3].occurrence.expandedPayloads.empty() &&
+            occurrences.value().occurrences[3].occurrence.legacyCompatibility.safeExtension &&
+            occurrences.value().occurrences[3].occurrence.legacyCompatibility.safeExtension->sensitiveFieldsRedacted &&
+            occurrences.value().occurrences[3].occurrence.legacyCompatibility.safeExtension->params.empty();
+
+        ai::openai::codex::backend::Snapshot withoutRetainedNotices = source;
+        withoutRetainedNotices.notices.clear();
+        ai::openai::codex::backend::CodexExtensionReceived retainedIndependent;
+        retainedIndependent.method = "configWarning";
+        retainedIndependent.payload = frontend::Json{{"summary", "retention-independent warning"}};
+        retainedIndependent.safeProjection = true;
+        const std::vector<ai::openai::codex::backend::SequencedBackendEvent> retentionEvents{
+            {ai::openai::codex::backend::SequenceNumber{22}, std::move(retainedIndependent)}};
+        const auto retentionIndependentProjection = projection.projectOccurrences(retentionEvents, withoutRetainedNotices);
+        const auto* retentionNotice =
+            retentionIndependentProjection && retentionIndependentProjection.value().occurrences.size() == 1 &&
+                    retentionIndependentProjection.value().occurrences.front().occurrence.expandedPayloads.size() == 2
+                ? std::get_if<model::NoticeAddedOccurrence>(
+                      &retentionIndependentProjection.value().occurrences.front().occurrence.expandedPayloads[1])
+                : nullptr;
+
+        ai::openai::codex::backend::CodexExtensionReceived malformedWarning;
+        malformedWarning.method = "configWarning";
+        malformedWarning.payload = frontend::Json{{"details", "missing required summary"}};
+        malformedWarning.safeProjection = true;
+        const std::vector<ai::openai::codex::backend::SequencedBackendEvent> malformedEvents{
+            {ai::openai::codex::backend::SequenceNumber{23}, std::move(malformedWarning)}};
+        const auto malformedProjection = projection.projectOccurrences(malformedEvents, source);
+        const bool malformedContained =
+            malformedProjection && malformedProjection.value().snapshotRequired && malformedProjection.value().occurrences.empty();
+        const bool activityRemainsProjectionOnly =
+            std::none_of(frontend::generated::AllNotificationProjections.begin(),
+                         frontend::generated::AllNotificationProjections.end(),
+                         [](const frontend::generated::ProjectionMetadata& metadata) {
+                             return std::find(metadata.expandedMappings.begin(),
+                                              metadata.expandedMappings.end(),
+                                              std::string_view{"activity.updated"}) != metadata.expandedMappings.end();
+                         });
+
+        ai::openai::codex::backend::CodexExtensionReceived unsafeConfiguration;
+        unsafeConfiguration.method = "configWarning";
+        unsafeConfiguration.payload =
+            frontend::Json{{"summary", "unsafe configuration summary"}, {"details", "private configuration detail"}};
+        ai::openai::codex::backend::CodexExtensionReceived unsafeGuardian;
+        unsafeGuardian.method = "guardianWarning";
+        unsafeGuardian.payload = frontend::Json{{"message", "private guardian message"}, {"threadId", "private-thread"}};
+        ai::openai::codex::backend::CodexExtensionReceived deprecation;
+        deprecation.method = "deprecationNotice";
+        deprecation.payload = frontend::Json{{"summary", "deprecated behavior"}, {"details", ""}};
+        deprecation.safeProjection = true;
+        ai::openai::codex::backend::CodexExtensionReceived worldWritable;
+        worldWritable.method = "windows/worldWritableWarning";
+        worldWritable.payload =
+            frontend::Json{{"failedScan", false}, {"samplePaths", frontend::Json::array({"one", "two"})}, {"extraCount", 3}};
+        worldWritable.safeProjection = true;
+        ai::openai::codex::backend::CodexExtensionReceived utf8Boundary;
+        utf8Boundary.method = "warning";
+        utf8Boundary.payload = frontend::Json{{"message", std::string(16'383, 'a') + "\xE2\x82\xAC"}};
+        utf8Boundary.safeProjection = true;
+        ai::openai::codex::backend::CodexExtensionReceived oversizedIdentity;
+        oversizedIdentity.method = "warning";
+        oversizedIdentity.payload = frontend::Json{{"message", "oversized identity warning"},
+                                                   {"threadId", std::string(model::ThreadIdentity::MaximumBytes + 1, 'x')}};
+        oversizedIdentity.safeProjection = true;
+        const std::vector<ai::openai::codex::backend::SequencedBackendEvent> noticeSecurityEvents{
+            {ai::openai::codex::backend::SequenceNumber{24}, std::move(unsafeConfiguration)},
+            {ai::openai::codex::backend::SequenceNumber{25}, std::move(unsafeGuardian)},
+            {ai::openai::codex::backend::SequenceNumber{26}, std::move(deprecation)},
+            {ai::openai::codex::backend::SequenceNumber{27}, std::move(worldWritable)},
+            {ai::openai::codex::backend::SequenceNumber{28}, std::move(utf8Boundary)},
+            {ai::openai::codex::backend::SequenceNumber{29}, std::move(oversizedIdentity)},
+        };
+        const auto noticeSecurityProjection = projection.projectOccurrences(noticeSecurityEvents, source);
+        const auto noticeAt = [&](std::size_t index) -> const model::NoticeRecord* {
+            if (!noticeSecurityProjection || index >= noticeSecurityProjection.value().occurrences.size()) {
+                return nullptr;
+            }
+            const auto& payloads = noticeSecurityProjection.value().occurrences[index].occurrence.expandedPayloads;
+            const auto found = std::find_if(payloads.begin(), payloads.end(), [](const model::OccurrencePayload& payload) {
+                return model::occurrenceType(payload) == frontend::ExpandedEventType::NoticeAdded;
+            });
+            const auto* notice = found != payloads.end() ? std::get_if<model::NoticeAddedOccurrence>(&*found) : nullptr;
+            return notice != nullptr ? &notice->notice : nullptr;
+        };
+        const model::NoticeRecord* unsafeConfigurationNotice = noticeAt(0);
+        const model::NoticeRecord* unsafeGuardianNotice = noticeAt(1);
+        const model::NoticeRecord* deprecationNotice = noticeAt(2);
+        const model::NoticeRecord* worldWritableNotice = noticeAt(3);
+        const model::NoticeRecord* utf8BoundaryNotice = noticeAt(4);
+        const model::NoticeRecord* oversizedIdentityNotice = noticeAt(5);
+        const auto* sanitizedCompatibility = noticeSecurityProjection && !noticeSecurityProjection.value().occurrences.empty()
+                                                 ? &noticeSecurityProjection.value().occurrences.front().occurrence.legacyCompatibility
+                                                 : nullptr;
+        const bool sanitizedLegacy =
+            sanitizedCompatibility && sanitizedCompatibility->safeExtension &&
+            sanitizedCompatibility->safeExtension->sensitiveFieldsRedacted &&
+            sanitizedCompatibility->safeExtension->params.json().dump().find("private configuration detail") == std::string::npos;
+        result.expectTrue(noticeSecurityProjection && !noticeSecurityProjection.value().snapshotRequired &&
+                              noticeSecurityProjection.value().occurrences.size() == 6 && unsafeConfigurationNotice &&
+                              unsafeConfigurationNotice->summary == "unsafe configuration summary" &&
+                              unsafeConfigurationNotice->details == std::optional<std::string>{"[redacted]"} && unsafeGuardianNotice &&
+                              unsafeGuardianNotice->summary == "[redacted]" &&
+                              unsafeGuardianNotice->threadId == model::ThreadIdentity::parse("[redacted]") && deprecationNotice &&
+                              !deprecationNotice->details && worldWritableNotice &&
+                              worldWritableNotice->category == "windows_world_writable" &&
+                              worldWritableNotice->details == std::optional<std::string>{"sample paths: 2, additional paths: 3"} &&
+                              utf8BoundaryNotice && utf8BoundaryNotice->summary.size() == 16'383 && oversizedIdentityNotice &&
+                              !oversizedIdentityNotice->threadId && sanitizedLegacy,
+                          "notice projection sanitizes unsafe extensions, truncates on UTF-8 boundaries, and preserves omission semantics");
+        result.expectTrue(
+            contentFromSnapshot && generatedGroup && exactNoticeEvents && containedUnknown && !occurrences.value().snapshotRequired &&
+                retentionNotice != nullptr && retentionNotice->notice.summary == "retention-independent warning" &&
+                !retentionIndependentProjection.value().snapshotRequired && malformedContained && activityRemainsProjectionOnly,
+            "live backend events select canonical state, exact event-derived notices, generated mappings, and bounded containment");
+    }
+} // namespace
+
+int main() {
+    tests::support::TestResult result;
+    testSynchronization(result);
+    testTypedBatching(result);
+    testIndependentSnapshotCapabilities(result);
+    testLegacyOnlyPerConnectionContainment(result);
+    testSessionAndControllerJournal(result);
+    testExactBackendOccurrenceIdentity(result);
+    testUnknownBackendItemContainment(result);
+    testUnknownBackendItemWireContainment(result);
+    testUnknownPendingRequestCompatibility(result);
+    testPendingUserInputPresentationUtf8Containment(result);
+    testBackendProjection(result);
+    return result.processResult();
+}

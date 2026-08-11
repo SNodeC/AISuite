@@ -4,6 +4,22 @@ project(AISuiteInstalledCodexConsumer LANGUAGES CXX)
 
 find_package(AISuite CONFIG REQUIRED)
 
+if(NOT TARGET AISuite::OpenAICodexFrontendProtocol)
+    message(FATAL_ERROR "OpenAICodexFrontendProtocol is not exported")
+endif()
+get_target_property(
+    frontend_protocol_links
+    AISuite::OpenAICodexFrontendProtocol
+    INTERFACE_LINK_LIBRARIES
+)
+if(NOT "${frontend_protocol_links}" STREQUAL
+   "nlohmann_json::nlohmann_json")
+    message(
+        FATAL_ERROR
+            "OpenAICodexFrontendProtocol must export exactly nlohmann_json::nlohmann_json: ${frontend_protocol_links}"
+    )
+endif()
+
 if(TARGET AISuite::OpenAICodexFrontendClient)
     get_target_property(
         frontend_client_links
@@ -50,6 +66,18 @@ if(TARGET AISuite::OpenAICodexFrontendClient)
         endif()
     endforeach()
 endif()
+
+add_executable(
+    AISuiteInstalledCodexFrontendProtocolConsumer
+    CodexFrontendProtocolConsumer.cpp
+)
+target_compile_features(
+    AISuiteInstalledCodexFrontendProtocolConsumer PRIVATE cxx_std_20
+)
+target_link_libraries(
+    AISuiteInstalledCodexFrontendProtocolConsumer
+    PRIVATE AISuite::OpenAICodexFrontendProtocol
+)
 
 add_executable(
     AISuiteInstalledSNodeCoreConsumer

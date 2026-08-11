@@ -109,7 +109,7 @@ function(
         else()
             set(relative "${prefix}/${entry}")
         endif()
-        if(relative MATCHES "(^|/)(detail|private)(/|$)" OR
+        if(relative MATCHES "(^|/)(detail|internal|private)(/|$)" OR
            relative MATCHES "(^|/)\\.\\.(/|$)"
         )
             fail_self_containment(
@@ -254,7 +254,7 @@ foreach(header IN LISTS installed_headers)
             "installed inventory contains duplicate ${header}"
         )
     endif()
-    if(header MATCHES "(^|/)(detail|private)(/|$)")
+    if(header MATCHES "(^|/)(detail|internal|private)(/|$)")
         fail_self_containment(
             "installed prefix leaks private header ${header}"
         )

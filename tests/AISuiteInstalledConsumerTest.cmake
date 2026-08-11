@@ -18,19 +18,22 @@ elseif(DEFINED ENV{RUNNER_TEMP} AND NOT "$ENV{RUNNER_TEMP}" STREQUAL "")
 elseif(DEFINED ENV{TMPDIR} AND NOT "$ENV{TMPDIR}" STREQUAL "")
     set(temporary_root "$ENV{TMPDIR}")
 else()
-    set(temporary_root "/tmp")
+    get_filename_component(aisuite_source_parent "${AISUITE_SOURCE_DIR}" DIRECTORY)
+    set(temporary_root
+        "${aisuite_source_parent}/.aisuite-ic"
+    )
 endif()
 string(SHA256 stage_identity "${AISUITE_SOURCE_DIR};${AISUITE_BUILD_DIR}")
 string(SUBSTRING "${stage_identity}" 0 16 stage_identity)
 set(stage
-    "${temporary_root}/aisuite-genuine-installed-consumer-${stage_identity}"
+    "${temporary_root}/ic-${stage_identity}"
 )
 set(aisuite_install "${stage}/aisuite-install")
 set(consumer_source "${stage}/consumer-source")
 set(consumer_build "${stage}/consumer-build")
 set(module_consumer_source "${stage}/module-consumer-source")
 set(module_consumer_build "${stage}/module-consumer-build")
-set(runtime_directory "${stage}/runtime")
+set(runtime_directory "${stage}/r")
 
 file(REMOVE_RECURSE "${stage}")
 file(MAKE_DIRECTORY
@@ -269,14 +272,25 @@ if(NOT EXISTS "${installed_aisuite_targets}")
 endif()
 file(READ "${installed_aisuite_targets}" installed_aisuite_targets_text)
 string(FIND "${installed_aisuite_targets_text}"
-       "AISuite::OpenAICodexFrontend" frontend_target_index
+       "add_library(AISuite::OpenAICodexFrontend SHARED IMPORTED)"
+       frontend_target_index
 )
 string(FIND "${installed_aisuite_targets_text}"
-       "AISuite::OpenAICodexFrontendClient" frontend_client_target_index
+       "add_library(AISuite::OpenAICodexFrontendProtocol SHARED IMPORTED)"
+       frontend_protocol_target_index
+)
+string(FIND "${installed_aisuite_targets_text}"
+       "add_library(AISuite::OpenAICodexFrontendClient SHARED IMPORTED)"
+       frontend_client_target_index
 )
 if(frontend_target_index EQUAL -1)
     fail_installed(
         "installed target boundary must expose OpenAICodexFrontend"
+    )
+endif()
+if(frontend_protocol_target_index EQUAL -1)
+    fail_installed(
+        "installed target boundary must expose OpenAICodexFrontendProtocol"
     )
 endif()
 if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT AND
@@ -294,6 +308,7 @@ endif()
 set(codex_libraries
     aisuite-openai-codex
     aisuite-openai-codex-backend
+    aisuite-openai-codex-frontend-protocol
     aisuite-openai-codex-frontend
 )
 if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
@@ -338,6 +353,24 @@ foreach(codex_library IN LISTS codex_libraries)
         fail_installed(
             "${codex_library} does not declare the required .so.2 SONAME"
         )
+    endif()
+    if(codex_library STREQUAL "aisuite-openai-codex-frontend")
+        set(frontend_protocol_needed FALSE)
+        string(REPLACE "\n" ";" codex_dynamic_lines
+                       "${codex_dynamic_metadata}"
+        )
+        foreach(codex_dynamic_line IN LISTS codex_dynamic_lines)
+            if(codex_dynamic_line MATCHES
+               "\\(NEEDED\\).*Shared library: \\[libaisuite-openai-codex-frontend-protocol\\.so\\.2\\][ \t]*$"
+            )
+                set(frontend_protocol_needed TRUE)
+            endif()
+        endforeach()
+        if(NOT frontend_protocol_needed)
+            fail_installed(
+                "installed frontend DSO does not directly need libaisuite-openai-codex-frontend-protocol.so.2"
+            )
+        endif()
     endif()
 endforeach()
 
@@ -424,7 +457,7 @@ require_path_under("${snodec_dir}" "${snodec_install}" "snodec_DIR")
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 26 --verbose
+        "${CMAKE_COMMAND}" --build "${consumer_build}" --parallel 4 --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE consumer_build_output
     ERROR_VARIABLE consumer_build_error
@@ -513,7 +546,7 @@ require_success(
 execute_process(
     COMMAND
         ${isolated_environment}
-        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 26
+        "${CMAKE_COMMAND}" --build "${module_consumer_build}" --parallel 4
         --verbose
     RESULT_VARIABLE result
     OUTPUT_VARIABLE module_consumer_build_output
@@ -549,6 +582,7 @@ set(installed_consumers
     AISuiteInstalledSNodeCoreConsumer
     AISuiteInstalledCodexConsumer
     AISuiteInstalledCodexApiConsumer
+    AISuiteInstalledCodexFrontendProtocolConsumer
     AISuiteInstalledCodexAccountsHeaderConsumer
     AISuiteInstalledCodexModelsHeaderConsumer
     AISuiteInstalledCodexConfigurationHeaderConsumer
@@ -712,6 +746,38 @@ foreach(consumer IN LISTS installed_consumers)
                 )
             endif()
         endforeach()
+    endif()
+    if(consumer STREQUAL "AISuiteInstalledCodexFrontendProtocolConsumer")
+        foreach(
+            forbidden_protocol_runtime
+            IN ITEMS
+               libaisuite-openai-codex.so.2
+               libaisuite-openai-codex-backend.so.2
+               libaisuite-openai-codex-frontend.so.2
+               libaisuite-openai-codex-frontend-client.so.2
+               libsnodec-
+               libssl
+               libcrypto
+               libbluetooth
+        )
+            string(FIND "${linked_libraries}" "${forbidden_protocol_runtime}"
+                   forbidden_protocol_runtime_index
+            )
+            if(NOT forbidden_protocol_runtime_index EQUAL -1)
+                fail_cross_repo(
+                    "protocol-only consumer resolves forbidden runtime ${forbidden_protocol_runtime}: ${linked_libraries}"
+                )
+            endif()
+        endforeach()
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend-protocol.so.2"
+               protocol_runtime_index
+        )
+        if(protocol_runtime_index EQUAL -1)
+            fail_installed(
+                "protocol-only consumer does not resolve the protocol DSO"
+            )
+        endif()
     endif()
 
     execute_process(
