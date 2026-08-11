@@ -5,10 +5,11 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include "oracle/LegacyFrontendService.h"
+
 #include "CodexBackendTestSupport.h"
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
-#include "ai/openai/codex/frontend/FrontendService.h"
 #include "ai/openai/codex/frontend/GeneratedProtocol.h"
 #include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/detail/BackendProjectionBuilder.h"

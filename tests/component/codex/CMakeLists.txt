@@ -1893,6 +1893,158 @@ foreach(
     )
 endforeach()
 
+# P3 keeps the production P0 implementation executable as a strictly
+# test-only oracle until the Commit-5 local and hosted pre-deletion gates have
+# both passed.  Private type/namespace renaming lets the frozen implementation
+# coexist with the cut-over public Pimpls without creating a legacy DSO.
+set(
+    P3_LEGACY_ORACLE_SOURCE_AUTHORITY
+    "${CMAKE_CURRENT_SOURCE_DIR}/oracle/source-closure.txt"
+)
+file(STRINGS "${P3_LEGACY_ORACLE_SOURCE_AUTHORITY}" P3_LEGACY_ORACLE_SOURCE_ROWS)
+
+function(p3_legacy_oracle_target_sources output_variable target_name)
+    set(target_sources)
+    foreach(source_row IN LISTS P3_LEGACY_ORACLE_SOURCE_ROWS)
+        if(source_row MATCHES "^[ \\t]*#" OR source_row STREQUAL "")
+            continue()
+        endif()
+        string(REPLACE "|" ";" source_fields "${source_row}")
+        list(LENGTH source_fields source_field_count)
+        if(NOT source_field_count EQUAL 2)
+            message(FATAL_ERROR "Malformed P3 legacy oracle source-authority row: ${source_row}")
+        endif()
+        list(GET source_fields 0 source_target)
+        list(GET source_fields 1 relative_source)
+        if(NOT source_target STREQUAL target_name)
+            continue()
+        endif()
+        if(IS_ABSOLUTE "${relative_source}")
+            message(FATAL_ERROR "P3 legacy oracle authority must use repository-relative paths: ${relative_source}")
+        endif()
+        list(APPEND target_sources "${PROJECT_SOURCE_DIR}/${relative_source}")
+    endforeach()
+    if(NOT target_sources)
+        message(FATAL_ERROR "P3 legacy oracle target has an empty source authority: ${target_name}")
+    endif()
+    set(${output_variable} "${target_sources}" PARENT_SCOPE)
+endfunction()
+
+set(
+    P3_LEGACY_ORACLE_INCLUDE_ROOT
+    "${CMAKE_CURRENT_SOURCE_DIR}/oracle/include"
+)
+
+p3_legacy_oracle_target_sources(
+    P3_LEGACY_PROJECTION_ORACLE_SOURCES
+    ai-openai-codex-frontend-legacy-projection-oracle
+)
+add_library(
+    ai-openai-codex-frontend-legacy-projection-oracle STATIC
+    ${P3_LEGACY_PROJECTION_ORACLE_SOURCES}
+)
+target_include_directories(
+    ai-openai-codex-frontend-legacy-projection-oracle
+    BEFORE PRIVATE
+        "${P3_LEGACY_ORACLE_INCLUDE_ROOT}"
+        "${PROJECT_SOURCE_DIR}/src"
+)
+target_compile_features(
+    ai-openai-codex-frontend-legacy-projection-oracle PRIVATE cxx_std_20
+)
+target_link_libraries(
+    ai-openai-codex-frontend-legacy-projection-oracle
+    PUBLIC AISuite::OpenAICodexFrontend
+)
+
+p3_legacy_oracle_target_sources(
+    P3_LEGACY_SERVER_ORACLE_SOURCES
+    ai-openai-codex-frontend-legacy-server-oracle
+)
+add_library(
+    ai-openai-codex-frontend-legacy-server-oracle STATIC
+    ${P3_LEGACY_SERVER_ORACLE_SOURCES}
+)
+target_compile_definitions(
+    ai-openai-codex-frontend-legacy-server-oracle
+    PRIVATE
+        FrontendConnection=LegacyFrontendConnection
+        FrontendService=LegacyFrontendService
+        FrontendServiceTestAccess=LegacyFrontendServiceTestAccess
+        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
+)
+target_include_directories(
+    ai-openai-codex-frontend-legacy-server-oracle
+    BEFORE PRIVATE
+        "${P3_LEGACY_ORACLE_INCLUDE_ROOT}"
+        "${PROJECT_SOURCE_DIR}/src"
+)
+target_compile_features(
+    ai-openai-codex-frontend-legacy-server-oracle PRIVATE cxx_std_20
+)
+target_link_libraries(
+    ai-openai-codex-frontend-legacy-server-oracle
+    PUBLIC AISuite::OpenAICodexFrontend
+    PRIVATE
+        ai-openai-codex-frontend-legacy-projection-oracle
+        snodec::core
+)
+
+if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+    p3_legacy_oracle_target_sources(
+        P3_LEGACY_CLIENT_ORACLE_SOURCES
+        ai-openai-codex-frontend-legacy-client-oracle
+    )
+    add_library(
+        ai-openai-codex-frontend-legacy-client-oracle STATIC
+        ${P3_LEGACY_CLIENT_ORACLE_SOURCES}
+    )
+    target_compile_definitions(
+        ai-openai-codex-frontend-legacy-client-oracle
+        PRIVATE
+            AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_BUILDING_LIBRARY=1
+            client=legacy_client
+        INTERFACE AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_STATIC_DEFINE=1
+    )
+    target_include_directories(
+        ai-openai-codex-frontend-legacy-client-oracle
+        BEFORE PRIVATE
+            "${P3_LEGACY_ORACLE_INCLUDE_ROOT}"
+            "${PROJECT_SOURCE_DIR}/src"
+    )
+    target_compile_features(
+        ai-openai-codex-frontend-legacy-client-oracle PRIVATE cxx_std_20
+    )
+    target_link_libraries(
+        ai-openai-codex-frontend-legacy-client-oracle
+        PUBLIC AISuite::OpenAICodexFrontend
+        PRIVATE ai-openai-codex-frontend-legacy-projection-oracle
+    )
+    add_executable(
+        CodexFrontendTwoOracleLinkTest
+        oracle/link/CodexFrontendTwoOracleLinkTest.cpp
+        oracle/link/LegacyServerOracleLinkProbe.cpp
+        oracle/link/LegacyClientOracleLinkProbe.cpp
+    )
+    target_compile_features(CodexFrontendTwoOracleLinkTest PRIVATE cxx_std_20)
+    target_link_libraries(
+        CodexFrontendTwoOracleLinkTest
+        PRIVATE
+            ai-openai-codex-frontend-legacy-server-oracle
+            ai-openai-codex-frontend-legacy-client-oracle
+    )
+    add_test(
+        NAME CodexFrontendTwoOracleLinkTest
+        COMMAND CodexFrontendTwoOracleLinkTest
+    )
+    set_tests_properties(
+        CodexFrontendTwoOracleLinkTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;p3;oracle;link"
+            TIMEOUT 10
+    )
+endif()
+
 snodec_add_test(
     CodexFrontendServerDifferentialTest
     CodexFrontendServerDifferentialTest.cpp
@@ -1901,7 +2053,7 @@ target_link_libraries(
     CodexFrontendServerDifferentialTest
     PRIVATE
         snodec-test-support
-        AISuite::OpenAICodexFrontend
+        ai-openai-codex-frontend-legacy-server-oracle
         ai-openai-codex-frontend-server-core
         snodec::core
 )
@@ -1930,7 +2082,7 @@ target_link_libraries(
     CodexFrontendClientDifferentialTest
     PRIVATE
         snodec-test-support
-        ai-openai-codex-frontend-client-test-support
+        ai-openai-codex-frontend-legacy-client-oracle
         ai-openai-codex-frontend-client-core
         ai-openai-codex-frontend-server-core
 )

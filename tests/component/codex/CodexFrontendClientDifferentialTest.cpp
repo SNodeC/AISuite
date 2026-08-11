@@ -11,11 +11,9 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/GeneratedProtocol.h"
 #include "ai/openai/codex/frontend/Security.h"
-#include "ai/openai/codex/frontend/client/Client.h"
-#include "ai/openai/codex/frontend/client/GeneratedBindings.h"
-#include "ai/openai/codex/frontend/client/detail/StateReducer.h"
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 #include "ai/openai/codex/frontend/internal/server/BackendProjection.h"
+#include "oracle/LegacyFrontendClient.h"
 #include "support/TestResult.h"
 
 #include <algorithm>

@@ -1,3 +1,40 @@
+add_test(
+    NAME CodexFrontendP3OracleIsolationTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendP3OracleIsolationTest.py
+        --repo-root ${PROJECT_SOURCE_DIR}
+        --source-authority
+        ${PROJECT_SOURCE_DIR}/tests/component/codex/oracle/source-closure.txt
+)
+set_tests_properties(
+    CodexFrontendP3OracleIsolationTest
+    PROPERTIES
+        LABELS "policy;codex;frontend;p3;oracle;isolation"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 10
+)
+
+add_test(
+    NAME CodexFrontendP3OracleDependencyResolutionTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendP3OracleDependencyResolutionTest.py
+        --repo-root ${PROJECT_SOURCE_DIR}
+        --build-dir ${CMAKE_BINARY_DIR}
+        --generator "${CMAKE_GENERATOR}"
+        --make-program "${CMAKE_MAKE_PROGRAM}"
+        --source-authority
+        ${PROJECT_SOURCE_DIR}/tests/component/codex/oracle/source-closure.txt
+)
+set_tests_properties(
+    CodexFrontendP3OracleDependencyResolutionTest
+    PROPERTIES
+        LABELS "policy;codex;frontend;p3;oracle;dependencies"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 60
+)
+
 add_executable(CodexPublicHeaderPolicyTest CodexPublicHeaderPolicyTest.cpp)
 add_executable(
     CodexLoggingApiSurfacePolicyTest CodexLoggingApiSurfacePolicyTest.cpp

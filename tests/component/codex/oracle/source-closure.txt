@@ -1,0 +1,13 @@
+# P3 frozen-oracle implementation source authority.
+# Format: target|repository-relative implementation translation unit
+ai-openai-codex-frontend-legacy-projection-oracle|tests/component/codex/oracle/detail/BackendProjectionBuilder.cpp
+ai-openai-codex-frontend-legacy-projection-oracle|tests/component/codex/oracle/detail/FrontendCapabilities.cpp
+ai-openai-codex-frontend-legacy-projection-oracle|tests/component/codex/oracle/detail/FrontendProjection.cpp
+ai-openai-codex-frontend-legacy-server-oracle|tests/component/codex/oracle/LegacyFrontendService.cpp
+ai-openai-codex-frontend-legacy-client-oracle|tests/component/codex/oracle/client/BindingMetadata.cpp
+ai-openai-codex-frontend-legacy-client-oracle|tests/component/codex/oracle/client/Capture.cpp
+ai-openai-codex-frontend-legacy-client-oracle|tests/component/codex/oracle/client/Client.cpp
+ai-openai-codex-frontend-legacy-client-oracle|tests/component/codex/oracle/client/GeneratedFacades.cpp
+ai-openai-codex-frontend-legacy-client-oracle|tests/component/codex/oracle/client/OperationCodecs.cpp
+ai-openai-codex-frontend-legacy-client-oracle|tests/component/codex/oracle/client/ProjectionFingerprint.cpp
+ai-openai-codex-frontend-legacy-client-oracle|tests/component/codex/oracle/client/State.cpp
