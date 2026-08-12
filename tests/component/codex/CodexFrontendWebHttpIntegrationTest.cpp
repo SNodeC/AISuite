@@ -8,7 +8,6 @@
 #include "CodexBackendTestSupport.h"
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
-#include "apps/codex-backend/FrontendRuntimeBridge.h"
 #include "apps/codex-backend/FrontendWebApplication.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -325,7 +324,7 @@ namespace {
                     request->url = current.target;
                     request->set("Connection", "close");
                     if (current.target == "/frontend") {
-                        request->set("Sec-WebSocket-Protocol", std::string(app::FrontendWebSocketSubProtocol));
+                        request->set("Sec-WebSocket-Protocol", std::string(app::FrontendWebSocketSubProtocolName));
                     }
                     if (current.webSocketUpgrade) {
                         request->set("Connection", "Upgrade");
@@ -722,8 +721,6 @@ int main(int argc, char* argv[]) {
                                                                         {}});
         result.expectTrue(survivor.receive(frontend::Hello{std::nullopt, frontend::Json::object()}).accepted(),
                           "an unrelated in-memory frontend authenticates before failed static-pipe probes");
-        result.expectTrue(app::installFrontendRuntime(service),
-                          "the HTTP upgrade policy sees the one application-owned FrontendService bridge");
 
         app::FrontendWebApplication staticApplication(service,
                                                       app::FrontendWebApplicationOptions{
@@ -891,7 +888,6 @@ int main(int argc, char* argv[]) {
         eventLoopResult = core::SNodeC::start();
         runner.clearClients();
         service.close("live HTTP integration complete");
-        app::uninstallFrontendRuntime(service);
     }
     core::SNodeC::free();
 

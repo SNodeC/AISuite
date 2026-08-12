@@ -9,7 +9,6 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
-#include "apps/codex-backend/FrontendRuntimeBridge.h"
 #include "apps/codex-backend/FrontendWebApplication.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
@@ -107,7 +106,7 @@ namespace {
     };
 
     ClientSubProtocol::ClientSubProtocol(web::websocket::SubProtocolContext* context, IntegrationState& state)
-        : web::websocket::client::SubProtocol(context, std::string(app::FrontendWebSocketSubProtocol), 0, 3)
+        : web::websocket::client::SubProtocol(context, std::string(app::FrontendWebSocketSubProtocolName), 0, 3)
         , state(state) {
     }
 
@@ -178,7 +177,7 @@ namespace {
     class ClientFactory final : public web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol> {
     public:
         explicit ClientFactory(IntegrationState& state)
-            : web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>(std::string(app::FrontendWebSocketSubProtocol))
+            : web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>(std::string(app::FrontendWebSocketSubProtocolName))
             , state(state) {
         }
 
@@ -223,7 +222,6 @@ namespace {
                     false}}};
             };
             frontend::FrontendService service(backend, std::move(serviceOptions));
-            result.expectTrue(app::installFrontendRuntime(service), "the WSS plugin bridge installs the one FrontendService reference");
 
             app::FrontendWebApplication webApplication(service,
                                                        app::FrontendWebApplicationOptions{
@@ -252,7 +250,8 @@ namespace {
                 ->setMaximumFragments(4096);
 
             web::websocket::client::SocketContextUpgradeFactory::link();
-            web::websocket::client::SubProtocolFactorySelector::link(std::string(app::FrontendWebSocketSubProtocol), createClientFactory);
+            web::websocket::client::SubProtocolFactorySelector::link(std::string(app::FrontendWebSocketSubProtocolName),
+                                                                     createClientFactory);
 
             webApp.listen(net::in::SocketAddress("127.0.0.1", 0),
                           [&state](const net::in::SocketAddress& address, core::socket::State status) {
@@ -269,7 +268,7 @@ namespace {
                                   [&state, origin](const auto& request) {
                                       request->set("Host", origin.substr(std::string_view("https://").size()));
                                       request->set("Origin", origin);
-                                      request->set("Sec-WebSocket-Protocol", std::string(app::FrontendWebSocketSubProtocol));
+                                      request->set("Sec-WebSocket-Protocol", std::string(app::FrontendWebSocketSubProtocolName));
                                       request->upgrade(
                                           std::string(Endpoint),
                                           "websocket",
@@ -316,7 +315,6 @@ namespace {
             eventLoopResult = core::SNodeC::start();
             state.client.reset();
             service.close("WSS integration complete");
-            app::uninstallFrontendRuntime(service);
         }
         core::SNodeC::free();
         linkedState = nullptr;
@@ -326,7 +324,7 @@ namespace {
         result.expectEqual(std::size_t{1}, state.serverBinds, "the production IPv4 WSS listener reports one ephemeral bind");
         result.expectEqual(std::size_t{1}, state.clientConnections, "the certificate-verifying SNode.C TLS client connects once");
         result.expectTrue(state.preUpgradeSessionFree,
-                          "the dynamic plugin opens no FrontendConnection before a successful TLS WebSocket upgrade");
+                          "the static subprotocol opens no FrontendConnection before a successful TLS WebSocket upgrade");
         result.expectTrue(state.upgradesStarted == 1 && state.upgradesCompleted == 1 && state.websocketConnections == 1 &&
                               state.websocketDisconnections == 1,
                           "one HTTPS request upgrades to one complete WSS connection lifecycle");

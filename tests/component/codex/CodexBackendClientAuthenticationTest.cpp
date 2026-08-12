@@ -107,7 +107,7 @@ int main() {
 
     const std::size_t streamPrepare = connectionSource.find("callbacks.onBeforeTransportConnected(callbacks.verifiedLocalUnix)");
     const std::size_t streamConnect = connectionSource.find("protocolConnection.transportConnected()");
-    const std::size_t webSocketPrepare = webSocketSource.find("runtime.callbacks.onBeforeTransportConnected(false)");
+    const std::size_t webSocketPrepare = webSocketSource.find("binding->callbacks.onBeforeTransportConnected(false)");
     const std::size_t webSocketConnect = webSocketSource.find("protocolConnection.transportConnected()");
     result.expectTrue(streamPrepare != std::string::npos && streamConnect != std::string::npos && streamPrepare < streamConnect &&
                           webSocketPrepare != std::string::npos && webSocketConnect != std::string::npos &&

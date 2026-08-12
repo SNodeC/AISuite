@@ -4,6 +4,8 @@
 
 #include "apps/codex-backend-client/FrontendWebSocketClient.h"
 
+#include "core/socket/stream/SocketConnection.h"
+#include "web/http/client/SocketContext.h"
 #include "web/websocket/SubProtocolContext.h"
 #include "web/websocket/SubProtocolFactory.h"
 #include "web/websocket/client/SocketContextUpgradeFactory.h"
@@ -12,7 +14,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -26,16 +27,38 @@ namespace apps::codex_backend_client {
         constexpr std::uint16_t CloseUnsupportedData = 1003;
         constexpr std::uint16_t ClosePolicyViolation = 1008;
         constexpr std::uint16_t CloseUnexpectedCondition = 1011;
-        FrontendWebSocketClientRuntime* installedRuntime = nullptr;
+
+        class FrontendWebSocketHttpSocketContext final : public web::http::client::SocketContext {
+        public:
+            FrontendWebSocketHttpSocketContext(
+                core::socket::stream::SocketConnection* connection,
+                const std::function<void(const std::shared_ptr<web::http::client::MasterRequest>&)>& onHttpConnected,
+                const std::function<void(const std::shared_ptr<web::http::client::MasterRequest>&)>& onHttpDisconnected,
+                const std::string& hostHeader,
+                bool pipelinedRequests,
+                const web::http::ParserLimits& parserLimits,
+                std::shared_ptr<FrontendWebSocketClientBinding> binding)
+                : web::http::client::SocketContext(
+                      connection, onHttpConnected, onHttpDisconnected, hostHeader, pipelinedRequests, parserLimits)
+                , frontendBinding(std::move(binding)) {
+            }
+
+            [[nodiscard]] std::shared_ptr<FrontendWebSocketClientBinding> binding() const noexcept {
+                return frontendBinding;
+            }
+
+        private:
+            std::shared_ptr<FrontendWebSocketClientBinding> frontendBinding;
+        };
 
     } // namespace
 
     class FrontendWebSocketClientSubProtocol final : public web::websocket::client::SubProtocol {
     public:
-        FrontendWebSocketClientSubProtocol(web::websocket::SubProtocolContext* context, FrontendWebSocketClientRuntime& runtime)
+        FrontendWebSocketClientSubProtocol(web::websocket::SubProtocolContext* context,
+                                           std::shared_ptr<FrontendWebSocketClientBinding> binding)
             : web::websocket::client::SubProtocol(context, "codex", 0, 3)
-            , runtime(runtime)
-            , attemptGeneration(runtime.claimAttempt(context != nullptr ? context->getSocketConnection() : nullptr)) {
+            , binding(std::move(binding)) {
         }
 
         ~FrontendWebSocketClientSubProtocol() override {
@@ -46,8 +69,8 @@ namespace apps::codex_backend_client {
             if (intentional && !intentionalShutdown) {
                 intentionalShutdown = true;
                 try {
-                    if (runtime.callbacks.onLocalShutdown) {
-                        runtime.callbacks.onLocalShutdown();
+                    if (binding->callbacks.onLocalShutdown) {
+                        binding->callbacks.onLocalShutdown();
                     }
                 } catch (...) {
                 }
@@ -57,34 +80,30 @@ namespace apps::codex_backend_client {
 
     private:
         void onConnected() override {
-            if (attemptGeneration == 0 || !runtime.isCurrentAttempt(attemptGeneration)) {
-                closeBounded(ClosePolicyViolation, "stale frontend WebSocket transport attempt");
-                return;
-            }
-            if (runtime.active != nullptr && runtime.active != this) {
-                runtime.reportAttemptFailure(attemptGeneration, "exactly one outgoing frontend transport may be active");
+            if (binding->active != nullptr && binding->active != this) {
+                reportFailureOnce("exactly one outgoing frontend transport may be active");
                 closeBounded(ClosePolicyViolation, "frontend SDK already has an active transport");
                 return;
             }
-            protocolConnection = runtime.client.openConnection({[this](sdk::OutboundMessage message) {
-                                                                    return send(std::move(message));
-                                                                },
-                                                                [this](std::string reason) {
-                                                                    reportFailureOnce(std::move(reason));
-                                                                    close();
-                                                                }});
+            protocolConnection = binding->client.openConnection({[this](sdk::OutboundMessage message) {
+                                                                     return send(std::move(message));
+                                                                 },
+                                                                 [this](std::string reason) {
+                                                                     reportFailureOnce(std::move(reason));
+                                                                     close();
+                                                                 }});
             if (!protocolConnection.isOpen()) {
-                runtime.reportAttemptFailure(attemptGeneration, "frontend SDK rejected the WebSocket transport attachment");
+                reportFailureOnce("frontend SDK rejected the WebSocket transport attachment");
                 closeBounded(ClosePolicyViolation, "frontend SDK rejected transport");
                 return;
             }
-            runtime.active = this;
+            binding->active = this;
             try {
-                if (runtime.callbacks.onBeforeTransportConnected) {
-                    runtime.callbacks.onBeforeTransportConnected(false);
+                if (binding->callbacks.onBeforeTransportConnected) {
+                    binding->callbacks.onBeforeTransportConnected(false);
                 }
             } catch (...) {
-                runtime.reportAttemptFailure(attemptGeneration, "frontend transport authentication preparation failed");
+                reportFailureOnce("frontend transport authentication preparation failed");
                 closeBounded(ClosePolicyViolation, "frontend transport authentication preparation failed");
                 return;
             }
@@ -92,16 +111,9 @@ namespace apps::codex_backend_client {
             if (!protocolConnection.isTransportConnected()) {
                 return;
             }
-            notifyConnected = true;
             try {
-                if (runtime.callbacks.onConnected) {
-                    runtime.callbacks.onConnected();
-                }
-            } catch (...) {
-            }
-            try {
-                if (runtime.callbacks.onAttemptConnected) {
-                    runtime.callbacks.onAttemptConnected(attemptGeneration);
+                if (binding->callbacks.onConnected) {
+                    binding->callbacks.onConnected();
                 }
             } catch (...) {
             }
@@ -157,7 +169,7 @@ namespace apps::codex_backend_client {
         }
 
         sdk::SendResult send(sdk::OutboundMessage message) noexcept {
-            if (closeStarted || runtime.active != this) {
+            if (closeStarted || binding->active != this) {
                 return {sdk::SendStatus::Closed, sdk::TransportError{"frontend WebSocket transport is closed", true}};
             }
             try {
@@ -190,7 +202,7 @@ namespace apps::codex_backend_client {
                 return;
             }
             failureReported = true;
-            runtime.reportAttemptFailure(attemptGeneration, std::move(message));
+            binding->reportFailure(std::move(message));
         }
 
         void detach(std::string reason) noexcept {
@@ -204,33 +216,23 @@ namespace apps::codex_backend_client {
             } else {
                 protocolConnection.transportDisconnected(sdk::TransportError{std::move(reason), true});
             }
-            if (runtime.active == this) {
-                runtime.active = nullptr;
+            if (binding->active == this) {
+                binding->active = nullptr;
             }
-            if (notifyConnected && runtime.callbacks.onDisconnected) {
-                notifyConnected = false;
+            if (!disconnectNotified && binding->callbacks.onDisconnected) {
+                disconnectNotified = true;
                 try {
-                    runtime.callbacks.onDisconnected();
-                } catch (...) {
-                }
-            }
-            if (attemptGeneration != 0 && runtime.isCurrentAttempt(attemptGeneration)) {
-                runtime.abandonAttempt(attemptGeneration);
-                try {
-                    if (runtime.callbacks.onAttemptDisconnected) {
-                        runtime.callbacks.onAttemptDisconnected(attemptGeneration);
-                    }
+                    binding->callbacks.onDisconnected();
                 } catch (...) {
                 }
             }
         }
 
-        FrontendWebSocketClientRuntime& runtime;
-        const std::uint64_t attemptGeneration;
+        std::shared_ptr<FrontendWebSocketClientBinding> binding;
         sdk::Connection protocolConnection;
         std::string inbound;
         int receivedOpCode = 0;
-        bool notifyConnected = false;
+        bool disconnectNotified = false;
         bool closeStarted = false;
         bool detached = false;
         bool intentionalShutdown = false;
@@ -247,56 +249,40 @@ namespace apps::codex_backend_client {
 
         private:
             web::websocket::client::SubProtocol* create(web::websocket::SubProtocolContext* context) override {
-                if (installedRuntime == nullptr) {
+                core::socket::stream::SocketConnection* const connection = context != nullptr ? context->getSocketConnection() : nullptr;
+                auto* const httpContext =
+                    connection != nullptr ? dynamic_cast<FrontendWebSocketHttpSocketContext*>(connection->getSocketContext()) : nullptr;
+                if (httpContext == nullptr || httpContext->getSocketConnection() != connection) {
                     return nullptr;
                 }
-                return new FrontendWebSocketClientSubProtocol(context, *installedRuntime);
+                std::shared_ptr<FrontendWebSocketClientBinding> binding = httpContext->binding();
+                return binding ? new FrontendWebSocketClientSubProtocol(context, std::move(binding)) : nullptr;
             }
         };
 
         web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>* createFrontendWebSocketClientFactory() {
-            return new FrontendWebSocketClientFactory();
+            static FrontendWebSocketClientFactory factory;
+            return &factory;
         }
 
     } // namespace
 
-    FrontendWebSocketClientRuntime::FrontendWebSocketClientRuntime(sdk::Client& client, FrontendWebSocketClientCallbacks callbacks)
+    FrontendWebSocketClientBinding::FrontendWebSocketClientBinding(sdk::Client& client, FrontendWebSocketClientCallbacks callbacks)
         : client(client)
         , callbacks(std::move(callbacks)) {
     }
 
-    FrontendWebSocketClientRuntime::~FrontendWebSocketClientRuntime() {
-        uninstall();
-    }
-
-    bool FrontendWebSocketClientRuntime::install() noexcept {
-        if (installedRuntime != nullptr && installedRuntime != this) {
-            return false;
-        }
-        installedRuntime = this;
-        installed = true;
-        return true;
-    }
-
-    void FrontendWebSocketClientRuntime::uninstall() noexcept {
-        shutdown();
-        if (installedRuntime == this) {
-            installedRuntime = nullptr;
-        }
-        installed = false;
-    }
-
-    void FrontendWebSocketClientRuntime::shutdown() noexcept {
+    void FrontendWebSocketClientBinding::shutdown() noexcept {
         if (active != nullptr) {
             active->close(true);
         }
     }
 
-    bool FrontendWebSocketClientRuntime::connected() const noexcept {
+    bool FrontendWebSocketClientBinding::connected() const noexcept {
         return active != nullptr;
     }
 
-    void FrontendWebSocketClientRuntime::reportFailure(std::string message) noexcept {
+    void FrontendWebSocketClientBinding::reportFailure(std::string message) noexcept {
         try {
             if (callbacks.onFailure) {
                 callbacks.onFailure(std::move(message));
@@ -305,81 +291,39 @@ namespace apps::codex_backend_client {
         }
     }
 
-    bool FrontendWebSocketClientRuntime::prepareAttempt(const std::uint64_t generation) noexcept {
-        if (generation == 0 || preparedGeneration != 0 || active != nullptr) {
-            return false;
-        }
-        preparedGeneration = generation;
-        preparedTransport = nullptr;
-        return true;
+    void FrontendWebSocketClientBinding::beginUpgrade() noexcept {
+        upgradeCommitted = false;
     }
 
-    bool FrontendWebSocketClientRuntime::bindAttemptTransport(const std::uint64_t generation,
-                                                              const core::socket::stream::SocketConnection* transport) noexcept {
-        if (generation == 0 || transport == nullptr || preparedGeneration != generation || active != nullptr) {
-            return false;
-        }
-        if (preparedTransport != nullptr && preparedTransport != transport) {
-            return false;
-        }
-        preparedTransport = transport;
-        return true;
+    void FrontendWebSocketClientBinding::commitUpgrade() noexcept {
+        upgradeCommitted = true;
     }
 
-    void FrontendWebSocketClientRuntime::abandonAttempt(const std::uint64_t generation) noexcept {
-        if (preparedGeneration == generation) {
-            preparedGeneration = 0;
-            preparedTransport = nullptr;
-        }
+    bool FrontendWebSocketClientBinding::consumeCommittedUpgrade() noexcept {
+        return std::exchange(upgradeCommitted, false);
     }
 
-    bool FrontendWebSocketClientRuntime::isCurrentAttempt(const std::uint64_t generation) const noexcept {
-        return generation != 0 && preparedGeneration == generation;
+    FrontendWebSocketHttpSocketContextFactory::FrontendWebSocketHttpSocketContextFactory(
+        const std::function<void(const std::shared_ptr<MasterRequest>&)>& onHttpConnected,
+        const std::function<void(const std::shared_ptr<MasterRequest>&)>& onHttpDisconnected,
+        const std::function<net::config::ConfigInstance&()>& getConfigInstance,
+        std::shared_ptr<FrontendWebSocketClientBinding> binding)
+        : onHttpConnected(onHttpConnected)
+        , onHttpDisconnected(onHttpDisconnected)
+        , configInstance(getConfigInstance())
+        , binding(std::move(binding)) {
     }
 
-    void FrontendWebSocketClientRuntime::reportAttemptFailure(const std::uint64_t generation, std::string message) noexcept {
-        if (!isCurrentAttempt(generation)) {
-            return;
-        }
-        try {
-            if (callbacks.onFailure) {
-                callbacks.onFailure(message);
-            }
-        } catch (...) {
-        }
-        try {
-            if (callbacks.onAttemptFailure) {
-                callbacks.onAttemptFailure(generation, std::move(message));
-            }
-        } catch (...) {
-        }
-    }
-
-    std::uint64_t FrontendWebSocketClientRuntime::claimAttempt(const core::socket::stream::SocketConnection* transport) noexcept {
-        if (transport == nullptr) {
-            return 0;
-        }
-        if (preparedGeneration != 0) {
-            return preparedTransport == transport ? preparedGeneration : 0;
-        }
-        if (callbacks.onAttemptConnected || callbacks.onAttemptDisconnected || callbacks.onAttemptFailure) {
-            // Generation-aware application composition must prepare every
-            // physical upgrade explicitly. A subprotocol arriving after its
-            // HTTP attempt was abandoned is stale; never manufacture an
-            // implicit generation that could attach it to the SDK.
-            return 0;
-        }
-        if (nextImplicitGeneration == 0) {
-            return 0;
-        }
-        preparedGeneration = nextImplicitGeneration;
-        if (nextImplicitGeneration == std::numeric_limits<std::uint64_t>::max()) {
-            nextImplicitGeneration = 0;
-        } else {
-            ++nextImplicitGeneration;
-        }
-        preparedTransport = transport;
-        return preparedGeneration;
+    core::socket::stream::SocketContext*
+    FrontendWebSocketHttpSocketContextFactory::create(core::socket::stream::SocketConnection* socketConnection) {
+        const auto* const config = configInstance.getSubCommand<web::http::client::ConfigHTTP>();
+        return new FrontendWebSocketHttpSocketContext(socketConnection,
+                                                      onHttpConnected,
+                                                      onHttpDisconnected,
+                                                      config->getHostHeader(),
+                                                      config->getPipelinedRequests(),
+                                                      config->getParserLimits(),
+                                                      binding);
     }
 
     void linkFrontendWebSocketClient() noexcept {

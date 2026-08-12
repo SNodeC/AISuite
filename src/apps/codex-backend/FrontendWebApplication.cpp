@@ -7,18 +7,23 @@
 
 #include "apps/codex-backend/FrontendWebApplication.h"
 
-#include "apps/codex-backend/FrontendRuntimeBridge.h"
 #include "apps/codex-backend/FrontendWebSecurity.h"
+#include "apps/codex-backend/FrontendWebSocketSubProtocol.h"
 #include "core/file/FileReader.h"
 #include "core/socket/stream/SocketConnection.h"
 #include "express/Request.h"
 #include "express/Response.h"
 #include "express/Router.h"
 #include "web/http/server/SocketContext.h"
+#include "web/websocket/SubProtocolContext.h"
+#include "web/websocket/SubProtocolFactory.h"
+#include "web/websocket/server/SocketContextUpgradeFactory.h"
+#include "web/websocket/server/SubProtocolFactorySelector.h"
 
 #include <arpa/inet.h>
 #include <array>
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <netinet/in.h>
 #include <stdexcept>
@@ -32,7 +37,82 @@ namespace apps::codex_backend {
 
         using ai::openai::codex::frontend::AuthenticationFailureCode;
         using ai::openai::codex::frontend::FrontendPeerContext;
+        using ai::openai::codex::frontend::FrontendService;
         using ai::openai::codex::frontend::FrontendTransportKind;
+
+        class ScopedFrontendWebSocketUpgrade;
+        ScopedFrontendWebSocketUpgrade* activeFrontendWebSocketUpgrade = nullptr;
+
+        // SNode.C constructs the WebSocket context and its subprotocol
+        // synchronously inside Response::upgrade(). The application and all
+        // socket callbacks share one owner event loop, so this is a scoped
+        // reentrancy handoff rather than threading infrastructure.
+        class ScopedFrontendWebSocketUpgrade {
+        public:
+            ScopedFrontendWebSocketUpgrade(core::socket::stream::SocketConnection& connection,
+                                           FrontendService& service,
+                                           FrontendPeerContext peer)
+                : connection(std::addressof(connection))
+                , service(std::addressof(service))
+                , peer(std::move(peer))
+                , previous(activeFrontendWebSocketUpgrade) {
+                activeFrontendWebSocketUpgrade = this;
+            }
+
+            ScopedFrontendWebSocketUpgrade(const ScopedFrontendWebSocketUpgrade&) = delete;
+            ScopedFrontendWebSocketUpgrade& operator=(const ScopedFrontendWebSocketUpgrade&) = delete;
+
+            ~ScopedFrontendWebSocketUpgrade() {
+                if (activeFrontendWebSocketUpgrade != this) {
+                    std::terminate();
+                }
+                activeFrontendWebSocketUpgrade = previous;
+            }
+
+            web::websocket::server::SubProtocol* consume(web::websocket::SubProtocolContext* context) {
+                core::socket::stream::SocketConnection* const requested = context != nullptr ? context->getSocketConnection() : nullptr;
+                if (consumed || requested == nullptr || requested != connection || service == nullptr) {
+                    return nullptr;
+                }
+                consumed = true;
+                return new FrontendWebSocketSubProtocol(context, *service, std::move(peer));
+            }
+
+        private:
+            core::socket::stream::SocketConnection* connection;
+            FrontendService* service;
+            FrontendPeerContext peer;
+            ScopedFrontendWebSocketUpgrade* previous;
+            bool consumed = false;
+        };
+
+        class StaticFrontendWebSocketSubProtocolFactory final
+            : public web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol> {
+        public:
+            StaticFrontendWebSocketSubProtocolFactory()
+                : web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol>(std::string(FrontendWebSocketSubProtocolName)) {
+            }
+
+        private:
+            web::websocket::server::SubProtocol* create(web::websocket::SubProtocolContext* context) override {
+                return activeFrontendWebSocketUpgrade != nullptr ? activeFrontendWebSocketUpgrade->consume(context) : nullptr;
+            }
+        };
+
+        web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol>* createStaticFrontendWebSocketSubProtocolFactory() {
+            static StaticFrontendWebSocketSubProtocolFactory factory;
+            return &factory;
+        }
+
+        void linkStaticFrontendWebSocketComposition() {
+            static const bool linked = [] {
+                web::websocket::server::SocketContextUpgradeFactory::link();
+                web::websocket::server::SubProtocolFactorySelector::link(std::string(FrontendWebSocketSubProtocolName),
+                                                                         createStaticFrontendWebSocketSubProtocolFactory);
+                return true;
+            }();
+            static_cast<void>(linked);
+        }
 
         struct NumericPeer {
             std::string host;
@@ -181,6 +261,7 @@ namespace apps::codex_backend {
             if ((!websocket && !websocketTls) || websocketTls != this->options.encrypted) {
                 throw std::invalid_argument("frontend WebSocket transport and encryption settings disagree");
             }
+            linkStaticFrontendWebSocketComposition();
         }
 
         void handleUpgrade(const std::shared_ptr<express::Request>& request, const std::shared_ptr<express::Response>& response) noexcept {
@@ -204,7 +285,7 @@ namespace apps::codex_backend {
                 sendBounded(response, 400, "websocket_credential_channel_rejected");
                 return;
             }
-            if (request->get("sec-websocket-protocol") != FrontendWebSocketSubProtocol) {
+            if (request->get("sec-websocket-protocol") != FrontendWebSocketSubProtocolName) {
                 sendBounded(response, 400, "websocket_subprotocol_rejected");
                 return;
             }
@@ -235,21 +316,16 @@ namespace apps::codex_backend {
                     return;
             }
 
-            if (!prepareFrontendWebSocket(*connection, std::move(peer))) {
-                sendBounded(response, 503, "capacity_exceeded");
-                return;
-            }
             try {
-                response->upgrade(request, [response, connection](const std::string& upgrade) {
+                ScopedFrontendWebSocketUpgrade binding(*connection, service, std::move(peer));
+                response->upgrade(request, [response](const std::string& upgrade) {
                     if (upgrade.empty()) {
-                        cancelFrontendWebSocket(*connection);
                         sendBounded(response, 400, "invalid_websocket_upgrade");
                     } else {
                         response->end();
                     }
                 });
             } catch (...) {
-                cancelFrontendWebSocket(*connection);
                 sendBounded(response, 500, "websocket_upgrade_unavailable");
             }
         }

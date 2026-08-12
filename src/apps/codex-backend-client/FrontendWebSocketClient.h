@@ -6,14 +6,21 @@
 #define APPS_CODEX_BACKEND_CLIENT_FRONTENDWEBSOCKETCLIENT_H
 
 #include "ai/openai/codex/frontend/client/Client.h"
+#include "core/socket/stream/SocketContextFactory.h"
+#include "net/config/ConfigInstance.h"
+#include "web/http/ConfigWebSocket.h"
+#include "web/http/client/ConfigHTTP.h"
+#include "web/http/client/Request.h"
 
-#include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
+#include <utility>
 
 namespace core::socket::stream {
     class SocketConnection;
-}
+    class SocketContext;
+} // namespace core::socket::stream
 
 namespace apps::codex_backend_client {
 
@@ -21,47 +28,96 @@ namespace apps::codex_backend_client {
         std::function<void()> onConnected;
         std::function<void()> onDisconnected;
         std::function<void(std::string)> onFailure;
-        std::function<void(std::uint64_t)> onAttemptConnected = {};
-        std::function<void(std::uint64_t)> onAttemptDisconnected = {};
-        std::function<void(std::uint64_t, std::string)> onAttemptFailure = {};
         std::function<void(bool)> onBeforeTransportConnected;
         std::function<void()> onLocalShutdown = {};
     };
 
-    class FrontendWebSocketClientRuntime {
+    class FrontendWebSocketClientBinding {
     public:
-        FrontendWebSocketClientRuntime(ai::openai::codex::frontend::client::Client& client,
+        FrontendWebSocketClientBinding(ai::openai::codex::frontend::client::Client& client,
                                        FrontendWebSocketClientCallbacks callbacks = {});
-        FrontendWebSocketClientRuntime(const FrontendWebSocketClientRuntime&) = delete;
-        FrontendWebSocketClientRuntime& operator=(const FrontendWebSocketClientRuntime&) = delete;
-        ~FrontendWebSocketClientRuntime();
+        FrontendWebSocketClientBinding(const FrontendWebSocketClientBinding&) = delete;
+        FrontendWebSocketClientBinding& operator=(const FrontendWebSocketClientBinding&) = delete;
 
-        [[nodiscard]] bool install() noexcept;
-        void uninstall() noexcept;
-        // Closes an active WebSocket because the application is terminating.
-        // Remote/SDK connection failures follow the subprotocol close path.
         void shutdown() noexcept;
         [[nodiscard]] bool connected() const noexcept;
         void reportFailure(std::string message) noexcept;
-        [[nodiscard]] bool prepareAttempt(std::uint64_t generation) noexcept;
-        [[nodiscard]] bool bindAttemptTransport(std::uint64_t generation, const core::socket::stream::SocketConnection* transport) noexcept;
-        void abandonAttempt(std::uint64_t generation) noexcept;
-        [[nodiscard]] bool isCurrentAttempt(std::uint64_t generation) const noexcept;
-        void reportAttemptFailure(std::uint64_t generation, std::string message) noexcept;
+
+        // The HTTP context switch invokes its disconnect callback after the
+        // successful upgrade response. This single-cycle flag distinguishes
+        // that switch from a failed/terminated HTTP connection without
+        // manufacturing an application attempt generation.
+        void beginUpgrade() noexcept;
+        void commitUpgrade() noexcept;
+        [[nodiscard]] bool consumeCommittedUpgrade() noexcept;
 
     private:
         friend class FrontendWebSocketClientSubProtocol;
-        friend struct FrontendWebSocketClientRuntimeTestAccess;
-
-        [[nodiscard]] std::uint64_t claimAttempt(const core::socket::stream::SocketConnection* transport) noexcept;
 
         ai::openai::codex::frontend::client::Client& client;
         FrontendWebSocketClientCallbacks callbacks;
         class FrontendWebSocketClientSubProtocol* active = nullptr;
-        std::uint64_t preparedGeneration = 0;
-        const core::socket::stream::SocketConnection* preparedTransport = nullptr;
-        std::uint64_t nextImplicitGeneration = 1;
-        bool installed = false;
+        bool upgradeCommitted = false;
+    };
+
+    class FrontendWebSocketHttpSocketContextFactory final : public core::socket::stream::SocketContextFactory {
+    public:
+        using MasterRequest = web::http::client::MasterRequest;
+
+        FrontendWebSocketHttpSocketContextFactory(const std::function<void(const std::shared_ptr<MasterRequest>&)>& onHttpConnected,
+                                                  const std::function<void(const std::shared_ptr<MasterRequest>&)>& onHttpDisconnected,
+                                                  const std::function<net::config::ConfigInstance&()>& getConfigInstance,
+                                                  std::shared_ptr<FrontendWebSocketClientBinding> binding);
+
+    private:
+        core::socket::stream::SocketContext* create(core::socket::stream::SocketConnection* socketConnection) override;
+
+        std::function<void(const std::shared_ptr<MasterRequest>&)> onHttpConnected;
+        std::function<void(const std::shared_ptr<MasterRequest>&)> onHttpDisconnected;
+        net::config::ConfigInstance& configInstance;
+        std::shared_ptr<FrontendWebSocketClientBinding> binding;
+    };
+
+    template <template <typename SocketContextFactoryT, typename... Args> typename SocketClientT>
+    class FrontendWebSocketHttpClient
+        : public SocketClientT<FrontendWebSocketHttpSocketContextFactory,
+                               std::function<void(const std::shared_ptr<web::http::client::MasterRequest>&)>,
+                               std::function<void(const std::shared_ptr<web::http::client::MasterRequest>&)>,
+                               std::function<net::config::ConfigInstance&()>,
+                               std::shared_ptr<FrontendWebSocketClientBinding>> {
+    private:
+        using MasterRequest = web::http::client::MasterRequest;
+        using Super = SocketClientT<FrontendWebSocketHttpSocketContextFactory,
+                                    std::function<void(const std::shared_ptr<MasterRequest>&)>,
+                                    std::function<void(const std::shared_ptr<MasterRequest>&)>,
+                                    std::function<net::config::ConfigInstance&()>,
+                                    std::shared_ptr<FrontendWebSocketClientBinding>>;
+
+    public:
+        using SocketConnection = typename Super::SocketConnection;
+
+        FrontendWebSocketHttpClient(const std::string& name,
+                                    std::function<void(const std::shared_ptr<MasterRequest>&)>&& onHttpConnected,
+                                    std::function<void(const std::shared_ptr<MasterRequest>&)>&& onHttpDisconnected,
+                                    std::shared_ptr<FrontendWebSocketClientBinding> binding)
+            : Super(
+                  name,
+                  std::move(onHttpConnected),
+                  std::move(onHttpDisconnected),
+                  [this]() -> net::config::ConfigInstance& {
+                      return *Super::getConfig();
+                  },
+                  std::move(binding)) {
+            Super::getConfig()->net::config::ConfigInstance::template newSubCommand<web::http::client::ConfigHTTP>();
+            Super::getConfig()->net::config::ConfigInstance::template newSubCommand<web::http::ConfigWebSocket>();
+            Super::setOnConnect(
+                [config = Super::getConfig()->net::config::ConfigInstance::template getSubCommand<web::http::client::ConfigHTTP>()](
+                    SocketConnection* socketConnection) {
+                    if (config->getHostHeader().empty()) {
+                        config->setHostHeader(socketConnection->getConfig()->Remote::getSocketAddress().toString(false));
+                    }
+                });
+        }
     };
 
     void linkFrontendWebSocketClient() noexcept;

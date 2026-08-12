@@ -29,10 +29,11 @@ namespace apps::codex_backend {
     };
 
     FrontendWebSocketSubProtocol::FrontendWebSocketSubProtocol(web::websocket::SubProtocolContext* context,
-                                                               FrontendWebSocketRuntime runtime)
+                                                               ai::openai::codex::frontend::FrontendService& service,
+                                                               ai::openai::codex::frontend::FrontendPeerContext peer)
         : web::websocket::server::SubProtocol(context, "codex")
-        , service(*runtime.service)
-        , peer(std::move(runtime.peer))
+        , service(service)
+        , peer(std::move(peer))
         , lifetime(std::make_shared<Lifetime>()) {
         lifetime->subProtocol = this;
     }

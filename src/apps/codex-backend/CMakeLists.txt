@@ -59,6 +59,9 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM)
 endif()
 
 if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
+    # Keep the legacy runtime/plugin artifacts buildable through the hosted
+    # Commit-5 checkpoint. Production composition below no longer links or
+    # loads either artifact; Commit 6 removes this preserved reference.
     add_library(
         codex-backend-runtime-bridge
         SHARED
@@ -87,7 +90,10 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
 
     add_library(
         codex-backend-web-adapter STATIC
-        FrontendWebApplication.cpp FrontendWebApplication.h
+        FrontendWebApplication.cpp
+        FrontendWebApplication.h
+        FrontendWebSocketSubProtocol.cpp
+        FrontendWebSocketSubProtocol.h
     )
     target_include_directories(
         codex-backend-web-adapter
@@ -100,8 +106,8 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
     target_link_libraries(
         codex-backend-web-adapter
         PUBLIC AISuite::OpenAICodexFrontend
-        PRIVATE codex-backend-runtime-bridge codex-backend-stream-adapter
-                snodec::core snodec::http-server snodec::http-server-express
+        PRIVATE codex-backend-stream-adapter snodec::core
+                snodec::http-server snodec::http-server-express
                 snodec::websocket-server
     )
 
@@ -162,7 +168,7 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
     )
     target_link_libraries(
         codex-backend
-        PRIVATE codex-backend-runtime-bridge codex-backend-web-adapter
+        PRIVATE codex-backend-web-adapter
                 snodec::http-server-express-legacy-in
                 snodec::http-server-express-legacy-in6
     )

@@ -2577,6 +2577,7 @@ if(TARGET codex-backend-client-support)
             CodexBackendClientTransportCompositionTest
             PRIVATE
                 CODEX_BACKEND_CLIENT_MAIN_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/main.cpp"
+                CODEX_BACKEND_CLIENT_WEBSOCKET_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/FrontendWebSocketClient.cpp"
         )
         set_tests_properties(
             CodexBackendClientTransportCompositionTest
@@ -2770,12 +2771,10 @@ if(TARGET codex-backend-client-support)
 
     if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
        AND TARGET codex-backend-web-adapter
-       AND TARGET codex-backend-runtime-bridge
        AND TARGET snodec::http-server-express-legacy-in
        AND TARGET snodec::http-server-express-legacy-in6
        AND TARGET snodec::websocket-server
        AND TARGET snodec::websocket-client
-       AND TARGET codex-backend-websocket-subprotocol
     )
         add_executable(
             CodexBackendClientWebSocketAcceptanceTest
@@ -2787,7 +2786,6 @@ if(TARGET codex-backend-client-support)
                 snodec-test-support
                 codex-backend-client-support
                 codex-backend-web-adapter
-                codex-backend-runtime-bridge
                 AISuite::OpenAICodexBackend
                 AISuite::OpenAICodexFrontend
                 snodec::http-server-express-legacy-in
@@ -2816,10 +2814,6 @@ if(TARGET codex-backend-client-support)
                     AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
             )
         endif()
-        add_dependencies(
-            CodexBackendClientWebSocketAcceptanceTest
-            codex-backend-websocket-subprotocol
-        )
         add_test(
             NAME CodexBackendClientWebSocketIpv4AcceptanceTest
             COMMAND CodexBackendClientWebSocketAcceptanceTest websocket-ipv4
@@ -2833,8 +2827,6 @@ if(TARGET codex-backend-client-support)
             PROPERTIES
                 LABELS
                 "component;integration;ai;openai;codex;frontend;client;transport;ipv4;websocket;acceptance;a1-7c-1"
-                ENVIRONMENT
-                "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                 SKIP_RETURN_CODE
                 77
                 TIMEOUT
@@ -2845,8 +2837,6 @@ if(TARGET codex-backend-client-support)
             PROPERTIES
                 LABELS
                 "component;integration;ai;openai;codex;frontend;client;transport;ipv6;websocket;acceptance;a1-7c-1"
-                ENVIRONMENT
-                "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                 SKIP_RETURN_CODE
                 77
                 TIMEOUT
@@ -2869,8 +2859,6 @@ if(TARGET codex-backend-client-support)
                 PROPERTIES
                     LABELS
                     "component;integration;ai;openai;codex;frontend;client;transport;ipv4;websocket;wss;tls;acceptance;a1-7c-1"
-                    ENVIRONMENT
-                    "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                     SKIP_RETURN_CODE
                     77
                     TIMEOUT
@@ -2881,8 +2869,6 @@ if(TARGET codex-backend-client-support)
                 PROPERTIES
                     LABELS
                     "component;integration;ai;openai;codex;frontend;client;transport;ipv6;websocket;wss;tls;acceptance;a1-7c-1"
-                    ENVIRONMENT
-                    "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                     SKIP_RETURN_CODE
                     77
                     TIMEOUT
@@ -3380,7 +3366,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
         PRIVATE snodec-test-support
                 codex-backend-stream-adapter
                 codex-backend-web-adapter
-                codex-backend-runtime-bridge
                 AISuite::OpenAICodexBackend
                 AISuite::OpenAICodexFrontend
                 snodec::http-server-express-legacy-in
@@ -3391,10 +3376,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
     target_compile_features(
         CodexFrontendWebSocketIntegrationTest PRIVATE cxx_std_20
     )
-    add_dependencies(
-        CodexFrontendWebSocketIntegrationTest
-        codex-backend-websocket-subprotocol
-    )
     set_tests_properties(
         CodexFrontendWebSocketIntegrationTest
         PROPERTIES
@@ -3402,8 +3383,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
             "component;integration;ai;openai;codex;frontend;websocket;express;security"
             SKIP_RETURN_CODE
             77
-            ENVIRONMENT
-            "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
             TIMEOUT
             15
     )
@@ -3435,7 +3414,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
         CodexFrontendWebSocketTlsIntegrationTest
         PRIVATE snodec-test-support
                 codex-backend-web-adapter
-                codex-backend-runtime-bridge
                 AISuite::OpenAICodexBackend
                 AISuite::OpenAICodexFrontend
                 snodec::http-server-express-tls-in
@@ -3447,10 +3425,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
     target_compile_features(
         CodexFrontendWebSocketTlsIntegrationTest PRIVATE cxx_std_20
     )
-    add_dependencies(
-        CodexFrontendWebSocketTlsIntegrationTest
-        codex-backend-websocket-subprotocol
-    )
     set_tests_properties(
         CodexFrontendWebSocketTlsIntegrationTest
         PROPERTIES
@@ -3458,8 +3432,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
             "component;integration;ai;openai;codex;frontend;websocket;wss;tls;express;security"
             SKIP_RETURN_CODE
             77
-            ENVIRONMENT
-            "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
             TIMEOUT
             15
     )

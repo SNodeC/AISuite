@@ -24,7 +24,7 @@ namespace apps::codex_backend {
         if (!runtime.has_value() || runtime->service == nullptr) {
             return nullptr;
         }
-        return new FrontendWebSocketSubProtocol(context, std::move(*runtime));
+        return new FrontendWebSocketSubProtocol(context, *runtime->service, std::move(runtime->peer));
     }
 
 } // namespace apps::codex_backend
