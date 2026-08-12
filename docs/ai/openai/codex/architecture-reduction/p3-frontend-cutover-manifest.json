@@ -1,411 +1,134 @@
 {
-  "schemaVersion": 1,
-  "status": "frozen-at-p3-base",
+  "schemaVersion": 2,
+  "status": "implementation-complete-final-hosted-closure-pending",
   "repository": "SNodeC/AISuite",
   "branch": "codex/p3-frontend-cutover",
   "p3Base": "7e68847e14753553402e1d468c3af15a148eea80",
-  "projectVersion": "0.1.0",
-  "codexSoversion": 2,
-  "frontendProtocol": {
-    "identity": "snodec.codex-frontend",
-    "version": 1,
-    "target": "AISuite::OpenAICodexFrontendProtocol"
+  "mergedP2": {
+    "pullRequest": 16,
+    "base": "master",
+    "state": "MERGED",
+    "mergeCommitReachableFromP3Base": true
   },
-  "snodec": {
-    "cmakePackageAuthority": "active CMake cache snodec_DIR",
-    "observedPackageVersion": "2.0.0",
-    "sourceAuthority": ".github/workflows/ci.yml at the dynamic P3 base",
-    "resolveSourceHeadAtExecutionTime": true,
-    "p3SourceCommitPin": null,
-    "machineLocalCheckoutRecorded": false
-  },
-  "publicTargets": [
-    "AISuite::OpenAICodex",
-    "AISuite::OpenAICodexBackend",
-    "AISuite::OpenAICodexFrontend",
-    "AISuite::OpenAICodexFrontendClient",
-    "AISuite::OpenAICodexFrontendProtocol"
-  ],
-  "startingTargetEdges": {
-    "AISuite::OpenAICodex": [
-      "nlohmann_json::nlohmann_json",
-      "snodec::core"
-    ],
-    "AISuite::OpenAICodexBackend": [
+  "compatibility": {
+    "projectVersion": "0.1.0",
+    "codexSoversion": 2,
+    "frontendProtocol": {
+      "identity": "snodec.codex-frontend",
+      "version": 1,
+      "target": "AISuite::OpenAICodexFrontendProtocol"
+    },
+    "installedPublicTargets": [
       "AISuite::OpenAICodex",
-      "snodec::core"
-    ],
-    "AISuite::OpenAICodexFrontendProtocol": ["nlohmann_json::nlohmann_json"],
-    "ai-openai-codex-frontend-model": ["AISuite::OpenAICodexFrontendProtocol"],
-    "ai-openai-codex-frontend-server-core": [
-      "ai-openai-codex-frontend-model",
-      "AISuite::OpenAICodexFrontendProtocol",
       "AISuite::OpenAICodexBackend",
-      "AISuite::OpenAICodex"
-    ],
-    "ai-openai-codex-frontend-client-core": [
-      "ai-openai-codex-frontend-model",
-      "AISuite::OpenAICodexFrontendProtocol",
-      "AISuite::OpenAICodex"
-    ],
-    "AISuite::OpenAICodexFrontend": [
-      "AISuite::OpenAICodexBackend",
-      "AISuite::OpenAICodexFrontendProtocol",
-      "snodec::core"
-    ],
-    "ai-openai-codex-frontend-client-objects": [
-      "AISuite::OpenAICodexFrontend"
-    ],
-    "AISuite::OpenAICodexFrontendClient": ["AISuite::OpenAICodexFrontend"]
-  },
-  "startingTargetEdgeVisibility": {
-    "AISuite::OpenAICodex": {
-      "public": ["nlohmann_json::nlohmann_json"],
-      "private": ["snodec::core"]
-    },
-    "AISuite::OpenAICodexBackend": {
-      "public": ["AISuite::OpenAICodex"],
-      "private": ["snodec::core"]
-    },
-    "AISuite::OpenAICodexFrontendProtocol": {
-      "public": ["nlohmann_json::nlohmann_json"],
-      "private": []
-    },
-    "ai-openai-codex-frontend-model": {
-      "public": ["AISuite::OpenAICodexFrontendProtocol"],
-      "private": []
-    },
-    "ai-openai-codex-frontend-server-core": {
-      "public": [
-        "ai-openai-codex-frontend-model",
-        "AISuite::OpenAICodexFrontendProtocol",
-        "AISuite::OpenAICodexBackend",
-        "AISuite::OpenAICodex"
-      ],
-      "private": []
-    },
-    "ai-openai-codex-frontend-client-core": {
-      "public": [
-        "ai-openai-codex-frontend-model",
-        "AISuite::OpenAICodexFrontendProtocol",
-        "AISuite::OpenAICodex"
-      ],
-      "private": []
-    },
-    "AISuite::OpenAICodexFrontend": {
-      "public": [
-        "AISuite::OpenAICodexBackend",
-        "AISuite::OpenAICodexFrontendProtocol"
-      ],
-      "private": ["snodec::core"]
-    },
-    "ai-openai-codex-frontend-client-objects": {
-      "public": [],
-      "private": ["AISuite::OpenAICodexFrontend"]
-    },
-    "AISuite::OpenAICodexFrontendClient": {
-      "public": ["AISuite::OpenAICodexFrontend"],
-      "private": []
-    }
-  },
-  "startingClientTransitiveClosure": {
-    "publicTargetClosure": [
       "AISuite::OpenAICodexFrontend",
-      "AISuite::OpenAICodexBackend",
-      "AISuite::OpenAICodex",
-      "AISuite::OpenAICodexFrontendProtocol",
-      "nlohmann_json::nlohmann_json"
+      "AISuite::OpenAICodexFrontendClient",
+      "AISuite::OpenAICodexFrontendProtocol"
     ],
-    "sharedLibraryRuntimeClosure": [
-      "AISuite::OpenAICodexFrontend",
-      "AISuite::OpenAICodexBackend",
-      "AISuite::OpenAICodex",
-      "AISuite::OpenAICodexFrontendProtocol",
-      "snodec::core",
-      "snodec::utils",
-      "snodec::logger"
+    "preserved": [
+      "output library names and shared-library identities",
+      "installed public-header paths",
+      "public Pimpl layouts, constructors, methods, callbacks and aliases",
+      "generated facades, enums and value semantics",
+      "Frontend Protocol v1 schemas and wire identity",
+      "CLI command names and syntax",
+      "transport instance names, configuration hierarchy and defaults",
+      "transport security policy"
     ],
-    "privateSharedLibraryEdgesPropagateCompileUsage": false,
-    "privateSharedLibraryEdgesRemainRuntimeDependencies": true
-  },
-  "publicHeaders": {
-    "server": [
-      "src/ai/openai/codex/frontend/FrontendService.h",
-      "src/ai/openai/codex/frontend/Codec.h",
-      "src/ai/openai/codex/frontend/EventCoalescer.h",
-      "src/ai/openai/codex/frontend/EventJournal.h",
-      "src/ai/openai/codex/frontend/GeneratedProtocol.h",
-      "src/ai/openai/codex/frontend/Messages.h",
-      "src/ai/openai/codex/frontend/Protocol.h",
-      "src/ai/openai/codex/frontend/Security.h",
-      "src/ai/openai/codex/frontend/UpdateBatch.h"
-    ],
-    "client": [
-      "src/ai/openai/codex/frontend/client/Accounts.h",
-      "src/ai/openai/codex/frontend/client/Apps.h",
-      "src/ai/openai/codex/frontend/client/Changes.h",
-      "src/ai/openai/codex/frontend/client/Client.h",
-      "src/ai/openai/codex/frontend/client/Commands.h",
-      "src/ai/openai/codex/frontend/client/Configuration.h",
-      "src/ai/openai/codex/frontend/client/Connection.h",
-      "src/ai/openai/codex/frontend/client/Controller.h",
-      "src/ai/openai/codex/frontend/client/Export.h",
-      "src/ai/openai/codex/frontend/client/ExternalAgents.h",
-      "src/ai/openai/codex/frontend/client/Feedback.h",
-      "src/ai/openai/codex/frontend/client/Filesystem.h",
-      "src/ai/openai/codex/frontend/client/GeneratedBindings.h",
-      "src/ai/openai/codex/frontend/client/Hooks.h",
-      "src/ai/openai/codex/frontend/client/Marketplace.h",
-      "src/ai/openai/codex/frontend/client/Mcp.h",
-      "src/ai/openai/codex/frontend/client/Models.h",
-      "src/ai/openai/codex/frontend/client/PermissionProfiles.h",
-      "src/ai/openai/codex/frontend/client/Plugins.h",
-      "src/ai/openai/codex/frontend/client/Provider.h",
-      "src/ai/openai/codex/frontend/client/ProjectionFingerprint.h",
-      "src/ai/openai/codex/frontend/client/Requests.h",
-      "src/ai/openai/codex/frontend/client/Results.h",
-      "src/ai/openai/codex/frontend/client/Reviews.h",
-      "src/ai/openai/codex/frontend/client/Skills.h",
-      "src/ai/openai/codex/frontend/client/State.h",
-      "src/ai/openai/codex/frontend/client/StateTypes.h",
-      "src/ai/openai/codex/frontend/client/Synchronization.h",
-      "src/ai/openai/codex/frontend/client/Threads.h",
-      "src/ai/openai/codex/frontend/client/Transport.h",
-      "src/ai/openai/codex/frontend/client/Turns.h",
-      "src/ai/openai/codex/frontend/client/Types.h",
-      "src/ai/openai/codex/frontend/client/WindowsSandbox.h"
+    "serverOnlyUtilities": [
+      "EventCoalescer",
+      "EventJournal",
+      "UpdateBatchBuilder"
     ]
   },
-  "productionServerSources": [
-    "src/ai/openai/codex/frontend/FrontendService.cpp",
-    "src/ai/openai/codex/frontend/EventCoalescer.cpp",
-    "src/ai/openai/codex/frontend/EventJournal.cpp",
-    "src/ai/openai/codex/frontend/UpdateBatch.cpp"
-  ],
-  "productionClientSources": [
-    "src/ai/openai/codex/frontend/client/Client.cpp",
-    "src/ai/openai/codex/frontend/client/State.cpp",
-    "src/ai/openai/codex/frontend/client/GeneratedFacades.cpp",
-    "src/ai/openai/codex/frontend/client/OperationCodecs.cpp",
-    "src/ai/openai/codex/frontend/client/BindingMetadata.cpp",
-    "src/ai/openai/codex/frontend/client/ProjectionFingerprint.cpp"
-  ],
-  "oldProjectionReducerIdentities": [
-    "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp",
-    "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.h",
-    "src/ai/openai/codex/frontend/detail/FrontendCapabilities.cpp",
-    "src/ai/openai/codex/frontend/detail/FrontendCapabilities.h",
-    "src/ai/openai/codex/frontend/detail/FrontendProjection.cpp",
-    "src/ai/openai/codex/frontend/detail/FrontendProjection.h",
-    "src/ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h",
-    "src/ai/openai/codex/frontend/client/detail/StateReducer.h"
-  ],
-  "permanentMappingProjectionIdentities": [
-    "src/ai/openai/codex/frontend/detail/BackendCommandMapper.cpp",
-    "src/ai/openai/codex/frontend/detail/BackendCommandMapper.h",
-    "src/ai/openai/codex/frontend/detail/ProviderResultProjection.cpp",
-    "src/ai/openai/codex/frontend/detail/ProviderResultProjection.h",
-    "src/ai/openai/codex/frontend/internal/server/BackendProjection.cpp",
-    "src/ai/openai/codex/frontend/internal/server/BackendProjection.h"
-  ],
-  "backendTopologyCompatibility": {
-    "sharedObserverCount": 1,
-    "bridgeOwnedBackendIdsWireVisible": false,
-    "bridgeOwnedEchoPolicy": "suppress-active-and-retired",
-    "serverCoreIdentityRange": "1..INT64_MAX",
-    "externalIdentityRange": "UINT64_MAX..INT64_MAX+1-descending",
-    "externalIdentityStableForSessionLifetime": true,
-    "externalIdentityReused": false,
-    "rawBackendIdExposed": false,
-    "externalTopologyVisibleIn": [
-      "live",
-      "replay",
-      "snapshot",
-      "currentController"
-    ],
-    "snapshotComposition": "server-core-frontends-plus-external-backend-sessions",
-    "singleControllerFact": true
+  "snodecProvenance": {
+    "authority": "merged repository CI configuration and reused feature-complete build",
+    "observedPackageVersion": "2.0.0",
+    "productionPinAddedByP3": false,
+    "repositoryModifiedByP3": false
   },
-  "runtimeBridgePluginIdentities": [
-    "src/apps/codex-backend/FrontendRuntimeBridge.cpp",
-    "src/apps/codex-backend/FrontendRuntimeBridge.h",
-    "src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.cpp",
-    "src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.h",
-    "src/apps/codex-backend-client/FrontendWebSocketClient.cpp",
-    "src/apps/codex-backend-client/FrontendWebSocketClient.h",
-    "codex-backend-runtime-bridge",
-    "codex-backend-websocket-subprotocol"
-  ],
-  "nativeTransportSupportIdentities": [
-    "src/apps/codex-backend/FrontendStreamSocketContext.cpp",
-    "src/apps/codex-backend/FrontendStreamSocketContext.h",
-    "src/apps/codex-backend/FrontendStreamSocketContextFactory.cpp",
-    "src/apps/codex-backend/FrontendStreamSocketContextFactory.h",
-    "src/apps/codex-backend/JsonLineFramer.cpp",
-    "src/apps/codex-backend/JsonLineFramer.h",
-    "src/apps/codex-backend-client/ClientConnection.cpp",
-    "src/apps/codex-backend-client/ClientConnection.h",
-    "src/apps/codex-backend-client/CodexBackendClientSocketContext.cpp",
-    "src/apps/codex-backend-client/CodexBackendClientSocketContext.h",
-    "src/apps/codex-backend-client/CodexBackendClientSocketContextFactory.cpp",
-    "src/apps/codex-backend-client/CodexBackendClientSocketContextFactory.h",
-    "src/apps/codex-backend-client/JsonLineFramer.cpp",
-    "src/apps/codex-backend-client/JsonLineFramer.h"
-  ],
-  "finalPrivateJsonlFramerIdentities": [
-    "src/ai/openai/codex/frontend/internal/transport/JsonLineFramer.cpp",
-    "src/ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
-  ],
-  "webSocketTransportSupportIdentities": [
-    "src/apps/codex-backend/FrontendWebApplication.cpp",
-    "src/apps/codex-backend/FrontendWebApplication.h",
-    "src/apps/codex-backend/FrontendWebSecurity.cpp",
-    "src/apps/codex-backend/FrontendWebSecurity.h",
-    "src/apps/codex-backend/FrontendWebSocketSubProtocol.cpp",
-    "src/apps/codex-backend/FrontendWebSocketSubProtocol.h",
-    "src/apps/codex-backend-client/FrontendWebSocketClient.cpp",
-    "src/apps/codex-backend-client/FrontendWebSocketClient.h"
-  ],
-  "permanentP2ModelCoreIdentities": [
-    "src/ai/openai/codex/frontend/internal/model/Model.cpp",
-    "src/ai/openai/codex/frontend/internal/model/Model.h",
-    "src/ai/openai/codex/frontend/internal/model/Occurrence.cpp",
-    "src/ai/openai/codex/frontend/internal/model/Occurrence.h",
-    "src/ai/openai/codex/frontend/internal/model/Journal.cpp",
-    "src/ai/openai/codex/frontend/internal/model/Journal.h",
-    "src/ai/openai/codex/frontend/internal/model/Projection.cpp",
-    "src/ai/openai/codex/frontend/internal/model/Projection.h",
-    "src/ai/openai/codex/frontend/internal/server/ServerCore.cpp",
-    "src/ai/openai/codex/frontend/internal/server/ServerCore.h",
-    "src/ai/openai/codex/frontend/internal/client/ClientCore.cpp",
-    "src/ai/openai/codex/frontend/internal/client/ClientCore.h"
-  ],
-  "serverOnlyCompatibilityUtilities": [
-    "src/ai/openai/codex/frontend/EventCoalescer.cpp",
-    "src/ai/openai/codex/frontend/EventCoalescer.h",
-    "src/ai/openai/codex/frontend/EventJournal.cpp",
-    "src/ai/openai/codex/frontend/EventJournal.h",
-    "src/ai/openai/codex/frontend/UpdateBatch.cpp",
-    "src/ai/openai/codex/frontend/UpdateBatch.h"
-  ],
-  "typedClientCompatibilitySupport": {
-    "strategy": "same-source-transport-free-typed-helper-exports",
-    "sources": [
-      "src/ai/openai/codex/typed/Accounts.cpp",
-      "src/ai/openai/codex/typed/Configuration.cpp",
-      "src/ai/openai/codex/typed/Models.cpp",
-      "src/ai/openai/codex/typed/Types.cpp"
-    ],
-    "installedTargetAdded": false,
-    "frontendProtocolSourcesDuplicated": false,
-    "detailCodecSymbolsPublic": false,
-    "typedHelperExportsAbiAdditive": true,
-    "hostedNonElfExportVerificationRequired": true,
-    "duplicateSymbolsAcrossDsosRemainHostedUncertainty": true,
-    "nonElfLinkExportClosurePending": true
-  },
-  "temporaryOracleIdentities": {
-    "targets": [
-      "ai-openai-codex-frontend-legacy-projection-oracle",
-      "ai-openai-codex-frontend-legacy-server-oracle",
-      "ai-openai-codex-frontend-legacy-client-oracle"
-    ],
-    "sourceAuthority": "tests/component/codex/oracle/source-closure.txt",
-    "includeRoot": "tests/component/codex/oracle/include",
-    "sharedProjectionTarget": "ai-openai-codex-frontend-legacy-projection-oracle",
-    "frozenProjectionBasePaths": [
-      "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp",
-      "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.h",
-      "src/ai/openai/codex/frontend/detail/FrontendCapabilities.cpp",
-      "src/ai/openai/codex/frontend/detail/FrontendCapabilities.h",
-      "src/ai/openai/codex/frontend/detail/FrontendProjection.cpp",
-      "src/ai/openai/codex/frontend/detail/FrontendProjection.h"
-    ],
-    "sharedStableAuthorities": [
-      "src/ai/openai/codex/frontend/Messages.h",
-      "src/ai/openai/codex/frontend/Security.h",
-      "src/ai/openai/codex/frontend/GeneratedProtocol.h",
-      "src/ai/openai/codex/backend/Snapshot.h"
-    ],
-    "renameTokens": [
-      "FrontendConnection",
-      "FrontendService",
-      "FrontendServiceTestAccess",
-      "client"
-    ],
-    "sourceLevelRenaming": false,
-    "symbolRenaming": "compile-time-target-definitions-only",
-    "sourceDigests": [
-      {"path":"tests/component/codex/oracle/LegacyFrontendClient.h","sha256":"7bd51250bae2d0348e97aff4b285c648a37de33c0ceb907502f543cb51896a2e"},
-      {"path":"tests/component/codex/oracle/LegacyFrontendClientCapture.h","sha256":"08fa43aeb96d91425434a58a4bb873033d618f8251adbd8ec2921a43c642060e"},
-      {"path":"tests/component/codex/oracle/LegacyFrontendService.cpp","basePath":"src/ai/openai/codex/frontend/FrontendService.cpp","sha256":"5e67435b6de85e9c1595966fb315b2281d9985554d3caa479d89922de8b74c56"},
-      {"path":"tests/component/codex/oracle/LegacyFrontendService.h","sha256":"33afdf765a221598fb2a438142940b990226c9c9368339ed77740a3b0b3df9c9"},
-      {"path":"tests/component/codex/oracle/client/BindingMetadata.cpp","basePath":"src/ai/openai/codex/frontend/client/BindingMetadata.cpp","sha256":"e10c863dd6062178db5711edbb1d63cb86c5a6917f2c2e8232a92b5a256d7211"},
-      {"path":"tests/component/codex/oracle/client/Capture.cpp","sha256":"3bacc06e765054b097f5639788df229553ac15e533963b0da2f8cc879eb4f797"},
-      {"path":"tests/component/codex/oracle/client/Client.cpp","basePath":"src/ai/openai/codex/frontend/client/Client.cpp","sha256":"ead30ee7c9ab068fb6efc2d227748d96fa8140c671aba343b264bc399cbe6b6c"},
-      {"path":"tests/component/codex/oracle/client/GeneratedFacades.cpp","basePath":"src/ai/openai/codex/frontend/client/GeneratedFacades.cpp","sha256":"fe35f6594db0a02fae995b98043062021a592918a46aa5c28d7ca812504ce92f"},
-      {"path":"tests/component/codex/oracle/client/OperationCodecs.cpp","basePath":"src/ai/openai/codex/frontend/client/OperationCodecs.cpp","sha256":"720a6a1044165b2ff5bc217f1a18bedfb59fda0a73933e4ea5f76dbf99f0a4f6"},
-      {"path":"tests/component/codex/oracle/client/ProjectionFingerprint.cpp","basePath":"src/ai/openai/codex/frontend/client/ProjectionFingerprint.cpp","sha256":"13c4ea45880460d49bfea561f467a5b632771d780bd5d56c69afcc1950e0d83b"},
-      {"path":"tests/component/codex/oracle/client/State.cpp","sha256":"3caadc4b8d958966df2f35238315b9d11b69ef0772a8f81dd2289915d3fe8c09"},
-      {"path":"tests/component/codex/oracle/client/State.part1.inc","sha256":"4f6ecf6325fdd6e4af7671197c879aa37c05baa8cfcdadc817fd33ccea7d19ad"},
-      {"path":"tests/component/codex/oracle/client/State.part2.inc","sha256":"ba8da928ff02795cd3c65c2ad78f624a6ae1fa27fb06a31b952b46e4761abdbd"},
-      {"path":"tests/component/codex/oracle/client/State.part3.inc","sha256":"0c27461546b95bc55d1568f0cc21c24ea666791a71b58b104fda5c30c8fed2fd"},
-      {"path":"tests/component/codex/oracle/client/State.part4.inc","sha256":"067a96f52e0548817f994ee3a4b3f4aec6d44032d73b2083228963a6fb28ec6f"},
-      {"path":"tests/component/codex/oracle/client/State.part5.inc","sha256":"5f9b310c28be638144e44073d32bd04ace2bb65cb2e5a03fa01d13d865d89bf9"},
-      {"path":"tests/component/codex/oracle/client/State.part6.inc","sha256":"d61d0e35f3d084567552b133c0fc345a4ed0ce8c052e8a37803997cbc702b675"},
-      {"path":"tests/component/codex/oracle/client/State.part7.inc","sha256":"a144903f2f2566db64f9b1e40d2db358fcc175657f847c9a3c6d58ca32f4351c"},
-      {"path":"tests/component/codex/oracle/client/State.part8.inc","sha256":"a21ddf0af6ee8022df8591bdc32eae9d0548917f7e1b01054869acaf0b3b773d"},
-      {"path":"tests/component/codex/oracle/detail/BackendProjectionBuilder.cpp","basePath":"src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp","sha256":"da84f69097734547b6d1f102bb53875e28fcef88d8828b4398d0483965638942"},
-      {"path":"tests/component/codex/oracle/detail/FrontendCapabilities.cpp","basePath":"src/ai/openai/codex/frontend/detail/FrontendCapabilities.cpp","sha256":"565602c90584f82289e7322e61cc77a120fc53fc1c09ef06558526d0cd7f5d41"},
-      {"path":"tests/component/codex/oracle/detail/FrontendProjection.cpp","basePath":"src/ai/openai/codex/frontend/detail/FrontendProjection.cpp","sha256":"e254c82c6ca00f3af1e43350e06ca1b49fdac71ac17651014d5636e60cbf5b89"},
-      {"path":"tests/component/codex/oracle/include/ai/openai/codex/frontend/detail/BackendProjectionBuilder.h","basePath":"src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.h","sha256":"3e4a125417d85268d87780888ef4dee983801c9c270465f5ff30989dec4cda91"},
-      {"path":"tests/component/codex/oracle/include/ai/openai/codex/frontend/detail/FrontendCapabilities.h","basePath":"src/ai/openai/codex/frontend/detail/FrontendCapabilities.h","sha256":"cc9626c5f3d1d78afb6310c15c2465c2f9ba8313f3fe9724cb0448c957672dfc"},
-      {"path":"tests/component/codex/oracle/include/ai/openai/codex/frontend/detail/FrontendProjection.h","basePath":"src/ai/openai/codex/frontend/detail/FrontendProjection.h","sha256":"bc466c1cd2514076566fb7f0f2601a3d4d58b27b1f50867fb71b5ec018456172"}
-    ],
-    "stateReconstruction": {
-      "shimPath": "tests/component/codex/oracle/client/State.cpp",
-      "partPaths": [
-        "tests/component/codex/oracle/client/State.part1.inc",
-        "tests/component/codex/oracle/client/State.part2.inc",
-        "tests/component/codex/oracle/client/State.part3.inc",
-        "tests/component/codex/oracle/client/State.part4.inc",
-        "tests/component/codex/oracle/client/State.part5.inc",
-        "tests/component/codex/oracle/client/State.part6.inc",
-        "tests/component/codex/oracle/client/State.part7.inc",
-        "tests/component/codex/oracle/client/State.part8.inc"
-      ],
-      "basePath": "src/ai/openai/codex/frontend/client/State.cpp",
-      "baseSha256": "19121ed4e07db1487eabd18ee574f9348cbee281b9b132420d7f5f5e83793ea1"
+  "finalTargetGraph": {
+    "server": {
+      "target": "AISuite::OpenAICodexFrontend",
+      "uses": [
+        "AISuite::OpenAICodexFrontendProtocol",
+        "ai-openai-codex-frontend-model",
+        "ai-openai-codex-frontend-server-core",
+        "BackendCoreBridge",
+        "BackendCore"
+      ]
     },
-    "builtOnlyWhenTestsEnabled": true,
-    "installed": false,
-    "sourcePackaged": true,
-    "installedOrBinaryPackaged": false,
-    "productionDependencyAllowed": false,
-    "dependencyResolutionTest": "CodexFrontendP3OracleDependencyResolutionTest",
-    "removeInCommit": 6
+    "client": {
+      "target": "AISuite::OpenAICodexFrontendClient",
+      "public": [
+        "AISuite::OpenAICodexFrontendProtocol"
+      ],
+      "private": [
+        "ai-openai-codex-frontend-model",
+        "ai-openai-codex-frontend-client-core",
+        "CanonicalStateBuilder and client implementation objects"
+      ],
+      "forbiddenDependenciesAbsent": [
+        "AISuite::OpenAICodexFrontend",
+        "AISuite::OpenAICodexBackend",
+        "ServerCore",
+        "BackendCore",
+        "SNode.C",
+        "concrete transports",
+        "server-only compatibility utilities"
+      ]
+    }
   },
-  "expectedToRemainAfterP3": [
+  "semanticOwnership": {
+    "server": [
+      "BackendCoreBridge owns the single shared BackendCore observer and authenticated backend-session mapping",
+      "ServerCore owns authentication, authorization, sessions, controller transactions, occurrences, journal, replay, snapshots, queues and close policy",
+      "FrontendService and FrontendConnection are public compatibility Pimpl adapters"
+    ],
+    "client": [
+      "ClientCore owns physical generations, synchronization, correlation, canonical state and semantic callbacks",
+      "CanonicalStateBuilder prepares immutable public StateStorage directly from canonical typed state",
+      "Client and Connection are public compatibility Pimpl adapters"
+    ],
+    "transport": [
+      "one private shared JsonLineFramer for native server and client adapters",
+      "one persistent configured SNode.C client per selected transport",
+      "static connection-owned WebSocket composition"
+    ]
+  },
+  "transports": [
+    {"kind": "unix-jsonl", "server": "codex-backend", "client": "codex-backend-client-unix", "defaultEnabled": true},
+    {"kind": "ipv4-jsonl", "server": "codex-backend-ipv4", "client": "codex-backend-client-ipv4", "defaultEnabled": false},
+    {"kind": "ipv6-jsonl", "server": "codex-backend-ipv6", "client": "codex-backend-client-ipv6", "defaultEnabled": false},
+    {"kind": "ipv4-tls-jsonl", "server": "codex-backend-tls-ipv4", "client": "codex-backend-client-tls-ipv4", "defaultEnabled": false},
+    {"kind": "ipv6-tls-jsonl", "server": "codex-backend-tls-ipv6", "client": "codex-backend-client-tls-ipv6", "defaultEnabled": false},
+    {"kind": "rfcomm-jsonl", "server": "codex-backend-rfcomm", "client": "codex-backend-client-rfcomm", "defaultEnabled": false},
+    {"kind": "rfcomm-tls-jsonl", "server": "codex-backend-rfcomm-tls", "client": "codex-backend-client-rfcomm-tls", "defaultEnabled": false},
+    {"kind": "websocket-ipv4", "server": "codex-backend-websocket-ipv4", "client": "codex-backend-client-websocket-ipv4", "defaultEnabled": false},
+    {"kind": "websocket-ipv6", "server": "codex-backend-websocket-ipv6", "client": "codex-backend-client-websocket-ipv6", "defaultEnabled": false},
+    {"kind": "wss-ipv4", "server": "codex-backend-wss-ipv4", "client": "codex-backend-client-wss-ipv4", "defaultEnabled": false},
+    {"kind": "wss-ipv6", "server": "codex-backend-wss-ipv6", "client": "codex-backend-client-wss-ipv6", "defaultEnabled": false}
+  ],
+  "retainedProductionIdentities": [
     "src/ai/openai/codex/frontend/FrontendService.cpp",
-    "src/ai/openai/codex/frontend/FrontendService.h",
     "src/ai/openai/codex/frontend/client/Client.cpp",
-    "src/ai/openai/codex/frontend/client/Client.h",
-    "src/ai/openai/codex/frontend/client/Connection.h",
     "src/ai/openai/codex/frontend/client/State.cpp",
-    "src/ai/openai/codex/frontend/client/State.h",
-    "src/ai/openai/codex/frontend/internal/server/BackendCoreBridge.cpp",
-    "src/ai/openai/codex/frontend/internal/server/BackendCoreBridge.h",
-    "src/ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h",
     "src/ai/openai/codex/frontend/internal/model/Model.cpp",
     "src/ai/openai/codex/frontend/internal/model/Occurrence.cpp",
     "src/ai/openai/codex/frontend/internal/model/Journal.cpp",
     "src/ai/openai/codex/frontend/internal/server/BackendProjection.cpp",
+    "src/ai/openai/codex/frontend/internal/server/BackendCoreBridge.cpp",
     "src/ai/openai/codex/frontend/internal/server/ServerCore.cpp",
     "src/ai/openai/codex/frontend/internal/client/ClientCore.cpp",
+    "src/ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h",
     "src/ai/openai/codex/frontend/internal/transport/JsonLineFramer.cpp",
-    "src/ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
+    "src/apps/codex-backend/FrontendStreamSocketContext.cpp",
+    "src/apps/codex-backend/FrontendWebApplication.cpp",
+    "src/apps/codex-backend/FrontendWebSocketSubProtocol.cpp",
+    "src/apps/codex-backend-client/ClientConnection.cpp",
+    "src/apps/codex-backend-client/FrontendWebSocketClient.cpp"
   ],
-  "expectedToDisappearAfterP3": [
+  "removedProductionIdentities": [
     "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp",
     "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.h",
     "src/ai/openai/codex/frontend/detail/FrontendCapabilities.cpp",
@@ -421,114 +144,121 @@
     "src/apps/codex-backend/JsonLineFramer.cpp",
     "src/apps/codex-backend/JsonLineFramer.h",
     "src/apps/codex-backend-client/JsonLineFramer.cpp",
-    "src/apps/codex-backend-client/JsonLineFramer.h",
+    "src/apps/codex-backend-client/JsonLineFramer.h"
+  ],
+  "removedProductionTargets": [
     "codex-backend-runtime-bridge",
-    "codex-backend-websocket-subprotocol",
-    "tests/component/codex/oracle"
+    "codex-backend-websocket-subprotocol"
   ],
-  "rewriteInPlace": [
-    "src/ai/openai/codex/frontend/FrontendService.cpp",
-    "src/ai/openai/codex/frontend/client/Client.cpp",
-    "src/ai/openai/codex/frontend/client/State.cpp",
-    "src/apps/codex-backend/main.cpp",
-    "src/apps/codex-backend-client/main.cpp",
-    "src/apps/codex-backend-client/ClientConnection.cpp",
-    "src/apps/codex-backend-client/FrontendWebSocketClient.cpp",
-    "src/apps/codex-backend/FrontendWebApplication.cpp"
+  "removedTemporaryValidation": [
+    "tests/component/codex/oracle/",
+    "tests/policy/codex/CodexFrontendP3OracleIsolationTest.py",
+    "tests/policy/codex/CodexFrontendP3OracleDependencyResolutionTest.py",
+    "Codex frontend server/client differential executables and execution ledger used only by the temporary oracle",
+    "oracle source-closure, digest, capture and separate-link proof machinery",
+    "docs/ai/openai/codex/architecture-reduction/p3-task-a-f3-coverage-audit.md"
   ],
-  "transports": [
-    {"kind":"unix-jsonl","server":"codex-backend","client":"codex-backend-client-unix","defaultEnabled":true},
-    {"kind":"ipv4-jsonl","server":"codex-backend-ipv4","client":"codex-backend-client-ipv4","defaultEnabled":false},
-    {"kind":"ipv6-jsonl","server":"codex-backend-ipv6","client":"codex-backend-client-ipv6","defaultEnabled":false},
-    {"kind":"ipv4-tls-jsonl","server":"codex-backend-tls-ipv4","client":"codex-backend-client-tls-ipv4","defaultEnabled":false},
-    {"kind":"ipv6-tls-jsonl","server":"codex-backend-tls-ipv6","client":"codex-backend-client-tls-ipv6","defaultEnabled":false},
-    {"kind":"rfcomm-jsonl","server":"codex-backend-rfcomm","client":"codex-backend-client-rfcomm","defaultEnabled":false},
-    {"kind":"rfcomm-tls-jsonl","server":"codex-backend-rfcomm-tls","client":"codex-backend-client-rfcomm-tls","defaultEnabled":false},
-    {"kind":"websocket-ipv4","server":"codex-backend-websocket-ipv4","client":"codex-backend-client-websocket-ipv4","defaultEnabled":false},
-    {"kind":"websocket-ipv6","server":"codex-backend-websocket-ipv6","client":"codex-backend-client-websocket-ipv6","defaultEnabled":false},
-    {"kind":"wss-ipv4","server":"codex-backend-wss-ipv4","client":"codex-backend-client-wss-ipv4","defaultEnabled":false},
-    {"kind":"wss-ipv6","server":"codex-backend-wss-ipv6","client":"codex-backend-client-wss-ipv6","defaultEnabled":false}
-  ],
-  "permanentConformance": [
+  "retainedPermanentValidation": [
     "tests/component/codex/fixtures/frontend-protocol-v1.generated.json",
     "tests/component/codex/fixtures/p2-frontend-differential-coverage.json",
-    "tests/component/codex/CodexFrontendServerDifferentialTest.cpp",
-    "tests/component/codex/CodexFrontendClientDifferentialTest.cpp",
-    "tests/component/codex/CodexFrontendDifferentialCoverageGuardTest.py",
-    "tests/component/codex/CodexFrontendDifferentialMutationTest.py",
-    "tests/policy/codex/CodexFrontendCoreDependencyPolicyTest.py"
+    "CodexFrontendDifferentialCoverageGuardTest",
+    "CodexFrontendDifferentialMutationTest",
+    "CodexFrontendCoreDependencyPolicyTest",
+    "protocol authority/currentness tests",
+    "typed model, occurrence, snapshot and journal tests",
+    "ServerCore and ClientCore conformance tests",
+    "public service/client adapter and compatibility tests",
+    "native and WebSocket composition/security acceptance tests"
   ],
+  "commit5Checkpoint": {
+    "sha": "a535654be86410cd751f05972fe13ec5515e6b08",
+    "workflowRunId": 31621787681,
+    "jobId": 94198152958,
+    "conclusion": "success",
+    "boundedHostedClosure": true,
+    "completeOrdinaryCTest": false,
+    "ctest": {
+      "registered": 221,
+      "selected": 215,
+      "executed": 215,
+      "passed": 209,
+      "failed": 0,
+      "skipped": 6,
+      "durationSeconds": 282.72
+    },
+    "runtimeSkips": [
+      "CodexBackendClientIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexBackendClientTlsIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexBackendClientWebSocketIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexBackendClientWssIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexAppServerIntegrationTest: codex executable unavailable on PATH",
+      "CodexTypedAppServerIntegrationTest: opt-in provider/credential/quota prerequisites unavailable"
+    ],
+    "explicitlyDeferredTests": [
+      "CodexAppServerFixtureInfrastructureTest",
+      "CodexFrontendProtocolMinimalConfigurationTest",
+      "CodexFrontendProtocolLegacyBinaryCompatibilityTest",
+      "CodexPolicyMutationTest",
+      "CodexPublicHeaderSelfContainmentTest",
+      "CodexSyntheticSecretLeakGuardTest"
+    ],
+    "otherPassedGates": [
+      "installed consumer",
+      "source package",
+      "binary package",
+      "P0 build/install/executable verification",
+      "P0 deterministic comparison"
+    ]
+  },
+  "localCommit6Validation": {
+    "buildDirectory": "build-p2-complete",
+    "resources": {
+      "logicalProcessors": 28,
+      "memory": "62 GiB",
+      "workspaceFilesystemFree": "417 GiB"
+    },
+    "buildPolicy": "every local build used --parallel 24",
+    "ctestPolicy": "every local CTest used --parallel 24 --timeout 60 --output-on-failure with an explicit selection",
+    "finalIncrementalBuild": {
+      "command": "cmake --build build-p2-complete --parallel 24",
+      "result": "passed"
+    },
+    "focusedSelections": [
+      {"selected": 62, "passed": 62, "failed": 0, "skipped": 0, "durationSeconds": 6.03},
+      {"selected": 2, "passed": 2, "failed": 0, "skipped": 0, "durationSeconds": 0.08}
+    ],
+    "prohibitedNotRun": [
+      "complete ordinary CTest",
+      "installed-consumer local closure",
+      "source or binary package local closure",
+      "public-header complete installed rebuild",
+      "cold/relinked or unrelinked ELF ABI probe",
+      "complete P0 build/install-backed verification",
+      "deterministic full P0 capture/comparison",
+      "all-eleven live transport suite",
+      "real Codex App Server/provider integration",
+      "credential, quota or account integration",
+      "stress, soak, fuzz, benchmark or sanitizer matrices"
+    ]
+  },
   "commitLedger": [
-    {"number":1,"subject":"Freeze the P3 cutover contract and preserve the legacy oracle","sha":null},
-    {"number":2,"subject":"Cut the public Codex frontend service over to ServerCore","sha":null},
-    {"number":3,"subject":"Cut the public Codex frontend client over to ClientCore","sha":null},
-    {"number":4,"subject":"Consolidate native Codex frontend transport composition","sha":null},
-    {"number":5,"subject":"Cut WebSocket transports over to static composition","sha":null},
-    {"number":6,"subject":"Remove the legacy Codex frontend implementation","sha":null},
-    {"number":7,"subject":"Close and verify the Codex P3 cutover","sha":null}
+    {"ordinal": 1, "sha": "5c336611cf21e57552c7d194660050cce737d41f", "subject": "Freeze the P3 cutover contract and preserve the legacy oracle"},
+    {"ordinal": 2, "sha": "37b10597c281833ea68398a945348aad79e7ff35", "subject": "Cut the public Codex frontend service over to ServerCore"},
+    {"ordinal": 3, "sha": "aecf72c21cb9461d6061c9fcd3d3b1cb985b802c", "subject": "Cut the public Codex frontend client over to ClientCore"},
+    {"ordinal": 4, "sha": "0ebf395d6561bcc538768a6343fb2341f18b65f4", "subject": "Consolidate native Codex frontend transport composition"},
+    {"ordinal": 5, "sha": "a535654be86410cd751f05972fe13ec5515e6b08", "subject": "Cut WebSocket transports over to static composition"},
+    {"ordinal": 6, "sha": "341ae5f924c683fe984ae37c5e8648318b5db806", "subject": "Remove the legacy Codex frontend implementation"},
+    {"ordinal": 7, "sha": "self", "subject": "Close and verify the Codex P3 cutover"}
   ],
-  "gates": {
-    "localParallel": 24,
-    "localCtestTimeoutSeconds": 60,
-    "commit5HostedCheckpointRequiredBeforeDeletion": true,
-    "commit5LegacyAndOracleMustExist": true,
-    "commit5HostedFullClosureMustBeGreen": true,
-    "sameObjectSnodecConnectProofRequiredBeforeCommit4": true,
-    "threadLocalWebSocketHandoffAllowed": false,
-    "webSocketHandoffModel": "file-private-owner-event-loop-raii-lifo-exact-connection",
-    "finalHostedClosureRequired": true
+  "commit7": {
+    "productionSourceChangesAllowed": false,
+    "fullShaRecordedInPullRequestBody": true,
+    "finalHostedWorkflow": "pending publication"
   },
-  "steeringCorrections": {
-    "hostedCommit5Checkpoint": {
-      "exactCommit5HeadMustBePushedWithLegacyAndOraclePresent": true,
-      "independentlyVerifiedHostedFullClosureRequiredBeforeCommit6": true,
-      "requiredEvidence": [
-        "checkpoint SHA",
-        "workflow ID",
-        "job IDs",
-        "result",
-        "skips",
-        "environment limitations"
-      ],
-      "finalHostedClosureRequiredAfterCommits6And7": true,
-      "rewrittenPublicationCommand": "git push --force-with-lease"
-    },
-    "webSocketUpgradeHandoff": {
-      "ownerEventLoopConfined": true,
-      "synchronous": true,
-      "filePrivateRaiiLifoExactConnection": true,
-      "threadLocalAllowed": false,
-      "mutexAllowed": false,
-      "persistentRuntimeRegistryAllowed": false
-    },
-    "preCommit4SnodecConnectGate": {
-      "sourceAndFocusedExecutableProofRequired": true,
-      "sameConfiguredObjectRequired": true,
-      "explicitLaterConnectDistinguishedFromAutomaticReconnect": true,
-      "stopBeforeReconnectRemovalIfUnproven": true,
-      "snodecModificationAllowed": false
-    },
-    "localExecution": {
-      "buildParallel": 24,
-      "ctestParallel": 24,
-      "ctestTimeoutSeconds": 60,
-      "longTestsLocallyAllowed": false
-    },
-    "compatibilityUtilities": {
-      "owner": "AISuite::OpenAICodexFrontend",
-      "identities": [
-        "EventCoalescer",
-        "EventJournal",
-        "UpdateBatchBuilder"
-      ],
-      "frontendClientHeaderDependencyAllowed": false,
-      "frontendClientSourceDependencyAllowed": false,
-      "frontendClientLinkDependencyAllowed": false,
-      "frontendClientTransitiveDependencyAllowed": false
-    }
-  },
-  "currentTaskScope": {
-    "allowedCommits": [1, 2, 3],
-    "forbiddenToStart": [4, 5, 6, 7]
-  }
+  "remainingMergeGates": [
+    "hosted closure on the exact final Commit-7 head",
+    "resolution or explicit acceptance of hosted environment skips",
+    "non-ELF client typed-symbol ownership verification",
+    "independent review and owner merge decision"
+  ]
 }
