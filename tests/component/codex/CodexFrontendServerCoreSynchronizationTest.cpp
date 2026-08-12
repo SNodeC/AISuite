@@ -31,6 +31,7 @@ namespace {
     namespace generated = ai::openai::codex::frontend::generated;
     namespace model = ai::openai::codex::frontend::internal::model;
     namespace server = ai::openai::codex::frontend::internal::server;
+    namespace typed = ai::openai::codex::typed;
 
     constexpr std::string_view OpaqueDataKey = "futureProviderState";
     constexpr std::string_view OpaqueDataValue = "safe-looking-but-opaque-sentinel";
@@ -435,18 +436,92 @@ namespace {
                           "expanded client synchronizes before the unsplittable-group probe");
         drainOne(oversizedScheduled);
         oversizedMessages.clear();
+
+        backend::Snapshot postTurnBackend;
+        backend::TurnSnapshot postTurn;
+        postTurn.id = "post-turn";
+        postTurn.threadId = "post-thread";
+        postTurn.status = "completed";
+        postTurn.terminal = true;
+        postTurn.tokenUsage = frontend::Json{{"last", {{"inputTokens", 3}, {"outputTokens", 1}, {"totalTokens", 4}}},
+                                             {"modelContextWindow", 258'400},
+                                             {"total", {{"inputTokens", 7}, {"outputTokens", 2}, {"totalTokens", 9}}}};
+        backend::ThreadSnapshot postThread;
+        postThread.id = "post-thread";
+        postThread.turns.push_back(std::move(postTurn));
+        postTurnBackend.threads.push_back(std::move(postThread));
+        server::BackendProjection backendProjection;
+        const model::ModelResult<model::CanonicalSnapshot> projectedPostTurn = backendProjection.projectSnapshot(postTurnBackend);
+        result.expectTrue(projectedPostTurn.hasValue(), "a completed turn with current Codex token usage projects canonically");
+        if (projectedPostTurn) {
+            oversizedBackend.state = projectedPostTurn.value();
+        }
+
+        typed::Turn completedTurn;
+        completedTurn.id = typed::TurnId{"post-turn"};
+        completedTurn.threadId = typed::ThreadId{"post-thread"};
+        completedTurn.status = typed::TurnStatus::completed();
+        const std::vector<backend::SequencedBackendEvent> completedEvents{
+            {backend::SequenceNumber{1}, backend::TurnCompleted{std::move(completedTurn)}}};
+        model::ModelResult<server::ProjectedBackendBatch> projectedCompletion =
+            backendProjection.projectOccurrences(completedEvents, postTurnBackend);
+        std::vector<server::OccurrenceStageRequest> completionGroups;
+        const bool projectedCompletionValid = projectedCompletion.hasValue();
+        bool completionSnapshotRequired = false;
+        if (projectedCompletion) {
+            server::ProjectedBackendBatch completion = std::move(projectedCompletion).value();
+            completionSnapshotRequired = completion.snapshotRequired;
+            for (server::ProjectedBackendOccurrence& occurrence : completion.occurrences) {
+                completionGroups.push_back(
+                    {std::move(occurrence.key), std::move(occurrence.occurrence), occurrence.urgency});
+            }
+        }
+        result.expectTrue(projectedCompletionValid && !completionSnapshotRequired && completionGroups.size() == 1 &&
+                              oversized.stageGroups(std::move(completionGroups)).accepted() && !oversizedScheduled.empty(),
+                          "the terminal turn occurrence remains representable after token usage is retained");
+        drainOne(oversizedScheduled);
+        result.expectTrue(oversizedMessages.size() == 1 && std::holds_alternative<frontend::EventBatch>(oversizedMessages.front()) &&
+                              oversized.connectionOpen(*oversizedConnection),
+                          "the terminal turn occurrence is journaled and delivered without an erroneous fallback");
+        oversizedMessages.clear();
+
         const server::PublishResult oversizedPublished = oversized.publishGroup(expandedGroup());
         drainOne(oversizedScheduled);
+        const auto* postTurnFallback =
+            oversizedMessages.size() == 1 ? std::get_if<frontend::Snapshot>(&oversizedMessages.front()) : nullptr;
+        const frontend::Json* postTurnUsage = nullptr;
+        if (postTurnFallback && postTurnFallback->state.contains("turns") && postTurnFallback->state.at("turns").size() == 1) {
+            const frontend::Json& encodedTurn = postTurnFallback->state.at("turns").front();
+            const auto usage = encodedTurn.find("tokenUsage");
+            postTurnUsage = usage != encodedTurn.end() ? &*usage : nullptr;
+        }
         result.expectTrue(oversizedPublished.accepted && oversizedMessages.size() == 1 &&
-                              std::holds_alternative<frontend::Snapshot>(oversizedMessages.front()) &&
+                              postTurnFallback && postTurnUsage && postTurnUsage->is_object() &&
+                              postTurnUsage->value("modelContextWindow", 0) == 258'400 && !postTurnUsage->contains("last") &&
+                              !postTurnUsage->contains("total") && oversized.connectionOpen(*oversizedConnection),
+                          "a post-turn Snapshot fallback bounds nested token usage to Frontend Protocol v1 and stays connected");
+
+        oversizedMessages.clear();
+        generated::DefinedCommand explicitSnapshot{
+            "post-turn-snapshot", generated::makeParameters(generated::MethodId::SnapshotGet, frontend::Json::object())};
+        result.expectTrue(oversized.receiveDefinedCommand(*oversizedConnection, std::move(explicitSnapshot)).accepted() &&
+                              !oversizedScheduled.empty(),
+                          "the same connection accepts an explicit Snapshot after post-turn fallback");
+        drainOne(oversizedScheduled);
+        result.expectTrue(std::any_of(oversizedMessages.begin(),
+                                     oversizedMessages.end(),
+                                     [](const frontend::ServerMessage& message) {
+                                         return std::holds_alternative<frontend::Snapshot>(message);
+                                     }) &&
                               oversized.connectionOpen(*oversizedConnection),
-                          "one expanded occurrence that cannot fit atomically falls back to Snapshot instead of closing");
+                          "the explicit post-turn Snapshot encodes and leaves the original connection open");
 
         std::vector<frontend::ServerMessage> oversizedReplayMessages;
         const auto oversizedReplay = oversized.openConnection({}, collect(oversizedReplayMessages));
         frontend::Hello oversizedReplayHello;
         oversizedReplayHello.resumeAfter = frontend::SequenceNumber{0};
-        oversizedReplayHello.capabilities = std::vector{frontend::FrontendCapability::DedicatedNotificationEvents};
+        oversizedReplayHello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                                        frontend::FrontendCapability::DedicatedNotificationEvents};
         result.expectTrue(oversizedReplay &&
                               oversized.receive(*oversizedReplay, frontend::ClientMessage{std::move(oversizedReplayHello)}).accepted() &&
                               !oversizedScheduled.empty(),

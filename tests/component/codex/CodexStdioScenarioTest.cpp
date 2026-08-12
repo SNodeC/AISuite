@@ -154,6 +154,7 @@ int main(int argc, char* argv[]) {
     bool timedOut = false;
     bool startCallReturned = false;
     bool failureWasAsynchronous = false;
+    bool largeFrameAccepted = false;
     int stoppedCount = 0;
 
     std::string fakeMode = scenario;
@@ -223,6 +224,16 @@ int main(int argc, char* argv[]) {
     client->setOnDiagnostic([&diagnostics](const ai::openai::codex::Diagnostic& diagnostic) {
         diagnostics.push_back(diagnostic.message);
     });
+    if (scenario == "stdio-framing") {
+        client->raw().setOnNotification([&](const ai::openai::codex::Notification& notification) {
+            constexpr std::size_t AcceptedPayloadBytes = 1024U * 1024U + 4096U;
+            largeFrameAccepted = notification.method == "test/large-frame" && notification.params.is_object() &&
+                                 notification.params.value("payload", std::string{}).size() == AcceptedPayloadBytes;
+            if (largeFrameAccepted) {
+                static_cast<void>(client->raw().notify("test/large-frame-accepted"));
+            }
+        });
+    }
     client->setOnStateChanged([&](const ai::openai::codex::StateChange& stateChange) {
         states.push_back(stateChange.current);
 
@@ -253,7 +264,7 @@ int main(int argc, char* argv[]) {
                 utils::Timeval({0, 100000})));
         } else if (scenario == "forced-fallback-close-stdout" && stateChange.current == CodexState::Ready) {
             readyPipeCount = uniquePipeCount();
-        } else if ((scenario == "slow-stdin" || scenario == "ignore-shutdown" || scenario == "stdio-framing" ||
+        } else if ((scenario == "slow-stdin" || scenario == "ignore-shutdown" ||
                     scenario == "registration-pidfd-fallback" || scenario == "forced-fallback-normal" ||
                     scenario == "forced-fallback-ignore-shutdown" || scenario == "recover-after-failure") &&
                    stateChange.current == CodexState::Ready) {
@@ -402,10 +413,15 @@ int main(int argc, char* argv[]) {
             CodexState::Starting, CodexState::Initializing, CodexState::Stopping, CodexState::Stopped};
         testResult.expectTrue(states == expected, "stop during Initializing closes the child transport cleanly");
     } else if (scenario == "stdio-framing") {
-        testResult.expectEqual(0, failureCount, "stdio framing completes without a transport failure");
-        testResult.expectTrue(containsState(states, CodexState::Ready), "pure JSON protocol documents initialize over JSONL stdio");
-        testResult.expectTrue(containsDiagnostic(diagnostics, "stdio-framing-ok"),
-                              "the fake server receives exactly the initialize and initialized JSONL operations");
+        testResult.expectTrue(largeFrameAccepted,
+                              "a valid app-server JSONL record larger than one MiB remains below the finite supported maximum");
+        testResult.expectEqual(1, failureCount, "an app-server JSONL record above the finite maximum fails exactly once");
+        testResult.expectTrue(failure && failure->category == ai::openai::codex::Error::Category::Protocol &&
+                                  failure->message == "framed line exceeds the input limit",
+                              "an app-server JSONL record above sixteen MiB retains the bounded framing failure");
+        testResult.expectTrue(containsState(states, CodexState::Ready) && containsState(states, CodexState::Failed) &&
+                                  containsState(states, CodexState::Stopped),
+                              "large-record acceptance precedes the deterministic bounded framing failure and stop");
     } else if (scenario == "close-stderr") {
         testResult.expectEqual(0, failureCount, "stderr EOF does not fail the protocol transport");
         testResult.expectTrue(containsState(states, CodexState::Ready), "the client reaches Ready before stderr closes");
