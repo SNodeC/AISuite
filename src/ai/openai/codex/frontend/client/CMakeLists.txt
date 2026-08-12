@@ -6,7 +6,6 @@ set(
     OperationCodecs.cpp
     ProjectionFingerprint.cpp
     State.cpp
-    ../detail/FrontendProjection.cpp
 )
 set(
     AI_OPENAI_CODEX_FRONTEND_CLIENT_PUBLIC_H

@@ -4,7 +4,6 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
-#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #include "ai/openai/codex/frontend/internal/server/BackendCoreBridge.h"
 #include "support/TestResult.h"
 
@@ -1100,144 +1099,6 @@ namespace {
         scheduler.drain();
     }
 
-    void testUnexpectedBackendClosePreservesExternalControllerHandoff(tests::support::TestResult& result) {
-        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
-        ManualScheduler scheduler;
-        backend::BackendCoreOptions backendOptions;
-        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
-            scheduler.schedule(std::move(callback));
-        };
-        backendOptions.maxEventsPerCallback = 1;
-        FakeBackendCore core(std::move(backendOptions), transport);
-
-        backend::FrontendSession external = core.openSession({});
-        scheduler.drain();
-
-        frontend::FrontendServiceOptions options;
-        options.scheduler = [&scheduler](std::function<void()> callback) {
-            scheduler.schedule(std::move(callback));
-        };
-        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
-            return frontend::FrontendTimerCancellation{[] {
-            }};
-        };
-        options.authenticator = [](const frontend::FrontendPeerContext&,
-                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
-            frontend::FrontendPrincipal principal;
-            principal.id = "unexpected-close-principal";
-            principal.profile = "adapter-test";
-            principal.scopes = {frontend::FrontendScope::Observe, frontend::FrontendScope::Control};
-            return frontend::AuthenticationSuccess{std::move(principal)};
-        };
-        frontend::FrontendService service(core, std::move(options));
-
-        Observations first;
-        Observations second;
-        frontend::FrontendConnection firstConnection = service.openConnection(remotePeer("127.0.0.1:41050"), callbacksFor(first, &service));
-        frontend::FrontendConnection secondConnection =
-            service.openConnection(remotePeer("127.0.0.1:41051"), callbacksFor(second, &service));
-        const bool firstHello = firstConnection.receive(frontend::ClientMessage{hello("unexpected-close-token")}).accepted();
-        scheduler.drain();
-        const bool secondHello = secondConnection.receive(frontend::ClientMessage{hello("unexpected-close-token")}).accepted();
-        scheduler.drain();
-        const std::optional<std::string> firstIdentity = firstConnection.sessionId();
-        const std::optional<std::string> secondIdentity = secondConnection.sessionId();
-        const frontend::Snapshot* initialSnapshot = latestSnapshot(second);
-        const std::vector<std::string> initialSessions = initialSnapshot ? sessionIds(initialSnapshot->state) : std::vector<std::string>{};
-        std::vector<std::string> bridgeIdentities;
-        if (firstIdentity) {
-            bridgeIdentities.push_back(*firstIdentity);
-        }
-        if (secondIdentity) {
-            bridgeIdentities.push_back(*secondIdentity);
-        }
-        const std::optional<std::string> externalIdentity = identityOutside(initialSessions, bridgeIdentities);
-        result.expectTrue(firstHello && secondHello && firstIdentity && secondIdentity && externalIdentity &&
-                              exactIdentitySet(initialSessions, {*firstIdentity, *secondIdentity, *externalIdentity}),
-                          "the unexpected-close probe starts Ready with one external and two bridge-owned sessions");
-
-        result.expectTrue(firstConnection.receive(command("unexpected-close-acquire", frontend::ControllerAcquire{})).accepted(),
-                          "frontend A acquires controller before its BackendCore command-session overflow");
-        scheduler.drain();
-        result.expectTrue(response(first, "unexpected-close-acquire") && response(first, "unexpected-close-acquire")->ok &&
-                              service.currentController() == firstIdentity,
-                          "frontend A controller acquisition is fully committed before the unexpected-close race");
-
-        // Keep one external topology event ahead of A's release command. With
-        // one event per observer callback, the command completion must wait for
-        // the shared observer fence rather than committing a transient clear.
-        backend::FrontendSession backlogExternal = core.openSession({});
-        const bool releaseAccepted = firstConnection.receive(command("unexpected-close-release", frontend::ControllerRelease{})).accepted();
-        const bool backlogObserverRan = scheduler.runOne();
-        service.flush();
-        const std::size_t secondMessageBegin = second.messages.size();
-        const bool releaseCommandRan = scheduler.runOne();
-        result.expectTrue(releaseAccepted && backlogObserverRan && releaseCommandRan && !core.snapshot().controller &&
-                              service.currentController() == firstIdentity && response(first, "unexpected-close-release") == nullptr,
-                          "A's release completion remains fenced after BackendCore has committed it");
-
-        const bool backendAClosedBeforeHandoff =
-            frontend::FrontendServiceTestAccess::closeBackendSession(service, firstConnection, "forced backend-side command-session close");
-        const bool externalAcquireAccepted =
-            static_cast<bool>(external.submit("unexpected-close-external-acquire", backend::ControllerAcquire{}));
-        result.expectTrue(backendAClosedBeforeHandoff && externalAcquireAccepted && core.snapshot().controller == external.id() &&
-                              firstConnection.isOpen() && service.currentController() == firstIdentity &&
-                              response(first, "unexpected-close-release") == nullptr,
-                          "BackendCore closes A and hands controller to the external session before queued observer callbacks run");
-        scheduler.drain();
-
-        const std::vector<frontend::FrontendEvent> controllerEvents = eventsOfType(second, secondMessageBegin, "controller.updated");
-        const std::vector<frontend::FrontendEvent> sessionEvents = eventsOfType(second, secondMessageBegin, "sessions.updated");
-        const std::vector<std::string> survivingSessions =
-            sessionEvents.size() == 1 ? sessionIds(sessionEvents.front().data) : std::vector<std::string>{};
-        std::vector<std::string> externalIdentities = survivingSessions;
-        if (secondIdentity) {
-            std::erase(externalIdentities, *secondIdentity);
-        }
-        const std::vector<std::string> knownExternalIdentity =
-            externalIdentity ? std::vector<std::string>{*externalIdentity} : std::vector<std::string>{};
-        const std::optional<std::string> backlogExternalIdentity = identityOutside(externalIdentities, knownExternalIdentity);
-        const bool externalRetained =
-            std::any_of(core.snapshot().sessions.begin(), core.snapshot().sessions.end(), [&](const backend::SessionSnapshot& session) {
-                return session.id == external.id();
-            });
-        result.expectTrue(firstIdentity && secondIdentity && externalIdentity && backlogExternalIdentity,
-                          "the unexpected-close handoff retains all mapped identities");
-        result.expectTrue(!firstConnection.isOpen() && secondConnection.isOpen() && first.closes.size() == 1 && externalRetained,
-                          "the unexpected backend close terminates only A");
-        result.expectTrue(response(first, "unexpected-close-release") == nullptr,
-                          "A's late release completion is invalidated by its unexpected backend close");
-        result.expectTrue(externalIdentity && service.currentController() == externalIdentity,
-                          "currentController reports the external handoff owner");
-        result.expectEqual(
-            std::size_t{1}, controllerEvents.size(), "B observes exactly one controller event for the direct A-to-external handoff");
-        result.expectTrue(externalIdentity && !controllerEvents.empty() && eventControllerId(controllerEvents.front()) == externalIdentity,
-                          "the direct handoff event names the mapped external owner without a transient clear");
-        result.expectTrue(firstIdentity && secondIdentity && externalIdentity && backlogExternalIdentity && sessionEvents.size() == 1 &&
-                              exactIdentitySet(survivingSessions, {*secondIdentity, *externalIdentity, *backlogExternalIdentity}) &&
-                              !containsIdentity(survivingSessions, firstIdentity),
-                          "B observes one A removal while both unrelated external sessions retain their identities");
-        result.expectTrue(backlogExternalIdentity && *backlogExternalIdentity != std::to_string(backlogExternal.id().value()),
-                          "the backlog external session's private BackendCore integer is not exposed as its frontend identity");
-
-        const std::size_t snapshotBegin = second.messages.size();
-        result.expectTrue(secondConnection.receive(command("unexpected-close-snapshot", frontend::SnapshotGet{})).accepted(),
-                          "frontend B requests the authoritative topology after the unexpected close");
-        scheduler.drain();
-        const frontend::Snapshot* snapshot = latestSnapshot(second, snapshotBegin);
-        result.expectTrue(
-            snapshot && secondIdentity && externalIdentity && backlogExternalIdentity &&
-                exactIdentitySet(sessionIds(snapshot->state), {*secondIdentity, *externalIdentity, *backlogExternalIdentity}) &&
-                controllerId(snapshot->state) == externalIdentity && service.currentController() == externalIdentity &&
-                core.snapshot().controller == external.id(),
-            "Snapshot, currentController, and BackendCore agree on the retained external controller");
-
-        secondConnection.close("unexpected-close observer complete");
-        external.close("unexpected-close external complete");
-        backlogExternal.close("unexpected-close backlog external complete");
-        service.close("unexpected-close probe complete");
-        scheduler.drain();
-    }
 } // namespace
 
 int main() {
@@ -1251,6 +1112,5 @@ int main() {
     testInlineBackendObserverAdmission(result);
     testInlineObserverResynchronizationAdmission(result);
     testControllerCompletionWaitsForObserverFence(result);
-    testUnexpectedBackendClosePreservesExternalControllerHandoff(result);
     return result.processResult();
 }

@@ -1549,9 +1549,6 @@ namespace {
                                               [&failures](std::string message) {
                                                   failures.push_back(std::move(message));
                                               },
-                                          .onAttemptConnected = {},
-                                          .onAttemptDisconnected = {},
-                                          .onAttemptFailure = {},
                                           .onOutbound = {},
                                           .verifiedLocalUnix = false,
                                           .onBeforeTransportConnected = {},
@@ -1588,9 +1585,6 @@ namespace {
                                                   {.onConnected = {},
                                                    .onDisconnected = {},
                                                    .onFailure = {},
-                                                   .onAttemptConnected = {},
-                                                   .onAttemptDisconnected = {},
-                                                   .onAttemptFailure = {},
                                                    .onOutbound = {},
                                                    .verifiedLocalUnix = false,
                                                    .onBeforeTransportConnected = {},

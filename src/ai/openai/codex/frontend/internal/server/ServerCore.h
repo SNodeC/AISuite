@@ -316,10 +316,6 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] ReceiveResult receiveDefinedCommand(ConnectionIdentity connection, const generated::DefinedCommand& command) noexcept;
         [[nodiscard]] ReceiveResult receiveError(ConnectionIdentity connection, CodecError error) noexcept;
 
-        // Narrow source-private compatibility seam for the existing public
-        // FrontendService test access. It is not installed or transport-facing.
-        [[nodiscard]] bool enqueueForTesting(ConnectionIdentity connection, ServerMessage message) noexcept;
-
         [[nodiscard]] AuthenticationFailureCode recordPreAuthenticationFailure(const FrontendPeerContext& peer,
                                                                                AuthenticationFailureCode failure) noexcept;
 

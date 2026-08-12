@@ -267,8 +267,6 @@ jobs:
             CodexFrontendClientCoreOperationTest \
             CodexFrontendClientCoreStateTest \
             CodexFrontendClientCoreCapacityTest \
-            CodexFrontendServerDifferentialTest \
-            CodexFrontendClientDifferentialTest \
             CodexFrontendCompatibilityAdaptersTest \
             CodexFrontendDifferentialCoverageGuardTest \
             CodexFrontendDifferentialMutationTest \
@@ -278,7 +276,6 @@ jobs:
             CodexFrontendClientGeneratorTest \
             CodexFrontendClientBindingTest \
             CodexFrontendClientLifecycleTest \
-            CodexFrontendClientSynchronizationTest \
             CodexFrontendServiceClientIntegrationTest \
             CodexFrontendClientSymbolVisibilityTest \
             CodexBackendClientAuthenticationTest \

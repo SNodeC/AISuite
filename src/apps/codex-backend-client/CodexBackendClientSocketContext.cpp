@@ -23,15 +23,14 @@ namespace apps::codex_backend_client {
 
     CodexBackendClientSocketContext::CodexBackendClientSocketContext(core::socket::stream::SocketConnection* socketConnection,
                                                                      ClientConnection& connection,
-                                                                     std::size_t maximumFrameSize,
-                                                                     std::uint64_t attemptGeneration)
+                                                                     std::size_t maximumFrameSize)
         : core::socket::stream::SocketContext(socketConnection)
         , connection(connection)
         , framer(maximumFrameSize) {
         if (maximumFrameSize == 0) {
             throw std::invalid_argument("the maximum JSONL frame size must be greater than zero");
         }
-        connection.attach(*this, attemptGeneration);
+        connection.attach(*this);
     }
 
     void CodexBackendClientSocketContext::onConnected() {

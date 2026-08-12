@@ -13,7 +13,6 @@
 #include "core/socket/stream/SocketContext.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <string>
 
 namespace ai::openai::codex::frontend {
@@ -32,8 +31,7 @@ namespace apps::codex_backend_client {
     public:
         CodexBackendClientSocketContext(core::socket::stream::SocketConnection* socketConnection,
                                         ClientConnection& connection,
-                                        std::size_t maximumFrameSize,
-                                        std::uint64_t attemptGeneration);
+                                        std::size_t maximumFrameSize);
 
     private:
         friend class ClientConnection;

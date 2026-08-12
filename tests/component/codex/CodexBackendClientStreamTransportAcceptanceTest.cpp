@@ -451,9 +451,6 @@ namespace {
                     [&state](std::string message) {
                         state.fail(std::string(transportName(state.transport)) + " CLI adapter failed: " + message);
                     },
-                .onAttemptConnected = {},
-                .onAttemptDisconnected = {},
-                .onAttemptFailure = {},
                 .onOutbound =
                     [&state](const sdk::OutboundMessage& message) {
                         if (message.kind == sdk::OutboundKind::Hello) {
@@ -575,8 +572,8 @@ namespace {
                           std::string(transportName(transport)) + " completes two deterministic SDK transport lifecycles");
         result.expectTrue(state.listenerBound == 1 && state.connectorSucceeded == 2 && state.serverConnected == 2 &&
                               state.clientConnected == 2 && state.serverDisconnected == 2 && state.clientDisconnected == 2 &&
-                              state.explicitConnectCalls == 2 && state.explicitFlowTerminations == 1 &&
-                              state.automaticReconnects == 0 && state.reusedConfiguredClient,
+                              state.explicitConnectCalls == 2 && state.explicitFlowTerminations == 1 && state.automaticReconnects == 0 &&
+                              state.reusedConfiguredClient,
                           std::string(transportName(transport)) +
                               " reuses one configured SNode.C client, cancels pending automatic reconnect, and starts two explicit cycles");
         result.expectTrue(state.authenticationPrepared == 2 && state.helloObservedOutbound == 2 && state.helloReceived == 2 &&

@@ -426,24 +426,6 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
-        [[nodiscard]] bool closeSessionForTesting(const model::SessionIdentity& frontendSession, std::string reason) noexcept {
-            const auto found = sessions.find(frontendSession.value());
-            if (found == sessions.end()) {
-                return false;
-            }
-            const std::shared_ptr<backend::FrontendSession> session = found->second.backendSession;
-            if (!session || !session->isOpen()) {
-                return false;
-            }
-            // Deliberately leave the bridge ownership records intact. The
-            // BackendCore close callback must traverse the same unexpected-
-            // close fencing path used by a real backend-side termination.
-            // Retain the handle locally across an inline, reentrant close
-            // callback that may erase its SessionRecord.
-            session->close(std::move(reason));
-            return true;
-        }
-
         [[nodiscard]] BackendSubmitStatus submit(BackendInvocation invocation) {
             const auto found = sessions.find(invocation.session.value());
             if (found == sessions.end() || found->second.token.connection != invocation.token.connection ||
@@ -1200,12 +1182,6 @@ namespace ai::openai::codex::frontend::internal::server {
         result.role = reportedControllerRole ? backend::SessionRole::Controller : backend::SessionRole::Observer;
         return ::ai::openai::codex::frontend::internal::server::controllerResultValid(
             method, backend::SessionId{expectedBackendSession}, result);
-    }
-
-    bool BackendCoreBridgeTestAccess::closeBackendSession(BackendCoreBridge& bridge,
-                                                          const model::SessionIdentity& frontendSession,
-                                                          std::string reason) noexcept {
-        return bridge.state && bridge.state->closeSessionForTesting(frontendSession, std::move(reason));
     }
 
 } // namespace ai::openai::codex::frontend::internal::server

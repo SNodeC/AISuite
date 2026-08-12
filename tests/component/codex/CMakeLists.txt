@@ -63,30 +63,6 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     )
 
     snodec_add_test(
-        CodexFrontendClientSynchronizationTest
-        CodexFrontendClientSynchronizationTest.cpp
-    )
-    target_link_libraries(
-        CodexFrontendClientSynchronizationTest
-        PRIVATE
-            snodec-test-support
-            ai-openai-codex-frontend-client-test-support
-    )
-    target_compile_features(CodexFrontendClientSynchronizationTest PRIVATE cxx_std_20)
-    target_compile_definitions(
-        CodexFrontendClientSynchronizationTest
-        PRIVATE
-            AISUITE_CODEX_FRONTEND_CLIENT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-client-reducer"
-            AISUITE_CODEX_FRONTEND_CLIENT_STATE_SOURCE="${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/client/State.cpp"
-    )
-    set_tests_properties(
-        CodexFrontendClientSynchronizationTest
-        PROPERTIES
-            LABELS "component;ai;openai;codex;frontend;client;state;replay;reducer;a1-7c-1"
-            TIMEOUT 10
-    )
-
-    snodec_add_test(
         CodexFrontendServiceClientIntegrationTest
         CodexFrontendServiceClientIntegrationTest.cpp
     )
@@ -104,24 +80,6 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         PROPERTIES
             LABELS "component;ai;openai;codex;frontend;client;service;integration;a1-7c-1"
             TIMEOUT 20
-    )
-
-    snodec_add_test(
-        CodexFrontendClientStateExtensionTest
-        CodexFrontendClientStateExtensionTest.cpp
-    )
-    target_link_libraries(
-        CodexFrontendClientStateExtensionTest
-        PRIVATE
-            snodec-test-support
-            ai-openai-codex-frontend-client-test-support
-    )
-    target_compile_features(CodexFrontendClientStateExtensionTest PRIVATE cxx_std_20)
-    set_tests_properties(
-        CodexFrontendClientStateExtensionTest
-        PROPERTIES
-            LABELS "component;ai;openai;codex;frontend;client;state;extensions;a1-7c-1"
-            TIMEOUT 5
     )
 
     snodec_add_test(
@@ -1719,23 +1677,6 @@ set_tests_properties(
 )
 
 snodec_add_test(
-    CodexFrontendProjectionTest CodexFrontendProjectionTest.cpp
-)
-target_link_libraries(
-    CodexFrontendProjectionTest
-    PRIVATE
-        snodec-test-support
-        ai-openai-codex-frontend-legacy-server-oracle
-)
-target_compile_features(CodexFrontendProjectionTest PRIVATE cxx_std_20)
-set_tests_properties(
-    CodexFrontendProjectionTest
-    PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;projection;journal;a1-7b"
-               TIMEOUT 10
-)
-
-snodec_add_test(
     CodexFrontendCompleteCodecTest CodexFrontendCompleteCodecTest.cpp
 )
 target_link_libraries(
@@ -1775,26 +1716,6 @@ set_tests_properties(
     PROPERTIES LABELS
                "component;ai;openai;codex;frontend;service;provider-results;a1-7b"
                TIMEOUT 15
-)
-
-snodec_add_test(
-    CodexFrontendAuthorizationMetadataTest
-    CodexFrontendAuthorizationMetadataTest.cpp
-)
-target_link_libraries(
-    CodexFrontendAuthorizationMetadataTest
-    PRIVATE
-        snodec-test-support
-        ai-openai-codex-frontend-legacy-server-oracle
-)
-target_compile_features(
-    CodexFrontendAuthorizationMetadataTest PRIVATE cxx_std_20
-)
-set_tests_properties(
-    CodexFrontendAuthorizationMetadataTest
-    PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;service;authorization;metadata;a1-7b"
-               TIMEOUT 10
 )
 
 snodec_add_test(
@@ -1850,17 +1771,14 @@ set_tests_properties(
 snodec_add_test(CodexFrontendServiceTest CodexFrontendServiceTest.cpp)
 target_link_libraries(
     CodexFrontendServiceTest
-    PRIVATE
-        snodec-test-support
-        ai-openai-codex-frontend-legacy-server-oracle
-        snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
 )
 target_compile_features(CodexFrontendServiceTest PRIVATE cxx_std_20)
 set_tests_properties(
     CodexFrontendServiceTest
-    PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;service;coalescing;session"
-               SKIP_RETURN_CODE 77 TIMEOUT 15
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;compatibility;utilities;p3"
+        TIMEOUT 5
 )
 
 snodec_add_test(
@@ -1969,220 +1887,6 @@ foreach(
     )
 endforeach()
 
-# P3 keeps the production P0 implementation executable as a strictly
-# test-only oracle until the Commit-5 local and hosted pre-deletion gates have
-# both passed.  Private type/namespace renaming lets the frozen implementation
-# coexist with the cut-over public Pimpls without creating a legacy DSO.
-set(
-    P3_LEGACY_ORACLE_SOURCE_AUTHORITY
-    "${CMAKE_CURRENT_SOURCE_DIR}/oracle/source-closure.txt"
-)
-file(STRINGS "${P3_LEGACY_ORACLE_SOURCE_AUTHORITY}" P3_LEGACY_ORACLE_SOURCE_ROWS)
-
-function(p3_legacy_oracle_target_sources output_variable target_name)
-    set(target_sources)
-    foreach(source_row IN LISTS P3_LEGACY_ORACLE_SOURCE_ROWS)
-        if(source_row MATCHES "^[ \\t]*#" OR source_row STREQUAL "")
-            continue()
-        endif()
-        string(REPLACE "|" ";" source_fields "${source_row}")
-        list(LENGTH source_fields source_field_count)
-        if(NOT source_field_count EQUAL 2)
-            message(FATAL_ERROR "Malformed P3 legacy oracle source-authority row: ${source_row}")
-        endif()
-        list(GET source_fields 0 source_target)
-        list(GET source_fields 1 relative_source)
-        if(NOT source_target STREQUAL target_name)
-            continue()
-        endif()
-        if(IS_ABSOLUTE "${relative_source}")
-            message(FATAL_ERROR "P3 legacy oracle authority must use repository-relative paths: ${relative_source}")
-        endif()
-        list(APPEND target_sources "${PROJECT_SOURCE_DIR}/${relative_source}")
-    endforeach()
-    if(NOT target_sources)
-        message(FATAL_ERROR "P3 legacy oracle target has an empty source authority: ${target_name}")
-    endif()
-    set(${output_variable} "${target_sources}" PARENT_SCOPE)
-endfunction()
-
-set(
-    P3_LEGACY_ORACLE_INCLUDE_ROOT
-    "${CMAKE_CURRENT_SOURCE_DIR}/oracle/include"
-)
-
-p3_legacy_oracle_target_sources(
-    P3_LEGACY_PROJECTION_ORACLE_SOURCES
-    ai-openai-codex-frontend-legacy-projection-oracle
-)
-add_library(
-    ai-openai-codex-frontend-legacy-projection-oracle STATIC
-    ${P3_LEGACY_PROJECTION_ORACLE_SOURCES}
-)
-target_include_directories(
-    ai-openai-codex-frontend-legacy-projection-oracle
-    BEFORE PRIVATE
-        "${P3_LEGACY_ORACLE_INCLUDE_ROOT}"
-        "${PROJECT_SOURCE_DIR}/src"
-)
-target_compile_features(
-    ai-openai-codex-frontend-legacy-projection-oracle PRIVATE cxx_std_20
-)
-target_link_libraries(
-    ai-openai-codex-frontend-legacy-projection-oracle
-    PUBLIC AISuite::OpenAICodexFrontend
-)
-
-p3_legacy_oracle_target_sources(
-    P3_LEGACY_SERVER_ORACLE_SOURCES
-    ai-openai-codex-frontend-legacy-server-oracle
-)
-add_library(
-    ai-openai-codex-frontend-legacy-server-oracle STATIC
-    ${P3_LEGACY_SERVER_ORACLE_SOURCES}
-)
-target_compile_definitions(
-    ai-openai-codex-frontend-legacy-server-oracle
-    PRIVATE
-        FrontendConnection=LegacyFrontendConnection
-        FrontendService=LegacyFrontendService
-        FrontendServiceTestAccess=LegacyFrontendServiceTestAccess
-        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
-)
-target_include_directories(
-    ai-openai-codex-frontend-legacy-server-oracle
-    BEFORE PRIVATE
-        "${P3_LEGACY_ORACLE_INCLUDE_ROOT}"
-        "${PROJECT_SOURCE_DIR}/src"
-)
-target_compile_features(
-    ai-openai-codex-frontend-legacy-server-oracle PRIVATE cxx_std_20
-)
-target_link_libraries(
-    ai-openai-codex-frontend-legacy-server-oracle
-    PUBLIC AISuite::OpenAICodexFrontend
-    PRIVATE
-        ai-openai-codex-frontend-legacy-projection-oracle
-        snodec::core
-)
-
-if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
-    p3_legacy_oracle_target_sources(
-        P3_LEGACY_CLIENT_ORACLE_SOURCES
-        ai-openai-codex-frontend-legacy-client-oracle
-    )
-    add_library(
-        ai-openai-codex-frontend-legacy-client-oracle STATIC
-        ${P3_LEGACY_CLIENT_ORACLE_SOURCES}
-    )
-    target_compile_definitions(
-        ai-openai-codex-frontend-legacy-client-oracle
-        PRIVATE
-            AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_BUILDING_LIBRARY=1
-            client=legacy_client
-        INTERFACE AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_STATIC_DEFINE=1
-    )
-    target_include_directories(
-        ai-openai-codex-frontend-legacy-client-oracle
-        BEFORE PRIVATE
-            "${P3_LEGACY_ORACLE_INCLUDE_ROOT}"
-            "${PROJECT_SOURCE_DIR}/src"
-    )
-    target_compile_features(
-        ai-openai-codex-frontend-legacy-client-oracle PRIVATE cxx_std_20
-    )
-    target_link_libraries(
-        ai-openai-codex-frontend-legacy-client-oracle
-        PUBLIC AISuite::OpenAICodexFrontend
-        PRIVATE ai-openai-codex-frontend-legacy-projection-oracle
-    )
-    add_executable(
-        CodexFrontendTwoOracleLinkTest
-        oracle/link/CodexFrontendTwoOracleLinkTest.cpp
-        oracle/link/LegacyServerOracleLinkProbe.cpp
-        oracle/link/LegacyClientOracleLinkProbe.cpp
-    )
-    target_compile_features(CodexFrontendTwoOracleLinkTest PRIVATE cxx_std_20)
-    target_link_libraries(
-        CodexFrontendTwoOracleLinkTest
-        PRIVATE
-            ai-openai-codex-frontend-legacy-server-oracle
-            ai-openai-codex-frontend-legacy-client-oracle
-    )
-    add_test(
-        NAME CodexFrontendTwoOracleLinkTest
-        COMMAND CodexFrontendTwoOracleLinkTest
-    )
-    set_tests_properties(
-        CodexFrontendTwoOracleLinkTest
-        PROPERTIES
-            LABELS "component;ai;openai;codex;frontend;p3;oracle;link"
-            TIMEOUT 10
-    )
-    target_link_libraries(
-        CodexFrontendPublicClientAdapterTest
-        PRIVATE ai-openai-codex-frontend-legacy-client-oracle
-    )
-endif()
-
-snodec_add_test(
-    CodexFrontendServerDifferentialTest
-    CodexFrontendServerDifferentialTest.cpp
-)
-target_link_libraries(
-    CodexFrontendServerDifferentialTest
-    PRIVATE
-        snodec-test-support
-        ai-openai-codex-frontend-legacy-server-oracle
-        ai-openai-codex-frontend-server-core
-        snodec::core
-)
-target_compile_features(CodexFrontendServerDifferentialTest PRIVATE cxx_std_20)
-target_compile_definitions(
-    CodexFrontendServerDifferentialTest
-    PRIVATE
-        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_COVERAGE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json"
-        AISUITE_CODEX_FRONTEND_SERVER_DIFFERENTIAL_LEDGER="${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendServerDifferentialTest.ledger.json"
-)
-set_tests_properties(
-    CodexFrontendServerDifferentialTest
-    PROPERTIES
-        FIXTURES_SETUP CodexFrontendServerDifferentialLedger
-        LABELS "component;ai;openai;codex;frontend;server;differential;p2"
-        TIMEOUT 30
-)
-
-if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
-snodec_add_test(
-    CodexFrontendClientDifferentialTest
-    CodexFrontendClientDifferentialTest.cpp
-)
-target_link_libraries(
-    CodexFrontendClientDifferentialTest
-    PRIVATE
-        snodec-test-support
-        ai-openai-codex-frontend-legacy-client-oracle
-        ai-openai-codex-frontend-client-core
-        ai-openai-codex-frontend-server-core
-)
-target_compile_features(CodexFrontendClientDifferentialTest PRIVATE cxx_std_20)
-target_compile_definitions(
-    CodexFrontendClientDifferentialTest
-    PRIVATE
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_COVERAGE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json"
-        AISUITE_CODEX_FRONTEND_CLIENT_DIFFERENTIAL_LEDGER="${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendClientDifferentialTest.ledger.json"
-)
-set_tests_properties(
-    CodexFrontendClientDifferentialTest
-    PROPERTIES
-        FIXTURES_SETUP CodexFrontendClientDifferentialLedger
-        LABELS "component;ai;openai;codex;frontend;client;differential;p2"
-        TIMEOUT 60
-)
-
 snodec_add_test(
     CodexFrontendCompatibilityAdaptersTest
     CodexFrontendCompatibilityAdaptersTest.cpp
@@ -2205,26 +1909,6 @@ set_tests_properties(
         TIMEOUT 30
 )
 
-add_test(
-    NAME CodexFrontendDifferentialCoverageGuardTest
-    COMMAND
-        ${Python3_EXECUTABLE} -B
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendDifferentialCoverageGuardTest.py
-        --coverage ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json
-        --server-ledger ${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendServerDifferentialTest.ledger.json
-        --client-ledger ${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendClientDifferentialTest.ledger.json
-)
-set_tests_properties(
-    CodexFrontendDifferentialCoverageGuardTest
-    PROPERTIES
-        FIXTURES_REQUIRED "CodexFrontendServerDifferentialLedger;CodexFrontendClientDifferentialLedger"
-        FIXTURES_SETUP CodexFrontendDifferentialCoverageProof
-        LABELS "component;ai;openai;codex;frontend;differential;coverage;p2"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        TIMEOUT 30
-)
-endif()
-
 add_executable(
     CodexFrontendDifferentialMutationProbe
     CodexFrontendDifferentialMutationProbe.cpp
@@ -2235,6 +1919,21 @@ target_link_libraries(
 )
 target_compile_features(
     CodexFrontendDifferentialMutationProbe PRIVATE cxx_std_20
+)
+
+add_test(
+    NAME CodexFrontendDifferentialCoverageGuardTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendDifferentialCoverageGuardTest.py
+        --coverage ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json
+)
+set_tests_properties(
+    CodexFrontendDifferentialCoverageGuardTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;differential;coverage;p2"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 30
 )
 
 add_test(
@@ -2251,13 +1950,6 @@ set_tests_properties(
         ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
         TIMEOUT 30
 )
-if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
-    set_tests_properties(
-        CodexFrontendDifferentialMutationTest
-        PROPERTIES FIXTURES_REQUIRED CodexFrontendDifferentialCoverageProof
-    )
-endif()
-
 snodec_add_test(
     CodexFrontendJsonLineFramerTest CodexFrontendJsonLineFramerTest.cpp
 )
@@ -3026,13 +2718,12 @@ add_test(
     COMMAND
         ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendClientContractGuardTest.py
-        --projection ${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp
         --controller ${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/CommandDrainController.cpp
         --integration ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendServiceClientIntegrationTest.cpp
 )
 set_tests_properties(
     CodexFrontendClientContractGuardTest
-    PROPERTIES LABELS "component;ai;openai;codex;frontend;client;lifecycle;projection;policy;a1-7c-1" TIMEOUT 5
+    PROPERTIES LABELS "component;ai;openai;codex;frontend;client;lifecycle;policy;a1-7c-1" TIMEOUT 5
 )
 
 add_executable(CodexStdioScenarioTest CodexStdioScenarioTest.cpp)

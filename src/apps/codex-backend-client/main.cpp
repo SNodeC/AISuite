@@ -270,9 +270,6 @@ int main(int argc, char* argv[]) {
                         [&lifecycle](std::string message) {
                             lifecycle.connectionFailed(std::move(message));
                         },
-                    .onAttemptConnected = {},
-                    .onAttemptDisconnected = {},
-                    .onAttemptFailure = {},
                     .onOutbound = {},
                     .verifiedLocalUnix = verifiedLocalUnix,
                     .onBeforeTransportConnected =

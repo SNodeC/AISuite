@@ -63,8 +63,6 @@ namespace ai::openai::codex::frontend::internal::server {
                                                         std::uint64_t expectedBackendSession,
                                                         std::optional<std::uint64_t> reportedBackendController,
                                                         bool reportedControllerRole) noexcept;
-        [[nodiscard]] static bool
-        closeBackendSession(BackendCoreBridge& bridge, const model::SessionIdentity& frontendSession, std::string reason) noexcept;
     };
 
 } // namespace ai::openai::codex::frontend::internal::server

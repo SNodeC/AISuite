@@ -93,16 +93,19 @@ running in `Disconnected` with stale retained State.
 
 While Disconnected, `help`, `watch`, `reconnect`, and `quit` remain available.
 Remote commands are rejected locally with reconnect guidance and are not saved
-for later surprise execution. `reconnect` creates one new physical attempt
-using the selected configured transport and the same SDK Client. Repeated
-attempts are explicit: there is no automatic reconnect, no command retry, and
-no automatic controller reacquisition. `reconnect` does not overlap an active
-connection attempt or disrupt an already Ready connection.
+for later surprise execution. The selected transport retains one configured
+SNode.C client object. `reconnect` calls `connect()` on that same object after
+the previous physical cycle has fully closed, so its effective socket, HTTP,
+TLS, and RFCOMM configuration remains authoritative without reconstruction.
+Repeated attempts are explicit: there is no second application reconnect
+timer, no command retry, and no automatic controller reacquisition. `reconnect`
+does not overlap an active connection attempt or disrupt an already Ready
+connection.
 
-Each physical attempt carries one immutable generation. Native factories
-capture that generation, while WebSocket/WSS upgrade callbacks additionally
-bind it to the exact originating socket connection. Late HTTP or subprotocol
-callbacks from a retired connection cannot claim or retire a later attempt.
+SNode.C owns the physical connect/retry cycle and the frontend SDK ClientCore
+owns protocol generations. Native and WebSocket/WSS adapters bind only the
+exact live socket connection, so callbacks from a retired physical cycle
+cannot attach to a later ClientCore generation.
 
 The application-owned command queue has finite configurable limits:
 

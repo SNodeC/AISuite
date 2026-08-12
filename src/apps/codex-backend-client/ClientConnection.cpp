@@ -6,45 +6,10 @@
 
 #include "apps/codex-backend-client/CodexBackendClientSocketContext.h"
 
-#include <limits>
 #include <utility>
 
 namespace apps::codex_backend_client {
     namespace sdk = ai::openai::codex::frontend::client;
-
-    std::optional<PhysicalConnectionAttemptGate::Generation> PhysicalConnectionAttemptGate::begin() noexcept {
-        if (activeGeneration || nextGeneration == 0) {
-            return std::nullopt;
-        }
-        const Generation generation = nextGeneration;
-        if (nextGeneration == std::numeric_limits<Generation>::max()) {
-            nextGeneration = 0;
-        } else {
-            ++nextGeneration;
-        }
-        activeGeneration = generation;
-        return generation;
-    }
-
-    bool PhysicalConnectionAttemptGate::isCurrent(const Generation generation) const noexcept {
-        return activeGeneration == generation;
-    }
-
-    bool PhysicalConnectionAttemptGate::complete(const Generation generation) noexcept {
-        if (!isCurrent(generation)) {
-            return false;
-        }
-        activeGeneration.reset();
-        return true;
-    }
-
-    bool PhysicalConnectionAttemptGate::active() const noexcept {
-        return activeGeneration.has_value();
-    }
-
-    std::optional<PhysicalConnectionAttemptGate::Generation> PhysicalConnectionAttemptGate::current() const noexcept {
-        return activeGeneration;
-    }
 
     ClientConnection::ClientConnection(sdk::Client& sdk, ClientConnectionCallbacks callbacks)
         : sdk(sdk)
@@ -74,45 +39,12 @@ namespace apps::codex_backend_client {
         return online && context != nullptr && protocolConnection.isTransportConnected();
     }
 
-    bool ClientConnection::prepareAttempt(const PhysicalConnectionAttemptGate::Generation generation) noexcept {
-        if (generation == 0 || context != nullptr || preparedGeneration != 0) {
-            return false;
-        }
-        preparedGeneration = generation;
-        return true;
-    }
-
-    void ClientConnection::cancelPreparedAttempt(const PhysicalConnectionAttemptGate::Generation generation) noexcept {
-        if (preparedGeneration == generation && context == nullptr) {
-            preparedGeneration = 0;
-        }
-    }
-
-    bool ClientConnection::hasAttachment(const PhysicalConnectionAttemptGate::Generation generation) const noexcept {
-        return context != nullptr && attachmentGeneration == generation;
-    }
-
-    PhysicalConnectionAttemptGate::Generation ClientConnection::preparedAttemptForFactory() const noexcept {
-        return preparedGeneration;
-    }
-
-    bool ClientConnection::acceptsAttemptGeneration(const PhysicalConnectionAttemptGate::Generation attemptGeneration) const noexcept {
-        const bool generationAware = callbacks.onAttemptConnected || callbacks.onAttemptDisconnected || callbacks.onAttemptFailure;
-        return context == nullptr && (attemptGeneration == 0 || attemptGeneration == preparedGeneration) &&
-               (!generationAware || attemptGeneration != 0);
-    }
-
-    void ClientConnection::attach(CodexBackendClientSocketContext& attached,
-                                  const PhysicalConnectionAttemptGate::Generation attemptGeneration) noexcept {
-        if (!acceptsAttemptGeneration(attemptGeneration)) {
+    void ClientConnection::attach(CodexBackendClientSocketContext& attached) noexcept {
+        if (context != nullptr) {
             attached.disconnect();
             return;
         }
         context = &attached;
-        attachmentGeneration = attemptGeneration;
-        if (attemptGeneration != 0) {
-            preparedGeneration = 0;
-        }
         online = false;
         failureReported = false;
     }
@@ -152,12 +84,6 @@ namespace apps::codex_backend_client {
             }
         } catch (...) {
         }
-        try {
-            if (attachmentGeneration != 0 && callbacks.onAttemptConnected) {
-                callbacks.onAttemptConnected(attachmentGeneration);
-            }
-        } catch (...) {
-        }
     }
 
     void ClientConnection::didReceive(CodexBackendClientSocketContext& attached, std::string frame) noexcept {
@@ -182,10 +108,8 @@ namespace apps::codex_backend_client {
             return;
         }
         const bool notify = online;
-        const PhysicalConnectionAttemptGate::Generation detachedGeneration = attachmentGeneration;
         online = false;
         context = nullptr;
-        attachmentGeneration = 0;
         if (applicationShutdown) {
             protocolConnection.transportDisconnected();
         } else {
@@ -194,12 +118,6 @@ namespace apps::codex_backend_client {
         if (notify && callbacks.onDisconnected) {
             try {
                 callbacks.onDisconnected();
-            } catch (...) {
-            }
-        }
-        if (detachedGeneration != 0 && callbacks.onAttemptDisconnected) {
-            try {
-                callbacks.onAttemptDisconnected(detachedGeneration);
             } catch (...) {
             }
         }
@@ -233,12 +151,6 @@ namespace apps::codex_backend_client {
         try {
             if (callbacks.onFailure) {
                 callbacks.onFailure(message);
-            }
-        } catch (...) {
-        }
-        try {
-            if (attachmentGeneration != 0 && callbacks.onAttemptFailure) {
-                callbacks.onAttemptFailure(attachmentGeneration, std::move(message));
             }
         } catch (...) {
         }

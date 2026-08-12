@@ -12,7 +12,6 @@
 #include "core/socket/stream/SocketContextFactory.h"
 
 #include <cstddef>
-#include <cstdint>
 
 namespace apps::codex_backend_client {
 
@@ -28,7 +27,6 @@ namespace apps::codex_backend_client {
     private:
         ClientConnection& connection;
         std::size_t maximumFrameSize;
-        std::uint64_t attemptGeneration;
     };
 
 } // namespace apps::codex_backend_client

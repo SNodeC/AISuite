@@ -3074,15 +3074,6 @@ namespace ai::openai::codex::frontend::internal::server {
         }
     }
 
-    bool ServerCore::enqueueForTesting(ConnectionIdentity identity, ServerMessage message) noexcept {
-        try {
-            Impl::DispatchScope dispatch(*impl);
-            return impl->enqueue(identity, std::move(message));
-        } catch (...) {
-            return false;
-        }
-    }
-
     AuthenticationFailureCode ServerCore::recordPreAuthenticationFailure(const FrontendPeerContext& peer,
                                                                          AuthenticationFailureCode failure) noexcept {
         try {

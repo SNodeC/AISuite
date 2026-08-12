@@ -7,14 +7,12 @@
 
 #include "ai/openai/codex/frontend/FrontendService.h"
 
-#include "ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h"
 #include "ai/openai/codex/frontend/internal/server/BackendCoreBridge.h"
 #include "ai/openai/codex/frontend/internal/server/ServerCore.h"
 #include "core/EventReceiver.h"
 #include "core/timer/Timer.h"
 #include "utils/Timeval.h"
 
-#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -125,25 +123,6 @@ namespace ai::openai::codex::frontend {
 
         ConnectionReceiveResult publicResult(server::ReceiveResult result) {
             return {receiveStatus(result.status), std::move(result.error)};
-        }
-
-        std::string boundedSerializationFailureReason(const CodecError& error) noexcept {
-            constexpr std::string_view Prefix = "frontend protocol serialization failed: ";
-            constexpr std::size_t MaximumReasonBytes = 512;
-            try {
-                const std::size_t maximumDetailBytes = MaximumReasonBytes - Prefix.size();
-                std::size_t detailBytes = std::min(error.message.size(), maximumDetailBytes);
-                if (detailBytes < error.message.size()) {
-                    while (detailBytes > 0 && (static_cast<unsigned char>(error.message[detailBytes]) & 0xc0U) == 0x80U) {
-                        --detailBytes;
-                    }
-                }
-                std::string reason(Prefix);
-                reason.append(error.message, 0, detailBytes);
-                return reason;
-            } catch (...) {
-                return "frontend protocol serialization failed";
-            }
         }
 
     } // namespace
@@ -477,36 +456,6 @@ namespace ai::openai::codex::frontend {
     UpdateBatchConfig FrontendService::batchConfig() const noexcept {
         const std::shared_ptr<Impl> service = impl;
         return service ? service->options.batches : UpdateBatchConfig{};
-    }
-
-    bool FrontendServiceTestAccess::enqueue(FrontendService& service, FrontendConnection& connection, ServerMessage message) noexcept {
-        if (!service.impl || !connection.control || connection.control->service.lock() != service.impl) {
-            return false;
-        }
-        const std::shared_ptr<FrontendService::Impl> owner = service.impl;
-        const std::shared_ptr<server::ServerCore> target = owner->core;
-        if (!target) {
-            return false;
-        }
-        const CodecResult<std::string> encoded = Codec::serializeServer(message);
-        if (encoded) {
-            return target->enqueueForTesting(connection.control->identity, std::move(message));
-        }
-        target->closeConnection(connection.control->identity, boundedSerializationFailureReason(encoded.error()));
-        return false;
-    }
-
-    bool
-    FrontendServiceTestAccess::closeBackendSession(FrontendService& service, FrontendConnection& connection, std::string reason) noexcept {
-        if (!service.impl || !connection.control || connection.control->service.lock() != service.impl) {
-            return false;
-        }
-        const std::shared_ptr<FrontendService::Impl> owner = service.impl;
-        const std::shared_ptr<server::ServerCore> target = owner->core;
-        const std::optional<internal::model::SessionIdentity> session =
-            target ? target->session(connection.control->identity) : std::nullopt;
-        return owner->bridge && session &&
-               server::BackendCoreBridgeTestAccess::closeBackendSession(*owner->bridge, *session, std::move(reason));
     }
 
 } // namespace ai::openai::codex::frontend

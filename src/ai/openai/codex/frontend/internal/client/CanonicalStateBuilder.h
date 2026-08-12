@@ -28,7 +28,7 @@ namespace ai::openai::codex::frontend::client::detail {
 
     // Private cutover adapter. It consumes the typed canonical publication
     // directly; it never encodes a Frontend Protocol Snapshot and never calls
-    // the legacy JSON StateReducer.
+    // a JSON reduction round-trip.
     class CanonicalStateBuilder final {
     public:
         [[nodiscard]] static std::optional<std::shared_ptr<const StateStorage>>

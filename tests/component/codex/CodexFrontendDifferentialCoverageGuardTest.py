@@ -81,62 +81,6 @@ def cases(prefix: str, identity: str, *dimensions: str) -> list[str]:
     return [f"{prefix}:{identity}:{dimension}" for dimension in dimensions]
 
 
-def execution_suite(case_id: str) -> str:
-    """Assign a declared case to the executable that must prove it.
-
-    The mapping is structural: identities still come only from generated
-    authorities, and the ledger carries those exact case IDs.  Keeping this
-    routing here avoids a second hand-maintained list of 105 methods or any
-    other authority family.
-    """
-
-    parts = case_id.split(":")
-    require(len(parts) >= 3, f"invalid differential coverage identity {case_id!r}")
-    family = parts[0]
-    dimension = parts[-1]
-    server_dimensions = {
-        "server",
-        "server-dispatch",
-        "server-legacy",
-        "server-expanded",
-        "parameter-schema",
-        "security",
-        "readiness",
-        "controller",
-        "projection-legacy",
-        "projection-expanded",
-        "projection",
-        "advertisement",
-        "negotiation",
-        "encode",
-        "mapping",
-        "method",
-        "snapshot",
-        "replay",
-        "live",
-        "sequence",
-    }
-    client_dimensions = {
-        "client",
-        "client-dispatch",
-        "client-legacy",
-        "client-expanded",
-        "result-schema",
-        "reducer",
-        "reduction-legacy",
-        "reduction-expanded",
-        "reduction",
-        "response",
-        "client-validation",
-        "decode",
-    }
-    if dimension in server_dimensions:
-        return "server"
-    if dimension in client_dimensions:
-        return "client"
-    raise CoverageError(f"unrouted {family} differential coverage dimension {dimension!r} in {case_id!r}")
-
-
 def derive_document() -> dict[str, Any]:
     manifest = load_json(PROTOCOL_MANIFEST)
     schema = load_json(PROTOCOL_SCHEMA)
@@ -407,7 +351,7 @@ def derive_document() -> dict[str, Any]:
 
     return {
         "formatVersion": 2,
-        "description": "Authority-derived coverage identities and runtime invariants joined to passed P2 old/new differential execution ledgers.",
+        "description": "Authority-derived coverage identities and runtime invariants retained from the passed P2 old/new differential gate.",
         "authorities": {path: canonical_hash(value) for path, value in sorted(authority_values.items())},
         "counts": derived_counts,
         "representations": [
@@ -564,61 +508,9 @@ def validate_case_id_uniqueness(document: dict[str, Any]) -> None:
     require(seen, "coverage manifest contains no case identities")
 
 
-def declared_cases(document: dict[str, Any]) -> dict[str, set[str]]:
-    result: dict[str, set[str]] = {"server": set(), "client": set()}
-
-    def visit(value: Any) -> None:
-        if isinstance(value, dict):
-            for key, child in value.items():
-                if key == "cases":
-                    for case_id in child:
-                        result[execution_suite(case_id)].add(case_id)
-                else:
-                    visit(child)
-        elif isinstance(value, list):
-            for child in value:
-                visit(child)
-
-    visit(document)
-    require(result["server"], "coverage manifest has no server execution cases")
-    require(result["client"], "coverage manifest has no client execution cases")
-    return result
-
-
-def load_execution_ledger(path: Path, expected_suite: str) -> set[str]:
-    ledger = load_json(path)
-    require(isinstance(ledger, dict), f"{path}: execution ledger is not an object")
-    require(ledger.get("formatVersion") == 1, f"{path}: unsupported execution-ledger format")
-    require(ledger.get("suite") == expected_suite, f"{path}: expected {expected_suite!r} execution suite")
-    require(ledger.get("status") == "passed", f"{path}: differential execution did not report passed status")
-    cases_value = ledger.get("cases")
-    require(isinstance(cases_value, list), f"{path}: execution-ledger cases are not an array")
-    require(
-        all(isinstance(case_id, str) and case_id for case_id in cases_value),
-        f"{path}: execution ledger contains an invalid case identity",
-    )
-    require(cases_value == sorted(cases_value), f"{path}: execution-ledger cases are not in canonical order")
-    require(len(cases_value) == len(set(cases_value)), f"{path}: execution ledger contains duplicate cases")
-    return set(cases_value)
-
-
-def validate_execution_ledgers(document: dict[str, Any], server_path: Path, client_path: Path) -> None:
-    expected = declared_cases(document)
-    for suite, path in (("server", server_path), ("client", client_path)):
-        actual = load_execution_ledger(path, suite)
-        missing = sorted(expected[suite] - actual)
-        extra = sorted(actual - expected[suite])
-        require(
-            not missing and not extra,
-            f"{path}: {suite} execution coverage differs; missing={missing!r}, extra={extra!r}",
-        )
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE)
-    parser.add_argument("--server-ledger", type=Path, help="passed server differential execution ledger")
-    parser.add_argument("--client-ledger", type=Path, help="passed client differential execution ledger")
     parser.add_argument(
         "--render",
         action="store_true",
@@ -629,12 +521,9 @@ def main() -> int:
     try:
         expected = derive_document()
         validate_case_id_uniqueness(expected)
-        declared = declared_cases(expected)
         if arguments.render:
             print(json.dumps(expected, indent=2, ensure_ascii=False))
             return 0
-        require(arguments.server_ledger is not None, "--server-ledger is required for an executable coverage proof")
-        require(arguments.client_ledger is not None, "--client-ledger is required for an executable coverage proof")
         actual = load_json(arguments.coverage)
         difference = first_difference(expected, actual)
         if difference:
@@ -643,7 +532,6 @@ def main() -> int:
                 "render the authority-derived replacement with --render"
             )
         validate_case_id_uniqueness(actual)
-        validate_execution_ledgers(actual, arguments.server_ledger, arguments.client_ledger)
         print(
             "P2 differential coverage complete: "
             f"{expected['counts']['methods']} methods "
@@ -657,7 +545,7 @@ def main() -> int:
             f"{expected['counts']['scopes']} scopes, "
             f"{expected['counts']['capabilities']} capabilities, "
             f"{expected['counts']['messageKinds']} message kinds; "
-            f"{len(declared['server'])} server and {len(declared['client'])} client executed comparisons"
+            "permanent authority-derived coverage identities"
         )
         return 0
     except CoverageError as error:

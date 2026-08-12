@@ -474,7 +474,7 @@ namespace ai::openai::codex::frontend::internal::model {
         std::optional<std::int64_t> startedAtMs;
         std::optional<std::int64_t> completedAtMs;
         std::optional<SafeDetail> safeDetails;
-        // The legacy oracle exposes several pre-expanded discriminators and a
+        // Frontend Protocol v1 exposes several pre-expanded discriminators and a
         // nested extensions object.  Retain those bounded representation hints
         // without making either one a second semantic item identity.
         std::optional<std::string> legacyDiscriminator;

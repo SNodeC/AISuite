@@ -17,16 +17,6 @@
 #include <string>
 #include <string_view>
 
-namespace apps::codex_backend_client {
-
-    struct ClientConnectionAttemptTestAccess {
-        static bool accepts(ClientConnection& connection, const PhysicalConnectionAttemptGate::Generation generation) {
-            return connection.acceptsAttemptGeneration(generation);
-        }
-    };
-
-} // namespace apps::codex_backend_client
-
 namespace {
     namespace frontend = ai::openai::codex::frontend;
     namespace sdk = frontend::client;
@@ -65,48 +55,6 @@ int main() {
     firstBinding->reportFailure("first");
     result.expectTrue(webSocketFailures == 1 && !firstBinding->connected() && !secondBinding->connected(),
                       "independent connection-owned WebSocket bindings coexist without global installation ownership");
-
-    app::PhysicalConnectionAttemptGate attempts;
-    const auto firstGeneration = attempts.begin();
-    result.expectTrue(firstGeneration == 1 && attempts.active() && !attempts.begin() && !attempts.complete(2) &&
-                          attempts.isCurrent(*firstGeneration),
-                      "one physical attempt generation is authoritative until that exact generation detaches");
-    result.expectTrue(attempts.complete(*firstGeneration) && !attempts.active() && attempts.begin() == 2,
-                      "a completed physical attempt permits exactly one later monotonically increasing generation");
-
-    app::ClientConnection nativeConnection(firstClient);
-    result.expectTrue(nativeConnection.prepareAttempt(11) && !nativeConnection.prepareAttempt(12) && !nativeConnection.hasAttachment(11),
-                      "a native adapter cannot prepare an overlapping physical attempt");
-    nativeConnection.cancelPreparedAttempt(12);
-
-    app::ClientConnection generationAwareNative(firstClient,
-                                                app::ClientConnectionCallbacks{.onConnected = {},
-                                                                               .onDisconnected = {},
-                                                                               .onFailure = {},
-                                                                               .onAttemptConnected =
-                                                                                   [](std::uint64_t) {
-                                                                                   },
-                                                                               .onAttemptDisconnected = {},
-                                                                               .onAttemptFailure = {},
-                                                                               .onOutbound = {},
-                                                                               .verifiedLocalUnix = false,
-                                                                               .onBeforeTransportConnected = {},
-                                                                               .onLocalShutdown = {}});
-    result.expectTrue(generationAwareNative.prepareAttempt(31) &&
-                          app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 31) &&
-                          !app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 0) &&
-                          !app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 30),
-                      "a generation-aware native factory accepts only its exactly prepared physical attempt");
-    generationAwareNative.cancelPreparedAttempt(31);
-    result.expectTrue(generationAwareNative.prepareAttempt(32) &&
-                          !app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 31) &&
-                          app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 32),
-                      "a late native factory from the retired generation cannot consume the next prepared generation");
-    generationAwareNative.cancelPreparedAttempt(32);
-    result.expectTrue(!nativeConnection.prepareAttempt(12), "a stale native cancellation cannot release the current generation");
-    nativeConnection.cancelPreparedAttempt(11);
-    result.expectTrue(nativeConnection.prepareAttempt(12), "the exact cancelled native generation permits the next attempt");
-    nativeConnection.cancelPreparedAttempt(12);
 
     app::linkFrontendWebSocketClient();
     auto* selector = web::websocket::client::SubProtocolFactorySelector::instance();

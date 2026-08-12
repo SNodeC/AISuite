@@ -495,10 +495,10 @@ def require_public_client_cutover_policy(source_dir: pathlib.Path) -> None:
 
     builder_marker = "detail::CanonicalStateBuilder::build("
     builder_begin = state.find(builder_marker)
-    reducer_begin = state.find("StateReducer::initial()", builder_begin)
-    if builder_begin < 0 or reducer_begin < 0:
+    builder_end = state.find("namespace detail {", builder_begin)
+    if builder_begin < 0 or builder_end < 0:
         raise PolicyFailure("CanonicalStateBuilder implementation boundary is absent")
-    builder = state[builder_begin:reducer_begin]
+    builder = state[builder_begin:builder_end]
     rejected_builder_tokens = [
         token
         for token in ("StateReducer", "encodeProjectedSnapshot", "decodeProjectedSnapshot")
@@ -508,6 +508,75 @@ def require_public_client_cutover_policy(source_dir: pathlib.Path) -> None:
         raise PolicyFailure(
             "CanonicalStateBuilder must construct StateStorage directly from the typed publication: "
             f"rejected={rejected_builder_tokens}"
+        )
+
+
+def require_legacy_cutover_absence(
+    source_dir: pathlib.Path, targets: dict[str, dict[str, object]]
+) -> None:
+    removed_paths = (
+        "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp",
+        "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.h",
+        "src/ai/openai/codex/frontend/detail/FrontendCapabilities.cpp",
+        "src/ai/openai/codex/frontend/detail/FrontendCapabilities.h",
+        "src/ai/openai/codex/frontend/detail/FrontendProjection.cpp",
+        "src/ai/openai/codex/frontend/detail/FrontendProjection.h",
+        "src/ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h",
+        "src/ai/openai/codex/frontend/client/detail/StateReducer.h",
+        "src/apps/codex-backend/FrontendRuntimeBridge.cpp",
+        "src/apps/codex-backend/FrontendRuntimeBridge.h",
+        "src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.cpp",
+        "src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.h",
+        "src/apps/codex-backend/JsonLineFramer.cpp",
+        "src/apps/codex-backend/JsonLineFramer.h",
+        "src/apps/codex-backend-client/JsonLineFramer.cpp",
+        "src/apps/codex-backend-client/JsonLineFramer.h",
+        "tests/component/codex/oracle",
+        "tests/policy/codex/CodexFrontendP3OracleIsolationTest.py",
+        "tests/policy/codex/CodexFrontendP3OracleDependencyResolutionTest.py",
+    )
+    survivors = []
+    for path in removed_paths:
+        candidate = source_dir / path
+        if candidate.is_file() or (
+            candidate.is_dir() and any(entry.is_file() for entry in candidate.rglob("*"))
+        ):
+            survivors.append(path)
+    if survivors:
+        raise PolicyFailure(f"legacy P3 identities remain after cutover: {survivors}")
+
+    removed_targets = {
+        "codex-backend-runtime-bridge",
+        "codex-backend-websocket-subprotocol",
+    }
+    target_survivors = sorted(
+        name
+        for name in targets
+        if name in removed_targets or name.startswith("ai-openai-codex-frontend-legacy-")
+    )
+    if target_survivors:
+        raise PolicyFailure(f"legacy P3 targets remain after cutover: {target_survivors}")
+
+    forbidden_production_tokens = (
+        "StateReducer::",
+        "FrontendRuntimeBridge",
+        "FrontendWebSocketClientRuntime",
+        "PhysicalConnectionAttemptGate",
+        "activePhysicalClient",
+        "prepareAttempt",
+        "copyEffectiveSocketConfiguration",
+        "copyEffectiveHttpConfiguration",
+    )
+    token_failures = [
+        f"{source_label(source_dir, path)}: {token}"
+        for path in source_files(source_dir, [pathlib.Path("src")])
+        for token in forbidden_production_tokens
+        if token in read_source(path)
+    ]
+    if token_failures:
+        raise PolicyFailure(
+            "legacy P3 implementation token remains in production source:\n  "
+            + "\n  ".join(token_failures)
         )
 
 
@@ -558,6 +627,7 @@ def main() -> int:
 
     require_server_core_reentrancy_policy(source_dir)
     require_exact_entity_lookup_policy(source_dir)
+    require_legacy_cutover_absence(source_dir, targets)
 
     protocol = "ai-openai-codex-frontend-protocol"
     model = "ai-openai-codex-frontend-model"
@@ -699,10 +769,10 @@ def main() -> int:
     reject_dependency_patterns(targets, public_client_typed_support, transport_target_patterns)
     reject_dependency_patterns(targets, public_client, transport_target_patterns)
 
-    # P3 Commits 2 and 3 bind the preserved public Pimpl DSOs to the permanent
-    # cores.  The client application still shares the server-owned reference
-    # authentication utility until later transport-composition commits, but
-    # the public client DSO and its core remain transport-free.
+    # The preserved public Pimpl DSOs bind to the permanent cores. The client
+    # application shares the server-owned reference authentication utility as
+    # a final application-only edge, while the public client DSO and its core
+    # remain transport-free.
     require_dependency_closure(targets, "codex-backend", [public_server, server], [client])
     require_dependency_closure(
         targets,
