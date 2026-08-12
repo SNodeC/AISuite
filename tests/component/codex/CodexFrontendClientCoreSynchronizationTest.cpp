@@ -288,6 +288,52 @@ namespace {
         (void) client.receive(*third, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(1)}});
         result.expectTrue(client.ready() && client.state()->projectionFingerprint != std::optional<std::string>{oldFingerprint},
                           "projection refresh publishes only the new canonical fingerprint and refreshed Snapshot");
+
+        Harness restartedHarness;
+        std::size_t restartedSnapshotFallbacks = 0;
+        core::ClientCallbacks restartedCallbacks;
+        restartedCallbacks.onStateUpdated = [&restartedSnapshotFallbacks](const core::StateUpdate& update) {
+            restartedSnapshotFallbacks += update.cause == core::UpdateCause::SnapshotFallback ? 1U : 0U;
+        };
+        core::ClientCore restarted(clientOptions(), std::move(restartedCallbacks));
+        const auto restartedFirst = restarted.attach(restartedHarness.transport());
+        restarted.transportConnected(*restartedFirst);
+        initialReady(restarted, *restartedFirst, 7);
+        restarted.transportDisconnected(*restartedFirst, {"server restarted", true});
+        const auto restartedSecond = restarted.attach(restartedHarness.transport());
+        restarted.transportConnected(*restartedSecond);
+        const auto* futureHello = std::get_if<frontend::Hello>(&restartedHarness.outbound.back().value);
+        const bool lowerWelcomeAccepted =
+            restarted.receive(*restartedSecond, frontend::ServerMessage{welcome(1, frontend::SyncMode::Snapshot)});
+        const bool lowerSnapshotAccepted =
+            restarted.receive(*restartedSecond, frontend::ServerMessage{expandedSnapshot(1)});
+        const bool lowerCompleteAccepted = restarted.receive(
+            *restartedSecond, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(1)}});
+        result.expectTrue(futureHello != nullptr && futureHello->resumeAfter == frontend::SequenceNumber(7) &&
+                              lowerWelcomeAccepted && lowerSnapshotAccepted && lowerCompleteAccepted && restarted.ready() &&
+                              restarted.state()->snapshot && restarted.state()->visibleSequence == model::FrontendSequence(1) &&
+                              restarted.state()->synchronizedThrough == model::FrontendSequence(1) &&
+                              restartedSnapshotFallbacks == 1,
+                          "a restarted server replaces a future retained cursor with its authoritative lower Snapshot fallback");
+        restarted.transportDisconnected(*restartedSecond, {"verify replacement cursor", true});
+        const auto restartedThird = restarted.attach(restartedHarness.transport());
+        restarted.transportConnected(*restartedThird);
+        const auto* replacementHello = std::get_if<frontend::Hello>(&restartedHarness.outbound.back().value);
+        result.expectTrue(replacementHello != nullptr && replacementHello->resumeAfter == frontend::SequenceNumber(1),
+                          "the next physical generation resumes from the restarted server's replacement Snapshot boundary");
+
+        Harness regressedReplayHarness;
+        core::ClientCore regressedReplay(clientOptions());
+        const auto replayFirst = regressedReplay.attach(regressedReplayHarness.transport());
+        regressedReplay.transportConnected(*replayFirst);
+        initialReady(regressedReplay, *replayFirst, 7);
+        regressedReplay.transportDisconnected(*replayFirst, {"replay regression", true});
+        const auto replaySecond = regressedReplay.attach(regressedReplayHarness.transport());
+        regressedReplay.transportConnected(*replaySecond);
+        const bool regressedReplayAccepted =
+            regressedReplay.receive(*replaySecond, frontend::ServerMessage{welcome(1, frontend::SyncMode::Replay)});
+        result.expectTrue(!regressedReplayAccepted && regressedReplay.connectionState() == core::ConnectionState::Disconnected,
+                          "a Replay Welcome still cannot regress behind the requested retained cursor");
     }
 
     void testLegacyAndExplicitOrdering(tests::support::TestResult& result) {

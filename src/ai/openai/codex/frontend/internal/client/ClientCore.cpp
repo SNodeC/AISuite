@@ -2588,7 +2588,8 @@ namespace ai::openai::codex::frontend::internal::client {
                            true);
             return;
         }
-        if (helloResumeAfter.has_value() && welcome.currentSequence.value() < helloResumeAfter->value()) {
+        if (helloResumeAfter.has_value() && welcome.syncMode == SyncMode::Replay &&
+            welcome.currentSequence.value() < helloResumeAfter->value()) {
             failConnection(protocolError(ClientErrorCode::StateDivergence, "Welcome sequence precedes the requested replay cursor"),
                            "frontend synchronization rejected",
                            true);
