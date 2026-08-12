@@ -15,8 +15,6 @@ set(
     CommandParser.h
     Configuration.cpp
     Configuration.h
-    JsonLineFramer.cpp
-    JsonLineFramer.h
     Presenter.cpp
     Presenter.h
     StdinReader.cpp
@@ -43,6 +41,8 @@ target_link_libraries(
         snodec::net-in-stream-legacy
         snodec::net-in6-stream-legacy
         snodec::core
+    PRIVATE
+        ai-openai-codex-frontend-jsonl-framer
 )
 if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
     target_compile_definitions(

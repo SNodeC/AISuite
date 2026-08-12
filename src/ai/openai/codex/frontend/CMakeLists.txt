@@ -65,6 +65,25 @@ target_link_libraries(
 )
 
 add_library(
+    ai-openai-codex-frontend-jsonl-framer STATIC
+    internal/transport/JsonLineFramer.cpp
+)
+set_target_properties(
+    ai-openai-codex-frontend-jsonl-framer
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
+)
+target_include_directories(
+    ai-openai-codex-frontend-jsonl-framer
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+)
+target_compile_features(
+    ai-openai-codex-frontend-jsonl-framer PUBLIC cxx_std_20
+)
+
+add_library(
     ai-openai-codex-frontend-server-core STATIC
     internal/server/BackendProjection.cpp
     internal/server/ServerCore.cpp

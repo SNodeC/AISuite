@@ -2260,10 +2260,10 @@ endif()
 
 snodec_add_test(
     CodexFrontendJsonLineFramerTest CodexFrontendJsonLineFramerTest.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
 )
 target_link_libraries(
-    CodexFrontendJsonLineFramerTest PRIVATE snodec-test-support
+    CodexFrontendJsonLineFramerTest
+    PRIVATE snodec-test-support ai-openai-codex-frontend-jsonl-framer
 )
 target_include_directories(
     CodexFrontendJsonLineFramerTest PRIVATE ${PROJECT_SOURCE_DIR}/src
@@ -2287,7 +2287,6 @@ snodec_add_test(
     CodexFrontendNativeTransportTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContext.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContextFactory.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
 )
 target_include_directories(
@@ -2299,6 +2298,7 @@ target_link_libraries(
         snodec-test-support
         AISuite::OpenAICodexBackend
         AISuite::OpenAICodexFrontend
+        ai-openai-codex-frontend-jsonl-framer
         snodec::core
         snodec::net-un-stream-legacy
         snodec::net-in-stream-legacy
@@ -2642,6 +2642,7 @@ if(TARGET codex-backend-client-support)
     target_link_libraries(
         CodexBackendClientJsonLineFramerTest
         PRIVATE snodec-test-support codex-backend-client-support
+                ai-openai-codex-frontend-jsonl-framer
     )
     target_compile_features(
         CodexBackendClientJsonLineFramerTest PRIVATE cxx_std_20
@@ -2976,7 +2977,6 @@ snodec_add_test(
     CodexBackendUnixAcceptanceTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContext.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContextFactory.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
 )
 target_include_directories(
@@ -2985,7 +2985,8 @@ target_include_directories(
 target_link_libraries(
     CodexBackendUnixAcceptanceTest
     PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
-            AISuite::OpenAICodexBackend snodec::net-un-stream-legacy
+            AISuite::OpenAICodexBackend ai-openai-codex-frontend-jsonl-framer
+            snodec::net-un-stream-legacy
             snodec::core
 )
 target_compile_features(CodexBackendUnixAcceptanceTest PRIVATE cxx_std_20)

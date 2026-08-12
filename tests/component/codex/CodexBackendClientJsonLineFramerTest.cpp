@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "apps/codex-backend-client/JsonLineFramer.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "support/TestResult.h"
 
 #include <string>
@@ -14,7 +14,7 @@
 #include <vector>
 
 int main() {
-    using apps::codex_backend_client::JsonLineFramer;
+    using ai::openai::codex::frontend::internal::transport::JsonLineFramer;
 
     tests::support::TestResult result;
     std::vector<std::string> frames;

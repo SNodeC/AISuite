@@ -8,11 +8,11 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Messages.h"
 #include "ai/openai/codex/frontend/client/Client.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/CodexBackendClientSocketContextFactory.h"
 #include "apps/codex-backend-client/CommandDrainController.h"
 #include "apps/codex-backend-client/CommandParser.h"
-#include "apps/codex-backend-client/JsonLineFramer.h"
 #include "apps/codex-backend-client/Presenter.h"
 #include "apps/codex-backend-client/StdinReader.h"
 #include "core/EventReceiver.h"
@@ -48,6 +48,7 @@
 namespace {
     namespace client = apps::codex_backend_client;
     namespace frontend = ai::openai::codex::frontend;
+    namespace jsonl = ai::openai::codex::frontend::internal::transport;
     namespace sdk_client = ai::openai::codex::frontend::client;
 
     constexpr std::size_t TestMaximumFrameSize = 64 * 1024;
@@ -422,7 +423,7 @@ namespace {
             const auto framing = framer.push(std::string_view(chunk.data(), size), [this](std::string encoded) {
                 clientMessage(std::move(encoded));
             });
-            if (framing == client::JsonLineFramer::Result::FrameTooLarge) {
+            if (framing == jsonl::JsonLineFramer::Result::FrameTooLarge) {
                 state.fail("production client emitted a frame beyond the deterministic server bound");
                 close();
             }
@@ -434,7 +435,7 @@ namespace {
         }
 
         ScenarioState& state;
-        client::JsonLineFramer framer;
+        jsonl::JsonLineFramer framer{client::DEFAULT_MAXIMUM_FRAME_SIZE};
         std::string fragmentedWelcome;
         std::string coalescedHandshake;
         std::string coalescedDrain;

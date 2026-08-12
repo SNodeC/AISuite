@@ -23,8 +23,6 @@ add_library(
     FrontendStreamSocketContextFactory.h
     FrontendWebSecurity.cpp
     FrontendWebSecurity.h
-    JsonLineFramer.cpp
-    JsonLineFramer.h
     ReferenceInvocationPolicy.cpp
     ReferenceInvocationPolicy.h
     UnixPeerCredentials.cpp
@@ -39,7 +37,7 @@ target_link_libraries(
     codex-backend-stream-adapter
     PUBLIC AISuite::OpenAICodexFrontend codex-reference-authentication snodec::net-un-stream-legacy
            snodec::net-in-stream-legacy snodec::net-in6-stream-legacy
-    PRIVATE snodec::core
+    PRIVATE ai-openai-codex-frontend-jsonl-framer snodec::core
 )
 if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
     target_compile_definitions(

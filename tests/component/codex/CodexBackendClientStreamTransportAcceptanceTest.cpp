@@ -7,10 +7,10 @@
 #include "ai/openai/codex/frontend/client/Client.h"
 #include "ai/openai/codex/frontend/client/Controller.h"
 #include "ai/openai/codex/frontend/client/Threads.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "ai/openai/codex/typed/Threads.h"
 #include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/CodexBackendClientSocketContextFactory.h"
-#include "apps/codex-backend-client/JsonLineFramer.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/socket/SocketAddress.h"
@@ -57,6 +57,7 @@
 namespace {
     namespace app = apps::codex_backend_client;
     namespace frontend = ai::openai::codex::frontend;
+    namespace jsonl = ai::openai::codex::frontend::internal::transport;
     namespace sdk = ai::openai::codex::frontend::client;
 
     constexpr std::size_t MaximumFrameBytes = 64U * 1024U;
@@ -205,7 +206,11 @@ namespace {
         std::size_t localShutdowns = 0;
         std::size_t postReconnectCommands = 0;
         std::size_t postReconnectCompletions = 0;
-        std::size_t overlapRejections = 0;
+        std::size_t explicitConnectCalls = 0;
+        std::size_t explicitFlowTerminations = 0;
+        std::uint64_t automaticReconnects = 0;
+        const void* configuredClientIdentity = nullptr;
+        bool reusedConfiguredClient = true;
         std::vector<std::string> sessionIds;
     };
 
@@ -333,7 +338,7 @@ namespace {
             const auto result = framer.push(std::string_view(bytes.data(), size), [this](std::string message) {
                 clientMessage(std::move(message));
             });
-            if (result == app::JsonLineFramer::Result::FrameTooLarge) {
+            if (result == jsonl::JsonLineFramer::Result::FrameTooLarge) {
                 state.fail("CLI adapter emitted an oversized JSONL frame");
                 close();
             }
@@ -345,7 +350,7 @@ namespace {
         }
 
         ScenarioState& state;
-        app::JsonLineFramer framer;
+        jsonl::JsonLineFramer framer{app::DEFAULT_MAXIMUM_FRAME_SIZE};
     };
 
     class FakeFrontendServerFactory final : public core::socket::stream::SocketContextFactory {
@@ -429,12 +434,7 @@ namespace {
                 .onDiagnostic = {}});
     }
 
-    app::ClientConnection
-    makeConnection(sdk::Client& client,
-                   ScenarioState& state,
-                   std::function<void(app::PhysicalConnectionAttemptGate::Generation)> onAttemptConnected,
-                   std::function<void(app::PhysicalConnectionAttemptGate::Generation)> onAttemptDisconnected,
-                   std::function<void(app::PhysicalConnectionAttemptGate::Generation, std::string)> onAttemptFailure) {
+    app::ClientConnection makeConnection(sdk::Client& client, ScenarioState& state, std::function<void()> onDisconnected) {
         return app::ClientConnection(
             client,
             app::ClientConnectionCallbacks{
@@ -443,17 +443,17 @@ namespace {
                         ++state.clientConnected;
                     },
                 .onDisconnected =
-                    [&state] {
+                    [&state, onDisconnected = std::move(onDisconnected)] {
                         ++state.clientDisconnected;
-                        state.stopWhenDetached();
+                        onDisconnected();
                     },
                 .onFailure =
                     [&state](std::string message) {
                         state.fail(std::string(transportName(state.transport)) + " CLI adapter failed: " + message);
                     },
-                .onAttemptConnected = std::move(onAttemptConnected),
-                .onAttemptDisconnected = std::move(onAttemptDisconnected),
-                .onAttemptFailure = std::move(onAttemptFailure),
+                .onAttemptConnected = {},
+                .onAttemptDisconnected = {},
+                .onAttemptFailure = {},
                 .onOutbound =
                     [&state](const sdk::OutboundMessage& message) {
                         if (message.kind == sdk::OutboundKind::Hello) {
@@ -487,39 +487,41 @@ namespace {
         {
             sdk::Client sdk = makeSdk(state);
             state.sdkClient = &sdk;
-            app::PhysicalConnectionAttemptGate physicalAttempts;
-            std::shared_ptr<Client> activeClient;
+            std::function<void()> disconnected;
             std::function<void()> startAttempt;
-            app::ClientConnection connection = makeConnection(
-                sdk,
-                state,
-                [&state, &physicalAttempts](const app::PhysicalConnectionAttemptGate::Generation generation) {
-                    state.result.expectTrue(physicalAttempts.isCurrent(generation),
-                                            "only the current physical JSONL generation may attach to the SDK");
-                },
-                [&state, &physicalAttempts, &activeClient, &startAttempt](const app::PhysicalConnectionAttemptGate::Generation generation) {
-                    if (!physicalAttempts.isCurrent(generation)) {
-                        state.fail("a stale JSONL detach callback reached application lifecycle state");
-                        return;
-                    }
-                    static_cast<void>(physicalAttempts.complete(generation));
-                    std::shared_ptr<Client> retired = std::move(activeClient);
-                    if (state.clientDisconnected == 1) {
-                        core::EventReceiver::atNextTick([retired = std::move(retired), &startAttempt] {
-                            startAttempt();
-                        });
-                    } else {
-                        core::EventReceiver::atNextTick([retired = std::move(retired), &state] {
-                            state.stopWhenDetached();
-                        });
-                    }
-                },
-                [&state, &physicalAttempts](const app::PhysicalConnectionAttemptGate::Generation generation, std::string message) {
-                    if (physicalAttempts.isCurrent(generation)) {
-                        state.fail(std::string(transportName(state.transport)) + " current attempt failed: " + message);
-                    }
-                });
+            app::ClientConnection connection = makeConnection(sdk, state, [&disconnected] {
+                if (disconnected) {
+                    disconnected();
+                }
+            });
             state.connection = &connection;
+            Client configuredClient("a1-7c-1-client-transport-client", connection, std::size_t{MaximumFrameBytes});
+            configuredClient.getConfig()->Instance::forceUnrequired();
+            configuredClient.getConfig()->setRetry(false);
+            configuredClient.getConfig()->setReconnect(true)->setReconnectTime(30);
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+            if constexpr (requires { configuredClient.getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT); }) {
+                configuredClient.getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
+                configuredClient.getConfig()->setCaCertAcceptUnknown(false);
+                configuredClient.getConfig()->setSni("localhost");
+            }
+#endif
+            disconnected = [&state, &configuredClient, &startAttempt] {
+                if (state.clientDisconnected == 1) {
+                    core::EventReceiver::atNextTick([&state, &configuredClient, &startAttempt] {
+                        const bool terminated = configuredClient.getFlowController()->terminateFlow();
+                        state.result.expectTrue(terminated,
+                                                "explicit reconnect terminates the configured client's pending automatic reconnect flow");
+                        state.explicitFlowTerminations += terminated ? 1U : 0U;
+                        startAttempt();
+                    });
+                } else {
+                    core::EventReceiver::atNextTick([&state, &configuredClient] {
+                        static_cast<void>(configuredClient.getFlowController()->terminateFlow());
+                        state.stopWhenDetached();
+                    });
+                }
+            };
             Server server("a1-7c-1-client-transport-server", state);
             server.getConfig()->Instance::forceUnrequired();
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
@@ -537,24 +539,14 @@ namespace {
                 ++state.listenerBound;
                 const Address remote(connectHost, bound.getPort());
                 startAttempt = [&, remote] {
-                    const auto generation = physicalAttempts.begin();
-                    if (!generation || !connection.prepareAttempt(*generation)) {
-                        state.fail("the configured JSONL adapter allowed overlapping physical attempts");
-                        return;
+                    const void* const identity = configuredClient.getConfig();
+                    if (state.configuredClientIdentity == nullptr) {
+                        state.configuredClientIdentity = identity;
+                    } else if (state.configuredClientIdentity != identity) {
+                        state.reusedConfiguredClient = false;
                     }
-                    if (!physicalAttempts.begin()) {
-                        ++state.overlapRejections;
-                    }
-                    activeClient = std::make_shared<Client>("", connection, std::size_t{MaximumFrameBytes});
-                    activeClient->getConfig()->Instance::forceUnrequired();
-#if defined(AISUITE_CODEX_FRONTEND_TLS)
-                    if constexpr (requires { activeClient->getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT); }) {
-                        activeClient->getConfig()->setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
-                        activeClient->getConfig()->setCaCertAcceptUnknown(false);
-                        activeClient->getConfig()->setSni("localhost");
-                    }
-#endif
-                    activeClient->connect(remote, [&state](const Address&, core::socket::State connectStatus) {
+                    ++state.explicitConnectCalls;
+                    configuredClient.connect(remote, [&state](const Address&, core::socket::State connectStatus) {
                         if (connectStatus == core::socket::State::OK) {
                             ++state.connectorSucceeded;
                         } else {
@@ -572,6 +564,7 @@ namespace {
                 },
                 utils::Timeval({5, 0}));
             eventLoopResult = core::SNodeC::start(utils::Timeval({7, 0}));
+            state.automaticReconnects = configuredClient.getFlowController()->getReconnectCount();
             state.connection = nullptr;
             state.sdkClient = nullptr;
         }
@@ -582,8 +575,10 @@ namespace {
                           std::string(transportName(transport)) + " completes two deterministic SDK transport lifecycles");
         result.expectTrue(state.listenerBound == 1 && state.connectorSucceeded == 2 && state.serverConnected == 2 &&
                               state.clientConnected == 2 && state.serverDisconnected == 2 && state.clientDisconnected == 2 &&
-                              state.overlapRejections == 2,
-                          std::string(transportName(transport)) + " uses two sequential real SNode.C connection pairs without overlap");
+                              state.explicitConnectCalls == 2 && state.explicitFlowTerminations == 1 &&
+                              state.automaticReconnects == 0 && state.reusedConfiguredClient,
+                          std::string(transportName(transport)) +
+                              " reuses one configured SNode.C client, cancels pending automatic reconnect, and starts two explicit cycles");
         result.expectTrue(state.authenticationPrepared == 2 && state.helloObservedOutbound == 2 && state.helloReceived == 2 &&
                               state.welcomeReceived == 2 && state.snapshotReceived == 1 && state.syncCompleteReceived == 2 &&
                               state.synchronized == 2 && state.readyTransitions == 2 && state.localShutdowns == 1 &&

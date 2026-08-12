@@ -8,7 +8,7 @@
 #ifndef APPS_CODEX_BACKEND_CLIENT_CODEXBACKENDCLIENTSOCKETCONTEXTFACTORY_H
 #define APPS_CODEX_BACKEND_CLIENT_CODEXBACKENDCLIENTSOCKETCONTEXTFACTORY_H
 
-#include "apps/codex-backend-client/JsonLineFramer.h"
+#include "apps/codex-backend-client/Configuration.h"
 #include "core/socket/stream/SocketContextFactory.h"
 
 #include <cstddef>

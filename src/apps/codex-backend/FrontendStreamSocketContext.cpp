@@ -22,6 +22,7 @@
 
 namespace apps::codex_backend {
 
+    using ai::openai::codex::frontend::internal::transport::JsonLineFramer;
     using ai::openai::codex::frontend::CodecError;
     using ai::openai::codex::frontend::ErrorCode;
     using ai::openai::codex::frontend::FrontendConnectionCallbacks;

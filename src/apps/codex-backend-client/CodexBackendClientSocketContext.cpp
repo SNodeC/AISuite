@@ -13,6 +13,7 @@
 
 #include <array>
 #include <exception>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 
@@ -27,6 +28,9 @@ namespace apps::codex_backend_client {
         : core::socket::stream::SocketContext(socketConnection)
         , connection(connection)
         , framer(maximumFrameSize) {
+        if (maximumFrameSize == 0) {
+            throw std::invalid_argument("the maximum JSONL frame size must be greater than zero");
+        }
         connection.attach(*this, attemptGeneration);
     }
 
@@ -48,6 +52,7 @@ namespace apps::codex_backend_client {
         }
 
         try {
+            using JsonLineFramer = ai::openai::codex::frontend::internal::transport::JsonLineFramer;
             const JsonLineFramer::Result result = framer.push(std::string_view(bytes.data(), size), [this](std::string frame) {
                 if (!disconnecting) {
                     handleFrame(std::move(frame));

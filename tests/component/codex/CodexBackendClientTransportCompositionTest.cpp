@@ -175,15 +175,16 @@ int main() {
         "Instance::getDisabled()",
         "EventReceiver::atNextTick",
         "setMaximumWriteQueueBytes",
-        "setRetry(false)",
-        "setReconnect(false)",
         "beginConnectionAttempt",
+        "startPersistentStreamClient",
+        "selectPersistentStreamClient",
+        "configuredClient.connect",
+        "configuredClient.getFlowController()->terminateFlow()",
         "PhysicalConnectionAttemptGate",
         "physicalAttempts.active()",
         "physicalAttempts.isCurrent(generation)",
-        "prepareAttempt(*generation)",
-        "startStreamAttempt",
         "startWebSocketAttempt",
+        "selectLegacyWebSocketClient",
         "beginWebSocketUpgrade(*generation)",
         "endWebSocketHttp(*generation)",
         "bindAttemptTransport(generation, transport)",
@@ -203,6 +204,32 @@ int main() {
     }
     result.expectTrue(
         complete, "the reference CLI composes every compiled named SNode.C client, preflights effective configuration, and requests codex");
+
+    const std::size_t persistentStart = source.find("const auto startPersistentStreamClient");
+    const std::size_t persistentEnd = source.find("#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)", persistentStart);
+    const std::string persistentComposition =
+        persistentStart != std::string::npos && persistentEnd != std::string::npos
+            ? source.substr(persistentStart, persistentEnd - persistentStart)
+            : std::string{};
+    result.expectTrue(
+        contains(persistentComposition, "configuredClient.connect") &&
+            contains(persistentComposition, "configuredClient.getFlowController()->terminateFlow()") &&
+            !contains(persistentComposition, "PhysicalConnectionAttemptGate") && !contains(persistentComposition, "prepareAttempt") &&
+            !contains(persistentComposition, "std::make_shared") && !contains(persistentComposition, "copyEffectiveSocketConfiguration"),
+        "native transports reconnect through the same configured SNode.C client without application attempt generations or config copies");
+    result.expectTrue(!contains(source, "startStreamAttempt") && !contains(source, "connection.prepareAttempt("),
+                      "active native composition no longer constructs or prepares per-attempt clients");
+
+    const std::size_t webSocketStart = source.find("const auto startWebSocketAttempt");
+    const std::size_t webSocketEnd = source.find("#endif", webSocketStart);
+    const std::string legacyWebSocketComposition =
+        webSocketStart != std::string::npos && webSocketEnd != std::string::npos
+            ? source.substr(webSocketStart, webSocketEnd - webSocketStart)
+            : std::string{};
+    result.expectTrue(contains(legacyWebSocketComposition, "physicalAttempts.begin()") &&
+                          contains(legacyWebSocketComposition, "webSocketRuntime.prepareAttempt") &&
+                          contains(legacyWebSocketComposition, "std::make_shared<Attempt>"),
+                      "Commit 4 leaves the WebSocket attempt architecture intact for the later static-composition cutover");
 
     result.expectTrue(!contains(source, "connectionHandle->disconnect()") && !contains(source, "webSocketRuntimeHandle->disconnect()") &&
                           !contains(source, "request->disconnect()") && !contains(source, "activeRequest->disconnect()"),
