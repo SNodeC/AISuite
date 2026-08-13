@@ -16,6 +16,7 @@
 #include <initializer_list>
 #include <limits>
 #include <set>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -2321,6 +2322,15 @@ namespace ai::openai::codex::frontend::client {
         });
         return found == impl->items.end() ? nullptr : &*found;
     }
+    const ItemState* State::item(const typed::ThreadId& threadId,
+                                 const typed::TurnId& turnId,
+                                 const typed::ItemId& id) const noexcept {
+        const auto found = std::find_if(impl->items.begin(), impl->items.end(), [&](const ItemState& value) {
+            return value.threadId == std::optional<typed::ThreadId>{threadId} &&
+                   value.turnId == std::optional<typed::TurnId>{turnId} && value.id == id;
+        });
+        return found == impl->items.end() ? nullptr : &*found;
+    }
     const PendingRequestState* State::pendingRequest(const PendingRequestId& id) const noexcept {
         const auto found = std::find_if(impl->pendingRequests.begin(), impl->pendingRequests.end(), [&](const PendingRequestState& value) {
             return value.id == id;
@@ -2770,6 +2780,28 @@ namespace ai::openai::codex::frontend::client {
             return false;
         }
 
+        using CanonicalItemIdentity =
+            std::tuple<std::optional<std::string>, std::optional<std::string>, std::string>;
+
+        bool insertCanonicalItemIdentity(std::set<CanonicalItemIdentity>& identities,
+                                         const canonical::ItemData& item,
+                                         std::string& error) {
+            if (item.id.value().empty()) {
+                error = "canonical state contains an empty item identity";
+                return false;
+            }
+            CanonicalItemIdentity identity{
+                item.threadId ? std::optional<std::string>{item.threadId->value()} : std::nullopt,
+                item.turnId ? std::optional<std::string>{item.turnId->value()} : std::nullopt,
+                item.id.value(),
+            };
+            if (identities.emplace(std::move(identity)).second) {
+                return true;
+            }
+            error = "canonical state contains a duplicate item identity";
+            return false;
+        }
+
         bool validateCanonicalLookupIdentities(const canonical::CanonicalSnapshot& source, std::string& error) {
             std::set<std::string> identities;
             for (const canonical::SessionState& session : source.sessions) {
@@ -2792,14 +2824,14 @@ namespace ai::openai::codex::frontend::client {
                 }
             }
 
-            identities.clear();
+            std::set<CanonicalItemIdentity> itemIdentities;
             for (const canonical::ThreadItem& item : source.items) {
-                if (!insertCanonicalIdentity(identities, canonical::itemData(item).id.value(), "item", error)) {
+                if (!insertCanonicalItemIdentity(itemIdentities, canonical::itemData(item), error)) {
                     return false;
                 }
             }
             for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
-                if (!insertCanonicalIdentity(identities, item.value.id.value(), "item", error)) {
+                if (!insertCanonicalItemIdentity(itemIdentities, item.value, error)) {
                     return false;
                 }
             }
@@ -3044,13 +3076,15 @@ namespace ai::openai::codex::frontend::client {
                     std::size_t fallbackTurnItemIndex = 0;
                     for (const canonical::ThreadItem& item : source.items) {
                         const canonical::ItemData& data = canonical::itemData(item);
-                        if (data.turnId.has_value() && *data.turnId == turn.id) {
+                        if (data.threadId == std::optional<canonical::ThreadIdentity>{turn.threadId} && data.turnId.has_value() &&
+                            *data.turnId == turn.id) {
                             orderedTurnItems.emplace_back(data.sourceIndex.value_or(fallbackTurnItemIndex++),
                                                           typed::ItemId{data.id.value()});
                         }
                     }
                     for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
-                        if (item.value.turnId.has_value() && *item.value.turnId == turn.id) {
+                        if (item.value.threadId == std::optional<canonical::ThreadIdentity>{turn.threadId} &&
+                            item.value.turnId.has_value() && *item.value.turnId == turn.id) {
                             orderedTurnItems.emplace_back(item.sourceIndex, typed::ItemId{item.value.id.value()});
                         }
                     }
