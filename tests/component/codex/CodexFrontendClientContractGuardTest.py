@@ -97,11 +97,12 @@ def controller_guard(source: str) -> None:
 
 def integration_guard(source: str) -> None:
     required = (
-        "actualPageIds == expectedPageIds",
-        "projectedOccurrences == PageThreadCount",
-        "exactProjectedContent",
+        "harness->liveSnapshotsSince(protocolBaseline) == 1",
+        "snapshotUpdate",
+        "threadListOperation",
         "exactResponseContent",
         "exactStateContent",
+        "state.threads().size() == RetainedThreadCount",
     )
     missing = [value for value in required if value not in source]
     if missing:
@@ -116,7 +117,9 @@ def integration_guard(source: str) -> None:
         "expandedEventsEmitted == harness->expandedEventsSchemaValid",
         "pendingOperationCount() == 0",
         "beginReplay(lifecycleReplayAfter)",
-        "replayUser->data.at(\"item\") == liveUser->item",
+        "harness->replaySyncMode == frontend::SyncMode::Snapshot",
+        "snapshotContainsUser && snapshotContainsAgent",
+        "harness->replayExpandedEvents == harness->replayValidExpandedEvents",
         "a second typed command is accepted after the completed realistic turn",
     )
     missing_lifecycle = [value for value in lifecycle_required if value not in source]
