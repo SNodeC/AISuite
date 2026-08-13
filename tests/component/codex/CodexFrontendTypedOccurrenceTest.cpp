@@ -301,6 +301,62 @@ namespace {
                           "item upserts preserve mixed ordering, append new identities, and migrate authority without duplicates");
     }
 
+    void testScopedItemIdentityReduction(tests::support::TestResult& result) {
+        model::CanonicalSnapshot state;
+        model::ItemData first{model::ItemIdentity{"item-1"},
+                              model::ThreadIdentity{"first-thread"},
+                              model::TurnIdentity{"first-turn"}};
+        first.agentText = "first";
+        state.items.emplace_back(model::AgentMessageItem{std::move(first)});
+        model::ItemData second{model::ItemIdentity{"item-1"},
+                               model::ThreadIdentity{"second-thread"},
+                               model::TurnIdentity{"second-turn"}};
+        second.agentText = "second";
+        state.items.emplace_back(model::AgentMessageItem{std::move(second)});
+
+        model::ItemData replacement{model::ItemIdentity{"item-1"},
+                                    model::ThreadIdentity{"second-thread"},
+                                    model::TurnIdentity{"second-turn"}};
+        replacement.agentText = "second replaced";
+        auto upsertIdentity = occurrenceIdentity(36, "scoped-item-upsert");
+        upsertIdentity.threadId = model::ThreadIdentity{"second-thread"};
+        upsertIdentity.turnId = model::TurnIdentity{"second-turn"};
+        upsertIdentity.itemId = model::ItemIdentity{"item-1"};
+        const auto upsert = model::makeOccurrence(
+            std::move(upsertIdentity), model::ItemUpsertedOccurrence{model::AgentMessageItem{std::move(replacement)}});
+        const auto upserted = upsert ? model::reduceOccurrence(state, upsert.value())
+                                    : model::ModelResult<model::CanonicalSnapshot>{
+                                          {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+
+        model::ItemContentUpdatedOccurrence content{model::ItemIdentity{"item-1"}};
+        content.threadId = model::ThreadIdentity{"second-thread"};
+        content.turnId = model::TurnIdentity{"second-turn"};
+        content.channel = "agentText";
+        content.content = "second updated";
+        auto contentIdentity = occurrenceIdentity(37, "scoped-item-content");
+        contentIdentity.threadId = content.threadId;
+        contentIdentity.turnId = content.turnId;
+        contentIdentity.itemId = content.itemId;
+        const auto contentOccurrence = model::makeOccurrence(std::move(contentIdentity), std::move(content));
+        const auto updated = upserted && contentOccurrence
+                                 ? model::reduceOccurrence(upserted.value(), contentOccurrence.value())
+                                 : model::ModelResult<model::CanonicalSnapshot>{
+                                       {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        const auto findItem = [](const model::CanonicalSnapshot& snapshot, std::string_view threadId) {
+            return std::find_if(snapshot.items.begin(), snapshot.items.end(), [&](const model::ThreadItem& item) {
+                const model::ItemData& data = model::itemData(item);
+                return data.id == model::ItemIdentity{"item-1"} &&
+                       data.threadId == std::optional<model::ThreadIdentity>{model::ThreadIdentity{std::string(threadId)}};
+            });
+        };
+        const auto firstItem = updated ? findItem(updated.value(), "first-thread") : state.items.end();
+        const auto secondItem = updated ? findItem(updated.value(), "second-thread") : state.items.end();
+        result.expectTrue(updated && updated.value().items.size() == 2 && firstItem != updated.value().items.end() &&
+                              secondItem != updated.value().items.end() && model::itemData(*firstItem).agentText == "first" &&
+                              model::itemData(*secondItem).agentText == "second updated",
+                          "item upsert and content occurrences target the exact thread/turn/item identity when provider IDs repeat");
+    }
+
     void testPendingOrderingAndAuthorityMigration(tests::support::TestResult& result) {
         model::CanonicalSnapshot state;
         state.pendingRequests.push_back(knownPending("first", 0));
@@ -828,6 +884,7 @@ int main() {
     testGeneratedMultiFamilyGroup(result);
     testItemContentPresence(result);
     testItemOrderingAndAuthorityMigration(result);
+    testScopedItemIdentityReduction(result);
     testPendingOrderingAndAuthorityMigration(result);
     testDescendantReplacementOrdering(result);
     testDiagnosticOccurrenceShape(result);

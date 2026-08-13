@@ -144,6 +144,16 @@ namespace {
                     }
                     return;
                 }
+                if (*method == "thread/read") {
+                    ++providerThreadReadCalls;
+                    const std::string threadId = message.value("params", Json::object()).value("threadId", "");
+                    Json items = Json::array({lifecycleUserItem()});
+                    Json turns = Json::array(
+                        {tests::codex::turnValue(threadId, "turn-" + threadId, "completed", std::move(items))});
+                    tests::codex::inject(
+                        callbacks, Json{{"id", *id}, {"result", tests::codex::threadOperationResult(threadId, std::move(turns))}});
+                    return;
+                }
                 if (!this->turnLifecycle) {
                     return;
                 }
@@ -668,6 +678,7 @@ namespace {
         std::optional<frontend::SyncMode> replaySyncMode;
         std::optional<frontend::Snapshot> replaySnapshot;
         std::size_t providerListCalls = 0;
+        std::size_t providerThreadReadCalls = 0;
         std::size_t providerThreadStartCalls = 0;
         std::size_t providerTurnStartCalls = 0;
         std::size_t lifecycleNotificationsInjected = 0;
@@ -798,9 +809,67 @@ namespace {
                         [this]() {
                             afterTicks(4, [this]() {
                                 expectInitialState();
-                                beginCompactList();
+                                beginFirstThreadRead();
                             });
                         });
+                });
+        }
+
+        void beginFirstThreadRead() {
+            readCompletions = 0;
+            firstReadSucceeded = false;
+            const client::Submission submission = harness->sdk->threads().read(
+                typed::ThreadReadParams{typed::ThreadId{"live-thread-0"}, true},
+                [this](const client::OperationResult<client::ThreadReadResult>& operation) {
+                    ++readCompletions;
+                    firstReadSucceeded = operation.succeeded();
+                });
+            result.expectTrue(submission.accepted(), "the first full thread.read is accepted on the observer SDK connection");
+            waitUntil(
+                "the first full thread.read completes on the observer SDK connection",
+                [this]() {
+                    harness->settle();
+                    return readCompletions == 1;
+                },
+                [this]() {
+                    beginSecondThreadRead();
+                });
+        }
+
+        void beginSecondThreadRead() {
+            secondReadSucceeded = false;
+            const client::Submission submission = harness->sdk->threads().read(
+                typed::ThreadReadParams{typed::ThreadId{"live-thread-1"}, true},
+                [this](const client::OperationResult<client::ThreadReadResult>& operation) {
+                    ++readCompletions;
+                    secondReadSucceeded = operation.succeeded();
+                });
+            result.expectTrue(submission.accepted(), "the second full thread.read is accepted on the same observer SDK connection");
+            waitUntil(
+                "the second full thread.read completes on the same observer SDK connection",
+                [this]() {
+                    harness->settle();
+                    return readCompletions == 2;
+                },
+                [this]() {
+                    const client::State state = harness->sdk->state();
+                    const client::ThreadState* firstThread = state.thread("live-thread-0");
+                    const client::ThreadState* secondThread = state.thread("live-thread-1");
+                    const client::ItemState* firstItem = state.item(typed::ThreadId{"live-thread-0"},
+                                                                    typed::TurnId{"turn-live-thread-0"},
+                                                                    typed::ItemId{std::string(LifecycleUserItemId)});
+                    const client::ItemState* secondItem = state.item(typed::ThreadId{"live-thread-1"},
+                                                                     typed::TurnId{"turn-live-thread-1"},
+                                                                     typed::ItemId{std::string(LifecycleUserItemId)});
+                    result.expectTrue(firstReadSucceeded && secondReadSucceeded && harness->providerThreadReadCalls == 2 &&
+                                          firstThread != nullptr && firstThread->fullyLoaded && secondThread != nullptr &&
+                                          secondThread->fullyLoaded && firstItem != nullptr && secondItem != nullptr &&
+                                          firstItem != secondItem && harness->sdk->isReady() && harness->sdkConnection->isOpen() &&
+                                          harness->sdk->pendingOperationCount() == 0 && harness->sdkCloseReasons.empty() &&
+                                          harness->sdkProtocolErrors == 0,
+                                      "two full thread.read operations with repeated provider item IDs complete on one persistent "
+                                      "observer frontend session");
+                    beginCompactList();
                 });
         }
 
@@ -1311,6 +1380,7 @@ namespace {
         std::optional<frontend::SequenceNumber> cursorBefore;
         std::size_t completions = 0;
         std::size_t secondCompletions = 0;
+        std::size_t readCompletions = 0;
         std::size_t controllerCompletions = 0;
         std::size_t threadStartCompletions = 0;
         std::size_t turnStartCompletions = 0;
@@ -1327,6 +1397,8 @@ namespace {
         std::optional<client::ThreadStartResult> threadStartResult;
         std::optional<client::TurnStartResult> turnStartResult;
         bool finishing = false;
+        bool firstReadSucceeded = false;
+        bool secondReadSucceeded = false;
         bool finished = false;
         std::string waitingDescription = "not started";
     };

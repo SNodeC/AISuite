@@ -29,6 +29,7 @@ namespace {
     namespace core = frontend::internal::client;
     namespace model = frontend::internal::model;
     namespace generated = frontend::generated;
+    namespace typed = ai::openai::codex::typed;
 
     std::string traceText(const std::vector<std::string>& trace) {
         std::string result;
@@ -557,6 +558,46 @@ namespace {
             "CanonicalStateBuilder rejects duplicate or empty public lookup identities, including typed/legacy overlap, before commit");
     }
 
+    void testScopedItemIdentities(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState publication;
+        publication.revision = 1;
+        publication.freshness = core::PublishedFreshness::Current;
+        publication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(1, 1, "first thread");
+        snapshot.threads.emplace_back(model::ThreadIdentity{"second-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"first-turn"}, model::ThreadIdentity{"adapter-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"second-turn"}, model::ThreadIdentity{"second-thread"});
+
+        model::ItemData first{model::ItemIdentity{"item-1"},
+                              model::ThreadIdentity{"adapter-thread"},
+                              model::TurnIdentity{"first-turn"}};
+        first.summary = "first scoped item";
+        snapshot.items.push_back(model::UserMessageItem{std::move(first)});
+        model::ItemData second{model::ItemIdentity{"item-1"},
+                               model::ThreadIdentity{"second-thread"},
+                               model::TurnIdentity{"second-turn"}};
+        second.summary = "second scoped item";
+        snapshot.items.push_back(model::AgentMessageItem{std::move(second)});
+        publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
+
+        std::string error;
+        const auto state = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const client::ItemState* firstItem = state ? state->item(typed::ThreadId{"adapter-thread"},
+                                                                 typed::TurnId{"first-turn"},
+                                                                 typed::ItemId{"item-1"})
+                                                   : nullptr;
+        const client::ItemState* secondItem = state ? state->item(typed::ThreadId{"second-thread"},
+                                                                  typed::TurnId{"second-turn"},
+                                                                  typed::ItemId{"item-1"})
+                                                    : nullptr;
+        result.expectTrue(state.has_value() && error.empty() && state->items().size() == 2 && firstItem != nullptr &&
+                              secondItem != nullptr && firstItem->summary == std::optional<std::string>{"first scoped item"} &&
+                              secondItem->summary == std::optional<std::string>{"second scoped item"},
+                          "CanonicalStateBuilder retains repeated provider item IDs under distinct thread and turn parents");
+    }
+
     void testHybridExpandedPublicationRetainsLegacyItems(tests::support::TestResult& result) {
         client::Client adopter(publicOptions());
         core::PublishedState publication;
@@ -784,6 +825,7 @@ int main() {
     tests::support::TestResult result;
     testDirectCanonicalStateBuilder(result);
     testCanonicalLookupIdentityPreflight(result);
+    testScopedItemIdentities(result);
     testHybridExpandedPublicationRetainsLegacyItems(result);
     testPublicClientCoreAdapter(result);
     testTransactionalPreparationFailure(result);

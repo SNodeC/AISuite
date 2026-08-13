@@ -53,6 +53,9 @@ namespace ai::openai::codex::frontend::client {
         [[nodiscard]] std::span<const ItemState> items() const noexcept;
         [[nodiscard]] const ItemState* item(const typed::ItemId& id) const noexcept;
         [[nodiscard]] const ItemState* item(std::string_view id) const noexcept;
+        [[nodiscard]] const ItemState* item(const typed::ThreadId& threadId,
+                                            const typed::TurnId& turnId,
+                                            const typed::ItemId& id) const noexcept;
         [[nodiscard]] bool hasPendingRequestProjection() const noexcept;
         [[nodiscard]] std::span<const PendingRequestState> pendingRequests() const noexcept;
         [[nodiscard]] const PendingRequestState* pendingRequest(const PendingRequestId& id) const noexcept;

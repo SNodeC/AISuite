@@ -779,18 +779,22 @@ namespace ai::openai::codex::frontend::internal::model {
             }
         }
 
-        std::optional<std::size_t> itemSourceIndex(const CanonicalSnapshot& snapshot, const ItemIdentity& id) {
+        bool sameItemIdentity(const ItemData& left, const ItemData& right) noexcept {
+            return left.id == right.id && left.threadId == right.threadId && left.turnId == right.turnId;
+        }
+
+        std::optional<std::size_t> itemSourceIndex(const CanonicalSnapshot& snapshot, const ItemData& identity) {
             std::optional<std::size_t> result;
             for (const ThreadItem& item : snapshot.items) {
                 const ItemData& value = itemData(item);
-                if (value.id == id && value.sourceIndex.has_value()) {
+                if (sameItemIdentity(value, identity) && value.sourceIndex.has_value()) {
                     if (!result.has_value() || *value.sourceIndex < *result) {
                         result = *value.sourceIndex;
                     }
                 }
             }
             for (const LegacyItemCompatibility& item : snapshot.legacyItems) {
-                if (item.value.id == id && (!result.has_value() || item.sourceIndex < *result)) {
+                if (sameItemIdentity(item.value, identity) && (!result.has_value() || item.sourceIndex < *result)) {
                     result = item.sourceIndex;
                 }
             }
@@ -818,13 +822,13 @@ namespace ai::openai::codex::frontend::internal::model {
         void upsertItem(CanonicalSnapshot& snapshot, ThreadItem replacement) {
             normalizeItemSourceOrder(snapshot);
             ItemData& replacementData = mutableItemData(replacement);
-            const ItemIdentity id = replacementData.id;
-            const std::size_t sourceIndex = itemSourceIndex(snapshot, id).value_or(snapshot.items.size() + snapshot.legacyItems.size());
+            const std::size_t sourceIndex =
+                itemSourceIndex(snapshot, replacementData).value_or(snapshot.items.size() + snapshot.legacyItems.size());
             std::erase_if(snapshot.items, [&](const ThreadItem& item) {
-                return itemData(item).id == id;
+                return sameItemIdentity(itemData(item), replacementData);
             });
             std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
-                return item.value.id == id;
+                return sameItemIdentity(item.value, replacementData);
             });
             replacementData.sourceIndex = sourceIndex;
             snapshot.items.push_back(std::move(replacement));
@@ -833,13 +837,13 @@ namespace ai::openai::codex::frontend::internal::model {
 
         void upsertLegacyItem(CanonicalSnapshot& snapshot, LegacyItemCompatibility replacement) {
             normalizeItemSourceOrder(snapshot);
-            const ItemIdentity id = replacement.value.id;
-            const std::size_t sourceIndex = itemSourceIndex(snapshot, id).value_or(snapshot.items.size() + snapshot.legacyItems.size());
+            const std::size_t sourceIndex =
+                itemSourceIndex(snapshot, replacement.value).value_or(snapshot.items.size() + snapshot.legacyItems.size());
             std::erase_if(snapshot.items, [&](const ThreadItem& item) {
-                return itemData(item).id == id;
+                return sameItemIdentity(itemData(item), replacement.value);
             });
             std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
-                return item.value.id == id;
+                return sameItemIdentity(item.value, replacement.value);
             });
             replacement.sourceIndex = sourceIndex;
             replacement.value.sourceIndex = sourceIndex;
@@ -2070,24 +2074,13 @@ namespace ai::openai::codex::frontend::internal::model {
                                         affectedTurns.push_back(turn.id);
                                     }
                                 }
-                                std::vector<ItemIdentity> replacementItems;
-                                replacementItems.reserve(update.items.size());
-                                for (const ThreadItem& item : update.items) {
-                                    replacementItems.push_back(itemData(item).id);
-                                }
                                 replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
-                                    return (item.turnId.has_value() &&
-                                            std::find(affectedTurns.begin(), affectedTurns.end(), *item.turnId) != affectedTurns.end()) ||
-                                           std::find(replacementItems.begin(), replacementItems.end(), item.id) != replacementItems.end();
+                                    return item.threadId == std::optional<ThreadIdentity>{update.thread.id} ||
+                                           (!item.threadId.has_value() && item.turnId.has_value() &&
+                                            std::find(affectedTurns.begin(), affectedTurns.end(), *item.turnId) != affectedTurns.end());
                                 });
-                                std::vector<TurnIdentity> replacementTurns;
-                                replacementTurns.reserve(update.turns.size());
-                                for (const TurnState& turn : update.turns) {
-                                    replacementTurns.push_back(turn.id);
-                                }
                                 replaceOrderedSubset(reduced.turns, update.turns, [&](const TurnState& turn) {
-                                    return turn.threadId == update.thread.id ||
-                                           std::find(replacementTurns.begin(), replacementTurns.end(), turn.id) != replacementTurns.end();
+                                    return turn.threadId == update.thread.id;
                                 });
                             }
                         } else if constexpr (std::is_same_v<Update, ThreadRemovedOccurrence>) {
@@ -2114,18 +2107,14 @@ namespace ai::openai::codex::frontend::internal::model {
                         } else if constexpr (std::is_same_v<Update, TurnUpsertedOccurrence>) {
                             reduced.turnsPresent = true;
                             upsert(reduced.turns, update.turn, [&](const TurnState& value) {
-                                return value.id == update.turn.id;
+                                return value.threadId == update.turn.threadId && value.id == update.turn.id;
                             });
                             if (update.replaceItems) {
                                 reduced.itemsPresent = true;
-                                std::vector<ItemIdentity> replacementItems;
-                                replacementItems.reserve(update.items.size());
-                                for (const ThreadItem& item : update.items) {
-                                    replacementItems.push_back(itemData(item).id);
-                                }
                                 replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
-                                    return item.turnId == std::optional<TurnIdentity>{update.turn.id} ||
-                                           std::find(replacementItems.begin(), replacementItems.end(), item.id) != replacementItems.end();
+                                    return item.turnId == std::optional<TurnIdentity>{update.turn.id} &&
+                                           (!item.threadId.has_value() ||
+                                            item.threadId == std::optional<ThreadIdentity>{update.turn.threadId});
                                 });
                             }
                         } else if constexpr (std::is_same_v<Update, ItemUpsertedOccurrence>) {
@@ -2133,10 +2122,29 @@ namespace ai::openai::codex::frontend::internal::model {
                             upsertItem(reduced, update.item);
                         } else if constexpr (std::is_same_v<Update, ItemContentUpdatedOccurrence>) {
                             reduced.itemsPresent = true;
+                            const auto foundById =
+                                std::find_if(reduced.items.begin(), reduced.items.end(), [&](const ThreadItem& value) {
+                                    return itemData(value).id == update.itemId;
+                                });
                             const auto found = std::find_if(reduced.items.begin(), reduced.items.end(), [&](const ThreadItem& value) {
-                                return itemData(value).id == update.itemId;
+                                const ItemData& item = itemData(value);
+                                return item.id == update.itemId && (!update.threadId.has_value() || item.threadId == update.threadId) &&
+                                       (!update.turnId.has_value() || item.turnId == update.turnId);
                             });
                             if (found == reduced.items.end()) {
+                                if (foundById != reduced.items.end()) {
+                                    const ItemData& target = itemData(*foundById);
+                                    if (update.threadId.has_value() && target.threadId != update.threadId) {
+                                        fail(OccurrenceErrorCode::InvalidPayload,
+                                             "/threadId",
+                                             "item content parent thread does not match the target item");
+                                    }
+                                    if (update.turnId.has_value() && target.turnId != update.turnId) {
+                                        fail(OccurrenceErrorCode::InvalidPayload,
+                                             "/turnId",
+                                             "item content parent turn does not match the target item");
+                                    }
+                                }
                                 fail(OccurrenceErrorCode::InvalidPayload, "/itemId", "item content target is missing");
                             }
                             const ItemData& target = itemData(*found);
