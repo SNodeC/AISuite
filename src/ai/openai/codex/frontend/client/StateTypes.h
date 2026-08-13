@@ -582,7 +582,43 @@ namespace ai::openai::codex::frontend::client {
         bool operator==(const ConversationSemanticState&) const = default;
     };
 
+    struct CapacityLimitsProvenanceState {
+        std::size_t maxSessions = 0;
+        std::size_t maxObservers = 0;
+        std::size_t maxActiveOperations = 0;
+        std::size_t maxPendingRequests = 0;
+        std::size_t maxRetainedThreads = 0;
+        std::size_t maxRetainedTurns = 0;
+        std::size_t maxRetainedItems = 0;
+        std::size_t maxAccumulatedContentBytes = 0;
+        std::size_t maxSnapshotBytes = 0;
+        std::size_t maxRetainedNotices = 0;
+        std::size_t maxRetainedProcesses = 0;
+        std::size_t maxProcessOutputBytesPerProcess = 0;
+        std::size_t maxAccumulatedProcessOutputBytes = 0;
+        std::size_t maxRetainedFilesystemWatches = 0;
+        std::size_t maxRetainedFuzzySearchSessions = 0;
+        std::size_t maxRetainedActivityRecords = 0;
+        bool operator==(const CapacityLimitsProvenanceState&) const = default;
+    };
+
     struct CapacityProvenanceState {
+        std::uint64_t rejectedSessions = 0;
+        std::uint64_t rejectedObservers = 0;
+        std::uint64_t rejectedOperations = 0;
+        std::uint64_t providerRequestOverflows = 0;
+        std::uint64_t evictedThreads = 0;
+        std::uint64_t evictedTurns = 0;
+        std::uint64_t evictedItems = 0;
+        std::uint64_t droppedContentBytes = 0;
+        std::uint64_t snapshotOmissions = 0;
+        std::uint64_t evictedNotices = 0;
+        std::uint64_t evictedProcesses = 0;
+        std::uint64_t droppedProcessOutputBytes = 0;
+        std::uint64_t evictedFilesystemWatches = 0;
+        std::uint64_t evictedFuzzySearchSessions = 0;
+        std::uint64_t evictedActivityRecords = 0;
+        CapacityLimitsProvenanceState limits;
         std::size_t sourceSessionCount = 0;
         std::size_t sourcePendingRequestCount = 0;
         std::size_t omittedThreads = 0;

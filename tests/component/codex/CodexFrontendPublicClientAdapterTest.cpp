@@ -343,7 +343,38 @@ namespace {
                                                                           {"omittedNotifications", 0},
                                                                           {"truncated", false}}},
                                                                         {"capacityProvenance",
-                                                                         {{"sourceSessionCount", 2},
+                                                                         {{"rejectedSessions", std::numeric_limits<std::uint64_t>::max()},
+                                                                          {"rejectedObservers", 12},
+                                                                          {"rejectedOperations", 13},
+                                                                          {"providerRequestOverflows", 14},
+                                                                          {"evictedThreads", 15},
+                                                                          {"evictedTurns", 16},
+                                                                          {"evictedItems", 17},
+                                                                          {"droppedContentBytes", 18},
+                                                                          {"snapshotOmissions", 19},
+                                                                          {"evictedNotices", 20},
+                                                                          {"evictedProcesses", 21},
+                                                                          {"droppedProcessOutputBytes", 22},
+                                                                          {"evictedFilesystemWatches", 23},
+                                                                          {"evictedFuzzySearchSessions", 24},
+                                                                          {"evictedActivityRecords", 25},
+                                                                          {"maxSessions", 101},
+                                                                          {"maxObservers", 102},
+                                                                          {"maxActiveOperations", 103},
+                                                                          {"maxPendingRequests", 104},
+                                                                          {"maxRetainedThreads", 105},
+                                                                          {"maxRetainedTurns", 106},
+                                                                          {"maxRetainedItems", 107},
+                                                                          {"maxAccumulatedContentBytes", 108},
+                                                                          {"maxSnapshotBytes", 109},
+                                                                          {"maxRetainedNotices", 110},
+                                                                          {"maxRetainedProcesses", 111},
+                                                                          {"maxProcessOutputBytesPerProcess", 112},
+                                                                          {"maxAccumulatedProcessOutputBytes", 113},
+                                                                          {"maxRetainedFilesystemWatches", 114},
+                                                                          {"maxRetainedFuzzySearchSessions", 115},
+                                                                          {"maxRetainedActivityRecords", 116},
+                                                                          {"sourceSessionCount", 2},
                                                                           {"sourcePendingRequestCount", 3},
                                                                           {"omittedThreads", 4},
                                                                           {"omittedTurns", 5},
@@ -400,7 +431,23 @@ namespace {
                 operations->entries.front().resultAlternative == 17 && conversations && conversations->latestGoalSet &&
                 conversations->latestGoalSet->objective == "finish projection" && filesystem && filesystem->latestResults.size() == 1 &&
                 filesystem->latestResults.front().resultAlternative == 31 && provenance && provenance->sourceSessionCount == 2 &&
-                provenance->omittedItems == 6 && provenance->truncated,
+                provenance->omittedItems == 6 && provenance->truncated &&
+                provenance->rejectedSessions == std::numeric_limits<std::uint64_t>::max() &&
+                provenance->rejectedObservers == 12 && provenance->rejectedOperations == 13 &&
+                provenance->providerRequestOverflows == 14 && provenance->evictedThreads == 15 && provenance->evictedTurns == 16 &&
+                provenance->evictedItems == 17 && provenance->droppedContentBytes == 18 && provenance->snapshotOmissions == 19 &&
+                provenance->evictedNotices == 20 && provenance->evictedProcesses == 21 &&
+                provenance->droppedProcessOutputBytes == 22 && provenance->evictedFilesystemWatches == 23 &&
+                provenance->evictedFuzzySearchSessions == 24 && provenance->evictedActivityRecords == 25 &&
+                provenance->limits.maxSessions == 101 && provenance->limits.maxObservers == 102 &&
+                provenance->limits.maxActiveOperations == 103 && provenance->limits.maxPendingRequests == 104 &&
+                provenance->limits.maxRetainedThreads == 105 && provenance->limits.maxRetainedTurns == 106 &&
+                provenance->limits.maxRetainedItems == 107 && provenance->limits.maxAccumulatedContentBytes == 108 &&
+                provenance->limits.maxSnapshotBytes == 109 && provenance->limits.maxRetainedNotices == 110 &&
+                provenance->limits.maxRetainedProcesses == 111 && provenance->limits.maxProcessOutputBytesPerProcess == 112 &&
+                provenance->limits.maxAccumulatedProcessOutputBytes == 113 &&
+                provenance->limits.maxRetainedFilesystemWatches == 114 &&
+                provenance->limits.maxRetainedFuzzySearchSessions == 115 && provenance->limits.maxRetainedActivityRecords == 116,
             "public additive semantic views preserve nested turn, realtime, item, request, domain, aggregate, and provenance facts");
 
         client::State immutable = first.value_or(client::State{});

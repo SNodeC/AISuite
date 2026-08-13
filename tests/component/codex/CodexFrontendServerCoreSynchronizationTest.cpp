@@ -470,6 +470,21 @@ namespace {
             "set", "post-thread", "finish projection", "active", std::nullopt, {9, backend::Freshness::Current}};
         postTurnBackend.filesystem.latestResults.push_back(
             {"fs/readFile", 31, "completed", std::nullopt, "cursor", 1, true, {10, backend::Freshness::Stale}});
+        postTurnBackend.capacity.state.rejectedSessions = 11;
+        postTurnBackend.capacity.state.providerRequestOverflows = 12;
+        postTurnBackend.capacity.state.evictedThreads = 13;
+        postTurnBackend.capacity.state.droppedContentBytes = 14;
+        postTurnBackend.capacity.state.snapshotOmissions = 15;
+        postTurnBackend.capacity.state.evictedNotices = 16;
+        postTurnBackend.capacity.state.droppedProcessOutputBytes = 17;
+        postTurnBackend.capacity.state.evictedFuzzySearchSessions = 18;
+        postTurnBackend.capacity.state.limits.maxSessions = 19;
+        postTurnBackend.capacity.state.limits.maxSnapshotBytes = 20;
+        postTurnBackend.capacity.state.limits.maxRetainedActivityRecords = 21;
+        postTurnBackend.capacity.omittedThreads = 22;
+        postTurnBackend.capacity.sourceSessionCount = 23;
+        postTurnBackend.capacity.truncated = true;
+        postTurnBackend.capacity.mandatoryCoreExceedsLimit = true;
         server::BackendProjection backendProjection;
         const model::ModelResult<model::CanonicalSnapshot> projectedPostTurn = backendProjection.projectSnapshot(postTurnBackend);
         const frontend::Json* semanticProjection = projectedPostTurn ? &projectedPostTurn.value().extensions.json() : nullptr;
@@ -479,6 +494,9 @@ namespace {
         const frontend::Json* realtime = projectedPostTurn ? &projectedPostTurn.value().threads.front().safeDetails.json().at("realtime")
                                                            : nullptr;
         const frontend::Json* failure = projectedPostTurn ? &projectedPostTurn.value().turns.front().safeDetails.json() : nullptr;
+        const frontend::Json* capacity = semanticProjection && semanticProjection->contains("capacityProvenance")
+                                             ? &semanticProjection->at("capacityProvenance")
+                                             : nullptr;
         result.expectTrue(
             projectedPostTurn.hasValue() && semanticProjection && semanticProjection->contains("providerOperationsSemantic") &&
                 semanticProjection->contains("conversationSemantic") && semanticProjection->contains("filesystemProviderSemantic") &&
@@ -486,8 +504,15 @@ namespace {
                 providerError->value("message", "") == "bounded provider failure" && realtime &&
                 realtime->value("lastError", "") == "safe realtime failure" && failure &&
                 failure->value("failureCodexErrorDiscriminator", "") == "httpConnectionFailed" &&
-                failure->value("failureHttpStatusCode", 0) == 503,
-            "bounded error, turn, realtime, aggregate, and domain semantics project through v1 compatibility carriers");
+                failure->value("failureHttpStatusCode", 0) == 503 && capacity && capacity->value("rejectedSessions", 0) == 11 &&
+                capacity->value("providerRequestOverflows", 0) == 12 && capacity->value("evictedThreads", 0) == 13 &&
+                capacity->value("droppedContentBytes", 0) == 14 && capacity->value("snapshotOmissions", 0) == 15 &&
+                capacity->value("evictedNotices", 0) == 16 && capacity->value("droppedProcessOutputBytes", 0) == 17 &&
+                capacity->value("evictedFuzzySearchSessions", 0) == 18 && capacity->value("maxSessions", 0) == 19 &&
+                capacity->value("maxSnapshotBytes", 0) == 20 && capacity->value("maxRetainedActivityRecords", 0) == 21 &&
+                capacity->value("omittedThreads", 0) == 22 && capacity->value("sourceSessionCount", 0) == 23 &&
+                capacity->value("truncated", false) && capacity->value("mandatoryCoreExceedsLimit", false),
+            "bounded errors, domains, and complete retained capacity provenance project through v1 compatibility carriers");
         const auto projectedPostTurnWire =
             projectedPostTurn
                 ? model::encodeProjectedSnapshot(projectedPostTurn.value(), model::SnapshotRepresentationSelection{true, true, true, true})

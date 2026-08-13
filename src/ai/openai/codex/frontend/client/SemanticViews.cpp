@@ -48,8 +48,23 @@ namespace ai::openai::codex::frontend::client {
         }
 
         std::optional<std::uint64_t> unsignedInteger(const frontend::Json& value, std::string_view key) {
-            const std::optional<std::int64_t> signedValue = integer(value, key);
-            return signedValue && *signedValue >= 0 ? std::optional<std::uint64_t>{static_cast<std::uint64_t>(*signedValue)} : std::nullopt;
+            if (!value.is_object()) {
+                return std::nullopt;
+            }
+            const auto member = value.find(std::string(key));
+            if (member == value.end()) {
+                return std::nullopt;
+            }
+            if (member->is_number_unsigned()) {
+                return member->get<std::uint64_t>();
+            }
+            if (member->is_number_integer()) {
+                const std::int64_t decoded = member->get<std::int64_t>();
+                if (decoded >= 0) {
+                    return static_cast<std::uint64_t>(decoded);
+                }
+            }
+            return std::nullopt;
         }
 
         std::optional<std::size_t> sizeValue(const frontend::Json& value, std::string_view key) {
@@ -570,13 +585,46 @@ namespace ai::openai::codex::frontend::client {
         if (value == nullptr) {
             return std::nullopt;
         }
-        return CapacityProvenanceState{sizeValue(*value, "sourceSessionCount").value_or(0),
-                                       sizeValue(*value, "sourcePendingRequestCount").value_or(0),
-                                       sizeValue(*value, "omittedThreads").value_or(0),
-                                       sizeValue(*value, "omittedTurns").value_or(0),
-                                       sizeValue(*value, "omittedItems").value_or(0),
-                                       boolean(*value, "truncated").value_or(false),
-                                       boolean(*value, "mandatoryCoreExceedsLimit").value_or(false)};
+        CapacityProvenanceState result;
+        result.rejectedSessions = unsignedInteger(*value, "rejectedSessions").value_or(0);
+        result.rejectedObservers = unsignedInteger(*value, "rejectedObservers").value_or(0);
+        result.rejectedOperations = unsignedInteger(*value, "rejectedOperations").value_or(0);
+        result.providerRequestOverflows = unsignedInteger(*value, "providerRequestOverflows").value_or(0);
+        result.evictedThreads = unsignedInteger(*value, "evictedThreads").value_or(0);
+        result.evictedTurns = unsignedInteger(*value, "evictedTurns").value_or(0);
+        result.evictedItems = unsignedInteger(*value, "evictedItems").value_or(0);
+        result.droppedContentBytes = unsignedInteger(*value, "droppedContentBytes").value_or(0);
+        result.snapshotOmissions = unsignedInteger(*value, "snapshotOmissions").value_or(0);
+        result.evictedNotices = unsignedInteger(*value, "evictedNotices").value_or(0);
+        result.evictedProcesses = unsignedInteger(*value, "evictedProcesses").value_or(0);
+        result.droppedProcessOutputBytes = unsignedInteger(*value, "droppedProcessOutputBytes").value_or(0);
+        result.evictedFilesystemWatches = unsignedInteger(*value, "evictedFilesystemWatches").value_or(0);
+        result.evictedFuzzySearchSessions = unsignedInteger(*value, "evictedFuzzySearchSessions").value_or(0);
+        result.evictedActivityRecords = unsignedInteger(*value, "evictedActivityRecords").value_or(0);
+        result.limits.maxSessions = sizeValue(*value, "maxSessions").value_or(0);
+        result.limits.maxObservers = sizeValue(*value, "maxObservers").value_or(0);
+        result.limits.maxActiveOperations = sizeValue(*value, "maxActiveOperations").value_or(0);
+        result.limits.maxPendingRequests = sizeValue(*value, "maxPendingRequests").value_or(0);
+        result.limits.maxRetainedThreads = sizeValue(*value, "maxRetainedThreads").value_or(0);
+        result.limits.maxRetainedTurns = sizeValue(*value, "maxRetainedTurns").value_or(0);
+        result.limits.maxRetainedItems = sizeValue(*value, "maxRetainedItems").value_or(0);
+        result.limits.maxAccumulatedContentBytes = sizeValue(*value, "maxAccumulatedContentBytes").value_or(0);
+        result.limits.maxSnapshotBytes = sizeValue(*value, "maxSnapshotBytes").value_or(0);
+        result.limits.maxRetainedNotices = sizeValue(*value, "maxRetainedNotices").value_or(0);
+        result.limits.maxRetainedProcesses = sizeValue(*value, "maxRetainedProcesses").value_or(0);
+        result.limits.maxProcessOutputBytesPerProcess = sizeValue(*value, "maxProcessOutputBytesPerProcess").value_or(0);
+        result.limits.maxAccumulatedProcessOutputBytes = sizeValue(*value, "maxAccumulatedProcessOutputBytes").value_or(0);
+        result.limits.maxRetainedFilesystemWatches = sizeValue(*value, "maxRetainedFilesystemWatches").value_or(0);
+        result.limits.maxRetainedFuzzySearchSessions = sizeValue(*value, "maxRetainedFuzzySearchSessions").value_or(0);
+        result.limits.maxRetainedActivityRecords = sizeValue(*value, "maxRetainedActivityRecords").value_or(0);
+        result.sourceSessionCount = sizeValue(*value, "sourceSessionCount").value_or(0);
+        result.sourcePendingRequestCount = sizeValue(*value, "sourcePendingRequestCount").value_or(0);
+        result.omittedThreads = sizeValue(*value, "omittedThreads").value_or(0);
+        result.omittedTurns = sizeValue(*value, "omittedTurns").value_or(0);
+        result.omittedItems = sizeValue(*value, "omittedItems").value_or(0);
+        result.truncated = boolean(*value, "truncated").value_or(false);
+        result.mandatoryCoreExceedsLimit = boolean(*value, "mandatoryCoreExceedsLimit").value_or(false);
+        return result;
     }
 
 } // namespace ai::openai::codex::frontend::client
