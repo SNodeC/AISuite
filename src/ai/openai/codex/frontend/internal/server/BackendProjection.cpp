@@ -293,6 +293,249 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
+        void addTurnFailureSemanticDetails(Json& turnDetails, const Json& failure) {
+            Json compatibility = boundedFrontendDetailObject(failure);
+            if (!compatibility.empty()) {
+                turnDetails["failure"] = std::move(compatibility);
+            }
+            if (!failure.is_object()) {
+                turnDetails["failureDecodingOmitted"] = true;
+                return;
+            }
+            if (const auto message = failure.find("message"); message != failure.end() && message->is_string()) {
+                turnDetails["failureMessage"] = *message;
+            }
+            if (const auto additional = failure.find("additionalDetails"); additional != failure.end()) {
+                if (additional->is_null() || additional->is_string()) {
+                    turnDetails["failureAdditionalDetails"] = *additional;
+                    turnDetails["failureAdditionalDetailsPresent"] = true;
+                } else {
+                    turnDetails["failureDecodingOmitted"] = true;
+                }
+            }
+            if (const auto info = failure.find("codexErrorInfo"); info != failure.end()) {
+                turnDetails["failureCodexErrorInfoPresent"] = true;
+                if (info->is_null()) {
+                    turnDetails["failureCodexErrorInfoNull"] = true;
+                    return;
+                }
+                std::optional<std::string> discriminator;
+                const Json* nested = nullptr;
+                if (info->is_string()) {
+                    discriminator = info->get<std::string>();
+                } else if (info->is_object() && info->size() == 1) {
+                    discriminator = info->begin().key();
+                    nested = &info->begin().value();
+                } else {
+                    turnDetails["failureDecodingOmitted"] = true;
+                }
+                if (discriminator) {
+                    turnDetails["failureCodexErrorDiscriminator"] = *discriminator;
+                }
+                if (nested && nested->is_object()) {
+                    if (const auto status = nested->find("httpStatusCode"); status != nested->end()) {
+                        turnDetails["failureHttpStatusCodePresent"] = true;
+                        if (status->is_null() || status->is_number_integer() || status->is_number_unsigned()) {
+                            turnDetails["failureHttpStatusCode"] = *status;
+                        } else {
+                            turnDetails["failureDecodingOmitted"] = true;
+                        }
+                    }
+                    if (const auto kind = nested->find("turnKind"); kind != nested->end() && kind->is_string()) {
+                        turnDetails["failureNonSteerableTurnKind"] = *kind;
+                    }
+                }
+            }
+            bool redacted = false;
+            Json sanitized = failure;
+            removeSecretMembers(sanitized, redacted);
+            if (redacted) {
+                turnDetails["failureRedacted"] = true;
+            }
+        }
+
+        void addTurnTokenUsageSemanticDetails(Json& turnDetails, const Json& usage) {
+            Json compatibility = boundedFrontendDetailObject(usage);
+            if (!compatibility.empty()) {
+                turnDetails["tokenUsage"] = std::move(compatibility);
+            }
+            if (!usage.is_object()) {
+                turnDetails["tokenUsageProjectionOmitted"] = true;
+                return;
+            }
+            for (const char* name : {"last", "total"}) {
+                const auto counts = usage.find(name);
+                if (counts == usage.end()) {
+                    continue;
+                }
+                if (!counts->is_object()) {
+                    turnDetails["tokenUsageProjectionOmitted"] = true;
+                    continue;
+                }
+                turnDetails[std::string{"tokenUsage"} + (name == std::string_view{"last"} ? "Last" : "Total")] =
+                    boundedFrontendDetailObject(*counts);
+            }
+            if (const auto context = usage.find("modelContextWindow"); context != usage.end()) {
+                if (context->is_null() || context->is_number_integer() || context->is_number_unsigned()) {
+                    turnDetails["tokenUsageModelContextWindow"] = *context;
+                    turnDetails["tokenUsageModelContextWindowPresent"] = true;
+                } else {
+                    turnDetails["tokenUsageProjectionOmitted"] = true;
+                }
+            }
+        }
+
+        std::string_view freshnessName(backend::Freshness value) noexcept {
+            switch (value) {
+                case backend::Freshness::Unknown:
+                    return "unknown";
+                case backend::Freshness::Current:
+                    return "current";
+                case backend::Freshness::Stale:
+                    return "stale";
+            }
+            return "unknown";
+        }
+
+        Json semanticDomain(const backend::ProviderDomainSnapshot& domain) {
+            constexpr std::size_t MaximumSemanticSummaries = 8;
+            Json projected{
+                {"resultMethods", Json::array()},
+                {"resultAlternatives", Json::array()},
+                {"resultStatuses", Json::array()},
+                {"resultSubjectIds", Json::array()},
+                {"resultSubjectIdPresent", Json::array()},
+                {"resultNextCursors", Json::array()},
+                {"resultNextCursorPresent", Json::array()},
+                {"resultItemCounts", Json::array()},
+                {"resultComplete", Json::array()},
+                {"resultGenerations", Json::array()},
+                {"resultFreshness", Json::array()},
+                {"notificationMethods", Json::array()},
+                {"notificationAlternatives", Json::array()},
+                {"notificationGenerations", Json::array()},
+                {"notificationFreshness", Json::array()},
+                {"omittedResults",
+                 domain.latestResults.size() > MaximumSemanticSummaries ? domain.latestResults.size() - MaximumSemanticSummaries : 0},
+                {"omittedNotifications",
+                 domain.latestNotifications.size() > MaximumSemanticSummaries ? domain.latestNotifications.size() - MaximumSemanticSummaries
+                                                                              : 0}};
+            const std::size_t resultStart =
+                domain.latestResults.size() > MaximumSemanticSummaries ? domain.latestResults.size() - MaximumSemanticSummaries : 0;
+            for (std::size_t index = resultStart; index < domain.latestResults.size(); ++index) {
+                const backend::ProviderResultSummarySnapshot& result = domain.latestResults[index];
+                projected["resultMethods"].push_back(result.method);
+                projected["resultAlternatives"].push_back(result.resultAlternative);
+                projected["resultStatuses"].push_back(result.status);
+                projected["resultSubjectIds"].push_back(result.subjectId.value_or(""));
+                projected["resultSubjectIdPresent"].push_back(result.subjectId.has_value());
+                projected["resultNextCursors"].push_back(result.nextCursor.value_or(""));
+                projected["resultNextCursorPresent"].push_back(result.nextCursor.has_value());
+                projected["resultItemCounts"].push_back(result.itemCount);
+                projected["resultComplete"].push_back(result.complete);
+                projected["resultGenerations"].push_back(result.stamp.generation);
+                projected["resultFreshness"].push_back(freshnessName(result.stamp.freshness));
+            }
+            const std::size_t notificationStart = domain.latestNotifications.size() > MaximumSemanticSummaries
+                                                      ? domain.latestNotifications.size() - MaximumSemanticSummaries
+                                                      : 0;
+            for (std::size_t index = notificationStart; index < domain.latestNotifications.size(); ++index) {
+                const backend::ProviderNotificationSnapshot& notification = domain.latestNotifications[index];
+                projected["notificationMethods"].push_back(notification.method);
+                projected["notificationAlternatives"].push_back(notification.eventAlternative);
+                projected["notificationGenerations"].push_back(notification.stamp.generation);
+                projected["notificationFreshness"].push_back(freshnessName(notification.stamp.freshness));
+            }
+            projected["truncated"] = projected["omittedResults"] != 0 || projected["omittedNotifications"] != 0;
+            return projected;
+        }
+
+        void addGoalMutation(Json& target, std::string_view prefix, const backend::ConversationDomainSnapshot::GoalMutation& mutation) {
+            const std::string name{prefix};
+            target[name + "Operation"] = mutation.operation;
+            target[name + "ThreadId"] = mutation.threadId;
+            target[name + "Objective"] = mutation.objective ? Json{*mutation.objective} : Json{nullptr};
+            target[name + "Status"] = mutation.status ? Json{*mutation.status} : Json{nullptr};
+            target[name + "Cleared"] = mutation.cleared ? Json{*mutation.cleared} : Json{nullptr};
+            target[name + "Generation"] = mutation.stamp.generation;
+            target[name + "Freshness"] = freshnessName(mutation.stamp.freshness);
+        }
+
+        Json semanticProjection(const backend::Snapshot& snapshot) {
+            constexpr std::size_t MaximumProviderOperations = 16;
+            Json operations{{"methods", Json::array()},
+                            {"resultAlternatives", Json::array()},
+                            {"generations", Json::array()},
+                            {"freshness", Json::array()}};
+            const std::size_t operationStart = snapshot.providerOperations.size() > MaximumProviderOperations
+                                                   ? snapshot.providerOperations.size() - MaximumProviderOperations
+                                                   : 0;
+            for (std::size_t index = operationStart; index < snapshot.providerOperations.size(); ++index) {
+                const backend::ProviderOperationSnapshot& operation = snapshot.providerOperations[index];
+                operations["methods"].push_back(operation.method);
+                operations["resultAlternatives"].push_back(operation.resultAlternative);
+                operations["generations"].push_back(operation.stamp.generation);
+                operations["freshness"].push_back(freshnessName(operation.stamp.freshness));
+            }
+            operations["truncated"] = operationStart != 0;
+            operations["omittedEntries"] = operationStart;
+            Json conversations = semanticDomain(snapshot.conversations);
+            if (snapshot.conversations.latestGoal) {
+                addGoalMutation(conversations, "latestGoal", *snapshot.conversations.latestGoal);
+            }
+            if (snapshot.conversations.latestGoalClear) {
+                addGoalMutation(conversations, "latestGoalClear", *snapshot.conversations.latestGoalClear);
+            }
+            if (snapshot.conversations.latestGoalSet) {
+                addGoalMutation(conversations, "latestGoalSet", *snapshot.conversations.latestGoalSet);
+            }
+            if (snapshot.conversations.latestUnsubscribe) {
+                addGoalMutation(conversations, "latestUnsubscribe", *snapshot.conversations.latestUnsubscribe);
+            }
+            return Json{{"providerOperationsSemantic", std::move(operations)},
+                        {"conversationSemantic", std::move(conversations)},
+                        {"filesystemProviderSemantic", semanticDomain(snapshot.filesystem)},
+                        {"capacityProvenance",
+                         {{"rejectedSessions", snapshot.capacity.state.rejectedSessions},
+                          {"rejectedObservers", snapshot.capacity.state.rejectedObservers},
+                          {"rejectedOperations", snapshot.capacity.state.rejectedOperations},
+                          {"providerRequestOverflows", snapshot.capacity.state.providerRequestOverflows},
+                          {"evictedThreads", snapshot.capacity.state.evictedThreads},
+                          {"evictedTurns", snapshot.capacity.state.evictedTurns},
+                          {"evictedItems", snapshot.capacity.state.evictedItems},
+                          {"droppedContentBytes", snapshot.capacity.state.droppedContentBytes},
+                          {"snapshotOmissions", snapshot.capacity.state.snapshotOmissions},
+                          {"evictedNotices", snapshot.capacity.state.evictedNotices},
+                          {"evictedProcesses", snapshot.capacity.state.evictedProcesses},
+                          {"droppedProcessOutputBytes", snapshot.capacity.state.droppedProcessOutputBytes},
+                          {"evictedFilesystemWatches", snapshot.capacity.state.evictedFilesystemWatches},
+                          {"evictedFuzzySearchSessions", snapshot.capacity.state.evictedFuzzySearchSessions},
+                          {"evictedActivityRecords", snapshot.capacity.state.evictedActivityRecords},
+                          {"maxSessions", snapshot.capacity.state.limits.maxSessions},
+                          {"maxObservers", snapshot.capacity.state.limits.maxObservers},
+                          {"maxActiveOperations", snapshot.capacity.state.limits.maxActiveOperations},
+                          {"maxPendingRequests", snapshot.capacity.state.limits.maxPendingRequests},
+                          {"maxRetainedThreads", snapshot.capacity.state.limits.maxRetainedThreads},
+                          {"maxRetainedTurns", snapshot.capacity.state.limits.maxRetainedTurns},
+                          {"maxRetainedItems", snapshot.capacity.state.limits.maxRetainedItems},
+                          {"maxAccumulatedContentBytes", snapshot.capacity.state.limits.maxAccumulatedContentBytes},
+                          {"maxSnapshotBytes", snapshot.capacity.state.limits.maxSnapshotBytes},
+                          {"maxRetainedNotices", snapshot.capacity.state.limits.maxRetainedNotices},
+                          {"maxRetainedProcesses", snapshot.capacity.state.limits.maxRetainedProcesses},
+                          {"maxProcessOutputBytesPerProcess", snapshot.capacity.state.limits.maxProcessOutputBytesPerProcess},
+                          {"maxAccumulatedProcessOutputBytes", snapshot.capacity.state.limits.maxAccumulatedProcessOutputBytes},
+                          {"maxRetainedFilesystemWatches", snapshot.capacity.state.limits.maxRetainedFilesystemWatches},
+                          {"maxRetainedFuzzySearchSessions", snapshot.capacity.state.limits.maxRetainedFuzzySearchSessions},
+                          {"maxRetainedActivityRecords", snapshot.capacity.state.limits.maxRetainedActivityRecords},
+                          {"sourceSessionCount", snapshot.capacity.sourceSessionCount},
+                          {"sourcePendingRequestCount", snapshot.capacity.sourcePendingRequestCount},
+                          {"omittedThreads", snapshot.capacity.omittedThreads},
+                          {"omittedTurns", snapshot.capacity.omittedTurns},
+                          {"omittedItems", snapshot.capacity.omittedItems},
+                          {"truncated", snapshot.capacity.truncated},
+                          {"mandatoryCoreExceedsLimit", snapshot.capacity.mandatoryCoreExceedsLimit}}}};
+        }
+
         std::optional<ThreadItemKind> backendItemKind(const backend::ItemSnapshot& item) noexcept {
             if (const auto direct = threadItemKindFromString(item.type)) {
                 return direct;
@@ -1585,11 +1828,23 @@ namespace ai::openai::codex::frontend::internal::server {
             projected.provider.recovery.attempts = snapshot.provider.recovery.attempts;
             projected.provider.recovery.delayMs = snapshot.provider.recovery.delayMs;
             if (snapshot.provider.lastError) {
-                projected.provider.lastError = boundedDetail(Json{{"category", snapshot.provider.lastError->category},
-                                                                  {"code", snapshot.provider.lastError->code},
-                                                                  {"message", "Codex App Server reported an error"}},
-                                                             projected.truncation,
-                                                             "/provider/lastError");
+                const bool messageAvailable = !snapshot.provider.lastError->message.empty();
+                Json error{{"category", snapshot.provider.lastError->category},
+                           {"code", snapshot.provider.lastError->code},
+                           {"message", messageAvailable ? snapshot.provider.lastError->message : "Codex App Server reported an error"},
+                           {"detailsOmitted", !messageAvailable}};
+                model::SafeDetailError detailError = model::SafeDetailError::None;
+                projected.provider.lastError = model::SafeDetail::fromJson(std::move(error), &detailError);
+                if (!projected.provider.lastError) {
+                    projected.truncation.truncated = true;
+                    projected.truncation.omittedPaths.push_back("/provider/lastError/message");
+                    projected.provider.lastError = boundedDetail(Json{{"category", snapshot.provider.lastError->category},
+                                                                      {"code", snapshot.provider.lastError->code},
+                                                                      {"message", "Codex App Server reported an error"},
+                                                                      {"detailsOmitted", true}},
+                                                                 projected.truncation,
+                                                                 "/provider/lastError");
+                }
             }
             if (snapshot.provider.initialization) {
                 projected.provider.initialization = boundedDetail(Json{{"codexHome", snapshot.provider.initialization->codexHome},
@@ -1656,9 +1911,12 @@ namespace ai::openai::codex::frontend::internal::server {
                               {"itemCount", thread.realtime.itemCount},
                               {"receivedAudioBytes", thread.realtime.receivedAudioBytes},
                               {"droppedAudioBytes", thread.realtime.droppedAudioBytes},
-                              {"transcriptTruncated", thread.realtime.transcriptTruncated}};
+                              {"transcriptTruncated", thread.realtime.transcriptTruncated},
+                              {"sourceGeneration", thread.realtime.stamp.generation},
+                              {"sourceFreshness", freshnessName(thread.realtime.stamp.freshness)}};
                 if (thread.realtime.lastError.has_value()) {
-                    realtime["errorDetailsOmitted"] = true;
+                    realtime["lastError"] = *thread.realtime.lastError;
+                    realtime["errorDetailsOmitted"] = false;
                 }
                 if (thread.realtime.sessionId.has_value()) {
                     realtime["sessionId"] = *thread.realtime.sessionId;
@@ -1689,16 +1947,10 @@ namespace ai::openai::codex::frontend::internal::server {
                     turnState.connectionInvalidated = turn.connectionInvalidated;
                     Json turnDetails = Json::object();
                     if (turn.failure) {
-                        Json failure = boundedFrontendDetailObject(*turn.failure);
-                        if (!failure.empty()) {
-                            turnDetails["failure"] = std::move(failure);
-                        }
+                        addTurnFailureSemanticDetails(turnDetails, *turn.failure);
                     }
                     if (turn.tokenUsage) {
-                        Json tokenUsage = boundedFrontendDetailObject(*turn.tokenUsage);
-                        if (!tokenUsage.empty()) {
-                            turnDetails["tokenUsage"] = std::move(tokenUsage);
-                        }
+                        addTurnTokenUsageSemanticDetails(turnDetails, *turn.tokenUsage);
                     }
                     turnState.safeDetails = boundedDetail(std::move(turnDetails), projected.truncation, "/turns/details");
                     turnState.legacyExtensions = boundedDetail(turn.extensions, projected.truncation, "/turns/extensions");
@@ -1917,6 +2169,7 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             extensions["codexExtensions"] = std::move(encodedExtensions);
             projected.stateExtensions = boundedDetail(std::move(extensions), projected.truncation, "/stateExtensions");
+            projected.extensions = boundedDetail(semanticProjection(snapshot), projected.truncation, "/extensions/semanticProjection");
             projected.projection.sourceStamp = projected.backendCursor.sourceStamp;
             return projected;
         } catch (const ProjectionFailure& failure) {
@@ -2033,6 +2286,7 @@ namespace ai::openai::codex::frontend::internal::server {
                             // after applying this potentially large typed input.
                             // Retaining both would duplicate one semantic change.
                         } else if constexpr (std::is_same_v<Event, backend::ProviderOperationStateChanged>) {
+                            projected.snapshotRequired = true;
                             if (const auto family = providerDomainFamily(event.method)) {
                                 appendFamily(sequenced.sequence, *family, {}, OccurrenceFlushUrgency::Deferred, std::nullopt, event.method);
                             }

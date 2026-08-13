@@ -234,6 +234,47 @@ namespace {
         direct.integrations.state = model::DomainState::present();
         direct.plugins.state = model::DomainState::present();
         direct.platform.state = model::DomainState::present();
+        direct.threads.front().safeDetails =
+            *model::SafeDetail::fromJson(frontend::Json{{"realtime",
+                                                         {{"lifecycle", "failed"},
+                                                          {"transcript", "hello"},
+                                                          {"lastError", "safe realtime error"},
+                                                          {"errorDetailsOmitted", false},
+                                                          {"itemCount", 2},
+                                                          {"receivedAudioBytes", 3},
+                                                          {"droppedAudioBytes", 4},
+                                                          {"transcriptTruncated", false},
+                                                          {"sourceGeneration", 5},
+                                                          {"sourceFreshness", "current"}}}});
+        model::TurnState semanticTurn{model::TurnIdentity{"semantic-turn"}, model::ThreadIdentity{"adapter-thread"}};
+        semanticTurn.status = "failed";
+        semanticTurn.safeDetails = *model::SafeDetail::fromJson(frontend::Json{
+            {"tokenUsage", {{"modelContextWindow", nullptr}}},
+            {"tokenUsageLast",
+             {{"cachedInputTokens", 1}, {"inputTokens", 2}, {"outputTokens", 3}, {"reasoningOutputTokens", 4}, {"totalTokens", 5}}},
+            {"tokenUsageTotal",
+             {{"cachedInputTokens", 6}, {"inputTokens", 7}, {"outputTokens", 8}, {"reasoningOutputTokens", 9}, {"totalTokens", 10}}},
+            {"tokenUsageModelContextWindow", nullptr},
+            {"tokenUsageModelContextWindowPresent", true},
+            {"failure", {{"message", "safe turn error"}, {"additionalDetails", "display details"}}},
+            {"failureMessage", "safe turn error"},
+            {"failureAdditionalDetails", "display details"},
+            {"failureAdditionalDetailsPresent", true},
+            {"failureCodexErrorInfoPresent", true},
+            {"failureCodexErrorDiscriminator", "activeTurnNotSteerable"},
+            {"failureNonSteerableTurnKind", "review"}});
+        direct.turns.push_back(std::move(semanticTurn));
+        model::ItemData semanticItem{
+            model::ItemIdentity{"semantic-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"semantic-turn"}};
+        semanticItem.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"command", "cmake --build"},
+                                                                               {"cwd", "/workspace"},
+                                                                               {"status", "completed"},
+                                                                               {"processId", "42"},
+                                                                               {"exitCode", 0},
+                                                                               {"durationMs", 13}});
+        semanticItem.generation = 6;
+        semanticItem.freshness = model::Freshness::Current;
+        direct.items.push_back(model::CommandExecutionItem{std::move(semanticItem)});
         direct.controller.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"present", true}});
         direct.truncation.extensions = *model::SafeDetail::fromJson(frontend::Json{{"vendorTruncation", "state-truncation-extension"}});
         direct.processesState.extensions = *model::SafeDetail::fromJson(frontend::Json{{"vendorCollection", "processes-extension"}});
@@ -245,6 +286,101 @@ namespace {
         model::PendingRequestData emptyQuestions{model::PendingRequestIdentity{"adapter-pending"}};
         emptyQuestions.questionsPresent = true;
         direct.pendingRequests.push_back(model::UserInputRequest{std::move(emptyQuestions)});
+        model::PendingRequestData approval{model::PendingRequestIdentity{"semantic-pending"}};
+        approval.safeDetails = *model::SafeDetail::fromJson(
+            frontend::Json{{"commandBytes", 20}, {"commandRedacted", true}, {"reasonBytes", 12}, {"reasonRedacted", true}});
+        direct.pendingRequests.push_back(model::CommandExecutionApprovalRequest{std::move(approval)});
+        direct.extensions = *model::SafeDetail::fromJson(frontend::Json{{"providerOperationsSemantic",
+                                                                         {{"methods", frontend::Json::array({"thread/goal/set"})},
+                                                                          {"resultAlternatives", frontend::Json::array({17})},
+                                                                          {"generations", frontend::Json::array({8})},
+                                                                          {"freshness", frontend::Json::array({"current"})},
+                                                                          {"truncated", false},
+                                                                          {"omittedEntries", 0}}},
+                                                                        {"conversationSemantic",
+                                                                         {{"resultMethods", frontend::Json::array()},
+                                                                          {"resultAlternatives", frontend::Json::array()},
+                                                                          {"resultStatuses", frontend::Json::array()},
+                                                                          {"resultSubjectIds", frontend::Json::array()},
+                                                                          {"resultSubjectIdPresent", frontend::Json::array()},
+                                                                          {"resultNextCursors", frontend::Json::array()},
+                                                                          {"resultNextCursorPresent", frontend::Json::array()},
+                                                                          {"resultItemCounts", frontend::Json::array()},
+                                                                          {"resultComplete", frontend::Json::array()},
+                                                                          {"resultGenerations", frontend::Json::array()},
+                                                                          {"resultFreshness", frontend::Json::array()},
+                                                                          {"notificationMethods", frontend::Json::array()},
+                                                                          {"notificationAlternatives", frontend::Json::array()},
+                                                                          {"notificationGenerations", frontend::Json::array()},
+                                                                          {"notificationFreshness", frontend::Json::array()},
+                                                                          {"omittedResults", 0},
+                                                                          {"omittedNotifications", 0},
+                                                                          {"truncated", false},
+                                                                          {"latestGoalSetOperation", "set"},
+                                                                          {"latestGoalSetThreadId", "adapter-thread"},
+                                                                          {"latestGoalSetObjective", "finish projection"},
+                                                                          {"latestGoalSetStatus", "active"},
+                                                                          {"latestGoalSetCleared", nullptr},
+                                                                          {"latestGoalSetGeneration", 9},
+                                                                          {"latestGoalSetFreshness", "current"}}},
+                                                                        {"filesystemProviderSemantic",
+                                                                         {{"resultMethods", frontend::Json::array({"fs/readFile"})},
+                                                                          {"resultAlternatives", frontend::Json::array({31})},
+                                                                          {"resultStatuses", frontend::Json::array({"completed"})},
+                                                                          {"resultSubjectIds", frontend::Json::array({""})},
+                                                                          {"resultSubjectIdPresent", frontend::Json::array({false})},
+                                                                          {"resultNextCursors", frontend::Json::array({""})},
+                                                                          {"resultNextCursorPresent", frontend::Json::array({false})},
+                                                                          {"resultItemCounts", frontend::Json::array({1})},
+                                                                          {"resultComplete", frontend::Json::array({true})},
+                                                                          {"resultGenerations", frontend::Json::array({10})},
+                                                                          {"resultFreshness", frontend::Json::array({"stale"})},
+                                                                          {"notificationMethods", frontend::Json::array()},
+                                                                          {"notificationAlternatives", frontend::Json::array()},
+                                                                          {"notificationGenerations", frontend::Json::array()},
+                                                                          {"notificationFreshness", frontend::Json::array()},
+                                                                          {"omittedResults", 0},
+                                                                          {"omittedNotifications", 0},
+                                                                          {"truncated", false}}},
+                                                                        {"capacityProvenance",
+                                                                         {{"rejectedSessions", std::numeric_limits<std::uint64_t>::max()},
+                                                                          {"rejectedObservers", 12},
+                                                                          {"rejectedOperations", 13},
+                                                                          {"providerRequestOverflows", 14},
+                                                                          {"evictedThreads", 15},
+                                                                          {"evictedTurns", 16},
+                                                                          {"evictedItems", 17},
+                                                                          {"droppedContentBytes", 18},
+                                                                          {"snapshotOmissions", 19},
+                                                                          {"evictedNotices", 20},
+                                                                          {"evictedProcesses", 21},
+                                                                          {"droppedProcessOutputBytes", 22},
+                                                                          {"evictedFilesystemWatches", 23},
+                                                                          {"evictedFuzzySearchSessions", 24},
+                                                                          {"evictedActivityRecords", 25},
+                                                                          {"maxSessions", 101},
+                                                                          {"maxObservers", 102},
+                                                                          {"maxActiveOperations", 103},
+                                                                          {"maxPendingRequests", 104},
+                                                                          {"maxRetainedThreads", 105},
+                                                                          {"maxRetainedTurns", 106},
+                                                                          {"maxRetainedItems", 107},
+                                                                          {"maxAccumulatedContentBytes", 108},
+                                                                          {"maxSnapshotBytes", 109},
+                                                                          {"maxRetainedNotices", 110},
+                                                                          {"maxRetainedProcesses", 111},
+                                                                          {"maxProcessOutputBytesPerProcess", 112},
+                                                                          {"maxAccumulatedProcessOutputBytes", 113},
+                                                                          {"maxRetainedFilesystemWatches", 114},
+                                                                          {"maxRetainedFuzzySearchSessions", 115},
+                                                                          {"maxRetainedActivityRecords", 116},
+                                                                          {"sourceSessionCount", 2},
+                                                                          {"sourcePendingRequestCount", 3},
+                                                                          {"omittedThreads", 4},
+                                                                          {"omittedTurns", 5},
+                                                                          {"omittedItems", 6},
+                                                                          {"truncated", true},
+                                                                          {"mandatoryCoreExceedsLimit", false}}}});
         publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(direct));
 
         std::string error;
@@ -266,9 +402,53 @@ namespace {
                 first->processes().value && first->processes().value->extensions.value("vendorCollection", "") == "processes-extension" &&
                 first->processes().value->truncation.extensions.value("vendorTruncation", "") == "processes-extension-truncation" &&
                 first->processes().value->entries.front().stamp.extensions.value("vendorStamp", "") == "process-stamp-extension" &&
-                first->pendingRequests().size() == 1 && first->pendingRequests().front().questions.has_value() &&
+                first->pendingRequests().size() == 2 && first->pendingRequests().front().questions.has_value() &&
                 first->pendingRequests().front().questions->empty(),
             "CanonicalStateBuilder maps the canonical typed publication directly into every sampled public State border");
+
+        const client::TurnState* publicTurn = first ? first->turn("semantic-turn") : nullptr;
+        const client::ItemState* publicItem = first ? first->item("semantic-item") : nullptr;
+        const client::PendingRequestState* publicPending =
+            first ? first->pendingRequest(client::PendingRequestId{"semantic-pending"}) : nullptr;
+        const auto usage = publicTurn ? client::tokenUsageView(*publicTurn) : std::nullopt;
+        const auto failure = publicTurn ? client::failureView(*publicTurn) : std::nullopt;
+        const auto realtime =
+            firstThread && firstThread->realtime ? std::optional{client::realtimeSemanticView(*firstThread->realtime)} : std::nullopt;
+        const auto itemView = publicItem ? client::itemSemanticView(*publicItem) : std::nullopt;
+        const auto pendingView = publicPending ? std::optional{client::pendingRequestPresentation(*publicPending)} : std::nullopt;
+        const auto operations = first ? first->providerOperations() : std::nullopt;
+        const auto conversations = first ? first->conversations() : std::nullopt;
+        const auto filesystem = first ? first->filesystemProvider() : std::nullopt;
+        const auto provenance = first ? first->capacityProvenance() : std::nullopt;
+        const auto* command = itemView ? std::get_if<client::CommandExecutionSemanticView>(&itemView->details) : nullptr;
+        result.expectTrue(
+            usage && usage->last && usage->total && usage->last->reasoningOutputTokens == 4 && usage->total->cachedInputTokens == 6 &&
+                usage->modelContextWindowPresent && !usage->modelContextWindow && failure && failure->message == "safe turn error" &&
+                failure->codexErrorCategory == "activeTurnNotSteerable" && failure->nonSteerableTurnKind == "review" && realtime &&
+                realtime->lastError == "safe realtime error" && realtime->stamp && realtime->stamp->generation == 5 && command &&
+                command->command == "cmake --build" && command->durationMs == 13 && pendingView && pendingView->commandBytes == 20 &&
+                pendingView->commandRedacted && operations && operations->entries.size() == 1 &&
+                operations->entries.front().resultAlternative == 17 && conversations && conversations->latestGoalSet &&
+                conversations->latestGoalSet->objective == "finish projection" && filesystem && filesystem->latestResults.size() == 1 &&
+                filesystem->latestResults.front().resultAlternative == 31 && provenance && provenance->sourceSessionCount == 2 &&
+                provenance->omittedItems == 6 && provenance->truncated &&
+                provenance->rejectedSessions == std::numeric_limits<std::uint64_t>::max() &&
+                provenance->rejectedObservers == 12 && provenance->rejectedOperations == 13 &&
+                provenance->providerRequestOverflows == 14 && provenance->evictedThreads == 15 && provenance->evictedTurns == 16 &&
+                provenance->evictedItems == 17 && provenance->droppedContentBytes == 18 && provenance->snapshotOmissions == 19 &&
+                provenance->evictedNotices == 20 && provenance->evictedProcesses == 21 &&
+                provenance->droppedProcessOutputBytes == 22 && provenance->evictedFilesystemWatches == 23 &&
+                provenance->evictedFuzzySearchSessions == 24 && provenance->evictedActivityRecords == 25 &&
+                provenance->limits.maxSessions == 101 && provenance->limits.maxObservers == 102 &&
+                provenance->limits.maxActiveOperations == 103 && provenance->limits.maxPendingRequests == 104 &&
+                provenance->limits.maxRetainedThreads == 105 && provenance->limits.maxRetainedTurns == 106 &&
+                provenance->limits.maxRetainedItems == 107 && provenance->limits.maxAccumulatedContentBytes == 108 &&
+                provenance->limits.maxSnapshotBytes == 109 && provenance->limits.maxRetainedNotices == 110 &&
+                provenance->limits.maxRetainedProcesses == 111 && provenance->limits.maxProcessOutputBytesPerProcess == 112 &&
+                provenance->limits.maxAccumulatedProcessOutputBytes == 113 &&
+                provenance->limits.maxRetainedFilesystemWatches == 114 &&
+                provenance->limits.maxRetainedFuzzySearchSessions == 115 && provenance->limits.maxRetainedActivityRecords == 116,
+            "public additive semantic views preserve nested turn, realtime, item, request, domain, aggregate, and provenance facts");
 
         client::State immutable = first.value_or(client::State{});
         publication.revision = 42;
