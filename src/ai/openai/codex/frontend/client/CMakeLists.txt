@@ -5,6 +5,7 @@ set(
     GeneratedFacades.cpp
     OperationCodecs.cpp
     ProjectionFingerprint.cpp
+    SemanticViews.cpp
     State.cpp
 )
 set(

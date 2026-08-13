@@ -83,6 +83,10 @@ namespace ai::openai::codex::frontend::client {
         [[nodiscard]] const Projected<CapacityState>& capacity() const noexcept;
         [[nodiscard]] const Projected<TruncationMetadata>& truncation() const noexcept;
         [[nodiscard]] const Projected<DiagnosticCollectionState>& diagnostics() const noexcept;
+        [[nodiscard]] std::optional<ProviderOperationCollectionSemanticState> providerOperations() const;
+        [[nodiscard]] std::optional<ConversationSemanticState> conversations() const;
+        [[nodiscard]] std::optional<ProviderDomainSemanticState> filesystemProvider() const;
+        [[nodiscard]] std::optional<CapacityProvenanceState> capacityProvenance() const;
         [[nodiscard]] const frontend::Json& compatibilityExtensions() const noexcept;
 
     private:
@@ -90,6 +94,14 @@ namespace ai::openai::codex::frontend::client {
         AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT explicit State(std::shared_ptr<const detail::StateStorage> implementation) noexcept;
         std::shared_ptr<const detail::StateStorage> impl;
     };
+
+    [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<TurnTokenUsageView> tokenUsageView(const TurnState& turn);
+    [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<TurnFailureView> failureView(const TurnState& turn);
+    [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT ThreadRealtimeSemanticView
+    realtimeSemanticView(const ThreadRealtimeState& realtime);
+    [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<ItemSemanticView> itemSemanticView(const ItemState& item);
+    [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT PendingRequestPresentationView
+    pendingRequestPresentation(const PendingRequestState& request);
 
 } // namespace ai::openai::codex::frontend::client
 

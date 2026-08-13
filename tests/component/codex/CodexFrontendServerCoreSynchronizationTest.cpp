@@ -443,16 +443,58 @@ namespace {
         postTurn.threadId = "post-thread";
         postTurn.status = "completed";
         postTurn.terminal = true;
-        postTurn.tokenUsage = frontend::Json{{"last", {{"inputTokens", 3}, {"outputTokens", 1}, {"totalTokens", 4}}},
-                                             {"modelContextWindow", 258'400},
-                                             {"total", {{"inputTokens", 7}, {"outputTokens", 2}, {"totalTokens", 9}}}};
+        postTurn.failure = frontend::Json{{"message", "safe failure"},
+                                          {"additionalDetails", "bounded details"},
+                                          {"codexErrorInfo", {{"httpConnectionFailed", {{"httpStatusCode", 503}}}}}};
+        postTurn.tokenUsage = frontend::Json{
+            {"last", {{"cachedInputTokens", 1}, {"inputTokens", 3}, {"outputTokens", 1}, {"reasoningOutputTokens", 2}, {"totalTokens", 4}}},
+            {"modelContextWindow", 258'400},
+            {"total",
+             {{"cachedInputTokens", 2}, {"inputTokens", 7}, {"outputTokens", 2}, {"reasoningOutputTokens", 3}, {"totalTokens", 9}}}};
         backend::ThreadSnapshot postThread;
         postThread.id = "post-thread";
+        postThread.realtime.lifecycle = "failed";
+        postThread.realtime.lastError = "safe realtime failure";
+        postThread.realtime.sessionId = "realtime-session";
+        postThread.realtime.version = "v2";
+        postThread.realtime.lastSdpBytes = 123;
+        postThread.realtime.itemCount = 4;
+        postThread.realtime.receivedAudioBytes = 5;
+        postThread.realtime.droppedAudioBytes = 6;
+        postThread.realtime.stamp = {7, backend::Freshness::Current};
         postThread.turns.push_back(std::move(postTurn));
         postTurnBackend.threads.push_back(std::move(postThread));
+        postTurnBackend.provider.lastError = backend::ErrorSnapshot{"transport", 19, "bounded provider failure"};
+        postTurnBackend.providerOperations.push_back({"thread/goal/set", 17, {8, backend::Freshness::Current}});
+        postTurnBackend.conversations.latestGoalSet = backend::ConversationDomainSnapshot::GoalMutation{
+            "set", "post-thread", "finish projection", "active", std::nullopt, {9, backend::Freshness::Current}};
+        postTurnBackend.filesystem.latestResults.push_back(
+            {"fs/readFile", 31, "completed", std::nullopt, "cursor", 1, true, {10, backend::Freshness::Stale}});
         server::BackendProjection backendProjection;
         const model::ModelResult<model::CanonicalSnapshot> projectedPostTurn = backendProjection.projectSnapshot(postTurnBackend);
-        result.expectTrue(projectedPostTurn.hasValue(), "a completed turn with current Codex token usage projects canonically");
+        const frontend::Json* semanticProjection = projectedPostTurn ? &projectedPostTurn.value().extensions.json() : nullptr;
+        const frontend::Json* providerError = projectedPostTurn && projectedPostTurn.value().provider.lastError
+                                                  ? &projectedPostTurn.value().provider.lastError->json()
+                                                  : nullptr;
+        const frontend::Json* realtime = projectedPostTurn ? &projectedPostTurn.value().threads.front().safeDetails.json().at("realtime")
+                                                           : nullptr;
+        const frontend::Json* failure = projectedPostTurn ? &projectedPostTurn.value().turns.front().safeDetails.json() : nullptr;
+        result.expectTrue(
+            projectedPostTurn.hasValue() && semanticProjection && semanticProjection->contains("providerOperationsSemantic") &&
+                semanticProjection->contains("conversationSemantic") && semanticProjection->contains("filesystemProviderSemantic") &&
+                semanticProjection->contains("capacityProvenance") && providerError &&
+                providerError->value("message", "") == "bounded provider failure" && realtime &&
+                realtime->value("lastError", "") == "safe realtime failure" && failure &&
+                failure->value("failureCodexErrorDiscriminator", "") == "httpConnectionFailed" &&
+                failure->value("failureHttpStatusCode", 0) == 503,
+            "bounded error, turn, realtime, aggregate, and domain semantics project through v1 compatibility carriers");
+        const auto projectedPostTurnWire =
+            projectedPostTurn
+                ? model::encodeProjectedSnapshot(projectedPostTurn.value(), model::SnapshotRepresentationSelection{true, true, true, true})
+                : model::ModelResult<frontend::Snapshot>{projectedPostTurn.error()};
+        result.expectTrue(projectedPostTurnWire.hasValue(),
+                          projectedPostTurnWire ? "enriched Snapshot remains v1 encodable"
+                                                : projectedPostTurnWire.error().path + ": " + projectedPostTurnWire.error().message);
         if (projectedPostTurn) {
             oversizedBackend.state = projectedPostTurn.value();
         }
@@ -490,16 +532,25 @@ namespace {
         const auto* postTurnFallback =
             oversizedMessages.size() == 1 ? std::get_if<frontend::Snapshot>(&oversizedMessages.front()) : nullptr;
         const frontend::Json* postTurnUsage = nullptr;
+        const frontend::Json* postTurnUsageLast = nullptr;
+        const frontend::Json* postTurnUsageTotal = nullptr;
         if (postTurnFallback && postTurnFallback->state.contains("turns") && postTurnFallback->state.at("turns").size() == 1) {
             const frontend::Json& encodedTurn = postTurnFallback->state.at("turns").front();
             const auto usage = encodedTurn.find("tokenUsage");
             postTurnUsage = usage != encodedTurn.end() ? &*usage : nullptr;
+            const auto last = encodedTurn.find("tokenUsageLast");
+            postTurnUsageLast = last != encodedTurn.end() ? &*last : nullptr;
+            const auto total = encodedTurn.find("tokenUsageTotal");
+            postTurnUsageTotal = total != encodedTurn.end() ? &*total : nullptr;
         }
-        result.expectTrue(oversizedPublished.accepted && oversizedMessages.size() == 1 &&
-                              postTurnFallback && postTurnUsage && postTurnUsage->is_object() &&
-                              postTurnUsage->value("modelContextWindow", 0) == 258'400 && !postTurnUsage->contains("last") &&
-                              !postTurnUsage->contains("total") && oversized.connectionOpen(*oversizedConnection),
-                          "a post-turn Snapshot fallback bounds nested token usage to Frontend Protocol v1 and stays connected");
+        result.expectTrue(oversizedPublished.accepted && oversizedMessages.size() == 1 && postTurnFallback && postTurnUsage &&
+                              postTurnUsage->is_object() && !postTurnUsage->contains("last") && !postTurnUsage->contains("total") &&
+                              postTurnUsageLast && postTurnUsageTotal && postTurnUsage->value("modelContextWindow", 0) == 258'400 &&
+                              postTurnUsageLast->value("cachedInputTokens", 0) == 1 &&
+                              postTurnUsageLast->value("reasoningOutputTokens", 0) == 2 &&
+                              postTurnUsageTotal->value("inputTokens", 0) == 7 && postTurnUsageTotal->value("totalTokens", 0) == 9 &&
+                              oversized.connectionOpen(*oversizedConnection),
+                          "a post-turn Snapshot fallback keeps compatibility token usage and adds bounded typed sidecar positions");
 
         oversizedMessages.clear();
         generated::DefinedCommand explicitSnapshot{

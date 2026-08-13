@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace ai::openai::codex::frontend::client {
@@ -348,6 +349,248 @@ namespace ai::openai::codex::frontend::client {
         frontend::Json extensions = frontend::Json::object();
 
         bool operator==(const PendingRequestState&) const = default;
+    };
+
+    // Additive semantic views decode the existing bounded v1 compatibility
+    // positions without changing the layouts of TurnState, ItemState, or
+    // PendingRequestState.
+    struct TokenCountsView {
+        std::optional<std::int64_t> cachedInputTokens;
+        std::optional<std::int64_t> inputTokens;
+        std::optional<std::int64_t> outputTokens;
+        std::optional<std::int64_t> reasoningOutputTokens;
+        std::optional<std::int64_t> totalTokens;
+        bool operator==(const TokenCountsView&) const = default;
+    };
+
+    struct TurnTokenUsageView {
+        std::optional<TokenCountsView> last;
+        std::optional<TokenCountsView> total;
+        bool modelContextWindowPresent = false;
+        std::optional<std::int64_t> modelContextWindow;
+        bool truncated = false;
+        std::vector<std::string> omittedFields;
+        frontend::Json extensions = frontend::Json::object();
+        bool operator==(const TurnTokenUsageView&) const = default;
+    };
+
+    struct TurnFailureView {
+        std::optional<std::string> message;
+        bool additionalDetailsPresent = false;
+        bool additionalDetailsNull = false;
+        std::optional<std::string> additionalDetails;
+        bool codexErrorInfoPresent = false;
+        bool codexErrorInfoNull = false;
+        std::optional<std::string> codexErrorCategory;
+        std::optional<std::string> unknownErrorDiscriminator;
+        bool httpStatusCodePresent = false;
+        std::optional<std::int64_t> httpStatusCode;
+        std::optional<std::string> nonSteerableTurnKind;
+        bool decodingOmitted = false;
+        bool redacted = false;
+        frontend::Json extensions = frontend::Json::object();
+        bool operator==(const TurnFailureView&) const = default;
+    };
+
+    struct ThreadRealtimeSemanticView {
+        std::string lifecycle;
+        std::string transcript;
+        std::optional<std::string> lastError;
+        std::optional<std::string> sessionId;
+        std::optional<typed::RealtimeConversationVersion> version;
+        std::optional<std::uint64_t> lastSdpBytes;
+        std::size_t itemCount = 0;
+        std::uint64_t receivedAudioBytes = 0;
+        std::uint64_t droppedAudioBytes = 0;
+        bool transcriptTruncated = false;
+        std::optional<SourceStamp> stamp;
+        bool errorRedacted = false;
+        bool errorOmitted = false;
+        bool operator==(const ThreadRealtimeSemanticView&) const = default;
+    };
+
+    struct AgentMessageSemanticView {
+        std::optional<std::string> phase;
+        bool operator==(const AgentMessageSemanticView&) const = default;
+    };
+    struct CommandExecutionSemanticView {
+        std::optional<std::string> command;
+        std::optional<typed::AbsolutePath> cwd;
+        std::optional<std::string> status;
+        std::optional<std::string> processId;
+        std::optional<std::int64_t> exitCode;
+        std::optional<std::uint64_t> durationMs;
+        bool operator==(const CommandExecutionSemanticView&) const = default;
+    };
+    struct FileChangeSummaryView {
+        std::optional<std::size_t> kindAlternative;
+        std::optional<std::uint64_t> pathBytes;
+        bool pathRedacted = false;
+        std::optional<std::uint64_t> diffBytes;
+        bool diffOmitted = false;
+        bool operator==(const FileChangeSummaryView&) const = default;
+    };
+    struct FileChangeSemanticView {
+        std::optional<std::string> status;
+        std::optional<std::size_t> changeCount;
+        std::vector<FileChangeSummaryView> changes;
+        bool changesTruncated = false;
+        bool operator==(const FileChangeSemanticView&) const = default;
+    };
+    struct ToolCallSemanticView {
+        std::optional<std::string> nameSpace;
+        std::optional<std::string> server;
+        std::optional<std::string> tool;
+        std::optional<std::string> status;
+        std::optional<bool> hasResult;
+        bool operator==(const ToolCallSemanticView&) const = default;
+    };
+    struct WebSearchSemanticView {
+        std::optional<std::string> query;
+        bool operator==(const WebSearchSemanticView&) const = default;
+    };
+    struct CollabAgentToolCallSemanticView {
+        std::optional<std::string> tool;
+        std::optional<std::string> status;
+        std::optional<typed::ThreadId> senderThreadId;
+        std::optional<std::size_t> receiverCount;
+        std::optional<std::size_t> agentStateCount;
+        std::optional<bool> hasPrompt;
+        std::optional<std::uint64_t> promptBytes;
+        bool operator==(const CollabAgentToolCallSemanticView&) const = default;
+    };
+    struct PlanSemanticView {
+        std::optional<std::string> text;
+        bool textTruncated = false;
+        bool operator==(const PlanSemanticView&) const = default;
+    };
+    struct SubAgentActivitySemanticView {
+        std::optional<std::string> agentPath;
+        std::optional<typed::ThreadId> agentThreadId;
+        std::optional<std::string> kind;
+        bool operator==(const SubAgentActivitySemanticView&) const = default;
+    };
+
+    using ItemSemanticDetails = std::variant<AgentMessageSemanticView,
+                                             CommandExecutionSemanticView,
+                                             FileChangeSemanticView,
+                                             ToolCallSemanticView,
+                                             WebSearchSemanticView,
+                                             CollabAgentToolCallSemanticView,
+                                             PlanSemanticView,
+                                             SubAgentActivitySemanticView>;
+
+    struct ItemSemanticView {
+        typed::ItemId id;
+        std::optional<typed::ThreadId> threadId;
+        std::optional<typed::TurnId> turnId;
+        ItemKind kind;
+        ItemSemanticDetails details;
+        bool truncated = false;
+        std::vector<std::string> omittedFields;
+        bool connectionInvalidated = false;
+        std::optional<SourceStamp> stamp;
+        bool operator==(const ItemSemanticView&) const = default;
+    };
+
+    struct PendingRequestPresentationView {
+        PendingRequestId id;
+        frontend::PendingRequestKind kind = frontend::PendingRequestKind::CommandExecutionApproval;
+        std::optional<typed::ThreadId> threadId;
+        std::optional<typed::TurnId> turnId;
+        std::optional<typed::ItemId> itemId;
+        std::optional<std::uint64_t> commandBytes;
+        bool commandRedacted = false;
+        std::optional<std::uint64_t> cwdBytes;
+        bool cwdRedacted = false;
+        std::optional<std::uint64_t> reasonBytes;
+        bool reasonRedacted = false;
+        std::optional<std::uint64_t> grantRootBytes;
+        bool grantRootRedacted = false;
+        std::optional<std::string> authenticationReason;
+        std::optional<std::string> previousAccountId;
+        std::optional<std::size_t> fileChangeCount;
+        std::optional<std::size_t> commandArgumentCount;
+        std::optional<std::size_t> parsedCommandCount;
+        std::optional<bool> hasReason;
+        std::optional<bool> hasGrantRoot;
+        std::optional<bool> hasApprovalId;
+        std::optional<bool> hasEnvironmentId;
+        bool truncated = false;
+        std::vector<std::string> omittedFields;
+        bool operator==(const PendingRequestPresentationView&) const = default;
+    };
+
+    struct ProviderOperationSemanticState {
+        std::string method;
+        std::size_t resultAlternative = 0;
+        SourceStamp stamp;
+        bool operator==(const ProviderOperationSemanticState&) const = default;
+    };
+
+    struct ProviderOperationCollectionSemanticState {
+        std::vector<ProviderOperationSemanticState> entries;
+        bool truncated = false;
+        std::size_t omittedEntries = 0;
+        bool operator==(const ProviderOperationCollectionSemanticState&) const = default;
+    };
+
+    struct DomainNotificationSemanticState {
+        std::string method;
+        std::size_t eventAlternative = 0;
+        SourceStamp stamp;
+        bool operator==(const DomainNotificationSemanticState&) const = default;
+    };
+
+    struct DomainResultSemanticState {
+        std::string method;
+        std::size_t resultAlternative = 0;
+        std::string status;
+        std::optional<std::string> subjectId;
+        std::optional<std::string> nextCursor;
+        std::size_t itemCount = 0;
+        bool complete = true;
+        SourceStamp stamp;
+        bool operator==(const DomainResultSemanticState&) const = default;
+    };
+
+    struct ProviderDomainSemanticState {
+        std::vector<DomainResultSemanticState> latestResults;
+        std::vector<DomainNotificationSemanticState> latestNotifications;
+        bool truncated = false;
+        std::size_t omittedResults = 0;
+        std::size_t omittedNotifications = 0;
+        bool operator==(const ProviderDomainSemanticState&) const = default;
+    };
+
+    struct GoalMutationSemanticState {
+        std::string operation;
+        typed::ThreadId threadId;
+        std::optional<std::string> objective;
+        std::optional<std::string> status;
+        std::optional<bool> cleared;
+        SourceStamp stamp;
+        bool operator==(const GoalMutationSemanticState&) const = default;
+    };
+
+    struct ConversationSemanticState {
+        ProviderDomainSemanticState domain;
+        std::optional<GoalMutationSemanticState> latestGoal;
+        std::optional<GoalMutationSemanticState> latestGoalClear;
+        std::optional<GoalMutationSemanticState> latestGoalSet;
+        std::optional<GoalMutationSemanticState> latestUnsubscribe;
+        bool operator==(const ConversationSemanticState&) const = default;
+    };
+
+    struct CapacityProvenanceState {
+        std::size_t sourceSessionCount = 0;
+        std::size_t sourcePendingRequestCount = 0;
+        std::size_t omittedThreads = 0;
+        std::size_t omittedTurns = 0;
+        std::size_t omittedItems = 0;
+        bool truncated = false;
+        bool mandatoryCoreExceedsLimit = false;
+        bool operator==(const CapacityProvenanceState&) const = default;
     };
 
     struct DomainResultSummaryState {

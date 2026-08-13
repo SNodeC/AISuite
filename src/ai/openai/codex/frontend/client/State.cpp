@@ -633,12 +633,6 @@ namespace ai::openai::codex::frontend::client {
                     return data != value.end() && data->is_object() && data->contains("server") ? frontend::ThreadItemKind::McpToolCall
                                                                                                 : frontend::ThreadItemKind::DynamicToolCall;
                 }
-                const auto data = value.find("data");
-                if (data != value.end() && data->is_object()) {
-                    const auto codexType = stringMember(*data, "codexType");
-                    if (codexType)
-                        return frontend::threadItemKindFromString(*codexType);
-                }
             } catch (...) {
             }
             return std::nullopt;
