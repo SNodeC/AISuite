@@ -493,7 +493,10 @@ namespace {
                                                  return true;
                                              }
                                              if (const auto* welcome = std::get_if<frontend::Welcome>(&decoded.value())) {
-                                                 replayWelcome = welcome->syncMode == frontend::SyncMode::Replay;
+                                                 replayWelcome = true;
+                                                 replaySyncMode = welcome->syncMode;
+                                             } else if (const auto* snapshot = std::get_if<frontend::Snapshot>(&decoded.value())) {
+                                                 replaySnapshot = *snapshot;
                                              } else if (const auto* batch = std::get_if<frontend::EventBatch>(&decoded.value())) {
                                                  for (const frontend::FrontendEvent& event : batch->events) {
                                                      if (frontend::expandedEventTypeFromString(event.type).has_value()) {
@@ -662,6 +665,8 @@ namespace {
         std::vector<std::string> replayCloseReasons;
         std::vector<std::string> replayCompactMessages;
         std::vector<frontend::FrontendEvent> replayEvents;
+        std::optional<frontend::SyncMode> replaySyncMode;
+        std::optional<frontend::Snapshot> replaySnapshot;
         std::size_t providerListCalls = 0;
         std::size_t providerThreadStartCalls = 0;
         std::size_t providerTurnStartCalls = 0;
@@ -815,12 +820,10 @@ namespace {
                 });
             result.expectTrue(submission.accepted(), "typed thread.list is accepted across the in-memory SDK transport");
             waitUntil(
-                "the real service queues the typed response and compact expanded thread-list occurrence",
+                "the real service queues the typed response and authoritative provider-operation Snapshot",
                 [this]() {
                     harness->driveSources();
-                    return harness->queuedResponse() &&
-                           harness->queuedExpandedEvents(frontend::ExpandedEventType::ThreadUpserted) == PageThreadCount &&
-                           harness->queuedExpandedEvents(frontend::ExpandedEventType::ThreadListUpdated) == 1;
+                    return harness->queuedResponse() && harness->queuedSnapshot();
                 },
                 [this]() {
                     harness->deliverAll(DeliveryOrder::Wire);
@@ -837,21 +840,21 @@ namespace {
             const auto statePosition = std::find_if(harness->protocolMessages.begin() + static_cast<std::ptrdiff_t>(protocolBaseline),
                                                     harness->protocolMessages.end(),
                                                     [](const frontend::ServerMessage& message) {
-                                                        return std::holds_alternative<frontend::EventBatch>(message);
+                                                        return std::holds_alternative<frontend::Snapshot>(message);
                                                     });
             const client::State state = harness->sdk->state();
-            const auto [projectedThreads, projectedOccurrences] = harness->projectedThreadsSince(protocolBaseline);
-            std::set<std::string> expectedPageIds;
-            bool exactProjectedContent = true;
+            const bool snapshotUpdate = harness->stateUpdates.size() == updateBaseline + 1 &&
+                                        harness->stateUpdates.back().cause == client::UpdateCause::SnapshotFallback;
+            const auto providerOperations = state.providerOperations();
+            const bool threadListOperation =
+                providerOperations &&
+                std::any_of(providerOperations->entries.begin(), providerOperations->entries.end(), [](const auto& operation) {
+                    return operation.method == "thread/list";
+                });
             bool exactResponseContent = completed.has_value();
             bool exactStateContent = true;
             for (std::size_t index = 0; index < PageThreadCount; ++index) {
                 const std::string id = "live-thread-" + std::to_string(index);
-                expectedPageIds.insert(id);
-                const auto projected = projectedThreads.find(id);
-                exactProjectedContent = exactProjectedContent && projected != projectedThreads.end() &&
-                                        projected->second.title == threadTitle("Page", index) &&
-                                        projected->second.preview == projectedThreadPreview("Page", index, true);
                 if (completed) {
                     const auto responseThread =
                         std::find_if(completed->threads.begin(), completed->threads.end(), [&id](const auto& value) {
@@ -872,26 +875,15 @@ namespace {
                                     unrelated->title == std::optional<std::string>{threadTitle("Initial", index)} &&
                                     unrelated->preview == std::optional<std::string>{projectedThreadPreview("Initial", index, true)};
             }
-            std::set<std::string> actualPageIds;
-            for (const auto& [id, projected] : projectedThreads) {
-                static_cast<void>(projected);
-                actualPageIds.insert(id);
-            }
             result.expectTrue(completions == 1 && completed && completed->threads.size() == PageThreadCount &&
-                                  harness->providerListCalls == 2 && harness->liveSnapshotsSince(protocolBaseline) == 0 &&
-                                  harness->expandedEventsSince(protocolBaseline, frontend::ExpandedEventType::ThreadUpserted) ==
-                                      PageThreadCount &&
-                                  harness->expandedEventsSince(protocolBaseline, frontend::ExpandedEventType::ThreadListUpdated) == 1 &&
+                                  harness->providerListCalls == 2 && harness->liveSnapshotsSince(protocolBaseline) == 1 &&
+                                  harness->expandedEventsSince(protocolBaseline, frontend::ExpandedEventType::ThreadUpserted) == 0 &&
+                                  harness->expandedEventsSince(protocolBaseline, frontend::ExpandedEventType::ThreadListUpdated) == 0 &&
                                   responsePosition != harness->protocolMessages.end() && statePosition != harness->protocolMessages.end() &&
-                                  responsePosition < statePosition && harness->sdk->isReady() && harness->sdkConnection->isOpen() &&
-                                  harness->sdk->pendingOperationCount() == 0 && harness->sdkCloseReasons.empty(),
-                              "a realistic 25-thread page over 35 retained large threads returns once and emits only 25 page upserts "
-                              "plus one compact threadList.updated without snapshot fallback");
-            result.expectTrue(projectedOccurrences == PageThreadCount && projectedThreads.size() == PageThreadCount &&
-                                  actualPageIds == expectedPageIds,
-                              "the 25 projected page occurrences carry the exact 25 unique response-page IDs without substitution");
-            result.expectTrue(exactProjectedContent,
-                              "each projected page event carries the title and bounded preview belonging to its exact thread ID");
+                                  snapshotUpdate && harness->sdk->isReady() && harness->sdkConnection->isOpen() &&
+                                  harness->sdk->pendingOperationCount() == 0 && harness->sdkCloseReasons.empty() && threadListOperation,
+                              "a realistic 25-thread page over 35 retained large threads returns once and publishes one authoritative "
+                              "Snapshot carrying the thread/list provider operation");
             result.expectTrue(exactResponseContent,
                               "the typed response preserves every exact page ID with its matching title and provider preview");
             result.expectTrue(exactStateContent,
@@ -901,7 +893,7 @@ namespace {
                     state.threadList().value->nextCursor == std::optional<std::string>{"page-next"} &&
                     harness->stateUpdates.size() > updateBaseline && harness->synchronized.size() == synchronizedBaseline && cursorBefore &&
                     harness->sdk->synchronizedThrough() && *harness->sdk->synchronizedThrough() > *cursorBefore,
-                "compact thread-list metadata preserves unrelated retained threads, advances the cursor, and fabricates "
+                "authoritative thread-list Snapshot preserves unrelated retained threads, advances the cursor, and fabricates "
                 "no synchronization callback");
 
             secondCompletions = 0;
@@ -911,9 +903,9 @@ namespace {
                         ++secondCompletions;
                     }
                 });
-            result.expectTrue(second.accepted(), "a second typed command is accepted after the compact update");
+            result.expectTrue(second.accepted(), "a second typed command is accepted after the authoritative Snapshot update");
             waitUntil(
-                "the second typed command completes after compact thread-list delivery",
+                "the second typed command completes after authoritative thread-list Snapshot delivery",
                 [this]() {
                     harness->settle();
                     return secondCompletions == 1;
@@ -1237,35 +1229,34 @@ namespace {
         }
 
         void verifyLifecycleReplayAndBeginSecondCommand() {
-            const CrossLayerHarness::WireItemObservation* liveUser = harness->wireItemSince(lifecycleWireItemBaseline, LifecycleUserItemId);
-            const CrossLayerHarness::WireItemObservation* liveAgent =
-                harness->wireItemSince(lifecycleWireItemBaseline, LifecycleAgentItemId);
-            const CrossLayerHarness::WireContentObservation* liveContent =
-                harness->wireContentSince(lifecycleWireContentBaseline, LifecycleAgentItemId);
-            const frontend::FrontendEvent* replayUser = harness->replayItem(LifecycleUserItemId);
-            const frontend::FrontendEvent* replayAgent = harness->replayItem(LifecycleAgentItemId);
-            const frontend::FrontendEvent* replayContent = harness->replayContent(LifecycleAgentItemId);
-            const bool exactReplayItems =
-                liveUser != nullptr && liveAgent != nullptr && replayUser != nullptr && replayAgent != nullptr &&
-                replayUser->data.at("item") == liveUser->item && replayAgent->data.at("item") == liveAgent->item &&
-                replayUser->data.at("item").at("type") == "userMessage" && replayAgent->data.at("item").at("type") == "agentMessage";
-            const bool exactReplayContent = liveContent != nullptr && replayContent != nullptr &&
-                                            replayContent->data.value("threadId", "") == liveContent->threadId &&
-                                            replayContent->data.value("turnId", "") == liveContent->turnId &&
-                                            replayContent->data.value("itemId", "") == liveContent->itemId &&
-                                            replayContent->data.value("channel", "") == liveContent->channel &&
-                                            replayContent->data.value("content", "") == liveContent->content;
-            const bool replayWireNormalized =
-                std::all_of(harness->replayCompactMessages.begin(), harness->replayCompactMessages.end(), [](const std::string& message) {
-                    return message.find("\"type\":\"user_message\"") == std::string::npos &&
-                           message.find("\"type\":\"agent_message\"") == std::string::npos;
-                });
+            bool snapshotContainsUser = false;
+            bool snapshotContainsAgent = false;
+            if (harness->replaySnapshot && harness->replaySnapshot->state.contains("items") &&
+                harness->replaySnapshot->state.at("items").is_array()) {
+                for (const frontend::Json& item : harness->replaySnapshot->state.at("items")) {
+                    snapshotContainsUser = snapshotContainsUser ||
+                                           (item.value("id", "") == LifecycleUserItemId && item.value("type", "") == "userMessage" &&
+                                            item.value("threadId", "") == LifecycleThreadId &&
+                                            item.value("turnId", "") == LifecycleTurnId);
+                    snapshotContainsAgent = snapshotContainsAgent ||
+                                            (item.value("id", "") == LifecycleAgentItemId && item.value("type", "") == "agentMessage" &&
+                                             item.value("threadId", "") == LifecycleThreadId &&
+                                             item.value("turnId", "") == LifecycleTurnId &&
+                                             item.value("agentText", "") == LifecycleAgentText);
+                }
+            }
             result.expectTrue(harness->replayWelcome && harness->replayComplete && harness->replayConnection->isOpen() &&
-                                  harness->replayCloseReasons.empty() && harness->replayDecodeFailures == 0 &&
-                                  harness->replayExpandedEvents > 0 &&
-                                  harness->replayExpandedEvents == harness->replayValidExpandedEvents && exactReplayItems &&
-                                  exactReplayContent && replayWireNormalized,
-                              "journal replay preserves the same stable item discriminators, fields, content, and exact identities");
+                                  harness->replayCloseReasons.empty() && harness->replayDecodeFailures == 0,
+                              "the post-barrier synchronization handshake completes without protocol or connection failure");
+            result.expectTrue(harness->replaySyncMode == frontend::SyncMode::Snapshot,
+                              "the provider-operation barrier selects authoritative Snapshot synchronization");
+            result.expectTrue(harness->replaySnapshot.has_value(),
+                              "authoritative post-barrier synchronization includes a Snapshot");
+            result.expectTrue(snapshotContainsUser && snapshotContainsAgent,
+                              "the authoritative Snapshot retains canonical lifecycle item identities, provenance, and agent content");
+            result.expectTrue(harness->replayExpandedEvents > 0 &&
+                                  harness->replayExpandedEvents == harness->replayValidExpandedEvents,
+                              "lifecycle occurrences delivered after the captured Snapshot barrier remain schema-valid");
 
             lifecycleSecondCompletions = 0;
             const client::Submission second = harness->sdk->threads().list(
