@@ -9,7 +9,6 @@
 #include "ai/openai/codex/frontend/client/Controller.h"
 #include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/FrontendWebSocketClient.h"
-#include "apps/codex-backend/FrontendRuntimeBridge.h"
 #include "apps/codex-backend/FrontendWebApplication.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
@@ -24,7 +23,9 @@
 #include "express/tls/in6/WebApp.h"
 #endif
 #include "net/in/SocketAddress.h"
+#include "net/in/stream/legacy/SocketClient.h"
 #include "net/in6/SocketAddress.h"
+#include "net/in6/stream/legacy/SocketClient.h"
 #include "support/TestResult.h"
 #include "utils/Timeval.h"
 #include "web/http/ConfigHttpParser.h"
@@ -32,12 +33,10 @@
 #include "web/http/client/ConfigHTTP.h"
 #include "web/http/client/Request.h"
 #include "web/http/client/SocketContext.h"
-#include "web/http/legacy/in/Client.h"
-#include "web/http/legacy/in6/Client.h"
 #include "web/http/server/ConfigHttpServer.h"
 #if defined(AISUITE_CODEX_WEBSOCKET_ACCEPTANCE_TLS)
-#include "web/http/tls/in/Client.h"
-#include "web/http/tls/in6/Client.h"
+#include "net/in/stream/tls/SocketClient.h"
+#include "net/in6/stream/tls/SocketClient.h"
 #endif
 
 #include <algorithm>
@@ -180,7 +179,7 @@ namespace {
 
         tests::support::TestResult& result;
         Transport transport;
-        client_app::FrontendWebSocketClientRuntime* runtime = nullptr;
+        client_app::FrontendWebSocketClientBinding* binding = nullptr;
         sdk::Client* sdkClient = nullptr;
         core::socket::stream::SocketConnection* transportConnection = nullptr;
         std::optional<frontend::FrontendPeerContext> authenticatedPeer;
@@ -191,8 +190,8 @@ namespace {
         std::size_t httpConnected = 0;
         std::size_t upgradeStarted = 0;
         std::size_t upgradeCompleted = 0;
-        std::size_t runtimeConnected = 0;
-        std::size_t runtimeDisconnected = 0;
+        std::size_t bindingConnected = 0;
+        std::size_t bindingDisconnected = 0;
         std::size_t authenticationPrepared = 0;
         std::size_t authenticationAttempts = 0;
         std::size_t welcomeReceived = 0;
@@ -202,10 +201,6 @@ namespace {
         std::size_t readyTransitions = 0;
         std::size_t localShutdowns = 0;
         std::size_t unintentionalDisconnects = 0;
-        std::size_t staleHttpCallbacks = 0;
-        std::size_t attemptConnected = 0;
-        std::size_t attemptDisconnected = 0;
-        std::size_t overlapRejections = 0;
         std::size_t postReconnectCommands = 0;
         std::vector<std::string> sessionIds;
     };
@@ -245,8 +240,6 @@ namespace {
                 return authenticate(state, peer, credential);
             };
             frontend::FrontendService service(backend, std::move(serviceOptions));
-            result.expectTrue(backend_app::installFrontendRuntime(service),
-                              "the production server WebSocket plugin bridge installs exactly once");
 
             backend_app::FrontendWebApplication webApplication(
                 service,
@@ -296,10 +289,10 @@ namespace {
                     .onSynchronized =
                         [&state](const sdk::SynchronizationInfo&) {
                             ++state.synchronized;
-                            state.synchronizedWhileConnected = state.runtime != nullptr && state.runtime->connected();
+                            state.synchronizedWhileConnected = state.binding != nullptr && state.binding->connected();
                             core::EventReceiver::atNextTick([&state] {
-                                if (state.runtime == nullptr || !state.runtime->connected()) {
-                                    state.fail("production CLI WebSocket runtime detached before synchronized work interleaved");
+                                if (state.binding == nullptr || !state.binding->connected()) {
+                                    state.fail("production CLI WebSocket binding detached before synchronized work interleaved");
                                     return;
                                 }
                                 if (state.synchronized == 1) {
@@ -309,7 +302,7 @@ namespace {
                                     }
                                     // Close the physical socket underneath the
                                     // production subprotocol. Unlike
-                                    // runtime.shutdown(), this does not mark an
+                                    // binding.shutdown(), this does not mark an
                                     // application-local shutdown and therefore
                                     // exercises the remote/unintentional loss
                                     // disposition used by explicit reconnect.
@@ -330,8 +323,8 @@ namespace {
                                         core::EventReceiver::atNextTick([&state] {
                                             if (state.transport == Transport::WebSocketIpv4) {
                                                 static_cast<void>(::kill(::getpid(), SIGINT));
-                                            } else if (state.runtime != nullptr) {
-                                                state.runtime->shutdown();
+                                            } else if (state.binding != nullptr) {
+                                                state.binding->shutdown();
                                             }
                                         });
                                     });
@@ -350,65 +343,44 @@ namespace {
                         },
                     .onDiagnostic = {}});
             state.sdkClient = &client;
-            client_app::PhysicalConnectionAttemptGate physicalAttempts;
             std::function<void()> startAttempt;
-            std::shared_ptr<HttpClient> httpClient;
-            std::weak_ptr<web::http::client::MasterRequest> activeHttpRequest;
-            client_app::PhysicalConnectionAttemptGate::Generation activeHttpGeneration = 0;
-            bool upgradeCommitted = false;
+            std::unique_ptr<HttpClient> httpClient;
 
-            client_app::FrontendWebSocketClientRuntime runtime(
+            auto binding = std::make_shared<client_app::FrontendWebSocketClientBinding>(
                 client,
                 client_app::FrontendWebSocketClientCallbacks{
                     .onConnected =
                         [&state] {
-                            ++state.runtimeConnected;
+                            ++state.bindingConnected;
                         },
                     .onDisconnected =
-                        [&state] {
-                            ++state.runtimeDisconnected;
-                        },
-                    .onFailure =
-                        [&state](std::string message) {
-                            state.fail(std::string(transportName(state.transport)) + " runtime failed: " + message);
-                        },
-                    .onAttemptConnected =
-                        [&state, &physicalAttempts](const std::uint64_t generation) {
-                            ++state.attemptConnected;
-                            state.result.expectTrue(physicalAttempts.isCurrent(generation),
-                                                    "only the current WebSocket generation may attach to the SDK");
-                        },
-                    .onAttemptDisconnected =
-                        [&state, &physicalAttempts, &httpClient, &startAttempt](const std::uint64_t generation) {
-                            if (!physicalAttempts.isCurrent(generation)) {
-                                state.fail("a stale WebSocket detach callback reached application lifecycle state");
-                                return;
-                            }
-                            ++state.attemptDisconnected;
-                            if (state.attemptDisconnected == 1) {
+                        [&state, &httpClient, &startAttempt] {
+                            ++state.bindingDisconnected;
+                            if (state.bindingDisconnected == 1) {
                                 state.result.expectTrue(
                                     state.localShutdowns == 0,
                                     "the first WebSocket loss is unintentional and does not request application shutdown");
                                 ++state.unintentionalDisconnects;
                             }
-                            static_cast<void>(physicalAttempts.complete(generation));
                             state.transportConnection = nullptr;
-                            std::shared_ptr<HttpClient> retired = std::move(httpClient);
-                            if (state.attemptDisconnected == 1) {
-                                core::EventReceiver::atNextTick([retired = std::move(retired), &startAttempt] {
-                                    startAttempt();
+                            if (state.bindingDisconnected == 1) {
+                                core::EventReceiver::atNextTick([&httpClient, &startAttempt] {
+                                    if (httpClient != nullptr) {
+                                        static_cast<void>(httpClient->getFlowController()->terminateFlow());
+                                    }
+                                    core::EventReceiver::atNextTick([&startAttempt] {
+                                        startAttempt();
+                                    });
                                 });
                             } else {
-                                core::EventReceiver::atNextTick([retired = std::move(retired)] {
+                                core::EventReceiver::atNextTick([] {
                                     core::SNodeC::stop();
                                 });
                             }
                         },
-                    .onAttemptFailure =
-                        [&state, &physicalAttempts](const std::uint64_t generation, std::string message) {
-                            if (physicalAttempts.isCurrent(generation)) {
-                                state.fail(std::string(transportName(state.transport)) + " current attempt failed: " + message);
-                            }
+                    .onFailure =
+                        [&state](std::string message) {
+                            state.fail(std::string(transportName(state.transport)) + " binding failed: " + message);
                         },
                     .onBeforeTransportConnected =
                         [&state](bool localUnix) {
@@ -419,9 +391,44 @@ namespace {
                         [&state] {
                             ++state.localShutdowns;
                         }});
-            state.runtime = &runtime;
-            result.expectTrue(runtime.install(), "the production CLI WebSocket runtime bridge installs exactly once");
+            state.binding = binding.get();
             client_app::linkFrontendWebSocketClient();
+
+            const auto beginUpgrade = [&, binding](const std::shared_ptr<web::http::client::MasterRequest>& request) {
+                binding->beginUpgrade();
+                state.transportConnection = request != nullptr && request->getSocketContext() != nullptr
+                                                ? request->getSocketContext()->getSocketConnection()
+                                                : nullptr;
+                request->set("Sec-WebSocket-Protocol", "codex");
+                request->upgrade(
+                    std::string(Endpoint),
+                    "websocket",
+                    [&state](bool success) {
+                        if (success) {
+                            ++state.upgradeStarted;
+                        } else {
+                            state.fail("production CLI WebSocket upgrade could not be initiated");
+                        }
+                    },
+                    [&state, binding](const auto&, const auto& response, bool success) {
+                        if (success && response->get("upgrade") == "websocket" && response->get("sec-websocket-protocol") == "codex") {
+                            binding->commitUpgrade();
+                            ++state.upgradeCompleted;
+                        } else {
+                            state.fail("production CLI WebSocket upgrade response was rejected (status=" + response->statusCode +
+                                       ", upgrade=" + response->get("upgrade") +
+                                       ", subprotocol=" + response->get("sec-websocket-protocol") + ")");
+                        }
+                    },
+                    [&state](const auto&, const std::string& message) {
+                        state.fail("production CLI WebSocket HTTP response failed: " + message);
+                    });
+            };
+            const auto endHttp = [binding](const std::shared_ptr<web::http::client::MasterRequest>&) {
+                static_cast<void>(binding->consumeCommittedUpgrade());
+            };
+            httpClient = std::make_unique<HttpClient>("a1-7c-1-cli-websocket-persistent-client", beginUpgrade, endHttp, binding);
+            httpClient->getConfig()->Instance::forceUnrequired();
 
             webApp.listen(listenAddress, [&](const Address& bound, core::socket::State listenState) {
                 if (listenState != core::socket::State::OK || bound.getPort() == 0) {
@@ -431,110 +438,26 @@ namespace {
                 ++state.listenerBound;
                 const Address remote(connectHost, bound.getPort());
                 const std::uint16_t port = bound.getPort();
-                startAttempt = [&, remote, port] {
-                    const auto generation = physicalAttempts.begin();
-                    if (!generation || !runtime.prepareAttempt(*generation)) {
-                        state.fail("the configured WebSocket adapter allowed overlapping physical attempts");
-                        return;
-                    }
-                    if (!physicalAttempts.begin()) {
-                        ++state.overlapRejections;
-                    }
-                    const auto beginUpgrade = [&,
-                                               generation = *generation](const std::shared_ptr<web::http::client::MasterRequest>& request) {
-                        if (!physicalAttempts.isCurrent(generation) || !runtime.isCurrentAttempt(generation)) {
-                            ++state.staleHttpCallbacks;
-                            if (request != nullptr && request->getSocketContext() != nullptr) {
-                                request->getSocketContext()->close();
-                            }
-                            return;
-                        }
-                        auto* const transport = request != nullptr && request->getSocketContext() != nullptr
-                                                    ? request->getSocketContext()->getSocketConnection()
-                                                    : nullptr;
-                        if (!runtime.bindAttemptTransport(generation, transport)) {
-                            state.fail("the WebSocket runtime rejected its originating HTTP transport identity");
-                            if (request != nullptr && request->getSocketContext() != nullptr) {
-                                request->getSocketContext()->close();
-                            }
-                            return;
-                        }
-                        activeHttpRequest = request;
-                        activeHttpGeneration = generation;
-                        upgradeCommitted = false;
-                        state.transportConnection = transport;
-                        const std::weak_ptr<web::http::client::MasterRequest> requestWeak = request;
-                        const auto currentUpgrade = [&, requestWeak, generation] {
-                            const std::shared_ptr<web::http::client::MasterRequest> expected = requestWeak.lock();
-                            const std::shared_ptr<web::http::client::MasterRequest> active = activeHttpRequest.lock();
-                            return expected != nullptr && active == expected && activeHttpGeneration == generation &&
-                                   physicalAttempts.isCurrent(generation);
-                        };
-                        request->set("Sec-WebSocket-Protocol", "codex");
-                        request->upgrade(
-                            std::string(Endpoint),
-                            "websocket",
-                            [&state, currentUpgrade](bool success) {
-                                if (!currentUpgrade()) {
-                                    ++state.staleHttpCallbacks;
-                                } else if (success) {
-                                    ++state.upgradeStarted;
-                                } else {
-                                    state.fail("production CLI WebSocket upgrade could not be initiated");
-                                }
-                            },
-                            [&state, &upgradeCommitted, currentUpgrade](const auto&, const auto& response, bool success) {
-                                if (!currentUpgrade()) {
-                                    ++state.staleHttpCallbacks;
-                                } else if (success && response->get("upgrade") == "websocket" &&
-                                           response->get("sec-websocket-protocol") == "codex") {
-                                    upgradeCommitted = true;
-                                    ++state.upgradeCompleted;
-                                } else {
-                                    state.fail("production CLI WebSocket upgrade response was rejected (status=" + response->statusCode +
-                                               ", upgrade=" + response->get("upgrade") +
-                                               ", subprotocol=" + response->get("sec-websocket-protocol") + ")");
-                                }
-                            },
-                            [&state, currentUpgrade](const auto&, const std::string& message) {
-                                if (!currentUpgrade()) {
-                                    ++state.staleHttpCallbacks;
-                                } else {
-                                    state.fail("production CLI WebSocket HTTP response failed: " + message);
-                                }
-                            });
-                    };
-                    const auto endHttp = [&, generation = *generation](const std::shared_ptr<web::http::client::MasterRequest>& request) {
-                        const std::shared_ptr<web::http::client::MasterRequest> active = activeHttpRequest.lock();
-                        if ((active && active != request) || !physicalAttempts.isCurrent(generation) ||
-                            activeHttpGeneration != generation) {
-                            ++state.staleHttpCallbacks;
-                            return;
-                        }
-                        activeHttpRequest.reset();
-                        activeHttpGeneration = 0;
-                        if (upgradeCommitted || runtime.connected()) {
-                            return;
-                        }
-                        runtime.abandonAttempt(generation);
-                    };
-                    httpClient = std::make_shared<HttpClient>("", std::move(beginUpgrade), std::move(endHttp));
-                    httpClient->getConfig()->Instance::forceUnrequired();
-                    if (usesIpv6(state.transport)) {
-                        // SNode.C 2.0 derives the default HTTP Host field from
-                        // SocketAddress::toString(false), which does not bracket
-                        // IPv6 literals. Exercise its public HTTP client policy
-                        // override until the framework formats IPv6 authorities.
-                        httpClient->getConfig()
-                            ->net::config::ConfigInstance::template getSubCommand<web::http::client::ConfigHttpClient>()
-                            ->setHostHeader("[" + connectHost + "]:" + std::to_string(port));
-                    }
-                    if constexpr (Encrypted) {
+                if (usesIpv6(state.transport)) {
+                    // SNode.C 2.0 derives the default HTTP Host field from
+                    // SocketAddress::toString(false), which does not bracket
+                    // IPv6 literals. Exercise its public HTTP client policy
+                    // override until the framework formats IPv6 authorities.
+                    httpClient->getConfig()
+                        ->net::config::ConfigInstance::template getSubCommand<web::http::client::ConfigHttpClient>()
+                        ->setHostHeader("[" + connectHost + "]:" + std::to_string(port));
+                }
+                if constexpr (Encrypted) {
 #if defined(AISUITE_CODEX_WEBSOCKET_ACCEPTANCE_TLS)
-                        httpClient->getConfig()->Tls::setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
-                        httpClient->getConfig()->Tls::setCaCertAcceptUnknown(false);
-                        httpClient->getConfig()->Tls::setSni("localhost");
+                    httpClient->getConfig()->Tls::setCaCert(AISUITE_CODEX_TEST_TLS_CERT);
+                    httpClient->getConfig()->Tls::setCaCertAcceptUnknown(false);
+                    httpClient->getConfig()->Tls::setSni("localhost");
 #endif
+                }
+                startAttempt = [&, remote] {
+                    if (state.httpConnected != 0 && !httpClient->getFlowController()->isTerminated()) {
+                        state.fail("explicit reconnect began before the prior persistent SNode.C cycle terminated");
+                        return;
                     }
                     httpClient->connect(remote, [&state](const Address&, core::socket::State connectState) {
                         if (connectState == core::socket::State::OK) {
@@ -554,12 +477,12 @@ namespace {
                 },
                 utils::Timeval({5, 0}));
             eventLoopResult = core::SNodeC::start(utils::Timeval({7, 0}));
+            static_cast<void>(httpClient->getFlowController()->terminateFlow());
+            binding->shutdown();
             httpClient.reset();
-            runtime.uninstall();
-            state.runtime = nullptr;
+            state.binding = nullptr;
             state.sdkClient = nullptr;
             service.close("CLI WebSocket acceptance complete");
-            backend_app::uninstallFrontendRuntime(service);
         }
         core::SNodeC::free();
 
@@ -567,9 +490,9 @@ namespace {
         result.expectTrue(eventLoopResult == expectedLoopResult && !state.timedOut && state.failures == 0,
                           std::string(transportName(transport)) + " completes two deterministic production adapter lifecycles");
         result.expectTrue(state.listenerBound == 1 && state.httpConnected == 2 && state.upgradeStarted == 2 &&
-                              state.upgradeCompleted == 2 && state.runtimeConnected == 2 && state.runtimeDisconnected == 2 &&
-                              state.attemptConnected == 2 && state.attemptDisconnected == 2 && state.overlapRejections == 2,
-                          std::string(transportName(transport)) + " performs two sequential SNode.C HTTP upgrades using codex");
+                              state.upgradeCompleted == 2 && state.bindingConnected == 2 && state.bindingDisconnected == 2,
+                          std::string(transportName(transport)) +
+                              " reuses one configured SNode.C client for two sequential HTTP upgrades using codex");
         result.expectTrue(state.authenticationPrepared == 2 && state.authenticationAttempts == 2 && state.authenticatedPeer &&
                               state.authenticatedPeer->encrypted == Encrypted && !state.authenticatedPeer->localPeer,
                           std::string(transportName(transport)) + " reauthenticates both physical connections as the same remote profile");
@@ -600,17 +523,25 @@ namespace {
 
         switch (transport) {
             case Transport::WebSocketIpv4:
-                return runLoopback<false, express::legacy::in::WebApp, web::http::legacy::in::Client>(
+                return runLoopback<false,
+                                   express::legacy::in::WebApp,
+                                   client_app::FrontendWebSocketHttpClient<net::in::stream::legacy::SocketClient>>(
                     argc, argv, result, transport, net::in::SocketAddress("127.0.0.1", 0), "127.0.0.1");
             case Transport::WebSocketIpv6:
-                return runLoopback<false, express::legacy::in6::WebApp, web::http::legacy::in6::Client>(
+                return runLoopback<false,
+                                   express::legacy::in6::WebApp,
+                                   client_app::FrontendWebSocketHttpClient<net::in6::stream::legacy::SocketClient>>(
                     argc, argv, result, transport, net::in6::SocketAddress("::1", 0), "::1");
 #if defined(AISUITE_CODEX_WEBSOCKET_ACCEPTANCE_TLS)
             case Transport::WssIpv4:
-                return runLoopback<true, express::tls::in::WebApp, web::http::tls::in::Client>(
+                return runLoopback<true,
+                                   express::tls::in::WebApp,
+                                   client_app::FrontendWebSocketHttpClient<net::in::stream::tls::SocketClient>>(
                     argc, argv, result, transport, net::in::SocketAddress("127.0.0.1", 0), "127.0.0.1");
             case Transport::WssIpv6:
-                return runLoopback<true, express::tls::in6::WebApp, web::http::tls::in6::Client>(
+                return runLoopback<true,
+                                   express::tls::in6::WebApp,
+                                   client_app::FrontendWebSocketHttpClient<net::in6::stream::tls::SocketClient>>(
                     argc, argv, result, transport, net::in6::SocketAddress("::1", 0), "::1");
 #else
             case Transport::WssIpv4:

@@ -34,17 +34,8 @@
 #include "net/rc/stream/tls/SocketClient.h"
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-#include "web/http/ConfigHttpParser.h"
-#include "web/http/ConfigWebSocket.h"
-#include "web/http/client/ConfigHTTP.h"
 #include "web/http/client/Request.h"
 #include "web/http/client/SocketContext.h"
-#include "web/http/legacy/in/Client.h"
-#include "web/http/legacy/in6/Client.h"
-#if defined(AISUITE_CODEX_FRONTEND_TLS)
-#include "web/http/tls/in/Client.h"
-#include "web/http/tls/in6/Client.h"
-#endif
 #endif
 #include "utils/Config.h"
 
@@ -61,78 +52,8 @@
 #include <unistd.h>
 #include <utility>
 #include <variant>
-#include <vector>
 
 namespace {
-
-    template <typename Config>
-    void copyEffectiveSocketConfiguration(Config* source, Config* target) {
-        using Remote = typename Config::Remote;
-        using Local = typename Config::Local;
-        using Connection = typename Config::Connection;
-        using Socket = typename Config::Socket;
-
-        auto& sourceRemote = static_cast<Remote&>(*source);
-        auto& targetRemote = static_cast<Remote&>(*target);
-        targetRemote.setSocketAddress(sourceRemote.getSocketAddress());
-
-        auto& sourceLocal = static_cast<Local&>(*source);
-        auto& targetLocal = static_cast<Local&>(*target);
-        targetLocal.setSocketAddress(sourceLocal.getSocketAddress());
-
-        auto& sourceConnection = static_cast<Connection&>(*source);
-        auto& targetConnection = static_cast<Connection&>(*target);
-        targetConnection.setReadTimeout(sourceConnection.getReadTimeout());
-        targetConnection.setWriteTimeout(sourceConnection.getWriteTimeout());
-        targetConnection.setReadBlockSize(sourceConnection.getReadBlockSize());
-        targetConnection.setWriteBlockSize(sourceConnection.getWriteBlockSize());
-        targetConnection.setMaximumWriteQueueBytes(sourceConnection.getMaximumWriteQueueBytes());
-        targetConnection.setWriteQueueHighWatermark(sourceConnection.getWriteQueueHighWatermark());
-        targetConnection.setWriteQueueLowWatermark(sourceConnection.getWriteQueueLowWatermark());
-        targetConnection.setTerminateTimeout(sourceConnection.getTerminateTimeout());
-
-        auto& sourceSocket = static_cast<Socket&>(*source);
-        auto& targetSocket = static_cast<Socket&>(*target);
-        // One application command owns one physical attempt. SNode.C's
-        // automatic retry/reconnect flow is deliberately disabled here.
-        targetSocket.setRetry(false);
-        targetSocket.setRetryOnFatal(false);
-        targetSocket.setRetryTimeout(sourceSocket.getRetryTimeout());
-        targetSocket.setRetryTries(sourceSocket.getRetryTries());
-        targetSocket.setRetryBase(sourceSocket.getRetryBase());
-        targetSocket.setRetryLimit(static_cast<unsigned int>(sourceSocket.getRetryLimit()));
-        targetSocket.setRetryJitter(sourceSocket.getRetryJitter());
-        // Application reconnect is explicit. Never inherit SNode.C's
-        // automatic physical reconnect switch into an attempt object.
-        targetSocket.setReconnect(false);
-        targetSocket.setReconnectTime(sourceSocket.getReconnectTime());
-        targetSocket.setConnectTimeout(sourceSocket.getConnectTimeout());
-        for (const auto& [level, names] : sourceSocket.getSocketOptions()) {
-            for (const auto& [name, option] : names) {
-                const char* bytes = static_cast<const char*>(option.getOptValue());
-                targetSocket.addSocketOption(level, name, std::vector<char>(bytes, bytes + option.getOptLen()));
-            }
-        }
-
-        if constexpr (requires { source->getSni(); }) {
-            target->setSni(source->getSni());
-        }
-        if constexpr (requires { source->getCert(); }) {
-            target->setInitTimeout(source->getInitTimeout());
-            target->setShutdownTimeout(source->getShutdownTimeout());
-            target->setCert(source->getCert());
-            target->setCertKey(source->getCertKey());
-            target->setCertKeyPassword(source->getCertKeyPassword());
-            target->setCaCert(source->getCaCert());
-            target->setCaCertDir(source->getCaCertDir());
-            target->setCaCertDirUseDefault(source->getCaCertDirUseDefault());
-            target->setCaCertAcceptUnknown(source->getCaCertAcceptUnknown());
-            target->setCipherList(source->getCipherList());
-            target->setSslOptions(source->getSslOptions());
-            target->setNoCloseNotifyIsEOF(source->getNoCloseNotifyIsEOF());
-        }
-        target->Instance::setDisabled(false);
-    }
 
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
     bool closeWebSocketUpgradeTransport(const std::shared_ptr<web::http::client::MasterRequest>& request) noexcept {
@@ -149,28 +70,6 @@ namespace {
         return false;
     }
 
-    template <typename HttpClient>
-    void copyEffectiveHttpConfiguration(HttpClient& source, HttpClient& target) {
-        copyEffectiveSocketConfiguration(source.getConfig(), target.getConfig());
-        auto& sourceInstance = static_cast<net::config::ConfigInstance&>(*source.getConfig());
-        auto& targetInstance = static_cast<net::config::ConfigInstance&>(*target.getConfig());
-        auto* const sourceHttp = sourceInstance.template getSubCommand<web::http::client::ConfigHTTP>();
-        auto* const targetHttp = targetInstance.template getSubCommand<web::http::client::ConfigHTTP>();
-        targetHttp->setHostHeader(sourceHttp->getHostHeader());
-        targetHttp->setPipelinedRequests(sourceHttp->getPipelinedRequests());
-        auto* const sourceParser = sourceHttp->getParserConfig();
-        auto* const targetParser = targetHttp->getParserConfig();
-        targetParser->setMaximumStartLineBytes(sourceParser->getMaximumStartLineBytes());
-        targetParser->setMaximumHeaderLineBytes(sourceParser->getMaximumHeaderLineBytes());
-        targetParser->setMaximumHeaderBytes(sourceParser->getMaximumHeaderBytes());
-        targetParser->setMaximumHeaderFields(sourceParser->getMaximumHeaderFields());
-        targetParser->setMaximumBodyBytes(sourceParser->getMaximumBodyBytes());
-        auto* const sourceWebSocket = sourceInstance.template getSubCommand<web::http::ConfigWebSocket>();
-        auto* const targetWebSocket = targetInstance.template getSubCommand<web::http::ConfigWebSocket>();
-        targetWebSocket->setMaximumFrameBytes(sourceWebSocket->getMaximumFrameBytes());
-        targetWebSocket->setMaximumMessageBytes(sourceWebSocket->getMaximumMessageBytes());
-        targetWebSocket->setMaximumFragments(sourceWebSocket->getMaximumFragments());
-    }
 #endif
 
 } // namespace
@@ -206,32 +105,13 @@ int main(int argc, char* argv[]) {
         client::Presenter presenter(jsonOption->as<bool>() ? client::OutputMode::Json : client::OutputMode::Human);
         client::CommandParser parser;
         client::ClientConnection* connectionHandle = nullptr;
-        client::FrontendWebSocketClientRuntime* webSocketRuntimeHandle = nullptr;
+        client::FrontendWebSocketClientBinding* webSocketBindingHandle = nullptr;
         client::CommandDrainController* lifecycleHandle = nullptr;
         client::StdinReader* stdinReader = nullptr;
-        client::PhysicalConnectionAttemptGate physicalAttempts;
-        std::shared_ptr<void> activePhysicalClient;
+        std::function<void()> stopConfiguredClientFlow;
+        std::function<std::optional<std::string>()> prepareExplicitReconnect;
         std::function<void()> beginConnectionAttempt;
-#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        std::weak_ptr<web::http::client::MasterRequest> activeWebSocketRequest;
-        client::PhysicalConnectionAttemptGate::Generation activeWebSocketRequestGeneration = 0;
-        bool webSocketUpgradeCommitted = false;
-#endif
         bool disconnectedPresented = false;
-        const auto retirePhysicalAttempt = [&physicalAttempts,
-                                            &activePhysicalClient](const client::PhysicalConnectionAttemptGate::Generation generation) {
-            if (!physicalAttempts.complete(generation)) {
-                return;
-            }
-            std::shared_ptr<void> retired = std::move(activePhysicalClient);
-            if (!retired) {
-                return;
-            }
-            // A SNode.C status/disconnect callback may still be unwinding.
-            // Keep its owning attempt alive through the current event frame.
-            core::EventReceiver::atNextTick([retired = std::move(retired)]() {
-            });
-        };
         bool eventLoopRunning = false;
         bool exitScheduled = false;
 
@@ -281,16 +161,14 @@ int main(int argc, char* argv[]) {
                 return;
             }
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-            if (webSocketRuntimeHandle != nullptr && webSocketRuntimeHandle->connected()) {
-                webSocketRuntimeHandle->shutdown();
+            if (webSocketBindingHandle != nullptr && webSocketBindingHandle->connected()) {
+                webSocketBindingHandle->shutdown();
                 return;
             }
-            if (const std::shared_ptr<web::http::client::MasterRequest> request = activeWebSocketRequest.lock()) {
-                if (closeWebSocketUpgradeTransport(request)) {
-                    return;
-                }
-            }
 #endif
+            if (stopConfiguredClientFlow) {
+                stopConfiguredClientFlow();
+            }
             core::SNodeC::stop();
         };
 
@@ -319,16 +197,18 @@ int main(int argc, char* argv[]) {
                     },
                 .requestReconnect =
                     [&beginConnectionAttempt,
+                     &prepareExplicitReconnect,
                      &eventLoopRunning,
                      &disconnectedPresented,
                      &lifecycleHandle,
-                     &physicalAttempts,
                      &presenter]() {
                         if (!eventLoopRunning || !beginConnectionAttempt) {
                             return std::optional<std::string>{"configured frontend transport is unavailable"};
                         }
-                        if (physicalAttempts.active()) {
-                            return std::optional<std::string>{"the previous frontend physical connection is still closing"};
+                        if (prepareExplicitReconnect) {
+                            if (std::optional<std::string> rejection = prepareExplicitReconnect()) {
+                                return rejection;
+                            }
                         }
                         disconnectedPresented = false;
                         core::EventReceiver::atNextTick(
@@ -354,25 +234,17 @@ int main(int argc, char* argv[]) {
             clientPolicyConfiguration.commandQueueLimits());
         lifecycleHandle = &lifecycle;
 
-        const auto connectionCallbacks =
+        const auto nativeConnectionCallbacks =
             [&presenter,
              &lifecycle,
              &eventLoopRunning,
              &connectionHandle,
              &authentication,
-             &disconnectedPresented,
-             &physicalAttempts,
-             &retirePhysicalAttempt](std::string transport, client::ClientConnection** owner, bool verifiedLocalUnix) {
+             &stopConfiguredClientFlow,
+             &disconnectedPresented](std::string transport, client::ClientConnection** owner, bool verifiedLocalUnix) {
                 return client::ClientConnectionCallbacks{
-                    .onConnected = {},
-                    .onDisconnected = {},
-                    .onFailure = {},
-                    .onAttemptConnected =
-                        [&presenter, &connectionHandle, &disconnectedPresented, &physicalAttempts, owner, transport = std::move(transport)](
-                            const client::PhysicalConnectionAttemptGate::Generation generation) {
-                            if (!physicalAttempts.isCurrent(generation)) {
-                                return;
-                            }
+                    .onConnected =
+                        [&presenter, &connectionHandle, &disconnectedPresented, owner, transport = std::move(transport)]() {
                             connectionHandle = *owner;
                             disconnectedPresented = false;
                             presenter.connected(transport);
@@ -380,18 +252,8 @@ int main(int argc, char* argv[]) {
                                 presenter.localMessage("enter 'help' for commands");
                             }
                         },
-                    .onAttemptDisconnected =
-                        [&presenter,
-                         &lifecycle,
-                         &eventLoopRunning,
-                         &connectionHandle,
-                         &disconnectedPresented,
-                         &physicalAttempts,
-                         &retirePhysicalAttempt,
-                         owner](const client::PhysicalConnectionAttemptGate::Generation generation) {
-                            if (!physicalAttempts.isCurrent(generation)) {
-                                return;
-                            }
+                    .onDisconnected =
+                        [&presenter, &lifecycle, &eventLoopRunning, &connectionHandle, &disconnectedPresented, owner]() {
                             if (connectionHandle == *owner) {
                                 connectionHandle = nullptr;
                             }
@@ -400,17 +262,12 @@ int main(int argc, char* argv[]) {
                                 disconnectedPresented = true;
                             }
                             lifecycle.disconnected();
-                            retirePhysicalAttempt(generation);
                             if (eventLoopRunning && lifecycle.applicationShutdownActive()) {
                                 core::SNodeC::stop();
                             }
                         },
-                    .onAttemptFailure =
-                        [&lifecycle, &physicalAttempts](const client::PhysicalConnectionAttemptGate::Generation generation,
-                                                        std::string message) {
-                            if (!physicalAttempts.isCurrent(generation)) {
-                                return;
-                            }
+                    .onFailure =
+                        [&lifecycle](std::string message) {
                             lifecycle.connectionFailed(std::move(message));
                         },
                     .onOutbound = {},
@@ -420,13 +277,16 @@ int main(int argc, char* argv[]) {
                             authentication.prepare(localUnix);
                         },
                     .onLocalShutdown =
-                        [&lifecycle]() {
+                        [&lifecycle, &stopConfiguredClientFlow]() {
+                            if (stopConfiguredClientFlow) {
+                                stopConfiguredClientFlow();
+                            }
                             lifecycle.localShutdownRequested();
                         }};
             };
 
         client::ClientConnection* unixConnectionHandle = nullptr;
-        client::ClientConnection unixConnection(sdk, connectionCallbacks("Unix JSONL", &unixConnectionHandle, true));
+        client::ClientConnection unixConnection(sdk, nativeConnectionCallbacks("Unix JSONL", &unixConnectionHandle, true));
         unixConnectionHandle = &unixConnection;
         net::un::stream::legacy::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&> unixClient(
             "codex-backend-client-unix", unixConnection);
@@ -434,7 +294,7 @@ int main(int argc, char* argv[]) {
         unixClient.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
 
         client::ClientConnection* ipv4ConnectionHandle = nullptr;
-        client::ClientConnection ipv4Connection(sdk, connectionCallbacks("IPv4 JSONL", &ipv4ConnectionHandle, false));
+        client::ClientConnection ipv4Connection(sdk, nativeConnectionCallbacks("IPv4 JSONL", &ipv4ConnectionHandle, false));
         ipv4ConnectionHandle = &ipv4Connection;
         net::in::stream::legacy::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&> ipv4Client(
             "codex-backend-client-ipv4", ipv4Connection);
@@ -443,7 +303,7 @@ int main(int argc, char* argv[]) {
         ipv4Client.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
 
         client::ClientConnection* ipv6ConnectionHandle = nullptr;
-        client::ClientConnection ipv6Connection(sdk, connectionCallbacks("IPv6 JSONL", &ipv6ConnectionHandle, false));
+        client::ClientConnection ipv6Connection(sdk, nativeConnectionCallbacks("IPv6 JSONL", &ipv6ConnectionHandle, false));
         ipv6ConnectionHandle = &ipv6Connection;
         net::in6::stream::legacy::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&> ipv6Client(
             "codex-backend-client-ipv6", ipv6Connection);
@@ -453,7 +313,7 @@ int main(int argc, char* argv[]) {
 
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
         client::ClientConnection* tlsIpv4ConnectionHandle = nullptr;
-        client::ClientConnection tlsIpv4Connection(sdk, connectionCallbacks("IPv4 TLS JSONL", &tlsIpv4ConnectionHandle, false));
+        client::ClientConnection tlsIpv4Connection(sdk, nativeConnectionCallbacks("IPv4 TLS JSONL", &tlsIpv4ConnectionHandle, false));
         tlsIpv4ConnectionHandle = &tlsIpv4Connection;
         net::in::stream::tls::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&> tlsIpv4Client(
             "codex-backend-client-tls-ipv4", tlsIpv4Connection);
@@ -462,7 +322,7 @@ int main(int argc, char* argv[]) {
         tlsIpv4Client.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
 
         client::ClientConnection* tlsIpv6ConnectionHandle = nullptr;
-        client::ClientConnection tlsIpv6Connection(sdk, connectionCallbacks("IPv6 TLS JSONL", &tlsIpv6ConnectionHandle, false));
+        client::ClientConnection tlsIpv6Connection(sdk, nativeConnectionCallbacks("IPv6 TLS JSONL", &tlsIpv6ConnectionHandle, false));
         tlsIpv6ConnectionHandle = &tlsIpv6Connection;
         net::in6::stream::tls::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&> tlsIpv6Client(
             "codex-backend-client-tls-ipv6", tlsIpv6Connection);
@@ -472,202 +332,107 @@ int main(int argc, char* argv[]) {
 #endif
 
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        client::FrontendWebSocketClientRuntime webSocketRuntime(
+        auto webSocketBinding = std::make_shared<client::FrontendWebSocketClientBinding>(
             sdk,
-            client::FrontendWebSocketClientCallbacks{
-                .onConnected = {},
-                .onDisconnected = {},
-                .onFailure = {},
-                .onAttemptConnected =
-                    [&presenter, &disconnectedPresented, &physicalAttempts](const std::uint64_t generation) {
-                        if (!physicalAttempts.isCurrent(generation)) {
-                            return;
-                        }
-                        disconnectedPresented = false;
-                        presenter.connected("WebSocket/WSS");
-                        if (presenter.outputMode() == client::OutputMode::Human) {
-                            presenter.localMessage("enter 'help' for commands");
-                        }
-                    },
-                .onAttemptDisconnected =
-                    [&presenter,
-                     &lifecycle,
-                     &eventLoopRunning,
-                     &disconnectedPresented,
-                     &physicalAttempts,
-                     &activeWebSocketRequest,
-                     &activeWebSocketRequestGeneration,
-                     &webSocketUpgradeCommitted,
-                     &retirePhysicalAttempt](const std::uint64_t generation) {
-                        if (!physicalAttempts.isCurrent(generation)) {
-                            return;
-                        }
-                        if (activeWebSocketRequestGeneration == generation) {
-                            activeWebSocketRequest.reset();
-                            activeWebSocketRequestGeneration = 0;
-                            webSocketUpgradeCommitted = false;
-                        }
-                        if (!disconnectedPresented) {
-                            presenter.disconnected();
-                            disconnectedPresented = true;
-                        }
-                        lifecycle.disconnected();
-                        retirePhysicalAttempt(generation);
-                        if (eventLoopRunning && lifecycle.applicationShutdownActive()) {
-                            core::SNodeC::stop();
-                        }
-                    },
-                .onAttemptFailure =
-                    [&lifecycle, &physicalAttempts](const std::uint64_t generation, std::string message) {
-                        if (!physicalAttempts.isCurrent(generation)) {
-                            return;
-                        }
-                        lifecycle.connectionFailed(std::move(message));
-                    },
-                .onBeforeTransportConnected =
-                    [&authentication](bool localUnix) {
-                        authentication.prepare(localUnix);
-                    },
-                .onLocalShutdown =
-                    [&lifecycle]() {
-                        lifecycle.localShutdownRequested();
-                    }});
-        webSocketRuntimeHandle = &webSocketRuntime;
-        if (!webSocketRuntime.install()) {
-            throw std::runtime_error("failed to install the frontend WebSocket client runtime");
-        }
+            client::FrontendWebSocketClientCallbacks{.onConnected =
+                                                         [&presenter, &disconnectedPresented]() {
+                                                             disconnectedPresented = false;
+                                                             presenter.connected("WebSocket/WSS");
+                                                             if (presenter.outputMode() == client::OutputMode::Human) {
+                                                                 presenter.localMessage("enter 'help' for commands");
+                                                             }
+                                                         },
+                                                     .onDisconnected =
+                                                         [&presenter, &lifecycle, &eventLoopRunning, &disconnectedPresented]() {
+                                                             if (!disconnectedPresented) {
+                                                                 presenter.disconnected();
+                                                                 disconnectedPresented = true;
+                                                             }
+                                                             lifecycle.disconnected();
+                                                             if (eventLoopRunning && lifecycle.applicationShutdownActive()) {
+                                                                 core::SNodeC::stop();
+                                                             }
+                                                         },
+                                                     .onFailure =
+                                                         [&lifecycle](std::string message) {
+                                                             lifecycle.connectionFailed(std::move(message));
+                                                         },
+                                                     .onBeforeTransportConnected =
+                                                         [&authentication](bool localUnix) {
+                                                             authentication.prepare(localUnix);
+                                                         },
+                                                     .onLocalShutdown =
+                                                         [&lifecycle]() {
+                                                             lifecycle.localShutdownRequested();
+                                                         }});
+        webSocketBindingHandle = webSocketBinding.get();
         client::linkFrontendWebSocketClient();
 
-        const auto beginWebSocketUpgrade =
-            [&webSocketRuntime, &physicalAttempts, &activeWebSocketRequest, &activeWebSocketRequestGeneration, &webSocketUpgradeCommitted](
-                const client::PhysicalConnectionAttemptGate::Generation generation) {
-                return [&webSocketRuntime,
-                        &physicalAttempts,
-                        &activeWebSocketRequest,
-                        &activeWebSocketRequestGeneration,
-                        &webSocketUpgradeCommitted,
-                        generation](const std::shared_ptr<web::http::client::MasterRequest>& request) {
-                    // The HTTP client owns one immutable attempt identity. Never
-                    // infer it from mutable application state when this callback
-                    // eventually runs: a retired upgrade may finish after the next
-                    // explicit attempt has already been prepared.
-                    if (!physicalAttempts.isCurrent(generation) || !webSocketRuntime.isCurrentAttempt(generation)) {
-                        static_cast<void>(closeWebSocketUpgradeTransport(request));
-                        return;
-                    }
-                    const auto* const transport = request != nullptr && request->getSocketContext() != nullptr
-                                                      ? request->getSocketContext()->getSocketConnection()
-                                                      : nullptr;
-                    if (!webSocketRuntime.bindAttemptTransport(generation, transport)) {
-                        static_cast<void>(closeWebSocketUpgradeTransport(request));
-                        return;
-                    }
-                    activeWebSocketRequest = request;
-                    activeWebSocketRequestGeneration = generation;
-                    webSocketUpgradeCommitted = false;
-                    const std::weak_ptr<web::http::client::MasterRequest> requestWeak = request;
-                    const auto isCurrentUpgrade =
-                        [&physicalAttempts, &activeWebSocketRequest, &activeWebSocketRequestGeneration, requestWeak, generation]() {
-                            const std::shared_ptr<web::http::client::MasterRequest> expected = requestWeak.lock();
-                            const std::shared_ptr<web::http::client::MasterRequest> active = activeWebSocketRequest.lock();
-                            return expected != nullptr && active == expected && activeWebSocketRequestGeneration == generation &&
-                                   physicalAttempts.isCurrent(generation);
-                        };
-                    const auto failUpgrade = [&webSocketRuntime, isCurrentUpgrade, requestWeak, generation](std::string message) {
-                        if (!isCurrentUpgrade()) {
-                            return;
-                        }
-                        webSocketRuntime.reportAttemptFailure(generation, std::move(message));
-                        if (const std::shared_ptr<web::http::client::MasterRequest> activeRequest = requestWeak.lock()) {
-                            static_cast<void>(closeWebSocketUpgradeTransport(activeRequest));
-                        }
-                    };
-                    request->set("Sec-WebSocket-Protocol", "codex");
-                    request->upgrade(
-                        "/frontend",
-                        "websocket",
-                        [failUpgrade](bool success) {
-                            if (!success) {
-                                failUpgrade("frontend WebSocket upgrade could not be initiated");
-                            }
-                        },
-                        [failUpgrade, isCurrentUpgrade, &webSocketUpgradeCommitted](const auto&, const auto& response, bool success) {
-                            if (!success || response->get("upgrade") != "websocket" || response->get("sec-websocket-protocol") != "codex") {
-                                failUpgrade("frontend WebSocket upgrade was rejected");
-                                return;
-                            }
-                            if (isCurrentUpgrade()) {
-                                webSocketUpgradeCommitted = true;
-                            }
-                        },
-                        [failUpgrade](const auto&, const std::string& message) {
-                            failUpgrade("frontend WebSocket HTTP response failed: " + message);
-                        });
-                };
-            };
-        const auto endWebSocketHttp = [&presenter,
-                                       &lifecycle,
-                                       &eventLoopRunning,
-                                       &disconnectedPresented,
-                                       &physicalAttempts,
-                                       &activeWebSocketRequest,
-                                       &activeWebSocketRequestGeneration,
-                                       &webSocketUpgradeCommitted,
-                                       &webSocketRuntime,
-                                       &retirePhysicalAttempt](const client::PhysicalConnectionAttemptGate::Generation generation) {
-            return [&presenter,
-                    &lifecycle,
-                    &eventLoopRunning,
-                    &disconnectedPresented,
-                    &physicalAttempts,
-                    &activeWebSocketRequest,
-                    &activeWebSocketRequestGeneration,
-                    &webSocketUpgradeCommitted,
-                    &webSocketRuntime,
-                    &retirePhysicalAttempt,
-                    generation](const std::shared_ptr<web::http::client::MasterRequest>& request) {
-                const std::shared_ptr<web::http::client::MasterRequest> activeRequest = activeWebSocketRequest.lock();
-                if ((activeRequest && activeRequest != request) || !physicalAttempts.isCurrent(generation) ||
-                    activeWebSocketRequestGeneration != generation) {
-                    return;
-                }
-                activeWebSocketRequest.reset();
-                activeWebSocketRequestGeneration = 0;
-                if (webSocketUpgradeCommitted || webSocketRuntime.connected()) {
-                    return;
-                }
-                webSocketRuntime.abandonAttempt(generation);
-                if (!disconnectedPresented) {
-                    presenter.disconnected();
-                    disconnectedPresented = true;
-                }
-                lifecycle.disconnected();
-                retirePhysicalAttempt(generation);
-                if (eventLoopRunning && lifecycle.applicationShutdownActive()) {
-                    core::SNodeC::stop();
+        const auto beginWebSocketUpgrade = [webSocketBinding](const std::shared_ptr<web::http::client::MasterRequest>& request) {
+            webSocketBinding->beginUpgrade();
+            const std::weak_ptr<web::http::client::MasterRequest> requestWeak = request;
+            const auto failUpgrade = [webSocketBinding, requestWeak](std::string message) {
+                webSocketBinding->reportFailure(std::move(message));
+                if (const std::shared_ptr<web::http::client::MasterRequest> activeRequest = requestWeak.lock()) {
+                    static_cast<void>(closeWebSocketUpgradeTransport(activeRequest));
                 }
             };
+            request->set("Sec-WebSocket-Protocol", "codex");
+            request->upgrade(
+                "/frontend",
+                "websocket",
+                [failUpgrade](bool success) {
+                    if (!success) {
+                        failUpgrade("frontend WebSocket upgrade could not be initiated");
+                    }
+                },
+                [webSocketBinding, failUpgrade](const auto&, const auto& response, bool success) {
+                    if (!success || response->get("upgrade") != "websocket" || response->get("sec-websocket-protocol") != "codex") {
+                        failUpgrade("frontend WebSocket upgrade was rejected");
+                        return;
+                    }
+                    webSocketBinding->commitUpgrade();
+                },
+                [failUpgrade](const auto&, const std::string& message) {
+                    failUpgrade("frontend WebSocket HTTP response failed: " + message);
+                });
+        };
+        const auto endWebSocketHttp = [&presenter, &lifecycle, &eventLoopRunning, &disconnectedPresented, webSocketBinding](
+                                          const std::shared_ptr<web::http::client::MasterRequest>&) {
+            if (webSocketBinding->consumeCommittedUpgrade() || webSocketBinding->connected()) {
+                return;
+            }
+            if (!disconnectedPresented) {
+                presenter.disconnected();
+                disconnectedPresented = true;
+            }
+            lifecycle.disconnected();
+            if (eventLoopRunning && lifecycle.applicationShutdownActive()) {
+                core::SNodeC::stop();
+            }
         };
 
-        web::http::legacy::in::Client webSocketIpv4Client(
-            "codex-backend-client-websocket-ipv4", beginWebSocketUpgrade(0), endWebSocketHttp(0));
+        client::FrontendWebSocketHttpClient<net::in::stream::legacy::SocketClient> webSocketIpv4Client(
+            "codex-backend-client-websocket-ipv4", beginWebSocketUpgrade, endWebSocketHttp, webSocketBinding);
         webSocketIpv4Client.getConfig()->Instance::setDisabled(true);
         webSocketIpv4Client.getConfig()->Remote::setHost("127.0.0.1");
         webSocketIpv4Client.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
 
-        web::http::legacy::in6::Client webSocketIpv6Client(
-            "codex-backend-client-websocket-ipv6", beginWebSocketUpgrade(0), endWebSocketHttp(0));
+        client::FrontendWebSocketHttpClient<net::in6::stream::legacy::SocketClient> webSocketIpv6Client(
+            "codex-backend-client-websocket-ipv6", beginWebSocketUpgrade, endWebSocketHttp, webSocketBinding);
         webSocketIpv6Client.getConfig()->Instance::setDisabled(true);
         webSocketIpv6Client.getConfig()->Remote::setHost("::1");
         webSocketIpv6Client.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
 
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-        web::http::tls::in::Client wssIpv4Client("codex-backend-client-wss-ipv4", beginWebSocketUpgrade(0), endWebSocketHttp(0));
+        client::FrontendWebSocketHttpClient<net::in::stream::tls::SocketClient> wssIpv4Client(
+            "codex-backend-client-wss-ipv4", beginWebSocketUpgrade, endWebSocketHttp, webSocketBinding);
         wssIpv4Client.getConfig()->Instance::setDisabled(true);
         wssIpv4Client.getConfig()->Remote::setHost("127.0.0.1");
         wssIpv4Client.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
 
-        web::http::tls::in6::Client wssIpv6Client("codex-backend-client-wss-ipv6", beginWebSocketUpgrade(0), endWebSocketHttp(0));
+        client::FrontendWebSocketHttpClient<net::in6::stream::tls::SocketClient> wssIpv6Client(
+            "codex-backend-client-wss-ipv6", beginWebSocketUpgrade, endWebSocketHttp, webSocketBinding);
         wssIpv6Client.getConfig()->Instance::setDisabled(true);
         wssIpv6Client.getConfig()->Remote::setHost("::1");
         wssIpv6Client.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
@@ -676,7 +441,7 @@ int main(int argc, char* argv[]) {
 
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
         client::ClientConnection* rfcommConnectionHandle = nullptr;
-        client::ClientConnection rfcommConnection(sdk, connectionCallbacks("RFCOMM JSONL", &rfcommConnectionHandle, false));
+        client::ClientConnection rfcommConnection(sdk, nativeConnectionCallbacks("RFCOMM JSONL", &rfcommConnectionHandle, false));
         rfcommConnectionHandle = &rfcommConnection;
         net::rc::stream::legacy::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&> rfcommClient(
             "codex-backend-client-rfcomm", rfcommConnection);
@@ -684,7 +449,7 @@ int main(int argc, char* argv[]) {
         rfcommClient.getConfig()->Connection::setMaximumWriteQueueBytes(client::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
 
         client::ClientConnection* rfcommTlsConnectionHandle = nullptr;
-        client::ClientConnection rfcommTlsConnection(sdk, connectionCallbacks("RFCOMM TLS JSONL", &rfcommTlsConnectionHandle, false));
+        client::ClientConnection rfcommTlsConnection(sdk, nativeConnectionCallbacks("RFCOMM TLS JSONL", &rfcommTlsConnectionHandle, false));
         rfcommTlsConnectionHandle = &rfcommTlsConnection;
         net::rc::stream::tls::SocketClient<client::CodexBackendClientSocketContextFactory, client::ClientConnection&> rfcommTlsClient(
             "codex-backend-client-rfcomm-tls", rfcommTlsConnection);
@@ -743,109 +508,102 @@ int main(int argc, char* argv[]) {
             });
         stdinReader = &input;
 
-        const auto reportConnection =
-            [&presenter, &lifecycle, &eventLoopRunning, &disconnectedPresented, &physicalAttempts, &retirePhysicalAttempt](
-                std::string transport,
-                const client::PhysicalConnectionAttemptGate::Generation generation,
-                std::function<void()> cancelPrepared,
-                std::function<bool()> hasPhysicalAttachment) {
-                return [&presenter,
-                        &lifecycle,
-                        &eventLoopRunning,
-                        &disconnectedPresented,
-                        &physicalAttempts,
-                        &retirePhysicalAttempt,
-                        generation,
-                        cancelPrepared = std::move(cancelPrepared),
-                        hasPhysicalAttachment = std::move(hasPhysicalAttachment),
-                        transport = std::move(transport)](const auto&, core::socket::State state) {
-                    if (state != core::socket::State::OK && state != core::socket::State::DISABLED) {
-                        if (!physicalAttempts.isCurrent(generation)) {
+        const auto startPersistentStreamClient =
+            [&presenter, &lifecycle, &eventLoopRunning, &disconnectedPresented](auto& configuredClient, std::string transport) {
+                auto* const flowController = configuredClient.getFlowController();
+                configuredClient.connect(
+                    [&presenter, &lifecycle, &eventLoopRunning, &disconnectedPresented, flowController, transport = std::move(transport)](
+                        const auto&, core::socket::State state) {
+                        if (state == core::socket::State::OK || state == core::socket::State::DISABLED) {
                             return;
                         }
-                        lifecycle.connectionAttemptFailed("failed to connect using " + transport + ": " + state.what());
-                        if (!lifecycle.applicationShutdownActive() && !disconnectedPresented) {
-                            presenter.disconnected();
-                            disconnectedPresented = true;
-                        }
-                        if (!hasPhysicalAttachment()) {
-                            cancelPrepared();
-                            retirePhysicalAttempt(generation);
-                        }
-                        if (eventLoopRunning && lifecycle.applicationShutdownActive()) {
-                            core::SNodeC::stop();
-                        }
+                        const std::string failure = "failed to connect using " + transport + ": " + state.what();
+                        // SNode.C invokes the status observer before it decides whether
+                        // this status will be retried. Inspect the persistent flow on
+                        // the next owner-event-loop turn and report only a terminal
+                        // cycle; configured framework retry remains transparent here.
+                        core::EventReceiver::atNextTick(
+                            [&presenter, &lifecycle, &eventLoopRunning, &disconnectedPresented, flowController, failure]() {
+                                if (!eventLoopRunning || lifecycle.applicationShutdownActive() || !flowController->isTerminated()) {
+                                    return;
+                                }
+                                lifecycle.connectionAttemptFailed(failure);
+                                if (!disconnectedPresented) {
+                                    presenter.disconnected();
+                                    disconnectedPresented = true;
+                                }
+                            });
+                    });
+            };
+
+        bool persistentStreamClientStarted = false;
+        const auto selectPersistentStreamClient =
+            [&beginConnectionAttempt,
+             &prepareExplicitReconnect,
+             &stopConfiguredClientFlow,
+             &persistentStreamClientStarted,
+             &startPersistentStreamClient](auto& configuredClient, client::ClientConnection& connection, std::string transport) {
+                beginConnectionAttempt = [&configuredClient,
+                                          &connection,
+                                          &persistentStreamClientStarted,
+                                          &startPersistentStreamClient,
+                                          transport = std::move(transport)]() {
+                    if (persistentStreamClientStarted && !configuredClient.getFlowController()->isTerminated()) {
+                        throw std::runtime_error("the configured frontend client flow is still active");
                     }
+                    if (connection.connected()) {
+                        throw std::runtime_error("the configured frontend transport is still attached");
+                    }
+                    persistentStreamClientStarted = true;
+                    startPersistentStreamClient(configuredClient, transport);
+                };
+                prepareExplicitReconnect = [&configuredClient, &connection]() -> std::optional<std::string> {
+                    if (connection.connected()) {
+                        return "the previous frontend physical connection is still closing";
+                    }
+                    // The lifecycle/SDK gate has already established Disconnected
+                    // with no semantic connection. End any pending SNode.C retry or
+                    // reconnect subflow before explicitly starting the next cycle
+                    // on this same configured client object.
+                    static_cast<void>(configuredClient.getFlowController()->terminateFlow());
+                    return std::nullopt;
+                };
+                stopConfiguredClientFlow = [&configuredClient]() {
+                    static_cast<void>(configuredClient.getFlowController()->terminateFlow());
                 };
             };
 
-        const auto startStreamAttempt = [&physicalAttempts, &activePhysicalClient, &retirePhysicalAttempt, &reportConnection](
-                                            auto& configuredClient, client::ClientConnection& connection, std::string transport) {
-            const std::optional<client::PhysicalConnectionAttemptGate::Generation> generation = physicalAttempts.begin();
-            if (!generation) {
-                throw std::runtime_error("a frontend physical connection attempt is already active");
-            }
-            if (!connection.prepareAttempt(*generation)) {
-                static_cast<void>(physicalAttempts.complete(*generation));
-                throw std::runtime_error("the configured frontend transport is still attached");
-            }
-            try {
-                using Attempt = std::remove_reference_t<decltype(configuredClient)>;
-                auto clientAttempt = std::make_shared<Attempt>("", connection);
-                copyEffectiveSocketConfiguration(configuredClient.getConfig(), clientAttempt->getConfig());
-                activePhysicalClient = clientAttempt;
-                clientAttempt->connect(reportConnection(
-                    std::move(transport),
-                    *generation,
-                    [&connection, generation = *generation]() {
-                        connection.cancelPreparedAttempt(generation);
-                    },
-                    [&connection, generation = *generation]() {
-                        return connection.hasAttachment(generation);
-                    }));
-            } catch (...) {
-                connection.cancelPreparedAttempt(*generation);
-                retirePhysicalAttempt(*generation);
-                throw;
-            }
-        };
-
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        const auto startWebSocketAttempt = [&physicalAttempts,
-                                            &activePhysicalClient,
-                                            &activeWebSocketRequestGeneration,
-                                            &webSocketRuntime,
-                                            &retirePhysicalAttempt,
-                                            &reportConnection,
-                                            &beginWebSocketUpgrade,
-                                            &endWebSocketHttp](auto& configuredClient, std::string transport) {
-            const std::optional<client::PhysicalConnectionAttemptGate::Generation> generation = physicalAttempts.begin();
-            if (!generation) {
-                throw std::runtime_error("a frontend physical connection attempt is already active");
-            }
-            if (!webSocketRuntime.prepareAttempt(*generation)) {
-                static_cast<void>(physicalAttempts.complete(*generation));
-                throw std::runtime_error("the configured frontend WebSocket transport is still attached");
-            }
-            try {
-                using Attempt = std::remove_reference_t<decltype(configuredClient)>;
-                auto clientAttempt = std::make_shared<Attempt>("", beginWebSocketUpgrade(*generation), endWebSocketHttp(*generation));
-                copyEffectiveHttpConfiguration(configuredClient, *clientAttempt);
-                activePhysicalClient = clientAttempt;
-                clientAttempt->connect(reportConnection(
-                    std::move(transport),
-                    *generation,
-                    [&webSocketRuntime, generation = *generation]() {
-                        webSocketRuntime.abandonAttempt(generation);
-                    },
-                    [&activeWebSocketRequestGeneration, &webSocketRuntime, generation = *generation]() {
-                        return activeWebSocketRequestGeneration == generation || webSocketRuntime.connected();
-                    }));
-            } catch (...) {
-                webSocketRuntime.abandonAttempt(*generation);
-                retirePhysicalAttempt(*generation);
-                throw;
-            }
+        const auto selectPersistentWebSocketClient = [&beginConnectionAttempt,
+                                                      &prepareExplicitReconnect,
+                                                      &stopConfiguredClientFlow,
+                                                      &persistentStreamClientStarted,
+                                                      &startPersistentStreamClient,
+                                                      webSocketBinding](auto& configuredClient, std::string transport) {
+            beginConnectionAttempt = [&configuredClient,
+                                      &persistentStreamClientStarted,
+                                      &startPersistentStreamClient,
+                                      webSocketBinding,
+                                      transport = std::move(transport)]() {
+                if (persistentStreamClientStarted && !configuredClient.getFlowController()->isTerminated()) {
+                    throw std::runtime_error("the configured frontend client flow is still active");
+                }
+                if (webSocketBinding->connected()) {
+                    throw std::runtime_error("the configured frontend WebSocket transport is still attached");
+                }
+                persistentStreamClientStarted = true;
+                startPersistentStreamClient(configuredClient, transport);
+            };
+            prepareExplicitReconnect = [&configuredClient, webSocketBinding]() -> std::optional<std::string> {
+                if (webSocketBinding->connected()) {
+                    return "the previous frontend physical connection is still closing";
+                }
+                static_cast<void>(configuredClient.getFlowController()->terminateFlow());
+                return std::nullopt;
+            };
+            stopConfiguredClientFlow = [&configuredClient]() {
+                static_cast<void>(configuredClient.getFlowController()->terminateFlow());
+            };
         };
 #endif
 
@@ -888,59 +646,37 @@ int main(int argc, char* argv[]) {
             }
 
             if (!unixClient.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startStreamAttempt(unixClient, unixConnection, "Unix JSONL");
-                };
+                selectPersistentStreamClient(unixClient, unixConnection, "Unix JSONL");
             } else if (!ipv4Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startStreamAttempt(ipv4Client, ipv4Connection, "IPv4 JSONL");
-                };
+                selectPersistentStreamClient(ipv4Client, ipv4Connection, "IPv4 JSONL");
             } else if (!ipv6Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startStreamAttempt(ipv6Client, ipv6Connection, "IPv6 JSONL");
-                };
+                selectPersistentStreamClient(ipv6Client, ipv6Connection, "IPv6 JSONL");
             }
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
             else if (!tlsIpv4Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startStreamAttempt(tlsIpv4Client, tlsIpv4Connection, "IPv4 TLS JSONL");
-                };
+                selectPersistentStreamClient(tlsIpv4Client, tlsIpv4Connection, "IPv4 TLS JSONL");
             } else if (!tlsIpv6Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startStreamAttempt(tlsIpv6Client, tlsIpv6Connection, "IPv6 TLS JSONL");
-                };
+                selectPersistentStreamClient(tlsIpv6Client, tlsIpv6Connection, "IPv6 TLS JSONL");
             }
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
             else if (!rfcommClient.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startStreamAttempt(rfcommClient, rfcommConnection, "RFCOMM JSONL");
-                };
+                selectPersistentStreamClient(rfcommClient, rfcommConnection, "RFCOMM JSONL");
             } else if (!rfcommTlsClient.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startStreamAttempt(rfcommTlsClient, rfcommTlsConnection, "RFCOMM TLS JSONL");
-                };
+                selectPersistentStreamClient(rfcommTlsClient, rfcommTlsConnection, "RFCOMM TLS JSONL");
             }
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
             else if (!webSocketIpv4Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startWebSocketAttempt(webSocketIpv4Client, "WebSocket IPv4");
-                };
+                selectPersistentWebSocketClient(webSocketIpv4Client, "WebSocket IPv4");
             } else if (!webSocketIpv6Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startWebSocketAttempt(webSocketIpv6Client, "WebSocket IPv6");
-                };
+                selectPersistentWebSocketClient(webSocketIpv6Client, "WebSocket IPv6");
             }
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
             else if (!wssIpv4Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startWebSocketAttempt(wssIpv4Client, "WSS IPv4");
-                };
+                selectPersistentWebSocketClient(wssIpv4Client, "WSS IPv4");
             } else if (!wssIpv6Client.getConfig()->Instance::getDisabled()) {
-                beginConnectionAttempt = [&]() {
-                    startWebSocketAttempt(wssIpv6Client, "WSS IPv6");
-                };
+                selectPersistentWebSocketClient(wssIpv6Client, "WSS IPv6");
             }
 #endif
 #endif
@@ -960,6 +696,13 @@ int main(int argc, char* argv[]) {
         if (lifecycle.outcome() == client::CommandDrainController::Outcome::Running) {
             lifecycle.quit();
         }
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        webSocketBinding->shutdown();
+        webSocketBindingHandle = nullptr;
+#endif
+        if (stopConfiguredClientFlow) {
+            stopConfiguredClientFlow();
+        }
         unixConnection.shutdown();
         ipv4Connection.shutdown();
         ipv6Connection.shutdown();
@@ -970,10 +713,6 @@ int main(int argc, char* argv[]) {
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
         rfcommConnection.shutdown();
         rfcommTlsConnection.shutdown();
-#endif
-#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        webSocketRuntime.uninstall();
-        webSocketRuntimeHandle = nullptr;
 #endif
         sdk.close();
         result = lifecycle.failed() ? 1 : eventLoopResult;

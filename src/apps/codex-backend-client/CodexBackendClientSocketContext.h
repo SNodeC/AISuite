@@ -9,11 +9,10 @@
 #define APPS_CODEX_BACKEND_CLIENT_CODEXBACKENDCLIENTSOCKETCONTEXT_H
 
 #include "ai/openai/codex/frontend/client/Transport.h"
-#include "apps/codex-backend-client/JsonLineFramer.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "core/socket/stream/SocketContext.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <string>
 
 namespace ai::openai::codex::frontend {
@@ -32,8 +31,7 @@ namespace apps::codex_backend_client {
     public:
         CodexBackendClientSocketContext(core::socket::stream::SocketConnection* socketConnection,
                                         ClientConnection& connection,
-                                        std::size_t maximumFrameSize,
-                                        std::uint64_t attemptGeneration);
+                                        std::size_t maximumFrameSize);
 
     private:
         friend class ClientConnection;
@@ -50,7 +48,7 @@ namespace apps::codex_backend_client {
         void fail(std::string error) noexcept;
 
         ClientConnection& connection;
-        JsonLineFramer framer;
+        ai::openai::codex::frontend::internal::transport::JsonLineFramer framer;
         bool disconnecting = false;
     };
 

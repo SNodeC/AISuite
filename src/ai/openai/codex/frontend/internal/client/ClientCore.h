@@ -13,6 +13,7 @@
 #include "ai/openai/codex/frontend/internal/model/Model.h"
 #include "ai/openai/codex/frontend/internal/model/Occurrence.h"
 
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -89,6 +90,10 @@ namespace ai::openai::codex::frontend::internal::client {
         std::string message;
         std::optional<Json> remoteDetails;
         bool retryable = false;
+        // The permanent Core retains its typed P2 error code. The public P3
+        // adapter uses this private provenance bit solely to preserve the
+        // legacy live-Snapshot StateDivergence surface.
+        bool publicLiveSnapshotStateDivergence = false;
 
         bool operator==(const ClientError&) const = default;
     };
@@ -253,6 +258,9 @@ namespace ai::openai::codex::frontend::internal::client {
         std::size_t ignoredOccurrences = 0;
         bool initial = true;
         bool snapshotFallback = false;
+        // Exact physical-generation provenance. Public reconnect reporting is
+        // derived from this fact, not from whether canonical state existed.
+        PhysicalGeneration generation = 0;
 
         bool operator==(const SynchronizationInfo&) const = default;
     };
@@ -323,6 +331,15 @@ namespace ai::openai::codex::frontend::internal::client {
 
     struct ClientCallbacks {
         std::function<void(const StateChange&)> onConnectionStateChanged;
+        // The public SDK uses this private two-phase border to prepare its
+        // immutable State before the canonical publication becomes visible.
+        // Preparation must not invoke user callbacks. A reported error leaves
+        // both authorities at their previous revision.
+        std::function<std::optional<ClientError>(const PublishedState&)> prepareStatePublication;
+        // Commit is called immediately after the canonical pointer swap and
+        // before any semantic publication callback. Implementations must be
+        // noexcept and may only expose the already prepared immutable value.
+        std::function<void(const PublishedState&)> commitStatePublication;
         std::function<void(std::shared_ptr<const PublishedState>)> onStatePublished;
         std::function<void(const StateUpdate&)> onStateUpdated;
         std::function<void(model::FrontendSequence)> onCursorAdvanced;
@@ -337,6 +354,12 @@ namespace ai::openai::codex::frontend::internal::client {
         generated::MethodId method = generated::MethodId::ControllerAcquire;
         std::optional<generated::CompleteCommandResult> value;
         std::optional<ClientError> error;
+        // Present only for an explicit snapshot/replay operation at its
+        // terminal SyncComplete boundary.
+        std::optional<SynchronizationInfo> synchronization;
+        // The physical generation which submitted this operation. Adapter
+        // validation failures must never be redirected to a later attachment.
+        PhysicalGeneration generation = 0;
 
         [[nodiscard]] bool succeeded() const noexcept {
             return value.has_value() && !error.has_value();
@@ -370,7 +393,8 @@ namespace ai::openai::codex::frontend::internal::client {
 
         [[nodiscard]] std::optional<PhysicalGeneration> attach(TransportCallbacks callbacks);
         void transportConnected(PhysicalGeneration generation);
-        void transportDisconnected(PhysicalGeneration generation, TransportError error = {"transport disconnected", true});
+        void transportDisconnected(PhysicalGeneration generation);
+        void transportDisconnected(PhysicalGeneration generation, TransportError error);
         void detach(PhysicalGeneration generation, std::string_view reason = "connection detached");
 
         [[nodiscard]] bool receive(PhysicalGeneration generation, const ServerMessage& message);
@@ -386,6 +410,7 @@ namespace ai::openai::codex::frontend::internal::client {
         [[nodiscard]] bool ready() const noexcept;
         [[nodiscard]] std::optional<PhysicalGeneration> activeGeneration() const noexcept;
         [[nodiscard]] std::size_t pendingOperationCount() const noexcept;
+        [[nodiscard]] std::optional<SessionInfo> sessionInfo() const;
         [[nodiscard]] std::shared_ptr<const PublishedState> state() const noexcept;
         [[nodiscard]] const std::vector<Diagnostic>& diagnostics() const noexcept;
 
@@ -395,9 +420,32 @@ namespace ai::openai::codex::frontend::internal::client {
         [[nodiscard]] bool methodPermitted(generated::MethodId method) const noexcept;
         [[nodiscard]] MethodStatus methodStatus(generated::MethodId method) const noexcept;
 
+        // Reject a result whose public typed adapter validation failed. The
+        // submitting generation is explicit so a late failure cannot affect a
+        // newer physical attachment.
+        void rejectAdapterResult(PhysicalGeneration generation, std::string_view message) noexcept;
+
     private:
+        friend struct ClientCoreTestAccess;
         class Impl;
         std::unique_ptr<Impl> impl;
+    };
+
+    // Non-installed friend access keeps deterministic mutation seams out of
+    // ClientCore's production-facing internal surface. Tests-enabled builds
+    // still reuse the same hidden object code; a separate test object variant
+    // would add disproportionate build topology for no public ABI benefit.
+    struct ClientCoreTestAccess {
+        static void setNextRequestId(ClientCore& core, std::uint64_t next) noexcept;
+        static void setGenerationCounter(ClientCore& core, PhysicalGeneration next) noexcept;
+        static void setSynchronizationCounts(ClientCore& core, std::size_t received, std::size_t applied, std::size_t ignored) noexcept;
+        [[nodiscard]] static bool
+        tryAccumulateSynchronizationCounts(ClientCore& core, std::size_t received, std::size_t applied, std::size_t ignored) noexcept;
+        [[nodiscard]] static std::array<std::size_t, 3> synchronizationCounts(const ClientCore& core) noexcept;
+        static void failAfterNextDispatch(ClientCore& core) noexcept;
+        static void setPublishedRevision(ClientCore& core, std::uint64_t revision) noexcept;
+        [[nodiscard]] static bool tryCommitPublishedRevision(ClientCore& core, std::uint64_t revision) noexcept;
+        [[nodiscard]] static std::size_t erasedTransientBytes(const ClientCore& core) noexcept;
     };
 
 } // namespace ai::openai::codex::frontend::internal::client

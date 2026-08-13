@@ -8,11 +8,11 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Messages.h"
 #include "ai/openai/codex/frontend/client/Client.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "apps/codex-backend-client/ClientConnection.h"
 #include "apps/codex-backend-client/CodexBackendClientSocketContextFactory.h"
 #include "apps/codex-backend-client/CommandDrainController.h"
 #include "apps/codex-backend-client/CommandParser.h"
-#include "apps/codex-backend-client/JsonLineFramer.h"
 #include "apps/codex-backend-client/Presenter.h"
 #include "apps/codex-backend-client/StdinReader.h"
 #include "core/EventReceiver.h"
@@ -48,6 +48,7 @@
 namespace {
     namespace client = apps::codex_backend_client;
     namespace frontend = ai::openai::codex::frontend;
+    namespace jsonl = ai::openai::codex::frontend::internal::transport;
     namespace sdk_client = ai::openai::codex::frontend::client;
 
     constexpr std::size_t TestMaximumFrameSize = 64 * 1024;
@@ -278,7 +279,7 @@ namespace {
         std::size_t trailingEventBatchCount = 0;
         std::size_t fragmentedWrites = 0;
         std::size_t coalescedHandshakeMessages = 0;
-        std::size_t coalescedDrainMessages = 0;
+        std::size_t drainMessageCount = 0;
         std::size_t lifecycleExitRequests = 0;
         std::size_t controlledDisconnects = 0;
         std::vector<std::string> serverRequestOrder;
@@ -372,14 +373,18 @@ namespace {
             if (acquire) {
                 state.acquireRequestId = command->requestId;
                 ++state.acquireCount;
+                const auto acquireResponse = frame(
+                    frontend::ServerMessage{frontend::Response::success(state.acquireRequestId, frontend::Json{{"role", "controller"}})});
+                if (acquireResponse) {
+                    sendToPeer(acquireResponse->data(), acquireResponse->size());
+                    ++state.drainMessageCount;
+                }
             } else {
                 state.threadsRequestId = command->requestId;
                 ++state.threadsCount;
             }
 
             if (state.commandCount == 2) {
-                const auto acquireResponse = frame(
-                    frontend::ServerMessage{frontend::Response::success(state.acquireRequestId, frontend::Json{{"role", "controller"}})});
                 const auto threadsResponse = frame(frontend::ServerMessage{
                     frontend::Response::success(state.threadsRequestId, frontend::Json{{"threads", frontend::Json::array()}})});
                 const auto trailingEvents = frame(frontend::ServerMessage{
@@ -391,10 +396,10 @@ namespace {
                                                                                  {"params", frontend::Json{{"presented", true}}}},
                                                                   frontend::Json::object()}},
                                          frontend::Json::object()}});
-                if (acquireResponse && threadsResponse && trailingEvents) {
-                    coalescedDrain = *acquireResponse + *threadsResponse + *trailingEvents;
+                if (threadsResponse && trailingEvents) {
+                    coalescedDrain = *threadsResponse + *trailingEvents;
                     sendToPeer(coalescedDrain.data(), coalescedDrain.size());
-                    state.coalescedDrainMessages = 3;
+                    state.drainMessageCount += 2;
                 }
             }
         }
@@ -418,7 +423,7 @@ namespace {
             const auto framing = framer.push(std::string_view(chunk.data(), size), [this](std::string encoded) {
                 clientMessage(std::move(encoded));
             });
-            if (framing == client::JsonLineFramer::Result::FrameTooLarge) {
+            if (framing == jsonl::JsonLineFramer::Result::FrameTooLarge) {
                 state.fail("production client emitted a frame beyond the deterministic server bound");
                 close();
             }
@@ -430,7 +435,7 @@ namespace {
         }
 
         ScenarioState& state;
-        client::JsonLineFramer framer;
+        jsonl::JsonLineFramer framer{client::DEFAULT_MAXIMUM_FRAME_SIZE};
         std::string fragmentedWelcome;
         std::string coalescedHandshake;
         std::string coalescedDrain;
@@ -685,8 +690,9 @@ int main(int argc, char* argv[]) {
         result.expectTrue(state.serverRequestOrder == std::vector<std::string>{state.acquireRequestId, state.threadsRequestId},
                           "queued command request IDs reach the server exactly once and in input order");
         result.expectEqual(2, static_cast<int>(state.responseCount), "production client presents both correlated responses");
-        result.expectEqual(
-            3, static_cast<int>(state.coalescedDrainMessages), "fake server coalesces both responses and one trailing protocol frame");
+        result.expectEqual(3,
+                           static_cast<int>(state.drainMessageCount),
+                           "fake server emits acquire response before the queued thread response and trailing protocol frame");
         result.expectEqual(
             1, static_cast<int>(state.trailingEventBatchCount), "production client presents the frame decoded after the final response");
         result.expectEqual(1, static_cast<int>(state.lifecycleExitRequests), "completed drain requests one controlled exit");

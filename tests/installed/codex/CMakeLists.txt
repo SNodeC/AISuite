@@ -33,7 +33,7 @@ if(TARGET AISuite::OpenAICodexFrontendClient)
         )
     endif()
     list(
-        FIND frontend_client_links AISuite::OpenAICodexFrontend
+        FIND frontend_client_links AISuite::OpenAICodexFrontendProtocol
         frontend_protocol_index
     )
     if(frontend_protocol_index EQUAL -1)
@@ -42,6 +42,27 @@ if(TARGET AISuite::OpenAICodexFrontendClient)
                 "OpenAICodexFrontendClient does not export its Frontend Protocol dependency: ${frontend_client_links}"
         )
     endif()
+    if(NOT frontend_client_links STREQUAL "AISuite::OpenAICodexFrontendProtocol")
+        message(
+            FATAL_ERROR
+                "OpenAICodexFrontendClient must export exactly its Frontend Protocol dependency: ${frontend_client_links}"
+        )
+    endif()
+    foreach(
+        forbidden_sdk_target
+        IN ITEMS
+           AISuite::OpenAICodex
+           AISuite::OpenAICodexFrontend
+           AISuite::OpenAICodexBackend
+    )
+        list(FIND frontend_client_links "${forbidden_sdk_target}" forbidden_sdk_index)
+        if(NOT forbidden_sdk_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                    "OpenAICodexFrontendClient leaks forbidden SDK dependency ${forbidden_sdk_target}: ${frontend_client_links}"
+            )
+        endif()
+    endforeach()
     foreach(
         forbidden_transport
         IN ITEMS

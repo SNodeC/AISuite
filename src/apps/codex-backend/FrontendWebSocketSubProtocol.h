@@ -9,7 +9,6 @@
 #define APPS_CODEX_BACKEND_FRONTENDWEBSOCKETSUBPROTOCOL_H
 
 #include "ai/openai/codex/frontend/FrontendService.h"
-#include "apps/codex-backend/FrontendRuntimeBridge.h"
 #include "web/websocket/server/SubProtocol.h"
 
 #include <cstddef>
@@ -25,7 +24,9 @@ namespace apps::codex_backend {
 
     class FrontendWebSocketSubProtocol final : public web::websocket::server::SubProtocol {
     public:
-        FrontendWebSocketSubProtocol(web::websocket::SubProtocolContext* context, FrontendWebSocketRuntime runtime);
+        FrontendWebSocketSubProtocol(web::websocket::SubProtocolContext* context,
+                                     ai::openai::codex::frontend::FrontendService& service,
+                                     ai::openai::codex::frontend::FrontendPeerContext peer);
         ~FrontendWebSocketSubProtocol() override;
 
     private:

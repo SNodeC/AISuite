@@ -9,8 +9,8 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Security.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
-#include "apps/codex-backend/JsonLineFramer.h"
 #include "apps/codex-backend/UnixPeerCredentials.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
@@ -69,6 +69,7 @@ namespace {
     namespace app = apps::codex_backend;
     namespace backend = ai::openai::codex::backend;
     namespace frontend = ai::openai::codex::frontend;
+    namespace jsonl = ai::openai::codex::frontend::internal::transport;
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
 
@@ -395,14 +396,14 @@ namespace {
                           "encryption metadata is fixed by the successfully bound native listener family");
 
         std::vector<std::string> frames;
-        app::JsonLineFramer framer(64);
+        jsonl::JsonLineFramer framer(64);
         const auto first = framer.push("{\"one\":1}\r", [&frames](std::string frame) {
             frames.push_back(std::move(frame));
         });
         const auto second = framer.push("\n{\"two\":2}\n", [&frames](std::string frame) {
             frames.push_back(std::move(frame));
         });
-        result.expectTrue(first == app::JsonLineFramer::Result::Accepted && second == app::JsonLineFramer::Result::Accepted &&
+        result.expectTrue(first == jsonl::JsonLineFramer::Result::Accepted && second == jsonl::JsonLineFramer::Result::Accepted &&
                               frames == std::vector<std::string>{"{\"one\":1}", "{\"two\":2}"},
                           "the shared native stream framer preserves fragmentation, CRLF tolerance, and multiple frames per read");
     }

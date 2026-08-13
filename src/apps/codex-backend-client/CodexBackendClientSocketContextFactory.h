@@ -8,11 +8,10 @@
 #ifndef APPS_CODEX_BACKEND_CLIENT_CODEXBACKENDCLIENTSOCKETCONTEXTFACTORY_H
 #define APPS_CODEX_BACKEND_CLIENT_CODEXBACKENDCLIENTSOCKETCONTEXTFACTORY_H
 
-#include "apps/codex-backend-client/JsonLineFramer.h"
+#include "apps/codex-backend-client/Configuration.h"
 #include "core/socket/stream/SocketContextFactory.h"
 
 #include <cstddef>
-#include <cstdint>
 
 namespace apps::codex_backend_client {
 
@@ -28,7 +27,6 @@ namespace apps::codex_backend_client {
     private:
         ClientConnection& connection;
         std::size_t maximumFrameSize;
-        std::uint64_t attemptGeneration;
     };
 
 } // namespace apps::codex_backend_client

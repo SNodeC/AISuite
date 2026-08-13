@@ -1,0 +1,612 @@
+/* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
+
+#include "ai/openai/codex/frontend/Codec.h"
+#include "ai/openai/codex/frontend/client/Client.h"
+#include "ai/openai/codex/frontend/client/detail/ClientTestAccess.h"
+#include "ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
+#include "ai/openai/codex/frontend/internal/client/ClientCore.h"
+#include "ai/openai/codex/frontend/internal/model/Model.h"
+#include "ai/openai/codex/frontend/internal/model/Occurrence.h"
+#include "support/TestResult.h"
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
+namespace {
+    namespace frontend = ai::openai::codex::frontend;
+    namespace client = frontend::client;
+    namespace core = frontend::internal::client;
+    namespace model = frontend::internal::model;
+    namespace generated = frontend::generated;
+
+    std::string traceText(const std::vector<std::string>& trace) {
+        std::string result;
+        for (const std::string& entry : trace) {
+            if (!result.empty()) {
+                result += ',';
+            }
+            result += entry;
+        }
+        return result;
+    }
+
+    std::vector<frontend::FrontendMethod> allMethods() {
+        std::vector<frontend::FrontendMethod> result;
+        result.reserve(generated::AllMethods.size());
+        for (const generated::MethodMetadata& method : generated::AllMethods) {
+            result.emplace_back(method.method);
+        }
+        return result;
+    }
+
+    frontend::CapabilityAdvertisement expandedCapabilities() {
+        std::vector<frontend::FrontendCapability> defined;
+        for (const generated::CapabilityMetadata& capability : generated::AllCapabilities) {
+            if (capability.defined) {
+                defined.push_back(static_cast<frontend::FrontendCapability>(capability.id));
+            }
+        }
+        const std::vector<frontend::FrontendCapability> selected{
+            frontend::FrontendCapability::CompleteBackendDomains,
+            frontend::FrontendCapability::DedicatedPendingRequests,
+            frontend::FrontendCapability::DedicatedNotificationEvents,
+            frontend::FrontendCapability::CompleteThreadItems,
+            frontend::FrontendCapability::ScopeProjectedState,
+        };
+        return {std::move(defined), selected, selected, frontend::Json::object()};
+    }
+
+    std::optional<client::State> buildCanonicalState(client::Client& adopter,
+                                                     const core::PublishedState& publication,
+                                                     std::size_t maximumBytes,
+                                                     std::size_t maximumRetainedDiagnostics,
+                                                     std::string& error,
+                                                     client::detail::CanonicalStateBuildFailure* failure = nullptr) {
+        auto storage = client::detail::CanonicalStateBuilder::build(publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+        if (!storage.has_value()) {
+            return std::nullopt;
+        }
+        return client::detail::ClientTestAccess::adoptStateStorage(adopter, std::move(*storage));
+    }
+
+    frontend::Welcome welcome(std::uint64_t sequence) {
+        return {"7",
+                frontend::SessionRole::Observer,
+                frontend::SequenceNumber(sequence),
+                frontend::SyncMode::Snapshot,
+                frontend::Json{{"permittedScopes", frontend::Json::array({"observe", "control"})},
+                               {"projection", frontend::Json{{"identity", "public-adapter"}}}},
+                expandedCapabilities(),
+                allMethods(),
+                allMethods()};
+    }
+
+    model::CanonicalSnapshot canonicalSnapshot(std::uint64_t sequence, std::uint64_t generation, std::string title) {
+        model::CanonicalSnapshot snapshot;
+        snapshot.sequence = model::FrontendSequence(sequence);
+        snapshot.provider.lifecycle = model::ProviderLifecycle::Ready;
+        snapshot.provider.generation = generation;
+        snapshot.provider.desiredRunning = true;
+        snapshot.sessions.emplace_back(model::SessionIdentity{"7"});
+        snapshot.threads.emplace_back(model::ThreadIdentity{"adapter-thread"});
+        snapshot.threads.back().title = std::move(title);
+        snapshot.threadList.hasLoadedPage = true;
+        snapshot.threadList.complete = true;
+        snapshot.threadList.pagesLoaded = 1;
+        snapshot.backendCursor.currentSequence = snapshot.sequence;
+        return snapshot;
+    }
+
+    frontend::Snapshot expandedSnapshot(std::uint64_t sequence, std::uint64_t generation, std::string title) {
+        const auto expanded = model::encodeSnapshot(canonicalSnapshot(sequence, generation, std::move(title)));
+        if (!expanded) {
+            return {frontend::SequenceNumber(sequence), frontend::Json{{"invalid", true}, {"error", expanded.error().message}}};
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
+        return {frontend::SequenceNumber(sequence),
+                encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::FrontendEvent providerEvent(std::uint64_t sequence, std::uint64_t generation) {
+        model::ProviderState provider;
+        provider.lifecycle = model::ProviderLifecycle::Ready;
+        provider.generation = generation;
+        provider.desiredRunning = true;
+        model::OccurrenceIdentity identity{
+            model::FrontendSequence(sequence), model::OccurrenceGroupIdentity{"adapter-live"}, 0, 1, model::SourceStamp{"adapter-source"}};
+        auto occurrence = model::makeOccurrence(std::move(identity), model::ProviderUpdatedOccurrence{std::move(provider)});
+        if (!occurrence) {
+            return {frontend::SequenceNumber(sequence), "invalid", frontend::Json::object()};
+        }
+        auto expanded = model::encodeExpandedOccurrence(occurrence.value());
+        if (!expanded || expanded.value().empty()) {
+            return {frontend::SequenceNumber(sequence), "invalid", frontend::Json::object()};
+        }
+        const frontend::ExpandedFrontendEvent& value = expanded.value().front();
+        return {value.sequence, std::string(frontend::toString(value.type)), value.data, value.extensions};
+    }
+
+    client::ClientOptions publicOptions() {
+        client::ClientOptions result;
+        result.credentialProvider = [] {
+            return client::AuthenticationContext{frontend::NoCredential{}, std::string{"adapter-continuity"}};
+        };
+        return result;
+    }
+
+    struct PublicHarness {
+        std::vector<client::OutboundMessage> outbound;
+        std::vector<std::string> callbackOrder;
+        std::vector<std::uint64_t> updateRevisions;
+        std::vector<std::uint64_t> synchronizedRevisions;
+        std::vector<frontend::SequenceNumber> cursors;
+        std::vector<std::string> diagnostics;
+        std::size_t protocolMessages = 0;
+        std::size_t closes = 0;
+        bool recording = false;
+        bool revisionMismatch = false;
+        bool readySawCommittedState = false;
+        client::Client* sdk = nullptr;
+
+        client::TransportCallbacks transport() {
+            return {[this](client::OutboundMessage message) {
+                        outbound.push_back(std::move(message));
+                        return client::SendResult{client::SendStatus::Accepted, std::nullopt};
+                    },
+                    [this](std::string) {
+                        ++closes;
+                    }};
+        }
+
+        client::ClientCallbacks callbacks() {
+            client::ClientCallbacks result;
+            result.onConnectionStateChanged = [this](const client::ConnectionStateChange& change) {
+                if (change.error.has_value()) {
+                    diagnostics.push_back(change.error->message);
+                }
+                if (recording && change.current == client::ConnectionState::Ready) {
+                    callbackOrder.emplace_back("ready");
+                    readySawCommittedState = sdk != nullptr && sdk->state().freshness() == client::StateFreshness::Current &&
+                                             sdk->state().visibleSequence() == frontend::SequenceNumber(7);
+                }
+            };
+            result.onStateUpdated = [this](const client::StateUpdate& update) {
+                if (sdk != nullptr && sdk->state().revision() != update.state.revision()) {
+                    revisionMismatch = true;
+                }
+                updateRevisions.push_back(update.state.revision());
+                if (recording) {
+                    callbackOrder.emplace_back("state");
+                }
+            };
+            result.onSynchronized = [this](const client::SynchronizationInfo& info) {
+                if (sdk != nullptr && sdk->state().revision() != info.state.revision()) {
+                    revisionMismatch = true;
+                }
+                synchronizedRevisions.push_back(info.state.revision());
+                if (recording) {
+                    callbackOrder.emplace_back("synchronized");
+                }
+            };
+            result.onCursorAdvanced = [this](frontend::SequenceNumber sequence) {
+                cursors.push_back(sequence);
+                if (recording) {
+                    callbackOrder.emplace_back("cursor");
+                }
+            };
+            result.onProtocolMessage = [this](const frontend::ServerMessage&) {
+                ++protocolMessages;
+                if (recording) {
+                    callbackOrder.emplace_back("protocol");
+                }
+            };
+            result.onDiagnostic = [this](const client::Diagnostic& diagnostic) {
+                diagnostics.push_back(diagnostic.message);
+            };
+            return result;
+        }
+    };
+
+    void testDirectCanonicalStateBuilder(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState publication;
+        publication.revision = 41;
+        publication.freshness = core::PublishedFreshness::Current;
+        publication.representation = core::RepresentationMode::ExpandedV1;
+        publication.visibleSequence = model::FrontendSequence{17};
+        publication.synchronizedThrough = model::FrontendSequence{16};
+        publication.projectionFingerprint = "direct-canonical-fingerprint";
+        publication.session.emplace(model::SessionIdentity{"7"});
+        publication.session->synchronizationMode = frontend::SyncMode::Snapshot;
+        model::CanonicalSnapshot direct = canonicalSnapshot(17, 3, "first title");
+        direct.reviews.state = model::DomainState::present();
+        direct.integrations.state = model::DomainState::present();
+        direct.plugins.state = model::DomainState::present();
+        direct.platform.state = model::DomainState::present();
+        direct.controller.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"present", true}});
+        direct.truncation.extensions = *model::SafeDetail::fromJson(frontend::Json{{"vendorTruncation", "state-truncation-extension"}});
+        direct.processesState.extensions = *model::SafeDetail::fromJson(frontend::Json{{"vendorCollection", "processes-extension"}});
+        direct.processesState.truncation.extensions =
+            *model::SafeDetail::fromJson(frontend::Json{{"vendorTruncation", "processes-extension-truncation"}});
+        model::ProcessState process{model::ProcessHandle{"adapter-process"}};
+        process.stamp.extensions = *model::SafeDetail::fromJson(frontend::Json{{"vendorStamp", "process-stamp-extension"}});
+        direct.processes.push_back(std::move(process));
+        model::PendingRequestData emptyQuestions{model::PendingRequestIdentity{"adapter-pending"}};
+        emptyQuestions.questionsPresent = true;
+        direct.pendingRequests.push_back(model::UserInputRequest{std::move(emptyQuestions)});
+        publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(direct));
+
+        std::string error;
+        const auto first = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const client::ThreadState* firstThread = first ? first->thread("adapter-thread") : nullptr;
+        result.expectTrue(
+            first.has_value() && error.empty() && first->revision() == 41 && first->freshness() == client::StateFreshness::Current &&
+                first->representationMode() == client::RepresentationMode::ExpandedV1 &&
+                first->visibleSequence() == frontend::SequenceNumber(17) && first->synchronizedThrough() == frontend::SequenceNumber(16) &&
+                first->provider().value.has_value() && first->provider().value->generation == 3 && first->controller().value.has_value() &&
+                first->controller().value->present &&
+                first->controller().value->extensions.find("present") == first->controller().value->extensions.end() &&
+                firstThread != nullptr && firstThread->title == std::optional<std::string>{"first title"} &&
+                !first->permissionProfiles().value.has_value() && !first->apps().value.has_value() &&
+                !first->externalAgents().value.has_value() && !first->hooks().value.has_value() &&
+                !first->marketplace().value.has_value() && !first->skills().value.has_value() &&
+                !first->windowsSandbox().value.has_value() && !first->platform().value.has_value() && first->truncation().value &&
+                first->truncation().value->extensions.value("vendorTruncation", "") == "state-truncation-extension" &&
+                first->processes().value && first->processes().value->extensions.value("vendorCollection", "") == "processes-extension" &&
+                first->processes().value->truncation.extensions.value("vendorTruncation", "") == "processes-extension-truncation" &&
+                first->processes().value->entries.front().stamp.extensions.value("vendorStamp", "") == "process-stamp-extension" &&
+                first->pendingRequests().size() == 1 && first->pendingRequests().front().questions.has_value() &&
+                first->pendingRequests().front().questions->empty(),
+            "CanonicalStateBuilder maps the canonical typed publication directly into every sampled public State border");
+
+        client::State immutable = first.value_or(client::State{});
+        publication.revision = 42;
+        publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(canonicalSnapshot(18, 4, "second title"));
+        publication.visibleSequence = model::FrontendSequence{18};
+        const auto second = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const client::ThreadState* immutableThread = immutable.thread("adapter-thread");
+        const client::ThreadState* secondThread = second ? second->thread("adapter-thread") : nullptr;
+        result.expectTrue(second.has_value() && second->revision() == 42 && secondThread != nullptr &&
+                              secondThread->title == std::optional<std::string>{"second title"} && immutable.revision() == 41 &&
+                              immutableThread != nullptr && immutableThread->title == std::optional<std::string>{"first title"},
+                          "a later direct canonical build leaves the prior public State immutable");
+
+        client::detail::CanonicalStateBuildFailure capacityFailure = client::detail::CanonicalStateBuildFailure::StateDivergence;
+        const auto rejected = buildCanonicalState(adopter, publication, 1, 64, error, &capacityFailure);
+        result.expectTrue(!rejected.has_value() && !error.empty() &&
+                              capacityFailure == client::detail::CanonicalStateBuildFailure::Capacity && immutable.revision() == 41 &&
+                              immutableThread != nullptr && immutableThread->title == std::optional<std::string>{"first title"},
+                          "public capacity preparation rejects before exposing a candidate and preserves the prior immutable State");
+    }
+
+    void testCanonicalLookupIdentityPreflight(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState publication;
+        publication.revision = 1;
+        publication.freshness = core::PublishedFreshness::Current;
+        publication.representation = core::RepresentationMode::ExpandedV1;
+
+        const auto rejects = [&adopter, &publication](model::CanonicalSnapshot snapshot, std::string_view expected) {
+            publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
+            std::string error;
+            client::detail::CanonicalStateBuildFailure failure = client::detail::CanonicalStateBuildFailure::Capacity;
+            const auto built = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error, &failure);
+            return !built.has_value() && failure == client::detail::CanonicalStateBuildFailure::StateDivergence &&
+                   error.find(expected) != std::string::npos;
+        };
+
+        bool allRejected = true;
+        model::CanonicalSnapshot sessions = canonicalSnapshot(1, 1, "sessions");
+        sessions.sessions.emplace_back(model::SessionIdentity{"7"});
+        allRejected = rejects(std::move(sessions), "duplicate session identity") && allRejected;
+
+        model::CanonicalSnapshot threads = canonicalSnapshot(1, 1, "threads");
+        threads.threads.emplace_back(model::ThreadIdentity{"adapter-thread"});
+        allRejected = rejects(std::move(threads), "duplicate thread identity") && allRejected;
+
+        model::CanonicalSnapshot turns = canonicalSnapshot(1, 1, "turns");
+        turns.turns.emplace_back(model::TurnIdentity{"duplicate-turn"}, model::ThreadIdentity{"adapter-thread"});
+        turns.turns.emplace_back(model::TurnIdentity{"duplicate-turn"}, model::ThreadIdentity{"adapter-thread"});
+        allRejected = rejects(std::move(turns), "duplicate turn identity") && allRejected;
+
+        model::CanonicalSnapshot typedItems = canonicalSnapshot(1, 1, "typed-items");
+        typedItems.items.push_back(model::AgentMessageItem{model::ItemData{model::ItemIdentity{"duplicate-item"}}});
+        typedItems.items.push_back(model::UserMessageItem{model::ItemData{model::ItemIdentity{"duplicate-item"}}});
+        allRejected = rejects(std::move(typedItems), "duplicate item identity") && allRejected;
+
+        model::CanonicalSnapshot mixedItems = canonicalSnapshot(1, 1, "mixed-items");
+        mixedItems.items.push_back(model::AgentMessageItem{model::ItemData{model::ItemIdentity{"mixed-item"}}});
+        mixedItems.legacyItems.push_back({model::ItemData{model::ItemIdentity{"mixed-item"}}, "future_item", 1, "/items/1"});
+        allRejected = rejects(std::move(mixedItems), "duplicate item identity") && allRejected;
+
+        model::CanonicalSnapshot typedPending = canonicalSnapshot(1, 1, "typed-pending");
+        typedPending.pendingRequests.push_back(model::UserInputRequest{model::PendingRequestData{model::PendingRequestIdentity{"72"}}});
+        typedPending.pendingRequests.push_back(
+            model::AuthenticationRequest{model::PendingRequestData{model::PendingRequestIdentity{"72"}}});
+        allRejected = rejects(std::move(typedPending), "duplicate pending request identity") && allRejected;
+
+        model::CanonicalSnapshot mixedPending = canonicalSnapshot(1, 1, "mixed-pending");
+        mixedPending.pendingRequests.push_back(model::UserInputRequest{model::PendingRequestData{model::PendingRequestIdentity{"73"}}});
+        mixedPending.legacyPendingRequests.push_back(
+            {model::PendingRequestData{model::PendingRequestIdentity{"73"}}, 1, "/pendingRequests/1"});
+        allRejected = rejects(std::move(mixedPending), "duplicate pending request identity") && allRejected;
+
+        model::CanonicalSnapshot processes = canonicalSnapshot(1, 1, "processes");
+        processes.processes.emplace_back(model::ProcessHandle{"duplicate-process"});
+        processes.processes.emplace_back(model::ProcessHandle{"duplicate-process"});
+        allRejected = rejects(std::move(processes), "duplicate process identity") && allRejected;
+
+        model::CanonicalSnapshot watches = canonicalSnapshot(1, 1, "watches");
+        model::FilesystemWatchRecord duplicateWatch;
+        duplicateWatch.watchId = "duplicate-watch";
+        watches.filesystemWatches.entries.push_back(duplicateWatch);
+        watches.filesystemWatches.entries.push_back(std::move(duplicateWatch));
+        allRejected = rejects(std::move(watches), "duplicate filesystem watch identity") && allRejected;
+
+        model::CanonicalSnapshot searches = canonicalSnapshot(1, 1, "searches");
+        model::FuzzySearchRecord duplicateSearch;
+        duplicateSearch.sessionId = "duplicate-search";
+        searches.fuzzySearches.entries.push_back(duplicateSearch);
+        searches.fuzzySearches.entries.push_back(std::move(duplicateSearch));
+        allRejected = rejects(std::move(searches), "duplicate fuzzy search identity") && allRejected;
+
+        model::CanonicalSnapshot activities = canonicalSnapshot(1, 1, "activities");
+        model::ActivityRecord duplicateActivity;
+        duplicateActivity.key = "duplicate-activity";
+        activities.activities.entries.push_back(duplicateActivity);
+        activities.activities.entries.push_back(std::move(duplicateActivity));
+        allRejected = rejects(std::move(activities), "duplicate activity identity") && allRejected;
+
+        model::CanonicalSnapshot emptyActivity = canonicalSnapshot(1, 1, "empty-activity");
+        emptyActivity.activities.entries.emplace_back();
+        allRejected = rejects(std::move(emptyActivity), "empty activity identity") && allRejected;
+
+        result.expectTrue(
+            allRejected,
+            "CanonicalStateBuilder rejects duplicate or empty public lookup identities, including typed/legacy overlap, before commit");
+    }
+
+    void testHybridExpandedPublicationRetainsLegacyItems(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState publication;
+        publication.revision = 1;
+        publication.freshness = core::PublishedFreshness::Current;
+        publication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(1, 1, "hybrid-items");
+        snapshot.turns.emplace_back(model::TurnIdentity{"hybrid-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData item{
+            model::ItemIdentity{"hybrid-future-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"hybrid-turn"}};
+        snapshot.legacyItems.push_back({std::move(item), "future_item", 0, "/items/0"});
+        publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
+
+        std::string error;
+        const auto built = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const client::ItemState* publicItem = built ? built->item("hybrid-future-item") : nullptr;
+        const client::TurnState* publicTurn = built ? built->turn("hybrid-turn") : nullptr;
+        result.expectTrue(
+            built.has_value() && error.empty() && publicItem != nullptr && publicItem->kind.identity == "future_item" &&
+                !publicItem->kind.known.has_value() && publicTurn != nullptr && publicTurn->orderedItems.size() == 1 &&
+                publicTurn->orderedItems.front().value == "hybrid-future-item",
+            "an ExpandedV1 publication with legacy-compatible items preserves the independently negotiated item representation");
+    }
+
+    void testPublicClientCoreAdapter(tests::support::TestResult& result) {
+        PublicHarness harness;
+        client::Client sdk(publicOptions(), harness.callbacks());
+        harness.sdk = &sdk;
+        client::Connection connection = sdk.openConnection(harness.transport());
+        const std::uint64_t firstGeneration = connection.generation();
+        connection.transportConnected();
+        connection.transportConnected();
+
+        const auto hello = harness.outbound.empty() ? frontend::Codec::decodeClient(std::string_view{})
+                                                    : frontend::Codec::decodeClient(std::string_view(harness.outbound.front().compactJson));
+        result.expectTrue(firstGeneration == 1 && harness.outbound.size() == 1 && hello &&
+                              std::holds_alternative<frontend::Hello>(hello.value()) &&
+                              sdk.connectionState() == client::ConnectionState::Authenticating,
+                          "public Connection delegates one physical generation and one transport-connected transition to ClientCore");
+
+        const bool welcomeAccepted = connection.receive(frontend::ServerMessage{welcome(7)}).accepted;
+        const frontend::Snapshot initialSnapshot = expandedSnapshot(7, 3, "runtime title");
+        const auto fixtureDecoded = model::decodeProjectedSnapshot(initialSnapshot, publicOptions().requestedCapabilities);
+        const std::string fixtureError = fixtureDecoded ? std::string{} : fixtureDecoded.error().message;
+        const bool snapshotAccepted = connection.receive(frontend::ServerMessage{initialSnapshot}).accepted;
+        harness.recording = true;
+        const bool synchronized = connection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(7)}}).accepted;
+        harness.recording = false;
+        const client::State ready = sdk.state();
+        const std::vector<std::string> expectedSynchronizationOrder{"ready", "state", "cursor", "synchronized", "protocol"};
+        result.expectTrue(
+            welcomeAccepted && snapshotAccepted && synchronized && sdk.isReady() && !harness.revisionMismatch &&
+                harness.readySawCommittedState && harness.callbackOrder == expectedSynchronizationOrder &&
+                !harness.updateRevisions.empty() && !harness.synchronizedRevisions.empty() &&
+                harness.updateRevisions.back() == ready.revision() && harness.synchronizedRevisions.back() == ready.revision() &&
+                ready.visibleSequence() == frontend::SequenceNumber(7) && ready.thread("adapter-thread") != nullptr &&
+                ready.thread("adapter-thread")->title == std::optional<std::string>{"runtime title"},
+            "ClientCore commits the direct public State before state/cursor/synchronized/protocol callbacks in frozen order: " +
+                traceText(harness.callbackOrder) + " accepted=" + std::to_string(welcomeAccepted) + "/" + std::to_string(snapshotAccepted) +
+                "/" + std::to_string(synchronized) + " state=" + std::to_string(static_cast<int>(sdk.connectionState())) + " fixture=" +
+                fixtureError + " fixture-state=" + initialSnapshot.state.dump() + " diagnostics=" + traceText(harness.diagnostics));
+
+        harness.callbackOrder.clear();
+        harness.recording = true;
+        const frontend::FrontendEvent live = providerEvent(8, 9);
+        const bool liveAccepted =
+            connection
+                .receive(frontend::ServerMessage{frontend::EventBatch{frontend::SequenceNumber(8), frontend::SequenceNumber(8), {live}}})
+                .accepted;
+        harness.recording = false;
+        const client::State afterLive = sdk.state();
+        const std::vector<std::string> expectedLiveOrder{"state", "cursor", "protocol"};
+        result.expectTrue(
+            liveAccepted && harness.callbackOrder == expectedLiveOrder && ready.revision() != std::numeric_limits<std::uint64_t>::max() &&
+                afterLive.revision() == ready.revision() + 1 && afterLive.provider().value.has_value() &&
+                afterLive.provider().value->generation == 9 && ready.provider().value.has_value() &&
+                ready.provider().value->generation == 3 && ready.revision() != afterLive.revision() && !harness.revisionMismatch,
+            "live ClientCore publication advances one public revision while the prior State remains immutable: " +
+                traceText(harness.callbackOrder));
+
+        const client::State beforeDisconnect = afterLive;
+        connection.transportDisconnected(client::TransportError{"cycle one ended", true});
+        const client::State retainedStale = sdk.state();
+        result.expectTrue(
+            beforeDisconnect.revision() != std::numeric_limits<std::uint64_t>::max() &&
+                retainedStale.revision() == beforeDisconnect.revision() + 1 && retainedStale.freshness() == client::StateFreshness::Stale &&
+                beforeDisconnect.freshness() == client::StateFreshness::Current && beforeDisconnect.provider().value.has_value() &&
+                beforeDisconnect.provider().value->generation == 9 && !harness.revisionMismatch,
+            "public Client exposes the ClientCore retained-stale N+1 revision without mutating its prior State");
+        client::Connection replacement = sdk.openConnection(harness.transport());
+        const std::size_t observedBeforeStale = harness.protocolMessages;
+        const auto stale = connection.receive(frontend::ServerMessage{frontend::ProtocolErrorMessage{
+            frontend::ErrorCode::RateLimited, "retired generation", {}, false, std::nullopt, std::nullopt, frontend::Json::object()}});
+        result.expectTrue(!stale.accepted && replacement.generation() == firstGeneration + 1 &&
+                              sdk.connectionState() == client::ConnectionState::Connecting &&
+                              harness.protocolMessages == observedBeforeStale,
+                          "a retired public Connection cannot continue into the next ClientCore physical generation");
+    }
+
+    void testTransactionalPreparationFailure(tests::support::TestResult& result) {
+        core::ClientOptions options;
+        options.credentialProvider = [] {
+            return core::AuthenticationContext{frontend::NoCredential{}, std::string{"prepare-failure"}};
+        };
+        std::size_t prepared = 0;
+        std::size_t committed = 0;
+        std::size_t published = 0;
+        std::size_t readyTransitions = 0;
+        bool currentCommitted = false;
+        std::vector<std::string> diagnostics;
+        core::ClientCallbacks callbacks;
+        callbacks.prepareStatePublication = [&prepared](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+            ++prepared;
+            if (candidate.freshness == core::PublishedFreshness::Current) {
+                return core::ClientError{core::ErrorOrigin::Protocol,
+                                         core::ClientErrorCode::StateCapacityExceeded,
+                                         frontend::ErrorCode::CapacityExceeded,
+                                         "injected public State capacity rejection",
+                                         std::nullopt,
+                                         false};
+            }
+            return std::nullopt;
+        };
+        callbacks.commitStatePublication = [&committed, &currentCommitted](const core::PublishedState& candidate) {
+            ++committed;
+            currentCommitted = currentCommitted || candidate.freshness == core::PublishedFreshness::Current;
+        };
+        callbacks.onStatePublished = [&published](const std::shared_ptr<const core::PublishedState>&) {
+            ++published;
+        };
+        callbacks.onDiagnostic = [&diagnostics](const core::Diagnostic& diagnostic) {
+            diagnostics.push_back(diagnostic.message);
+        };
+        callbacks.onConnectionStateChanged = [&diagnostics, &readyTransitions](const core::StateChange& change) {
+            if (change.current == core::ConnectionState::Ready) {
+                ++readyTransitions;
+            }
+            if (change.error.has_value()) {
+                diagnostics.push_back(change.error->message);
+            }
+        };
+        core::ClientCore sdk(std::move(options), std::move(callbacks));
+        std::vector<core::OutboundMessage> outbound;
+        const auto generation = sdk.attach({[&outbound](core::OutboundMessage message) {
+                                                outbound.push_back(std::move(message));
+                                                return core::SendResult{};
+                                            },
+                                            [](std::string_view) {
+                                            }});
+        sdk.transportConnected(*generation);
+        const bool welcomeAccepted = sdk.receive(*generation, frontend::ServerMessage{welcome(7)});
+        const bool snapshotAccepted = sdk.receive(*generation, frontend::ServerMessage{expandedSnapshot(7, 3, "rejected title")});
+        const bool accepted = sdk.receive(*generation, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(7)}});
+        result.expectTrue(!accepted && prepared == 3 && committed == 2 && published == 2 && readyTransitions == 0 && !currentCommitted &&
+                              sdk.state()->revision == 2 && sdk.state()->freshness == core::PublishedFreshness::Stale &&
+                              sdk.connectionState() != core::ConnectionState::Ready,
+                          "final SyncComplete preparation rejects before any transient Ready while preserving the last committed revision; "
+                          "prepared=" +
+                              std::to_string(prepared) + " committed=" + std::to_string(committed) +
+                              " published=" + std::to_string(published) + " revision=" + std::to_string(sdk.state()->revision) +
+                              " ready=" + std::to_string(readyTransitions) + " accepted=" + std::to_string(welcomeAccepted) + "/" +
+                              std::to_string(snapshotAccepted) + "/" + std::to_string(accepted) + " diagnostics=" + traceText(diagnostics));
+    }
+
+    void testTransactionalStaleFallback(tests::support::TestResult& result) {
+        core::ClientOptions options;
+        options.credentialProvider = [] {
+            return core::AuthenticationContext{frontend::NoCredential{}, std::string{"stale-fallback"}};
+        };
+        std::size_t staleRejections = 0;
+        std::size_t emptyStaleCommits = 0;
+        core::ClientCallbacks callbacks;
+        callbacks.prepareStatePublication = [&staleRejections](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+            if (candidate.freshness == core::PublishedFreshness::Stale && candidate.snapshot) {
+                ++staleRejections;
+                return core::ClientError{core::ErrorOrigin::Protocol,
+                                         core::ClientErrorCode::StateCapacityExceeded,
+                                         frontend::ErrorCode::CapacityExceeded,
+                                         "injected retained stale capacity rejection",
+                                         std::nullopt,
+                                         false};
+            }
+            return std::nullopt;
+        };
+        callbacks.commitStatePublication = [&emptyStaleCommits](const core::PublishedState& committed) {
+            if (committed.freshness == core::PublishedFreshness::Stale && !committed.snapshot && !committed.session) {
+                ++emptyStaleCommits;
+            }
+        };
+        core::ClientCore sdk(std::move(options), std::move(callbacks));
+        const auto generation = sdk.attach({[](core::OutboundMessage) {
+                                                return core::SendResult{};
+                                            },
+                                            [](std::string_view) {
+                                            }});
+        sdk.transportConnected(*generation);
+        const bool welcomeAccepted = sdk.receive(*generation, frontend::ServerMessage{welcome(7)});
+        const bool snapshotAccepted = sdk.receive(*generation, frontend::ServerMessage{expandedSnapshot(7, 3, "stale title")});
+        const bool synchronized = sdk.receive(*generation, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(7)}});
+        const std::shared_ptr<const core::PublishedState> prior = sdk.state();
+        const std::uint64_t priorRevision = prior->revision;
+        const std::string priorTitle = prior->snapshot && !prior->snapshot->threads.empty()
+                                           ? prior->snapshot->threads.front().title.value_or(std::string{})
+                                           : std::string{};
+        sdk.transportDisconnected(*generation, core::TransportError{"capacity boundary disconnect", true});
+        const std::shared_ptr<const core::PublishedState> stale = sdk.state();
+        result.expectTrue(welcomeAccepted && snapshotAccepted && synchronized && staleRejections == 1 && emptyStaleCommits == 1 &&
+                              priorRevision != std::numeric_limits<std::uint64_t>::max() && stale && stale->revision == priorRevision + 1 &&
+                              stale->freshness == core::PublishedFreshness::Stale && !stale->snapshot && !stale->session &&
+                              sdk.connectionState() == core::ConnectionState::Disconnected,
+                          "a retained stale preparation failure atomically publishes the bounded empty stale fallback at revision N+1: "
+                          "prior=" +
+                              std::to_string(priorRevision) +
+                              " fallback=" + std::to_string(stale ? stale->revision : std::numeric_limits<std::uint64_t>::max()));
+        result.expectTrue(stale != prior && prior->revision == priorRevision && prior->freshness == core::PublishedFreshness::Current &&
+                              prior->snapshot && !prior->snapshot->threads.empty() &&
+                              prior->snapshot->threads.front().title.value_or(std::string{}) == priorTitle,
+                          "bounded-empty stale fallback leaves the prior published State immutable");
+    }
+
+} // namespace
+
+int main() {
+    tests::support::TestResult result;
+    testDirectCanonicalStateBuilder(result);
+    testCanonicalLookupIdentityPreflight(result);
+    testHybridExpandedPublicationRetainsLegacyItems(result);
+    testPublicClientCoreAdapter(result);
+    testTransactionalPreparationFailure(result);
+    testTransactionalStaleFallback(result);
+    return result.processResult();
+}

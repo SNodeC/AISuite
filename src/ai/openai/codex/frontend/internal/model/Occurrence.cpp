@@ -110,7 +110,15 @@ namespace ai::openai::codex::frontend::internal::model {
             if (!state.is_object()) {
                 fail(OccurrenceErrorCode::InvalidPayload, "/data", "legacy occurrence state must be an object");
             }
+            // A legacy occurrence carries one state fragment, whereas the
+            // public Snapshot contract requires these four roots.  Complete
+            // only this private synthetic envelope; decodeLegacySnapshot must
+            // remain strict for externally received full snapshots.
             state["lifecycle"] = state.value("lifecycle", "stopped");
+            state["sessions"] = state.value("sessions", Json::array());
+            state["threadList"] = state.value("threadList", Json{{"hasLoadedPage", false}, {"complete", false}, {"pagesLoaded", 0}});
+            state["threads"] = state.value("threads", Json::array());
+            state["pendingRequests"] = state.value("pendingRequests", Json::array());
             Snapshot wire{sequence.protocolValue(), std::move(state), Json::object()};
             auto decoded = decodeLegacySnapshot(wire);
             if (!decoded) {
@@ -362,6 +370,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     return Json{{"activity", encodedSnapshotState(snapshot).at("activities").at("entries").at(0)}};
                 case ExpandedEventType::CapacityUpdated:
                     snapshot.capacity = payloadAs<CapacityUpdatedOccurrence>(payload).capacity;
+                    snapshot.capacityPresent = true;
                     return Json{{"capacity", encodedSnapshotState(snapshot).at("capacity")}};
                 case ExpandedEventType::DiagnosticsUpdated: {
                     const DiagnosticRecord& diagnostic = payloadAs<DiagnosticsUpdatedOccurrence>(payload).diagnostic;
@@ -696,6 +705,258 @@ namespace ai::openai::codex::frontend::internal::model {
             const ModelErrorCode code =
                 error.code == OccurrenceErrorCode::UnsafeDetail ? ModelErrorCode::UnsafeDetail : ModelErrorCode::InvalidShape;
             return {code, error.path, error.message};
+        }
+
+        ItemData& mutableItemData(ThreadItem& item) {
+            return std::visit(
+                [](auto& value) -> ItemData& {
+                    return value.value;
+                },
+                item);
+        }
+
+        PendingRequestData& mutablePendingRequestData(PendingRequest& request) {
+            return std::visit(
+                [](auto& value) -> PendingRequestData& {
+                    return value.value;
+                },
+                request);
+        }
+
+        void normalizeItemSourceOrder(CanonicalSnapshot& snapshot) {
+            struct OrderedItem {
+                std::size_t sourceIndex;
+                ItemData* value;
+                LegacyItemCompatibility* legacy;
+            };
+
+            std::vector<OrderedItem> ordered;
+            ordered.reserve(snapshot.items.size() + snapshot.legacyItems.size());
+            std::size_t fallbackIndex = 0;
+            for (ThreadItem& item : snapshot.items) {
+                ItemData& value = mutableItemData(item);
+                ordered.push_back({value.sourceIndex.value_or(fallbackIndex++), &value, nullptr});
+            }
+            for (LegacyItemCompatibility& item : snapshot.legacyItems) {
+                ordered.push_back({item.sourceIndex, &item.value, &item});
+            }
+            std::stable_sort(ordered.begin(), ordered.end(), [](const OrderedItem& left, const OrderedItem& right) {
+                return left.sourceIndex < right.sourceIndex;
+            });
+            for (std::size_t index = 0; index < ordered.size(); ++index) {
+                ordered[index].value->sourceIndex = index;
+                if (ordered[index].legacy != nullptr) {
+                    ordered[index].legacy->sourceIndex = index;
+                }
+            }
+        }
+
+        void normalizePendingRequestSourceOrder(CanonicalSnapshot& snapshot) {
+            struct OrderedRequest {
+                std::size_t sourceIndex;
+                PendingRequestData* value;
+                LegacyPendingRequestCompatibility* legacy;
+            };
+
+            std::vector<OrderedRequest> ordered;
+            ordered.reserve(snapshot.pendingRequests.size() + snapshot.legacyPendingRequests.size());
+            std::size_t fallbackIndex = 0;
+            for (PendingRequest& request : snapshot.pendingRequests) {
+                PendingRequestData& value = mutablePendingRequestData(request);
+                ordered.push_back({value.sourceIndex.value_or(fallbackIndex++), &value, nullptr});
+            }
+            for (LegacyPendingRequestCompatibility& request : snapshot.legacyPendingRequests) {
+                ordered.push_back({request.sourceIndex, &request.value, &request});
+            }
+            std::stable_sort(ordered.begin(), ordered.end(), [](const OrderedRequest& left, const OrderedRequest& right) {
+                return left.sourceIndex < right.sourceIndex;
+            });
+            for (std::size_t index = 0; index < ordered.size(); ++index) {
+                ordered[index].value->sourceIndex = index;
+                if (ordered[index].legacy != nullptr) {
+                    ordered[index].legacy->sourceIndex = index;
+                }
+            }
+        }
+
+        std::optional<std::size_t> itemSourceIndex(const CanonicalSnapshot& snapshot, const ItemIdentity& id) {
+            std::optional<std::size_t> result;
+            for (const ThreadItem& item : snapshot.items) {
+                const ItemData& value = itemData(item);
+                if (value.id == id && value.sourceIndex.has_value()) {
+                    if (!result.has_value() || *value.sourceIndex < *result) {
+                        result = *value.sourceIndex;
+                    }
+                }
+            }
+            for (const LegacyItemCompatibility& item : snapshot.legacyItems) {
+                if (item.value.id == id && (!result.has_value() || item.sourceIndex < *result)) {
+                    result = item.sourceIndex;
+                }
+            }
+            return result;
+        }
+
+        std::optional<std::size_t> pendingRequestSourceIndex(const CanonicalSnapshot& snapshot, const PendingRequestIdentity& id) {
+            std::optional<std::size_t> result;
+            for (const PendingRequest& request : snapshot.pendingRequests) {
+                const PendingRequestData& value = pendingRequestData(request);
+                if (value.id == id && value.sourceIndex.has_value()) {
+                    if (!result.has_value() || *value.sourceIndex < *result) {
+                        result = *value.sourceIndex;
+                    }
+                }
+            }
+            for (const LegacyPendingRequestCompatibility& request : snapshot.legacyPendingRequests) {
+                if (request.value.id == id && (!result.has_value() || request.sourceIndex < *result)) {
+                    result = request.sourceIndex;
+                }
+            }
+            return result;
+        }
+
+        void upsertItem(CanonicalSnapshot& snapshot, ThreadItem replacement) {
+            normalizeItemSourceOrder(snapshot);
+            ItemData& replacementData = mutableItemData(replacement);
+            const ItemIdentity id = replacementData.id;
+            const std::size_t sourceIndex = itemSourceIndex(snapshot, id).value_or(snapshot.items.size() + snapshot.legacyItems.size());
+            std::erase_if(snapshot.items, [&](const ThreadItem& item) {
+                return itemData(item).id == id;
+            });
+            std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
+                return item.value.id == id;
+            });
+            replacementData.sourceIndex = sourceIndex;
+            snapshot.items.push_back(std::move(replacement));
+            normalizeItemSourceOrder(snapshot);
+        }
+
+        void upsertLegacyItem(CanonicalSnapshot& snapshot, LegacyItemCompatibility replacement) {
+            normalizeItemSourceOrder(snapshot);
+            const ItemIdentity id = replacement.value.id;
+            const std::size_t sourceIndex = itemSourceIndex(snapshot, id).value_or(snapshot.items.size() + snapshot.legacyItems.size());
+            std::erase_if(snapshot.items, [&](const ThreadItem& item) {
+                return itemData(item).id == id;
+            });
+            std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
+                return item.value.id == id;
+            });
+            replacement.sourceIndex = sourceIndex;
+            replacement.value.sourceIndex = sourceIndex;
+            snapshot.legacyItems.push_back(std::move(replacement));
+            normalizeItemSourceOrder(snapshot);
+        }
+
+        void upsertPendingRequest(CanonicalSnapshot& snapshot, PendingRequest replacement) {
+            normalizePendingRequestSourceOrder(snapshot);
+            PendingRequestData& replacementData = mutablePendingRequestData(replacement);
+            const PendingRequestIdentity id = replacementData.id;
+            const std::size_t sourceIndex =
+                pendingRequestSourceIndex(snapshot, id).value_or(snapshot.pendingRequests.size() + snapshot.legacyPendingRequests.size());
+            std::erase_if(snapshot.pendingRequests, [&](const PendingRequest& request) {
+                return pendingRequestData(request).id == id;
+            });
+            std::erase_if(snapshot.legacyPendingRequests, [&](const LegacyPendingRequestCompatibility& request) {
+                return request.value.id == id;
+            });
+            replacementData.sourceIndex = sourceIndex;
+            snapshot.pendingRequests.push_back(std::move(replacement));
+            normalizePendingRequestSourceOrder(snapshot);
+        }
+
+        void upsertLegacyPendingRequest(CanonicalSnapshot& snapshot, LegacyPendingRequestCompatibility replacement) {
+            normalizePendingRequestSourceOrder(snapshot);
+            const PendingRequestIdentity id = replacement.value.id;
+            const std::size_t sourceIndex =
+                pendingRequestSourceIndex(snapshot, id).value_or(snapshot.pendingRequests.size() + snapshot.legacyPendingRequests.size());
+            std::erase_if(snapshot.pendingRequests, [&](const PendingRequest& request) {
+                return pendingRequestData(request).id == id;
+            });
+            std::erase_if(snapshot.legacyPendingRequests, [&](const LegacyPendingRequestCompatibility& request) {
+                return request.value.id == id;
+            });
+            replacement.sourceIndex = sourceIndex;
+            replacement.value.sourceIndex = sourceIndex;
+            snapshot.legacyPendingRequests.push_back(std::move(replacement));
+            normalizePendingRequestSourceOrder(snapshot);
+        }
+
+        void erasePendingRequest(CanonicalSnapshot& snapshot, const PendingRequestIdentity& id) {
+            normalizePendingRequestSourceOrder(snapshot);
+            std::erase_if(snapshot.pendingRequests, [&](const PendingRequest& request) {
+                return pendingRequestData(request).id == id;
+            });
+            std::erase_if(snapshot.legacyPendingRequests, [&](const LegacyPendingRequestCompatibility& request) {
+                return request.value.id == id;
+            });
+            normalizePendingRequestSourceOrder(snapshot);
+        }
+
+        template <typename Affected>
+        void replaceOrderedItems(CanonicalSnapshot& snapshot, std::vector<ThreadItem> replacements, Affected&& affected) {
+            normalizeItemSourceOrder(snapshot);
+            std::size_t insertionIndex = snapshot.items.size() + snapshot.legacyItems.size();
+            for (const ThreadItem& item : snapshot.items) {
+                const ItemData& value = itemData(item);
+                if (affected(value)) {
+                    insertionIndex = std::min(insertionIndex, *value.sourceIndex);
+                }
+            }
+            for (const LegacyItemCompatibility& item : snapshot.legacyItems) {
+                if (affected(item.value)) {
+                    insertionIndex = std::min(insertionIndex, item.sourceIndex);
+                }
+            }
+            std::erase_if(snapshot.items, [&](const ThreadItem& item) {
+                return affected(itemData(item));
+            });
+            std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
+                return affected(item.value);
+            });
+            normalizeItemSourceOrder(snapshot);
+            insertionIndex = std::min(insertionIndex, snapshot.items.size() + snapshot.legacyItems.size());
+            for (ThreadItem& item : snapshot.items) {
+                ItemData& value = mutableItemData(item);
+                if (*value.sourceIndex >= insertionIndex) {
+                    *value.sourceIndex += replacements.size();
+                }
+            }
+            for (LegacyItemCompatibility& item : snapshot.legacyItems) {
+                if (item.sourceIndex >= insertionIndex) {
+                    item.sourceIndex += replacements.size();
+                    item.value.sourceIndex = item.sourceIndex;
+                }
+            }
+            for (std::size_t index = 0; index < replacements.size(); ++index) {
+                mutableItemData(replacements[index]).sourceIndex = insertionIndex + index;
+                snapshot.items.push_back(std::move(replacements[index]));
+            }
+            normalizeItemSourceOrder(snapshot);
+        }
+
+        template <typename Value, typename Affected>
+        void replaceOrderedSubset(std::vector<Value>& current, std::vector<Value> replacement, Affected&& affected) {
+            std::vector<Value> rebuilt;
+            rebuilt.reserve(current.size() + replacement.size());
+            bool inserted = false;
+            for (Value& value : current) {
+                if (affected(value)) {
+                    if (!inserted) {
+                        for (Value& replacementValue : replacement) {
+                            rebuilt.push_back(std::move(replacementValue));
+                        }
+                        inserted = true;
+                    }
+                } else {
+                    rebuilt.push_back(std::move(value));
+                }
+            }
+            if (!inserted) {
+                for (Value& replacementValue : replacement) {
+                    rebuilt.push_back(std::move(replacementValue));
+                }
+            }
+            current = std::move(rebuilt);
         }
     } // namespace
 
@@ -1742,25 +2003,29 @@ namespace ai::openai::codex::frontend::internal::model {
                     *found = std::move(replacement);
                 }
             };
+            const auto markSparseCollectionRepresented = [](DomainState& state) {
+                if (state.information == InformationState::Absent || state.information == InformationState::Omitted ||
+                    state.information == InformationState::NullValue) {
+                    state.information = InformationState::Present;
+                }
+            };
+            const auto markProjectionRootRepresented = [&reduced](std::string_view root) {
+                const auto eraseRoot = [root](std::vector<std::string>& paths) {
+                    std::erase_if(paths, [root](const std::string& path) {
+                        return path == root;
+                    });
+                };
+                eraseRoot(reduced.projection.omittedPaths);
+                eraseRoot(reduced.projection.absentPaths);
+                eraseRoot(reduced.projection.nullPaths);
+            };
             if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::LegacyItem &&
                 occurrence.legacyCompatibility().legacyItem.has_value()) {
-                LegacyItemCompatibility item = *occurrence.legacyCompatibility().legacyItem;
-                std::erase_if(reduced.items, [&](const ThreadItem& value) {
-                    return itemData(value).id == item.value.id;
-                });
-                upsert(reduced.legacyItems, std::move(item), [&](const LegacyItemCompatibility& value) {
-                    return value.value.id == occurrence.legacyCompatibility().legacyItem->value.id;
-                });
+                upsertLegacyItem(reduced, *occurrence.legacyCompatibility().legacyItem);
             }
             if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::LegacyPendingRequest &&
                 occurrence.legacyCompatibility().legacyPendingRequest.has_value()) {
-                LegacyPendingRequestCompatibility request = *occurrence.legacyCompatibility().legacyPendingRequest;
-                std::erase_if(reduced.pendingRequests, [&](const PendingRequest& value) {
-                    return pendingRequestData(value).id == request.value.id;
-                });
-                upsert(reduced.legacyPendingRequests, std::move(request), [&](const LegacyPendingRequestCompatibility& value) {
-                    return value.value.id == occurrence.legacyCompatibility().legacyPendingRequest->value.id;
-                });
+                upsertLegacyPendingRequest(reduced, *occurrence.legacyCompatibility().legacyPendingRequest);
             }
             for (const OccurrencePayload& payload : occurrence.expandedPayloads()) {
                 std::visit(
@@ -1771,6 +2036,7 @@ namespace ai::openai::codex::frontend::internal::model {
                         } else if constexpr (std::is_same_v<Update, ControllerUpdatedOccurrence>) {
                             reduced.controller = update.controller;
                         } else if constexpr (std::is_same_v<Update, SessionsUpdatedOccurrence>) {
+                            reduced.sessionsPresent = true;
                             if (update.completeProjection) {
                                 reduced.sessions = update.sessions;
                             } else if (update.changedSession.has_value()) {
@@ -1782,52 +2048,91 @@ namespace ai::openai::codex::frontend::internal::model {
                                 }
                             }
                         } else if constexpr (std::is_same_v<Update, ThreadListUpdatedOccurrence>) {
+                            reduced.threadListPresent = true;
                             reduced.threadList = update.threadList;
                         } else if constexpr (std::is_same_v<Update, ThreadUpsertedOccurrence>) {
+                            reduced.threadsPresent = true;
                             upsert(reduced.threads, update.thread, [&](const ThreadState& value) {
                                 return value.id == update.thread.id;
                             });
                             if (update.replaceDescendants) {
-                                std::erase_if(reduced.turns, [&](const TurnState& value) {
-                                    return value.threadId == update.thread.id;
-                                });
-                                std::erase_if(reduced.items, [&](const ThreadItem& value) {
-                                    return itemData(value).threadId == std::optional<ThreadIdentity>{update.thread.id};
-                                });
+                                reduced.turnsPresent = true;
+                                reduced.itemsPresent = true;
+                                std::vector<TurnIdentity> affectedTurns;
+                                affectedTurns.reserve(reduced.turns.size() + update.turns.size());
+                                for (const TurnState& turn : reduced.turns) {
+                                    if (turn.threadId == update.thread.id) {
+                                        affectedTurns.push_back(turn.id);
+                                    }
+                                }
                                 for (const TurnState& turn : update.turns) {
-                                    reduced.turns.push_back(turn);
+                                    if (std::find(affectedTurns.begin(), affectedTurns.end(), turn.id) == affectedTurns.end()) {
+                                        affectedTurns.push_back(turn.id);
+                                    }
                                 }
+                                std::vector<ItemIdentity> replacementItems;
+                                replacementItems.reserve(update.items.size());
                                 for (const ThreadItem& item : update.items) {
-                                    reduced.items.push_back(item);
+                                    replacementItems.push_back(itemData(item).id);
                                 }
+                                replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
+                                    return (item.turnId.has_value() &&
+                                            std::find(affectedTurns.begin(), affectedTurns.end(), *item.turnId) != affectedTurns.end()) ||
+                                           std::find(replacementItems.begin(), replacementItems.end(), item.id) != replacementItems.end();
+                                });
+                                std::vector<TurnIdentity> replacementTurns;
+                                replacementTurns.reserve(update.turns.size());
+                                for (const TurnState& turn : update.turns) {
+                                    replacementTurns.push_back(turn.id);
+                                }
+                                replaceOrderedSubset(reduced.turns, update.turns, [&](const TurnState& turn) {
+                                    return turn.threadId == update.thread.id ||
+                                           std::find(replacementTurns.begin(), replacementTurns.end(), turn.id) != replacementTurns.end();
+                                });
                             }
                         } else if constexpr (std::is_same_v<Update, ThreadRemovedOccurrence>) {
+                            reduced.threadsPresent = true;
+                            reduced.turnsPresent = true;
+                            reduced.itemsPresent = true;
+                            std::vector<TurnIdentity> removedTurns;
+                            for (const TurnState& turn : reduced.turns) {
+                                if (turn.threadId == update.threadId) {
+                                    removedTurns.push_back(turn.id);
+                                }
+                            }
                             std::erase_if(reduced.threads, [&](const ThreadState& value) {
                                 return value.id == update.threadId;
                             });
                             std::erase_if(reduced.turns, [&](const TurnState& value) {
                                 return value.threadId == update.threadId;
                             });
-                            std::erase_if(reduced.items, [&](const ThreadItem& value) {
-                                return itemData(value).threadId == std::optional<ThreadIdentity>{update.threadId};
+                            replaceOrderedItems(reduced, {}, [&](const ItemData& item) {
+                                return item.threadId == std::optional<ThreadIdentity>{update.threadId} ||
+                                       (item.turnId.has_value() &&
+                                        std::find(removedTurns.begin(), removedTurns.end(), *item.turnId) != removedTurns.end());
                             });
                         } else if constexpr (std::is_same_v<Update, TurnUpsertedOccurrence>) {
+                            reduced.turnsPresent = true;
                             upsert(reduced.turns, update.turn, [&](const TurnState& value) {
                                 return value.id == update.turn.id;
                             });
                             if (update.replaceItems) {
-                                std::erase_if(reduced.items, [&](const ThreadItem& value) {
-                                    return itemData(value).turnId == std::optional<TurnIdentity>{update.turn.id};
-                                });
+                                reduced.itemsPresent = true;
+                                std::vector<ItemIdentity> replacementItems;
+                                replacementItems.reserve(update.items.size());
                                 for (const ThreadItem& item : update.items) {
-                                    reduced.items.push_back(item);
+                                    replacementItems.push_back(itemData(item).id);
                                 }
+                                replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
+                                    return item.turnId == std::optional<TurnIdentity>{update.turn.id} ||
+                                           std::find(replacementItems.begin(), replacementItems.end(), item.id) != replacementItems.end();
+                                });
                             }
                         } else if constexpr (std::is_same_v<Update, ItemUpsertedOccurrence>) {
-                            upsert(reduced.items, update.item, [&](const ThreadItem& value) {
-                                return itemData(value).id == itemData(update.item).id;
-                            });
+                            reduced.itemsPresent = true;
+                            upsertItem(reduced, update.item);
                         } else if constexpr (std::is_same_v<Update, ItemContentUpdatedOccurrence>) {
+                            reduced.itemsPresent = true;
                             const auto found = std::find_if(reduced.items.begin(), reduced.items.end(), [&](const ThreadItem& value) {
                                 return itemData(value).id == update.itemId;
                             });
@@ -1898,23 +2203,17 @@ namespace ai::openai::codex::frontend::internal::model {
                                 },
                                 *found);
                         } else if constexpr (std::is_same_v<Update, PendingRequestsUpdatedOccurrence>) {
+                            reduced.pendingRequestsPresent = true;
                             if (update.completeProjection) {
                                 reduced.pendingRequests = update.pendingRequests;
                                 reduced.legacyPendingRequests.clear();
+                                normalizePendingRequestSourceOrder(reduced);
                             } else {
                                 if (update.removedRequestId.has_value()) {
-                                    std::erase_if(reduced.pendingRequests, [&](const PendingRequest& value) {
-                                        return pendingRequestData(value).id == *update.removedRequestId;
-                                    });
-                                    std::erase_if(reduced.legacyPendingRequests, [&](const LegacyPendingRequestCompatibility& value) {
-                                        return value.value.id == *update.removedRequestId;
-                                    });
+                                    erasePendingRequest(reduced, *update.removedRequestId);
                                 }
                                 for (const PendingRequest& request : update.pendingRequests) {
-                                    std::erase_if(reduced.pendingRequests, [&](const PendingRequest& value) {
-                                        return pendingRequestData(value).id == pendingRequestData(request).id;
-                                    });
-                                    reduced.pendingRequests.push_back(request);
+                                    upsertPendingRequest(reduced, request);
                                 }
                             }
                         } else if constexpr (std::is_same_v<Update, AccountUpdatedOccurrence>) {
@@ -1924,14 +2223,18 @@ namespace ai::openai::codex::frontend::internal::model {
                         } else if constexpr (std::is_same_v<Update, ConfigurationUpdatedOccurrence>) {
                             reduced.configuration = update.configuration;
                         } else if constexpr (std::is_same_v<Update, ProcessUpdatedOccurrence>) {
+                            markProjectionRootRepresented("/processes");
+                            markSparseCollectionRepresented(reduced.processesState);
                             upsert(reduced.processes, update.process, [&](const ProcessState& value) {
                                 return value.handle == update.process.handle;
                             });
                         } else if constexpr (std::is_same_v<Update, FilesystemWatchUpdatedOccurrence>) {
+                            markSparseCollectionRepresented(reduced.filesystemWatches.state);
                             upsert(reduced.filesystemWatches.entries, update.filesystemWatch, [&](const FilesystemWatchRecord& value) {
                                 return value.watchId == update.filesystemWatch.watchId;
                             });
                         } else if constexpr (std::is_same_v<Update, FuzzySearchUpdatedOccurrence>) {
+                            markSparseCollectionRepresented(reduced.fuzzySearches.state);
                             upsert(reduced.fuzzySearches.entries, update.fuzzySearch, [&](const FuzzySearchRecord& value) {
                                 return value.sessionId == update.fuzzySearch.sessionId;
                             });
@@ -1957,13 +2260,16 @@ namespace ai::openai::codex::frontend::internal::model {
                             reduced.windowsSandbox.state = update.platform.state;
                             reduced.remoteControl.state = update.platform.state;
                         } else if constexpr (std::is_same_v<Update, NoticeAddedOccurrence>) {
+                            markSparseCollectionRepresented(reduced.notices.state);
                             reduced.notices.entries.push_back(update.notice);
                         } else if constexpr (std::is_same_v<Update, ActivityUpdatedOccurrence>) {
+                            markSparseCollectionRepresented(reduced.activities.state);
                             upsert(reduced.activities.entries, update.activity, [&](const ActivityRecord& value) {
                                 return value.key == update.activity.key;
                             });
                         } else if constexpr (std::is_same_v<Update, CapacityUpdatedOccurrence>) {
                             reduced.capacity = update.capacity;
+                            reduced.capacityPresent = true;
                         } else if constexpr (std::is_same_v<Update, DiagnosticsUpdatedOccurrence>) {
                             const TruncationMetadata retainedTruncation = reduced.diagnostics.state.truncation;
                             reduced.diagnostics.state = DomainState::present(Freshness::Unknown);

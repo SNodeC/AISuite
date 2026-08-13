@@ -11,7 +11,6 @@
 #include "apps/codex-backend/Configuration.h"
 #include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-#include "apps/codex-backend/FrontendRuntimeBridge.h"
 #include "apps/codex-backend/FrontendWebApplication.h"
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
@@ -162,13 +161,6 @@ int main(int argc, char* argv[]) {
         backendOptions.recovery = recoveryConfiguration.options();
         ai::openai::codex::backend::BackendCore<ai::openai::codex::stdio::Client> backend(std::move(backendOptions));
         ai::openai::codex::frontend::FrontendService frontendService(backend, std::move(frontendOptions));
-#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        if (!apps::codex_backend::installFrontendRuntime(frontendService)) {
-            std::cerr << "codex-backend: failed to install the frontend runtime bridge\n";
-            core::SNodeC::free();
-            return 1;
-        }
-#endif
 
         apps::codex_backend::FrontendStreamSocketContextFactoryOptions unixStreamOptions;
         unixStreamOptions.transport = FrontendTransportKind::Unix;
@@ -384,9 +376,6 @@ int main(int argc, char* argv[]) {
 
         backend.start();
         result = core::SNodeC::start();
-#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        apps::codex_backend::uninstallFrontendRuntime(frontendService);
-#endif
         frontendService.close("codex-backend is stopping");
     }
 

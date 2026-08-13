@@ -14,7 +14,6 @@
 namespace ai::openai::codex::frontend::client {
 
     namespace detail {
-        class StateReducer;
         struct StateStorage;
     } // namespace detail
 
@@ -88,7 +87,6 @@ namespace ai::openai::codex::frontend::client {
 
     private:
         friend class Client;
-        friend class detail::StateReducer;
         AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT explicit State(std::shared_ptr<const detail::StateStorage> implementation) noexcept;
         std::shared_ptr<const detail::StateStorage> impl;
     };

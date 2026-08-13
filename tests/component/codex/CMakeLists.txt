@@ -63,30 +63,6 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     )
 
     snodec_add_test(
-        CodexFrontendClientSynchronizationTest
-        CodexFrontendClientSynchronizationTest.cpp
-    )
-    target_link_libraries(
-        CodexFrontendClientSynchronizationTest
-        PRIVATE
-            snodec-test-support
-            ai-openai-codex-frontend-client-test-support
-    )
-    target_compile_features(CodexFrontendClientSynchronizationTest PRIVATE cxx_std_20)
-    target_compile_definitions(
-        CodexFrontendClientSynchronizationTest
-        PRIVATE
-            AISUITE_CODEX_FRONTEND_CLIENT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-client-reducer"
-            AISUITE_CODEX_FRONTEND_CLIENT_STATE_SOURCE="${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/client/State.cpp"
-    )
-    set_tests_properties(
-        CodexFrontendClientSynchronizationTest
-        PROPERTIES
-            LABELS "component;ai;openai;codex;frontend;client;state;replay;reducer;a1-7c-1"
-            TIMEOUT 10
-    )
-
-    snodec_add_test(
         CodexFrontendServiceClientIntegrationTest
         CodexFrontendServiceClientIntegrationTest.cpp
     )
@@ -107,21 +83,25 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     )
 
     snodec_add_test(
-        CodexFrontendClientStateExtensionTest
-        CodexFrontendClientStateExtensionTest.cpp
+        CodexFrontendPublicClientAdapterTest
+        CodexFrontendPublicClientAdapterTest.cpp
     )
     target_link_libraries(
-        CodexFrontendClientStateExtensionTest
+        CodexFrontendPublicClientAdapterTest
         PRIVATE
             snodec-test-support
             ai-openai-codex-frontend-client-test-support
+            ai-openai-codex-frontend-client-core
+            ai-openai-codex-frontend-model
     )
-    target_compile_features(CodexFrontendClientStateExtensionTest PRIVATE cxx_std_20)
+    target_compile_features(
+        CodexFrontendPublicClientAdapterTest PRIVATE cxx_std_20
+    )
     set_tests_properties(
-        CodexFrontendClientStateExtensionTest
+        CodexFrontendPublicClientAdapterTest
         PROPERTIES
-            LABELS "component;ai;openai;codex;frontend;client;state;extensions;a1-7c-1"
-            TIMEOUT 5
+            LABELS "component;ai;openai;codex;frontend;client;adapter;state-builder;transaction;p3"
+            TIMEOUT 10
     )
 
     add_test(
@@ -130,6 +110,7 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
             ${CMAKE_COMMAND}
             -DAISUITE_FRONTEND_CLIENT_LIBRARY=$<TARGET_FILE:ai-openai-codex-frontend-client>
             -DAISUITE_NM=${CMAKE_NM}
+            -DAISUITE_READELF=${CMAKE_READELF}
             -P
             ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendClientSymbolVisibilityTest.cmake
     )
@@ -137,6 +118,28 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         CodexFrontendClientSymbolVisibilityTest
         PROPERTIES
             LABELS "component;ai;openai;codex;frontend;client;abi;symbols;a1-7c-1"
+            TIMEOUT 5
+    )
+
+    add_executable(
+        CodexFrontendClientSourceCompatibilityTest
+        CodexFrontendClientSourceCompatibilityTest.cpp
+    )
+    target_compile_features(
+        CodexFrontendClientSourceCompatibilityTest PRIVATE cxx_std_20
+    )
+    target_link_libraries(
+        CodexFrontendClientSourceCompatibilityTest
+        PRIVATE AISuite::OpenAICodexFrontendClient
+    )
+    add_test(
+        NAME CodexFrontendClientSourceCompatibilityTest
+        COMMAND CodexFrontendClientSourceCompatibilityTest
+    )
+    set_tests_properties(
+        CodexFrontendClientSourceCompatibilityTest
+        PROPERTIES
+            LABELS "component;ai;openai;codex;frontend;client;source-compatibility;p3"
             TIMEOUT 5
     )
 endif()
@@ -1674,21 +1677,6 @@ set_tests_properties(
 )
 
 snodec_add_test(
-    CodexFrontendProjectionTest CodexFrontendProjectionTest.cpp
-)
-target_link_libraries(
-    CodexFrontendProjectionTest PRIVATE snodec-test-support
-                                        AISuite::OpenAICodexFrontend
-)
-target_compile_features(CodexFrontendProjectionTest PRIVATE cxx_std_20)
-set_tests_properties(
-    CodexFrontendProjectionTest
-    PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;projection;journal;a1-7b"
-               TIMEOUT 10
-)
-
-snodec_add_test(
     CodexFrontendCompleteCodecTest CodexFrontendCompleteCodecTest.cpp
 )
 target_link_libraries(
@@ -1728,24 +1716,6 @@ set_tests_properties(
     PROPERTIES LABELS
                "component;ai;openai;codex;frontend;service;provider-results;a1-7b"
                TIMEOUT 15
-)
-
-snodec_add_test(
-    CodexFrontendAuthorizationMetadataTest
-    CodexFrontendAuthorizationMetadataTest.cpp
-)
-target_link_libraries(
-    CodexFrontendAuthorizationMetadataTest
-    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
-)
-target_compile_features(
-    CodexFrontendAuthorizationMetadataTest PRIVATE cxx_std_20
-)
-set_tests_properties(
-    CodexFrontendAuthorizationMetadataTest
-    PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;service;authorization;metadata;a1-7b"
-               TIMEOUT 10
 )
 
 snodec_add_test(
@@ -1801,14 +1771,38 @@ set_tests_properties(
 snodec_add_test(CodexFrontendServiceTest CodexFrontendServiceTest.cpp)
 target_link_libraries(
     CodexFrontendServiceTest
-    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend snodec::core
+    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
 )
 target_compile_features(CodexFrontendServiceTest PRIVATE cxx_std_20)
 set_tests_properties(
     CodexFrontendServiceTest
-    PROPERTIES LABELS
-               "component;ai;openai;codex;frontend;service;coalescing;session"
-               SKIP_RETURN_CODE 77 TIMEOUT 15
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;compatibility;utilities;p3"
+        TIMEOUT 5
+)
+
+snodec_add_test(
+    CodexFrontendPublicServiceAdapterTest
+    CodexFrontendPublicServiceAdapterTest.cpp
+)
+target_link_libraries(
+    CodexFrontendPublicServiceAdapterTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexFrontend
+        snodec::core
+)
+target_compile_features(CodexFrontendPublicServiceAdapterTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexFrontendPublicServiceAdapterTest
+    PRIVATE
+        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
+)
+set_tests_properties(
+    CodexFrontendPublicServiceAdapterTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;server;adapter;p3"
+        TIMEOUT 20
 )
 
 foreach(
@@ -1894,63 +1888,6 @@ foreach(
 endforeach()
 
 snodec_add_test(
-    CodexFrontendServerDifferentialTest
-    CodexFrontendServerDifferentialTest.cpp
-)
-target_link_libraries(
-    CodexFrontendServerDifferentialTest
-    PRIVATE
-        snodec-test-support
-        AISuite::OpenAICodexFrontend
-        ai-openai-codex-frontend-server-core
-        snodec::core
-)
-target_compile_features(CodexFrontendServerDifferentialTest PRIVATE cxx_std_20)
-target_compile_definitions(
-    CodexFrontendServerDifferentialTest
-    PRIVATE
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_COVERAGE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json"
-        AISUITE_CODEX_FRONTEND_SERVER_DIFFERENTIAL_LEDGER="${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendServerDifferentialTest.ledger.json"
-)
-set_tests_properties(
-    CodexFrontendServerDifferentialTest
-    PROPERTIES
-        FIXTURES_SETUP CodexFrontendServerDifferentialLedger
-        LABELS "component;ai;openai;codex;frontend;server;differential;p2"
-        TIMEOUT 30
-)
-
-if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
-snodec_add_test(
-    CodexFrontendClientDifferentialTest
-    CodexFrontendClientDifferentialTest.cpp
-)
-target_link_libraries(
-    CodexFrontendClientDifferentialTest
-    PRIVATE
-        snodec-test-support
-        ai-openai-codex-frontend-client-test-support
-        ai-openai-codex-frontend-client-core
-        ai-openai-codex-frontend-server-core
-)
-target_compile_features(CodexFrontendClientDifferentialTest PRIVATE cxx_std_20)
-target_compile_definitions(
-    CodexFrontendClientDifferentialTest
-    PRIVATE
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/frontend-protocol-v1.generated.json"
-        AISUITE_CODEX_FRONTEND_DIFFERENTIAL_COVERAGE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json"
-        AISUITE_CODEX_FRONTEND_CLIENT_DIFFERENTIAL_LEDGER="${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendClientDifferentialTest.ledger.json"
-)
-set_tests_properties(
-    CodexFrontendClientDifferentialTest
-    PROPERTIES
-        FIXTURES_SETUP CodexFrontendClientDifferentialLedger
-        LABELS "component;ai;openai;codex;frontend;client;differential;p2"
-        TIMEOUT 60
-)
-
-snodec_add_test(
     CodexFrontendCompatibilityAdaptersTest
     CodexFrontendCompatibilityAdaptersTest.cpp
 )
@@ -1972,26 +1909,6 @@ set_tests_properties(
         TIMEOUT 30
 )
 
-add_test(
-    NAME CodexFrontendDifferentialCoverageGuardTest
-    COMMAND
-        ${Python3_EXECUTABLE} -B
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendDifferentialCoverageGuardTest.py
-        --coverage ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json
-        --server-ledger ${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendServerDifferentialTest.ledger.json
-        --client-ledger ${CMAKE_CURRENT_BINARY_DIR}/CodexFrontendClientDifferentialTest.ledger.json
-)
-set_tests_properties(
-    CodexFrontendDifferentialCoverageGuardTest
-    PROPERTIES
-        FIXTURES_REQUIRED "CodexFrontendServerDifferentialLedger;CodexFrontendClientDifferentialLedger"
-        FIXTURES_SETUP CodexFrontendDifferentialCoverageProof
-        LABELS "component;ai;openai;codex;frontend;differential;coverage;p2"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        TIMEOUT 30
-)
-endif()
-
 add_executable(
     CodexFrontendDifferentialMutationProbe
     CodexFrontendDifferentialMutationProbe.cpp
@@ -2002,6 +1919,21 @@ target_link_libraries(
 )
 target_compile_features(
     CodexFrontendDifferentialMutationProbe PRIVATE cxx_std_20
+)
+
+add_test(
+    NAME CodexFrontendDifferentialCoverageGuardTest
+    COMMAND
+        ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendDifferentialCoverageGuardTest.py
+        --coverage ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/p2-frontend-differential-coverage.json
+)
+set_tests_properties(
+    CodexFrontendDifferentialCoverageGuardTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;differential;coverage;p2"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+        TIMEOUT 30
 )
 
 add_test(
@@ -2018,19 +1950,12 @@ set_tests_properties(
         ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
         TIMEOUT 30
 )
-if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
-    set_tests_properties(
-        CodexFrontendDifferentialMutationTest
-        PROPERTIES FIXTURES_REQUIRED CodexFrontendDifferentialCoverageProof
-    )
-endif()
-
 snodec_add_test(
     CodexFrontendJsonLineFramerTest CodexFrontendJsonLineFramerTest.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
 )
 target_link_libraries(
-    CodexFrontendJsonLineFramerTest PRIVATE snodec-test-support
+    CodexFrontendJsonLineFramerTest
+    PRIVATE snodec-test-support ai-openai-codex-frontend-jsonl-framer
 )
 target_include_directories(
     CodexFrontendJsonLineFramerTest PRIVATE ${PROJECT_SOURCE_DIR}/src
@@ -2054,7 +1979,6 @@ snodec_add_test(
     CodexFrontendNativeTransportTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContext.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContextFactory.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
 )
 target_include_directories(
@@ -2066,6 +1990,7 @@ target_link_libraries(
         snodec-test-support
         AISuite::OpenAICodexBackend
         AISuite::OpenAICodexFrontend
+        ai-openai-codex-frontend-jsonl-framer
         snodec::core
         snodec::net-un-stream-legacy
         snodec::net-in-stream-legacy
@@ -2344,6 +2269,7 @@ if(TARGET codex-backend-client-support)
             CodexBackendClientTransportCompositionTest
             PRIVATE
                 CODEX_BACKEND_CLIENT_MAIN_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/main.cpp"
+                CODEX_BACKEND_CLIENT_WEBSOCKET_SOURCE="${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/FrontendWebSocketClient.cpp"
         )
         set_tests_properties(
             CodexBackendClientTransportCompositionTest
@@ -2409,6 +2335,7 @@ if(TARGET codex-backend-client-support)
     target_link_libraries(
         CodexBackendClientJsonLineFramerTest
         PRIVATE snodec-test-support codex-backend-client-support
+                ai-openai-codex-frontend-jsonl-framer
     )
     target_compile_features(
         CodexBackendClientJsonLineFramerTest PRIVATE cxx_std_20
@@ -2536,12 +2463,10 @@ if(TARGET codex-backend-client-support)
 
     if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
        AND TARGET codex-backend-web-adapter
-       AND TARGET codex-backend-runtime-bridge
        AND TARGET snodec::http-server-express-legacy-in
        AND TARGET snodec::http-server-express-legacy-in6
        AND TARGET snodec::websocket-server
        AND TARGET snodec::websocket-client
-       AND TARGET codex-backend-websocket-subprotocol
     )
         add_executable(
             CodexBackendClientWebSocketAcceptanceTest
@@ -2553,7 +2478,6 @@ if(TARGET codex-backend-client-support)
                 snodec-test-support
                 codex-backend-client-support
                 codex-backend-web-adapter
-                codex-backend-runtime-bridge
                 AISuite::OpenAICodexBackend
                 AISuite::OpenAICodexFrontend
                 snodec::http-server-express-legacy-in
@@ -2582,10 +2506,6 @@ if(TARGET codex-backend-client-support)
                     AISUITE_CODEX_TEST_TLS_KEY="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/a1-7b-loopback-key.pem"
             )
         endif()
-        add_dependencies(
-            CodexBackendClientWebSocketAcceptanceTest
-            codex-backend-websocket-subprotocol
-        )
         add_test(
             NAME CodexBackendClientWebSocketIpv4AcceptanceTest
             COMMAND CodexBackendClientWebSocketAcceptanceTest websocket-ipv4
@@ -2599,8 +2519,6 @@ if(TARGET codex-backend-client-support)
             PROPERTIES
                 LABELS
                 "component;integration;ai;openai;codex;frontend;client;transport;ipv4;websocket;acceptance;a1-7c-1"
-                ENVIRONMENT
-                "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                 SKIP_RETURN_CODE
                 77
                 TIMEOUT
@@ -2611,8 +2529,6 @@ if(TARGET codex-backend-client-support)
             PROPERTIES
                 LABELS
                 "component;integration;ai;openai;codex;frontend;client;transport;ipv6;websocket;acceptance;a1-7c-1"
-                ENVIRONMENT
-                "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                 SKIP_RETURN_CODE
                 77
                 TIMEOUT
@@ -2635,8 +2551,6 @@ if(TARGET codex-backend-client-support)
                 PROPERTIES
                     LABELS
                     "component;integration;ai;openai;codex;frontend;client;transport;ipv4;websocket;wss;tls;acceptance;a1-7c-1"
-                    ENVIRONMENT
-                    "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                     SKIP_RETURN_CODE
                     77
                     TIMEOUT
@@ -2647,8 +2561,6 @@ if(TARGET codex-backend-client-support)
                 PROPERTIES
                     LABELS
                     "component;integration;ai;openai;codex;frontend;client;transport;ipv6;websocket;wss;tls;acceptance;a1-7c-1"
-                    ENVIRONMENT
-                    "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
                     SKIP_RETURN_CODE
                     77
                     TIMEOUT
@@ -2743,7 +2655,6 @@ snodec_add_test(
     CodexBackendUnixAcceptanceTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContext.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendStreamSocketContextFactory.cpp
-    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/JsonLineFramer.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/UnixPeerCredentials.cpp
 )
 target_include_directories(
@@ -2752,7 +2663,8 @@ target_include_directories(
 target_link_libraries(
     CodexBackendUnixAcceptanceTest
     PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
-            AISuite::OpenAICodexBackend snodec::net-un-stream-legacy
+            AISuite::OpenAICodexBackend ai-openai-codex-frontend-jsonl-framer
+            snodec::net-un-stream-legacy
             snodec::core
 )
 target_compile_features(CodexBackendUnixAcceptanceTest PRIVATE cxx_std_20)
@@ -2806,13 +2718,12 @@ add_test(
     COMMAND
         ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendClientContractGuardTest.py
-        --projection ${PROJECT_SOURCE_DIR}/src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp
         --controller ${PROJECT_SOURCE_DIR}/src/apps/codex-backend-client/CommandDrainController.cpp
         --integration ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendServiceClientIntegrationTest.cpp
 )
 set_tests_properties(
     CodexFrontendClientContractGuardTest
-    PROPERTIES LABELS "component;ai;openai;codex;frontend;client;lifecycle;projection;policy;a1-7c-1" TIMEOUT 5
+    PROPERTIES LABELS "component;ai;openai;codex;frontend;client;lifecycle;policy;a1-7c-1" TIMEOUT 5
 )
 
 add_executable(CodexStdioScenarioTest CodexStdioScenarioTest.cpp)
@@ -3146,7 +3057,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
         PRIVATE snodec-test-support
                 codex-backend-stream-adapter
                 codex-backend-web-adapter
-                codex-backend-runtime-bridge
                 AISuite::OpenAICodexBackend
                 AISuite::OpenAICodexFrontend
                 snodec::http-server-express-legacy-in
@@ -3157,10 +3067,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
     target_compile_features(
         CodexFrontendWebSocketIntegrationTest PRIVATE cxx_std_20
     )
-    add_dependencies(
-        CodexFrontendWebSocketIntegrationTest
-        codex-backend-websocket-subprotocol
-    )
     set_tests_properties(
         CodexFrontendWebSocketIntegrationTest
         PROPERTIES
@@ -3168,8 +3074,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
             "component;integration;ai;openai;codex;frontend;websocket;express;security"
             SKIP_RETURN_CODE
             77
-            ENVIRONMENT
-            "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
             TIMEOUT
             15
     )
@@ -3201,7 +3105,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
         CodexFrontendWebSocketTlsIntegrationTest
         PRIVATE snodec-test-support
                 codex-backend-web-adapter
-                codex-backend-runtime-bridge
                 AISuite::OpenAICodexBackend
                 AISuite::OpenAICodexFrontend
                 snodec::http-server-express-tls-in
@@ -3213,10 +3116,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
     target_compile_features(
         CodexFrontendWebSocketTlsIntegrationTest PRIVATE cxx_std_20
     )
-    add_dependencies(
-        CodexFrontendWebSocketTlsIntegrationTest
-        codex-backend-websocket-subprotocol
-    )
     set_tests_properties(
         CodexFrontendWebSocketTlsIntegrationTest
         PROPERTIES
@@ -3224,8 +3123,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
             "component;integration;ai;openai;codex;frontend;websocket;wss;tls;express;security"
             SKIP_RETURN_CODE
             77
-            ENVIRONMENT
-            "WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR=$<TARGET_FILE_DIR:codex-backend-websocket-subprotocol>"
             TIMEOUT
             15
     )

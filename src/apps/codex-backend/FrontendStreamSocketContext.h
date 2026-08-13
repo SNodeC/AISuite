@@ -9,8 +9,8 @@
 #define APPS_CODEX_BACKEND_FRONTENDSTREAMSOCKETCONTEXT_H
 
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "apps/codex-backend/Configuration.h"
-#include "apps/codex-backend/JsonLineFramer.h"
 #include "core/socket/stream/SocketContext.h"
 
 #include <cstddef>
@@ -52,7 +52,7 @@ namespace apps::codex_backend {
         ai::openai::codex::frontend::FrontendService& service;
         ai::openai::codex::frontend::FrontendPeerContext peer;
         SocketFrontendOptions options;
-        JsonLineFramer framer;
+        ai::openai::codex::frontend::internal::transport::JsonLineFramer framer;
         ai::openai::codex::frontend::FrontendConnection frontendConnection;
         std::shared_ptr<Lifetime> lifetime;
         bool inputBlocked = false;

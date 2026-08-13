@@ -1,22 +1,19 @@
 /*
- * SNode.C - A Slim Toolkit for Network Communication
- * Copyright (C) Volker Christian <me@vchrist.at>
- *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "apps/codex-backend/JsonLineFramer.h"
+#include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 
 #include <utility>
 
-namespace apps::codex_backend {
+namespace ai::openai::codex::frontend::internal::transport {
 
-    JsonLineFramer::JsonLineFramer(std::size_t maximumFrameSize)
+    JsonLineFramer::JsonLineFramer(const std::size_t maximumFrameSize)
         : maximumSize(maximumFrameSize) {
         buffered.reserve(maximumSize < 4096 ? maximumSize : 4096);
     }
 
-    JsonLineFramer::Result JsonLineFramer::push(std::string_view bytes, const FrameHandler& onFrame) {
+    JsonLineFramer::Result JsonLineFramer::push(const std::string_view bytes, const FrameHandler& onFrame) {
         for (const char byte : bytes) {
             if (byte == '\n') {
                 if (!buffered.empty() && buffered.back() == '\r') {
@@ -50,4 +47,4 @@ namespace apps::codex_backend {
         return maximumSize;
     }
 
-} // namespace apps::codex_backend
+} // namespace ai::openai::codex::frontend::internal::transport

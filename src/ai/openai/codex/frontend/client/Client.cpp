@@ -20,7 +20,6 @@
 #include "ai/openai/codex/frontend/client/Models.h"
 #include "ai/openai/codex/frontend/client/PermissionProfiles.h"
 #include "ai/openai/codex/frontend/client/Plugins.h"
-#include "ai/openai/codex/frontend/client/ProjectionFingerprint.h"
 #include "ai/openai/codex/frontend/client/Provider.h"
 #include "ai/openai/codex/frontend/client/Requests.h"
 #include "ai/openai/codex/frontend/client/Reviews.h"
@@ -32,33 +31,23 @@
 #include "ai/openai/codex/frontend/client/detail/BoundOperation.h"
 #include "ai/openai/codex/frontend/client/detail/ClientTestAccess.h"
 #include "ai/openai/codex/frontend/client/detail/OperationCodecs.h"
-#include "ai/openai/codex/frontend/client/detail/StateReducer.h"
+#include "ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
+#include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 
 #include <algorithm>
 #include <any>
 #include <array>
-#include <cstdint>
-#include <deque>
+#include <functional>
 #include <limits>
-#include <map>
-#include <ostream>
-#include <set>
 #include <stdexcept>
-#include <streambuf>
 #include <type_traits>
 #include <utility>
 
 namespace ai::openai::codex::frontend::client {
-    namespace {
-        constexpr std::size_t MaximumContinuityKeyBytes = 256;
-        constexpr std::array AllRepresentationCapabilities{
-            frontend::FrontendCapability::CompleteBackendDomains,
-            frontend::FrontendCapability::DedicatedPendingRequests,
-            frontend::FrontendCapability::DedicatedNotificationEvents,
-            frontend::FrontendCapability::CompleteThreadItems,
-            frontend::FrontendCapability::ScopeProjectedState,
-        };
+    namespace core = frontend::internal::client;
+    namespace model = frontend::internal::model;
 
+    namespace {
         template <typename Callback>
         class ScopeExit final {
         public:
@@ -92,147 +81,124 @@ namespace ai::openai::codex::frontend::client {
         template <typename Callback>
         ScopeExit(Callback) -> ScopeExit<Callback>;
 
-        Error clientError(ClientErrorCode code, std::string message, bool retryable = false) {
+        Error publicError(const core::ClientError& source) {
+            Error result;
+            result.origin = static_cast<ErrorOrigin>(source.origin);
+            if (source.clientCode.has_value()) {
+                result.clientCode = source.publicLiveSnapshotStateDivergence ? ClientErrorCode::StateDivergence
+                                                                             : static_cast<ClientErrorCode>(*source.clientCode);
+            }
+            result.protocolCode = source.protocolCode;
+            result.message = source.message;
+            result.details = source.remoteDetails;
+            result.retryable = source.retryable;
+            return result;
+        }
+
+        Error localError(ClientErrorCode code, std::string message, bool retryable = false) {
             return Error{ErrorOrigin::Client, code, std::nullopt, std::move(message), std::nullopt, std::nullopt, retryable};
         }
 
-        Error transportError(std::string message, bool retryable) {
-            return Error{ErrorOrigin::Transport,
-                         ClientErrorCode::TransportFailure,
+        Error resultError(std::string message) {
+            return Error{ErrorOrigin::Protocol,
+                         ClientErrorCode::ResponseTypeMismatch,
                          std::nullopt,
                          std::move(message),
                          std::nullopt,
                          std::nullopt,
-                         retryable};
+                         false};
         }
 
-        Error protocolError(ClientErrorCode code, std::string message, std::optional<frontend::ErrorCode> protocolCode = std::nullopt) {
-            return Error{ErrorOrigin::Protocol, code, protocolCode, std::move(message), std::nullopt, std::nullopt, false};
+        ConnectionState publicConnectionState(core::ConnectionState source) noexcept {
+            return static_cast<ConnectionState>(source);
         }
 
-        bool isRepresentationCapability(frontend::FrontendCapability capability) noexcept {
-            switch (capability) {
-                case frontend::FrontendCapability::CompleteBackendDomains:
-                case frontend::FrontendCapability::DedicatedPendingRequests:
-                case frontend::FrontendCapability::DedicatedNotificationEvents:
-                case frontend::FrontendCapability::CompleteThreadItems:
-                case frontend::FrontendCapability::ScopeProjectedState:
-                    return true;
-                default:
-                    return false;
-            }
+        Availability publicAvailability(core::Availability source) noexcept {
+            return static_cast<Availability>(source);
         }
 
-        bool validCapability(frontend::FrontendCapability capability) noexcept {
-            return std::ranges::any_of(
-                frontend::generated::AllCapabilities, [capability](const frontend::generated::CapabilityMetadata& metadata) {
-                    return metadata.id == static_cast<frontend::generated::Capability>(capability) && metadata.defined;
+        Diagnostic::Severity publicSeverity(core::DiagnosticSeverity source) noexcept {
+            return static_cast<Diagnostic::Severity>(source);
+        }
+
+        SessionInfo publicSessionInfo(const core::SessionInfo& source) {
+            SessionInfo result;
+            result.sessionId = source.id.value();
+            result.role = source.role;
+            result.syncMode = source.synchronizationMode;
+            result.serverCurrentSequence = source.serverCurrentSequence.protocolValue();
+            result.serverVersion = source.serverVersion;
+            result.requestedRepresentationCapabilities = source.requestedCapabilities;
+            result.selectedRepresentationCapabilities = source.selectedCapabilities;
+            result.availableMethods = source.availableMethods;
+            result.permittedMethods = source.permittedMethods;
+            result.permittedScopes = source.permittedScopes;
+            for (frontend::FrontendCapability capability : source.observedCapabilities) {
+                const auto metadata = std::ranges::find_if(frontend::generated::AllCapabilities, [capability](const auto& candidate) {
+                    return candidate.id == static_cast<frontend::generated::Capability>(capability);
                 });
+                if (metadata == frontend::generated::AllCapabilities.end()) {
+                    continue;
+                }
+                switch (metadata->category) {
+                    case frontend::generated::CapabilityCategory::StaticMechanism:
+                        result.observedMechanismCapabilities.push_back(capability);
+                        break;
+                    case frontend::generated::CapabilityCategory::ConditionalTopology:
+                        result.observedTopologyCapabilities.push_back(capability);
+                        break;
+                    case frontend::generated::CapabilityCategory::Product:
+                        result.observedProductCapabilities.push_back(capability);
+                        break;
+                }
+            }
+            return result;
         }
 
-        const frontend::generated::CapabilityMetadata* capabilityMetadata(frontend::FrontendCapability capability) noexcept {
-            const auto found = std::ranges::find_if(frontend::generated::AllCapabilities,
-                                                    [capability](const frontend::generated::CapabilityMetadata& metadata) {
-                                                        return metadata.id == static_cast<frontend::generated::Capability>(capability);
-                                                    });
-            return found == frontend::generated::AllCapabilities.end() ? nullptr : &*found;
+        UpdateCause publicCause(core::UpdateCause source) noexcept {
+            return static_cast<UpdateCause>(source);
         }
 
-        const frontend::generated::MethodMetadata* methodMetadata(frontend::generated::MethodId method) noexcept {
-            const auto found =
-                std::ranges::find_if(frontend::generated::AllMethods, [method](const frontend::generated::MethodMetadata& metadata) {
-                    return metadata.id == method;
-                });
-            return found == frontend::generated::AllMethods.end() ? nullptr : &*found;
-        }
-
-        class BoundedJsonStreamBuffer final : public std::streambuf {
-        public:
-            explicit BoundedJsonStreamBuffer(std::size_t maximum) noexcept
-                : maximum(maximum) {
-            }
-
-            [[nodiscard]] bool exceeded() const noexcept {
-                return overCapacity;
-            }
-
-        protected:
-            std::streamsize xsputn(const char*, std::streamsize count) override {
-                if (count <= 0) {
-                    return count;
-                }
-                const auto bytes = static_cast<std::uintmax_t>(count);
-                const std::size_t remaining = maximum - retained;
-                if (bytes > remaining) {
-                    retained = maximum;
-                    overCapacity = true;
-                } else {
-                    retained += static_cast<std::size_t>(bytes);
-                }
-                return count;
-            }
-
-            int_type overflow(int_type character) override {
-                if (traits_type::eq_int_type(character, traits_type::eof())) {
-                    return traits_type::not_eof(character);
-                }
-                if (retained == maximum) {
-                    overCapacity = true;
-                } else {
-                    ++retained;
-                }
-                return character;
-            }
-
-        private:
-            std::size_t maximum;
-            std::size_t retained = 0;
-            bool overCapacity = false;
-        };
-
-        std::optional<bool> jsonFitsBound(const frontend::Json& message, std::size_t maximum) noexcept {
-            try {
-                BoundedJsonStreamBuffer buffer(maximum);
-                std::ostream stream(&buffer);
-                stream << message;
-                if (!stream.good()) {
-                    return std::nullopt;
-                }
-                return !buffer.exceeded();
-            } catch (...) {
+        std::optional<ItemContentChannel> publicChannel(const std::optional<std::string>& source) noexcept {
+            if (!source.has_value()) {
                 return std::nullopt;
             }
+            if (*source == "agentText") {
+                return ItemContentChannel::AgentText;
+            }
+            if (*source == "reasoningText") {
+                return ItemContentChannel::ReasoningText;
+            }
+            if (*source == "reasoningSummary") {
+                return ItemContentChannel::ReasoningSummary;
+            }
+            if (*source == "commandOutput") {
+                return ItemContentChannel::CommandOutput;
+            }
+            return std::nullopt;
         }
 
-        template <typename T>
-        bool contains(const std::vector<T>& values, T value) {
-            return std::find(values.begin(), values.end(), value) != values.end();
+        void addSaturated(std::size_t& target, std::size_t value) noexcept {
+            target = value > std::numeric_limits<std::size_t>::max() - target ? std::numeric_limits<std::size_t>::max() : target + value;
         }
 
         std::size_t securelyErase(std::string& value, bool* completeStorageWasZeroed = nullptr) noexcept {
             const std::size_t bytes = value.capacity();
             bool zeroed = false;
             try {
-                // A moved-from or cleared short string may retain bytes beyond
-                // size() in its inline storage. Growing only to the existing
-                // capacity cannot allocate and makes that complete storage a
-                // writable character range before the volatile overwrite.
                 value.resize(bytes, '\0');
-                volatile char* data = value.empty() ? nullptr : value.data();
+                volatile char* bytes = value.empty() ? nullptr : value.data();
                 for (std::size_t index = 0; index < value.size(); ++index) {
-                    data[index] = '\0';
+                    bytes[index] = '\0';
                 }
                 zeroed = std::ranges::all_of(value, [](char character) {
                     return character == '\0';
                 });
                 value.clear();
             } catch (...) {
-                // No allocation is expected when resizing to capacity, but a
-                // defensive fallback still wipes every currently addressable
-                // character without allowing an exception to escape.
-                volatile char* data = value.empty() ? nullptr : value.data();
+                volatile char* bytes = value.empty() ? nullptr : value.data();
                 for (std::size_t index = 0; index < value.size(); ++index) {
-                    data[index] = '\0';
+                    bytes[index] = '\0';
                 }
                 zeroed = value.empty() || std::ranges::all_of(value, [](char character) {
                              return character == '\0';
@@ -252,28 +218,12 @@ namespace ai::openai::codex::frontend::client {
                     bytes = securelyErase(value.get_ref<std::string&>());
                 } else if (value.is_array() || value.is_object()) {
                     for (frontend::Json& member : value) {
-                        const std::size_t erased = securelyErase(member);
-                        bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max()
-                                                                                         : bytes + erased;
+                        addSaturated(bytes, securelyErase(member));
                     }
                 }
                 value = nullptr;
             } catch (...) {
-                // Wiping is a best-effort containment boundary and must never
-                // escape through the event loop.
-            }
-            return bytes;
-        }
-
-        std::size_t securelyErase(frontend::generated::DefinedCommand& command) noexcept {
-            std::size_t bytes = std::visit(
-                [](auto& parameters) {
-                    return securelyErase(parameters.value);
-                },
-                command.parameters);
-            for (frontend::Json* value : {&command.extensions, &command.parameterExtensions}) {
-                const std::size_t erased = securelyErase(*value);
-                bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max() : bytes + erased;
+                value = nullptr;
             }
             return bytes;
         }
@@ -287,16 +237,53 @@ namespace ai::openai::codex::frontend::client {
             return bytes;
         }
 
+        std::size_t securelyErase(AuthenticationContext& authentication) noexcept {
+            std::size_t bytes = securelyErase(authentication.credential);
+            if (authentication.continuityKey.has_value()) {
+                addSaturated(bytes, securelyErase(*authentication.continuityKey));
+                authentication.continuityKey.reset();
+            }
+            return bytes;
+        }
+
+        std::size_t securelyErase(frontend::generated::CompleteCommandParameters& parameters) noexcept {
+            return std::visit(
+                [](auto& value) {
+                    return securelyErase(value.value);
+                },
+                parameters);
+        }
+
+        std::size_t securelyErase(frontend::generated::DefinedCommand& command) noexcept {
+            std::size_t bytes = securelyErase(command.parameters);
+            addSaturated(bytes, securelyErase(command.extensions));
+            addSaturated(bytes, securelyErase(command.parameterExtensions));
+            return bytes;
+        }
+
         std::size_t securelyErase(frontend::ClientMessage& message) noexcept {
             auto* hello = std::get_if<frontend::Hello>(&message);
             if (hello == nullptr) {
                 return 0;
             }
             std::size_t bytes = securelyErase(hello->extensions);
-            if (hello->authentication) {
-                const std::size_t erased = securelyErase(*hello->authentication);
-                bytes = erased > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max() : bytes + erased;
+            if (hello->authentication.has_value()) {
+                addSaturated(bytes, securelyErase(*hello->authentication));
                 hello->authentication.reset();
+            }
+            return bytes;
+        }
+
+        std::size_t securelyErase(core::OutboundMessage& message) noexcept {
+            std::size_t bytes = 0;
+            if (auto* hello = std::get_if<frontend::Hello>(&message.value)) {
+                bytes = securelyErase(hello->extensions);
+                if (hello->authentication.has_value()) {
+                    addSaturated(bytes, securelyErase(*hello->authentication));
+                    hello->authentication.reset();
+                }
+            } else if (auto* command = std::get_if<frontend::generated::DefinedCommand>(&message.value)) {
+                bytes = securelyErase(*command);
             }
             return bytes;
         }
@@ -305,81 +292,466 @@ namespace ai::openai::codex::frontend::client {
     struct Connection::Control {
         Client* owner = nullptr;
         TransportCallbacks transport;
-        std::uint64_t generation = 0;
+        core::PhysicalGeneration generation = 0;
         bool open = true;
         bool connected = false;
-        bool connectedReported = false;
-        bool closeRequested = false;
     };
 
     struct Client::Impl {
-        struct PendingOperation {
-            RequestId requestId;
-            frontend::generated::MethodId method;
-            detail::BoundOperationCompletion completion;
-        };
+        explicit Impl(Client& publicOwner,
+                      ClientOptions configuredOptions,
+                      ClientCallbacks configuredCallbacks,
+                      std::function<State(std::shared_ptr<const detail::StateStorage>)> configuredStateFactory)
+            : owner(&publicOwner)
+            , options(std::move(configuredOptions))
+            , callbacks(std::move(configuredCallbacks))
+            , stateFactory(std::move(configuredStateFactory)) {
+            if (!options.credentialProvider) {
+                throw std::invalid_argument("frontend client requires a credential provider");
+            }
+            coreClient = std::make_unique<core::ClientCore>(coreOptions(), coreCallbacks());
+        }
 
-        struct DeferredCommand {
-            std::string requestId;
-            OutboundMessage message;
-        };
+        core::ClientOptions coreOptions() {
+            core::ClientOptions result;
+            result.requestedCapabilities = options.requestedCapabilities;
+            result.requiredCapabilities = options.requiredCapabilities;
+            result.allowLegacyV1 = options.allowLegacyV1;
+            result.limits.maximumInboundMessageBytes = options.maximumInboundMessageBytes;
+            result.limits.maximumDecodedStateBytes = options.maximumDecodedStateBytes;
+            result.limits.maximumPendingOperations = options.maximumPendingOperations;
+            result.limits.maximumRetainedDiagnostics = options.maximumRetainedDiagnostics;
+            result.limits.maximumLocalDiagnostics = options.maximumRetainedDiagnostics;
+            result.credentialProvider = [this] {
+                AuthenticationContext provided = options.credentialProvider();
+                auto providedGuard = ScopeExit([this, &provided]() noexcept {
+                    accountErasedTransientBytes(securelyErase(provided));
+                });
+                // Copy the credential into the core-owned result while the
+                // provider's still-sized storage remains available for an
+                // actual overwrite. Moving an SSO token first could leave
+                // bytes behind an empty source string.
+                AuthenticationContext adapted{provided.credential, provided.continuityKey};
+                auto adaptedGuard = ScopeExit([this, &adapted]() noexcept {
+                    accountErasedTransientBytes(securelyErase(adapted));
+                });
+                providedGuard.run();
+                if (failNextHelloConstruction) {
+                    failNextHelloConstruction = false;
+                    throw std::runtime_error("injected public Hello construction failure");
+                }
+                return core::AuthenticationContext{adapted.credential, adapted.continuityKey};
+            };
+            return result;
+        }
 
-        struct ExplicitSynchronization {
-            frontend::SyncMode requestedMode = frontend::SyncMode::Snapshot;
-            frontend::SyncMode streamMode = frontend::SyncMode::Snapshot;
-            CompletionHandler<SynchronizationResult> handler;
-            GeneratedCompletionHandler generatedHandler;
-            std::optional<frontend::generated::CompleteCommandResult> generatedResult;
-            std::optional<RequestId> requestId;
-            bool responseAccepted = false;
-            bool snapshotFallback = false;
-            bool streamCompleted = false;
-        };
+        core::ClientCallbacks coreCallbacks() {
+            core::ClientCallbacks result;
+            result.onConnectionStateChanged = [this](const core::StateChange& change) {
+                if (change.current == core::ConnectionState::Disconnected || change.current == core::ConnectionState::Closed) {
+                    if (active && active->generation == change.generation) {
+                        active->open = false;
+                        active->connected = false;
+                        active->owner = nullptr;
+                        active.reset();
+                    }
+                }
+                if (callbacks.onConnectionStateChanged) {
+                    callbacks.onConnectionStateChanged(
+                        ConnectionStateChange{publicConnectionState(change.previous),
+                                              publicConnectionState(change.current),
+                                              change.error ? std::optional<Error>{publicError(*change.error)} : std::nullopt});
+                }
+            };
+            result.prepareStatePublication = [this](const core::PublishedState& publication) -> std::optional<core::ClientError> {
+                std::string error;
+                detail::CanonicalStateBuildFailure failure = detail::CanonicalStateBuildFailure::StateDivergence;
+                auto preparedStorage = detail::CanonicalStateBuilder::build(
+                    publication, options.maximumDecodedStateBytes, options.maximumRetainedDiagnostics, error, &failure);
+                if (preparedStorage.has_value()) {
+                    preparedState = stateFactory(std::move(*preparedStorage));
+                    return std::nullopt;
+                }
+                const bool capacity = failure == detail::CanonicalStateBuildFailure::Capacity;
+                return core::ClientError{core::ErrorOrigin::Protocol,
+                                         capacity ? core::ClientErrorCode::StateCapacityExceeded : core::ClientErrorCode::StateDivergence,
+                                         capacity ? std::optional{frontend::ErrorCode::CapacityExceeded} : std::nullopt,
+                                         error.empty() ? "canonical public State preparation failed" : std::move(error),
+                                         std::nullopt,
+                                         false};
+            };
+            result.commitStatePublication = [this](const core::PublishedState&) noexcept {
+                if (preparedState.has_value()) {
+                    currentState = std::move(*preparedState);
+                    preparedState.reset();
+                }
+            };
+            result.onStateUpdated = [this](const core::StateUpdate& update) {
+                if (!callbacks.onStateUpdated) {
+                    return;
+                }
+                StateUpdate publicUpdate;
+                publicUpdate.state = currentState;
+                publicUpdate.cause = publicCause(update.cause);
+                if (update.fromSequence.has_value()) {
+                    publicUpdate.fromSequence = update.fromSequence->protocolValue();
+                }
+                if (update.toSequence.has_value()) {
+                    publicUpdate.toSequence = update.toSequence->protocolValue();
+                }
+                publicUpdate.changes.reserve(update.changes.size());
+                for (const core::Change& change : update.changes) {
+                    std::visit(
+                        [this, &publicUpdate](const auto& value) {
+                            using Value = std::remove_cvref_t<decltype(value)>;
+                            if constexpr (std::is_same_v<Value, core::StateReplacedChange>) {
+                                publicUpdate.changes.emplace_back(StateReplacedChange{});
+                            } else if constexpr (std::is_same_v<Value, core::CursorAdvancedChange>) {
+                                publicUpdate.changes.emplace_back(CursorAdvancedChange{value.sequence.protocolValue()});
+                            } else if constexpr (std::is_same_v<Value, model::ProviderUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(
+                                    ProviderUpdatedChange{currentState.provider().value.value_or(ProviderState{})});
+                            } else if constexpr (std::is_same_v<Value, model::ControllerUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(
+                                    ControllerUpdatedChange{currentState.controller().value.value_or(ControllerState{})});
+                            } else if constexpr (std::is_same_v<Value, model::SessionsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(SessionsUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::ThreadListUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ThreadListUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::ThreadUpsertedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ThreadUpsertedChange{typed::ThreadId{value.thread.id.value()}});
+                            } else if constexpr (std::is_same_v<Value, model::ThreadRemovedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ThreadRemovedChange{typed::ThreadId{value.threadId.value()}});
+                            } else if constexpr (std::is_same_v<Value, model::TurnUpsertedOccurrence>) {
+                                publicUpdate.changes.emplace_back(TurnUpsertedChange{typed::TurnId{value.turn.id.value()}});
+                            } else if constexpr (std::is_same_v<Value, model::ItemUpsertedOccurrence>) {
+                                publicUpdate.changes.emplace_back(
+                                    ItemUpsertedChange{typed::ItemId{model::itemData(value.item).id.value()}});
+                            } else if constexpr (std::is_same_v<Value, model::ItemContentUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(
+                                    ItemContentReplacedChange{typed::ItemId{value.itemId.value()},
+                                                              publicChannel(value.channel).value_or(ItemContentChannel::AgentText)});
+                            } else if constexpr (std::is_same_v<Value, model::PendingRequestsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(PendingRequestsUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::AccountUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(AccountUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::ModelsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ModelsUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::ConfigurationUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ConfigurationUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::ProcessUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ProcessUpdatedChange{ProcessHandle{value.process.handle.value()}});
+                            } else if constexpr (std::is_same_v<Value, model::FilesystemWatchUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(
+                                    FilesystemWatchUpdatedChange{typed::FsWatchId{value.filesystemWatch.watchId}});
+                            } else if constexpr (std::is_same_v<Value, model::FuzzySearchUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(
+                                    FuzzySearchUpdatedChange{FuzzySearchSessionId{value.fuzzySearch.sessionId}});
+                            } else if constexpr (std::is_same_v<Value, model::ReviewsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ReviewsUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::IntegrationsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(IntegrationsUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::PluginsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(PluginsUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::SkillsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(SkillsUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::McpUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(McpUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::PlatformUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(PlatformUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::NoticeAddedOccurrence>) {
+                                publicUpdate.changes.emplace_back(NoticeAddedChange{
+                                    value.notice.occurrence == 0 ? std::nullopt : std::optional<std::uint64_t>{value.notice.occurrence}});
+                            } else if constexpr (std::is_same_v<Value, model::ActivityUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(ActivityUpdatedChange{ActivityKey{value.activity.key}});
+                            } else if constexpr (std::is_same_v<Value, model::CapacityUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(CapacityUpdatedChange{});
+                            } else if constexpr (std::is_same_v<Value, model::DiagnosticsUpdatedOccurrence>) {
+                                publicUpdate.changes.emplace_back(DiagnosticUpdatedChange{value.diagnostic.received});
+                            } else if constexpr (std::is_same_v<Value, core::CompatibilityExtensionChange>) {
+                                publicUpdate.changes.emplace_back(CompatibilityExtensionChange{value.type});
+                            }
+                        },
+                        change);
+                }
+                callbacks.onStateUpdated(publicUpdate);
+            };
+            result.onCursorAdvanced = [this](model::FrontendSequence sequence) {
+                if (callbacks.onCursorAdvanced) {
+                    callbacks.onCursorAdvanced(sequence.protocolValue());
+                }
+            };
+            result.onSynchronized = [this](const core::SynchronizationInfo& info) {
+                if (callbacks.onSynchronized) {
+                    callbacks.onSynchronized(SynchronizationInfo{
+                        info.mode, info.synchronizedThrough.protocolValue(), currentState, info.generation > 1, info.snapshotFallback});
+                }
+            };
+            result.onProtocolMessage = [this](const frontend::ServerMessage& message) {
+                if (callbacks.onProtocolMessage) {
+                    callbacks.onProtocolMessage(message);
+                }
+            };
+            result.onDiagnostic = [this](const core::Diagnostic& diagnostic) {
+                if (callbacks.onDiagnostic) {
+                    callbacks.onDiagnostic(
+                        Diagnostic{publicSeverity(diagnostic.severity),
+                                   diagnostic.message,
+                                   diagnostic.error ? std::optional<Error>{publicError(*diagnostic.error)} : std::nullopt});
+                }
+            };
+            return result;
+        }
 
-        explicit Impl(Client& client, ClientOptions clientOptions, ClientCallbacks clientCallbacks)
-            : owner(&client)
-            , options(std::move(clientOptions))
-            , callbacks(std::move(clientCallbacks)) {
+        void accountErasedTransientBytes(std::size_t bytes) noexcept {
+            addSaturated(erasedTransientBytes, bytes);
+        }
+
+        void eraseTransientString(std::string& value, bool movedFrom = false) noexcept {
+            bool completeStorageWasZeroed = false;
+            accountErasedTransientBytes(securelyErase(value, &completeStorageWasZeroed));
+            if (movedFrom && completeStorageWasZeroed && verifiedMovedFromStringScrubs != std::numeric_limits<std::size_t>::max()) {
+                ++verifiedMovedFromStringScrubs;
+            }
+        }
+
+        void eraseOwnedOutbound(OutboundMessage& message, bool movedFrom = false) noexcept {
+            eraseTransientString(message.compactJson, movedFrom);
+            message.serializedBytes = 0;
+        }
+
+        core::SendResult send(const std::weak_ptr<Connection::Control>& weak, core::OutboundMessage message) noexcept {
+            auto messageGuard = ScopeExit([this, &message]() noexcept {
+                if (message.sensitive) {
+                    accountErasedTransientBytes(securelyErase(message));
+                }
+            });
+            const std::shared_ptr<Connection::Control> control = weak.lock();
+            if (!control || !control->open || control->owner != owner) {
+                return {core::SendStatus::Closed, core::TransportError{"frontend connection is closed", false}};
+            }
+            try {
+                frontend::Json encoded;
+                auto encodedGuard = ScopeExit([this, &encoded, &message]() noexcept {
+                    if (message.sensitive) {
+                        accountErasedTransientBytes(securelyErase(encoded));
+                    }
+                });
+                OutboundKind kind = OutboundKind::Command;
+                if (const auto* hello = std::get_if<frontend::Hello>(&message.value)) {
+                    frontend::ClientMessage wireMessage{*hello};
+                    auto wireMessageGuard = ScopeExit([this, &wireMessage, &message]() noexcept {
+                        if (message.sensitive) {
+                            accountErasedTransientBytes(securelyErase(wireMessage));
+                        }
+                    });
+                    auto wire = frontend::Codec::encodeClient(wireMessage);
+                    wireMessageGuard.run();
+                    if (!wire) {
+                        return {core::SendStatus::Failed, core::TransportError{"failed to encode frontend Hello", false}};
+                    }
+                    encoded = std::move(wire).value();
+                    kind = OutboundKind::Hello;
+                } else {
+                    auto wire = frontend::Codec::encodeDefinedCommand(std::get<frontend::generated::DefinedCommand>(message.value));
+                    if (!wire) {
+                        return {core::SendStatus::Failed, core::TransportError{"failed to encode frontend command", false}};
+                    }
+                    encoded = std::move(wire).value();
+                }
+                std::string compact = encoded.dump();
+                encodedGuard.run();
+                const std::size_t serializedBytes = compact.size();
+                OutboundMessage outbound{kind, std::move(compact), serializedBytes, message.sensitive};
+                if (message.sensitive) {
+                    eraseTransientString(compact, true);
+                }
+                SendResult sent;
+                try {
+                    sent = control->transport.send(std::move(outbound));
+                } catch (...) {
+                    if (message.sensitive) {
+                        eraseOwnedOutbound(outbound, true);
+                    }
+                    throw;
+                }
+                if (message.sensitive) {
+                    eraseOwnedOutbound(outbound, true);
+                }
+                core::SendResult result{static_cast<core::SendStatus>(sent.status), std::nullopt};
+                if (sent.error.has_value()) {
+                    result.error = core::TransportError{sent.error->message, sent.error->retryable};
+                }
+                return result;
+            } catch (...) {
+                return {core::SendStatus::Failed, core::TransportError{"frontend transport send callback failed", true}};
+            }
+        }
+
+        void closeTransport(const std::weak_ptr<Connection::Control>& weak, std::string_view reason) {
+            const std::shared_ptr<Connection::Control> control = weak.lock();
+            if (!control || !control->open || control->owner != owner) {
+                return;
+            }
+            try {
+                control->transport.close(std::string(reason));
+            } catch (...) {
+                control->open = false;
+                control->connected = false;
+                control->owner = nullptr;
+                throw;
+            }
+            control->open = false;
+            control->connected = false;
+            control->owner = nullptr;
+        }
+
+        Submission submitGenerated(frontend::generated::CompleteCommandParameters parameters, GeneratedCompletionHandler handler) {
+            return submitCore(std::move(parameters), [handler = std::move(handler)](const core::OperationResult& operation) {
+                if (!handler) {
+                    return;
+                }
+                handler(GeneratedOperationResult{RequestId{operation.requestId},
+                                                 operation.value,
+                                                 operation.error ? std::optional<Error>{publicError(*operation.error)} : std::nullopt});
+            });
+        }
+
+        Submission submitBound(frontend::generated::CompleteCommandParameters parameters, detail::BoundOperationCompletion completion) {
+            return submitCore(
+                std::move(parameters), [this, completion = std::move(completion)](const core::OperationResult& operation) mutable {
+                    const RequestId requestId{operation.requestId};
+                    if (operation.error.has_value()) {
+                        if (completion.fail) {
+                            completion.fail(requestId, publicError(*operation.error));
+                        }
+                        return;
+                    }
+                    if (!operation.value.has_value()) {
+                        const Error error = resultError("frontend operation completed without a generated result");
+                        auto rejectionGuard = ScopeExit([this, generation = operation.generation, &error]() noexcept {
+                            rejectResult(generation, error.message);
+                        });
+                        if (completion.fail) {
+                            completion.fail(requestId, error);
+                        }
+                        return;
+                    }
+                    std::any decoded;
+                    std::string decodingError;
+                    bool valid = false;
+                    try {
+                        valid = completion.decode && completion.decode(*operation.value, decoded, decodingError);
+                    } catch (...) {
+                        decodingError = "frontend typed result decoder threw";
+                    }
+                    if (!valid) {
+                        const Error error =
+                            resultError(decodingError.empty() ? "frontend typed result is invalid" : std::move(decodingError));
+                        auto rejectionGuard = ScopeExit([this, generation = operation.generation, &error]() noexcept {
+                            rejectResult(generation, error.message);
+                        });
+                        if (completion.fail) {
+                            completion.fail(requestId, error);
+                        }
+                        return;
+                    }
+                    if (completion.succeed) {
+                        completion.succeed(requestId, std::move(decoded));
+                    }
+                });
+        }
+
+        void completeSynchronizationAdapter(const core::OperationResult& operation,
+                                            frontend::SyncMode requestedMode,
+                                            const CompletionHandler<SynchronizationResult>& handler) {
+            const RequestId requestId{operation.requestId};
+            if (operation.error.has_value()) {
+                if (handler) {
+                    handler(OperationResult<SynchronizationResult>{requestId, std::nullopt, publicError(*operation.error)});
+                }
+                return;
+            }
+            if (!operation.synchronization.has_value()) {
+                const Error error = resultError("explicit synchronization completed without synchronization context");
+                auto rejectionGuard = ScopeExit([this, generation = operation.generation, &error]() noexcept {
+                    rejectResult(generation, error.message);
+                });
+                if (handler) {
+                    handler(OperationResult<SynchronizationResult>{requestId, std::nullopt, error});
+                }
+                return;
+            }
+            const core::SynchronizationInfo& info = *operation.synchronization;
+            const bool consistent =
+                requestedMode == frontend::SyncMode::Snapshot
+                    ? info.mode == frontend::SyncMode::Snapshot
+                    : (info.mode == frontend::SyncMode::Replay || (info.mode == frontend::SyncMode::Snapshot && info.snapshotFallback));
+            if (!consistent) {
+                const Error error = resultError("explicit synchronization completed with an inconsistent stream mode");
+                auto rejectionGuard = ScopeExit([this, generation = operation.generation, &error]() noexcept {
+                    rejectResult(generation, error.message);
+                });
+                if (handler) {
+                    handler(OperationResult<SynchronizationResult>{requestId, std::nullopt, error});
+                }
+                return;
+            }
+            const std::size_t received = info.appliedOccurrences > std::numeric_limits<std::size_t>::max() - info.ignoredOccurrences
+                                             ? std::numeric_limits<std::size_t>::max()
+                                             : info.appliedOccurrences + info.ignoredOccurrences;
+            if (handler) {
+                handler(OperationResult<SynchronizationResult>{requestId,
+                                                               SynchronizationResult{info.mode,
+                                                                                     info.synchronizedThrough.protocolValue(),
+                                                                                     currentState,
+                                                                                     received,
+                                                                                     info.appliedOccurrences,
+                                                                                     info.ignoredOccurrences,
+                                                                                     info.snapshotFallback},
+                                                               std::nullopt});
+            }
+        }
+
+        template <typename Completion>
+        Submission submitCore(frontend::generated::CompleteCommandParameters parameters, Completion completion) {
+            const frontend::generated::MethodId method = frontend::generated::commandMethod(parameters);
+            const bool sensitive = frontend::client::generated::bindingIsSensitive(method);
+            auto parameterGuard = ScopeExit([this, &parameters, sensitive]() noexcept {
+                if (sensitive) {
+                    accountErasedTransientBytes(securelyErase(parameters));
+                }
+            });
+            core::Submission submitted = coreClient->submit(
+                std::move(parameters), [completion = std::move(completion)](const core::OperationResult& operation) mutable {
+                    completion(operation);
+                });
+            parameterGuard.run();
+            Submission result;
+            if (submitted.requestId.has_value()) {
+                result.requestId = RequestId{*submitted.requestId};
+            }
+            if (submitted.error.has_value()) {
+                result.error = publicError(*submitted.error);
+            }
+            return result;
+        }
+
+        void rejectResult(core::PhysicalGeneration generation, std::string_view message) noexcept {
+            coreClient->rejectAdapterResult(generation, message);
         }
 
         Client* owner;
         ClientOptions options;
         ClientCallbacks callbacks;
-        ConnectionState connectionState = ConnectionState::Disconnected;
+        std::function<State(std::shared_ptr<const detail::StateStorage>)> stateFactory;
+        State currentState;
+        std::optional<State> preparedState;
         std::shared_ptr<Connection::Control> active;
-        std::uint64_t nextConnectionGeneration = 1;
-        std::uint64_t nextRequest = 1;
-        std::map<std::string, PendingOperation, std::less<>> pending;
-        std::deque<DeferredCommand> deferredCommands;
-        std::size_t dispatchDepth = 0;
-        bool flushingDeferredCommands = false;
-        bool clientCloseInProgress = false;
-        bool detachCallbacksInProgress = false;
+        std::unique_ptr<core::ClientCore> coreClient;
+        bool failNextHelloConstruction = false;
         std::size_t erasedTransientBytes = 0;
         std::size_t verifiedMovedFromStringScrubs = 0;
-        bool failNextHelloConstructionForTesting = false;
-        bool failAfterNextDispatchForTesting = false;
-        std::optional<SessionInfo> currentSession;
-        std::optional<frontend::CapabilityAdvertisement> currentCapabilities;
-        std::optional<frontend::SequenceNumber> currentVisibleSequence;
-        std::optional<frontend::SequenceNumber> currentSynchronizedThrough;
-        State currentState;
-        std::optional<std::string> retainedContinuityKey;
-        std::optional<std::string> activeContinuityKey;
-        std::optional<frontend::SequenceNumber> helloResumeAfterSent;
-        bool initialSnapshotFallback = false;
-        std::optional<std::string> retainedProjectionFingerprint;
-        std::optional<std::string> activeProjectionFingerprint;
-        bool sawSnapshot = false;
-        bool sawEvents = false;
-        std::size_t synchronizationReceivedEvents = 0;
-        std::size_t synchronizationAppliedEvents = 0;
-        std::size_t synchronizationIgnoredEvents = 0;
-        std::optional<ExplicitSynchronization> explicitSynchronization;
-        bool projectionRefreshRequired = false;
-        bool projectionSnapshotStreaming = false;
-        std::optional<std::string> projectionSnapshotRequestId;
-        std::optional<State> projectionValidationState;
 
         std::unique_ptr<Controller> controller;
         std::unique_ptr<Provider> provider;
@@ -403,1559 +775,13 @@ namespace ai::openai::codex::frontend::client {
         std::unique_ptr<Threads> threads;
         std::unique_ptr<Turns> turns;
         std::unique_ptr<WindowsSandbox> windowsSandbox;
-
-        [[nodiscard]] bool owns(const Connection::Control& control) const noexcept {
-            return active && active.get() == &control && control.owner == owner && control.open;
-        }
-
-        void accountErasedTransientBytes(std::size_t bytes) noexcept {
-            erasedTransientBytes = bytes > std::numeric_limits<std::size_t>::max() - erasedTransientBytes
-                                       ? std::numeric_limits<std::size_t>::max()
-                                       : erasedTransientBytes + bytes;
-        }
-
-        void eraseTransientString(std::string& value, bool movedFrom = false) noexcept {
-            bool completeStorageWasZeroed = false;
-            accountErasedTransientBytes(securelyErase(value, &completeStorageWasZeroed));
-            if (movedFrom && completeStorageWasZeroed && verifiedMovedFromStringScrubs != std::numeric_limits<std::size_t>::max()) {
-                ++verifiedMovedFromStringScrubs;
-            }
-        }
-
-        void eraseOwnedOutbound(OutboundMessage& message, bool movedFrom = false) noexcept {
-            eraseTransientString(message.compactJson, movedFrom);
-            message.serializedBytes = 0;
-        }
-
-        [[nodiscard]] bool tryAccumulateSynchronizationCounts(std::size_t received, std::size_t applied, std::size_t ignored) noexcept {
-            if (received > std::numeric_limits<std::size_t>::max() - synchronizationReceivedEvents ||
-                applied > std::numeric_limits<std::size_t>::max() - synchronizationAppliedEvents ||
-                ignored > std::numeric_limits<std::size_t>::max() - synchronizationIgnoredEvents) {
-                return false;
-            }
-            synchronizationReceivedEvents += received;
-            synchronizationAppliedEvents += applied;
-            synchronizationIgnoredEvents += ignored;
-            return true;
-        }
-
-        [[nodiscard]] std::optional<ProjectionFingerprintMetadata> activeProjectionMetadata() const {
-            if (!activeProjectionFingerprint)
-                return std::nullopt;
-            return ProjectionFingerprintMetadata{*activeProjectionFingerprint};
-        }
-
-        [[nodiscard]] std::size_t outstandingOperationCount() const noexcept {
-            std::size_t count = pending.size();
-            if (explicitSynchronization && explicitSynchronization->responseAccepted && count != std::numeric_limits<std::size_t>::max()) {
-                ++count;
-            }
-            if ((projectionSnapshotRequestId || projectionSnapshotStreaming) && count != std::numeric_limits<std::size_t>::max()) {
-                ++count;
-            }
-            return count;
-        }
-
-        void diagnostic(Diagnostic::Severity severity, std::string message, std::optional<Error> error = std::nullopt) noexcept {
-            if (!callbacks.onDiagnostic) {
-                return;
-            }
-            try {
-                callbacks.onDiagnostic(Diagnostic{severity, std::move(message), std::move(error)});
-            } catch (...) {
-            }
-        }
-
-        void
-        notifyConnectionStateChanged(ConnectionState previous, ConnectionState next, std::optional<Error> error = std::nullopt) noexcept {
-            if (!callbacks.onConnectionStateChanged) {
-                return;
-            }
-            try {
-                callbacks.onConnectionStateChanged(ConnectionStateChange{previous, next, std::move(error)});
-            } catch (...) {
-                diagnostic(Diagnostic::Severity::Warning,
-                           "frontend client connection-state callback threw",
-                           clientError(ClientErrorCode::CallbackFailure, "connection-state callback failed"));
-            }
-        }
-
-        void transition(ConnectionState next, std::optional<Error> error = std::nullopt) noexcept {
-            if (connectionState == next || (connectionState == ConnectionState::Closed && next != ConnectionState::Closed)) {
-                return;
-            }
-            const ConnectionState previous = connectionState;
-            connectionState = next;
-            notifyConnectionStateChanged(previous, next, std::move(error));
-        }
-
-        void requestTransportClose(Connection::Control& control, std::string reason) noexcept {
-            if (control.closeRequested) {
-                return;
-            }
-            control.closeRequested = true;
-            try {
-                control.transport.close(std::move(reason));
-            } catch (...) {
-                diagnostic(Diagnostic::Severity::Warning,
-                           "frontend client transport close callback threw",
-                           clientError(ClientErrorCode::CallbackFailure, "transport close callback failed"));
-            }
-        }
-
-        [[nodiscard]] std::map<std::string, PendingOperation, std::less<>> takePending() noexcept {
-            for (DeferredCommand& deferred : deferredCommands) {
-                eraseOwnedOutbound(deferred.message);
-            }
-            deferredCommands.clear();
-            auto operations = std::move(pending);
-            pending.clear();
-            return operations;
-        }
-
-        void completeOperations(std::map<std::string, PendingOperation, std::less<>> operations, const Error& error) noexcept {
-            for (auto& [ignored, operation] : operations) {
-                (void) ignored;
-                if (!operation.completion.fail) {
-                    continue;
-                }
-                try {
-                    operation.completion.fail(operation.requestId, error);
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend client operation callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "operation callback failed"));
-                }
-            }
-        }
-
-        void completePending(const Error& error) noexcept {
-            completeOperations(takePending(), error);
-        }
-
-        void invokeExplicitSynchronizationFailure(ExplicitSynchronization operation, const Error& error) noexcept {
-            const RequestId requestId = operation.requestId.value_or(RequestId{});
-            if (operation.handler) {
-                try {
-                    operation.handler(OperationResult<SynchronizationResult>{requestId, std::nullopt, error});
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend synchronization callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "synchronization callback failed"));
-                }
-            }
-            if (operation.generatedHandler) {
-                try {
-                    operation.generatedHandler(GeneratedOperationResult{requestId, std::nullopt, error});
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend synchronization callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "synchronization callback failed"));
-                }
-            }
-        }
-
-        void invokeExplicitSynchronizationSuccess(ExplicitSynchronization operation, SynchronizationResult result) noexcept {
-            const RequestId requestId = operation.requestId.value_or(RequestId{});
-            if (operation.handler) {
-                try {
-                    operation.handler(OperationResult<SynchronizationResult>{requestId, result, std::nullopt});
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend synchronization callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "synchronization callback failed"));
-                }
-            }
-            if (operation.generatedHandler) {
-                try {
-                    if (operation.generatedResult) {
-                        operation.generatedHandler(GeneratedOperationResult{requestId, std::move(operation.generatedResult), std::nullopt});
-                    } else {
-                        operation.generatedHandler(GeneratedOperationResult{
-                            requestId,
-                            std::nullopt,
-                            protocolError(ClientErrorCode::StateDivergence,
-                                          "generated synchronization completed without its validated command result")});
-                    }
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend synchronization callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "synchronization callback failed"));
-                }
-            }
-        }
-
-        void failExplicitSynchronization(const Error& error, bool restoreReady = false) noexcept {
-            if (!explicitSynchronization) {
-                return;
-            }
-            ExplicitSynchronization operation = std::move(*explicitSynchronization);
-            explicitSynchronization.reset();
-            if (restoreReady && active && active->connected && connectionState == ConnectionState::Synchronizing) {
-                transition(ConnectionState::Ready);
-            }
-            invokeExplicitSynchronizationFailure(std::move(operation), error);
-        }
-
-        void detach(Connection::Control& control, std::optional<Error> error, bool terminal) noexcept {
-            if (!active || active.get() != &control) {
-                return;
-            }
-            const ConnectionState previousState = connectionState;
-            const ConnectionState detachedState = terminal ? ConnectionState::Closed : ConnectionState::Disconnected;
-            control.open = false;
-            control.connected = false;
-            control.owner = nullptr;
-            currentSession.reset();
-            currentCapabilities.reset();
-            helloResumeAfterSent.reset();
-            initialSnapshotFallback = false;
-            projectionRefreshRequired = false;
-            projectionSnapshotStreaming = false;
-            projectionSnapshotRequestId.reset();
-            projectionValidationState.reset();
-            const Error disconnectError =
-                error.value_or(terminal ? clientError(ClientErrorCode::Closed, "frontend client closed")
-                                        : clientError(ClientErrorCode::NotConnected, "frontend client connection closed", true));
-
-            std::optional<detail::StateReduction> staleReduction;
-            std::optional<Error> staleCapacityError;
-            if (currentState.revision() != 0 || currentState.visibleSequence() || currentState.synchronizedThrough() ||
-                currentState.session() || currentState.freshness() != StateFreshness::Stale ||
-                currentState.representationMode() != RepresentationMode::Unknown) {
-                std::string staleError;
-                auto staleState = detail::StateReducer::stale(currentState, options.maximumDecodedStateBytes, staleError);
-                if (!staleState) {
-                    // The reducer already attempted a bounded empty fallback.
-                    // Keep disconnect/close noexcept even for an impossible
-                    // configuration below the minimum empty-State footprint.
-                    staleState = detail::StateReducer::initial();
-                    staleCapacityError = clientError(ClientErrorCode::StateCapacityExceeded,
-                                                     staleError.empty() ? "stale frontend state exceeded capacity" : std::move(staleError));
-                }
-                staleReduction = detail::StateReduction{std::move(*staleState), {}, 0, 0, 0};
-                currentState = staleReduction->state;
-                currentVisibleSequence = currentState.visibleSequence();
-                currentSynchronizedThrough = currentState.synchronizedThrough();
-            }
-            auto operations = takePending();
-            std::optional<ExplicitSynchronization> synchronizationFailure;
-            if (explicitSynchronization) {
-                synchronizationFailure = std::move(*explicitSynchronization);
-                explicitSynchronization.reset();
-            }
-            active.reset();
-            connectionState = detachedState;
-
-            detachCallbacksInProgress = true;
-            if (staleCapacityError) {
-                diagnostic(Diagnostic::Severity::Warning,
-                           "frontend retained state was discarded while marking the connection stale",
-                           std::move(staleCapacityError));
-            }
-            if (staleReduction) {
-                notifyStateUpdated({}, UpdateCause::ConnectionBecameStale);
-            }
-            completeOperations(std::move(operations), disconnectError);
-            if (synchronizationFailure) {
-                invokeExplicitSynchronizationFailure(std::move(*synchronizationFailure), disconnectError);
-            }
-            detachCallbacksInProgress = false;
-            if (connectionState == detachedState) {
-                notifyConnectionStateChanged(previousState, detachedState, std::move(error));
-            }
-        }
-
-        void fail(Connection::Control& control, Error error, std::string closeReason) noexcept {
-            if (!owns(control)) {
-                return;
-            }
-            transition(ConnectionState::Closing, error);
-            if (!owns(control)) {
-                return;
-            }
-            requestTransportClose(control, std::move(closeReason));
-            detach(control, std::move(error), false);
-        }
-
-        void invokeProtocolObservation(const frontend::ServerMessage& message) noexcept {
-            if (!callbacks.onProtocolMessage) {
-                return;
-            }
-            try {
-                callbacks.onProtocolMessage(message);
-            } catch (...) {
-                diagnostic(Diagnostic::Severity::Warning,
-                           "frontend client protocol-observation callback threw",
-                           clientError(ClientErrorCode::CallbackFailure, "protocol-observation callback failed"));
-            }
-        }
-
-        void notifyStateUpdated(std::vector<Change> changes,
-                                UpdateCause cause,
-                                std::optional<frontend::SequenceNumber> from = std::nullopt,
-                                std::optional<frontend::SequenceNumber> to = std::nullopt) noexcept {
-            if (!callbacks.onStateUpdated) {
-                return;
-            }
-            try {
-                callbacks.onStateUpdated(StateUpdate{currentState, cause, from, to, std::move(changes)});
-            } catch (...) {
-                diagnostic(Diagnostic::Severity::Warning,
-                           "frontend client state-update callback threw",
-                           clientError(ClientErrorCode::CallbackFailure, "state-update callback failed"));
-            }
-        }
-
-        void stateUpdated(detail::StateReduction reduction,
-                          UpdateCause cause,
-                          std::optional<frontend::SequenceNumber> from = std::nullopt,
-                          std::optional<frontend::SequenceNumber> to = std::nullopt) {
-            currentState = std::move(reduction.state);
-            currentVisibleSequence = currentState.visibleSequence();
-            currentSynchronizedThrough = currentState.synchronizedThrough();
-            notifyStateUpdated(std::move(reduction.changes), cause, from, to);
-        }
-
-        void sendHelloWithAuthentication(Connection::Control& control, AuthenticationContext&& authentication) {
-            auto credentialGuard = ScopeExit([this, &authentication]() noexcept {
-                accountErasedTransientBytes(securelyErase(authentication.credential));
-            });
-            if (!owns(control) || !control.connected) {
-                return;
-            }
-            if (authentication.continuityKey && authentication.continuityKey->size() > MaximumContinuityKeyBytes) {
-                fail(control,
-                     clientError(ClientErrorCode::InvalidConfiguration, "continuity key exceeds its resource bound"),
-                     "frontend continuity key rejected");
-                return;
-            }
-            try {
-                std::optional<frontend::SequenceNumber> resumeAfter;
-                if (currentSynchronizedThrough && authentication.continuityKey && retainedContinuityKey == authentication.continuityKey) {
-                    resumeAfter = currentSynchronizedThrough;
-                }
-                activeContinuityKey = authentication.continuityKey;
-                helloResumeAfterSent = resumeAfter;
-                const bool sensitive = std::holds_alternative<frontend::BearerCredential>(authentication.credential);
-                frontend::ClientMessage wireHello{
-                    frontend::Hello{resumeAfter, frontend::Json::object(), options.requestedCapabilities, std::nullopt}};
-                auto helloGuard = ScopeExit([this, &wireHello]() noexcept {
-                    accountErasedTransientBytes(securelyErase(wireHello));
-                });
-                if (sensitive) {
-                    // Copy directly into the final Hello object, then wipe the
-                    // still-sized provider result. Moving a short-string token
-                    // first would leave its SSO bytes behind a size-zero source.
-                    std::get<frontend::Hello>(wireHello).authentication = authentication.credential;
-                }
-                credentialGuard.run();
-                if (failNextHelloConstructionForTesting) {
-                    failNextHelloConstructionForTesting = false;
-                    throw std::runtime_error("injected frontend Hello construction failure");
-                }
-                auto serialized = frontend::Codec::serializeClient(wireHello);
-                helloGuard.run();
-                if (!serialized) {
-                    fail(control,
-                         clientError(ClientErrorCode::SerializationFailed, "failed to serialize frontend Hello"),
-                         "frontend Hello serialization failed");
-                    return;
-                }
-                std::string&& serializedStorage = std::move(serialized).value();
-                std::string serializedHello(std::move(serializedStorage));
-                eraseTransientString(serializedStorage, true);
-                OutboundMessage message{OutboundKind::Hello, std::move(serializedHello), 0, sensitive};
-                eraseTransientString(serializedHello, true);
-                message.serializedBytes = message.compactJson.size();
-                SendResult sendResult;
-                try {
-                    sendResult = control.transport.send(std::move(message));
-                } catch (...) {
-                    eraseOwnedOutbound(message, true);
-                    fail(control, transportError("transport send callback failed", true), "frontend transport send failed");
-                    return;
-                }
-                eraseOwnedOutbound(message, true);
-                if (!owns(control) || !control.connected) {
-                    return;
-                }
-                if (sendResult.status != SendStatus::Accepted) {
-                    const bool retryable = sendResult.error && sendResult.error->retryable;
-                    fail(control, transportError("transport rejected frontend Hello", retryable), "frontend Hello rejected");
-                    return;
-                }
-                transition(ConnectionState::Authenticating);
-            } catch (...) {
-                credentialGuard.run();
-                if (owns(control)) {
-                    fail(control,
-                         clientError(ClientErrorCode::SerializationFailed, "frontend Hello construction failed"),
-                         "frontend Hello construction failed");
-                }
-            }
-        }
-
-        void sendHello(Connection::Control& control) noexcept {
-            try {
-                // Bind the provider result directly for the duration of the
-                // guarded handoff. A default construction followed by move
-                // assignment can leave short credential bytes in the prior
-                // inline string storage.
-                sendHelloWithAuthentication(control, options.credentialProvider());
-            } catch (...) {
-                if (owns(control)) {
-                    fail(control,
-                         clientError(ClientErrorCode::InvalidConfiguration, "credential provider failed"),
-                         "frontend credential provider failed");
-                }
-            }
-        }
-
-        void handleWelcome(Connection::Control& control, const frontend::Welcome& welcome, bool& semanticallyAccepted) {
-            if (connectionState != ConnectionState::Authenticating || currentSession) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage, "unexpected or duplicate Welcome"),
-                     "frontend protocol violation");
-                return;
-            }
-            SessionInfo info;
-            info.sessionId = welcome.sessionId;
-            info.role = welcome.role;
-            info.syncMode = welcome.syncMode;
-            info.serverCurrentSequence = welcome.currentSequence;
-            info.serverVersion = welcome.serverVersion;
-            info.requestedRepresentationCapabilities = options.requestedCapabilities;
-            if (welcome.capabilities) {
-                const auto validUniqueCapabilities = [](const std::vector<frontend::FrontendCapability>& capabilities) {
-                    std::set<frontend::FrontendCapability> unique;
-                    return std::ranges::all_of(capabilities, [&unique](frontend::FrontendCapability capability) {
-                        return validCapability(capability) && unique.insert(capability).second;
-                    });
-                };
-                const bool inconsistentAdvertisement =
-                    !validUniqueCapabilities(welcome.capabilities->defined) ||
-                    !validUniqueCapabilities(welcome.capabilities->implemented) ||
-                    !validUniqueCapabilities(welcome.capabilities->permitted) ||
-                    std::ranges::any_of(welcome.capabilities->implemented,
-                                        [&](frontend::FrontendCapability capability) {
-                                            return !contains(welcome.capabilities->defined, capability);
-                                        }) ||
-                    std::ranges::any_of(welcome.capabilities->permitted, [&](frontend::FrontendCapability capability) {
-                        return !contains(welcome.capabilities->implemented, capability);
-                    });
-                if (inconsistentAdvertisement) {
-                    fail(control,
-                         protocolError(ClientErrorCode::UnexpectedMessage,
-                                       "frontend capability advertisement has inconsistent defined/implemented/permitted sets"),
-                         "frontend capability advertisement rejected");
-                    return;
-                }
-                currentCapabilities = *welcome.capabilities;
-                for (const frontend::FrontendCapability requested : options.requestedCapabilities) {
-                    if (contains(welcome.capabilities->implemented, requested) && contains(welcome.capabilities->permitted, requested)) {
-                        info.selectedRepresentationCapabilities.push_back(requested);
-                    }
-                }
-                for (const frontend::FrontendCapability capability : welcome.capabilities->implemented) {
-                    const auto* metadata = capabilityMetadata(capability);
-                    if (metadata == nullptr || metadata->category == frontend::generated::CapabilityCategory::StaticMechanism) {
-                        info.observedMechanismCapabilities.push_back(capability);
-                    } else if (metadata->category == frontend::generated::CapabilityCategory::ConditionalTopology) {
-                        info.observedTopologyCapabilities.push_back(capability);
-                    } else {
-                        info.observedProductCapabilities.push_back(capability);
-                    }
-                }
-                for (const frontend::FrontendCapability required : options.requiredCapabilities) {
-                    if (!contains(welcome.capabilities->implemented, required) || !contains(welcome.capabilities->permitted, required)) {
-                        fail(control,
-                             protocolError(ClientErrorCode::UnexpectedMessage, "required frontend capability is unavailable"),
-                             "required frontend capability unavailable");
-                        return;
-                    }
-                }
-            } else {
-                currentCapabilities.reset();
-                if (!options.requiredCapabilities.empty() || !options.allowLegacyV1) {
-                    fail(control,
-                         protocolError(ClientErrorCode::UnexpectedMessage,
-                                       options.allowLegacyV1 ? "required capability advertisement is absent"
-                                                             : "legacy Frontend Protocol v1 is disabled"),
-                         "required frontend capability unavailable");
-                    return;
-                }
-            }
-            if (!options.allowLegacyV1 &&
-                !std::ranges::all_of(AllRepresentationCapabilities, [&info](frontend::FrontendCapability capability) {
-                    return contains(info.selectedRepresentationCapabilities, capability);
-                })) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage, "expanded Frontend Protocol v1 representation is unavailable"),
-                     "expanded frontend representation unavailable");
-                return;
-            }
-            const auto decodeMethodSet = [&](const std::optional<std::vector<frontend::FrontendMethod>>& encoded,
-                                             std::optional<std::vector<frontend::generated::MethodId>>& decoded) {
-                if (!encoded) {
-                    return true;
-                }
-                decoded.emplace();
-                std::set<frontend::generated::MethodId> unique;
-                for (const std::string& method : *encoded) {
-                    const auto id = frontend::generated::definedMethodFromString(method);
-                    if (!id || !unique.insert(*id).second) {
-                        fail(control,
-                             protocolError(ClientErrorCode::UnexpectedMessage,
-                                           "frontend method discovery contains an unknown or duplicate method"),
-                             "frontend method discovery rejected");
-                        return false;
-                    }
-                    decoded->push_back(*id);
-                }
-                return true;
-            };
-            if (!decodeMethodSet(welcome.availableMethods, info.availableMethods) ||
-                !decodeMethodSet(welcome.permittedMethods, info.permittedMethods)) {
-                return;
-            }
-            if (const auto scopes = welcome.extensions.find("permittedScopes"); scopes != welcome.extensions.end()) {
-                if (!scopes->is_array()) {
-                    fail(control,
-                         protocolError(ClientErrorCode::UnexpectedMessage, "permittedScopes projection metadata must be an array"),
-                         "frontend projection metadata rejected");
-                    return;
-                }
-                info.permittedScopes.emplace();
-                std::set<frontend::FrontendScope> uniqueScopes;
-                for (const frontend::Json& scope : *scopes) {
-                    if (!scope.is_string()) {
-                        fail(control,
-                             protocolError(ClientErrorCode::UnexpectedMessage,
-                                           "permittedScopes projection metadata contains a non-string value"),
-                             "frontend projection metadata rejected");
-                        return;
-                    }
-                    const auto parsed = frontend::frontendScopeFromString(scope.get<std::string>());
-                    if (!parsed || !uniqueScopes.insert(*parsed).second) {
-                        fail(control,
-                             protocolError(ClientErrorCode::UnexpectedMessage,
-                                           "permittedScopes projection metadata contains an unknown or duplicate scope"),
-                             "frontend projection metadata rejected");
-                        return;
-                    }
-                    info.permittedScopes->push_back(*parsed);
-                }
-            }
-            std::optional<frontend::Json> projectionMetadata;
-            if (const auto projection = welcome.extensions.find("projection"); projection != welcome.extensions.end()) {
-                projectionMetadata = *projection;
-            }
-            activeProjectionFingerprint = projectionFingerprint(ProjectionFingerprintInput{info.requestedRepresentationCapabilities,
-                                                                                           info.selectedRepresentationCapabilities,
-                                                                                           activeContinuityKey,
-                                                                                           info.permittedScopes,
-                                                                                           info.permittedMethods,
-                                                                                           info.availableMethods,
-                                                                                           std::move(projectionMetadata)});
-            const bool completeProjectionContinuityMetadata =
-                info.permittedScopes.has_value() && info.permittedMethods.has_value() && info.availableMethods.has_value();
-            projectionRefreshRequired = currentState.synchronizedThrough() && welcome.syncMode == frontend::SyncMode::Replay &&
-                                        (!helloResumeAfterSent || !completeProjectionContinuityMetadata || !retainedProjectionFingerprint ||
-                                         *retainedProjectionFingerprint != *activeProjectionFingerprint);
-            initialSnapshotFallback = helloResumeAfterSent.has_value() && welcome.syncMode == frontend::SyncMode::Snapshot;
-            projectionSnapshotStreaming = false;
-            projectionSnapshotRequestId.reset();
-            projectionValidationState.reset();
-            if (projectionRefreshRequired) {
-                std::string stagingError;
-                projectionValidationState = detail::StateReducer::synchronizationStaging(info,
-                                                                                         helloResumeAfterSent,
-                                                                                         options.maximumDecodedStateBytes,
-                                                                                         options.allowLegacyV1,
-                                                                                         stagingError,
-                                                                                         activeProjectionMetadata());
-                if (!projectionValidationState) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence, std::move(stagingError)),
-                         "frontend projection validation state could not be established");
-                    return;
-                }
-            } else if (welcome.syncMode == frontend::SyncMode::Replay && !currentState.synchronizedThrough()) {
-                std::string stagingError;
-                auto initialReplayState = detail::StateReducer::synchronizationStaging(info,
-                                                                                       helloResumeAfterSent,
-                                                                                       options.maximumDecodedStateBytes,
-                                                                                       options.allowLegacyV1,
-                                                                                       stagingError,
-                                                                                       activeProjectionMetadata());
-                if (!initialReplayState) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence, std::move(stagingError)),
-                         "frontend initial replay state could not be established");
-                    return;
-                }
-                currentState = std::move(*initialReplayState);
-                currentVisibleSequence = currentState.visibleSequence();
-                currentSynchronizedThrough = currentState.synchronizedThrough();
-            } else if (welcome.syncMode == frontend::SyncMode::Replay && currentState.synchronizedThrough()) {
-                std::string rebindError;
-                auto reboundState = detail::StateReducer::beginSynchronization(
-                    currentState, info, options.maximumDecodedStateBytes, rebindError, activeProjectionMetadata());
-                if (!reboundState) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence, std::move(rebindError)),
-                         "frontend retained replay state could not be rebound to its new session");
-                    return;
-                }
-                currentState = std::move(*reboundState);
-                currentVisibleSequence = currentState.visibleSequence();
-                currentSynchronizedThrough = currentState.synchronizedThrough();
-            }
-            currentSession = std::move(info);
-            sawSnapshot = false;
-            sawEvents = false;
-            synchronizationReceivedEvents = 0;
-            synchronizationAppliedEvents = 0;
-            synchronizationIgnoredEvents = 0;
-            transition(ConnectionState::Synchronizing);
-            semanticallyAccepted = true;
-        }
-
-        void failOperation(PendingOperation operation, const Error& error) noexcept {
-            if (!operation.completion.fail) {
-                return;
-            }
-            try {
-                operation.completion.fail(operation.requestId, error);
-            } catch (...) {
-                diagnostic(Diagnostic::Severity::Warning,
-                           "frontend client operation callback threw",
-                           clientError(ClientErrorCode::CallbackFailure, "operation callback failed"));
-            }
-        }
-
-        bool succeedOperation(Connection::Control& control,
-                              PendingOperation operation,
-                              frontend::generated::CompleteCommandResult generatedResult) {
-            std::any decodedResult;
-            std::string decodeError;
-            bool decoded = false;
-            try {
-                decoded = operation.completion.decode && operation.completion.decode(generatedResult, decodedResult, decodeError);
-            } catch (...) {
-                decoded = false;
-            }
-            if (!decoded) {
-                const Error error = protocolError(ClientErrorCode::ResponseTypeMismatch, "frontend response failed typed result decoding");
-                failOperation(std::move(operation), error);
-                fail(control, error, "frontend response typed decoding failed");
-                return false;
-            }
-            if (!operation.completion.succeed) {
-                return true;
-            }
-            try {
-                operation.completion.succeed(operation.requestId, std::move(decodedResult));
-            } catch (...) {
-                diagnostic(Diagnostic::Severity::Warning,
-                           "frontend client operation callback threw",
-                           clientError(ClientErrorCode::CallbackFailure, "operation callback failed"));
-            }
-            return true;
-        }
-
-        bool requestProjectionSnapshot(Connection::Control& control) {
-            if (outstandingOperationCount() >= options.maximumPendingOperations) {
-                fail(control,
-                     clientError(ClientErrorCode::TooManyPendingOperations,
-                                 "frontend pending-operation capacity exhausted by projection refresh"),
-                     "projection snapshot capacity exhausted");
-                return false;
-            }
-            if (nextRequest == std::numeric_limits<std::uint64_t>::max()) {
-                fail(control,
-                     clientError(ClientErrorCode::RequestIdExhausted, "frontend request IDs exhausted"),
-                     "projection snapshot request ID exhausted");
-                return false;
-            }
-            const std::string requestId = "c" + std::to_string(control.generation) + "-r" + std::to_string(nextRequest++);
-            frontend::generated::DefinedCommand command{
-                requestId,
-                frontend::generated::CompleteCommandParameters{
-                    frontend::generated::MethodParameters<frontend::generated::MethodId::SnapshotGet>{frontend::Json::object()}}};
-            auto serialized = frontend::Codec::serializeDefinedCommand(command);
-            accountErasedTransientBytes(securelyErase(command));
-            if (!serialized) {
-                fail(control,
-                     clientError(ClientErrorCode::SerializationFailed, "projection snapshot serialization failed"),
-                     "projection snapshot serialization failed");
-                return false;
-            }
-            std::string&& serializedStorage = std::move(serialized).value();
-            std::string serializedCommand(std::move(serializedStorage));
-            eraseTransientString(serializedStorage, true);
-            OutboundMessage message{OutboundKind::Command, std::move(serializedCommand), 0, false};
-            eraseTransientString(serializedCommand, true);
-            message.serializedBytes = message.compactJson.size();
-            projectionSnapshotRequestId = requestId;
-            SendResult result;
-            try {
-                result = control.transport.send(std::move(message));
-            } catch (...) {
-                eraseOwnedOutbound(message, true);
-                projectionSnapshotRequestId.reset();
-                fail(control, transportError("projection snapshot send callback failed", true), "projection snapshot send failed");
-                return false;
-            }
-            eraseOwnedOutbound(message, true);
-            if (result.status != SendStatus::Accepted) {
-                projectionSnapshotRequestId.reset();
-                fail(control,
-                     transportError("transport rejected projection snapshot request", result.error && result.error->retryable),
-                     "projection snapshot request rejected");
-                return false;
-            }
-            return true;
-        }
-
-        void handleResponse(Connection::Control& control, const frontend::Response& response, bool& semanticallyAccepted) {
-            if (projectionSnapshotRequestId && response.requestId == *projectionSnapshotRequestId) {
-                if (!response.ok || !response.result ||
-                    !frontend::Codec::decodeDefinedResult(frontend::generated::MethodId::SnapshotGet, *response.result)) {
-                    fail(control,
-                         protocolError(ClientErrorCode::ResponseTypeMismatch, "projection snapshot command failed"),
-                         "projection snapshot command failed");
-                    return;
-                }
-                projectionSnapshotRequestId.reset();
-                projectionRefreshRequired = false;
-                projectionSnapshotStreaming = true;
-                projectionValidationState.reset();
-                sawSnapshot = false;
-                sawEvents = false;
-                semanticallyAccepted = true;
-                return;
-            }
-            const auto found = pending.find(response.requestId);
-            if (found == pending.end()) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage, "unsolicited or duplicate frontend response"),
-                     "frontend response correlation failed");
-                return;
-            }
-            PendingOperation operation = std::move(found->second);
-            pending.erase(found);
-            if (!response.ok) {
-                Error error{ErrorOrigin::Command,
-                            std::nullopt,
-                            response.error ? std::optional(response.error->code) : std::nullopt,
-                            response.error ? response.error->message : "frontend command failed",
-                            std::nullopt,
-                            response.error ? response.error->details : std::nullopt,
-                            false};
-                semanticallyAccepted = true;
-                failOperation(std::move(operation), error);
-                return;
-            }
-            if (!response.result) {
-                const Error error = protocolError(ClientErrorCode::ResponseTypeMismatch, "successful frontend response has no result");
-                failOperation(std::move(operation), error);
-                fail(control, error, "frontend response result missing");
-                return;
-            }
-            auto decoded = frontend::Codec::decodeDefinedResult(operation.method, *response.result);
-            if (!decoded) {
-                const Error error = protocolError(ClientErrorCode::ResponseTypeMismatch, "frontend response result does not match request");
-                failOperation(std::move(operation), error);
-                fail(control, error, "frontend response type mismatch");
-                return;
-            }
-            if (succeedOperation(control, std::move(operation), std::move(decoded).value())) {
-                semanticallyAccepted = true;
-            }
-        }
-
-        void handleSyncMessage(Connection::Control& control, const frontend::ServerMessage& message, bool& semanticallyAccepted) {
-            if (connectionState != ConnectionState::Synchronizing || !currentSession) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage, "synchronization message outside synchronization"),
-                     "frontend synchronization protocol violation");
-                return;
-            }
-            if (projectionSnapshotRequestId && !projectionSnapshotStreaming) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage,
-                                   "projection-refresh synchronization data preceded its successful snapshot response"),
-                     "frontend projection-refresh ordering violation");
-                return;
-            }
-            if (explicitSynchronization && !explicitSynchronization->responseAccepted && !projectionSnapshotStreaming) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage,
-                                   "explicit synchronization data preceded its successful command response"),
-                     "frontend explicit synchronization ordering violation");
-                return;
-            }
-            const frontend::SyncMode streamMode =
-                projectionSnapshotStreaming ? frontend::SyncMode::Snapshot
-                                            : (explicitSynchronization ? explicitSynchronization->streamMode : currentSession->syncMode);
-            if (const auto* snapshot = std::get_if<frontend::Snapshot>(&message)) {
-                if (streamMode != frontend::SyncMode::Snapshot || sawSnapshot || sawEvents) {
-                    fail(control,
-                         protocolError(ClientErrorCode::UnexpectedMessage, "invalid mixed or duplicate snapshot synchronization"),
-                         "frontend synchronization mode violation");
-                    return;
-                }
-                std::string reductionError;
-                auto reduction = detail::StateReducer::snapshot(currentState,
-                                                                *snapshot,
-                                                                *currentSession,
-                                                                options.maximumDecodedStateBytes,
-                                                                options.maximumRetainedDiagnostics,
-                                                                options.allowLegacyV1,
-                                                                reductionError,
-                                                                activeProjectionMetadata());
-                if (!reduction) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence, std::move(reductionError)),
-                         "frontend snapshot reduction failed");
-                    return;
-                }
-                sawSnapshot = true;
-                const UpdateCause cause = projectionSnapshotStreaming
-                                              ? UpdateCause::ProjectionRefresh
-                                              : (explicitSynchronization ? UpdateCause::ExplicitSnapshot
-                                                                         : (initialSnapshotFallback ? UpdateCause::SnapshotFallback
-                                                                                                    : UpdateCause::InitialSnapshot));
-                stateUpdated(std::move(*reduction), cause, snapshot->sequence, snapshot->sequence);
-                semanticallyAccepted = true;
-                return;
-            }
-            if (const auto* batch = std::get_if<frontend::EventBatch>(&message)) {
-                if (streamMode != frontend::SyncMode::Replay || sawSnapshot) {
-                    fail(control,
-                         protocolError(ClientErrorCode::UnexpectedMessage, "event batch mixed into snapshot synchronization"),
-                         "frontend synchronization mode violation");
-                    return;
-                }
-                std::string reductionError;
-                std::optional<detail::StateReduction> reduction;
-                if (projectionRefreshRequired) {
-                    if (!projectionValidationState) {
-                        fail(control,
-                             protocolError(ClientErrorCode::StateDivergence, "projection replay validation state is unavailable"),
-                             "frontend projection replay validation failed");
-                        return;
-                    }
-                    reduction = detail::StateReducer::validateSynchronizationEvents(
-                        *projectionValidationState, *batch, options.maximumDecodedStateBytes, options.allowLegacyV1, reductionError);
-                } else {
-                    reduction = detail::StateReducer::events(currentState,
-                                                             *batch,
-                                                             true,
-                                                             options.maximumDecodedStateBytes,
-                                                             options.maximumRetainedDiagnostics,
-                                                             options.allowLegacyV1,
-                                                             reductionError);
-                }
-                if (!reduction) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence, std::move(reductionError)),
-                         "frontend replay reduction failed");
-                    return;
-                }
-                if (!tryAccumulateSynchronizationCounts(
-                        reduction->receivedEvents, reduction->appliedEvents, reduction->ignoredAlreadyAppliedEvents)) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateCapacityExceeded, "frontend synchronization event counters exhausted"),
-                         "frontend synchronization event counters exhausted");
-                    return;
-                }
-                sawEvents = true;
-                if (projectionRefreshRequired) {
-                    projectionValidationState = std::move(reduction->state);
-                } else {
-                    const UpdateCause cause = explicitSynchronization
-                                                  ? UpdateCause::ExplicitReplay
-                                                  : (active && active->generation > 1 && helloResumeAfterSent ? UpdateCause::ReconnectReplay
-                                                                                                              : UpdateCause::InitialReplay);
-                    stateUpdated(std::move(*reduction), cause, batch->fromSequence, batch->toSequence);
-                }
-                semanticallyAccepted = true;
-                return;
-            }
-            const auto* complete = std::get_if<frontend::SyncComplete>(&message);
-            if (complete == nullptr) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage, "unexpected synchronization message"),
-                     "frontend synchronization protocol violation");
-                return;
-            }
-            if (streamMode == frontend::SyncMode::Snapshot && !sawSnapshot) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage, "snapshot synchronization completed without a snapshot"),
-                     "frontend synchronization incomplete");
-                return;
-            }
-            if (projectionRefreshRequired && !projectionSnapshotStreaming) {
-                if (!projectionValidationState) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence,
-                                       "projection replay validation state is unavailable at synchronization completion"),
-                         "frontend projection replay validation failed");
-                    return;
-                }
-                std::string stagingError;
-                auto stagedBoundary = detail::StateReducer::synchronized(*projectionValidationState,
-                                                                         complete->sequence,
-                                                                         *currentSession,
-                                                                         options.maximumDecodedStateBytes,
-                                                                         stagingError,
-                                                                         activeProjectionMetadata());
-                if (!stagedBoundary) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence, std::move(stagingError)),
-                         "frontend projection replay cursor validation failed");
-                    return;
-                }
-                projectionValidationState = std::move(stagedBoundary->state);
-                semanticallyAccepted = true;
-                (void) requestProjectionSnapshot(control);
-                return;
-            }
-            std::string reductionError;
-            auto reduction = detail::StateReducer::synchronized(currentState,
-                                                                complete->sequence,
-                                                                *currentSession,
-                                                                options.maximumDecodedStateBytes,
-                                                                reductionError,
-                                                                activeProjectionMetadata());
-            if (!reduction) {
-                fail(control,
-                     protocolError(ClientErrorCode::StateDivergence, std::move(reductionError)),
-                     "frontend synchronization cursor failed");
-                return;
-            }
-            currentState = std::move(reduction->state);
-            currentVisibleSequence = currentState.visibleSequence();
-            currentSynchronizedThrough = currentState.synchronizedThrough();
-            std::vector<Change> synchronizationChanges = std::move(reduction->changes);
-
-            std::optional<RequestId> completedExplicitRequestId;
-            if (explicitSynchronization) {
-                explicitSynchronization->streamCompleted = true;
-                completedExplicitRequestId = explicitSynchronization->requestId;
-            }
-            const bool synchronizationWasSnapshotFallback = projectionSnapshotStreaming || initialSnapshotFallback ||
-                                                            (explicitSynchronization && explicitSynchronization->snapshotFallback);
-            std::optional<SynchronizationResult> completedSynchronizationResult;
-            if (explicitSynchronization) {
-                std::string synchronizationDecodeError;
-                detail::SynchronizationDecodeInput input{streamMode,
-                                                         complete->sequence,
-                                                         currentState,
-                                                         synchronizationReceivedEvents,
-                                                         synchronizationAppliedEvents,
-                                                         synchronizationIgnoredEvents,
-                                                         synchronizationWasSnapshotFallback};
-                completedSynchronizationResult =
-                    explicitSynchronization->requestedMode == frontend::SyncMode::Snapshot
-                        ? detail::decodeSnapshotSynchronizationResult(std::move(input), synchronizationDecodeError)
-                        : detail::decodeReplaySynchronizationResult(std::move(input), synchronizationDecodeError);
-                if (!completedSynchronizationResult) {
-                    fail(control,
-                         protocolError(ClientErrorCode::StateDivergence,
-                                       synchronizationDecodeError.empty() ? "explicit synchronization result is inconsistent"
-                                                                          : std::move(synchronizationDecodeError)),
-                         "frontend explicit synchronization result decoding failed");
-                    return;
-                }
-            }
-            retainedContinuityKey = activeContinuityKey;
-            retainedProjectionFingerprint = activeProjectionFingerprint;
-            semanticallyAccepted = true;
-            // SyncComplete is the terminal boundary for the internal
-            // projection-refresh operation. Retire its pending-operation slot
-            // before publishing Ready or invoking completion callbacks so a
-            // callback may use the newly available capacity. The cached
-            // synchronizationWasSnapshotFallback value above remains the
-            // callback-visible result.
-            projectionSnapshotStreaming = false;
-            initialSnapshotFallback = false;
-            helloResumeAfterSent.reset();
-            transition(ConnectionState::Ready);
-            if (!owns(control) || connectionState != ConnectionState::Ready) {
-                return;
-            }
-            notifyStateUpdated(std::move(synchronizationChanges), UpdateCause::SynchronizationCompleted, std::nullopt, complete->sequence);
-            if (!owns(control) || connectionState != ConnectionState::Ready) {
-                return;
-            }
-            std::optional<ExplicitSynchronization> completedExplicitSynchronization;
-            if (completedExplicitRequestId && explicitSynchronization && explicitSynchronization->streamCompleted &&
-                explicitSynchronization->requestId == completedExplicitRequestId) {
-                completedExplicitSynchronization = std::move(*explicitSynchronization);
-                explicitSynchronization.reset();
-            }
-            if (completedExplicitSynchronization) {
-                invokeExplicitSynchronizationSuccess(std::move(*completedExplicitSynchronization),
-                                                     std::move(*completedSynchronizationResult));
-            }
-            if (!owns(control) || connectionState != ConnectionState::Ready) {
-                return;
-            }
-            if (callbacks.onCursorAdvanced) {
-                try {
-                    callbacks.onCursorAdvanced(complete->sequence);
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend client cursor callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "cursor callback failed"));
-                }
-            }
-            if (!owns(control) || connectionState != ConnectionState::Ready) {
-                return;
-            }
-            if (callbacks.onSynchronized) {
-                try {
-                    callbacks.onSynchronized(SynchronizationInfo{streamMode,
-                                                                 complete->sequence,
-                                                                 currentState,
-                                                                 active && active->generation > 1,
-                                                                 synchronizationWasSnapshotFallback});
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend client synchronization callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "synchronization callback failed"));
-                }
-            }
-            if (!owns(control) || connectionState != ConnectionState::Ready) {
-                return;
-            }
-        }
-
-        void handleLiveEvents(Connection::Control& control, const frontend::EventBatch& batch, bool& semanticallyAccepted) {
-            std::string reductionError;
-            auto reduction = detail::StateReducer::events(currentState,
-                                                          batch,
-                                                          false,
-                                                          options.maximumDecodedStateBytes,
-                                                          options.maximumRetainedDiagnostics,
-                                                          options.allowLegacyV1,
-                                                          reductionError);
-            if (!reduction) {
-                fail(control,
-                     protocolError(ClientErrorCode::StateDivergence, std::move(reductionError)),
-                     "frontend live-event reduction failed");
-                return;
-            }
-            const std::optional<frontend::SequenceNumber> cursor = reduction->state.synchronizedThrough();
-            stateUpdated(std::move(*reduction), UpdateCause::Live, batch.fromSequence, batch.toSequence);
-            semanticallyAccepted = true;
-            if (owns(control) && cursor && callbacks.onCursorAdvanced) {
-                try {
-                    callbacks.onCursorAdvanced(*cursor);
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend client cursor callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "cursor callback failed"));
-                }
-            }
-        }
-
-        void handleLiveSnapshot(Connection::Control& control, const frontend::Snapshot& snapshot, bool& semanticallyAccepted) {
-            std::string reductionError;
-            auto reduction = detail::StateReducer::liveSnapshot(currentState,
-                                                                snapshot,
-                                                                options.maximumDecodedStateBytes,
-                                                                options.maximumRetainedDiagnostics,
-                                                                options.allowLegacyV1,
-                                                                reductionError);
-            if (!reduction) {
-                fail(control,
-                     protocolError(ClientErrorCode::StateDivergence, std::move(reductionError)),
-                     "frontend live-snapshot reduction failed");
-                return;
-            }
-            const bool cursorAdvanced = std::any_of(reduction->changes.begin(), reduction->changes.end(), [](const Change& change) {
-                return std::holds_alternative<CursorAdvancedChange>(change);
-            });
-            stateUpdated(std::move(*reduction), UpdateCause::SnapshotFallback, snapshot.sequence, snapshot.sequence);
-            semanticallyAccepted = true;
-            if (owns(control) && cursorAdvanced && callbacks.onCursorAdvanced) {
-                try {
-                    callbacks.onCursorAdvanced(snapshot.sequence);
-                } catch (...) {
-                    diagnostic(Diagnostic::Severity::Warning,
-                               "frontend client cursor callback threw",
-                               clientError(ClientErrorCode::CallbackFailure, "cursor callback failed"));
-                }
-            }
-        }
-
-        void handleProtocolError(Connection::Control& control,
-                                 const frontend::ProtocolErrorMessage& message,
-                                 bool& semanticallyAccepted,
-                                 bool& observeAfterProtocolErrorClosure) {
-            const Error error{ErrorOrigin::Protocol, std::nullopt, message.code, message.message, std::nullopt, message.details, false};
-            if (message.closeConnection) {
-                semanticallyAccepted = true;
-                observeAfterProtocolErrorClosure = true;
-                fail(control, error, "frontend server requested closure after a protocol error");
-                return;
-            }
-            if (!message.requestId) {
-                semanticallyAccepted = true;
-                diagnostic(Diagnostic::Severity::Warning, "frontend server reported a non-closing protocol error", error);
-                return;
-            }
-            if (projectionSnapshotRequestId && *message.requestId == *projectionSnapshotRequestId) {
-                semanticallyAccepted = true;
-                observeAfterProtocolErrorClosure = true;
-                fail(control, error, "frontend projection refresh was rejected");
-                return;
-            }
-            const auto found = pending.find(*message.requestId);
-            if (found == pending.end()) {
-                fail(control,
-                     protocolError(ClientErrorCode::UnexpectedMessage, "uncorrelated frontend protocol error response", message.code),
-                     "frontend protocol-error correlation failed");
-                return;
-            }
-            PendingOperation operation = std::move(found->second);
-            pending.erase(found);
-            semanticallyAccepted = true;
-            failOperation(std::move(operation), error);
-        }
-
-        void handle(Connection::Control& control, const frontend::ServerMessage& message) {
-            bool semanticallyAccepted = false;
-            bool observeAfterProtocolErrorClosure = false;
-            if (const auto* welcome = std::get_if<frontend::Welcome>(&message)) {
-                handleWelcome(control, *welcome, semanticallyAccepted);
-            } else if (const auto* response = std::get_if<frontend::Response>(&message)) {
-                if (connectionState != ConnectionState::Ready && !pending.contains(response->requestId) &&
-                    (!projectionSnapshotRequestId || *projectionSnapshotRequestId != response->requestId)) {
-                    fail(control,
-                         protocolError(ClientErrorCode::UnexpectedMessage, "response received before frontend client was ready"),
-                         "frontend response ordering violation");
-                } else {
-                    handleResponse(control, *response, semanticallyAccepted);
-                }
-            } else if (const auto* snapshot = std::get_if<frontend::Snapshot>(&message);
-                       snapshot && connectionState == ConnectionState::Ready) {
-                handleLiveSnapshot(control, *snapshot, semanticallyAccepted);
-            } else if (const auto* batch = std::get_if<frontend::EventBatch>(&message);
-                       batch && connectionState == ConnectionState::Ready) {
-                handleLiveEvents(control, *batch, semanticallyAccepted);
-            } else if (const auto* error = std::get_if<frontend::ProtocolErrorMessage>(&message)) {
-                handleProtocolError(control, *error, semanticallyAccepted, observeAfterProtocolErrorClosure);
-            } else {
-                handleSyncMessage(control, message, semanticallyAccepted);
-            }
-            const bool stillAttached = owns(control) && connectionState != ConnectionState::Closed;
-            if (semanticallyAccepted && (stillAttached || observeAfterProtocolErrorClosure)) {
-                invokeProtocolObservation(message);
-            }
-        }
-
-        ReceiveResult dispatchMessage(Connection::Control& control, const frontend::ServerMessage& message) noexcept {
-            if (!owns(control) || !control.connected) {
-                return {false, TransportError{"frontend connection is closed", false}};
-            }
-            if (dispatchDepth == std::numeric_limits<std::size_t>::max()) {
-                fail(control,
-                     protocolError(ClientErrorCode::StateCapacityExceeded, "frontend dispatch depth exhausted"),
-                     "frontend dispatch depth exhausted");
-                return {false, TransportError{"frontend protocol rejected message", false}};
-            }
-            ++dispatchDepth;
-            auto depthGuard = ScopeExit([this]() noexcept {
-                --dispatchDepth;
-            });
-            try {
-                handle(control, message);
-                if (failAfterNextDispatchForTesting) {
-                    failAfterNextDispatchForTesting = false;
-                    throw std::runtime_error("injected frontend dispatch failure");
-                }
-                depthGuard.run();
-                if (dispatchDepth == 0) {
-                    flushDeferredCommands();
-                }
-            } catch (...) {
-                depthGuard.run();
-                if (owns(control)) {
-                    fail(control,
-                         protocolError(ClientErrorCode::UnexpectedMessage, "frontend internal message dispatch failed"),
-                         "frontend internal message dispatch failed");
-                }
-            }
-            const bool accepted = owns(control);
-            return {accepted, accepted ? std::nullopt : std::optional(TransportError{"frontend protocol rejected message", false})};
-        }
-
-        ReceiveResult rejectOversizedInbound(Connection::Control& control) noexcept {
-            fail(control,
-                 protocolError(
-                     ClientErrorCode::DecodeFailure, "frontend inbound message exceeds capacity", frontend::ErrorCode::FrameTooLarge),
-                 "frontend inbound message too large");
-            return {false, TransportError{"frontend inbound message exceeds capacity", false}};
-        }
-
-        void flushDeferredCommands() {
-            if (dispatchDepth != 0 || flushingDeferredCommands) {
-                return;
-            }
-            flushingDeferredCommands = true;
-            auto flushingGuard = ScopeExit([this]() noexcept {
-                flushingDeferredCommands = false;
-            });
-            while (!deferredCommands.empty()) {
-                DeferredCommand& queued = deferredCommands.front();
-                DeferredCommand deferred = std::move(queued);
-                eraseOwnedOutbound(queued.message, true);
-                deferredCommands.pop_front();
-                auto deferredGuard = ScopeExit([this, &deferred]() noexcept {
-                    eraseOwnedOutbound(deferred.message);
-                });
-                auto operationFound = pending.find(deferred.requestId);
-                if (operationFound == pending.end()) {
-                    eraseOwnedOutbound(deferred.message);
-                    continue;
-                }
-                const bool synchronizationCommand = operationFound->second.method == frontend::generated::MethodId::SnapshotGet ||
-                                                    operationFound->second.method == frontend::generated::MethodId::EventsReplay;
-                const bool activatesSynchronization =
-                    synchronizationCommand && explicitSynchronization && explicitSynchronization->requestId &&
-                    explicitSynchronization->requestId->value() == deferred.requestId && !explicitSynchronization->responseAccepted &&
-                    connectionState == ConnectionState::Ready;
-                if (activatesSynchronization) {
-                    transition(ConnectionState::Synchronizing);
-                    operationFound = pending.find(deferred.requestId);
-                    if (operationFound == pending.end()) {
-                        eraseOwnedOutbound(deferred.message);
-                        continue;
-                    }
-                }
-                const bool sendableState =
-                    connectionState == ConnectionState::Ready ||
-                    (connectionState == ConnectionState::Synchronizing && synchronizationCommand && explicitSynchronization.has_value());
-                if (!active || !active->connected || !sendableState) {
-                    PendingOperation operation = std::move(operationFound->second);
-                    pending.erase(operationFound);
-                    eraseOwnedOutbound(deferred.message);
-                    failOperation(
-                        std::move(operation),
-                        clientError(ClientErrorCode::NotConnected, "frontend connection closed before deferred command send", true));
-                    continue;
-                }
-                const std::shared_ptr<Connection::Control> control = active;
-                SendResult sendResult;
-                bool sendThrew = false;
-                try {
-                    sendResult = control->transport.send(std::move(deferred.message));
-                } catch (...) {
-                    sendThrew = true;
-                }
-                eraseOwnedOutbound(deferred.message, true);
-                if (sendThrew || sendResult.status != SendStatus::Accepted) {
-                    const bool retryable = !sendThrew && sendResult.error && sendResult.error->retryable;
-                    const auto failedFound = pending.find(deferred.requestId);
-                    if (failedFound != pending.end()) {
-                        PendingOperation operation = std::move(failedFound->second);
-                        pending.erase(failedFound);
-                        failOperation(std::move(operation),
-                                      clientError(ClientErrorCode::SendRejected,
-                                                  sendThrew ? "frontend transport send failed" : "frontend transport rejected command",
-                                                  sendThrew || retryable));
-                    }
-                    if (owns(*control)) {
-                        fail(*control,
-                             transportError(sendThrew ? "transport send callback failed" : "transport rejected frontend command",
-                                            sendThrew || retryable),
-                             "frontend deferred command send failed");
-                    }
-                    break;
-                }
-            }
-            flushingGuard.run();
-        }
-
-        Submission submitBound(frontend::generated::CompleteCommandParameters parameters, detail::BoundOperationCompletion completion) {
-            if (connectionState == ConnectionState::Closed) {
-                return {std::nullopt, clientError(ClientErrorCode::Closed, "frontend client is closed")};
-            }
-            if (connectionState != ConnectionState::Ready || !active || !active->connected) {
-                return {std::nullopt, clientError(ClientErrorCode::NotReady, "frontend client is not ready")};
-            }
-            const frontend::generated::MethodId method = frontend::generated::commandMethod(parameters);
-            if (explicitSynchronization && !explicitSynchronization->streamCompleted) {
-                const frontend::generated::MethodId synchronizationMethod =
-                    explicitSynchronization->requestedMode == frontend::SyncMode::Snapshot ? frontend::generated::MethodId::SnapshotGet
-                                                                                           : frontend::generated::MethodId::EventsReplay;
-                if (method != synchronizationMethod) {
-                    return {std::nullopt,
-                            clientError(ClientErrorCode::NotReady,
-                                        "frontend client is synchronizing and does not accept application operations")};
-                }
-            }
-            const MethodStatus status = owner->methodStatus(method);
-            if (status.available == Availability::No) {
-                return {std::nullopt, clientError(ClientErrorCode::MethodUnavailable, "frontend method is unavailable")};
-            }
-            if (status.permitted == Availability::No) {
-                return {std::nullopt, clientError(ClientErrorCode::MethodNotPermitted, "frontend method is not permitted")};
-            }
-            if (!completion.decode) {
-                return {std::nullopt, clientError(ClientErrorCode::InvalidConfiguration, "frontend result decoder is missing")};
-            }
-            if (outstandingOperationCount() >= options.maximumPendingOperations) {
-                return {std::nullopt,
-                        clientError(ClientErrorCode::TooManyPendingOperations, "frontend pending-operation capacity exhausted")};
-            }
-            if (nextRequest == std::numeric_limits<std::uint64_t>::max()) {
-                return {std::nullopt, clientError(ClientErrorCode::RequestIdExhausted, "frontend request IDs exhausted")};
-            }
-            RequestId requestId{"c" + std::to_string(active->generation) + "-r" + std::to_string(nextRequest++)};
-            frontend::generated::DefinedCommand command{requestId.value(), std::move(parameters)};
-            auto serialized = frontend::Codec::serializeDefinedCommand(command);
-            if (!serialized) {
-                accountErasedTransientBytes(securelyErase(command));
-                return {std::nullopt, clientError(ClientErrorCode::SerializationFailed, "frontend command serialization failed")};
-            }
-            std::string&& serializedStorage = std::move(serialized).value();
-            std::string serializedCommand(std::move(serializedStorage));
-            eraseTransientString(serializedStorage, true);
-            const frontend::generated::MethodMetadata* metadata = methodMetadata(method);
-            if (metadata != nullptr && metadata->category == frontend::generated::MethodCategory::ReverseResponse) {
-                const frontend::Json& validatedParameters = std::visit(
-                    [](const auto& value) -> const frontend::Json& {
-                        return value.value;
-                    },
-                    command.parameters);
-                const auto pendingRequestId = validatedParameters.find("pendingRequestId");
-                if (pendingRequestId != validatedParameters.end() && pendingRequestId->is_string()) {
-                    const PendingRequestState* pendingRequest =
-                        currentState.pendingRequest(PendingRequestId{pendingRequestId->get<std::string>()});
-                    if (pendingRequest != nullptr && pendingRequest->connectionInvalidated) {
-                        accountErasedTransientBytes(securelyErase(command));
-                        accountErasedTransientBytes(securelyErase(serializedCommand));
-                        return {std::nullopt,
-                                clientError(ClientErrorCode::MethodNotPermitted,
-                                            "frontend pending request belongs to an inactive connection session")};
-                    }
-                }
-            }
-            accountErasedTransientBytes(securelyErase(command));
-            const bool sensitive = generated::bindingIsSensitive(method);
-            OutboundMessage message{OutboundKind::Command, std::move(serializedCommand), 0, sensitive};
-            eraseTransientString(serializedCommand, true);
-            message.serializedBytes = message.compactJson.size();
-            const std::string requestKey = requestId.value();
-            pending.emplace(requestKey, PendingOperation{requestId, method, std::move(completion)});
-            const bool explicitSynchronizationCommand =
-                explicitSynchronization &&
-                (method == frontend::generated::MethodId::SnapshotGet || method == frontend::generated::MethodId::EventsReplay) &&
-                !explicitSynchronization->requestId;
-            if (explicitSynchronizationCommand) {
-                explicitSynchronization->requestId = requestId;
-            }
-            if (dispatchDepth != 0 || flushingDeferredCommands) {
-                deferredCommands.emplace_back(requestKey, std::move(message));
-                eraseOwnedOutbound(message, true);
-                return {requestId, std::nullopt};
-            }
-            const std::shared_ptr<Connection::Control> control = active;
-            SendResult sendResult;
-            try {
-                sendResult = control->transport.send(std::move(message));
-            } catch (...) {
-                eraseOwnedOutbound(message, true);
-                pending.erase(requestKey);
-                if (explicitSynchronizationCommand && explicitSynchronization &&
-                    explicitSynchronization->requestId == std::optional(requestId) && !explicitSynchronization->responseAccepted) {
-                    explicitSynchronization.reset();
-                }
-                if (owns(*control)) {
-                    fail(*control, transportError("transport send callback failed", true), "frontend command send failed");
-                }
-                return {std::nullopt, clientError(ClientErrorCode::SendRejected, "frontend transport send failed", true)};
-            }
-            eraseOwnedOutbound(message, true);
-            if (sendResult.status != SendStatus::Accepted) {
-                const bool retryable = sendResult.error && sendResult.error->retryable;
-                pending.erase(requestKey);
-                if (explicitSynchronizationCommand && explicitSynchronization &&
-                    explicitSynchronization->requestId == std::optional(requestId) && !explicitSynchronization->responseAccepted) {
-                    explicitSynchronization.reset();
-                }
-                if (owns(*control)) {
-                    fail(*control, transportError("transport rejected frontend command", retryable), "frontend command rejected");
-                }
-                return {std::nullopt, clientError(ClientErrorCode::SendRejected, "frontend transport rejected command", retryable)};
-            }
-            return {requestId, std::nullopt};
-        }
-
-        Submission submit(frontend::generated::CompleteCommandParameters parameters, GeneratedCompletionHandler handler) {
-            detail::BoundOperationCompletion completion;
-            completion.decode = [](const frontend::generated::CompleteCommandResult& result, std::any& decoded, std::string&) {
-                decoded = result;
-                return true;
-            };
-            completion.succeed = [handler](const RequestId& requestId, std::any&& decoded) {
-                if (handler) {
-                    handler(GeneratedOperationResult{
-                        requestId, std::any_cast<frontend::generated::CompleteCommandResult>(std::move(decoded)), std::nullopt});
-                }
-            };
-            completion.fail = [handler](const RequestId& requestId, const Error& error) {
-                if (handler) {
-                    handler(GeneratedOperationResult{requestId, std::nullopt, error});
-                }
-            };
-            return submitBound(std::move(parameters), std::move(completion));
-        }
-
-        void acceptExplicitSynchronizationResponse(const GeneratedOperationResult& response) {
-            if (!explicitSynchronization) {
-                return;
-            }
-            explicitSynchronization->requestId = response.requestId;
-            if (!response) {
-                failExplicitSynchronization(
-                    response.error.value_or(clientError(ClientErrorCode::StateDivergence, "explicit synchronization command failed")),
-                    true);
-                return;
-            }
-            explicitSynchronization->responseAccepted = true;
-            explicitSynchronization->generatedResult = *response.value;
-            const frontend::Json commandResult = std::visit(
-                [](const auto& value) {
-                    return value.value;
-                },
-                *response.value);
-            if (explicitSynchronization->requestedMode == frontend::SyncMode::Replay &&
-                commandResult.value("syncMode", "replay") == "snapshot") {
-                explicitSynchronization->streamMode = frontend::SyncMode::Snapshot;
-                explicitSynchronization->snapshotFallback = true;
-            }
-            sawSnapshot = false;
-            sawEvents = false;
-            synchronizationReceivedEvents = 0;
-            synchronizationAppliedEvents = 0;
-            synchronizationIgnoredEvents = 0;
-            transition(ConnectionState::Synchronizing);
-        }
-
-        Submission beginSynchronization(frontend::SyncMode mode,
-                                        std::optional<frontend::SequenceNumber> after,
-                                        CompletionHandler<SynchronizationResult> handler) {
-            if (explicitSynchronization) {
-                return {
-                    std::nullopt,
-                    clientError(ClientErrorCode::SynchronizationAlreadyActive, "one explicit frontend synchronization is already active")};
-            }
-            if (mode == frontend::SyncMode::Replay && !after) {
-                return {std::nullopt, clientError(ClientErrorCode::InvalidConfiguration, "explicit replay requires a global cursor")};
-            }
-            explicitSynchronization.emplace();
-            explicitSynchronization->requestedMode = mode;
-            explicitSynchronization->streamMode = mode;
-            explicitSynchronization->handler = std::move(handler);
-            std::string encodingError;
-            std::optional<frontend::Json> encodedParameters = mode == frontend::SyncMode::Snapshot
-                                                                  ? detail::encodeUnitParams(typed::Unit{}, encodingError)
-                                                                  : detail::encodeEventsReplayParams(*after, encodingError);
-            if (!encodedParameters) {
-                explicitSynchronization.reset();
-                return {std::nullopt,
-                        clientError(ClientErrorCode::SerializationFailed,
-                                    encodingError.empty() ? "explicit synchronization parameters could not be encoded"
-                                                          : std::move(encodingError))};
-            }
-            frontend::generated::CompleteCommandParameters parameters =
-                mode == frontend::SyncMode::Snapshot
-                    ? frontend::generated::CompleteCommandParameters{frontend::generated::MethodParameters<
-                          frontend::generated::MethodId::SnapshotGet>{std::move(*encodedParameters)}}
-                    : frontend::generated::CompleteCommandParameters{
-                          frontend::generated::MethodParameters<frontend::generated::MethodId::EventsReplay>{
-                              std::move(*encodedParameters)}};
-            Submission submission = submit(std::move(parameters), [this](const GeneratedOperationResult& response) {
-                acceptExplicitSynchronizationResponse(response);
-            });
-            if (!submission) {
-                explicitSynchronization.reset();
-            } else if (explicitSynchronization) {
-                explicitSynchronization->requestId = submission.requestId;
-                if (dispatchDepth == 0 && !flushingDeferredCommands) {
-                    transition(ConnectionState::Synchronizing);
-                }
-            }
-            return submission;
-        }
-
-        Submission beginGeneratedSynchronization(frontend::generated::CompleteCommandParameters parameters,
-                                                 GeneratedCompletionHandler handler) {
-            if (explicitSynchronization) {
-                return {
-                    std::nullopt,
-                    clientError(ClientErrorCode::SynchronizationAlreadyActive, "one explicit frontend synchronization is already active")};
-            }
-            const frontend::generated::MethodId method = frontend::generated::commandMethod(parameters);
-            if (method != frontend::generated::MethodId::SnapshotGet && method != frontend::generated::MethodId::EventsReplay) {
-                return {std::nullopt, clientError(ClientErrorCode::InvalidConfiguration, "generated synchronization method is invalid")};
-            }
-            const frontend::SyncMode mode =
-                method == frontend::generated::MethodId::SnapshotGet ? frontend::SyncMode::Snapshot : frontend::SyncMode::Replay;
-            explicitSynchronization.emplace();
-            explicitSynchronization->requestedMode = mode;
-            explicitSynchronization->streamMode = mode;
-            explicitSynchronization->generatedHandler = std::move(handler);
-            Submission submission = submit(std::move(parameters), [this](const GeneratedOperationResult& response) {
-                acceptExplicitSynchronizationResponse(response);
-            });
-            if (!submission) {
-                explicitSynchronization.reset();
-            } else if (explicitSynchronization) {
-                explicitSynchronization->requestId = submission.requestId;
-                if (dispatchDepth == 0 && !flushingDeferredCommands) {
-                    transition(ConnectionState::Synchronizing);
-                }
-            }
-            return submission;
-        }
     };
 
     Client::Client(ClientOptions options, ClientCallbacks callbacks)
-        : impl(std::make_unique<Impl>(*this, std::move(options), std::move(callbacks))) {
-        if (!impl->options.credentialProvider) {
-            throw std::invalid_argument("frontend client requires a credential provider");
-        }
-        std::set<frontend::FrontendCapability> requested;
-        for (const frontend::FrontendCapability capability : impl->options.requestedCapabilities) {
-            if (!validCapability(capability) || !isRepresentationCapability(capability) || !requested.insert(capability).second) {
-                throw std::invalid_argument("requested capabilities must be unique representation capabilities");
-            }
-        }
-        if (!impl->options.allowLegacyV1 &&
-            (requested.size() != AllRepresentationCapabilities.size() ||
-             !std::ranges::all_of(AllRepresentationCapabilities, [&requested](frontend::FrontendCapability capability) {
-                 return requested.contains(capability);
-             }))) {
-            throw std::invalid_argument("disabling legacy v1 requires all expanded representation capabilities");
-        }
-        std::set<frontend::FrontendCapability> required;
-        for (const frontend::FrontendCapability capability : impl->options.requiredCapabilities) {
-            if (!validCapability(capability) || !required.insert(capability).second) {
-                throw std::invalid_argument("required capabilities must be valid and unique");
-            }
-            if (isRepresentationCapability(capability) && !requested.contains(capability)) {
-                throw std::invalid_argument("a required representation capability must also be requested");
-            }
-        }
+        : impl(std::make_unique<Impl>(
+              *this, std::move(options), std::move(callbacks), [](std::shared_ptr<const detail::StateStorage> storage) noexcept {
+                  return State{std::move(storage)};
+              })) {
         impl->controller = std::unique_ptr<Controller>(new Controller(*this));
         impl->provider = std::unique_ptr<Provider>(new Provider(*this));
         impl->synchronization = std::unique_ptr<Synchronization>(new Synchronization(*this));
@@ -1985,16 +811,28 @@ namespace ai::openai::codex::frontend::client {
     }
 
     Connection Client::openConnection(TransportCallbacks callbacks) {
-        if (impl->connectionState != ConnectionState::Disconnected || impl->active || impl->detachCallbacksInProgress || !callbacks.send ||
-            !callbacks.close || impl->nextConnectionGeneration == std::numeric_limits<std::uint64_t>::max()) {
+        if (!callbacks.send || !callbacks.close || impl->active ||
+            impl->coreClient->connectionState() != core::ConnectionState::Disconnected) {
             return {};
         }
         auto control = std::make_shared<Connection::Control>();
         control->owner = this;
         control->transport = std::move(callbacks);
-        control->generation = impl->nextConnectionGeneration++;
+        const std::weak_ptr<Connection::Control> weak = control;
+        const std::optional<core::PhysicalGeneration> generation =
+            impl->coreClient->attach(core::TransportCallbacks{[implementation = impl.get(), weak](core::OutboundMessage message) {
+                                                                  return implementation->send(weak, std::move(message));
+                                                              },
+                                                              [implementation = impl.get(), weak](std::string_view reason) {
+                                                                  implementation->closeTransport(weak, reason);
+                                                              }});
+        if (!generation.has_value()) {
+            control->owner = nullptr;
+            control->open = false;
+            return {};
+        }
+        control->generation = *generation;
         impl->active = control;
-        impl->transition(ConnectionState::Connecting);
         return Connection{std::move(control)};
     }
 
@@ -2003,125 +841,101 @@ namespace ai::openai::codex::frontend::client {
     }
 
     void Client::close(std::string reason) noexcept {
-        if (impl->connectionState == ConnectionState::Closed || impl->clientCloseInProgress) {
-            return;
+        try {
+            impl->coreClient->close(reason);
+        } catch (...) {
         }
-        impl->clientCloseInProgress = true;
-        const std::shared_ptr<Connection::Control> control = impl->active;
-        impl->transition(ConnectionState::Closing);
-        const Error closeError = clientError(ClientErrorCode::Closed, "frontend client closed");
-        impl->completePending(closeError);
-        impl->failExplicitSynchronization(closeError);
-        if (control && impl->owns(*control)) {
-            impl->requestTransportClose(*control, std::move(reason));
+        if (impl->active) {
+            impl->active->open = false;
+            impl->active->connected = false;
+            impl->active->owner = nullptr;
+            impl->active.reset();
         }
-        if (control && impl->owns(*control)) {
-            impl->detach(*control, closeError, true);
-        }
-        impl->currentSession.reset();
-        impl->currentCapabilities.reset();
-        impl->projectionRefreshRequired = false;
-        impl->projectionSnapshotStreaming = false;
-        impl->projectionSnapshotRequestId.reset();
-        impl->projectionValidationState.reset();
-        impl->transition(ConnectionState::Closed);
     }
 
     bool Client::isOpen() const noexcept {
-        return impl->connectionState != ConnectionState::Closed;
+        return impl->coreClient->connectionState() != core::ConnectionState::Closed;
     }
+
     bool Client::hasActiveConnection() const noexcept {
-        return static_cast<bool>(impl->active);
+        return impl->coreClient->activeGeneration().has_value();
     }
+
     bool Client::isReady() const noexcept {
-        return impl->connectionState == ConnectionState::Ready;
+        return impl->coreClient->ready();
     }
+
     ConnectionState Client::connectionState() const noexcept {
-        return impl->connectionState;
+        return publicConnectionState(impl->coreClient->connectionState());
     }
+
     State Client::state() const noexcept {
         return impl->currentState;
     }
+
     std::optional<SessionInfo> Client::session() const {
-        return impl->currentSession;
+        const std::optional<core::SessionInfo> session = impl->coreClient->sessionInfo();
+        return session ? std::optional<SessionInfo>{publicSessionInfo(*session)} : std::nullopt;
     }
+
     std::optional<frontend::SequenceNumber> Client::visibleSequence() const {
-        return impl->currentVisibleSequence;
+        return impl->currentState.visibleSequence();
     }
+
     std::optional<frontend::SequenceNumber> Client::synchronizedThrough() const {
-        return impl->currentSynchronizedThrough;
+        return impl->currentState.synchronizedThrough();
     }
+
     std::size_t Client::pendingOperationCount() const noexcept {
-        return impl->outstandingOperationCount();
+        return impl->coreClient->pendingOperationCount();
     }
 
     MethodStatus Client::methodStatus(frontend::generated::MethodId method) const {
-        const auto metadata = std::ranges::find_if(frontend::generated::AllMethods, [method](const auto& candidate) {
-            return candidate.id == method;
-        });
-        if (metadata == frontend::generated::AllMethods.end()) {
-            return MethodStatus{method, Availability::Unknown, Availability::Unknown, false, false, false, {}};
-        }
-        MethodStatus status{method,
-                            Availability::Unknown,
-                            Availability::Unknown,
-                            metadata->controllerRequired,
-                            metadata->providerReadyRequired,
-                            metadata->defaultEnabled,
-                            {metadata->requiredScopes.begin(), metadata->requiredScopes.end()}};
-        if (impl->currentSession) {
-            if (impl->currentSession->availableMethods) {
-                status.available = contains(*impl->currentSession->availableMethods, method) ? Availability::Yes : Availability::No;
-            }
-            if (impl->currentSession->permittedMethods) {
-                status.permitted = contains(*impl->currentSession->permittedMethods, method) ? Availability::Yes : Availability::No;
-            }
-        }
-        return status;
+        const core::MethodStatus source = impl->coreClient->methodStatus(method);
+        return MethodStatus{source.method,
+                            publicAvailability(source.available),
+                            publicAvailability(source.permitted),
+                            source.controllerRequired,
+                            source.providerReadyRequired,
+                            source.defaultEnabled,
+                            source.requiredScopes};
     }
 
     CapabilityStatus Client::capabilityStatus(frontend::FrontendCapability capability) const {
-        CapabilityStatus status{capability};
-        const auto* metadata = capabilityMetadata(capability);
-        if (metadata == nullptr || !metadata->defined) {
-            return status;
-        }
-        status.defined = Availability::Yes;
-        if (!impl->currentCapabilities) {
-            return status;
-        }
-        status.implemented = contains(impl->currentCapabilities->implemented, capability) ? Availability::Yes : Availability::No;
-        status.permitted = contains(impl->currentCapabilities->permitted, capability) ? Availability::Yes : Availability::No;
-        return status;
+        const core::CapabilityStatus source = impl->coreClient->capabilityStatus(capability);
+        return CapabilityStatus{source.capability,
+                                publicAvailability(source.defined),
+                                publicAvailability(source.implemented),
+                                publicAvailability(source.permitted)};
     }
 
     Submission Client::submit(frontend::generated::CompleteCommandParameters parameters, GeneratedCompletionHandler handler) {
-        const frontend::generated::MethodId method = frontend::generated::commandMethod(parameters);
-        if (method == frontend::generated::MethodId::SnapshotGet || method == frontend::generated::MethodId::EventsReplay) {
-            return impl->beginGeneratedSynchronization(std::move(parameters), std::move(handler));
-        }
-        return impl->submit(std::move(parameters), std::move(handler));
+        return impl->submitGenerated(std::move(parameters), std::move(handler));
     }
 
     Submission Client::submitBound(frontend::generated::CompleteCommandParameters parameters, detail::BoundOperationCompletion completion) {
         return impl->submitBound(std::move(parameters), std::move(completion));
     }
 
-    Submission Client::submitReverseBound(const PendingRequestId& pendingRequestId,
+    Submission Client::submitReverseBound(const PendingRequestId&,
                                           frontend::generated::CompleteCommandParameters parameters,
                                           detail::BoundOperationCompletion completion) {
-        const PendingRequestState* pendingRequest = impl->currentState.pendingRequest(pendingRequestId);
-        if (pendingRequest != nullptr && pendingRequest->connectionInvalidated) {
-            return {std::nullopt,
-                    clientError(ClientErrorCode::MethodNotPermitted, "frontend pending request belongs to an inactive connection session")};
-        }
         return impl->submitBound(std::move(parameters), std::move(completion));
     }
 
     Submission Client::beginSynchronization(frontend::SyncMode mode,
                                             std::optional<frontend::SequenceNumber> after,
                                             CompletionHandler<SynchronizationResult> handler) {
-        return impl->beginSynchronization(mode, after, std::move(handler));
+        frontend::generated::CompleteCommandParameters parameters =
+            mode == frontend::SyncMode::Snapshot
+                ? frontend::generated::makeParameters(frontend::generated::MethodId::SnapshotGet, frontend::Json::object())
+                : frontend::generated::makeParameters(frontend::generated::MethodId::EventsReplay,
+                                                      frontend::Json{{"after", after.value_or(frontend::SequenceNumber{}).value()}});
+        return impl->submitCore(
+            std::move(parameters),
+            [implementation = impl.get(), requestedMode = mode, handler = std::move(handler)](const core::OperationResult& operation) {
+                implementation->completeSynchronizationAdapter(operation, requestedMode, handler);
+            });
     }
 
     Submission Synchronization::snapshot(CompletionHandler<SynchronizationResult> handler) {
@@ -2177,8 +991,8 @@ namespace ai::openai::codex::frontend::client {
         auto parameters = unitParameters<frontend::generated::MethodId::ControllerAcquire>(error);
         if (!parameters) {
             return {std::nullopt,
-                    clientError(ClientErrorCode::SerializationFailed,
-                                error.empty() ? "controller.acquire parameters could not be encoded" : std::move(error))};
+                    localError(ClientErrorCode::SerializationFailed,
+                               error.empty() ? "controller.acquire parameters could not be encoded" : std::move(error))};
         }
         return client->submitBound(std::move(*parameters),
                                    controllerCompletion<frontend::generated::MethodId::ControllerAcquire>(*client, std::move(handler)));
@@ -2189,8 +1003,8 @@ namespace ai::openai::codex::frontend::client {
         auto parameters = unitParameters<frontend::generated::MethodId::ControllerRelease>(error);
         if (!parameters) {
             return {std::nullopt,
-                    clientError(ClientErrorCode::SerializationFailed,
-                                error.empty() ? "controller.release parameters could not be encoded" : std::move(error))};
+                    localError(ClientErrorCode::SerializationFailed,
+                               error.empty() ? "controller.release parameters could not be encoded" : std::move(error))};
         }
         return client->submitBound(std::move(*parameters),
                                    controllerCompletion<frontend::generated::MethodId::ControllerRelease>(*client, std::move(handler)));
@@ -2205,9 +1019,7 @@ namespace ai::openai::codex::frontend::client {
         std::string error;
         auto parameters = unitParameters<frontend::generated::MethodId::ProviderStart>(error);
         if (!parameters) {
-            return {std::nullopt,
-                    clientError(ClientErrorCode::SerializationFailed,
-                                error.empty() ? "provider.start parameters could not be encoded" : std::move(error))};
+            return {std::nullopt, localError(ClientErrorCode::SerializationFailed, std::move(error))};
         }
         return client->submitBound(std::move(*parameters),
                                    unitCompletion<frontend::generated::MethodId::ProviderStart>(std::move(handler)));
@@ -2217,9 +1029,7 @@ namespace ai::openai::codex::frontend::client {
         std::string error;
         auto parameters = unitParameters<frontend::generated::MethodId::ProviderStop>(error);
         if (!parameters) {
-            return {std::nullopt,
-                    clientError(ClientErrorCode::SerializationFailed,
-                                error.empty() ? "provider.stop parameters could not be encoded" : std::move(error))};
+            return {std::nullopt, localError(ClientErrorCode::SerializationFailed, std::move(error))};
         }
         return client->submitBound(std::move(*parameters), unitCompletion<frontend::generated::MethodId::ProviderStop>(std::move(handler)));
     }
@@ -2228,9 +1038,7 @@ namespace ai::openai::codex::frontend::client {
         std::string error;
         auto parameters = unitParameters<frontend::generated::MethodId::ProviderRestart>(error);
         if (!parameters) {
-            return {std::nullopt,
-                    clientError(ClientErrorCode::SerializationFailed,
-                                error.empty() ? "provider.restart parameters could not be encoded" : std::move(error))};
+            return {std::nullopt, localError(ClientErrorCode::SerializationFailed, std::move(error))};
         }
         return client->submitBound(std::move(*parameters),
                                    unitCompletion<frontend::generated::MethodId::ProviderRestart>(std::move(handler)));
@@ -2265,190 +1073,184 @@ namespace ai::openai::codex::frontend::client {
 #undef AISUITE_CLIENT_FACADE_GETTER
 
     Connection::Connection() noexcept = default;
+
     Connection::Connection(std::shared_ptr<Control> connectionControl) noexcept
         : control(std::move(connectionControl)) {
     }
+
     Connection::Connection(Connection&&) noexcept = default;
+
     Connection& Connection::operator=(Connection&& other) noexcept {
-        if (this == &other) {
-            return *this;
+        if (this != &other) {
+            close("frontend transport attachment replaced");
+            control = std::move(other.control);
         }
-        close("frontend transport attachment replaced");
-        control = std::move(other.control);
         return *this;
     }
+
     Connection::~Connection() {
-        if (control && control->owner && control->open) {
-            close("frontend transport attachment destroyed");
-        }
+        close("frontend transport attachment destroyed");
     }
 
     void Connection::transportConnected() noexcept {
-        if (!control || !control->owner || !control->open || control->connectedReported) {
+        if (!control || !control->owner || !control->open || control->connected) {
             return;
         }
-        control->connectedReported = true;
         control->connected = true;
-        control->owner->impl->sendHello(*control);
+        try {
+            control->owner->impl->coreClient->transportConnected(control->generation);
+        } catch (...) {
+        }
     }
 
     ReceiveResult Connection::receive(std::string_view compactJson) noexcept {
         if (!control || !control->owner || !control->open || !control->connected) {
             return {false, TransportError{"frontend connection is closed", false}};
         }
-        Client::Impl& implementation = *control->owner->impl;
-        if (compactJson.size() > implementation.options.maximumInboundMessageBytes) {
-            return implementation.rejectOversizedInbound(*control);
+        try {
+            const bool accepted = control->owner->impl->coreClient->receiveEncoded(control->generation, compactJson);
+            return accepted ? ReceiveResult{true, std::nullopt}
+                            : ReceiveResult{false, TransportError{"frontend server message was rejected", false}};
+        } catch (...) {
+            return {false, TransportError{"frontend server message dispatch failed", false}};
         }
-        auto decoded = frontend::Codec::decodeServer(compactJson);
-        if (!decoded) {
-            implementation.fail(
-                *control,
-                protocolError(ClientErrorCode::DecodeFailure, "failed to decode frontend server message", decoded.error().code),
-                "frontend server message decode failed");
-            return {false, TransportError{"failed to decode frontend server message", false}};
-        }
-        return implementation.dispatchMessage(*control, decoded.value());
     }
 
     ReceiveResult Connection::receive(const frontend::Json& message) noexcept {
-        if (!control || !control->owner || !control->open || !control->connected) {
-            return {false, TransportError{"frontend connection is closed", false}};
+        try {
+            const std::string compact = message.dump();
+            return receive(std::string_view(compact));
+        } catch (...) {
+            return {false, TransportError{"frontend server message encoding failed", false}};
         }
-        Client::Impl& implementation = *control->owner->impl;
-        const std::optional<bool> withinBound = jsonFitsBound(message, implementation.options.maximumInboundMessageBytes);
-        if (!withinBound) {
-            implementation.fail(*control,
-                                protocolError(ClientErrorCode::DecodeFailure, "failed to size frontend server message"),
-                                "frontend server message sizing failed");
-            return {false, TransportError{"failed to size frontend server message", false}};
-        }
-        if (!*withinBound) {
-            return implementation.rejectOversizedInbound(*control);
-        }
-        auto decoded = frontend::Codec::decodeServer(message);
-        if (!decoded) {
-            implementation.fail(
-                *control,
-                protocolError(ClientErrorCode::DecodeFailure, "failed to decode frontend server message", decoded.error().code),
-                "frontend server message decode failed");
-            return {false, TransportError{"failed to decode frontend server message", false}};
-        }
-        return implementation.dispatchMessage(*control, decoded.value());
     }
 
     ReceiveResult Connection::receive(const frontend::ServerMessage& message) noexcept {
         if (!control || !control->owner || !control->open || !control->connected) {
             return {false, TransportError{"frontend connection is closed", false}};
         }
-        Client::Impl& implementation = *control->owner->impl;
-        const auto encoded = frontend::Codec::encodeServer(message);
-        if (!encoded) {
-            implementation.fail(*control,
-                                protocolError(ClientErrorCode::DecodeFailure, "failed to encode frontend server message"),
-                                "frontend server message encoding failed");
-            return {false, TransportError{"failed to encode frontend server message", false}};
+        try {
+            const bool accepted = control->owner->impl->coreClient->receive(control->generation, message);
+            return accepted ? ReceiveResult{true, std::nullopt}
+                            : ReceiveResult{false, TransportError{"frontend server message was rejected", false}};
+        } catch (...) {
+            return {false, TransportError{"frontend server message dispatch failed", false}};
         }
-        const std::optional<bool> withinBound = jsonFitsBound(encoded.value(), implementation.options.maximumInboundMessageBytes);
-        if (!withinBound) {
-            implementation.fail(*control,
-                                protocolError(ClientErrorCode::DecodeFailure, "failed to size frontend server message"),
-                                "frontend server message sizing failed");
-            return {false, TransportError{"failed to size frontend server message", false}};
-        }
-        if (!*withinBound) {
-            return implementation.rejectOversizedInbound(*control);
-        }
-        auto decoded = frontend::Codec::decodeServer(encoded.value());
-        if (!decoded) {
-            implementation.fail(
-                *control,
-                protocolError(ClientErrorCode::DecodeFailure, "failed to validate frontend server message", decoded.error().code),
-                "frontend server message validation failed");
-            return {false, TransportError{"failed to validate frontend server message", false}};
-        }
-        return implementation.dispatchMessage(*control, decoded.value());
     }
 
     void Connection::transportDisconnected(std::optional<TransportError> error) noexcept {
         if (!control || !control->owner || !control->open) {
             return;
         }
-        std::optional<Error> clientFailure;
-        if (error) {
-            clientFailure = transportError(error->message, error->retryable);
+        const std::shared_ptr<Control> retired = control;
+        Client* owner = retired->owner;
+        const core::PhysicalGeneration generation = retired->generation;
+        retired->open = false;
+        retired->connected = false;
+        retired->owner = nullptr;
+        if (owner->impl->active == retired) {
+            owner->impl->active.reset();
         }
-        Client::Impl& implementation = *control->owner->impl;
-        if (implementation.clientCloseInProgress) {
-            clientFailure = clientError(ClientErrorCode::Closed, "frontend client closed");
+        try {
+            if (error.has_value()) {
+                owner->impl->coreClient->transportDisconnected(generation,
+                                                               core::TransportError{std::move(error->message), error->retryable});
+            } else {
+                owner->impl->coreClient->transportDisconnected(generation);
+            }
+        } catch (...) {
         }
-        implementation.detach(*control, std::move(clientFailure), implementation.clientCloseInProgress);
     }
 
     void Connection::close(std::string reason) noexcept {
         if (!control || !control->owner || !control->open) {
             return;
         }
-        Client::Impl& implementation = *control->owner->impl;
-        implementation.requestTransportClose(*control, std::move(reason));
-        const Error closeError = implementation.clientCloseInProgress
-                                     ? clientError(ClientErrorCode::Closed, "frontend client closed")
-                                     : clientError(ClientErrorCode::NotConnected, "frontend connection closed");
-        implementation.detach(*control, closeError, implementation.clientCloseInProgress);
+        Client* owner = control->owner;
+        const core::PhysicalGeneration generation = control->generation;
+        try {
+            owner->impl->coreClient->detach(generation, reason);
+        } catch (...) {
+        }
+        const std::optional<core::PhysicalGeneration> retained = owner->impl->coreClient->activeGeneration();
+        if (control && control->owner == owner && (!retained.has_value() || *retained != generation)) {
+            control->open = false;
+            control->connected = false;
+            control->owner = nullptr;
+        }
     }
 
     bool Connection::isOpen() const noexcept {
         return control && control->open;
     }
+
     bool Connection::isTransportConnected() const noexcept {
         return control && control->connected;
     }
+
     std::uint64_t Connection::generation() const noexcept {
         return control ? control->generation : 0;
     }
 
     void detail::ClientTestAccess::setNextRequest(Client& client, std::uint64_t next) noexcept {
-        client.impl->nextRequest = next;
+        core::ClientCoreTestAccess::setNextRequestId(*client.impl->coreClient, next);
     }
 
     void detail::ClientTestAccess::setNextConnectionGeneration(Client& client, std::uint64_t next) noexcept {
-        client.impl->nextConnectionGeneration = next;
+        core::ClientCoreTestAccess::setGenerationCounter(*client.impl->coreClient, next);
     }
 
     void detail::ClientTestAccess::setSynchronizationCounts(Client& client,
                                                             std::size_t received,
                                                             std::size_t applied,
                                                             std::size_t ignored) noexcept {
-        client.impl->synchronizationReceivedEvents = received;
-        client.impl->synchronizationAppliedEvents = applied;
-        client.impl->synchronizationIgnoredEvents = ignored;
+        core::ClientCoreTestAccess::setSynchronizationCounts(*client.impl->coreClient, received, applied, ignored);
     }
 
     bool detail::ClientTestAccess::tryAccumulateSynchronizationCounts(Client& client,
                                                                       std::size_t received,
                                                                       std::size_t applied,
                                                                       std::size_t ignored) noexcept {
-        return client.impl->tryAccumulateSynchronizationCounts(received, applied, ignored);
+        return core::ClientCoreTestAccess::tryAccumulateSynchronizationCounts(*client.impl->coreClient, received, applied, ignored);
     }
 
     std::array<std::size_t, 3> detail::ClientTestAccess::synchronizationCounts(const Client& client) noexcept {
-        return {
-            client.impl->synchronizationReceivedEvents,
-            client.impl->synchronizationAppliedEvents,
-            client.impl->synchronizationIgnoredEvents,
-        };
+        return core::ClientCoreTestAccess::synchronizationCounts(*client.impl->coreClient);
     }
 
     void detail::ClientTestAccess::failNextHelloConstruction(Client& client) noexcept {
-        client.impl->failNextHelloConstructionForTesting = true;
+        client.impl->failNextHelloConstruction = true;
     }
 
     void detail::ClientTestAccess::failAfterNextDispatch(Client& client) noexcept {
-        client.impl->failAfterNextDispatchForTesting = true;
+        core::ClientCoreTestAccess::failAfterNextDispatch(*client.impl->coreClient);
+    }
+
+    bool detail::ClientTestAccess::rejectInvalidSynchronizationAdapterResultWithThrowingCallback(Client& client) noexcept {
+        const std::optional<core::PhysicalGeneration> generation = client.impl->coreClient->activeGeneration();
+        if (!generation.has_value()) {
+            return false;
+        }
+        bool callbackInvoked = false;
+        try {
+            core::OperationResult invalid;
+            invalid.requestId = "adapter-test";
+            invalid.method = frontend::generated::MethodId::SnapshotGet;
+            invalid.generation = *generation;
+            client.impl->completeSynchronizationAdapter(
+                invalid, frontend::SyncMode::Snapshot, [&callbackInvoked](const OperationResult<SynchronizationResult>&) {
+                    callbackInvoked = true;
+                    throw std::runtime_error("invalid synchronization adapter callback sentinel");
+                });
+        } catch (...) {
+        }
+        return callbackInvoked;
     }
 
     std::size_t detail::ClientTestAccess::erasedTransientBytes(const Client& client) noexcept {
-        return client.impl->erasedTransientBytes;
+        std::size_t result = client.impl->erasedTransientBytes;
+        addSaturated(result, core::ClientCoreTestAccess::erasedTransientBytes(*client.impl->coreClient));
+        return result;
     }
 
     std::size_t detail::ClientTestAccess::verifiedMovedFromStringScrubs(const Client& client) noexcept {
@@ -2464,6 +1266,10 @@ namespace ai::openai::codex::frontend::client {
         const std::size_t sourceScrubbed = securelyErase(source, &sourceZeroed);
         const std::size_t destinationScrubbed = securelyErase(destination, &destinationZeroed);
         return sourceZeroed && destinationZeroed && sourceScrubbed != 0 && destinationScrubbed >= sentinelBytes;
+    }
+
+    State detail::ClientTestAccess::adoptStateStorage(Client& client, std::shared_ptr<const StateStorage> storage) noexcept {
+        return client.impl->stateFactory(std::move(storage));
     }
 
 } // namespace ai::openai::codex::frontend::client

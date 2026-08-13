@@ -12,7 +12,6 @@
 #include "ai/openai/codex/frontend/client/Changes.h"
 #include "ai/openai/codex/frontend/client/GeneratedBindings.h"
 #include "ai/openai/codex/frontend/client/Transport.h"
-#include "ai/openai/codex/frontend/client/detail/StateReducer.h"
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 #include "ai/openai/codex/frontend/internal/server/ServerCore.h"
 
@@ -137,8 +136,7 @@ namespace tests::codex::frontend_compatibility {
         if (source.credentialProvider) {
             target.credentialProvider = [provider = source.credentialProvider]() mutable {
                 public_client::AuthenticationContext authentication = provider();
-                return core_client::AuthenticationContext{std::move(authentication.credential),
-                                                          std::move(authentication.continuityKey)};
+                return core_client::AuthenticationContext{std::move(authentication.credential), std::move(authentication.continuityKey)};
             };
         }
         target.limits.maximumInboundMessageBytes = source.maximumInboundMessageBytes;
@@ -156,8 +154,7 @@ namespace tests::codex::frontend_compatibility {
         if (source.credentialProvider) {
             target.credentialProvider = [provider = source.credentialProvider]() mutable {
                 core_client::AuthenticationContext authentication = provider();
-                return public_client::AuthenticationContext{std::move(authentication.credential),
-                                                            std::move(authentication.continuityKey)};
+                return public_client::AuthenticationContext{std::move(authentication.credential), std::move(authentication.continuityKey)};
             };
         }
         target.maximumInboundMessageBytes = source.limits.maximumInboundMessageBytes;
@@ -303,60 +300,6 @@ namespace tests::codex::frontend_compatibility {
         return target;
     }
 
-    inline std::optional<public_client::State> publicState(const core_client::PublishedState& source,
-                                                           std::size_t maximumBytes,
-                                                           std::size_t maximumRetainedDiagnostics,
-                                                           bool allowLegacyV1,
-                                                           std::string& error) {
-        if (!source.snapshot || !source.session) {
-            return public_client::detail::StateReducer::withRevisionForTesting(
-                public_client::detail::StateReducer::initial(), source.revision);
-        }
-        const public_client::SessionInfo session = publicSession(*source.session);
-        std::optional<public_client::ProjectionFingerprintMetadata> fingerprint;
-        if (source.projectionFingerprint) {
-            fingerprint = public_client::ProjectionFingerprintMetadata{*source.projectionFingerprint};
-        }
-        auto staging = public_client::detail::StateReducer::synchronizationStaging(
-            session, std::nullopt, maximumBytes, allowLegacyV1, error, fingerprint);
-        if (!staging) {
-            return std::nullopt;
-        }
-        auto encoded = core_model::encodeProjectedSnapshot(*source.snapshot, source.session->selectedCapabilities);
-        if (!encoded) {
-            error = encoded.error().message;
-            return std::nullopt;
-        }
-        auto reduced = public_client::detail::StateReducer::snapshot(*staging,
-                                                                     encoded.value(),
-                                                                     session,
-                                                                     maximumBytes,
-                                                                     maximumRetainedDiagnostics,
-                                                                     allowLegacyV1,
-                                                                     error,
-                                                                     fingerprint);
-        if (!reduced) {
-            return std::nullopt;
-        }
-        public_client::State state = std::move(reduced->state);
-        if (source.freshness == core_client::PublishedFreshness::Current) {
-            const core_model::FrontendSequence synchronized = source.synchronizedThrough.value_or(source.snapshot->sequence);
-            auto finished = public_client::detail::StateReducer::synchronized(
-                state, frontend::SequenceNumber(synchronized.value()), session, maximumBytes, error, fingerprint);
-            if (!finished) {
-                return std::nullopt;
-            }
-            state = std::move(finished->state);
-        } else if (source.freshness == core_client::PublishedFreshness::Stale) {
-            auto stale = public_client::detail::StateReducer::stale(state, maximumBytes, error);
-            if (!stale) {
-                return std::nullopt;
-            }
-            state = std::move(*stale);
-        }
-        return public_client::detail::StateReducer::withRevisionForTesting(state, source.revision);
-    }
-
     inline public_client::ConnectionState connectionState(core_client::ConnectionState value) noexcept {
         switch (value) {
             case core_client::ConnectionState::Disconnected:
@@ -375,144 +318,6 @@ namespace tests::codex::frontend_compatibility {
                 return public_client::ConnectionState::Closed;
         }
         return public_client::ConnectionState::Closed;
-    }
-
-    inline public_client::UpdateCause updateCause(core_client::UpdateCause value) noexcept {
-        switch (value) {
-            case core_client::UpdateCause::InitialSnapshot:
-                return public_client::UpdateCause::InitialSnapshot;
-            case core_client::UpdateCause::InitialReplay:
-                return public_client::UpdateCause::InitialReplay;
-            case core_client::UpdateCause::ReconnectReplay:
-                return public_client::UpdateCause::ReconnectReplay;
-            case core_client::UpdateCause::ProjectionRefresh:
-                return public_client::UpdateCause::ProjectionRefresh;
-            case core_client::UpdateCause::SnapshotFallback:
-                return public_client::UpdateCause::SnapshotFallback;
-            case core_client::UpdateCause::ExplicitSnapshot:
-                return public_client::UpdateCause::ExplicitSnapshot;
-            case core_client::UpdateCause::ExplicitReplay:
-                return public_client::UpdateCause::ExplicitReplay;
-            case core_client::UpdateCause::Live:
-                return public_client::UpdateCause::Live;
-            case core_client::UpdateCause::ConnectionBecameStale:
-                return public_client::UpdateCause::ConnectionBecameStale;
-            case core_client::UpdateCause::SynchronizationCompleted:
-                return public_client::UpdateCause::SynchronizationCompleted;
-        }
-        return public_client::UpdateCause::Live;
-    }
-
-    struct ClientCallbackAdapterOptions {
-        std::size_t maximumDecodedStateBytes = 64U * 1024U * 1024U;
-        std::size_t maximumRetainedDiagnostics = 64;
-        bool allowLegacyV1 = true;
-    };
-
-    inline core_client::ClientCallbacks clientCallbacks(public_client::ClientCallbacks target,
-                                                         ClientCallbackAdapterOptions options = {}) {
-        struct Shared {
-            public_client::ClientCallbacks callbacks;
-            ClientCallbackAdapterOptions options;
-            std::optional<public_client::State> latest;
-        };
-        auto shared = std::make_shared<Shared>(Shared{std::move(target), options, std::nullopt});
-        core_client::ClientCallbacks result;
-        result.onConnectionStateChanged = [shared](const core_client::StateChange& source) {
-            if (shared->callbacks.onConnectionStateChanged) {
-                public_client::ConnectionStateChange change;
-                change.previous = connectionState(source.previous);
-                change.current = connectionState(source.current);
-                if (source.error) {
-                    change.error = publicError(*source.error);
-                }
-                shared->callbacks.onConnectionStateChanged(change);
-            }
-        };
-        result.onStatePublished = [shared](std::shared_ptr<const core_client::PublishedState> source) {
-            if (!source) {
-                return;
-            }
-            std::string error;
-            shared->latest = publicState(*source,
-                                         shared->options.maximumDecodedStateBytes,
-                                         shared->options.maximumRetainedDiagnostics,
-                                         shared->options.allowLegacyV1,
-                                         error);
-        };
-        result.onStateUpdated = [shared](const core_client::StateUpdate& source) {
-            if (!shared->callbacks.onStateUpdated || !source.state) {
-                return;
-            }
-            std::string error;
-            std::optional<public_client::State> state = publicState(*source.state,
-                                                                    shared->options.maximumDecodedStateBytes,
-                                                                    shared->options.maximumRetainedDiagnostics,
-                                                                    shared->options.allowLegacyV1,
-                                                                    error);
-            if (!state) {
-                return;
-            }
-            shared->latest = *state;
-            public_client::StateUpdate update;
-            update.state = *state;
-            update.cause = updateCause(source.cause);
-            if (source.fromSequence) {
-                update.fromSequence = frontend::SequenceNumber(source.fromSequence->value());
-            }
-            if (source.toSequence) {
-                update.toSequence = frontend::SequenceNumber(source.toSequence->value());
-            }
-            if (!source.changes.empty()) {
-                // A complete immutable State replacement is a lossless public
-                // notification even when the core has more granular private
-                // change identities. P3 may refine this additive optimization.
-                update.changes.emplace_back(public_client::StateReplacedChange{});
-            }
-            shared->callbacks.onStateUpdated(update);
-        };
-        result.onCursorAdvanced = [shared](core_model::FrontendSequence sequence) {
-            if (shared->callbacks.onCursorAdvanced) {
-                shared->callbacks.onCursorAdvanced(frontend::SequenceNumber(sequence.value()));
-            }
-        };
-        result.onSynchronized = [shared](const core_client::SynchronizationInfo& source) {
-            if (shared->callbacks.onSynchronized && shared->latest) {
-                public_client::SynchronizationInfo synchronized;
-                synchronized.mode = source.mode;
-                synchronized.synchronizedThrough = frontend::SequenceNumber(source.synchronizedThrough.value());
-                synchronized.state = *shared->latest;
-                synchronized.reconnect = !source.initial;
-                synchronized.snapshotFallback = source.snapshotFallback;
-                shared->callbacks.onSynchronized(synchronized);
-            }
-        };
-        result.onProtocolMessage = [shared](const frontend::ServerMessage& message) {
-            if (shared->callbacks.onProtocolMessage) {
-                shared->callbacks.onProtocolMessage(message);
-            }
-        };
-        result.onDiagnostic = [shared](const core_client::Diagnostic& source) {
-            if (shared->callbacks.onDiagnostic) {
-                public_client::Diagnostic diagnostic;
-                diagnostic.severity = static_cast<public_client::Diagnostic::Severity>(source.severity);
-                diagnostic.message = source.message;
-                if (source.error) {
-                    diagnostic.error = publicError(*source.error);
-                }
-                shared->callbacks.onDiagnostic(diagnostic);
-            }
-        };
-        result.onError = [shared](const core_client::ClientError& source) {
-            if (shared->callbacks.onDiagnostic) {
-                public_client::Diagnostic diagnostic;
-                diagnostic.severity = public_client::Diagnostic::Severity::Error;
-                diagnostic.message = source.message;
-                diagnostic.error = publicError(source);
-                shared->callbacks.onDiagnostic(diagnostic);
-            }
-        };
-        return result;
     }
 
     static_assert(static_cast<unsigned>(core_client::ClientErrorCode::CallbackFailure) ==

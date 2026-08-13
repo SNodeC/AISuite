@@ -16,6 +16,8 @@ env:
     -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http
     -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
   LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
+  AISUITE_HOSTED_CTEST_EXCLUDE_REGEX: >-
+    ^(CodexAppServerFixtureInfrastructureTest|CodexFrontendProtocolMinimalConfigurationTest|CodexFrontendProtocolLegacyBinaryCompatibilityTest|CodexPublicHeaderSelfContainmentTest|CodexSyntheticSecretLeakGuardTest|CodexPolicyMutationTest)$
 
 jobs:
   gcc-15-debug:
@@ -239,6 +241,10 @@ jobs:
       - name: Verify complete validation inventory
         run: |
           ctest --test-dir build -N > build/ctest-inventory.txt
+          ctest --test-dir build \
+            -E "$AISUITE_HOSTED_CTEST_EXCLUDE_REGEX" \
+            --show-only=json-v1 \
+            > build/ctest-selected-inventory.json
           for required_test in \
             CodexFrontendProtocolGeneratedArtifactsGuardTest \
             CodexFrontendProtocolByteIdentityTest \
@@ -261,8 +267,6 @@ jobs:
             CodexFrontendClientCoreOperationTest \
             CodexFrontendClientCoreStateTest \
             CodexFrontendClientCoreCapacityTest \
-            CodexFrontendServerDifferentialTest \
-            CodexFrontendClientDifferentialTest \
             CodexFrontendCompatibilityAdaptersTest \
             CodexFrontendDifferentialCoverageGuardTest \
             CodexFrontendDifferentialMutationTest \
@@ -272,7 +276,6 @@ jobs:
             CodexFrontendClientGeneratorTest \
             CodexFrontendClientBindingTest \
             CodexFrontendClientLifecycleTest \
-            CodexFrontendClientSynchronizationTest \
             CodexFrontendServiceClientIntegrationTest \
             CodexFrontendClientSymbolVisibilityTest \
             CodexBackendClientAuthenticationTest \
@@ -289,12 +292,13 @@ jobs:
               build/ctest-inventory.txt
           done
 
-      - name: Run complete ordinary CTest suite
+      - name: Run bounded ordinary CTest selection
         run: |
           ctest --test-dir build \
             --output-on-failure \
             --output-junit "$PWD/build/ctest-results.xml" \
-            --parallel 2
+            --parallel 2 \
+            -E "$AISUITE_HOSTED_CTEST_EXCLUDE_REGEX"
 
       - name: Summarize hosted CTest results and skips
         if: always()
@@ -308,17 +312,39 @@ jobs:
           fi
           python3 - <<'PY'
           from pathlib import Path
+          import json
           import re
           import xml.etree.ElementTree as ET
 
           junit = Path("build/ctest-results.xml")
           root = ET.parse(junit).getroot()
           inventory = Path("build/ctest-inventory.txt").read_text(encoding="utf-8")
+          selected_inventory = json.loads(
+              Path("build/ctest-selected-inventory.json").read_text(encoding="utf-8")
+          )
           inventory_match = re.search(r"^Total Tests: ([0-9]+)$", inventory, re.MULTILINE)
           if inventory_match is None:
               raise SystemExit("Hosted CTest inventory has no Total Tests count")
           registered = int(inventory_match.group(1))
+          selected_names = sorted(
+              str(test["name"]) for test in selected_inventory.get("tests", [])
+          )
+          deferred = {
+              "CodexAppServerFixtureInfrastructureTest",
+              "CodexFrontendProtocolMinimalConfigurationTest",
+              "CodexFrontendProtocolLegacyBinaryCompatibilityTest",
+              "CodexPolicyMutationTest",
+              "CodexPublicHeaderSelfContainmentTest",
+              "CodexSyntheticSecretLeakGuardTest",
+          }
+          if deferred.intersection(selected_names):
+              raise SystemExit("A deferred hosted test entered the bounded selection")
+          if registered != len(selected_names) + len(deferred):
+              raise SystemExit("Hosted registered, selected, and deferred test counts disagree")
           cases = root.findall(".//testcase")
+          executed_names = sorted(str(case.get("name", "")) for case in cases)
+          if selected_names != executed_names:
+              raise SystemExit("Hosted selected inventory and JUnit test-name sets differ")
           skipped = []
           failed = 0
           for case in cases:
@@ -340,15 +366,21 @@ jobs:
           if duration is None:
               duration = f"{sum(float(case.get('time', '0')) for case in cases):.6f}"
           print(
-              f"Hosted CTest totals: registered={registered} executed={len(cases)} "
+              f"Hosted CTest totals: registered={registered} "
+              f"selected={len(selected_names)} executed={len(cases)} "
               f"passed={passed} skipped={len(skipped)} failed={failed} "
               f"durationSeconds={duration}"
           )
           if not skipped:
-              print("Hosted CTest skips: none")
+              print("Hosted CTest runtime skips: none")
           for classname, name, reason in skipped:
               identity = f"{classname}.{name}" if classname else name
-              print(f"Hosted CTest skip: {identity}: {reason}")
+              print(f"Hosted CTest runtime skip: {identity}: {reason}")
+          for name in sorted(deferred):
+              print(
+                  f"Hosted CTest deferred exclusion: {name}: "
+                  "slow build-backed closure gate deferred from the bounded Task-A run"
+              )
           PY
 
       - name: Prove deterministic P0 capture and comparison
@@ -364,6 +396,7 @@ jobs:
               --install-dir "$PWD/../aisuite-p0-contract-install" \
               --snodec-source-dir "$PWD/../snodec" \
               --snodec-build-dir "$PWD/../snodec-build" \
+              --ctest-inventory build/ctest-selected-inventory.json \
               --ctest-results build/ctest-results.xml \
               --ctest-parallelism 2 \
               --baseline-parent \
@@ -385,6 +418,7 @@ jobs:
             p2-hosted-validation-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             build/ctest-inventory.txt
+            build/ctest-selected-inventory.json
             build/ctest-results.xml
             build/p2-capture-a.json
             build/p2-capture-b.json

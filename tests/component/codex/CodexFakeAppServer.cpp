@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
+#include <algorithm>
 #include <cerrno>
 #include <csignal>
 #include <cstdlib>
@@ -33,6 +34,18 @@ namespace {
             } else {
                 return false;
             }
+        }
+        return true;
+    }
+
+    bool writeRepeated(int fd, char value, std::size_t count) {
+        const std::string chunk(16U * 1024U, value);
+        while (count > 0) {
+            const std::size_t current = std::min(count, chunk.size());
+            if (!writeAll(fd, std::string_view(chunk).substr(0, current))) {
+                return false;
+            }
+            count -= current;
         }
         return true;
     }
@@ -991,10 +1004,17 @@ int main(int argc, char* argv[]) {
     }
 
     if (mode == "stdio-framing") {
-        if (!input.waitForEof(true)) {
+        constexpr std::size_t AcceptedPayloadBytes = 1024U * 1024U + 4096U;
+        constexpr std::size_t RejectedFrameBytes = 16U * 1024U * 1024U + 1U;
+        if (!writeJson({{"method", "test/large-frame"}, {"params", {{"payload", std::string(AcceptedPayloadBytes, 'a')}}}})) {
             return 27;
         }
-        return writeAll(STDERR_FILENO, "stdio-framing-ok\n") ? 0 : 28;
+        Json acknowledgement;
+        if (!readJson(input, acknowledgement) || acknowledgement.value("method", "") != "test/large-frame-accepted") {
+            return 28;
+        }
+        static_cast<void>(writeRepeated(STDOUT_FILENO, 'x', RejectedFrameBytes));
+        return 0;
     }
 
     if (!writeAll(STDERR_FILENO, mode == "slow-stdin" ? "slow-initialized\n" : "initialized-ok\n")) {

@@ -31,6 +31,8 @@
 
 namespace ai::openai::codex::frontend::internal::server {
 
+    class ServerCore;
+
     class ConnectionIdentity {
     public:
         constexpr ConnectionIdentity() noexcept = default;
@@ -94,6 +96,15 @@ namespace ai::openai::codex::frontend::internal::server {
         }
     };
 
+    // One BackendCore observer callback is one semantic staging transaction.
+    // Keeping the whole callback under a single ServerCore dispatch scope
+    // preserves coalescing even when an injected scheduler runs inline.
+    struct OccurrenceStageRequest {
+        OccurrenceCoalescingKey key;
+        model::OccurrenceDraft occurrence;
+        OccurrenceFlushUrgency urgency = OccurrenceFlushUrgency::Deferred;
+    };
+
     struct CommandToken {
         ConnectionIdentity connection;
         std::uint64_t connectionGeneration = 0;
@@ -108,6 +119,17 @@ namespace ai::openai::codex::frontend::internal::server {
         model::SessionIdentity session;
         FrontendPrincipal principal;
         generated::DefinedCommand command;
+    };
+
+    // Identifies the exact physical frontend generation for the lifetime of
+    // its authenticated backend session.  The semantic session identity is
+    // intentionally independent from BackendCore's private SessionId.
+    struct FrontendSessionToken {
+        ConnectionIdentity connection;
+        std::uint64_t connectionGeneration = 0;
+        model::SessionIdentity session;
+
+        bool operator==(const FrontendSessionToken&) const = default;
     };
 
     enum class BackendSubmitStatus { Accepted, Unavailable, CapacityExceeded, Rejected };
@@ -146,10 +168,27 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] virtual BackendSubmitStatus submit(BackendInvocation invocation) = 0;
         [[nodiscard]] virtual bool performProviderLifecycleAction(ProviderLifecycleAction action) = 0;
 
+        virtual void bind(ServerCore&) noexcept {
+        }
+        virtual void unbind(ServerCore&) noexcept {
+        }
+
+        [[nodiscard]] virtual bool sessionOpened(const FrontendSessionToken& token, const FrontendPrincipal& principal) {
+            sessionOpened(token.session, principal);
+            return true;
+        }
+        virtual void sessionClosed(const FrontendSessionToken& token) noexcept {
+            sessionClosed(token.session);
+        }
+
+        // Compatibility hooks for the P2 test ports. Production adapters use
+        // the generation-aware overloads above.
         virtual void sessionOpened(const model::SessionIdentity&, const FrontendPrincipal&) {
         }
         virtual void sessionClosed(const model::SessionIdentity&) noexcept {
         }
+        // Retained only as an internal source-compatibility hook for P2 test
+        // ports. ServerCore never uses it as a production controller contract.
         virtual void controllerChanged(const std::optional<model::SessionIdentity>&) noexcept {
         }
     };
@@ -284,11 +323,23 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] OccurrenceStageResult stageGroup(OccurrenceCoalescingKey key,
                                                        model::OccurrenceDraft occurrence,
                                                        OccurrenceFlushUrgency urgency = OccurrenceFlushUrgency::Deferred) noexcept;
-        [[nodiscard]] OccurrenceStageResult
-        requireSnapshot(OccurrenceFlushUrgency urgency = OccurrenceFlushUrgency::Immediate) noexcept;
+        [[nodiscard]] OccurrenceStageResult stageGroups(std::vector<OccurrenceStageRequest> groups) noexcept;
+        [[nodiscard]] OccurrenceStageResult requireSnapshot(OccurrenceFlushUrgency urgency = OccurrenceFlushUrgency::Immediate) noexcept;
         [[nodiscard]] PublishResult publishGroup(model::OccurrenceDraft occurrence) noexcept;
         [[nodiscard]] SnapshotPublishResult publishSnapshot(model::CanonicalSnapshot snapshot) noexcept;
         void invalidateReplay() noexcept;
+
+        // BackendCoreBridge reserves frontend-visible identities for sessions
+        // owned by other in-process BackendCore consumers from the opposite
+        // end of the numeric identity space. These source-private seams keep
+        // external topology in ServerCore's one canonical authority without
+        // exposing BackendCore SessionIds.
+        [[nodiscard]] std::optional<model::SessionIdentity> reserveExternalSessionIdentity() noexcept;
+        [[nodiscard]] bool replaceExternalTopology(std::vector<model::SessionState> sessions,
+                                                   std::optional<model::SessionIdentity> controller,
+                                                   bool bridgeControllerPresent) noexcept;
+        [[nodiscard]] bool externalSessionChanged(model::SessionState session, bool connected) noexcept;
+        [[nodiscard]] bool externalControllerChanged(std::optional<model::SessionIdentity> controller) noexcept;
 
         void flush();
         void flushConnection(ConnectionIdentity connection);

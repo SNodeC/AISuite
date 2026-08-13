@@ -9,7 +9,6 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
-#include "apps/codex-backend/FrontendRuntimeBridge.h"
 #include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
 #include "apps/codex-backend/FrontendWebApplication.h"
 #include "core/SNodeC.h"
@@ -154,7 +153,7 @@ namespace {
     class ClientSubProtocol final : public web::websocket::client::SubProtocol {
     public:
         ClientSubProtocol(web::websocket::SubProtocolContext* context, IntegrationState& state, CaseKind kind)
-            : web::websocket::client::SubProtocol(context, std::string(app::FrontendWebSocketSubProtocol), 0, 3)
+            : web::websocket::client::SubProtocol(context, std::string(app::FrontendWebSocketSubProtocolName), 0, 3)
             , state(state)
             , kind(kind) {
         }
@@ -321,7 +320,7 @@ namespace {
     class ClientFactory final : public web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol> {
     public:
         explicit ClientFactory(IntegrationState& state)
-            : web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>(std::string(app::FrontendWebSocketSubProtocol))
+            : web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>(std::string(app::FrontendWebSocketSubProtocolName))
             , state(state) {
         }
 
@@ -372,8 +371,6 @@ namespace {
                 return authenticate(state, peer, credential);
             };
             frontend::FrontendService service(backend, std::move(serviceOptions));
-            result.expectTrue(app::installFrontendRuntime(service),
-                              "the application-private plugin bridge installs the one FrontendService reference");
 
             app::FrontendWebApplication webApplication(service,
                                                        app::FrontendWebApplicationOptions{
@@ -443,7 +440,7 @@ namespace {
                         ++state.cases[caseIndex(kind)].httpConnected;
                         request->set("Sec-WebSocket-Protocol",
                                      kind == CaseKind::WrongSubprotocol ? "credential-sentinel-subprotocol"
-                                                                        : std::string(app::FrontendWebSocketSubProtocol));
+                                                                        : std::string(app::FrontendWebSocketSubProtocolName));
                         if (kind == CaseKind::GoodText) {
                             request->set("Origin", sameOrigin);
                         }
@@ -493,7 +490,8 @@ namespace {
             };
 
             web::websocket::client::SocketContextUpgradeFactory::link();
-            web::websocket::client::SubProtocolFactorySelector::link(std::string(app::FrontendWebSocketSubProtocol), createClientFactory);
+            web::websocket::client::SubProtocolFactorySelector::link(std::string(app::FrontendWebSocketSubProtocolName),
+                                                                     createClientFactory);
 
             webApp.listen(net::in::SocketAddress("127.0.0.1", 0),
                           [&state, &service, &websocketPort, &startClientWhenReady](const net::in::SocketAddress& address,
@@ -529,7 +527,6 @@ namespace {
             eventLoopResult = core::SNodeC::start();
             state.clients.clear();
             service.close("WebSocket integration complete");
-            app::uninstallFrontendRuntime(service);
         }
         core::SNodeC::free();
         linkedState = nullptr;

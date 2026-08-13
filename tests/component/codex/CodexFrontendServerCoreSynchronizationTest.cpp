@@ -31,6 +31,7 @@ namespace {
     namespace generated = ai::openai::codex::frontend::generated;
     namespace model = ai::openai::codex::frontend::internal::model;
     namespace server = ai::openai::codex::frontend::internal::server;
+    namespace typed = ai::openai::codex::typed;
 
     constexpr std::string_view OpaqueDataKey = "futureProviderState";
     constexpr std::string_view OpaqueDataValue = "safe-looking-but-opaque-sentinel";
@@ -48,8 +49,28 @@ namespace {
             return state;
         }
 
-        [[nodiscard]] server::BackendSubmitStatus submit(server::BackendInvocation) override {
+        [[nodiscard]] server::BackendSubmitStatus submit(server::BackendInvocation invocation) override {
+            if (core && (invocation.token.method == generated::MethodId::ControllerAcquire ||
+                         invocation.token.method == generated::MethodId::ControllerRelease)) {
+                const bool acquire = invocation.token.method == generated::MethodId::ControllerAcquire;
+                static_cast<void>(core->complete(server::BackendCompletion{
+                    invocation.token,
+                    server::BackendCommandSuccess{generated::makeResult(
+                        invocation.token.method,
+                        acquire ? frontend::Json{{"controllerSessionId", invocation.session.value()}, {"role", "controller"}}
+                                : frontend::Json{{"role", "observer"}})}}));
+            }
             return server::BackendSubmitStatus::Accepted;
+        }
+
+        void bind(server::ServerCore& boundCore) noexcept override {
+            core = &boundCore;
+        }
+
+        void unbind(server::ServerCore& boundCore) noexcept override {
+            if (core == &boundCore) {
+                core = nullptr;
+            }
         }
 
         [[nodiscard]] bool performProviderLifecycleAction(server::ProviderLifecycleAction) override {
@@ -57,6 +78,7 @@ namespace {
         }
 
         model::CanonicalSnapshot state;
+        server::ServerCore* core = nullptr;
     };
 
     frontend::AuthenticationResult authenticate(const frontend::FrontendPeerContext&, const frontend::AuthenticationCredential&) {
@@ -94,6 +116,12 @@ namespace {
         model::ProviderState provider;
         provider.lifecycle = ready ? model::ProviderLifecycle::Ready : model::ProviderLifecycle::Stopped;
         return {model::SourceStamp{"backend-event:" + source}, model::ProviderUpdatedOccurrence{std::move(provider)}};
+    }
+
+    model::OccurrenceDraft processOccurrence(std::string source, std::string handle) {
+        model::ProcessState process{model::ProcessHandle{std::move(handle)}};
+        process.lifecycle = "running";
+        return {model::SourceStamp{"backend-event:" + source}, model::ProcessUpdatedOccurrence{std::move(process)}};
     }
 
     model::OccurrenceDraft expandedGroup() {
@@ -176,6 +204,12 @@ namespace {
         configuration.state = model::DomainState::present();
         return {model::SourceStamp{"backend-event:900"},
                 model::ConfigurationUpdatedOccurrence{std::move(configuration)}};
+    }
+
+    model::OccurrenceDraft modelsOccurrence() {
+        model::ModelsState models;
+        models.state = model::DomainState::present();
+        return {model::SourceStamp{"backend-event:901"}, model::ModelsUpdatedOccurrence{std::move(models)}};
     }
 
     void drainOne(std::vector<std::function<void()>>& scheduled) {
@@ -349,10 +383,19 @@ namespace {
                               !mixedScheduled.empty(),
                           "mixed-capability client synchronizes with independent event-family capabilities");
         drainOne(mixedScheduled);
+
+        std::vector<frontend::ServerMessage> legacyMixedMessages;
+        const auto legacyMixedConnection = mixed.openConnection({}, collect(legacyMixedMessages));
+        result.expectTrue(legacyMixedConnection &&
+                              mixed.receive(*legacyMixedConnection, frontend::ClientMessage{frontend::Hello{}}).accepted() &&
+                              !mixedScheduled.empty(),
+                          "a legacy-capability connection synchronizes beside the expanded notification connection");
+        drainOne(mixedScheduled);
         mixedMessages.clear();
+        legacyMixedMessages.clear();
         result.expectTrue(mixed.publishGroup(providerOccurrence("201", true)).accepted &&
                               mixed.publishGroup(itemContentOccurrence()).accepted &&
-                              mixed.publishGroup(configurationOccurrence()).accepted,
+                              mixed.publishGroup(configurationOccurrence()).accepted && mixed.publishGroup(modelsOccurrence()).accepted,
                           "mixed-capability occurrences enter one typed pending delivery turn");
         drainOne(mixedScheduled);
         const auto batchType = [](const frontend::ServerMessage& message) -> std::string {
@@ -361,8 +404,16 @@ namespace {
         };
         result.expectTrue(mixedMessages.size() == 3 && batchType(mixedMessages[0]) == "provider.updated" &&
                               batchType(mixedMessages[1]) == "item.content.updated" &&
-                              batchType(mixedMessages[2]) == "configuration.updated",
+                              batchType(mixedMessages[2]) == "configuration.updated" &&
+                              std::get<frontend::EventBatch>(mixedMessages[2]).events.size() == 2 &&
+                              std::get<frontend::EventBatch>(mixedMessages[2]).events[1].type == "models.updated",
                           "independent capabilities force expanded/legacy/expanded representation switches into separate batches");
+        const auto* legacyMixedBatch =
+            legacyMixedMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&legacyMixedMessages.front()) : nullptr;
+        result.expectTrue(legacyMixedBatch && legacyMixedBatch->events.size() == 2 &&
+                              legacyMixedBatch->events[0].type == "backend.lifecycle.changed" &&
+                              legacyMixedBatch->events[1].type == "item.content.updated" && mixed.connectionOpen(*legacyMixedConnection),
+                          "a connection without dedicated notification events omits direct-expanded domain occurrences without closing");
 
         Backend oversizedBackend;
         std::vector<std::function<void()>> oversizedScheduled;
@@ -385,18 +436,92 @@ namespace {
                           "expanded client synchronizes before the unsplittable-group probe");
         drainOne(oversizedScheduled);
         oversizedMessages.clear();
+
+        backend::Snapshot postTurnBackend;
+        backend::TurnSnapshot postTurn;
+        postTurn.id = "post-turn";
+        postTurn.threadId = "post-thread";
+        postTurn.status = "completed";
+        postTurn.terminal = true;
+        postTurn.tokenUsage = frontend::Json{{"last", {{"inputTokens", 3}, {"outputTokens", 1}, {"totalTokens", 4}}},
+                                             {"modelContextWindow", 258'400},
+                                             {"total", {{"inputTokens", 7}, {"outputTokens", 2}, {"totalTokens", 9}}}};
+        backend::ThreadSnapshot postThread;
+        postThread.id = "post-thread";
+        postThread.turns.push_back(std::move(postTurn));
+        postTurnBackend.threads.push_back(std::move(postThread));
+        server::BackendProjection backendProjection;
+        const model::ModelResult<model::CanonicalSnapshot> projectedPostTurn = backendProjection.projectSnapshot(postTurnBackend);
+        result.expectTrue(projectedPostTurn.hasValue(), "a completed turn with current Codex token usage projects canonically");
+        if (projectedPostTurn) {
+            oversizedBackend.state = projectedPostTurn.value();
+        }
+
+        typed::Turn completedTurn;
+        completedTurn.id = typed::TurnId{"post-turn"};
+        completedTurn.threadId = typed::ThreadId{"post-thread"};
+        completedTurn.status = typed::TurnStatus::completed();
+        const std::vector<backend::SequencedBackendEvent> completedEvents{
+            {backend::SequenceNumber{1}, backend::TurnCompleted{std::move(completedTurn)}}};
+        model::ModelResult<server::ProjectedBackendBatch> projectedCompletion =
+            backendProjection.projectOccurrences(completedEvents, postTurnBackend);
+        std::vector<server::OccurrenceStageRequest> completionGroups;
+        const bool projectedCompletionValid = projectedCompletion.hasValue();
+        bool completionSnapshotRequired = false;
+        if (projectedCompletion) {
+            server::ProjectedBackendBatch completion = std::move(projectedCompletion).value();
+            completionSnapshotRequired = completion.snapshotRequired;
+            for (server::ProjectedBackendOccurrence& occurrence : completion.occurrences) {
+                completionGroups.push_back(
+                    {std::move(occurrence.key), std::move(occurrence.occurrence), occurrence.urgency});
+            }
+        }
+        result.expectTrue(projectedCompletionValid && !completionSnapshotRequired && completionGroups.size() == 1 &&
+                              oversized.stageGroups(std::move(completionGroups)).accepted() && !oversizedScheduled.empty(),
+                          "the terminal turn occurrence remains representable after token usage is retained");
+        drainOne(oversizedScheduled);
+        result.expectTrue(oversizedMessages.size() == 1 && std::holds_alternative<frontend::EventBatch>(oversizedMessages.front()) &&
+                              oversized.connectionOpen(*oversizedConnection),
+                          "the terminal turn occurrence is journaled and delivered without an erroneous fallback");
+        oversizedMessages.clear();
+
         const server::PublishResult oversizedPublished = oversized.publishGroup(expandedGroup());
         drainOne(oversizedScheduled);
+        const auto* postTurnFallback =
+            oversizedMessages.size() == 1 ? std::get_if<frontend::Snapshot>(&oversizedMessages.front()) : nullptr;
+        const frontend::Json* postTurnUsage = nullptr;
+        if (postTurnFallback && postTurnFallback->state.contains("turns") && postTurnFallback->state.at("turns").size() == 1) {
+            const frontend::Json& encodedTurn = postTurnFallback->state.at("turns").front();
+            const auto usage = encodedTurn.find("tokenUsage");
+            postTurnUsage = usage != encodedTurn.end() ? &*usage : nullptr;
+        }
         result.expectTrue(oversizedPublished.accepted && oversizedMessages.size() == 1 &&
-                              std::holds_alternative<frontend::Snapshot>(oversizedMessages.front()) &&
+                              postTurnFallback && postTurnUsage && postTurnUsage->is_object() &&
+                              postTurnUsage->value("modelContextWindow", 0) == 258'400 && !postTurnUsage->contains("last") &&
+                              !postTurnUsage->contains("total") && oversized.connectionOpen(*oversizedConnection),
+                          "a post-turn Snapshot fallback bounds nested token usage to Frontend Protocol v1 and stays connected");
+
+        oversizedMessages.clear();
+        generated::DefinedCommand explicitSnapshot{
+            "post-turn-snapshot", generated::makeParameters(generated::MethodId::SnapshotGet, frontend::Json::object())};
+        result.expectTrue(oversized.receiveDefinedCommand(*oversizedConnection, std::move(explicitSnapshot)).accepted() &&
+                              !oversizedScheduled.empty(),
+                          "the same connection accepts an explicit Snapshot after post-turn fallback");
+        drainOne(oversizedScheduled);
+        result.expectTrue(std::any_of(oversizedMessages.begin(),
+                                     oversizedMessages.end(),
+                                     [](const frontend::ServerMessage& message) {
+                                         return std::holds_alternative<frontend::Snapshot>(message);
+                                     }) &&
                               oversized.connectionOpen(*oversizedConnection),
-                          "one expanded occurrence that cannot fit atomically falls back to Snapshot instead of closing");
+                          "the explicit post-turn Snapshot encodes and leaves the original connection open");
 
         std::vector<frontend::ServerMessage> oversizedReplayMessages;
         const auto oversizedReplay = oversized.openConnection({}, collect(oversizedReplayMessages));
         frontend::Hello oversizedReplayHello;
         oversizedReplayHello.resumeAfter = frontend::SequenceNumber{0};
-        oversizedReplayHello.capabilities = std::vector{frontend::FrontendCapability::DedicatedNotificationEvents};
+        oversizedReplayHello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                                        frontend::FrontendCapability::DedicatedNotificationEvents};
         result.expectTrue(oversizedReplay &&
                               oversized.receive(*oversizedReplay, frontend::ClientMessage{std::move(oversizedReplayHello)}).accepted() &&
                               !oversizedScheduled.empty(),
@@ -410,6 +535,97 @@ namespace {
                               std::holds_alternative<frontend::SyncComplete>(oversizedReplayMessages[2]) &&
                               std::holds_alternative<frontend::EventBatch>(oversizedReplayMessages[3]),
                           "initial synchronization advertises Snapshot when projected replay cannot preserve an atomic group");
+    }
+
+    void testScopeFilteredSparseReplay(tests::support::TestResult& result) {
+        Backend backend;
+        backend.state.provider.lifecycle = model::ProviderLifecycle::Ready;
+        backend.state.processes.emplace_back(model::ProcessHandle{"hidden-snapshot-process"});
+        backend.state.processes.back().lifecycle = "running";
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.scheduler = [](std::function<void()> callback) {
+            callback();
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        const server::PublishResult visibleFirst = core.publishGroup(providerOccurrence("301", false));
+        const server::PublishResult hiddenMiddle = core.publishGroup(processOccurrence("302", "hidden-middle-process"));
+        const server::PublishResult visibleSecond = core.publishGroup(providerOccurrence("303", true));
+        const server::PublishResult hiddenSuffix = core.publishGroup(processOccurrence("304", "hidden-suffix-process"));
+        result.expectTrue(visibleFirst.accepted && hiddenMiddle.accepted && visibleSecond.accepted && hiddenSuffix.accepted &&
+                              visibleFirst.sequence == model::FrontendSequence{1} && hiddenMiddle.sequence == model::FrontendSequence{2} &&
+                              visibleSecond.sequence == model::FrontendSequence{3} && hiddenSuffix.sequence == model::FrontendSequence{4},
+                          "hidden scoped occurrences retain their canonical global sequence positions");
+
+        std::vector<frontend::ServerMessage> replayMessages;
+        const auto replay = core.openConnection({}, collect(replayMessages));
+        frontend::Hello replayHello;
+        replayHello.resumeAfter = frontend::SequenceNumber{0};
+        replayHello.capabilities = {frontend::FrontendCapability::CompleteBackendDomains,
+                                    frontend::FrontendCapability::DedicatedNotificationEvents};
+        const bool replayAccepted = replay && core.receive(*replay, frontend::ClientMessage{std::move(replayHello)}).accepted();
+        const auto* welcome = !replayMessages.empty() ? std::get_if<frontend::Welcome>(&replayMessages.front()) : nullptr;
+        const auto* replayBatch = replayMessages.size() > 1 ? std::get_if<frontend::EventBatch>(&replayMessages[1]) : nullptr;
+        const auto* synchronized = replayMessages.size() > 2 ? std::get_if<frontend::SyncComplete>(&replayMessages[2]) : nullptr;
+        result.expectTrue(
+            replayAccepted && welcome && welcome->syncMode == frontend::SyncMode::Replay &&
+                welcome->currentSequence == frontend::SequenceNumber{4} && replayBatch &&
+                replayBatch->fromSequence == frontend::SequenceNumber{1} && replayBatch->toSequence == frontend::SequenceNumber{3} &&
+                replayBatch->events.size() == 2 && replayBatch->events[0].sequence == frontend::SequenceNumber{1} &&
+                replayBatch->events[1].sequence == frontend::SequenceNumber{3} && synchronized &&
+                synchronized->sequence == frontend::SequenceNumber{4} && replayMessages.size() == 4,
+            "scope-filtered replay is sparse, while its cursor completes through the hidden suffix without a fabricated event");
+
+        std::vector<frontend::ServerMessage> snapshotMessages;
+        const auto snapshotConnection = core.openConnection({}, collect(snapshotMessages));
+        frontend::Hello snapshotHello;
+        snapshotHello.capabilities = {frontend::FrontendCapability::CompleteBackendDomains,
+                                      frontend::FrontendCapability::DedicatedNotificationEvents};
+        const bool snapshotAccepted =
+            snapshotConnection && core.receive(*snapshotConnection, frontend::ClientMessage{std::move(snapshotHello)}).accepted();
+        const auto* snapshot = snapshotMessages.size() > 1 ? std::get_if<frontend::Snapshot>(&snapshotMessages[1]) : nullptr;
+        result.expectTrue(snapshotAccepted && snapshot && snapshot->sequence == frontend::SequenceNumber{5} &&
+                              snapshot->state.contains("provider") && snapshot->state.at("provider").value("lifecycle", "") == "ready" &&
+                              !snapshot->state.contains("processes"),
+                          "Snapshot synchronization exposes the same authorized state while omitting the scoped process domain");
+    }
+
+    void testInlineObserverBatchCoalescing(tests::support::TestResult& result) {
+        Backend backend;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.scheduler = [](std::function<void()> callback) {
+            callback();
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> messages;
+        const auto connection = core.openConnection({}, collect(messages));
+        const bool synchronized = connection && core.receive(*connection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        messages.clear();
+        const model::FrontendSequence before = core.currentSequence();
+
+        server::OccurrenceCoalescingKey firstKey;
+        firstKey.kind = server::OccurrenceEntityKind::BackendLifecycle;
+        firstKey.entityId = "provider";
+        server::OccurrenceCoalescingKey secondKey = firstKey;
+        std::vector<server::OccurrenceStageRequest> batch;
+        batch.push_back({std::move(firstKey), providerOccurrence("1001", false), server::OccurrenceFlushUrgency::Deferred});
+        batch.push_back({std::move(secondKey), providerOccurrence("1002", true), server::OccurrenceFlushUrgency::Deferred});
+        const server::OccurrenceStageResult staged = core.stageGroups(std::move(batch));
+
+        const auto* delivered = messages.size() == 1 ? std::get_if<frontend::EventBatch>(&messages.front()) : nullptr;
+        const std::uint64_t expectedSequence = before.value() + 1;
+        result.expectTrue(
+            synchronized && staged.accepted() && core.currentSequence().value() == expectedSequence && delivered &&
+                delivered->fromSequence == frontend::SequenceNumber{expectedSequence} &&
+                delivered->toSequence == frontend::SequenceNumber{expectedSequence} && delivered->events.size() == 1 &&
+                delivered->events.front().type == "backend.lifecycle.changed" &&
+                delivered->events.front().data.value("lifecycle", std::string{}) == "ready",
+            "one observer callback retains one dispatch scope, so an inline scheduler coalesces the same key to its latest value");
     }
 
     void testIndependentSnapshotCapabilities(tests::support::TestResult& result) {
@@ -1555,6 +1771,52 @@ namespace {
                               snapshot.value().turns.size() == 1 && snapshot.value().items.size() == 1 && boundedPending,
                           "backend snapshots convert once into strong identities and reject secret-bearing safe-detail extensions");
 
+        ai::openai::codex::backend::Snapshot previewSource = source;
+        previewSource.threads.front().preview = std::string(16'383, 'p') + "\xE2\x82\xAC";
+        const auto previewSnapshot = projection.projectSnapshot(previewSource);
+        const auto previewWire =
+            previewSnapshot
+                ? model::encodeProjectedSnapshot(previewSnapshot.value(), model::SnapshotRepresentationSelection{true, true, true, true})
+                : model::ModelResult<frontend::Snapshot>{previewSnapshot.error()};
+        const frontend::Json previewDetails = previewSnapshot && previewSnapshot.value().threads.size() == 1
+                                                  ? previewSnapshot.value().threads.front().safeDetails.json()
+                                                  : frontend::Json::object();
+        result.expectTrue(previewWire && previewDetails.value("preview", std::string{}).size() == 16'383 &&
+                              previewDetails.value("preview", std::string{}) == std::string(16'383, 'p'),
+                          "backend thread previews are UTF-8 safely bounded to the frozen 16 KiB frontend field");
+
+        ai::openai::codex::backend::Snapshot itemDetailsSource = source;
+        ai::openai::codex::backend::ItemSnapshot& userItem = itemDetailsSource.threads.front().turns.front().items.front();
+        userItem.type = "user_message";
+        userItem.data =
+            frontend::Json{{"clientId", nullptr},
+                           {"content", frontend::Json::array({frontend::Json{{"type", "text"}, {"text", "projected user input"}}})},
+                           {"contentTruncated", false},
+                           {"originalContentItems", 1},
+                           {"retainedContentItems", 1}};
+        const auto itemDetailsSnapshot = projection.projectSnapshot(itemDetailsSource);
+        const auto itemDetailsWire = itemDetailsSnapshot
+                                         ? model::encodeProjectedSnapshot(itemDetailsSnapshot.value(),
+                                                                          model::SnapshotRepresentationSelection{true, true, true, true})
+                                         : model::ModelResult<frontend::Snapshot>{itemDetailsSnapshot.error()};
+        const frontend::Json projectedItemDetails = itemDetailsSnapshot && itemDetailsSnapshot.value().items.size() == 1 &&
+                                                            model::itemData(itemDetailsSnapshot.value().items.front()).safeDetails
+                                                        ? model::itemData(itemDetailsSnapshot.value().items.front()).safeDetails->json()
+                                                        : frontend::Json::object();
+        const frontend::Json wireItemDetails =
+            itemDetailsWire && itemDetailsWire.value().state.contains("items") && !itemDetailsWire.value().state.at("items").empty()
+                ? itemDetailsWire.value().state.at("items").front().value("data", frontend::Json::object())
+                : frontend::Json::object();
+        result.expectTrue(itemDetailsWire && projectedItemDetails.contains("content") && projectedItemDetails.at("content").is_array() &&
+                              projectedItemDetails.at("content").size() == 1 && projectedItemDetails.at("content").front().is_object() &&
+                              !wireItemDetails.contains("content") && wireItemDetails.contains("clientId") &&
+                              wireItemDetails.at("clientId").is_null() && wireItemDetails.value("contentTruncated", true) == false &&
+                              wireItemDetails.value("originalContentItems", 0) == 1 &&
+                              wireItemDetails.value("retainedContentItems", 0) == 1 && projectedItemDetails.contains("clientId") &&
+                              projectedItemDetails.at("clientId").is_null() && projectedItemDetails.value("originalContentItems", 0) == 1,
+                          "canonical item details retain bounded provider content while the expanded-wire seam emits only "
+                          "protocol-safe scalar metadata");
+
         ai::openai::codex::backend::ItemContentChanged content;
         content.threadId = ai::openai::codex::typed::ThreadId{thread.id};
         content.turnId = ai::openai::codex::typed::TurnId{turn.id};
@@ -1727,6 +1989,8 @@ int main() {
     tests::support::TestResult result;
     testSynchronization(result);
     testTypedBatching(result);
+    testScopeFilteredSparseReplay(result);
+    testInlineObserverBatchCoalescing(result);
     testIndependentSnapshotCapabilities(result);
     testLegacyOnlyPerConnectionContainment(result);
     testSessionAndControllerJournal(result);

@@ -311,8 +311,9 @@ namespace {
         client.transportDisconnected(generation, {"failure fanout", true});
         result.expectTrue(first.accepted() && second.accepted() && firstCompletions == 1 && staleCompletions == 0 &&
                               client.pendingOperationCount() == 0 && client.connectionState() == core::ConnectionState::Closed &&
-                              harness.closes == 1,
-                          "the first failed-operation callback may close the client and suppresses later old-generation completions");
+                              harness.closes == 0,
+                          "the first post-disconnect failed-operation callback may close the client and suppresses later old-generation "
+                          "completions without reclosing the already-retired transport");
 
         Harness fanoutHarness;
         core::ClientCore fanoutClient(clientOptions());
@@ -344,35 +345,175 @@ namespace {
                           "operation once, and never sends deferred old-generation work");
     }
 
-    void testTerminalOrderingAndDestruction(tests::support::TestResult& result) {
+    void testDisconnectRejectsReentrantReceive(tests::support::TestResult& result) {
         Harness harness;
+        core::ClientCore* clientPointer = nullptr;
+        core::PhysicalGeneration generation = 0;
+        bool directAccepted = true;
+        bool encodedAccepted = true;
+        std::size_t staleCallbacks = 0;
+        std::size_t protocolMessages = 0;
+        const frontend::ServerMessage reentrantMessage{frontend::SyncComplete{frontend::SequenceNumber(0)}};
+        const auto encodedMessage = frontend::Codec::encodeServer(reentrantMessage);
+        const std::string compact = encodedMessage ? encodedMessage.value().dump() : std::string{};
         core::ClientCallbacks callbacks;
-        callbacks.onConnectionStateChanged = [&harness](const core::StateChange& change) {
+        callbacks.onStatePublished = [&](const std::shared_ptr<const core::PublishedState>& state) {
+            if (state->freshness != core::PublishedFreshness::Stale) {
+                return;
+            }
+            ++staleCallbacks;
+            directAccepted = clientPointer->receive(generation, reentrantMessage);
+            encodedAccepted = clientPointer->receiveEncoded(generation, compact);
+        };
+        callbacks.onProtocolMessage = [&](const frontend::ServerMessage&) {
+            ++protocolMessages;
+        };
+        core::ClientCore client(clientOptions(), std::move(callbacks));
+        clientPointer = &client;
+        generation = *client.attach(harness.transport());
+        client.transportConnected(generation);
+        makeReady(client, generation);
+        const std::size_t observedBeforeDisconnect = protocolMessages;
+        client.transportDisconnected(generation, core::TransportError{"reentrant receive fixture", true});
+        result.expectTrue(encodedMessage && staleCallbacks == 1 && !directAccepted && !encodedAccepted &&
+                              protocolMessages == observedBeforeDisconnect &&
+                              client.connectionState() == core::ConnectionState::Disconnected,
+                          "disconnect cleanup rejects typed and encoded reentrant receives without protocol observation");
+    }
+
+    void testProtocolFailureCallbackCommitOrdering(tests::support::TestResult& result) {
+        Harness harness;
+        Harness replacementHarness;
+        core::ClientCore* clientPointer = nullptr;
+        core::PhysicalGeneration generation = 0;
+        std::vector<std::string> order;
+        bool closingFacts = false;
+        bool transportCloseFacts = false;
+        bool staleFacts = false;
+        bool operationFacts = false;
+        bool disconnectedFacts = false;
+        bool staleAttachRejected = false;
+        bool operationAttachRejected = false;
+        bool operationHadProtocolError = false;
+
+        core::ClientCallbacks callbacks;
+        callbacks.onConnectionStateChanged = [&](const core::StateChange& change) {
             if (change.current == core::ConnectionState::Closing) {
-                harness.order.emplace_back("closing");
-            } else if (change.current == core::ConnectionState::Closed) {
-                harness.order.emplace_back("closed");
+                order.emplace_back("closing");
+                closingFacts = clientPointer->connectionState() == core::ConnectionState::Closing &&
+                               clientPointer->activeGeneration() == generation && clientPointer->pendingOperationCount() == 1;
+            } else if (change.current == core::ConnectionState::Disconnected) {
+                order.emplace_back("disconnected");
+                disconnectedFacts = change.previous == core::ConnectionState::Closing &&
+                                    clientPointer->connectionState() == core::ConnectionState::Disconnected &&
+                                    !clientPointer->activeGeneration().has_value() && clientPointer->pendingOperationCount() == 0;
             }
         };
-        callbacks.onStateUpdated = [&harness](const core::StateUpdate& update) {
+        callbacks.onStateUpdated = [&](const core::StateUpdate& update) {
+            if (update.cause != core::UpdateCause::ConnectionBecameStale) {
+                return;
+            }
+            order.emplace_back("stale");
+            staleFacts = clientPointer->connectionState() == core::ConnectionState::Disconnected &&
+                         !clientPointer->activeGeneration().has_value() && clientPointer->pendingOperationCount() == 0 &&
+                         update.state->freshness == core::PublishedFreshness::Stale && !update.state->session.has_value();
+            staleAttachRejected = !clientPointer->attach(replacementHarness.transport()).has_value();
+        };
+        core::ClientCore client(clientOptions(), std::move(callbacks));
+        clientPointer = &client;
+        core::TransportCallbacks transport = harness.transport();
+        transport.close = [&](std::string_view) {
+            ++harness.closes;
+            order.emplace_back("transport-close");
+            transportCloseFacts = client.connectionState() == core::ConnectionState::Closing && client.activeGeneration() == generation &&
+                                  client.pendingOperationCount() == 1;
+        };
+        generation = *client.attach(std::move(transport));
+        client.transportConnected(generation);
+        makeReady(client, generation);
+        const core::Submission pending =
+            client.submit(generated::makeParameters(generated::MethodId::ModelList, frontend::Json::object()),
+                          [&](const core::OperationResult& completion) {
+                              order.emplace_back("operation");
+                              operationFacts = client.connectionState() == core::ConnectionState::Disconnected &&
+                                               !client.activeGeneration().has_value() && client.pendingOperationCount() == 0;
+                              operationHadProtocolError = completion.error.has_value() &&
+                                                          completion.error->origin == core::ErrorOrigin::Protocol &&
+                                                          completion.error->clientCode == core::ClientErrorCode::UnexpectedMessage;
+                              operationAttachRejected = !client.attach(replacementHarness.transport()).has_value();
+                          });
+
+        const bool accepted = client.receive(
+            generation, frontend::ServerMessage{frontend::Response::success("uncorrelated-request", frontend::Json::object())});
+        result.expectTrue(
+            pending.accepted() && !accepted && harness.closes == 1 && closingFacts && transportCloseFacts && staleFacts && operationFacts &&
+                disconnectedFacts && staleAttachRejected && operationAttachRejected && operationHadProtocolError &&
+                order == std::vector<std::string>({"closing", "transport-close", "stale", "operation", "disconnected"}) &&
+                client.connectionState() == core::ConnectionState::Disconnected && !client.activeGeneration().has_value(),
+            "protocol failure preserves Closing/transport-close ordering, commits Disconnected before stale and pending callbacks, "
+            "blocks callback-phase attachment, and emits the final Disconnected transition last");
+    }
+
+    void testTerminalOrderingAndDestruction(tests::support::TestResult& result) {
+        Harness harness;
+        core::ClientCore* clientPointer = nullptr;
+        core::PhysicalGeneration generation = 0;
+        bool closingFacts = false;
+        bool operationFacts = false;
+        bool transportCloseFacts = false;
+        bool staleFacts = false;
+        bool closedFacts = false;
+        bool operationHadClosedError = false;
+        core::ClientCallbacks callbacks;
+        callbacks.onConnectionStateChanged = [&](const core::StateChange& change) {
+            if (change.current == core::ConnectionState::Closing) {
+                harness.order.emplace_back("closing");
+                closingFacts = clientPointer->connectionState() == core::ConnectionState::Closing &&
+                               clientPointer->activeGeneration() == generation && clientPointer->pendingOperationCount() == 1;
+            } else if (change.current == core::ConnectionState::Closed) {
+                harness.order.emplace_back("closed");
+                closedFacts = change.previous == core::ConnectionState::Closing &&
+                              clientPointer->connectionState() == core::ConnectionState::Closed &&
+                              !clientPointer->activeGeneration().has_value() && clientPointer->pendingOperationCount() == 0;
+            }
+        };
+        callbacks.onStateUpdated = [&](const core::StateUpdate& update) {
             if (update.cause == core::UpdateCause::ConnectionBecameStale) {
                 harness.order.emplace_back("stale");
+                staleFacts = clientPointer->connectionState() == core::ConnectionState::Closed &&
+                             !clientPointer->activeGeneration().has_value() && clientPointer->pendingOperationCount() == 0 &&
+                             update.state->freshness == core::PublishedFreshness::Stale && !update.state->session.has_value();
             }
         };
         core::ClientCore client(clientOptions(), std::move(callbacks));
-        const core::PhysicalGeneration generation = *client.attach(harness.transport());
+        clientPointer = &client;
+        core::TransportCallbacks transport = harness.transport();
+        transport.close = [&](std::string_view) {
+            ++harness.closes;
+            harness.order.emplace_back("transport-close");
+            transportCloseFacts = client.connectionState() == core::ConnectionState::Closing && client.activeGeneration() == generation &&
+                                  client.pendingOperationCount() == 0;
+        };
+        generation = *client.attach(std::move(transport));
         client.transportConnected(generation);
         makeReady(client, generation);
-        (void) client.submit(generated::makeParameters(generated::MethodId::ModelList, frontend::Json::object()),
-                             [&harness](const core::OperationResult&) {
-                                 harness.order.emplace_back("operation");
-                             });
+        const core::Submission pending =
+            client.submit(generated::makeParameters(generated::MethodId::ModelList, frontend::Json::object()),
+                          [&](const core::OperationResult& completion) {
+                              harness.order.emplace_back("operation");
+                              operationFacts = client.connectionState() == core::ConnectionState::Closing &&
+                                               client.activeGeneration() == generation && client.pendingOperationCount() == 0;
+                              operationHadClosedError = completion.error.has_value() &&
+                                                        completion.error->origin == core::ErrorOrigin::Client &&
+                                                        completion.error->clientCode == core::ClientErrorCode::Closed;
+                          });
         client.close();
-        result.expectTrue(harness.order.size() >= 5 && harness.order[harness.order.size() - 5] == "closing" &&
-                              harness.order[harness.order.size() - 4] == "operation" &&
-                              harness.order[harness.order.size() - 3] == "transport-close" &&
-                              harness.order[harness.order.size() - 2] == "stale" && harness.order.back() == "closed",
-                          "terminal close preserves Closing, operation, transport-close, stale-State, Closed callback ordering");
+        result.expectTrue(
+            pending.accepted() && harness.closes == 1 && closingFacts && operationFacts && transportCloseFacts && staleFacts &&
+                closedFacts && operationHadClosedError &&
+                harness.order == std::vector<std::string>({"closing", "operation", "transport-close", "stale", "closed"}),
+            "explicit close retains the active generation through Closing completions and transport close, commits Closed before its "
+            "stale callback, and emits the final Closed transition last");
 
         Harness destructionHarness;
         {
@@ -392,6 +533,8 @@ int main() {
     testNoContinuityDoesNotResume(result);
     testReentrantAttachmentLifecycle(result);
     testPendingFailureInvalidation(result);
+    testDisconnectRejectsReentrantReceive(result);
+    testProtocolFailureCallbackCommitOrdering(result);
     testTerminalOrderingAndDestruction(result);
     return result.processResult();
 }

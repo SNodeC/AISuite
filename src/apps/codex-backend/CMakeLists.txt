@@ -23,8 +23,6 @@ add_library(
     FrontendStreamSocketContextFactory.h
     FrontendWebSecurity.cpp
     FrontendWebSecurity.h
-    JsonLineFramer.cpp
-    JsonLineFramer.h
     ReferenceInvocationPolicy.cpp
     ReferenceInvocationPolicy.h
     UnixPeerCredentials.cpp
@@ -39,7 +37,7 @@ target_link_libraries(
     codex-backend-stream-adapter
     PUBLIC AISuite::OpenAICodexFrontend codex-reference-authentication snodec::net-un-stream-legacy
            snodec::net-in-stream-legacy snodec::net-in6-stream-legacy
-    PRIVATE snodec::core
+    PRIVATE ai-openai-codex-frontend-jsonl-framer snodec::core
 )
 if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
     target_compile_definitions(
@@ -62,34 +60,11 @@ endif()
 
 if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
     add_library(
-        codex-backend-runtime-bridge
-        SHARED
-        FrontendCloseReason.h
-        FrontendRuntimeBridge.cpp
-        FrontendRuntimeBridge.h
+        codex-backend-web-adapter STATIC
+        FrontendWebApplication.cpp
+        FrontendWebApplication.h
         FrontendWebSocketSubProtocol.cpp
         FrontendWebSocketSubProtocol.h
-    )
-    target_include_directories(
-        codex-backend-runtime-bridge
-        PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
-    )
-    target_compile_features(codex-backend-runtime-bridge PUBLIC cxx_std_20)
-    target_link_libraries(
-        codex-backend-runtime-bridge
-        PUBLIC AISuite::OpenAICodexFrontend
-        PRIVATE snodec::core snodec::websocket-server
-    )
-    set_target_properties(
-        codex-backend-runtime-bridge
-        PROPERTIES OUTPUT_NAME aisuite-codex-backend-runtime
-                   VERSION ${PROJECT_VERSION}
-                   SOVERSION ${AISUITE_CODEX_SOVERSION}
-    )
-
-    add_library(
-        codex-backend-web-adapter STATIC
-        FrontendWebApplication.cpp FrontendWebApplication.h
     )
     target_include_directories(
         codex-backend-web-adapter
@@ -102,39 +77,11 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
     target_link_libraries(
         codex-backend-web-adapter
         PUBLIC AISuite::OpenAICodexFrontend
-        PRIVATE codex-backend-runtime-bridge codex-backend-stream-adapter
-                snodec::core snodec::http-server snodec::http-server-express
+        PRIVATE codex-backend-stream-adapter snodec::core
+                snodec::http-server snodec::http-server-express
                 snodec::websocket-server
     )
 
-    add_library(
-        codex-backend-websocket-subprotocol SHARED
-        FrontendWebSocketSubProtocolFactory.cpp
-        FrontendWebSocketSubProtocolFactory.h
-    )
-    target_include_directories(
-        codex-backend-websocket-subprotocol
-        PRIVATE "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
-    )
-    target_compile_features(
-        codex-backend-websocket-subprotocol PRIVATE cxx_std_20
-    )
-    target_compile_options(
-        codex-backend-websocket-subprotocol PRIVATE -fno-gnu-unique
-    )
-    target_link_libraries(
-        codex-backend-websocket-subprotocol
-        PRIVATE codex-backend-runtime-bridge AISuite::OpenAICodexFrontend
-                snodec::websocket-server
-    )
-    set_target_properties(
-        codex-backend-websocket-subprotocol
-        PROPERTIES OUTPUT_NAME snodec-websocket-codex-server
-                   VERSION ${PROJECT_VERSION}
-                   SOVERSION ${AISUITE_CODEX_SOVERSION}
-                   LIBRARY_OUTPUT_DIRECTORY
-                   "${CMAKE_CURRENT_BINARY_DIR}/websocket"
-    )
     # Configuration.cpp is part of the native stream adapter so all listener
     # options share one CLI authority. Compile its web validation path only when
     # the bound web runtime is present. FrontendWebSecurity.cpp lives there as
@@ -164,7 +111,7 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
     )
     target_link_libraries(
         codex-backend
-        PRIVATE codex-backend-runtime-bridge codex-backend-web-adapter
+        PRIVATE codex-backend-web-adapter
                 snodec::http-server-express-legacy-in
                 snodec::http-server-express-legacy-in6
     )
@@ -176,14 +123,3 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
     endif()
 endif()
 install(TARGETS codex-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
-    install(
-        TARGETS codex-backend-runtime-bridge
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    )
-    install(
-        TARGETS codex-backend-websocket-subprotocol
-        LIBRARY DESTINATION
-                ${WEBSOCKET_SUBPROTOCOL_INSTALL_LIBDIR}/codex-backend
-    )
-endif()

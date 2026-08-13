@@ -3,6 +3,7 @@
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 #include "support/TestResult.h"
 
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -80,9 +81,15 @@ namespace {
         return {state.sequence.protocolValue(), encoded.value().at("state")};
     }
 
-    core::PhysicalGeneration ready(core::ClientCore& client, Harness& harness, model::CanonicalSnapshot state = {}) {
+    core::PhysicalGeneration ready(core::ClientCore& client,
+                                   Harness& harness,
+                                   model::CanonicalSnapshot state = {},
+                                   std::optional<std::vector<frontend::FrontendMethod>> permittedMethods = std::nullopt) {
         const core::PhysicalGeneration generation = *client.attach(harness.transport());
         client.transportConnected(generation);
+        std::vector<frontend::FrontendMethod> availableMethods = methods();
+        std::vector<frontend::FrontendMethod> effectivePermittedMethods =
+            permittedMethods.has_value() ? std::move(*permittedMethods) : availableMethods;
         frontend::Welcome welcome{"capacity-session",
                                   frontend::SessionRole::Controller,
                                   state.sequence.protocolValue(),
@@ -101,12 +108,20 @@ namespace {
                                                            "sensitive_response",
                                                            "unknown_request_response"})}},
                                   capabilities(),
-                                  methods(),
-                                  methods()};
+                                  std::move(availableMethods),
+                                  std::move(effectivePermittedMethods)};
         (void) client.receive(generation, frontend::ServerMessage{welcome});
         (void) client.receive(generation, frontend::ServerMessage{snapshot(std::move(state))});
         (void) client.receive(generation, frontend::ServerMessage{frontend::SyncComplete{welcome.currentSequence}});
         return generation;
+    }
+
+    generated::CompleteCommandParameters sensitiveParameters(std::string secret) {
+        frontend::Json parameters = frontend::Json::object();
+        parameters["pendingRequestId"] = "1";
+        parameters["accessToken"] = std::move(secret);
+        parameters["chatgptAccountId"] = "a";
+        return generated::makeParameters(generated::MethodId::AuthenticationRespond, std::move(parameters));
     }
 
     frontend::FrontendEvent diagnosticEvent(std::uint64_t sequence) {
@@ -153,6 +168,277 @@ namespace {
         const auto exhausted = exhaustionClient.submit(generated::makeParameters(generated::MethodId::ModelList, frontend::Json::object()));
         result.expectTrue(finalId && !exhausted && exhausted.error->clientCode == core::ClientErrorCode::RequestIdExhausted,
                           "request-ID exhaustion is terminal for allocation and never wraps into a duplicate identity");
+    }
+
+    void testSensitiveEarlyRejectionErasure(tests::support::TestResult& result) {
+        constexpr std::string_view secret =
+            "CLIENT_CORE_EARLY_REJECTION_SECRET_SENTINEL_0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz_"
+            "0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz";
+        const auto erasedBy = [](core::ClientCore& client, const auto& submit) {
+            const std::size_t before = core::ClientCoreTestAccess::erasedTransientBytes(client);
+            const core::Submission submission = submit();
+            const std::size_t after = core::ClientCoreTestAccess::erasedTransientBytes(client);
+            return std::pair{submission, after >= before ? after - before : 0};
+        };
+
+        core::ClientCore notReady(clientOptions());
+        const auto [notReadySubmission, notReadyErased] = erasedBy(notReady, [&] {
+            return notReady.submit(sensitiveParameters(std::string(secret)));
+        });
+
+        core::ClientOptions capacityOptions = clientOptions();
+        capacityOptions.limits.maximumPendingOperations = 0;
+        Harness capacityHarness;
+        core::ClientCore capacity(std::move(capacityOptions));
+        (void) ready(capacity, capacityHarness);
+        const auto [capacitySubmission, capacityErased] = erasedBy(capacity, [&] {
+            return capacity.submit(sensitiveParameters(std::string(secret)));
+        });
+
+        std::vector<frontend::FrontendMethod> deniedMethods = methods();
+        deniedMethods.erase(std::remove(deniedMethods.begin(), deniedMethods.end(), "request.authentication.respond"), deniedMethods.end());
+        Harness deniedHarness;
+        core::ClientCore denied(clientOptions());
+        (void) ready(denied, deniedHarness, {}, std::move(deniedMethods));
+        const auto [deniedSubmission, deniedErased] = erasedBy(denied, [&] {
+            return denied.submit(sensitiveParameters(std::string(secret)));
+        });
+
+        result.expectTrue(!notReadySubmission && notReadySubmission.error.has_value() &&
+                              notReadySubmission.error->clientCode == core::ClientErrorCode::NotReady && notReadyErased >= secret.size(),
+                          "a sensitive NotReady submission overwrites its Core-owned parameter storage before rejection");
+        result.expectTrue(!capacitySubmission && capacitySubmission.error.has_value() &&
+                              capacitySubmission.error->clientCode == core::ClientErrorCode::TooManyPendingOperations &&
+                              capacityErased >= secret.size(),
+                          "a sensitive capacity rejection overwrites its Core-owned parameter storage before returning");
+        result.expectTrue(!deniedSubmission && deniedSubmission.error.has_value() &&
+                              deniedSubmission.error->clientCode == core::ClientErrorCode::MethodNotPermitted &&
+                              deniedErased >= secret.size(),
+                          "a sensitive policy denial overwrites its Core-owned parameter storage before returning");
+    }
+
+    void testPublishedRevisionExhaustion(tests::support::TestResult& result) {
+        std::size_t publications = 0;
+        std::size_t updates = 0;
+        std::vector<core::StateChange> stateChanges;
+        core::ClientCallbacks callbacks;
+        callbacks.onStatePublished = [&publications](const auto&) {
+            ++publications;
+        };
+        callbacks.onStateUpdated = [&updates](const auto&) {
+            ++updates;
+        };
+        callbacks.onConnectionStateChanged = [&stateChanges](const core::StateChange& change) {
+            stateChanges.push_back(change);
+        };
+
+        Harness harness;
+        core::ClientCore client(clientOptions(), std::move(callbacks));
+        const core::PhysicalGeneration generation = ready(client, harness);
+        publications = 0;
+        updates = 0;
+        stateChanges.clear();
+        core::ClientCoreTestAccess::setPublishedRevision(client, std::numeric_limits<std::uint64_t>::max());
+        const std::shared_ptr<const core::PublishedState> prior = client.state();
+
+        frontend::FrontendEvent event = diagnosticEvent(1);
+        const bool accepted =
+            client.receive(generation, frontend::ServerMessage{frontend::EventBatch{event.sequence, event.sequence, {std::move(event)}}});
+        const auto terminal = std::find_if(stateChanges.rbegin(), stateChanges.rend(), [](const core::StateChange& change) {
+            return change.current == core::ConnectionState::Disconnected;
+        });
+
+        result.expectTrue(!accepted && client.connectionState() == core::ConnectionState::Disconnected && harness.closes == 1,
+                          "a changed canonical publication cannot reuse UINT64_MAX and deterministically closes its generation");
+        result.expectTrue(client.state() == prior && client.state()->revision == std::numeric_limits<std::uint64_t>::max() &&
+                              publications == 0 && updates == 0,
+                          "revision exhaustion leaves the prior immutable publication and callback-visible revision unchanged");
+        result.expectTrue(terminal != stateChanges.rend() && terminal->error.has_value() &&
+                              terminal->error->clientCode == core::ClientErrorCode::StateCapacityExceeded,
+                          "revision exhaustion reports the existing bounded StateCapacityExceeded terminal error");
+
+        std::size_t disconnectPublications = 0;
+        std::size_t disconnectUpdates = 0;
+        core::ClientCallbacks disconnectCallbacks;
+        disconnectCallbacks.onStatePublished = [&disconnectPublications](const auto&) {
+            ++disconnectPublications;
+        };
+        disconnectCallbacks.onStateUpdated = [&disconnectUpdates](const auto&) {
+            ++disconnectUpdates;
+        };
+        Harness disconnectHarness;
+        core::ClientCore disconnectClient(clientOptions(), std::move(disconnectCallbacks));
+        const core::PhysicalGeneration disconnectGeneration = ready(disconnectClient, disconnectHarness);
+        disconnectPublications = 0;
+        disconnectUpdates = 0;
+        core::ClientCoreTestAccess::setPublishedRevision(disconnectClient, std::numeric_limits<std::uint64_t>::max());
+        const std::shared_ptr<const core::PublishedState> disconnectPrior = disconnectClient.state();
+        disconnectClient.transportDisconnected(disconnectGeneration, core::TransportError{"revision boundary disconnect", true});
+
+        result.expectTrue(disconnectClient.connectionState() == core::ConnectionState::Disconnected &&
+                              disconnectClient.state() == disconnectPrior &&
+                              disconnectClient.state()->revision == std::numeric_limits<std::uint64_t>::max() &&
+                              disconnectPublications == 0 && disconnectUpdates == 0,
+                          "revision exhaustion prevents retained and bounded-empty stale fallbacks from wrapping or publishing");
+    }
+
+    void testPublishedRevisionAuthority(tests::support::TestResult& result) {
+        std::size_t prepared = 0;
+        std::size_t committed = 0;
+        std::size_t published = 0;
+        std::size_t cursors = 0;
+        std::size_t updated = 0;
+        core::ClientCallbacks callbacks;
+        callbacks.prepareStatePublication = [&prepared](const core::PublishedState&) -> std::optional<core::ClientError> {
+            ++prepared;
+            return std::nullopt;
+        };
+        callbacks.commitStatePublication = [&committed](const core::PublishedState&) {
+            ++committed;
+        };
+        callbacks.onStatePublished = [&published](const auto&) {
+            ++published;
+        };
+        callbacks.onCursorAdvanced = [&cursors](model::FrontendSequence) {
+            ++cursors;
+        };
+        callbacks.onStateUpdated = [&updated](const auto&) {
+            ++updated;
+        };
+
+        Harness harness;
+        core::ClientCore client(clientOptions(), std::move(callbacks));
+        (void) ready(client, harness);
+        prepared = 0;
+        committed = 0;
+        published = 0;
+        cursors = 0;
+        updated = 0;
+        const std::shared_ptr<const core::PublishedState> prior = client.state();
+        const bool reused = core::ClientCoreTestAccess::tryCommitPublishedRevision(client, prior->revision);
+        const bool regressed =
+            prior->revision == 0 ? false : core::ClientCoreTestAccess::tryCommitPublishedRevision(client, prior->revision - 1);
+
+        result.expectTrue(!reused && !regressed && client.state() == prior && client.ready(),
+                          "the central publication authority rejects reused and regressed candidate revisions transactionally");
+        result.expectTrue(prepared == 0 && committed == 0 && published == 0 && cursors == 0 && updated == 0,
+                          "rejected candidate revisions never reach preparation, commit, publication, cursor, or update callbacks");
+
+        std::size_t reentrantPreparations = 0;
+        std::size_t reentrantCommits = 0;
+        bool nestedCommitted = false;
+        bool nesting = false;
+        core::ClientCore* reentrantClient = nullptr;
+        core::ClientCallbacks reentrantCallbacks;
+        reentrantCallbacks.prepareStatePublication = [&](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+            ++reentrantPreparations;
+            if (!nesting) {
+                nesting = true;
+                nestedCommitted = core::ClientCoreTestAccess::tryCommitPublishedRevision(*reentrantClient, candidate.revision);
+                nesting = false;
+            }
+            return std::nullopt;
+        };
+        reentrantCallbacks.commitStatePublication = [&reentrantCommits](const core::PublishedState&) {
+            ++reentrantCommits;
+        };
+        core::ClientCore reentrant(clientOptions(), std::move(reentrantCallbacks));
+        reentrantClient = &reentrant;
+        const std::shared_ptr<const core::PublishedState> reentrantPrior = reentrant.state();
+        const bool outerCommitted = core::ClientCoreTestAccess::tryCommitPublishedRevision(reentrant, reentrantPrior->revision + 1);
+
+        result.expectTrue(nestedCommitted && !outerCommitted && reentrant.state() != reentrantPrior &&
+                              reentrant.state()->revision == reentrantPrior->revision + 1 && reentrantPreparations == 2 &&
+                              reentrantCommits == 1,
+                          "a reentrant preparation may commit one exact-next revision but the stale outer candidate cannot reuse it");
+
+        std::size_t receivePublications = 0;
+        std::size_t receiveUpdates = 0;
+        std::size_t receiveCursors = 0;
+        std::size_t receiveCloses = 0;
+        std::optional<core::UpdateCause> receiveUpdateCause;
+        bool receiveNestedCommitted = false;
+        bool receiveNesting = false;
+        core::ClientCore* receiveClient = nullptr;
+        core::ClientCallbacks receiveCallbacks;
+        receiveCallbacks.prepareStatePublication = [&](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+            if (!receiveNesting && receiveClient && receiveClient->ready()) {
+                receiveNesting = true;
+                receiveNestedCommitted = core::ClientCoreTestAccess::tryCommitPublishedRevision(*receiveClient, candidate.revision);
+                receiveNesting = false;
+            }
+            return std::nullopt;
+        };
+        receiveCallbacks.onStatePublished = [&receivePublications](const auto&) {
+            ++receivePublications;
+        };
+        receiveCallbacks.onStateUpdated = [&receiveUpdates, &receiveUpdateCause](const core::StateUpdate& update) {
+            ++receiveUpdates;
+            receiveUpdateCause = update.cause;
+        };
+        receiveCallbacks.onCursorAdvanced = [&receiveCursors](model::FrontendSequence) {
+            ++receiveCursors;
+        };
+        receiveCallbacks.onConnectionStateChanged = [&receiveCloses](const core::StateChange& change) {
+            if (change.current == core::ConnectionState::Disconnected) {
+                ++receiveCloses;
+            }
+        };
+        Harness receiveHarness;
+        core::ClientCore receiveReentrant(clientOptions(), std::move(receiveCallbacks));
+        receiveClient = &receiveReentrant;
+        const core::PhysicalGeneration receiveGeneration = ready(receiveReentrant, receiveHarness);
+        receiveNestedCommitted = false;
+        receivePublications = 0;
+        receiveUpdates = 0;
+        receiveCursors = 0;
+        const std::shared_ptr<const core::PublishedState> receivePrior = receiveReentrant.state();
+        frontend::FrontendEvent receiveEvent = diagnosticEvent(1);
+        const bool receiveAccepted = receiveReentrant.receive(
+            receiveGeneration,
+            frontend::ServerMessage{frontend::EventBatch{receiveEvent.sequence, receiveEvent.sequence, {std::move(receiveEvent)}}});
+        result.expectTrue(
+            !receiveAccepted && receiveNestedCommitted && receiveReentrant.state()->revision == receivePrior->revision + 2 &&
+                receiveReentrant.state()->freshness == core::PublishedFreshness::Stale && receivePublications == 1 && receiveUpdates == 1 &&
+                receiveUpdateCause == core::UpdateCause::ConnectionBecameStale && receiveCursors == 0 && receiveCloses == 1 &&
+                receiveHarness.closes == 1 && receiveReentrant.connectionState() == core::ConnectionState::Disconnected,
+            "a stale receive-path candidate emits only the deterministic later stale publication, never its live update or cursor");
+
+        bool maximumNestedCommitted = false;
+        bool maximumNesting = false;
+        core::ClientCore* maximumClient = nullptr;
+        std::vector<core::StateChange> maximumChanges;
+        core::ClientCallbacks maximumCallbacks;
+        maximumCallbacks.prepareStatePublication = [&](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+            if (!maximumNesting && maximumClient && maximumClient->ready()) {
+                maximumNesting = true;
+                maximumNestedCommitted = core::ClientCoreTestAccess::tryCommitPublishedRevision(*maximumClient, candidate.revision);
+                maximumNesting = false;
+            }
+            return std::nullopt;
+        };
+        maximumCallbacks.onConnectionStateChanged = [&maximumChanges](const core::StateChange& change) {
+            maximumChanges.push_back(change);
+        };
+        Harness maximumHarness;
+        core::ClientCore maximumReentrant(clientOptions(), std::move(maximumCallbacks));
+        maximumClient = &maximumReentrant;
+        const core::PhysicalGeneration maximumGeneration = ready(maximumReentrant, maximumHarness);
+        core::ClientCoreTestAccess::setPublishedRevision(maximumReentrant, std::numeric_limits<std::uint64_t>::max() - 1);
+        maximumChanges.clear();
+        frontend::FrontendEvent maximumEvent = diagnosticEvent(1);
+        const bool maximumAccepted = maximumReentrant.receive(
+            maximumGeneration,
+            frontend::ServerMessage{frontend::EventBatch{maximumEvent.sequence, maximumEvent.sequence, {std::move(maximumEvent)}}});
+        const auto maximumTerminal = std::find_if(maximumChanges.rbegin(), maximumChanges.rend(), [](const core::StateChange& change) {
+            return change.current == core::ConnectionState::Disconnected;
+        });
+        result.expectTrue(!maximumAccepted && maximumNestedCommitted &&
+                              maximumReentrant.state()->revision == std::numeric_limits<std::uint64_t>::max() &&
+                              maximumReentrant.connectionState() == core::ConnectionState::Disconnected && maximumHarness.closes == 1 &&
+                              maximumTerminal != maximumChanges.rend() && maximumTerminal->error &&
+                              maximumTerminal->error->clientCode == core::ClientErrorCode::StateCapacityExceeded,
+                          "reentrant publication reaching UINT64_MAX applies the deterministic exhaustion policy without wrapping");
     }
 
     void testStateAndDiagnosticBounds(tests::support::TestResult& result) {
@@ -294,6 +580,9 @@ namespace {
 int main() {
     tests::support::TestResult result;
     testOperationAndRequestIdBounds(result);
+    testSensitiveEarlyRejectionErasure(result);
+    testPublishedRevisionExhaustion(result);
+    testPublishedRevisionAuthority(result);
     testStateAndDiagnosticBounds(result);
     testTransportAndInboundBounds(result);
     testPublicOptionParity(result);

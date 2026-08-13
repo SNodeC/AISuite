@@ -15,10 +15,13 @@
 #include <array>
 #include <exception>
 #include <limits>
+#include <string_view>
 #include <type_traits>
 
 namespace ai::openai::codex::frontend::internal::model {
     namespace {
+        constexpr std::size_t LegacySnapshotMaximumObjectMembers = 4'096;
+
         void setSafeDetailError(SafeDetailError* target, SafeDetailError value) noexcept {
             if (target != nullptr) {
                 *target = value;
@@ -108,6 +111,99 @@ namespace ai::openai::codex::frontend::internal::model {
                 fail(ModelErrorCode::InvalidShape, path, "known-domain detail must be an object");
             }
             return detail.json();
+        }
+
+        std::size_t frontendUtf8PrefixLength(std::string_view value, std::size_t maximumBytes) noexcept {
+            std::size_t offset = 0;
+            while (offset < value.size() && offset < maximumBytes) {
+                const unsigned char lead = static_cast<unsigned char>(value[offset]);
+                std::size_t width = 0;
+                if (lead <= 0x7fU) {
+                    width = 1;
+                } else if (lead >= 0xc2U && lead <= 0xdfU) {
+                    width = 2;
+                } else if (lead >= 0xe0U && lead <= 0xefU) {
+                    width = 3;
+                } else if (lead >= 0xf0U && lead <= 0xf4U) {
+                    width = 4;
+                } else {
+                    break;
+                }
+                if (offset + width > value.size() || offset + width > maximumBytes) {
+                    break;
+                }
+                bool valid = true;
+                for (std::size_t index = 1; index < width; ++index) {
+                    valid = valid && (static_cast<unsigned char>(value[offset + index]) & 0xc0U) == 0x80U;
+                }
+                if (!valid) {
+                    break;
+                }
+                offset += width;
+            }
+            return offset;
+        }
+
+        Json boundedFrontendDetailScalar(const Json& value) {
+            if (!value.is_string()) {
+                return value;
+            }
+            const std::string& text = value.get_ref<const std::string&>();
+            return std::string(text.substr(0, frontendUtf8PrefixLength(text, 16U * 1024U)));
+        }
+
+        Json expandedItemDetailObject(const SafeDetail& detail) {
+            // Canonical SafeDetail intentionally retains richer bounded JSON,
+            // including user-message content objects. Frontend Protocol v1's
+            // ExpandedThreadItem.data admits only scalar leaves or scalar
+            // arrays, so normalize exactly once at the expanded-wire seam.
+            const Json& value = detail.json();
+            Json projected = Json::object();
+            if (!value.is_object()) {
+                return projected;
+            }
+            std::size_t retained = 0;
+            for (auto member = value.begin(); member != value.end() && retained < 64; ++member) {
+                const std::size_t keyBytes = frontendUtf8PrefixLength(member.key(), 256);
+                if (keyBytes == 0 && !member.key().empty()) {
+                    continue;
+                }
+                const std::string key = member.key().substr(0, keyBytes);
+                const bool safeSecretClassification = normalizedKey(key) == "issecret" && member.value().is_boolean();
+                if (!safeSecretClassification && SafeDetail::isSecretKey(key)) {
+                    // The canonical key may be safe only because of a suffix
+                    // beyond the frontend key bound. Recheck the exact emitted
+                    // key so truncation can never synthesize a forbidden
+                    // Frontend Protocol property name.
+                    continue;
+                }
+                const bool scalar =
+                    member.value().is_null() || member.value().is_boolean() || member.value().is_number() || member.value().is_string();
+                if (scalar) {
+                    projected[key] = boundedFrontendDetailScalar(member.value());
+                    ++retained;
+                    continue;
+                }
+                if (!member.value().is_array()) {
+                    continue;
+                }
+                Json values = Json::array();
+                const std::size_t count = std::min<std::size_t>(member.value().size(), 64);
+                bool scalarOnly = true;
+                for (std::size_t index = 0; index < count; ++index) {
+                    const Json& candidate = member.value()[index];
+                    if (!candidate.is_null() && !candidate.is_boolean() && !candidate.is_number() && !candidate.is_string()) {
+                        scalarOnly = false;
+                        break;
+                    }
+                    values.push_back(boundedFrontendDetailScalar(candidate));
+                }
+                if (scalarOnly) {
+                    projected[key] = std::move(values);
+                    ++retained;
+                }
+            }
+            return projected;
         }
 
         template <typename Identity>
@@ -319,7 +415,10 @@ namespace ai::openai::codex::frontend::internal::model {
             encoded.startedAtMs = data.startedAtMs;
             encoded.completedAtMs = data.completedAtMs;
             if (data.safeDetails.has_value()) {
-                encoded.data = data.safeDetails->json();
+                Json projected = expandedItemDetailObject(*data.safeDetails);
+                if (!projected.empty()) {
+                    encoded.data = std::move(projected);
+                }
             }
             encoded.truncated = data.truncation.truncated;
             encoded.omittedFields = data.truncation.omittedPaths;
@@ -385,7 +484,7 @@ namespace ai::openai::codex::frontend::internal::model {
             if (data.safeDetails.has_value()) {
                 encoded.details = data.safeDetails->json();
             }
-            if (!data.questions.empty()) {
+            if (data.questionsPresent || !data.questions.empty()) {
                 std::vector<ExpandedPendingRequestQuestion> questions;
                 questions.reserve(data.questions.size());
                 for (const PendingRequestQuestion& question : data.questions) {
@@ -433,6 +532,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 data.safeDetails = safeDetail(*request.details, path + "/details");
             }
             if (request.questions.has_value()) {
+                data.questionsPresent = true;
                 data.questions.reserve(request.questions->size());
                 for (std::size_t questionIndex = 0; questionIndex < request.questions->size(); ++questionIndex) {
                     const ExpandedPendingRequestQuestion& question = request.questions->at(questionIndex);
@@ -667,11 +767,12 @@ namespace ai::openai::codex::frontend::internal::model {
         }
 
         Json encodeTruncation(const TruncationMetadata& value) {
-            Json encoded{{"truncated", value.truncated}};
+            Json encoded = objectDetail(value.extensions, "/truncation/extensions");
+            encoded["truncated"] = value.truncated;
             if (value.omittedEntries.has_value()) {
                 encoded["omittedEntries"] = *value.omittedEntries;
             }
-            if (value.droppedBytes != 0) {
+            if (value.droppedBytesPresent || value.droppedBytes != 0) {
                 encoded["droppedBytes"] = value.droppedBytes;
             }
             if (!value.omittedPaths.empty()) {
@@ -698,6 +799,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 result.omittedEntries = static_cast<std::size_t>(*omitted);
             }
             result.droppedBytes = optionalUnsigned(value, "droppedBytes").value_or(0);
+            result.droppedBytesPresent = value.contains("droppedBytes");
             const auto paths = value.find("omittedFields");
             if (paths != value.end() && paths->is_array()) {
                 for (const Json& path : *paths) {
@@ -706,6 +808,11 @@ namespace ai::openai::codex::frontend::internal::model {
                     }
                 }
             }
+            Json extensions = value;
+            for (std::string_view key : {"truncated", "omittedEntries", "droppedBytes", "omittedFields"}) {
+                extensions.erase(key);
+            }
+            result.extensions = safeDetail(std::move(extensions), "/truncation/extensions");
             return result;
         }
 
@@ -826,8 +933,8 @@ namespace ai::openai::codex::frontend::internal::model {
             }
             encoded["stamp"] = encodeSourceMetadata(value.stamp);
             encoded["connectionInvalidated"] = value.connectionInvalidated;
-            if (value.truncation.truncated || value.truncation.omittedEntries.has_value() || value.truncation.droppedBytes != 0 ||
-                !value.truncation.omittedPaths.empty()) {
+            if (value.truncation.truncated || value.truncation.omittedEntries.has_value() || value.truncation.droppedBytesPresent ||
+                value.truncation.droppedBytes != 0 || !value.truncation.omittedPaths.empty()) {
                 encoded["truncation"] = encodeTruncation(value.truncation);
             }
             if (!value.safeDetails.empty()) {
@@ -864,6 +971,12 @@ namespace ai::openai::codex::frontend::internal::model {
                 remaining.erase(key);
             }
             result.extensions = safeDetail(std::move(remaining), path + "/extensions");
+            Json publicExtensions = value;
+            for (std::string_view key : {"watchId", "root", "changedPathCount", "stamp", "connectionInvalidated", "stateUnavailable"}) {
+                publicExtensions.erase(key);
+            }
+            result.publicExtensions = safeDetail(std::move(publicExtensions), path + "/publicExtensions");
+            result.publicExtensionsKnown = true;
             return result;
         }
 
@@ -876,8 +989,8 @@ namespace ai::openai::codex::frontend::internal::model {
             encoded["complete"] = value.complete;
             encoded["stamp"] = encodeSourceMetadata(value.stamp);
             encoded["connectionInvalidated"] = value.connectionInvalidated;
-            if (value.truncation.truncated || value.truncation.omittedEntries.has_value() || value.truncation.droppedBytes != 0 ||
-                !value.truncation.omittedPaths.empty()) {
+            if (value.truncation.truncated || value.truncation.omittedEntries.has_value() || value.truncation.droppedBytesPresent ||
+                value.truncation.droppedBytes != 0 || !value.truncation.omittedPaths.empty()) {
                 encoded["truncation"] = encodeTruncation(value.truncation);
             }
             if (!value.safeDetails.empty()) {
@@ -914,6 +1027,12 @@ namespace ai::openai::codex::frontend::internal::model {
                 remaining.erase(key);
             }
             result.extensions = safeDetail(std::move(remaining), path + "/extensions");
+            Json publicExtensions = value;
+            for (std::string_view key : {"sessionId", "resultCount", "complete", "stamp", "connectionInvalidated", "stateUnavailable"}) {
+                publicExtensions.erase(key);
+            }
+            result.publicExtensions = safeDetail(std::move(publicExtensions), path + "/publicExtensions");
+            result.publicExtensionsKnown = true;
             return result;
         }
 
@@ -1324,7 +1443,10 @@ namespace ai::openai::codex::frontend::internal::model {
             }
 
             state.controller = objectDetail(snapshot.controller.safeDetails, "/state/controller");
-            state.controller["present"] = snapshot.controller.session.has_value() || snapshot.controller.controller.has_value();
+            const auto explicitControllerPresence = state.controller.find("present");
+            if (explicitControllerPresence == state.controller.end() || !explicitControllerPresence->is_boolean()) {
+                state.controller["present"] = snapshot.controller.session.has_value() || snapshot.controller.controller.has_value();
+            }
             if (snapshot.controller.controller.has_value()) {
                 state.controller["controllerId"] = snapshot.controller.controller->value();
             }
@@ -1450,33 +1572,33 @@ namespace ai::openai::codex::frontend::internal::model {
                 std::find(snapshot.projection.omittedPaths.begin(), snapshot.projection.omittedPaths.end(), "/processes") !=
                 snapshot.projection.omittedPaths.end();
             if (!processesOmitted) {
-                Json processEntries = Json::array();
-                for (const ProcessState& process : snapshot.processes) {
-                    Json encoded = objectDetail(process.extensions, "/state/processes/extensions");
-                    encoded["processHandle"] = process.handle.value();
-                    if (process.lifecycle.has_value()) {
-                        encoded["lifecycle"] = *process.lifecycle;
-                    }
-                    if (process.stdoutBytes.has_value()) {
-                        encoded["stdoutBytes"] = *process.stdoutBytes;
-                    }
-                    if (process.stderrBytes.has_value()) {
-                        encoded["stderrBytes"] = *process.stderrBytes;
-                    }
-                    encoded["stdoutTruncated"] = process.stdoutTruncated;
-                    encoded["stderrTruncated"] = process.stderrTruncated;
-                    if (process.droppedOutputBytes.has_value()) {
-                        encoded["droppedOutputBytes"] = *process.droppedOutputBytes;
-                    }
-                    encoded["stamp"] = encodeSourceMetadata(process.stamp);
-                    encoded["connectionInvalidated"] = process.connectionInvalidated;
-                    if (process.exitCode.has_value()) {
-                        encoded["exitCode"] = *process.exitCode;
-                    }
-                    processEntries.push_back(std::move(encoded));
-                }
-                state.processes =
-                    Json{{"entries", std::move(processEntries)}, {"truncation", encodeCompleteTruncation(snapshot.truncation)}};
+                state.processes = encodeTypedCollection(snapshot.processesState,
+                                                        snapshot.processes,
+                                                        "/state/processes",
+                                                        [](const ProcessState& process, const std::string& path) {
+                                                            Json encoded = objectDetail(process.extensions, path + "/extensions");
+                                                            encoded["processHandle"] = process.handle.value();
+                                                            if (process.lifecycle.has_value()) {
+                                                                encoded["lifecycle"] = *process.lifecycle;
+                                                            }
+                                                            if (process.stdoutBytes.has_value()) {
+                                                                encoded["stdoutBytes"] = *process.stdoutBytes;
+                                                            }
+                                                            if (process.stderrBytes.has_value()) {
+                                                                encoded["stderrBytes"] = *process.stderrBytes;
+                                                            }
+                                                            encoded["stdoutTruncated"] = process.stdoutTruncated;
+                                                            encoded["stderrTruncated"] = process.stderrTruncated;
+                                                            if (process.droppedOutputBytes.has_value()) {
+                                                                encoded["droppedOutputBytes"] = *process.droppedOutputBytes;
+                                                            }
+                                                            encoded["stamp"] = encodeSourceMetadata(process.stamp);
+                                                            encoded["connectionInvalidated"] = process.connectionInvalidated;
+                                                            if (process.exitCode.has_value()) {
+                                                                encoded["exitCode"] = *process.exitCode;
+                                                            }
+                                                            return encoded;
+                                                        });
             }
 
             state.capacity = encodeCapacity(snapshot.capacity);
@@ -1502,6 +1624,10 @@ namespace ai::openai::codex::frontend::internal::model {
         try {
             CanonicalSnapshot decoded;
             decoded.sequence = FrontendSequence(snapshot.sequence);
+            decoded.threadsPresent = snapshot.state.threads.has_value();
+            decoded.turnsPresent = snapshot.state.turns.has_value();
+            decoded.itemsPresent = snapshot.state.items.has_value();
+            decoded.pendingRequestsPresent = snapshot.state.pendingRequests.has_value();
 
             decoded.provider.provider = optionalString(snapshot.state.provider, "provider");
             const auto lifecycle = optionalString(snapshot.state.provider, "lifecycle");
@@ -1542,7 +1668,7 @@ namespace ai::openai::codex::frontend::internal::model {
             decoded.provider.extensions = safeDetail(std::move(providerExtensions), "/state/provider/extensions");
 
             Json controllerDetails = snapshot.state.controller;
-            for (std::string_view key : {"present", "controllerId", "controllerSessionId"}) {
+            for (std::string_view key : {"controllerId", "controllerSessionId"}) {
                 controllerDetails.erase(key);
             }
             decoded.controller.safeDetails = safeDetail(std::move(controllerDetails), "/state/controller");
@@ -1580,7 +1706,11 @@ namespace ai::openai::codex::frontend::internal::model {
                     value.freshness = modelFreshness(stateFreshnessFromString(*freshness));
                 }
                 Json sessionDetails = session;
-                for (std::string_view key : {"sessionId", "id", "role", "principalId", "freshness"}) {
+                // `freshness` is an additive Frontend Protocol safe-detail
+                // member. Retain its exact spelling for the frozen public
+                // SessionState::extensions surface while also decoding the
+                // canonical freshness value above.
+                for (std::string_view key : {"sessionId", "id", "role", "principalId"}) {
                     sessionDetails.erase(key);
                 }
                 value.safeDetails = safeDetail(std::move(sessionDetails), path);
@@ -1713,12 +1843,30 @@ namespace ai::openai::codex::frontend::internal::model {
             if (snapshot.state.processes.has_value()) {
                 const Json* entries = &*snapshot.state.processes;
                 if (snapshot.state.processes->is_object()) {
+                    Json base = *snapshot.state.processes;
                     const auto member = snapshot.state.processes->find("entries");
                     if (member == snapshot.state.processes->end()) {
                         entries = nullptr;
                     } else {
                         entries = &*member;
+                        base.erase("entries");
                     }
+                    if (const auto nested = base.find("extensions"); nested != base.end()) {
+                        if (!nested->is_object()) {
+                            fail(ModelErrorCode::InvalidShape,
+                                 "/state/processes/extensions",
+                                 "process collection extensions must be an object");
+                        }
+                        Json merged = *nested;
+                        base.erase("extensions");
+                        for (auto extension = base.begin(); extension != base.end(); ++extension) {
+                            merged[extension.key()] = extension.value();
+                        }
+                        base = std::move(merged);
+                    }
+                    decoded.processesState = decodeDomain(std::optional<Json>{std::move(base)}, "/state/processes");
+                } else {
+                    decoded.processesState = DomainState::present();
                 }
                 if (entries == nullptr || !entries->is_array()) {
                     fail(ModelErrorCode::InvalidShape, "/state/processes/entries", "process entries must be an array");
@@ -1790,8 +1938,28 @@ namespace ai::openai::codex::frontend::internal::model {
                     }
                     remaining.erase("details");
                     value.extensions = safeDetail(std::move(remaining), path + "/extensions");
+                    Json publicExtensions = process;
+                    for (std::string_view key : {"processHandle",
+                                                 "lifecycle",
+                                                 "stdout",
+                                                 "stderr",
+                                                 "stdoutBytes",
+                                                 "stderrBytes",
+                                                 "stdoutTruncated",
+                                                 "stderrTruncated",
+                                                 "droppedOutputBytes",
+                                                 "exitCode",
+                                                 "stamp",
+                                                 "connectionInvalidated",
+                                                 "stateUnavailable"}) {
+                        publicExtensions.erase(key);
+                    }
+                    value.publicExtensions = safeDetail(std::move(publicExtensions), path + "/publicExtensions");
+                    value.publicExtensionsKnown = true;
                     decoded.processes.push_back(std::move(value));
                 }
+            } else {
+                decoded.processesState = {};
             }
 
             decoded.capacity = decodeCapacity(snapshot.state.capacity);
@@ -1841,6 +2009,21 @@ namespace ai::openai::codex::frontend::internal::model {
                 decoded.projection = decodeProjection(*projection);
                 stateExtensions.erase(projection);
             }
+            const auto rememberAbsentProjection = [&decoded](bool present, std::string path) {
+                if (!present && std::find(decoded.projection.absentPaths.begin(), decoded.projection.absentPaths.end(), path) ==
+                                    decoded.projection.absentPaths.end()) {
+                    decoded.projection.absentPaths.push_back(std::move(path));
+                }
+            };
+            // Preserve optional collection presence from the typed wire
+            // record. Empty and absent projections have different public SDK
+            // semantics even though both normalize to empty canonical
+            // vectors.
+            rememberAbsentProjection(snapshot.state.threads.has_value(), "/threads");
+            rememberAbsentProjection(snapshot.state.turns.has_value(), "/turns");
+            rememberAbsentProjection(snapshot.state.items.has_value(), "/items");
+            rememberAbsentProjection(snapshot.state.pendingRequests.has_value(), "/pendingRequests");
+            rememberAbsentProjection(snapshot.state.processes.has_value(), "/processes");
             if (const auto cursor = stateExtensions.find("backendCursor"); cursor != stateExtensions.end()) {
                 decoded.backendCursor = decodeBackendCursor(*cursor);
                 stateExtensions.erase(cursor);
@@ -1977,7 +2160,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 }
                 details = std::move(compatible);
             } else if (pendingRequestKind(request) == PendingRequestKind::UserInput) {
-                if (!value.questions.empty()) {
+                if (value.questionsPresent || !value.questions.empty()) {
                     details["questions"] = Json::array();
                     for (const PendingRequestQuestion& question : value.questions) {
                         Json typedQuestion{{"id", question.id},
@@ -2085,6 +2268,11 @@ namespace ai::openai::codex::frontend::internal::model {
             Json state = snapshot.stateExtensions.json();
             if (!state.is_object()) {
                 state = Json::object();
+            }
+            for (const LegacyRootExtension& extension : snapshot.legacyRootExtensions) {
+                if (!SafeDetail::isSecretKey(extension.name) && !state.contains(extension.name)) {
+                    state[extension.name] = extension.value.json();
+                }
             }
             state.erase("projectionMetadata");
             state.erase("backendCursor");
@@ -2340,6 +2528,150 @@ namespace ai::openai::codex::frontend::internal::model {
             return expanded;
         }
 
+        void preserveLegacyPendingQuestionClassifications(Json& state) {
+            if (!state.is_object()) {
+                return;
+            }
+            const auto pendingRequests = state.find("pendingRequests");
+            if (pendingRequests == state.end() || !pendingRequests->is_array()) {
+                return;
+            }
+            for (Json& pending : *pendingRequests) {
+                if (!pending.is_object() || optionalString(pending, "type") != std::optional<std::string>{"user_input"}) {
+                    continue;
+                }
+                const auto details = pending.find("details");
+                if (details == pending.end() || !details->is_object()) {
+                    continue;
+                }
+                const auto questions = details->find("questions");
+                if (questions == details->end() || !questions->is_array()) {
+                    continue;
+                }
+                for (Json& question : *questions) {
+                    if (!question.is_object() || question.contains("isSecret")) {
+                        continue;
+                    }
+                    const auto classification = question.find("secret");
+                    if (classification != question.end() && classification->is_boolean()) {
+                        // `secret` is the frozen legacy boolean
+                        // classification, not secret material. Promote it to
+                        // the expanded spelling before the recursive legacy
+                        // compatibility scrub removes secret-named members.
+                        question["isSecret"] = *classification;
+                    }
+                }
+            }
+        }
+
+        void scrubLegacyCompatibilityDetail(Json& value, std::size_t depth = 0) {
+            if (depth > SafeDetail::HardMaximumDepth) {
+                value = nullptr;
+                return;
+            }
+            if (value.is_object()) {
+                for (auto member = value.begin(); member != value.end();) {
+                    const bool safeClassification = normalizedKey(member.key()) == "issecret" && member.value().is_boolean();
+                    if (!safeClassification && SafeDetail::isSecretKey(member.key())) {
+                        member = value.erase(member);
+                    } else {
+                        scrubLegacyCompatibilityDetail(member.value(), depth + 1);
+                        ++member;
+                    }
+                }
+            } else if (value.is_array()) {
+                for (Json& member : value) {
+                    scrubLegacyCompatibilityDetail(member, depth + 1);
+                }
+            }
+        }
+
+        SafeDetail safeLegacyCompatibilityDetail(Json value, const std::string& path) {
+            scrubLegacyCompatibilityDetail(value);
+            return safeDetail(std::move(value), path);
+        }
+
+        template <typename KnownNames>
+        Json legacyUnknownMembers(const Json& value, const KnownNames& known) {
+            Json result = Json::object();
+            if (!value.is_object()) {
+                return result;
+            }
+            for (auto member = value.begin(); member != value.end(); ++member) {
+                const bool recognized = std::ranges::any_of(known, [&](std::string_view name) {
+                    return member.key() == name;
+                });
+                const bool safeClassification = normalizedKey(member.key()) == "issecret" && member.value().is_boolean();
+                if (!recognized && (safeClassification || !SafeDetail::isSecretKey(member.key()))) {
+                    result[member.key()] = member.value();
+                }
+            }
+            scrubLegacyCompatibilityDetail(result);
+            return result;
+        }
+
+        Json legacyUnknownMembers(const Json& value, std::initializer_list<std::string_view> known) {
+            return legacyUnknownMembers<std::initializer_list<std::string_view>>(value, known);
+        }
+
+        std::vector<LegacyRootExtension> legacyRootExtensions(const Json& legacy) {
+            constexpr std::array<std::string_view, 46> known{
+                "backendRevision",
+                "provider",
+                "lifecycle",
+                "lastLifecycleError",
+                "controller",
+                "controllerSessionId",
+                "sessions",
+                "threadList",
+                "threads",
+                "items",
+                "pendingRequests",
+                "domains",
+                "accounts",
+                "models",
+                "configuration",
+                "permissionProfiles",
+                "reviews",
+                "apps",
+                "externalAgents",
+                "hooks",
+                "marketplace",
+                "plugins",
+                "pluginsAndSkills",
+                "skills",
+                "mcp",
+                "windowsSandbox",
+                "platform",
+                "remoteControl",
+                "integrations",
+                "processes",
+                "filesystemWatches",
+                "fuzzySearches",
+                "fuzzySearchSessions",
+                "notices",
+                "activities",
+                "capacity",
+                "diagnostics",
+                "codexExtensions",
+                "omittedCodexExtensions",
+                "journal",
+                "sequenceExhausted",
+                "frontendSequenceExhausted",
+                "authorization",
+                "authentication",
+                "credential",
+                "credentials",
+            };
+            Json unknown = legacyUnknownMembers(legacy, known);
+            std::vector<LegacyRootExtension> result;
+            result.reserve(unknown.size());
+            for (auto member = unknown.begin(); member != unknown.end(); ++member) {
+                result.push_back({member.key(), safeLegacyCompatibilityDetail(member.value(), "/state/" + member.key())});
+            }
+            return result;
+        }
+
         LegacyItemCompatibility legacyItemCompatibility(const Json& item,
                                                          const std::optional<std::string>& parentThreadId,
                                                          const std::optional<std::string>& parentTurnId,
@@ -2356,6 +2688,10 @@ namespace ai::openai::codex::frontend::internal::model {
                                                              : parentTurnId,
                                                          path + "/turnId"));
             data.status = optionalString(item, "status");
+            data.summary = optionalString(item, "summary");
+            if (const auto location = item.find("location"); location != item.end()) {
+                data.location = safeLegacyCompatibilityDetail(*location, path + "/location");
+            }
             data.agentText = optionalString(item, "agentText");
             data.reasoningText = optionalString(item, "reasoningText");
             data.reasoningSummary = optionalString(item, "reasoningSummary");
@@ -2364,13 +2700,67 @@ namespace ai::openai::codex::frontend::internal::model {
             data.contentTruncated = item.value("contentTruncated", false);
             data.startedAtMs = optionalSigned(item, "startedAtMs");
             data.completedAtMs = optionalSigned(item, "completedAtMs");
+            data.truncation.truncated = item.value("truncated", false);
+            if (const auto omitted = item.find("omittedFields"); omitted != item.end()) {
+                if (!omitted->is_array()) {
+                    fail(ModelErrorCode::InvalidShape, path + "/omittedFields", "legacy item omitted fields must be an array");
+                }
+                for (std::size_t index = 0; index < omitted->size(); ++index) {
+                    if (!omitted->at(index).is_string()) {
+                        fail(ModelErrorCode::InvalidShape,
+                             path + "/omittedFields/" + std::to_string(index),
+                             "legacy item omitted field must be a string");
+                    }
+                    data.truncation.omittedPaths.push_back(omitted->at(index).get<std::string>());
+                }
+            }
+            data.connectionInvalidated = item.value("connectionInvalidated", false);
+            if (const auto stamp = item.find("stamp"); stamp != item.end()) {
+                Json sanitizedStamp = *stamp;
+                scrubLegacyCompatibilityDetail(sanitizedStamp);
+                const SourceMetadata decoded = decodeSourceMetadata(sanitizedStamp, path + "/stamp");
+                data.generation = decoded.generation;
+                data.freshness = decoded.freshness;
+                data.stampExtensions = decoded.extensions;
+            } else if (const auto generation = optionalUnsigned(item, "generation"); generation.has_value()) {
+                data.generation = *generation;
+                if (const auto freshness = optionalString(item, "freshness"); freshness.has_value()) {
+                    data.freshness = modelFreshness(stateFreshnessFromString(*freshness));
+                }
+            }
             data.sourceIndex = sourceIndex;
             if (const auto details = item.find("data"); details != item.end()) {
-                data.safeDetails = safeDetail(*details, path + "/data");
+                data.safeDetails = safeLegacyCompatibilityDetail(*details, path + "/data");
             }
             if (const auto extensions = item.find("extensions"); extensions != item.end()) {
-                data.legacyExtensions = safeDetail(*extensions, path + "/extensions");
+                data.legacyExtensions = safeLegacyCompatibilityDetail(*extensions, path + "/extensions");
             }
+            data.extensions = safeLegacyCompatibilityDetail(legacyUnknownMembers(item,
+                                                                                 {"id",
+                                                                                  "type",
+                                                                                  "kind",
+                                                                                  "threadId",
+                                                                                  "turnId",
+                                                                                  "status",
+                                                                                  "summary",
+                                                                                  "location",
+                                                                                  "agentText",
+                                                                                  "reasoningText",
+                                                                                  "reasoningSummary",
+                                                                                  "commandOutput",
+                                                                                  "droppedContentBytes",
+                                                                                  "contentTruncated",
+                                                                                  "startedAtMs",
+                                                                                  "completedAtMs",
+                                                                                  "data",
+                                                                                  "truncated",
+                                                                                  "omittedFields",
+                                                                                  "connectionInvalidated",
+                                                                                  "stamp",
+                                                                                  "generation",
+                                                                                  "freshness",
+                                                                                  "extensions"}),
+                                                            path + "/compatibilityExtensions");
             return {std::move(data), discriminator.value_or("unknown"), sourceIndex, std::move(path)};
         }
 
@@ -2382,7 +2772,7 @@ namespace ai::openai::codex::frontend::internal::model {
             data.itemId = optionalIdentity<ItemIdentity>(optionalString(pending, "itemId"), path + "/itemId");
             data.sourceIndex = sourceIndex;
             if (const auto details = pending.find("details"); details != pending.end()) {
-                data.safeDetails = safeDetail(*details, path + "/details");
+                data.safeDetails = safeLegacyCompatibilityDetail(*details, path + "/details");
             }
             return {std::move(data), sourceIndex, std::move(path)};
         }
@@ -2392,6 +2782,156 @@ namespace ai::openai::codex::frontend::internal::model {
                                      std::vector<LegacyPendingRequestCompatibility>* legacyPending = nullptr) {
             if (!legacy.is_object()) {
                 fail(ModelErrorCode::InvalidShape, "/state", "legacy snapshot state must be an object");
+            }
+            if (legacy.size() > LegacySnapshotMaximumObjectMembers) {
+                fail(ModelErrorCode::UnsafeDetail, "/state", "legacy snapshot state exceeds its object-member limit");
+            }
+            if (const auto controller = legacy.find("controller"); controller != legacy.end()) {
+                if (!controller->is_string() && !controller->is_number_unsigned() && !controller->is_object()) {
+                    fail(ModelErrorCode::InvalidShape,
+                         "/state/controller",
+                         "legacy snapshot controller must be a string, unsigned integer, or object");
+                }
+                if (controller->is_string() && controller->get_ref<const std::string&>().empty()) {
+                    fail(ModelErrorCode::InvalidIdentifier, "/state/controller", "legacy snapshot controller must not be empty");
+                }
+                if (controller->is_object()) {
+                    if (const auto present = controller->find("present"); present != controller->end() && !present->is_boolean()) {
+                        fail(ModelErrorCode::InvalidShape, "/state/controller/present", "controller present must be a boolean");
+                    }
+                    if (const auto session = controller->find("controllerSessionId");
+                        session != controller->end() && !session->is_string()) {
+                        fail(ModelErrorCode::InvalidShape,
+                             "/state/controller/controllerSessionId",
+                             "controller session identity must be a string");
+                    }
+                }
+            }
+            constexpr std::array<std::string_view, 16> legacyDomainNames{"accounts",
+                                                                         "models",
+                                                                         "configuration",
+                                                                         "permissionProfiles",
+                                                                         "reviews",
+                                                                         "apps",
+                                                                         "externalAgents",
+                                                                         "hooks",
+                                                                         "marketplace",
+                                                                         "plugins",
+                                                                         "pluginsAndSkills",
+                                                                         "skills",
+                                                                         "mcp",
+                                                                         "windowsSandbox",
+                                                                         "platform",
+                                                                         "integrations"};
+            const auto validateLegacyDomains = [&](const Json& domains, std::string_view path) {
+                for (std::string_view name : legacyDomainNames) {
+                    const auto value = domains.find(std::string(name));
+                    if (value != domains.end() && !value->is_object()) {
+                        fail(ModelErrorCode::InvalidShape,
+                             std::string(path) + "/" + std::string(name),
+                             "legacy snapshot domain must be an object");
+                    }
+                }
+            };
+            validateLegacyDomains(legacy, "/state");
+            const Json* nestedDomains = nullptr;
+            if (const auto domains = legacy.find("domains"); domains != legacy.end()) {
+                if (!domains->is_object()) {
+                    fail(ModelErrorCode::InvalidShape, "/state/domains", "legacy snapshot domains must be an object");
+                }
+                validateLegacyDomains(*domains, "/state/domains");
+                nestedDomains = &*domains;
+            }
+            const auto validateLegacyCollection = [&legacy](std::string_view name) {
+                const auto value = legacy.find(std::string(name));
+                if (value == legacy.end()) {
+                    return;
+                }
+                if (value->is_array()) {
+                    return;
+                }
+                if (!value->is_object()) {
+                    fail(ModelErrorCode::InvalidShape,
+                         "/state/" + std::string(name),
+                         "legacy snapshot collection must be an array or object");
+                }
+                const auto entries = value->find("entries");
+                if (entries == value->end() || !entries->is_array()) {
+                    fail(ModelErrorCode::InvalidShape,
+                         "/state/" + std::string(name) + "/entries",
+                         "legacy snapshot collection must contain an entries array");
+                }
+                if (const auto truncation = value->find("truncation"); truncation != value->end() && !truncation->is_object()) {
+                    fail(ModelErrorCode::InvalidShape,
+                         "/state/" + std::string(name) + "/truncation",
+                         "legacy snapshot collection truncation must be an object");
+                }
+            };
+            for (std::string_view name :
+                 {"processes", "filesystemWatches", "fuzzySearches", "fuzzySearchSessions", "notices", "activities"}) {
+                validateLegacyCollection(name);
+            }
+            if (const auto sessions = legacy.find("sessions"); sessions == legacy.end() || !sessions->is_array()) {
+                fail(ModelErrorCode::InvalidShape, "/state/sessions", "legacy snapshot sessions must be an array");
+            }
+            if (const auto threadList = legacy.find("threadList"); threadList == legacy.end() || !threadList->is_object()) {
+                fail(ModelErrorCode::InvalidShape, "/state/threadList", "legacy snapshot thread list must be an object");
+            }
+            if (const auto threads = legacy.find("threads"); threads == legacy.end() || !threads->is_array()) {
+                fail(ModelErrorCode::InvalidShape, "/state/threads", "legacy snapshot threads must be an array");
+            }
+            if (const auto items = legacy.find("items"); items != legacy.end() && !items->is_array()) {
+                fail(ModelErrorCode::InvalidShape, "/state/items", "legacy complete items must be an array");
+            }
+            if (const auto requests = legacy.find("pendingRequests"); requests == legacy.end() || !requests->is_array()) {
+                fail(ModelErrorCode::InvalidShape, "/state/pendingRequests", "legacy pending requests must be an array");
+            }
+            if (const auto capacity = legacy.find("capacity"); capacity != legacy.end()) {
+                if (!capacity->is_object()) {
+                    fail(ModelErrorCode::InvalidShape, "/state/capacity", "legacy capacity must be an object");
+                }
+                constexpr std::array<std::string_view, 20> knownCapacityMembers{
+                    "sessions",
+                    "observers",
+                    "activeOperations",
+                    "pendingRequests",
+                    "retainedThreads",
+                    "retainedTurns",
+                    "retainedItems",
+                    "accumulatedContentBytes",
+                    "retainedNotices",
+                    "retainedProcesses",
+                    "accumulatedProcessOutputBytes",
+                    "retainedFilesystemWatches",
+                    "retainedFuzzySearchSessions",
+                    "retainedActivityRecords",
+                    "evictedNotices",
+                    "evictedProcesses",
+                    "droppedProcessOutputBytes",
+                    "evictedFilesystemWatches",
+                    "evictedFuzzySearchSessions",
+                    "evictedActivityRecords",
+                };
+                for (std::string_view name : knownCapacityMembers) {
+                    const auto member = capacity->find(std::string(name));
+                    if (member != capacity->end() && !member->is_number_unsigned()) {
+                        fail(ModelErrorCode::InvalidShape,
+                             "/state/capacity/" + std::string(name),
+                             "legacy capacity values must be unsigned integers");
+                    }
+                }
+            }
+            if (const auto diagnostics = legacy.find("diagnostics"); diagnostics != legacy.end()) {
+                if (!diagnostics->is_object()) {
+                    fail(ModelErrorCode::InvalidShape, "/state/diagnostics", "legacy diagnostics must be an object");
+                }
+                if (const auto recent = diagnostics->find("recent"); recent != diagnostics->end()) {
+                    if (!recent->is_array() || std::ranges::any_of(*recent, [](const Json& value) {
+                            return !value.is_string();
+                        })) {
+                        fail(ModelErrorCode::InvalidShape, "/state/diagnostics/recent", "legacy diagnostics recent must contain strings");
+                    }
+                }
             }
             const auto lifecycleName = optionalString(legacy, "lifecycle");
             if (!lifecycleName.has_value() || !providerLifecycleFromString(*lifecycleName).has_value()) {
@@ -2423,6 +2963,7 @@ namespace ai::openai::codex::frontend::internal::model {
             state["threads"] = Json::array();
             state["turns"] = Json::array();
             state["items"] = Json::array();
+            std::size_t legacyItemSourceIndex = 0;
             if (const auto threads = legacy.find("threads"); threads != legacy.end() && threads->is_array()) {
                 for (Json thread : *threads) {
                     const auto threadId = optionalString(thread, "id");
@@ -2435,18 +2976,18 @@ namespace ai::openai::codex::frontend::internal::model {
                                     const Json data = item.value("data", Json::object());
                                     const auto discriminator = optionalString(item, "type");
                                     if (discriminator.has_value() && !expandedItemType(*discriminator, data).has_value() && legacyItems != nullptr) {
-                                        legacyItems->push_back(legacyItemCompatibility(item,
-                                                                                      threadId,
-                                                                                      turnId,
-                                                                                      itemIndex,
-                                                                                      "/threads/" +
-                                                                                          std::to_string(state["threads"].size()) +
-                                                                                          "/turns/" +
-                                                                                          std::to_string(state["turns"].size()) +
-                                                                                          "/items/" + std::to_string(itemIndex)));
+                                        legacyItems->push_back(legacyItemCompatibility(
+                                            item,
+                                            threadId,
+                                            turnId,
+                                            legacyItemSourceIndex,
+                                            "/threads/" + std::to_string(state["threads"].size()) + "/turns/" +
+                                                std::to_string(state["turns"].size()) + "/items/" + std::to_string(itemIndex)));
+                                        ++legacyItemSourceIndex;
                                         continue;
                                     }
                                     state["items"].push_back(normalizeLegacyItem(item, threadId, turnId));
+                                    ++legacyItemSourceIndex;
                                 }
                             }
                             turn.erase("items");
@@ -2460,17 +3001,53 @@ namespace ai::openai::codex::frontend::internal::model {
                 }
             }
             if (const auto completeItems = legacy.find("items"); completeItems != legacy.end() && completeItems->is_array()) {
-                state["items"] = Json::array();
                 for (std::size_t itemIndex = 0; itemIndex < completeItems->size(); ++itemIndex) {
                     Json item = completeItems->at(itemIndex);
                     const Json data = item.value("data", Json::object());
                     const auto discriminator = optionalString(item, "type");
                     if (discriminator.has_value() && !expandedItemType(*discriminator, data).has_value() && legacyItems != nullptr) {
-                        legacyItems->push_back(legacyItemCompatibility(
-                            item, std::nullopt, std::nullopt, itemIndex, "/items/" + std::to_string(itemIndex)));
+                        LegacyItemCompatibility decoded = legacyItemCompatibility(
+                            item, std::nullopt, std::nullopt, legacyItemSourceIndex, "/items/" + std::to_string(itemIndex));
+                        const auto prior =
+                            std::find_if(legacyItems->begin(), legacyItems->end(), [&](const LegacyItemCompatibility& value) {
+                                return value.value.id == decoded.value.id;
+                            });
+                        if (prior != legacyItems->end()) {
+                            decoded.sourceIndex = prior->sourceIndex;
+                            decoded.value.sourceIndex = prior->value.sourceIndex;
+                            if (!decoded.value.threadId.has_value()) {
+                                decoded.value.threadId = prior->value.threadId;
+                            }
+                            if (!decoded.value.turnId.has_value()) {
+                                decoded.value.turnId = prior->value.turnId;
+                            }
+                            *prior = std::move(decoded);
+                        } else {
+                            legacyItems->push_back(std::move(decoded));
+                            ++legacyItemSourceIndex;
+                        }
                         continue;
                     }
-                    state["items"].push_back(normalizeLegacyItem(std::move(item), std::nullopt, std::nullopt));
+                    Json normalized = normalizeLegacyItem(std::move(item), std::nullopt, std::nullopt);
+                    const auto identity = optionalString(normalized, "id");
+                    const auto prior = identity.has_value() ? std::find_if(state["items"].begin(),
+                                                                           state["items"].end(),
+                                                                           [&](const Json& value) {
+                                                                               return optionalString(value, "id") == identity;
+                                                                           })
+                                                            : state["items"].end();
+                    if (prior != state["items"].end()) {
+                        if (!normalized.contains("threadId") && prior->contains("threadId")) {
+                            normalized["threadId"] = prior->at("threadId");
+                        }
+                        if (!normalized.contains("turnId") && prior->contains("turnId")) {
+                            normalized["turnId"] = prior->at("turnId");
+                        }
+                        *prior = std::move(normalized);
+                    } else {
+                        state["items"].push_back(std::move(normalized));
+                        ++legacyItemSourceIndex;
+                    }
                 }
             }
             state["pendingRequests"] = Json::array();
@@ -2493,26 +3070,22 @@ namespace ai::openai::codex::frontend::internal::model {
                 }
             }
 
-            constexpr std::array<std::string_view, 16> domainNames{"accounts",
-                                                                   "models",
-                                                                   "configuration",
-                                                                   "permissionProfiles",
-                                                                   "reviews",
-                                                                   "apps",
-                                                                   "externalAgents",
-                                                                   "hooks",
-                                                                   "marketplace",
-                                                                   "plugins",
-                                                                   "skills",
-                                                                   "mcp",
-                                                                   "windowsSandbox",
-                                                                   "platform",
-                                                                   "remoteControl",
-                                                                   "integrations"};
-            for (std::string_view name : domainNames) {
-                if (const auto domain = legacy.find(name); domain != legacy.end()) {
-                    state[std::string(name)] = *domain;
+            for (std::string_view name : legacyDomainNames) {
+                const auto topLevel = legacy.find(name);
+                if (topLevel != legacy.end()) {
+                    state[std::string(name)] = *topLevel;
+                } else if (nestedDomains != nullptr) {
+                    const auto nested = nestedDomains->find(name);
+                    if (nested != nestedDomains->end()) {
+                        state[std::string(name)] = *nested;
+                    }
                 }
+            }
+            if (const auto domain = legacy.find("remoteControl"); domain != legacy.end()) {
+                if (!domain->is_object()) {
+                    fail(ModelErrorCode::InvalidShape, "/state/remoteControl", "legacy snapshot domain must be an object");
+                }
+                state["remoteControl"] = *domain;
             }
             if (!state.contains("plugins") && legacy.contains("pluginsAndSkills")) {
                 state["plugins"] = legacy.at("pluginsAndSkills");
@@ -2520,6 +3093,11 @@ namespace ai::openai::codex::frontend::internal::model {
             for (std::string_view name : {"processes", "filesystemWatches", "fuzzySearches", "notices", "activities", "capacity"}) {
                 if (const auto value = legacy.find(name); value != legacy.end()) {
                     state[std::string(name)] = *value;
+                }
+            }
+            if (!state.contains("fuzzySearches")) {
+                if (const auto value = legacy.find("fuzzySearchSessions"); value != legacy.end()) {
+                    state["fuzzySearches"] = *value;
                 }
             }
             if (!state.contains("capacity")) {
@@ -2586,7 +3164,10 @@ namespace ai::openai::codex::frontend::internal::model {
                     item);
             };
             const auto restoreItem =
-                [&](const Json& encoded, const std::optional<std::string>& threadId, const std::optional<std::string>& turnId) {
+                [&](const Json& encoded,
+                    const std::optional<std::string>& threadId,
+                    const std::optional<std::string>& turnId,
+                    std::optional<std::size_t> sourceIndex) {
                     const auto identity = optionalString(encoded, "id");
                     if (!identity.has_value()) {
                         return;
@@ -2601,12 +3182,17 @@ namespace ai::openai::codex::frontend::internal::model {
                         return;
                     }
                     ItemData& data = mutableItemData(*found);
+                    if (sourceIndex.has_value()) {
+                        data.sourceIndex = *sourceIndex;
+                    }
                     data.legacyDiscriminator = optionalString(encoded, "type");
                     if (const auto extensions = encoded.find("extensions"); extensions != encoded.end()) {
-                        data.legacyExtensions = safeDetail(*extensions, "/state/items/extensions");
+                        data.legacyExtensions = safeLegacyCompatibilityDetail(*extensions, "/state/items/extensions");
                     }
                 };
 
+            std::size_t nextSourceIndex = 0;
+            std::vector<std::string> nestedItemIds;
             if (const auto threads = legacy.find("threads"); threads != legacy.end() && threads->is_array()) {
                 for (const Json& encodedThread : *threads) {
                     const auto threadId = optionalString(encodedThread, "id");
@@ -2618,7 +3204,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     });
                     if (thread != snapshot.threads.end()) {
                         if (const auto extensions = encodedThread.find("extensions"); extensions != encodedThread.end()) {
-                            thread->legacyExtensions = safeDetail(*extensions, "/state/threads/extensions");
+                            thread->legacyExtensions = safeLegacyCompatibilityDetail(*extensions, "/state/threads/extensions");
                         }
                     }
                     const auto turns = encodedThread.find("turns");
@@ -2635,12 +3221,16 @@ namespace ai::openai::codex::frontend::internal::model {
                         });
                         if (turn != snapshot.turns.end()) {
                             if (const auto extensions = encodedTurn.find("extensions"); extensions != encodedTurn.end()) {
-                                turn->legacyExtensions = safeDetail(*extensions, "/state/turns/extensions");
+                                turn->legacyExtensions = safeLegacyCompatibilityDetail(*extensions, "/state/turns/extensions");
                             }
                         }
                         if (const auto items = encodedTurn.find("items"); items != encodedTurn.end() && items->is_array()) {
                             for (const Json& encodedItem : *items) {
-                                restoreItem(encodedItem, threadId, turnId);
+                                if (const auto identity = optionalString(encodedItem, "id"); identity.has_value()) {
+                                    nestedItemIds.push_back(*identity);
+                                }
+                                restoreItem(encodedItem, threadId, turnId, nextSourceIndex);
+                                ++nextSourceIndex;
                             }
                         }
                     }
@@ -2648,7 +3238,16 @@ namespace ai::openai::codex::frontend::internal::model {
             }
             if (const auto items = legacy.find("items"); items != legacy.end() && items->is_array()) {
                 for (const Json& encodedItem : *items) {
-                    restoreItem(encodedItem, std::nullopt, std::nullopt);
+                    const auto identity = optionalString(encodedItem, "id");
+                    const bool alreadyOrdered =
+                        identity.has_value() && std::find(nestedItemIds.begin(), nestedItemIds.end(), *identity) != nestedItemIds.end();
+                    restoreItem(encodedItem,
+                                std::nullopt,
+                                std::nullopt,
+                                alreadyOrdered ? std::nullopt : std::optional<std::size_t>{nextSourceIndex});
+                    if (!alreadyOrdered) {
+                        ++nextSourceIndex;
+                    }
                 }
             }
         }
@@ -2668,16 +3267,34 @@ namespace ai::openai::codex::frontend::internal::model {
 
     ModelResult<CanonicalSnapshot> decodeLegacySnapshot(const Snapshot& snapshot) noexcept {
         try {
+            Json sanitizedLegacy = snapshot.state;
+            preserveLegacyPendingQuestionClassifications(sanitizedLegacy);
+            scrubLegacyCompatibilityDetail(sanitizedLegacy);
+            for (std::string_view requiredRoot : {"sessions", "threadList", "threads", "pendingRequests"}) {
+                if (!sanitizedLegacy.contains(requiredRoot)) {
+                    return ModelError{ModelErrorCode::InvalidShape,
+                                      "/state/" + std::string(requiredRoot),
+                                      "legacy snapshot is missing a required state root"};
+                }
+            }
             std::vector<LegacyItemCompatibility> legacyItems;
             std::vector<LegacyPendingRequestCompatibility> legacyPending;
-            auto decoded = decodeExpandedState(snapshot, expandedStateFromLegacy(snapshot.state, &legacyItems, &legacyPending));
+            auto decoded = decodeExpandedState(snapshot, expandedStateFromLegacy(sanitizedLegacy, &legacyItems, &legacyPending));
             if (!decoded) {
                 return decoded.error();
             }
             CanonicalSnapshot value = std::move(decoded).value();
+            value.sessionsPresent = sanitizedLegacy.contains("sessions");
+            value.threadListPresent = sanitizedLegacy.contains("threadList");
+            value.threadsPresent = sanitizedLegacy.contains("threads");
+            value.turnsPresent = value.threadsPresent;
+            value.itemsPresent = value.threadsPresent || sanitizedLegacy.contains("items");
+            value.pendingRequestsPresent = sanitizedLegacy.contains("pendingRequests");
+            value.capacityPresent = sanitizedLegacy.contains("capacity");
             value.legacyItems = std::move(legacyItems);
             value.legacyPendingRequests = std::move(legacyPending);
-            restoreLegacyRepresentation(snapshot.state, value);
+            value.legacyRootExtensions = legacyRootExtensions(sanitizedLegacy);
+            restoreLegacyRepresentation(sanitizedLegacy, value);
             return value;
         } catch (const ModelFailure& failure) {
             return failure.error;

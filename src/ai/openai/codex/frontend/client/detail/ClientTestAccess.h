@@ -4,12 +4,16 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 namespace ai::openai::codex::frontend::client {
 
     class Client;
+    class State;
 
     namespace detail {
+
+        struct StateStorage;
 
         struct ClientTestAccess {
             static void setNextRequest(Client& client, std::uint64_t next) noexcept;
@@ -20,9 +24,11 @@ namespace ai::openai::codex::frontend::client {
             [[nodiscard]] static std::array<std::size_t, 3> synchronizationCounts(const Client& client) noexcept;
             static void failNextHelloConstruction(Client& client) noexcept;
             static void failAfterNextDispatch(Client& client) noexcept;
+            [[nodiscard]] static bool rejectInvalidSynchronizationAdapterResultWithThrowingCallback(Client& client) noexcept;
             [[nodiscard]] static std::size_t erasedTransientBytes(const Client& client) noexcept;
             [[nodiscard]] static std::size_t verifiedMovedFromStringScrubs(const Client& client) noexcept;
             [[nodiscard]] static bool shortStringStorageScrubbed() noexcept;
+            [[nodiscard]] static State adoptStateStorage(Client& client, std::shared_ptr<const StateStorage> storage) noexcept;
         };
 
     } // namespace detail

@@ -23,7 +23,7 @@ namespace express {
 
 namespace apps::codex_backend {
 
-    inline constexpr std::string_view FrontendWebSocketSubProtocol = "codex";
+    inline constexpr std::string_view FrontendWebSocketSubProtocolName = "codex";
 
     struct FrontendWebApplicationOptions {
         std::string endpoint = "/frontend";

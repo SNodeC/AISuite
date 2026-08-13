@@ -13,10 +13,12 @@ phases must preserve the frozen external contract while replacing and reducing
 the measured architecture deliberately. Architecture measurements are
 comparison data, not equality gates.
 
-P2 status: implementation and local closure are complete. Draft-PR and
-exact-head hosted evidence remain pending in
-[`p2-greenfield-frontend.md`](p2-greenfield-frontend.md). Production remains
-on the P0 frontend server and client until P3.
+P3 status: the production cutover and controlled legacy deletion are complete
+on the P3 branch. The approved pre-deletion Commit-5 checkpoint and focused
+local Commit-6 validation are recorded in
+[`p3-frontend-cutover.md`](p3-frontend-cutover.md). Final exact-head hosted
+closure and independent review remain pending; this status is not a merge-ready
+claim.
 
 ## Motivation
 

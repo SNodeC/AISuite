@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 2,
+  "status": "implementation-complete-final-hosted-closure-pending",
+  "repository": "SNodeC/AISuite",
+  "branch": "codex/p3-frontend-cutover",
+  "p3Base": "7e68847e14753553402e1d468c3af15a148eea80",
+  "mergedP2": {
+    "pullRequest": 16,
+    "base": "master",
+    "state": "MERGED",
+    "mergeCommitReachableFromP3Base": true
+  },
+  "compatibility": {
+    "projectVersion": "0.1.0",
+    "codexSoversion": 2,
+    "frontendProtocol": {
+      "identity": "snodec.codex-frontend",
+      "version": 1,
+      "target": "AISuite::OpenAICodexFrontendProtocol"
+    },
+    "installedPublicTargets": [
+      "AISuite::OpenAICodex",
+      "AISuite::OpenAICodexBackend",
+      "AISuite::OpenAICodexFrontend",
+      "AISuite::OpenAICodexFrontendClient",
+      "AISuite::OpenAICodexFrontendProtocol"
+    ],
+    "preserved": [
+      "output library names and shared-library identities",
+      "installed public-header paths",
+      "public Pimpl layouts, constructors, methods, callbacks and aliases",
+      "generated facades, enums and value semantics",
+      "Frontend Protocol v1 schemas and wire identity",
+      "CLI command names and syntax",
+      "transport instance names, configuration hierarchy and defaults",
+      "transport security policy"
+    ],
+    "serverOnlyUtilities": [
+      "EventCoalescer",
+      "EventJournal",
+      "UpdateBatchBuilder"
+    ]
+  },
+  "snodecProvenance": {
+    "authority": "merged repository CI configuration and reused feature-complete build",
+    "observedPackageVersion": "2.0.0",
+    "productionPinAddedByP3": false,
+    "repositoryModifiedByP3": false
+  },
+  "finalTargetGraph": {
+    "server": {
+      "target": "AISuite::OpenAICodexFrontend",
+      "uses": [
+        "AISuite::OpenAICodexFrontendProtocol",
+        "ai-openai-codex-frontend-model",
+        "ai-openai-codex-frontend-server-core",
+        "BackendCoreBridge",
+        "BackendCore"
+      ]
+    },
+    "client": {
+      "target": "AISuite::OpenAICodexFrontendClient",
+      "public": [
+        "AISuite::OpenAICodexFrontendProtocol"
+      ],
+      "private": [
+        "ai-openai-codex-frontend-model",
+        "ai-openai-codex-frontend-client-core",
+        "CanonicalStateBuilder and client implementation objects"
+      ],
+      "forbiddenDependenciesAbsent": [
+        "AISuite::OpenAICodexFrontend",
+        "AISuite::OpenAICodexBackend",
+        "ServerCore",
+        "BackendCore",
+        "SNode.C",
+        "concrete transports",
+        "server-only compatibility utilities"
+      ]
+    }
+  },
+  "semanticOwnership": {
+    "server": [
+      "BackendCoreBridge owns the single shared BackendCore observer and authenticated backend-session mapping",
+      "ServerCore owns authentication, authorization, sessions, controller transactions, occurrences, journal, replay, snapshots, queues and close policy",
+      "FrontendService and FrontendConnection are public compatibility Pimpl adapters"
+    ],
+    "client": [
+      "ClientCore owns physical generations, synchronization, correlation, canonical state and semantic callbacks",
+      "CanonicalStateBuilder prepares immutable public StateStorage directly from canonical typed state",
+      "Client and Connection are public compatibility Pimpl adapters"
+    ],
+    "transport": [
+      "one private shared JsonLineFramer for native server and client adapters",
+      "one persistent configured SNode.C client per selected transport",
+      "static connection-owned WebSocket composition"
+    ]
+  },
+  "transports": [
+    {"kind": "unix-jsonl", "server": "codex-backend", "client": "codex-backend-client-unix", "defaultEnabled": true},
+    {"kind": "ipv4-jsonl", "server": "codex-backend-ipv4", "client": "codex-backend-client-ipv4", "defaultEnabled": false},
+    {"kind": "ipv6-jsonl", "server": "codex-backend-ipv6", "client": "codex-backend-client-ipv6", "defaultEnabled": false},
+    {"kind": "ipv4-tls-jsonl", "server": "codex-backend-tls-ipv4", "client": "codex-backend-client-tls-ipv4", "defaultEnabled": false},
+    {"kind": "ipv6-tls-jsonl", "server": "codex-backend-tls-ipv6", "client": "codex-backend-client-tls-ipv6", "defaultEnabled": false},
+    {"kind": "rfcomm-jsonl", "server": "codex-backend-rfcomm", "client": "codex-backend-client-rfcomm", "defaultEnabled": false},
+    {"kind": "rfcomm-tls-jsonl", "server": "codex-backend-rfcomm-tls", "client": "codex-backend-client-rfcomm-tls", "defaultEnabled": false},
+    {"kind": "websocket-ipv4", "server": "codex-backend-websocket-ipv4", "client": "codex-backend-client-websocket-ipv4", "defaultEnabled": false},
+    {"kind": "websocket-ipv6", "server": "codex-backend-websocket-ipv6", "client": "codex-backend-client-websocket-ipv6", "defaultEnabled": false},
+    {"kind": "wss-ipv4", "server": "codex-backend-wss-ipv4", "client": "codex-backend-client-wss-ipv4", "defaultEnabled": false},
+    {"kind": "wss-ipv6", "server": "codex-backend-wss-ipv6", "client": "codex-backend-client-wss-ipv6", "defaultEnabled": false}
+  ],
+  "retainedProductionIdentities": [
+    "src/ai/openai/codex/frontend/FrontendService.cpp",
+    "src/ai/openai/codex/frontend/client/Client.cpp",
+    "src/ai/openai/codex/frontend/client/State.cpp",
+    "src/ai/openai/codex/frontend/internal/model/Model.cpp",
+    "src/ai/openai/codex/frontend/internal/model/Occurrence.cpp",
+    "src/ai/openai/codex/frontend/internal/model/Journal.cpp",
+    "src/ai/openai/codex/frontend/internal/server/BackendProjection.cpp",
+    "src/ai/openai/codex/frontend/internal/server/BackendCoreBridge.cpp",
+    "src/ai/openai/codex/frontend/internal/server/ServerCore.cpp",
+    "src/ai/openai/codex/frontend/internal/client/ClientCore.cpp",
+    "src/ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h",
+    "src/ai/openai/codex/frontend/internal/transport/JsonLineFramer.cpp",
+    "src/apps/codex-backend/FrontendStreamSocketContext.cpp",
+    "src/apps/codex-backend/FrontendWebApplication.cpp",
+    "src/apps/codex-backend/FrontendWebSocketSubProtocol.cpp",
+    "src/apps/codex-backend-client/ClientConnection.cpp",
+    "src/apps/codex-backend-client/FrontendWebSocketClient.cpp"
+  ],
+  "removedProductionIdentities": [
+    "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.cpp",
+    "src/ai/openai/codex/frontend/detail/BackendProjectionBuilder.h",
+    "src/ai/openai/codex/frontend/detail/FrontendCapabilities.cpp",
+    "src/ai/openai/codex/frontend/detail/FrontendCapabilities.h",
+    "src/ai/openai/codex/frontend/detail/FrontendProjection.cpp",
+    "src/ai/openai/codex/frontend/detail/FrontendProjection.h",
+    "src/ai/openai/codex/frontend/detail/FrontendServiceTestAccess.h",
+    "src/ai/openai/codex/frontend/client/detail/StateReducer.h",
+    "src/apps/codex-backend/FrontendRuntimeBridge.cpp",
+    "src/apps/codex-backend/FrontendRuntimeBridge.h",
+    "src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.cpp",
+    "src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.h",
+    "src/apps/codex-backend/JsonLineFramer.cpp",
+    "src/apps/codex-backend/JsonLineFramer.h",
+    "src/apps/codex-backend-client/JsonLineFramer.cpp",
+    "src/apps/codex-backend-client/JsonLineFramer.h"
+  ],
+  "removedProductionTargets": [
+    "codex-backend-runtime-bridge",
+    "codex-backend-websocket-subprotocol"
+  ],
+  "removedTemporaryValidation": [
+    "tests/component/codex/oracle/",
+    "tests/policy/codex/CodexFrontendP3OracleIsolationTest.py",
+    "tests/policy/codex/CodexFrontendP3OracleDependencyResolutionTest.py",
+    "Codex frontend server/client differential executables and execution ledger used only by the temporary oracle",
+    "oracle source-closure, digest, capture and separate-link proof machinery",
+    "docs/ai/openai/codex/architecture-reduction/p3-task-a-f3-coverage-audit.md"
+  ],
+  "retainedPermanentValidation": [
+    "tests/component/codex/fixtures/frontend-protocol-v1.generated.json",
+    "tests/component/codex/fixtures/p2-frontend-differential-coverage.json",
+    "CodexFrontendDifferentialCoverageGuardTest",
+    "CodexFrontendDifferentialMutationTest",
+    "CodexFrontendCoreDependencyPolicyTest",
+    "protocol authority/currentness tests",
+    "typed model, occurrence, snapshot and journal tests",
+    "ServerCore and ClientCore conformance tests",
+    "public service/client adapter and compatibility tests",
+    "native and WebSocket composition/security acceptance tests"
+  ],
+  "commit5Checkpoint": {
+    "sha": "a535654be86410cd751f05972fe13ec5515e6b08",
+    "workflowRunId": 31621787681,
+    "jobId": 94198152958,
+    "conclusion": "success",
+    "boundedHostedClosure": true,
+    "completeOrdinaryCTest": false,
+    "ctest": {
+      "registered": 221,
+      "selected": 215,
+      "executed": 215,
+      "passed": 209,
+      "failed": 0,
+      "skipped": 6,
+      "durationSeconds": 282.72
+    },
+    "runtimeSkips": [
+      "CodexBackendClientIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexBackendClientTlsIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexBackendClientWebSocketIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexBackendClientWssIpv6AcceptanceTest: runner AI_ADDRCONFIG could not resolve ::1",
+      "CodexAppServerIntegrationTest: codex executable unavailable on PATH",
+      "CodexTypedAppServerIntegrationTest: opt-in provider/credential/quota prerequisites unavailable"
+    ],
+    "explicitlyDeferredTests": [
+      "CodexAppServerFixtureInfrastructureTest",
+      "CodexFrontendProtocolMinimalConfigurationTest",
+      "CodexFrontendProtocolLegacyBinaryCompatibilityTest",
+      "CodexPolicyMutationTest",
+      "CodexPublicHeaderSelfContainmentTest",
+      "CodexSyntheticSecretLeakGuardTest"
+    ],
+    "otherPassedGates": [
+      "installed consumer",
+      "source package",
+      "binary package",
+      "P0 build/install/executable verification",
+      "P0 deterministic comparison"
+    ]
+  },
+  "localCommit6Validation": {
+    "buildDirectory": "build-p2-complete",
+    "resources": {
+      "logicalProcessors": 28,
+      "memory": "62 GiB",
+      "workspaceFilesystemFree": "417 GiB"
+    },
+    "buildPolicy": "every local build used --parallel 24",
+    "ctestPolicy": "every local CTest used --parallel 24 --timeout 60 --output-on-failure with an explicit selection",
+    "finalIncrementalBuild": {
+      "command": "cmake --build build-p2-complete --parallel 24",
+      "result": "passed"
+    },
+    "focusedSelections": [
+      {"selected": 62, "passed": 62, "failed": 0, "skipped": 0, "durationSeconds": 6.03},
+      {"selected": 2, "passed": 2, "failed": 0, "skipped": 0, "durationSeconds": 0.08}
+    ],
+    "prohibitedNotRun": [
+      "complete ordinary CTest",
+      "installed-consumer local closure",
+      "source or binary package local closure",
+      "public-header complete installed rebuild",
+      "cold/relinked or unrelinked ELF ABI probe",
+      "complete P0 build/install-backed verification",
+      "deterministic full P0 capture/comparison",
+      "all-eleven live transport suite",
+      "real Codex App Server/provider integration",
+      "credential, quota or account integration",
+      "stress, soak, fuzz, benchmark or sanitizer matrices"
+    ]
+  },
+  "commitLedger": [
+    {"ordinal": 1, "sha": "5c336611cf21e57552c7d194660050cce737d41f", "subject": "Freeze the P3 cutover contract and preserve the legacy oracle"},
+    {"ordinal": 2, "sha": "37b10597c281833ea68398a945348aad79e7ff35", "subject": "Cut the public Codex frontend service over to ServerCore"},
+    {"ordinal": 3, "sha": "aecf72c21cb9461d6061c9fcd3d3b1cb985b802c", "subject": "Cut the public Codex frontend client over to ClientCore"},
+    {"ordinal": 4, "sha": "0ebf395d6561bcc538768a6343fb2341f18b65f4", "subject": "Consolidate native Codex frontend transport composition"},
+    {"ordinal": 5, "sha": "a535654be86410cd751f05972fe13ec5515e6b08", "subject": "Cut WebSocket transports over to static composition"},
+    {"ordinal": 6, "sha": "341ae5f924c683fe984ae37c5e8648318b5db806", "subject": "Remove the legacy Codex frontend implementation"},
+    {"ordinal": 7, "sha": "self", "subject": "Close and verify the Codex P3 cutover"}
+  ],
+  "commit7": {
+    "productionSourceChangesAllowed": false,
+    "fullShaRecordedInPullRequestBody": true,
+    "finalHostedWorkflow": "pending publication"
+  },
+  "remainingMergeGates": [
+    "hosted closure on the exact final Commit-7 head",
+    "resolution or explicit acceptance of hosted environment skips",
+    "non-ELF client typed-symbol ownership verification",
+    "independent review and owner merge decision"
+  ]
+}

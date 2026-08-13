@@ -63,6 +63,9 @@ namespace ai::openai::codex::frontend::client::detail {
                                                                                        std::string& error) noexcept;
 
     [[nodiscard]] std::optional<typed::Unit> decodeUnitResult(const frontend::Json& value, std::string& error) noexcept;
+    [[nodiscard]] std::optional<ThreadResultState> decodeOperationThreadResultState(const frontend::Json& value,
+                                                                                    std::string& error) noexcept;
+    [[nodiscard]] std::optional<TurnResultState> decodeOperationTurnResultState(const frontend::Json& value, std::string& error) noexcept;
     [[nodiscard]] std::optional<ThreadStartResult> decodeThreadStartResult(const frontend::Json& value, std::string& error) noexcept;
     [[nodiscard]] std::optional<ThreadResumeResult> decodeThreadResumeResult(const frontend::Json& value, std::string& error) noexcept;
     [[nodiscard]] std::optional<ThreadListResult> decodeThreadListResult(const frontend::Json& value, std::string& error) noexcept;

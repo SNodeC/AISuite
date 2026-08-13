@@ -15,13 +15,12 @@ namespace apps::codex_backend_client {
     CodexBackendClientSocketContextFactory::CodexBackendClientSocketContextFactory(ClientConnection& connection,
                                                                                    std::size_t maximumFrameSize)
         : connection(connection)
-        , maximumFrameSize(maximumFrameSize)
-        , attemptGeneration(connection.preparedAttemptForFactory()) {
+        , maximumFrameSize(maximumFrameSize) {
     }
 
     core::socket::stream::SocketContext*
     CodexBackendClientSocketContextFactory::create(core::socket::stream::SocketConnection* socketConnection) {
-        return new CodexBackendClientSocketContext(socketConnection, connection, maximumFrameSize, attemptGeneration);
+        return new CodexBackendClientSocketContext(socketConnection, connection, maximumFrameSize);
     }
 
 } // namespace apps::codex_backend_client

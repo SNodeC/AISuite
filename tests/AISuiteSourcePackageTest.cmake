@@ -112,10 +112,7 @@ foreach(required
     src/ai/openai/codex/frontend/client/detail/BoundOperation.h
     src/ai/openai/codex/frontend/client/detail/ClientTestAccess.h
     src/ai/openai/codex/frontend/client/detail/OperationCodecs.h
-    src/ai/openai/codex/frontend/client/detail/StateReducer.h
     src/apps/codex-backend/Configuration.cpp
-    src/apps/codex-backend/FrontendRuntimeBridge.cpp
-    src/apps/codex-backend/FrontendRuntimeBridge.h
     src/apps/codex-backend/FrontendStreamSocketContext.cpp
     src/apps/codex-backend/FrontendWebApplication.h
     src/apps/codex-backend/FrontendWebApplication.cpp
@@ -123,8 +120,6 @@ foreach(required
     src/apps/codex-backend/FrontendWebSecurity.h
     src/apps/codex-backend/FrontendWebSocketSubProtocol.cpp
     src/apps/codex-backend/FrontendWebSocketSubProtocol.h
-    src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.cpp
-    src/apps/codex-backend/FrontendWebSocketSubProtocolFactory.h
     src/apps/codex-backend/ReferenceAuthentication.cpp
     src/apps/codex-backend/UnixPeerCredentials.cpp
     src/apps/codex-backend/main.cpp
@@ -162,7 +157,6 @@ foreach(required
     tests/component/codex/CodexFrontendClientGeneratorTest.py
     tests/component/codex/CodexFrontendClientLifecycleTest.cpp
     tests/component/codex/CodexFrontendClientSymbolVisibilityTest.cmake
-    tests/component/codex/CodexFrontendClientSynchronizationTest.cpp
     tests/component/codex/CodexFrontendServiceClientIntegrationTest.cpp
     tests/component/codex/CodexFrontendProtocolTargetIsolationTest.cpp
     tests/component/codex/CodexFrontendProtocolMinimalConfigurationTest.py
@@ -183,12 +177,8 @@ foreach(required
     tests/component/codex/CodexFrontendClientCoreOperationTest.cpp
     tests/component/codex/CodexFrontendClientCoreStateTest.cpp
     tests/component/codex/CodexFrontendClientCoreCapacityTest.cpp
-    tests/component/codex/CodexFrontendServerDifferentialTest.cpp
-    tests/component/codex/CodexFrontendClientDifferentialTest.cpp
-    tests/component/codex/CodexFrontendDifferentialAuthority.h
     tests/component/codex/CodexFrontendDifferentialComparison.h
     tests/component/codex/CodexFrontendDifferentialCoverageGuardTest.py
-    tests/component/codex/CodexFrontendDifferentialExecutionLedger.h
     tests/component/codex/CodexFrontendDifferentialMutationProbe.cpp
     tests/component/codex/CodexFrontendDifferentialMutationTest.py
     tests/component/codex/CodexFrontendCompatibilityAdapters.h

@@ -13,24 +13,9 @@
 #include <cstddef>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <string_view>
-
-namespace apps::codex_backend_client {
-
-    struct ClientConnectionAttemptTestAccess {
-        static bool accepts(ClientConnection& connection, const PhysicalConnectionAttemptGate::Generation generation) {
-            return connection.acceptsAttemptGeneration(generation);
-        }
-    };
-
-    struct FrontendWebSocketClientRuntimeTestAccess {
-        static std::uint64_t claim(FrontendWebSocketClientRuntime& runtime, const core::socket::stream::SocketConnection* transport) {
-            return runtime.claimAttempt(transport);
-        }
-    };
-
-} // namespace apps::codex_backend_client
 
 namespace {
     namespace frontend = ai::openai::codex::frontend;
@@ -54,110 +39,41 @@ int main() {
     tests::support::TestResult result;
 
     sdk::Client firstClient(options());
-    sdk::Client secondClient(options());
     std::size_t webSocketFailures = 0;
-    std::size_t webSocketAttemptFailures = 0;
-    app::FrontendWebSocketClientRuntime firstRuntime(
-        firstClient,
-        app::FrontendWebSocketClientCallbacks{.onConnected = {},
-                                              .onDisconnected = {},
-                                              .onFailure =
-                                                  [&webSocketFailures](std::string) {
-                                                      ++webSocketFailures;
-                                                  },
-                                              .onAttemptConnected = {},
-                                              .onAttemptDisconnected = {},
-                                              .onAttemptFailure =
-                                                  [&webSocketAttemptFailures](std::uint64_t, std::string) {
-                                                      ++webSocketAttemptFailures;
-                                                  },
-                                              .onBeforeTransportConnected = {},
-                                              .onLocalShutdown = {}});
-    app::FrontendWebSocketClientRuntime secondRuntime(secondClient);
-    result.expectTrue(firstRuntime.install() && !secondRuntime.install(),
-                      "the application-private WebSocket runtime bridge permits exactly one SDK owner");
-    firstRuntime.uninstall();
-    result.expectTrue(secondRuntime.install(), "the runtime bridge can be transferred after deterministic uninstall");
-    secondRuntime.uninstall();
-
-    app::PhysicalConnectionAttemptGate attempts;
-    const auto firstGeneration = attempts.begin();
-    result.expectTrue(firstGeneration == 1 && attempts.active() && !attempts.begin() && !attempts.complete(2) &&
-                          attempts.isCurrent(*firstGeneration),
-                      "one physical attempt generation is authoritative until that exact generation detaches");
-    result.expectTrue(attempts.complete(*firstGeneration) && !attempts.active() && attempts.begin() == 2,
-                      "a completed physical attempt permits exactly one later monotonically increasing generation");
-
-    app::ClientConnection nativeConnection(firstClient);
-    result.expectTrue(nativeConnection.prepareAttempt(11) && !nativeConnection.prepareAttempt(12) && !nativeConnection.hasAttachment(11),
-                      "a native adapter cannot prepare an overlapping physical attempt");
-    nativeConnection.cancelPreparedAttempt(12);
-
-    app::ClientConnection generationAwareNative(firstClient,
-                                                app::ClientConnectionCallbacks{.onConnected = {},
-                                                                               .onDisconnected = {},
-                                                                               .onFailure = {},
-                                                                               .onAttemptConnected =
-                                                                                   [](std::uint64_t) {
-                                                                                   },
-                                                                               .onAttemptDisconnected = {},
-                                                                               .onAttemptFailure = {},
-                                                                               .onOutbound = {},
-                                                                               .verifiedLocalUnix = false,
-                                                                               .onBeforeTransportConnected = {},
-                                                                               .onLocalShutdown = {}});
-    result.expectTrue(generationAwareNative.prepareAttempt(31) &&
-                          app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 31) &&
-                          !app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 0) &&
-                          !app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 30),
-                      "a generation-aware native factory accepts only its exactly prepared physical attempt");
-    generationAwareNative.cancelPreparedAttempt(31);
-    result.expectTrue(generationAwareNative.prepareAttempt(32) &&
-                          !app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 31) &&
-                          app::ClientConnectionAttemptTestAccess::accepts(generationAwareNative, 32),
-                      "a late native factory from the retired generation cannot consume the next prepared generation");
-    generationAwareNative.cancelPreparedAttempt(32);
-    result.expectTrue(!nativeConnection.prepareAttempt(12), "a stale native cancellation cannot release the current generation");
-    nativeConnection.cancelPreparedAttempt(11);
-    result.expectTrue(nativeConnection.prepareAttempt(12), "the exact cancelled native generation permits the next attempt");
-    nativeConnection.cancelPreparedAttempt(12);
-
-    alignas(void*) std::byte firstTransportStorage{};
-    alignas(void*) std::byte secondTransportStorage{};
-    const auto* const firstTransport = reinterpret_cast<const core::socket::stream::SocketConnection*>(&firstTransportStorage);
-    const auto* const secondTransport = reinterpret_cast<const core::socket::stream::SocketConnection*>(&secondTransportStorage);
-    result.expectTrue(firstRuntime.prepareAttempt(21) && firstRuntime.bindAttemptTransport(21, firstTransport) &&
-                          !firstRuntime.bindAttemptTransport(21, secondTransport) && !firstRuntime.prepareAttempt(22),
-                      "the WebSocket runtime rejects an overlapping prepared attempt");
-    result.expectTrue(app::FrontendWebSocketClientRuntimeTestAccess::claim(firstRuntime, secondTransport) == 0 &&
-                          app::FrontendWebSocketClientRuntimeTestAccess::claim(firstRuntime, firstTransport) == 21,
-                      "a WebSocket subprotocol may claim only the exact HTTP transport bound to its generation");
-    firstRuntime.reportAttemptFailure(20, "stale");
-    firstRuntime.reportAttemptFailure(21, "current");
-    result.expectTrue(webSocketFailures == 1 && webSocketAttemptFailures == 1,
-                      "stale WebSocket failure callbacks cannot affect the current application attempt");
-    firstRuntime.abandonAttempt(20);
-    result.expectTrue(!firstRuntime.prepareAttempt(22), "a stale WebSocket detach cannot release the current generation");
-    firstRuntime.abandonAttempt(21);
-    result.expectTrue(firstRuntime.prepareAttempt(22) && firstRuntime.bindAttemptTransport(22, secondTransport) &&
-                          app::FrontendWebSocketClientRuntimeTestAccess::claim(firstRuntime, firstTransport) == 0 &&
-                          app::FrontendWebSocketClientRuntimeTestAccess::claim(firstRuntime, secondTransport) == 22,
-                      "a late WebSocket factory from the retired transport cannot claim the next prepared generation");
-    firstRuntime.abandonAttempt(22);
+    auto firstBinding =
+        std::make_shared<app::FrontendWebSocketClientBinding>(firstClient,
+                                                              app::FrontendWebSocketClientCallbacks{.onConnected = {},
+                                                                                                    .onDisconnected = {},
+                                                                                                    .onFailure =
+                                                                                                        [&webSocketFailures](std::string) {
+                                                                                                            ++webSocketFailures;
+                                                                                                        },
+                                                                                                    .onBeforeTransportConnected = {},
+                                                                                                    .onLocalShutdown = {}});
+    sdk::Client secondClient(options());
+    auto secondBinding = std::make_shared<app::FrontendWebSocketClientBinding>(secondClient);
+    firstBinding->reportFailure("first");
+    result.expectTrue(webSocketFailures == 1 && !firstBinding->connected() && !secondBinding->connected(),
+                      "independent connection-owned WebSocket bindings coexist without global installation ownership");
 
     app::linkFrontendWebSocketClient();
     auto* selector = web::websocket::client::SubProtocolFactorySelector::instance();
     auto* factory = selector->select(
         "codex",
         web::websocket::SubProtocolFactorySelector<web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>>::Role::CLIENT);
-    result.expectTrue(factory != nullptr && factory->getName() == "codex",
-                      "the linked SNode.C client subprotocol factory resolves the exact codex token");
+    auto* repeatedFactory = selector->select(
+        "codex",
+        web::websocket::SubProtocolFactorySelector<web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>>::Role::CLIENT);
+    result.expectTrue(factory != nullptr && factory == repeatedFactory && factory->getName() == "codex",
+                      "the linked SNode.C client subprotocol factory is one stateless codex authority");
     if (factory != nullptr) {
         selector->unload(factory);
     }
 
     std::ifstream sourceFile(CODEX_BACKEND_CLIENT_MAIN_SOURCE);
     const std::string source{std::istreambuf_iterator<char>(sourceFile), std::istreambuf_iterator<char>()};
+    std::ifstream webSocketSourceFile(CODEX_BACKEND_CLIENT_WEBSOCKET_SOURCE);
+    const std::string webSocketSource{std::istreambuf_iterator<char>(webSocketSourceFile), std::istreambuf_iterator<char>()};
     const std::string_view requiredComposition[] = {
         "codex-backend-client-unix",
         "codex-backend-client-ipv4",
@@ -175,24 +91,19 @@ int main() {
         "Instance::getDisabled()",
         "EventReceiver::atNextTick",
         "setMaximumWriteQueueBytes",
-        "setRetry(false)",
-        "setReconnect(false)",
         "beginConnectionAttempt",
-        "PhysicalConnectionAttemptGate",
-        "physicalAttempts.active()",
-        "physicalAttempts.isCurrent(generation)",
-        "prepareAttempt(*generation)",
-        "startStreamAttempt",
-        "startWebSocketAttempt",
-        "beginWebSocketUpgrade(*generation)",
-        "endWebSocketHttp(*generation)",
-        "bindAttemptTransport(generation, transport)",
-        "std::make_shared<Attempt>",
+        "startPersistentStreamClient",
+        "selectPersistentStreamClient",
+        "selectPersistentWebSocketClient",
+        "FrontendWebSocketHttpClient",
+        "webSocketBinding",
+        "configuredClient.connect",
+        "configuredClient.getFlowController()->terminateFlow()",
         "connectionAttemptFailed",
         "lifecycle.disconnected()",
         "applicationShutdownActive()",
         "connectionHandle->shutdown()",
-        "webSocketRuntimeHandle->shutdown()",
+        "webSocketBindingHandle->shutdown()",
         "closeWebSocketUpgradeTransport",
         "getSocketContext()->close()",
         "Sec-WebSocket-Protocol\", \"codex",
@@ -204,11 +115,48 @@ int main() {
     result.expectTrue(
         complete, "the reference CLI composes every compiled named SNode.C client, preflights effective configuration, and requests codex");
 
-    result.expectTrue(!contains(source, "connectionHandle->disconnect()") && !contains(source, "webSocketRuntimeHandle->disconnect()") &&
+    const std::size_t persistentStart = source.find("const auto startPersistentStreamClient");
+    const std::size_t persistentEnd = source.find("#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)", persistentStart);
+    const std::string persistentComposition = persistentStart != std::string::npos && persistentEnd != std::string::npos
+                                                  ? source.substr(persistentStart, persistentEnd - persistentStart)
+                                                  : std::string{};
+    result.expectTrue(
+        contains(persistentComposition, "configuredClient.connect") &&
+            contains(persistentComposition, "configuredClient.getFlowController()->terminateFlow()") &&
+            !contains(persistentComposition, "PhysicalConnectionAttemptGate") && !contains(persistentComposition, "prepareAttempt") &&
+            !contains(persistentComposition, "std::make_shared") && !contains(persistentComposition, "copyEffectiveSocketConfiguration"),
+        "native transports reconnect through the same configured SNode.C client without application attempt generations or config copies");
+    result.expectTrue(!contains(source, "startStreamAttempt") && !contains(source, "connection.prepareAttempt("),
+                      "active native composition no longer constructs or prepares per-attempt clients");
+
+    const std::size_t webSocketStart = source.find("const auto selectPersistentWebSocketClient");
+    const std::size_t webSocketEnd = source.find("#endif", webSocketStart);
+    const std::string webSocketComposition = webSocketStart != std::string::npos && webSocketEnd != std::string::npos
+                                                 ? source.substr(webSocketStart, webSocketEnd - webSocketStart)
+                                                 : std::string{};
+    result.expectTrue(contains(webSocketComposition, "startPersistentStreamClient(configuredClient") &&
+                          contains(webSocketComposition, "configuredClient.getFlowController()->terminateFlow()") &&
+                          !contains(webSocketComposition, "PhysicalConnectionAttemptGate") &&
+                          !contains(webSocketComposition, "std::make_shared") &&
+                          !contains(webSocketComposition, "copyEffectiveHttpConfiguration"),
+                      "WebSocket transports reconnect through the same configured SNode.C client without attempt reconstruction");
+
+    result.expectTrue(!contains(source, "FrontendWebSocketClientRuntime") && !contains(source, "PhysicalConnectionAttemptGate") &&
+                          !contains(source, "activePhysicalClient") && !contains(source, "copyEffectiveHttpConfiguration") &&
+                          !contains(source, "startWebSocketAttempt") && !contains(source, "prepareAttempt(") &&
+                          !contains(source, "bindAttemptTransport"),
+                      "active WebSocket composition has no global runtime, application attempt gate, or configuration copy");
+
+    result.expectTrue(contains(webSocketSource, "dynamic_cast<FrontendWebSocketHttpSocketContext*>") &&
+                          contains(webSocketSource, "connection->getSocketContext()") &&
+                          contains(webSocketSource, "httpContext->getSocketConnection() != connection") &&
+                          contains(webSocketSource, "static FrontendWebSocketClientFactory factory") &&
+                          !contains(webSocketSource, "installedRuntime") && !contains(webSocketSource, "thread_local"),
+                      "the stateless factory consumes only the exact connection-owned HTTP binding");
+
+    result.expectTrue(!contains(source, "connectionHandle->disconnect()") && !contains(source, "webSocketBindingHandle->disconnect()") &&
                           !contains(source, "request->disconnect()") && !contains(source, "activeRequest->disconnect()"),
                       "application shutdown uses explicit intentional transport teardown rather than the ordinary disconnect path");
-    result.expectTrue(!contains(source, "physicalAttempts.current()"),
-                      "WebSocket HTTP callbacks use their captured originating generation instead of mutable current-attempt state");
 
     std::size_t disconnectCallbackCount = 0;
     bool disconnectCallbacksAreNonterminal = true;

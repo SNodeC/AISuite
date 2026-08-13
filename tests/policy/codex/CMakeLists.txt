@@ -131,6 +131,9 @@ set_tests_properties(
 
 if(TARGET ai-openai-codex-frontend-server-core AND
    TARGET ai-openai-codex-frontend-client-core AND
+   TARGET ai-openai-codex-frontend-client-objects AND
+   TARGET ai-openai-codex-frontend-client-typed-support-objects AND
+   TARGET ai-openai-codex-frontend-client AND
    TARGET codex-backend AND
    TARGET codex-backend-client
 )
@@ -148,6 +151,12 @@ if(TARGET ai-openai-codex-frontend-server-core AND
         "ai-openai-codex-frontend-server-core|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-server-core,INTERFACE_LINK_LIBRARIES>\n"
         "ai-openai-codex-frontend-client-core|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-core,LINK_LIBRARIES>\n"
         "ai-openai-codex-frontend-client-core|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-core,INTERFACE_LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client-objects|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-objects,LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client-objects|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-objects,INTERFACE_LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client-typed-support-objects|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-typed-support-objects,LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client-typed-support-objects|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client-typed-support-objects,INTERFACE_LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client|LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client,LINK_LIBRARIES>\n"
+        "ai-openai-codex-frontend-client|INTERFACE_LINK_LIBRARIES|$<TARGET_PROPERTY:ai-openai-codex-frontend-client,INTERFACE_LINK_LIBRARIES>\n"
     )
     file(
         GENERATE
@@ -166,7 +175,7 @@ if(TARGET ai-openai-codex-frontend-server-core AND
     set_tests_properties(
         CodexFrontendCoreDependencyPolicyTest
         PROPERTIES
-            LABELS "policy;ai;openai;codex;frontend;dependency;file-api;p2"
+            LABELS "policy;ai;openai;codex;frontend;dependency;file-api;p2;p3"
             ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
             TIMEOUT 60
     )

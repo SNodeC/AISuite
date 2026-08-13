@@ -98,6 +98,11 @@ namespace ai::openai::codex::frontend::internal::server {
             return offset;
         }
 
+        std::string boundedThreadPreview(std::string_view value) {
+            constexpr std::size_t MaximumThreadPreviewBytes = 16U * 1024U;
+            return std::string(value.substr(0, utf8PrefixLength(value, MaximumThreadPreviewBytes)));
+        }
+
         bool validUtf8(std::string_view value) noexcept {
             for (std::size_t offset = 0; offset < value.size();) {
                 const unsigned char lead = static_cast<unsigned char>(value[offset]);
@@ -203,6 +208,62 @@ namespace ai::openai::codex::frontend::internal::server {
             truncation.truncated = true;
             truncation.omittedPaths.push_back(std::move(path));
             return {};
+        }
+
+        Json boundedFrontendDetailObject(const Json& value) {
+            constexpr std::size_t MaximumMembers = 64;
+            constexpr std::size_t MaximumArrayItems = 64;
+            constexpr std::size_t MaximumKeyBytes = 256;
+            constexpr std::size_t MaximumStringBytes = 16U * 1024U;
+            const auto scalar = [](const Json& candidate) {
+                return candidate.is_null() || candidate.is_boolean() || candidate.is_number() || candidate.is_string();
+            };
+            const auto boundedScalar = [](const Json& candidate) -> Json {
+                if (!candidate.is_string()) {
+                    return candidate;
+                }
+                const std::string& text = candidate.get_ref<const std::string&>();
+                return std::string(text.substr(0, utf8PrefixLength(text, MaximumStringBytes)));
+            };
+
+            Json projected = Json::object();
+            if (!value.is_object()) {
+                return projected;
+            }
+            for (auto member = value.begin(); member != value.end() && projected.size() < MaximumMembers; ++member) {
+                if (model::SafeDetail::isSecretKey(member.key())) {
+                    continue;
+                }
+                const std::size_t keyBytes = utf8PrefixLength(member.key(), MaximumKeyBytes);
+                if (keyBytes == 0 && !member.key().empty()) {
+                    continue;
+                }
+                const std::string key = member.key().substr(0, keyBytes);
+                if (model::SafeDetail::isSecretKey(key)) {
+                    continue;
+                }
+                if (scalar(member.value())) {
+                    projected[key] = boundedScalar(member.value());
+                    continue;
+                }
+                if (!member.value().is_array()) {
+                    continue;
+                }
+                Json array = Json::array();
+                const std::size_t count = std::min(member.value().size(), MaximumArrayItems);
+                bool scalarOnly = true;
+                for (std::size_t index = 0; index < count; ++index) {
+                    if (!scalar(member.value()[index])) {
+                        scalarOnly = false;
+                        break;
+                    }
+                    array.push_back(boundedScalar(member.value()[index]));
+                }
+                if (scalarOnly) {
+                    projected[key] = std::move(array);
+                }
+            }
+            return projected;
         }
 
         template <typename Value>
@@ -451,6 +512,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     if (!questions->is_array()) {
                         throw ProjectionFailure("/pendingRequests/details/questions", "user-input questions must be an array");
                     }
+                    data.questionsPresent = true;
                     const std::size_t count = std::min(questions->size(), MaximumPresentationEntries);
                     data.truncation.truncated = data.truncation.truncated || count != questions->size();
                     data.questions.reserve(count);
@@ -1579,7 +1641,12 @@ namespace ai::openai::codex::frontend::internal::server {
                     threadDetails["modelProvider"] = *thread.modelProvider;
                 }
                 if (thread.preview) {
-                    threadDetails["preview"] = *thread.preview;
+                    // Backend snapshots retain up to 32 KiB here, while the
+                    // frozen frontend ThreadState preview is bounded to
+                    // 16 KiB. Keep this projection-only conversion identical
+                    // to the legacy production border; provider command
+                    // results continue to carry their exact backend value.
+                    threadDetails["preview"] = boundedThreadPreview(*thread.preview);
                 }
                 if (thread.status) {
                     threadDetails["status"] = *thread.status;
@@ -1622,10 +1689,16 @@ namespace ai::openai::codex::frontend::internal::server {
                     turnState.connectionInvalidated = turn.connectionInvalidated;
                     Json turnDetails = Json::object();
                     if (turn.failure) {
-                        turnDetails["failure"] = *turn.failure;
+                        Json failure = boundedFrontendDetailObject(*turn.failure);
+                        if (!failure.empty()) {
+                            turnDetails["failure"] = std::move(failure);
+                        }
                     }
                     if (turn.tokenUsage) {
-                        turnDetails["tokenUsage"] = *turn.tokenUsage;
+                        Json tokenUsage = boundedFrontendDetailObject(*turn.tokenUsage);
+                        if (!tokenUsage.empty()) {
+                            turnDetails["tokenUsage"] = std::move(tokenUsage);
+                        }
                     }
                     turnState.safeDetails = boundedDetail(std::move(turnDetails), projected.truncation, "/turns/details");
                     turnState.legacyExtensions = boundedDetail(turn.extensions, projected.truncation, "/turns/extensions");
@@ -1806,6 +1879,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 projected.truncation.truncated || snapshot.capacity.truncated || omittedEntries != 0 || droppedBytes != 0;
             projected.truncation.omittedEntries = omittedEntries;
             projected.truncation.droppedBytes = droppedBytes;
+            projected.processesState.truncation = projected.truncation;
             projected.filesystemWatches.state.truncation = projected.truncation;
             projected.fuzzySearches.state.truncation = projected.truncation;
             projected.notices.state.truncation = projected.truncation;

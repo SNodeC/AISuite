@@ -4,9 +4,8 @@ set(AI_OPENAI_CODEX_FRONTEND_PROTOCOL_CPP
 
 set(AI_OPENAI_CODEX_FRONTEND_CPP
     FrontendService.cpp EventCoalescer.cpp EventJournal.cpp UpdateBatch.cpp
-    detail/BackendCommandMapper.cpp detail/BackendProjectionBuilder.cpp
-    detail/FrontendCapabilities.cpp detail/FrontendProjection.cpp
-    detail/ProviderResultProjection.cpp
+    detail/BackendCommandMapper.cpp detail/ProviderResultProjection.cpp
+    internal/server/BackendCoreBridge.cpp
 )
 set(AI_OPENAI_CODEX_FRONTEND_PUBLIC_H
     FrontendService.h Codec.h EventCoalescer.h EventJournal.h GeneratedProtocol.h
@@ -50,7 +49,10 @@ add_library(
 )
 set_target_properties(
     ai-openai-codex-frontend-model
-    PROPERTIES POSITION_INDEPENDENT_CODE ON
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
 )
 target_include_directories(
     ai-openai-codex-frontend-model
@@ -63,13 +65,35 @@ target_link_libraries(
 )
 
 add_library(
+    ai-openai-codex-frontend-jsonl-framer STATIC
+    internal/transport/JsonLineFramer.cpp
+)
+set_target_properties(
+    ai-openai-codex-frontend-jsonl-framer
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
+)
+target_include_directories(
+    ai-openai-codex-frontend-jsonl-framer
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+)
+target_compile_features(
+    ai-openai-codex-frontend-jsonl-framer PUBLIC cxx_std_20
+)
+
+add_library(
     ai-openai-codex-frontend-server-core STATIC
     internal/server/BackendProjection.cpp
     internal/server/ServerCore.cpp
 )
 set_target_properties(
     ai-openai-codex-frontend-server-core
-    PROPERTIES POSITION_INDEPENDENT_CODE ON
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
 )
 target_include_directories(
     ai-openai-codex-frontend-server-core
@@ -77,11 +101,6 @@ target_include_directories(
 )
 target_compile_features(
     ai-openai-codex-frontend-server-core PUBLIC cxx_std_20
-)
-target_compile_definitions(
-    ai-openai-codex-frontend-server-core
-    PRIVATE
-        AISUITE_CODEX_CPP_CLIENT_SDK_BUILT=$<BOOL:${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}>
 )
 target_link_libraries(
     ai-openai-codex-frontend-server-core
@@ -98,7 +117,10 @@ add_library(
 )
 set_target_properties(
     ai-openai-codex-frontend-client-core
-    PROPERTIES POSITION_INDEPENDENT_CODE ON
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
 )
 target_include_directories(
     ai-openai-codex-frontend-client-core
@@ -112,7 +134,6 @@ target_link_libraries(
     PUBLIC
         ai-openai-codex-frontend-model
         AISuite::OpenAICodexFrontendProtocol
-        AISuite::OpenAICodex
 )
 
 add_library(ai-openai-codex-frontend SHARED ${AI_OPENAI_CODEX_FRONTEND_CPP})
@@ -137,7 +158,9 @@ target_link_libraries(
     PUBLIC
         AISuite::OpenAICodexBackend
         AISuite::OpenAICodexFrontendProtocol
-    PRIVATE snodec::core
+    PRIVATE
+        ai-openai-codex-frontend-server-core
+        snodec::core
 )
 set_target_properties(
     ai-openai-codex-frontend

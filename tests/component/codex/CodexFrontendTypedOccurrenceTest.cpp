@@ -137,6 +137,283 @@ namespace {
         return snapshot;
     }
 
+    model::ThreadItem knownItem(std::string id,
+                                std::size_t sourceIndex,
+                                std::optional<std::string> summary = std::nullopt,
+                                std::optional<model::TurnIdentity> turnId = std::nullopt) {
+        model::ItemData data{model::ItemIdentity{std::move(id)}, std::nullopt, std::move(turnId)};
+        data.sourceIndex = sourceIndex;
+        data.summary = std::move(summary);
+        return model::AgentMessageItem{std::move(data)};
+    }
+
+    model::LegacyItemCompatibility
+    legacyItem(std::string id, std::size_t sourceIndex, std::optional<model::TurnIdentity> turnId = std::nullopt) {
+        model::LegacyItemCompatibility item{
+            model::ItemData{model::ItemIdentity{std::move(id)}, std::nullopt, std::move(turnId)},
+            "future_item",
+            sourceIndex,
+            "/items/" + std::to_string(sourceIndex),
+        };
+        item.value.sourceIndex = sourceIndex;
+        return item;
+    }
+
+    model::PendingRequest knownPending(std::string id, std::size_t sourceIndex, std::optional<std::string> summary = std::nullopt) {
+        model::PendingRequestData data{model::PendingRequestIdentity{std::move(id)}};
+        data.sourceIndex = sourceIndex;
+        data.summary = std::move(summary);
+        return model::CommandExecutionApprovalRequest{std::move(data)};
+    }
+
+    model::LegacyPendingRequestCompatibility legacyPending(std::string id, std::size_t sourceIndex) {
+        model::LegacyPendingRequestCompatibility request{
+            model::PendingRequestData{model::PendingRequestIdentity{std::move(id)}},
+            sourceIndex,
+            "/pendingRequests/" + std::to_string(sourceIndex),
+        };
+        request.value.sourceIndex = sourceIndex;
+        return request;
+    }
+
+    std::vector<std::string> orderedItemIds(const model::CanonicalSnapshot& snapshot) {
+        std::vector<std::pair<std::size_t, std::string>> ordered;
+        for (const model::ThreadItem& item : snapshot.items) {
+            const model::ItemData& data = model::itemData(item);
+            ordered.emplace_back(data.sourceIndex.value_or(ordered.size()), data.id.value());
+        }
+        for (const model::LegacyItemCompatibility& item : snapshot.legacyItems) {
+            ordered.emplace_back(item.sourceIndex, item.value.id.value());
+        }
+        std::stable_sort(ordered.begin(), ordered.end());
+        std::vector<std::string> result;
+        for (auto& [sourceIndex, id] : ordered) {
+            (void) sourceIndex;
+            result.push_back(std::move(id));
+        }
+        return result;
+    }
+
+    std::vector<std::string> orderedPendingIds(const model::CanonicalSnapshot& snapshot) {
+        std::vector<std::pair<std::size_t, std::string>> ordered;
+        for (const model::PendingRequest& request : snapshot.pendingRequests) {
+            const model::PendingRequestData& data = model::pendingRequestData(request);
+            ordered.emplace_back(data.sourceIndex.value_or(ordered.size()), data.id.value());
+        }
+        for (const model::LegacyPendingRequestCompatibility& request : snapshot.legacyPendingRequests) {
+            ordered.emplace_back(request.sourceIndex, request.value.id.value());
+        }
+        std::stable_sort(ordered.begin(), ordered.end());
+        std::vector<std::string> result;
+        for (auto& [sourceIndex, id] : ordered) {
+            (void) sourceIndex;
+            result.push_back(std::move(id));
+        }
+        return result;
+    }
+
+    model::OccurrenceIdentity occurrenceIdentity(std::uint64_t sequence, std::string group) {
+        return {model::FrontendSequence{sequence},
+                model::OccurrenceGroupIdentity{std::move(group)},
+                0,
+                1,
+                model::SourceStamp{"typed-occurrence-ordering"}};
+    }
+
+    void testItemOrderingAndAuthorityMigration(tests::support::TestResult& result) {
+        model::CanonicalSnapshot state;
+        state.items.push_back(knownItem("first", 0));
+        state.items.push_back(knownItem("middle", 1));
+        state.legacyItems.push_back(legacyItem("last", 2));
+
+        auto middleIdentity = occurrenceIdentity(32, "known-middle-update");
+        middleIdentity.itemId = model::ItemIdentity{"middle"};
+        const auto middleOccurrence =
+            model::makeOccurrence(std::move(middleIdentity), model::ItemUpsertedOccurrence{knownItem("middle", 0, "updated in place")});
+        auto middleState =
+            middleOccurrence
+                ? model::reduceOccurrence(state, middleOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        if (!middleState) {
+            result.expectTrue(false, "known item update preserves its logical source slot");
+            return;
+        }
+        state = std::move(middleState).value();
+
+        auto appendIdentity = occurrenceIdentity(33, "known-item-append");
+        appendIdentity.itemId = model::ItemIdentity{"appended"};
+        const auto appendOccurrence =
+            model::makeOccurrence(std::move(appendIdentity), model::ItemUpsertedOccurrence{knownItem("appended", 0)});
+        auto appendedState =
+            appendOccurrence
+                ? model::reduceOccurrence(state, appendOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        if (!appendedState) {
+            result.expectTrue(false, "new item occurrence appends after the retained mixed sequence");
+            return;
+        }
+        state = std::move(appendedState).value();
+
+        model::LegacyCompatibilityPayload middleLegacy;
+        middleLegacy.kind = model::LegacyCompatibilityKind::LegacyItem;
+        middleLegacy.legacyItem = legacyItem("middle", 0);
+        auto legacyIdentity = occurrenceIdentity(34, "known-to-legacy-item");
+        legacyIdentity.itemId = model::ItemIdentity{"middle"};
+        const auto legacyOccurrence = model::makeOccurrenceGroup(std::move(legacyIdentity), std::move(middleLegacy), {});
+        auto legacyState =
+            legacyOccurrence
+                ? model::reduceOccurrence(state, legacyOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        if (!legacyState) {
+            result.expectTrue(false, "known-to-legacy item migration retains one authority and one source slot");
+            return;
+        }
+        state = std::move(legacyState).value();
+
+        auto knownIdentity = occurrenceIdentity(35, "legacy-to-known-item");
+        knownIdentity.itemId = model::ItemIdentity{"last"};
+        const auto knownOccurrence =
+            model::makeOccurrence(std::move(knownIdentity), model::ItemUpsertedOccurrence{knownItem("last", 0, "now known")});
+        auto knownState =
+            knownOccurrence
+                ? model::reduceOccurrence(state, knownOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        if (!knownState) {
+            result.expectTrue(false, "legacy-to-known item migration retains one authority and one source slot");
+            return;
+        }
+        state = std::move(knownState).value();
+
+        const auto knownMiddle = std::find_if(state.items.begin(), state.items.end(), [](const model::ThreadItem& item) {
+            return model::itemData(item).id == model::ItemIdentity{"middle"};
+        });
+        const auto legacyMiddle = std::find_if(state.legacyItems.begin(), state.legacyItems.end(), [](const auto& item) {
+            return item.value.id == model::ItemIdentity{"middle"};
+        });
+        const auto knownLast = std::find_if(state.items.begin(), state.items.end(), [](const model::ThreadItem& item) {
+            return model::itemData(item).id == model::ItemIdentity{"last"};
+        });
+        result.expectTrue(orderedItemIds(state) == std::vector<std::string>({"first", "middle", "last", "appended"}) &&
+                              knownMiddle == state.items.end() && legacyMiddle != state.legacyItems.end() &&
+                              legacyMiddle->sourceIndex == 1 && legacyMiddle->value.sourceIndex == std::optional<std::size_t>{1} &&
+                              knownLast != state.items.end() && model::itemData(*knownLast).sourceIndex == std::optional<std::size_t>{2} &&
+                              state.legacyItems.size() == 1,
+                          "item upserts preserve mixed ordering, append new identities, and migrate authority without duplicates");
+    }
+
+    void testPendingOrderingAndAuthorityMigration(tests::support::TestResult& result) {
+        model::CanonicalSnapshot state;
+        state.pendingRequests.push_back(knownPending("first", 0));
+        state.pendingRequests.push_back(knownPending("middle", 1));
+        state.legacyPendingRequests.push_back(legacyPending("last", 2));
+
+        const auto reduceKnown = [&](std::uint64_t sequence, model::PendingRequest request, std::string group) {
+            model::PendingRequestsUpdatedOccurrence update;
+            update.completeProjection = false;
+            update.pendingRequests.push_back(std::move(request));
+            auto identity = occurrenceIdentity(sequence, std::move(group));
+            identity.pendingRequestId = model::pendingRequestData(update.pendingRequests.front()).id;
+            const auto occurrence = model::makeOccurrence(std::move(identity), std::move(update));
+            return occurrence
+                       ? model::reduceOccurrence(state, occurrence.value())
+                       : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        };
+
+        auto middleState = reduceKnown(36, knownPending("middle", 0, "updated in place"), "known-pending-update");
+        if (!middleState) {
+            result.expectTrue(false, "known pending-request update preserves its logical source slot");
+            return;
+        }
+        state = std::move(middleState).value();
+        auto appendedState = reduceKnown(37, knownPending("appended", 0), "known-pending-append");
+        if (!appendedState) {
+            result.expectTrue(false, "new pending-request occurrence appends after the retained mixed sequence");
+            return;
+        }
+        state = std::move(appendedState).value();
+
+        model::LegacyCompatibilityPayload middleLegacy;
+        middleLegacy.kind = model::LegacyCompatibilityKind::LegacyPendingRequest;
+        middleLegacy.legacyPendingRequest = legacyPending("middle", 0);
+        auto legacyIdentity = occurrenceIdentity(38, "known-to-legacy-pending");
+        legacyIdentity.pendingRequestId = model::PendingRequestIdentity{"middle"};
+        const auto legacyOccurrence = model::makeOccurrenceGroup(std::move(legacyIdentity), std::move(middleLegacy), {});
+        auto legacyState =
+            legacyOccurrence
+                ? model::reduceOccurrence(state, legacyOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        if (!legacyState) {
+            result.expectTrue(false, "known-to-legacy pending migration retains one authority and one source slot");
+            return;
+        }
+        state = std::move(legacyState).value();
+        auto knownState = reduceKnown(39, knownPending("last", 0, "now known"), "legacy-to-known-pending");
+        if (!knownState) {
+            result.expectTrue(false, "legacy-to-known pending migration retains one authority and one source slot");
+            return;
+        }
+        state = std::move(knownState).value();
+
+        model::PendingRequestsUpdatedOccurrence remove;
+        remove.completeProjection = false;
+        remove.removedRequestId = model::PendingRequestIdentity{"first"};
+        auto removeIdentity = occurrenceIdentity(40, "pending-remove-reindex");
+        removeIdentity.pendingRequestId = *remove.removedRequestId;
+        const auto removeOccurrence = model::makeOccurrence(std::move(removeIdentity), std::move(remove));
+        auto removedState =
+            removeOccurrence
+                ? model::reduceOccurrence(state, removeOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        if (!removedState) {
+            result.expectTrue(false, "pending-request removal closes the mixed source-order gap");
+            return;
+        }
+        state = std::move(removedState).value();
+
+        const auto knownMiddle = std::find_if(state.pendingRequests.begin(), state.pendingRequests.end(), [](const auto& request) {
+            return model::pendingRequestData(request).id == model::PendingRequestIdentity{"middle"};
+        });
+        const auto legacyMiddle =
+            std::find_if(state.legacyPendingRequests.begin(), state.legacyPendingRequests.end(), [](const auto& request) {
+                return request.value.id == model::PendingRequestIdentity{"middle"};
+            });
+        const auto knownLast = std::find_if(state.pendingRequests.begin(), state.pendingRequests.end(), [](const auto& request) {
+            return model::pendingRequestData(request).id == model::PendingRequestIdentity{"last"};
+        });
+        result.expectTrue(orderedPendingIds(state) == std::vector<std::string>({"middle", "last", "appended"}) &&
+                              knownMiddle == state.pendingRequests.end() && legacyMiddle != state.legacyPendingRequests.end() &&
+                              legacyMiddle->sourceIndex == 0 && legacyMiddle->value.sourceIndex == std::optional<std::size_t>{0} &&
+                              knownLast != state.pendingRequests.end() &&
+                              model::pendingRequestData(*knownLast).sourceIndex == std::optional<std::size_t>{1} &&
+                              state.legacyPendingRequests.size() == 1,
+                          "pending upserts preserve mixed ordering, append, migrate authority once, and reindex after removal");
+    }
+
+    void testDescendantReplacementOrdering(tests::support::TestResult& result) {
+        const model::TurnIdentity targetTurn{"target-turn"};
+        model::CanonicalSnapshot state;
+        state.turns.emplace_back(targetTurn, model::ThreadIdentity{"thread"});
+        state.items.push_back(knownItem("before", 0, std::nullopt, model::TurnIdentity{"before-turn"}));
+        state.items.push_back(knownItem("target-known", 1, std::nullopt, targetTurn));
+        state.items.push_back(knownItem("between", 2, std::nullopt, model::TurnIdentity{"between-turn"}));
+        state.legacyItems.push_back(legacyItem("target-legacy", 3, targetTurn));
+        state.items.push_back(knownItem("after", 4, std::nullopt, model::TurnIdentity{"after-turn"}));
+
+        model::TurnUpsertedOccurrence update{model::TurnState{targetTurn, model::ThreadIdentity{"thread"}}};
+        update.replaceItems = true;
+        update.items.push_back(knownItem("replacement", 0, std::nullopt, targetTurn));
+        auto identity = occurrenceIdentity(41, "turn-descendant-order");
+        identity.turnId = targetTurn;
+        const auto occurrence = model::makeOccurrence(std::move(identity), std::move(update));
+        const auto reduced =
+            occurrence ? model::reduceOccurrence(state, occurrence.value())
+                       : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        result.expectTrue(reduced &&
+                              orderedItemIds(reduced.value()) == std::vector<std::string>({"before", "replacement", "between", "after"}) &&
+                              reduced.value().legacyItems.empty(),
+                          "complete turn replacement inserts descendants at the first affected mixed item slot");
+    }
+
     void testItemContentPresence(tests::support::TestResult& result) {
         const frontend::ExpandedFrontendEvent omitted{frontend::SequenceNumber{9},
                                                       frontend::ExpandedEventType::ItemContentUpdated,
@@ -202,6 +479,76 @@ namespace {
                               legacyState.value().diagnostics.entries.empty() &&
                               legacyState.value().diagnostics.state.information == model::InformationState::Present,
                           "a single expanded diagnostic remains distinct from an empty legacy aggregate update");
+    }
+
+    void testSparseCollectionOccurrencePresence(tests::support::TestResult& result) {
+        model::ProcessState process{model::ProcessHandle{"process-sparse"}};
+        model::FilesystemWatchRecord watch;
+        watch.watchId = "watch-sparse";
+        model::FuzzySearchRecord search;
+        search.sessionId = "search-sparse";
+        model::NoticeRecord notice;
+        notice.occurrence = 28;
+        notice.category = "information";
+        notice.summary = "sparse notice";
+        model::ActivityRecord activity;
+        activity.key = "activity-sparse";
+        activity.kind = "tool";
+        activity.lifecycle = "running";
+        activity.active = true;
+
+        const auto makeIdentity = [](std::uint64_t sequence, std::string group) {
+            return model::OccurrenceIdentity{model::FrontendSequence{sequence},
+                                             model::OccurrenceGroupIdentity{std::move(group)},
+                                             0,
+                                             1,
+                                             model::SourceStamp{"backend:sparse-collection"}};
+        };
+        const auto processOccurrence = model::makeOccurrence(makeIdentity(27, "process-sparse-group"),
+                                                             model::OccurrencePayload{model::ProcessUpdatedOccurrence{std::move(process)}});
+        const auto watchOccurrence = model::makeOccurrence(
+            makeIdentity(28, "watch-sparse-group"), model::OccurrencePayload{model::FilesystemWatchUpdatedOccurrence{std::move(watch)}});
+        const auto searchOccurrence = model::makeOccurrence(
+            makeIdentity(29, "search-sparse-group"), model::OccurrencePayload{model::FuzzySearchUpdatedOccurrence{std::move(search)}});
+        const auto noticeOccurrence = model::makeOccurrence(makeIdentity(30, "notice-sparse-group"),
+                                                            model::OccurrencePayload{model::NoticeAddedOccurrence{std::move(notice)}});
+        const auto activityOccurrence = model::makeOccurrence(
+            makeIdentity(31, "activity-sparse-group"), model::OccurrencePayload{model::ActivityUpdatedOccurrence{std::move(activity)}});
+        model::CanonicalSnapshot absentProcessSnapshot;
+        absentProcessSnapshot.projection.absentPaths.push_back("/processes");
+        const auto processState =
+            processOccurrence
+                ? model::reduceOccurrence(absentProcessSnapshot, processOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        const auto watchState =
+            watchOccurrence
+                ? model::reduceOccurrence(model::CanonicalSnapshot{}, watchOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        const auto searchState =
+            searchOccurrence
+                ? model::reduceOccurrence(model::CanonicalSnapshot{}, searchOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        const auto noticeState =
+            noticeOccurrence
+                ? model::reduceOccurrence(model::CanonicalSnapshot{}, noticeOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        const auto activityState =
+            activityOccurrence
+                ? model::reduceOccurrence(model::CanonicalSnapshot{}, activityOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+
+        result.expectTrue(processState && processState.value().processes.size() == 1 &&
+                              std::ranges::find(processState.value().projection.absentPaths, "/processes") ==
+                                  processState.value().projection.absentPaths.end() &&
+                              watchState && watchState.value().filesystemWatches.state.information == model::InformationState::Present &&
+                              watchState.value().filesystemWatches.entries.size() == 1 && searchState &&
+                              searchState.value().fuzzySearches.state.information == model::InformationState::Present &&
+                              searchState.value().fuzzySearches.entries.size() == 1 && noticeState &&
+                              noticeState.value().notices.state.information == model::InformationState::Present &&
+                              noticeState.value().notices.entries.size() == 1 && activityState &&
+                              activityState.value().activities.state.information == model::InformationState::Present &&
+                              activityState.value().activities.entries.size() == 1,
+                          "sparse record occurrences make an absent collection represented before retaining its first entry");
     }
 
     void testLegacyNestedOccurrenceRoundTrips(tests::support::TestResult& result) {
@@ -480,7 +827,11 @@ int main() {
     testLegacyExtensionWireShape(result);
     testGeneratedMultiFamilyGroup(result);
     testItemContentPresence(result);
+    testItemOrderingAndAuthorityMigration(result);
+    testPendingOrderingAndAuthorityMigration(result);
+    testDescendantReplacementOrdering(result);
     testDiagnosticOccurrenceShape(result);
+    testSparseCollectionOccurrencePresence(result);
     testLegacyNestedOccurrenceRoundTrips(result);
     testLegacyPendingPresentationAndDiagnostics(result);
     testOccurrenceIdentityValidation(result);
