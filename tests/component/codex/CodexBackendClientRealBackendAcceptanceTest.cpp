@@ -824,6 +824,7 @@ int main(int argc, char* argv[]) {
         std::vector<client::CommandDrainController::SessionState> sentCommandStates;
         std::vector<std::size_t> sentCommandSyncCounts;
         std::optional<frontend::Snapshot> initialSnapshot;
+        std::optional<frontend::Snapshot> liveSnapshot;
         std::optional<frontend::Response> threadListResponse;
         std::size_t snapshotHumanBytes = 0;
         std::size_t threadsResponseHumanBytes = 0;
@@ -939,6 +940,8 @@ int main(int argc, char* argv[]) {
                                 ++snapshotCount;
                                 if (!initialSnapshot.has_value()) {
                                     initialSnapshot = *snapshot;
+                                } else {
+                                    liveSnapshot = *snapshot;
                                 }
                             } else if (response != nullptr) {
                                 if (response->requestId == acquireRequestId) {
@@ -1258,7 +1261,9 @@ int main(int argc, char* argv[]) {
         result.expectEqual(1, static_cast<int>(connectionCallbackCount), "production client connection callback runs exactly once");
         result.expectTrue(acquireQueuedBeforeConnection, "acquire entered before readiness is retained behind the synchronization barrier");
         result.expectEqual(1, static_cast<int>(welcomeCount), "exactly one automatic hello produces exactly one real-adapter welcome");
-        result.expectEqual(1, static_cast<int>(snapshotCount), "real FrontendService emits one initial snapshot");
+        result.expectTrue(snapshotCount == 2 && initialSnapshot.has_value() && liveSnapshot.has_value() &&
+                              liveSnapshot->sequence > initialSnapshot->sequence,
+                          "real FrontendService emits the initial Snapshot and one later authoritative provider-operation Snapshot");
         result.expectEqual(1, static_cast<int>(syncCompleteCount), "real FrontendService emits one initial sync.complete");
         result.expectTrue(initialMessageKinds == std::vector<std::string>{"welcome", "snapshot", "sync.complete"},
                           "real adapter handshake is decoded in welcome, snapshot, sync.complete order");
