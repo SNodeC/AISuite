@@ -618,65 +618,32 @@ namespace {
     void testUserMessageSnapshotBounding(tests::support::TestResult& result) {
         backend::Reducer reducer;
 
-        backend::BackendState textualState;
-        typed::UserMessageThreadItem textualItem;
-        textualItem.metadata = metadata("thread-text", "turn-text", "item-text");
-        typed::TextInput firstText;
-        firstText.text = "hello";
-        typed::ImageUrlInput image;
-        image.url = "https://private.invalid/image.png";
-        typed::TextInput secondText;
-        secondText.text = "Grüße 🌍";
-        typed::SkillInput skill;
-        skill.name = "private-skill";
-        skill.path = "/sensitive/skill/path";
-        textualItem.content = {firstText, image, secondText, skill};
-        const Json textualContent = Json::array({Json{{"type", "text"}, {"text", firstText.text}},
-                                                 Json{{"type", "image"}, {"url", image.url}},
-                                                 Json{{"type", "text"}, {"text", secondText.text}},
-                                                 Json{{"type", "skill"}, {"name", skill.name}, {"path", skill.path}}});
-        textualItem.metadata.raw["content"] = textualContent;
-        textualItem.clientId = typed::ClientUserMessageId{"client-text"};
-        reducer.apply(textualState,
-                      backend::ItemUpserted{typed::ThreadId{"thread-text"},
-                                            typed::TurnId{"turn-text"},
-                                            typed::ThreadItem{textualItem},
+        backend::BackendState regressionState;
+        const std::string regressionText = std::string(16'383, 'u') + "€" + std::string(16'381, 'v');
+        const Json regressionContent = Json::array({Json{{"type", "text"}, {"text", regressionText}}});
+        typed::UserMessageThreadItem regressionItem;
+        regressionItem.metadata = metadata("thread-regression", "turn-regression", "item-regression");
+        regressionItem.metadata.raw["content"] = regressionContent;
+        typed::TextInput regressionInput;
+        regressionInput.text = regressionText;
+        regressionInput.raw = regressionContent.front();
+        regressionItem.content = {std::move(regressionInput)};
+        reducer.apply(regressionState,
+                      backend::ItemUpserted{typed::ThreadId{"thread-regression"},
+                                            typed::TurnId{"turn-regression"},
+                                            typed::ThreadItem{regressionItem},
                                             backend::ItemLifecycle::Completed,
                                             5});
-        const backend::Snapshot textualSnapshot = backend::makeSnapshot(textualState);
-        const Json& textualData = textualSnapshot.threads[0].turns[0].items[0].data;
-        const std::string expectedText = firstText.text + "\n\n" + secondText.text;
-        result.expectTrue(textualData.at("content") == textualContent && textualData.at("text") == expectedText &&
-                              !textualData.at("textTruncated").get<bool>() &&
-                              textualData.at("originalTextBytes") == expectedText.size() &&
-                              textualData.at("retainedTextBytes") == expectedText.size() && textualData.at("textFragments") == 2 &&
-                              textualData.at("nonTextItems") == 2 && textualData.at("clientId") == "client-text",
-                          "typed userMessage text is projected in order with an explicit separator, UTF-8, and non-text counts");
-
-        backend::BackendState longTextState;
-        typed::UserMessageThreadItem longTextItem;
-        longTextItem.metadata = metadata("thread-long-text", "turn-long-text", "item-long-text");
-        typed::TextInput longText;
-        longText.text = std::string(backend::MaxProjectedUserMessageTextBytes - 1, 'x') + "€";
-        longTextItem.content = {longText};
-        const Json longTextContent = Json::array({Json{{"type", "text"}, {"text", longText.text}}});
-        longTextItem.metadata.raw["content"] = longTextContent;
-        reducer.apply(longTextState,
-                      backend::ItemUpserted{typed::ThreadId{"thread-long-text"},
-                                            typed::TurnId{"turn-long-text"},
-                                            typed::ThreadItem{longTextItem},
-                                            backend::ItemLifecycle::Completed,
-                                            6});
-        const backend::Snapshot longTextSnapshot = backend::makeSnapshot(longTextState);
-        const Json& longTextData = longTextSnapshot.threads[0].turns[0].items[0].data;
-        const std::string& retainedLongText = longTextData.at("text").get_ref<const std::string&>();
-        result.expectTrue(longTextData.at("textTruncated").get<bool>() &&
-                              longTextData.at("originalTextBytes") == longText.text.size() &&
-                              longTextData.at("retainedTextBytes") == retainedLongText.size() &&
-                              retainedLongText == std::string(backend::MaxProjectedUserMessageTextBytes - 1, 'x') &&
-                              longTextData.at("contentTruncated").get<bool>() && longTextData.dump().size() <=
-                                  backend::MaxSerializedUserMessageDataBytes,
-                          "backend text and retained-content bounds report independent truthful truncation on a UTF-8 boundary");
+        const backend::Snapshot regressionSnapshot = backend::makeSnapshot(regressionState);
+        const Json& regressionData = regressionSnapshot.threads[0].turns[0].items[0].data;
+        result.expectTrue(regressionText.size() > 31U * 1024U && regressionData.at("content") == regressionContent &&
+                              !regressionData.at("contentTruncated").get<bool>() &&
+                              regressionData.at("originalContentBytes") == regressionContent.dump().size() &&
+                              regressionData.at("retainedContentBytes") == regressionContent.dump().size() &&
+                              regressionData.at("originalContentItems") == 1 && regressionData.at("retainedContentItems") == 1 &&
+                              !regressionData.contains("text") && !regressionData.contains("textTruncated") &&
+                              regressionData.dump().size() <= backend::MaxSerializedUserMessageDataBytes,
+                          "a 32 KiB typed textual message retains the same complete structured content capacity as master");
 
         backend::BackendState smallState;
         const Json smallContent =

@@ -122,19 +122,16 @@ namespace {
     frontend::Snapshot expandedUserMessageSnapshot(std::uint64_t sequence, std::uint64_t generation, std::string title) {
         model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, generation, std::move(title));
         snapshot.turns.emplace_back(model::TurnIdentity{"runtime-turn"}, model::ThreadIdentity{"adapter-thread"});
-        const std::string sourceText = std::string(16'383, 'm') + "€tail";
+        const std::string sourceText = std::string(16'383, 'm') + "€" + std::string(16'381, 'n');
+        const frontend::Json sourceContent =
+            frontend::Json::array({frontend::Json{{"type", "text"}, {"text", sourceText}}});
         model::ItemData item{
             model::ItemIdentity{"runtime-user-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"runtime-turn"}};
         item.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"clientId", nullptr},
+                                                                      {"content", sourceContent},
                                                                       {"contentTruncated", false},
-                                                                      {"text", sourceText},
-                                                                      {"textTruncated", false},
-                                                                      {"originalTextBytes", sourceText.size()},
-                                                                      {"retainedTextBytes", sourceText.size()},
-                                                                      {"textFragments", 1},
-                                                                      {"nonTextItems", 0},
-                                                                      {"originalContentBytes", sourceText.size() + 25},
-                                                                      {"retainedContentBytes", sourceText.size() + 25},
+                                                                      {"originalContentBytes", sourceContent.dump().size()},
+                                                                      {"retainedContentBytes", sourceContent.dump().size()},
                                                                       {"originalContentItems", 1},
                                                                       {"retainedContentItems", 1}});
         snapshot.items.push_back(model::UserMessageItem{std::move(item)});
@@ -311,10 +308,6 @@ namespace {
                                                                                    {"contentTruncated", false},
                                                                                    {"text", semanticUserText},
                                                                                    {"textTruncated", false},
-                                                                                   {"originalTextBytes", semanticUserText.size()},
-                                                                                   {"retainedTextBytes", semanticUserText.size()},
-                                                                                   {"textFragments", 2},
-                                                                                   {"nonTextItems", 1},
                                                                                    {"originalContentBytes", 128},
                                                                                    {"retainedContentBytes", 128},
                                                                                    {"originalContentItems", 3},
@@ -498,9 +491,8 @@ namespace {
                 provenance->limits.maxRetainedFuzzySearchSessions == 115 && provenance->limits.maxRetainedActivityRecords == 116 &&
                 userMessageView && userMessageView->text == semanticUserText &&
                 userMessageView->clientId == typed::ClientUserMessageId{"client-user-1"} && !userMessageView->textTruncated &&
-                !userMessageView->contentTruncated && userMessageView->originalTextBytes == semanticUserText.size() &&
-                userMessageView->retainedTextBytes == semanticUserText.size() && userMessageView->textFragments == 2 &&
-                userMessageView->nonTextItems == 1 && userMessageView->originalContentItems == 3 &&
+                !userMessageView->contentTruncated && userMessageView->originalContentBytes == 128 &&
+                userMessageView->retainedContentBytes == 128 && userMessageView->originalContentItems == 3 &&
                 userMessageView->retainedContentItems == 3 && !commandAsUserMessage,
             "public additive semantic views preserve nested turn, realtime, item, request, domain, aggregate, and provenance facts");
 
@@ -512,6 +504,15 @@ namespace {
         }
         result.expectTrue(!malformedUserMessageView,
                           "the typed user-message semantic view fails soft when its bounded scalar projection is missing");
+
+        std::optional<client::UserMessageSemanticView> contradictoryUserMessageView;
+        if (publicUserItem != nullptr) {
+            client::ItemState malformed = *publicUserItem;
+            (*malformed.data)["retainedContentBytes"] = 129;
+            contradictoryUserMessageView = client::userMessageSemanticView(malformed);
+        }
+        result.expectTrue(!contradictoryUserMessageView,
+                          "the typed user-message semantic view fails soft on contradictory retained-content metadata");
 
         client::State immutable = first.value_or(client::State{});
         publication.revision = 42;
@@ -721,8 +722,8 @@ namespace {
                 ready.visibleSequence() == frontend::SequenceNumber(7) && ready.thread("adapter-thread") != nullptr &&
                 ready.thread("adapter-thread")->title == std::optional<std::string>{"runtime title"} && readyUserMessage &&
                 readyUserMessage->text == std::string(16'383, 'm') && readyUserMessage->textTruncated &&
-                !readyUserMessage->contentTruncated && readyUserMessage->originalTextBytes > readyUserMessage->retainedTextBytes &&
-                readyUserMessage->retainedTextBytes == readyUserMessage->text.size(),
+                !readyUserMessage->contentTruncated && readyUserMessage->originalContentBytes == readyUserMessage->retainedContentBytes &&
+                readyUserMessage->originalContentItems == 1 && readyUserMessage->retainedContentItems == 1,
             "ClientCore commits the direct public State before state/cursor/synchronized/protocol callbacks in frozen order: " +
                 traceText(harness.callbackOrder) + " accepted=" + std::to_string(welcomeAccepted) + "/" + std::to_string(snapshotAccepted) +
                 "/" + std::to_string(synchronized) + " state=" + std::to_string(static_cast<int>(sdk.connectionState())) + " fixture=" +

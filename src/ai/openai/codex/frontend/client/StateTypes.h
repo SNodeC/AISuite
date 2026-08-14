@@ -409,17 +409,13 @@ namespace ai::openai::codex::frontend::client {
         bool operator==(const ThreadRealtimeSemanticView&) const = default;
     };
 
-    // TextInput fragments are retained in provider order and joined with two
-    // LF characters. Non-text inputs are counted but never rendered here.
+    // Retained text inputs are kept in content order and joined with two LF
+    // characters. Non-text inputs and omitted content are never rendered.
     struct UserMessageSemanticView {
         std::string text;
         std::optional<typed::ClientUserMessageId> clientId;
         bool textTruncated = false;
         bool contentTruncated = false;
-        std::uint64_t originalTextBytes = 0;
-        std::uint64_t retainedTextBytes = 0;
-        std::size_t textFragments = 0;
-        std::size_t nonTextItems = 0;
         std::uint64_t originalContentBytes = 0;
         std::uint64_t retainedContentBytes = 0;
         std::size_t originalContentItems = 0;

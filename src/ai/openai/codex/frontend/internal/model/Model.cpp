@@ -153,6 +153,50 @@ namespace ai::openai::codex::frontend::internal::model {
             return std::string(text.substr(0, frontendUtf8PrefixLength(text, FrontendDetailMaximumStringBytes)));
         }
 
+        struct UserMessageTextProjection {
+            std::string text;
+            bool truncated = false;
+        };
+
+        std::optional<UserMessageTextProjection> userMessageTextProjection(const Json& detail) {
+            constexpr std::string_view FragmentSeparator = "\n\n";
+            const auto content = detail.find("content");
+            if (content == detail.end() || !content->is_array()) {
+                return std::nullopt;
+            }
+
+            UserMessageTextProjection projection;
+            projection.text.reserve(FrontendDetailMaximumStringBytes);
+            const auto append = [&projection](std::string_view value) {
+                if (projection.truncated || value.empty()) {
+                    return;
+                }
+                const std::size_t available = FrontendDetailMaximumStringBytes - projection.text.size();
+                const std::size_t retained = frontendUtf8PrefixLength(value, available);
+                projection.text.append(value.substr(0, retained));
+                projection.truncated = retained != value.size();
+            };
+
+            bool hasTextFragment = false;
+            for (const Json& entry : *content) {
+                if (!entry.is_object()) {
+                    continue;
+                }
+                const auto type = entry.find("type");
+                const auto text = entry.find("text");
+                if (type == entry.end() || !type->is_string() || type->get_ref<const std::string&>() != "text" || text == entry.end() ||
+                    !text->is_string()) {
+                    continue;
+                }
+                if (hasTextFragment) {
+                    append(FragmentSeparator);
+                }
+                hasTextFragment = true;
+                append(text->get_ref<const std::string&>());
+            }
+            return projection;
+        }
+
         Json expandedItemDetailObject(const SafeDetail& detail, bool userMessage) {
             // Canonical SafeDetail intentionally retains richer bounded JSON,
             // including user-message content objects. Frontend Protocol v1's
@@ -164,7 +208,6 @@ namespace ai::openai::codex::frontend::internal::model {
                 return projected;
             }
             std::size_t retained = 0;
-            bool userMessageTextTruncated = false;
             for (auto member = value.begin(); member != value.end() && retained < 64; ++member) {
                 const std::size_t keyBytes = frontendUtf8PrefixLength(member.key(), 256);
                 if (keyBytes == 0 && !member.key().empty()) {
@@ -183,10 +226,6 @@ namespace ai::openai::codex::frontend::internal::model {
                     member.value().is_null() || member.value().is_boolean() || member.value().is_number() || member.value().is_string();
                 if (scalar) {
                     projected[key] = boundedFrontendDetailScalar(member.value());
-                    if (userMessage && key == "text" && member.value().is_string()) {
-                        userMessageTextTruncated = projected[key].get_ref<const std::string&>().size() !=
-                                                   member.value().get_ref<const std::string&>().size();
-                    }
                     ++retained;
                     continue;
                 }
@@ -209,13 +248,12 @@ namespace ai::openai::codex::frontend::internal::model {
                     ++retained;
                 }
             }
-            if (userMessage && projected.contains("text") && projected.at("text").is_string()) {
-                if (const auto truncated = projected.find("textTruncated"); truncated != projected.end() && truncated->is_boolean()) {
-                    *truncated = truncated->get<bool>() || userMessageTextTruncated;
-                }
-                if (const auto retainedBytes = projected.find("retainedTextBytes");
-                    retainedBytes != projected.end() && retainedBytes->is_number_unsigned()) {
-                    *retainedBytes = static_cast<std::uint64_t>(projected.at("text").get_ref<const std::string&>().size());
+            if (userMessage) {
+                projected.erase("text");
+                projected.erase("textTruncated");
+                if (const auto text = userMessageTextProjection(value)) {
+                    projected["text"] = text->text;
+                    projected["textTruncated"] = text->truncated;
                 }
             }
             return projected;

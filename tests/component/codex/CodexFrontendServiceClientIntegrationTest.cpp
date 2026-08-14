@@ -1275,7 +1275,8 @@ namespace {
                                   userItem->startedAtMs == std::optional<std::int64_t>{10} &&
                                   userItem->completedAtMs == std::optional<std::int64_t>{20} &&
                                   userMessage && userMessage->text == LifecycleUserText && !userMessage->textTruncated &&
-                                  !userMessage->contentTruncated && userMessage->textFragments == 1 && userMessage->nonTextItems == 0 &&
+                                  !userMessage->contentTruncated && userMessage->originalContentItems == 1 &&
+                                  userMessage->retainedContentItems == 1 &&
                                   agentItem->kind.is(frontend::ThreadItemKind::AgentMessage) &&
                                   agentItem->threadId == typed::ThreadId{std::string(LifecycleThreadId)} &&
                                   agentItem->turnId == typed::TurnId{std::string(LifecycleTurnId)} &&

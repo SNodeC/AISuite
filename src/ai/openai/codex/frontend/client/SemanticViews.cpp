@@ -432,23 +432,17 @@ namespace ai::openai::codex::frontend::client {
         const std::optional<std::string> retainedText = text(data, "text");
         const std::optional<bool> textWasTruncated = boolean(data, "textTruncated");
         const std::optional<bool> contentWasTruncated = boolean(data, "contentTruncated");
-        const std::optional<std::uint64_t> originalTextBytes = unsignedInteger(data, "originalTextBytes");
-        const std::optional<std::uint64_t> retainedTextBytes = unsignedInteger(data, "retainedTextBytes");
-        const std::optional<std::size_t> textFragments = sizeValue(data, "textFragments");
-        const std::optional<std::size_t> nonTextItems = sizeValue(data, "nonTextItems");
         const std::optional<std::uint64_t> originalContentBytes = unsignedInteger(data, "originalContentBytes");
         const std::optional<std::uint64_t> retainedContentBytes = unsignedInteger(data, "retainedContentBytes");
         const std::optional<std::size_t> originalContentItems = sizeValue(data, "originalContentItems");
         const std::optional<std::size_t> retainedContentItems = sizeValue(data, "retainedContentItems");
         const auto clientId = data.find("clientId");
-        if (!retainedText || !textWasTruncated || !contentWasTruncated || !originalTextBytes || !retainedTextBytes || !textFragments ||
-            !nonTextItems || !originalContentBytes || !retainedContentBytes || !originalContentItems || !retainedContentItems ||
-            clientId == data.end() || (!clientId->is_null() && !clientId->is_string()) ||
-            *retainedTextBytes != retainedText->size() || *retainedTextBytes > *originalTextBytes ||
-            *textWasTruncated != (*retainedTextBytes < *originalTextBytes) || *retainedContentBytes > *originalContentBytes ||
+        if (!retainedText || !textWasTruncated || !contentWasTruncated || !originalContentBytes || !retainedContentBytes ||
+            !originalContentItems || !retainedContentItems || clientId == data.end() ||
+            (!clientId->is_null() && !clientId->is_string()) || *retainedContentBytes > *originalContentBytes ||
             *retainedContentItems > *originalContentItems ||
-            *contentWasTruncated != (*retainedContentItems < *originalContentItems) ||
-            *textFragments > *originalContentItems || *nonTextItems != *originalContentItems - *textFragments) {
+            *contentWasTruncated != (*retainedContentBytes < *originalContentBytes) ||
+            *contentWasTruncated != (*retainedContentItems < *originalContentItems)) {
             return std::nullopt;
         }
 
@@ -459,10 +453,6 @@ namespace ai::openai::codex::frontend::client {
         }
         result.textTruncated = *textWasTruncated;
         result.contentTruncated = *contentWasTruncated;
-        result.originalTextBytes = *originalTextBytes;
-        result.retainedTextBytes = *retainedTextBytes;
-        result.textFragments = *textFragments;
-        result.nonTextItems = *nonTextItems;
         result.originalContentBytes = *originalContentBytes;
         result.retainedContentBytes = *retainedContentBytes;
         result.originalContentItems = *originalContentItems;
