@@ -42,6 +42,57 @@ namespace ai::openai::codex::backend {
         template <typename... Visitors>
         Overloaded(Visitors...) -> Overloaded<Visitors...>;
 
+        std::string safeUtf8Prefix(std::string_view value, std::size_t byteLimit);
+
+        struct UserMessageTextProjection {
+            std::string text;
+            std::uint64_t originalBytes = 0;
+            std::size_t textFragments = 0;
+            std::size_t nonTextItems = 0;
+            bool truncated = false;
+        };
+
+        void saturatingAddUserMessageBytes(std::uint64_t& destination, std::size_t increment) noexcept {
+            const auto boundedIncrement = static_cast<std::uint64_t>(increment);
+            if (boundedIncrement > std::numeric_limits<std::uint64_t>::max() - destination) {
+                destination = std::numeric_limits<std::uint64_t>::max();
+            } else {
+                destination += boundedIncrement;
+            }
+        }
+
+        UserMessageTextProjection userMessageTextProjection(const typed::UserMessageThreadItem& item) {
+            constexpr std::string_view FragmentSeparator = "\n\n";
+            UserMessageTextProjection projection;
+            projection.text.reserve(MaxProjectedUserMessageTextBytes);
+
+            const auto append = [&projection](std::string_view value) {
+                if (projection.truncated || value.empty()) {
+                    return;
+                }
+                const std::size_t available = MaxProjectedUserMessageTextBytes - projection.text.size();
+                const std::string retained = safeUtf8Prefix(value, available);
+                projection.text.append(retained);
+                projection.truncated = retained.size() != value.size();
+            };
+
+            for (const typed::TurnInput& input : item.content) {
+                const auto* text = std::get_if<typed::TextInput>(&input);
+                if (text == nullptr) {
+                    ++projection.nonTextItems;
+                    continue;
+                }
+                if (projection.textFragments != 0) {
+                    saturatingAddUserMessageBytes(projection.originalBytes, FragmentSeparator.size());
+                    append(FragmentSeparator);
+                }
+                ++projection.textFragments;
+                saturatingAddUserMessageBytes(projection.originalBytes, text->text.size());
+                append(text->text);
+            }
+            return projection;
+        }
+
         Json boundedJson(const Json& value) {
             try {
                 const std::string encoded = value.dump();
@@ -57,6 +108,7 @@ namespace ai::openai::codex::backend {
 
         Json userMessageData(const typed::UserMessageThreadItem& item) {
             try {
+                const UserMessageTextProjection textProjection = userMessageTextProjection(item);
                 const auto rawContent = item.metadata.raw.find("content");
                 const Json content = rawContent != item.metadata.raw.end() && rawContent->is_array() ? *rawContent : Json::array();
                 const std::size_t originalContentBytes = content.dump().size();
@@ -70,6 +122,12 @@ namespace ai::openai::codex::backend {
                     return Json::object({{"clientId", clientId},
                                          {"content", retained},
                                          {"contentTruncated", contentTruncated},
+                                         {"text", textProjection.text},
+                                         {"textTruncated", textProjection.truncated},
+                                         {"originalTextBytes", textProjection.originalBytes},
+                                         {"retainedTextBytes", static_cast<std::uint64_t>(textProjection.text.size())},
+                                         {"textFragments", static_cast<std::uint64_t>(textProjection.textFragments)},
+                                         {"nonTextItems", static_cast<std::uint64_t>(textProjection.nonTextItems)},
                                          {"originalContentBytes", static_cast<std::uint64_t>(originalContentBytes)},
                                          {"retainedContentBytes", static_cast<std::uint64_t>(contentBytes)},
                                          {"originalContentItems", static_cast<std::uint64_t>(originalContentItems)},

@@ -1864,12 +1864,23 @@ namespace {
         ai::openai::codex::backend::Snapshot itemDetailsSource = source;
         ai::openai::codex::backend::ItemSnapshot& userItem = itemDetailsSource.threads.front().turns.front().items.front();
         userItem.type = "user_message";
-        userItem.data =
-            frontend::Json{{"clientId", nullptr},
-                           {"content", frontend::Json::array({frontend::Json{{"type", "text"}, {"text", "projected user input"}}})},
-                           {"contentTruncated", false},
-                           {"originalContentItems", 1},
-                           {"retainedContentItems", 1}};
+        const std::string sourceUserText = std::string(16'383, 'u') + "€tail";
+        const frontend::Json sourceUserContent =
+            frontend::Json::array({frontend::Json{{"type", "text"}, {"text", sourceUserText}}});
+        userItem.data = frontend::Json{{"clientId", nullptr},
+                                       {"content", sourceUserContent},
+                                       {"contentTruncated", false},
+                                       {"text", sourceUserText},
+                                       {"textTruncated", false},
+                                       {"originalTextBytes", sourceUserText.size()},
+                                       {"retainedTextBytes", sourceUserText.size()},
+                                       {"textFragments", 1},
+                                       {"nonTextItems", 0},
+                                       {"originalContentBytes", sourceUserContent.dump().size()},
+                                       {"retainedContentBytes", sourceUserContent.dump().size()},
+                                       {"originalContentItems", 1},
+                                       {"retainedContentItems", 1}};
+        userItem.extensions = frontend::Json{{"accessToken", "MUST_NOT_REACH_FRONTEND"}};
         const auto itemDetailsSnapshot = projection.projectSnapshot(itemDetailsSource);
         const auto itemDetailsWire = itemDetailsSnapshot
                                          ? model::encodeProjectedSnapshot(itemDetailsSnapshot.value(),
@@ -1887,11 +1898,17 @@ namespace {
                               projectedItemDetails.at("content").size() == 1 && projectedItemDetails.at("content").front().is_object() &&
                               !wireItemDetails.contains("content") && wireItemDetails.contains("clientId") &&
                               wireItemDetails.at("clientId").is_null() && wireItemDetails.value("contentTruncated", true) == false &&
+                              wireItemDetails.value("text", std::string{}) == std::string(16'383, 'u') &&
+                              wireItemDetails.value("textTruncated", false) &&
+                              wireItemDetails.value("originalTextBytes", 0U) == sourceUserText.size() &&
+                              wireItemDetails.value("retainedTextBytes", 0U) == 16'383 &&
+                              wireItemDetails.value("textFragments", 0U) == 1 && wireItemDetails.value("nonTextItems", 1U) == 0 &&
                               wireItemDetails.value("originalContentItems", 0) == 1 &&
                               wireItemDetails.value("retainedContentItems", 0) == 1 && projectedItemDetails.contains("clientId") &&
-                              projectedItemDetails.at("clientId").is_null() && projectedItemDetails.value("originalContentItems", 0) == 1,
+                              projectedItemDetails.at("clientId").is_null() && projectedItemDetails.value("originalContentItems", 0) == 1 &&
+                              itemDetailsWire.value().state.dump().find("MUST_NOT_REACH_FRONTEND") == std::string::npos,
                           "canonical item details retain bounded provider content while the expanded-wire seam emits only "
-                          "protocol-safe scalar metadata");
+                          "protocol-safe scalar user text with explicit UTF-8 truncation and no sensitive extensions");
 
         ai::openai::codex::backend::ItemContentChanged content;
         content.threadId = ai::openai::codex::typed::ThreadId{thread.id};

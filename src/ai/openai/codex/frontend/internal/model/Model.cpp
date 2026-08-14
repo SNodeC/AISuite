@@ -21,6 +21,7 @@
 namespace ai::openai::codex::frontend::internal::model {
     namespace {
         constexpr std::size_t LegacySnapshotMaximumObjectMembers = 4'096;
+        constexpr std::size_t FrontendDetailMaximumStringBytes = 16U * 1024U;
 
         void setSafeDetailError(SafeDetailError* target, SafeDetailError value) noexcept {
             if (target != nullptr) {
@@ -149,10 +150,10 @@ namespace ai::openai::codex::frontend::internal::model {
                 return value;
             }
             const std::string& text = value.get_ref<const std::string&>();
-            return std::string(text.substr(0, frontendUtf8PrefixLength(text, 16U * 1024U)));
+            return std::string(text.substr(0, frontendUtf8PrefixLength(text, FrontendDetailMaximumStringBytes)));
         }
 
-        Json expandedItemDetailObject(const SafeDetail& detail) {
+        Json expandedItemDetailObject(const SafeDetail& detail, bool userMessage) {
             // Canonical SafeDetail intentionally retains richer bounded JSON,
             // including user-message content objects. Frontend Protocol v1's
             // ExpandedThreadItem.data admits only scalar leaves or scalar
@@ -163,6 +164,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 return projected;
             }
             std::size_t retained = 0;
+            bool userMessageTextTruncated = false;
             for (auto member = value.begin(); member != value.end() && retained < 64; ++member) {
                 const std::size_t keyBytes = frontendUtf8PrefixLength(member.key(), 256);
                 if (keyBytes == 0 && !member.key().empty()) {
@@ -181,6 +183,10 @@ namespace ai::openai::codex::frontend::internal::model {
                     member.value().is_null() || member.value().is_boolean() || member.value().is_number() || member.value().is_string();
                 if (scalar) {
                     projected[key] = boundedFrontendDetailScalar(member.value());
+                    if (userMessage && key == "text" && member.value().is_string()) {
+                        userMessageTextTruncated = projected[key].get_ref<const std::string&>().size() !=
+                                                   member.value().get_ref<const std::string&>().size();
+                    }
                     ++retained;
                     continue;
                 }
@@ -201,6 +207,15 @@ namespace ai::openai::codex::frontend::internal::model {
                 if (scalarOnly) {
                     projected[key] = std::move(values);
                     ++retained;
+                }
+            }
+            if (userMessage && projected.contains("text") && projected.at("text").is_string()) {
+                if (const auto truncated = projected.find("textTruncated"); truncated != projected.end() && truncated->is_boolean()) {
+                    *truncated = truncated->get<bool>() || userMessageTextTruncated;
+                }
+                if (const auto retainedBytes = projected.find("retainedTextBytes");
+                    retainedBytes != projected.end() && retainedBytes->is_number_unsigned()) {
+                    *retainedBytes = static_cast<std::uint64_t>(projected.at("text").get_ref<const std::string&>().size());
                 }
             }
             return projected;
@@ -415,7 +430,7 @@ namespace ai::openai::codex::frontend::internal::model {
             encoded.startedAtMs = data.startedAtMs;
             encoded.completedAtMs = data.completedAtMs;
             if (data.safeDetails.has_value()) {
-                Json projected = expandedItemDetailObject(*data.safeDetails);
+                Json projected = expandedItemDetailObject(*data.safeDetails, threadItemKind(item) == ThreadItemKind::UserMessage);
                 if (!projected.empty()) {
                     encoded.data = std::move(projected);
                 }

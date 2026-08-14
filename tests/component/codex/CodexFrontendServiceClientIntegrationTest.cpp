@@ -861,9 +861,14 @@ namespace {
                     const client::ItemState* secondItem = state.item(typed::ThreadId{"live-thread-1"},
                                                                      typed::TurnId{"turn-live-thread-1"},
                                                                      typed::ItemId{std::string(LifecycleUserItemId)});
+                    const auto firstUserMessage = firstItem ? client::userMessageSemanticView(*firstItem) : std::nullopt;
+                    const auto secondUserMessage = secondItem ? client::userMessageSemanticView(*secondItem) : std::nullopt;
                     result.expectTrue(firstReadSucceeded && secondReadSucceeded && harness->providerThreadReadCalls == 2 &&
                                           firstThread != nullptr && firstThread->fullyLoaded && secondThread != nullptr &&
                                           secondThread->fullyLoaded && firstItem != nullptr && secondItem != nullptr &&
+                                          firstUserMessage && firstUserMessage->text == LifecycleUserText &&
+                                          !firstUserMessage->textTruncated && secondUserMessage &&
+                                          secondUserMessage->text == LifecycleUserText && !secondUserMessage->textTruncated &&
                                           firstItem != secondItem && harness->sdk->isReady() && harness->sdkConnection->isOpen() &&
                                           harness->sdk->pendingOperationCount() == 0 && harness->sdkCloseReasons.empty() &&
                                           harness->sdkProtocolErrors == 0,
@@ -1217,6 +1222,7 @@ namespace {
             const client::TurnState* turn = state.turn(LifecycleTurnId);
             const client::ItemState* userItem = state.item(LifecycleUserItemId);
             const client::ItemState* agentItem = state.item(LifecycleAgentItemId);
+            const auto userMessage = userItem ? client::userMessageSemanticView(*userItem) : std::nullopt;
             const CrossLayerHarness::WireItemObservation* wireUser = harness->wireItemSince(lifecycleWireItemBaseline, LifecycleUserItemId);
             const CrossLayerHarness::WireItemObservation* wireAgent =
                 harness->wireItemSince(lifecycleWireItemBaseline, LifecycleAgentItemId);
@@ -1268,6 +1274,8 @@ namespace {
                                   userItem->status == std::optional<std::string>{"completed"} && agentItem != nullptr &&
                                   userItem->startedAtMs == std::optional<std::int64_t>{10} &&
                                   userItem->completedAtMs == std::optional<std::int64_t>{20} &&
+                                  userMessage && userMessage->text == LifecycleUserText && !userMessage->textTruncated &&
+                                  !userMessage->contentTruncated && userMessage->textFragments == 1 && userMessage->nonTextItems == 0 &&
                                   agentItem->kind.is(frontend::ThreadItemKind::AgentMessage) &&
                                   agentItem->threadId == typed::ThreadId{std::string(LifecycleThreadId)} &&
                                   agentItem->turnId == typed::TurnId{std::string(LifecycleTurnId)} &&
@@ -1306,7 +1314,9 @@ namespace {
                     snapshotContainsUser = snapshotContainsUser ||
                                            (item.value("id", "") == LifecycleUserItemId && item.value("type", "") == "userMessage" &&
                                             item.value("threadId", "") == LifecycleThreadId &&
-                                            item.value("turnId", "") == LifecycleTurnId);
+                                            item.value("turnId", "") == LifecycleTurnId && item.contains("data") &&
+                                            item.at("data").value("text", "") == LifecycleUserText &&
+                                            !item.at("data").value("textTruncated", true));
                     snapshotContainsAgent = snapshotContainsAgent ||
                                             (item.value("id", "") == LifecycleAgentItemId && item.value("type", "") == "agentMessage" &&
                                              item.value("threadId", "") == LifecycleThreadId &&
@@ -1344,6 +1354,8 @@ namespace {
                 [this]() {
                     const client::State finalState = harness->sdk->state();
                     const client::ItemState* finalAgent = finalState.item(LifecycleAgentItemId);
+                    const client::ItemState* finalUser = finalState.item(LifecycleUserItemId);
+                    const auto finalUserMessage = finalUser ? client::userMessageSemanticView(*finalUser) : std::nullopt;
                     result.expectTrue(harness->providerListCalls == 2 && harness->sdk->isReady() && harness->sdkConnection->isOpen() &&
                                           harness->sdkConnection->isTransportConnected() && harness->frontendConnection->isOpen() &&
                                           harness->sdk->pendingOperationCount() == 0 && harness->sdkCloseReasons.empty() &&
@@ -1351,7 +1363,8 @@ namespace {
                                           harness->invalidExpandedEvents == 0 &&
                                           harness->expandedEventsEmitted == harness->expandedEventsSchemaValid &&
                                           harness->serializedMessageDecodeFailures == 0 && finalAgent != nullptr &&
-                                          finalAgent->agentText == std::optional<std::string>{std::string(LifecycleAgentText)},
+                                          finalAgent->agentText == std::optional<std::string>{std::string(LifecycleAgentText)} &&
+                                          finalUserMessage && finalUserMessage->text == LifecycleUserText,
                                       "the same Ready connection accepts a second typed command and retains completed turn state");
                     finish();
                 });
