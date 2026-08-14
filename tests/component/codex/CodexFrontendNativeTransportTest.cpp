@@ -10,9 +10,11 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/Security.h"
 #include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
+#include "apps/codex-backend/FrontendStreamSocketContext.h"
 #include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
 #include "apps/codex-backend/UnixPeerCredentials.h"
 #include "core/SNodeC.h"
+#include "core/socket/SocketAddress.h"
 #include "core/socket/State.h"
 #include "core/socket/stream/SocketConnection.h"
 #include "core/socket/stream/SocketContext.h"
@@ -64,6 +66,24 @@
 #include <variant>
 #include <vector>
 
+namespace apps::codex_backend::detail {
+
+    struct FrontendStreamSocketContextTestAccess {
+        static void connect(FrontendStreamSocketContext& context) {
+            context.onConnected();
+        }
+
+        static std::size_t receive(FrontendStreamSocketContext& context) {
+            return context.onReceivedFromPeer();
+        }
+
+        static void disconnect(FrontendStreamSocketContext& context) {
+            context.onDisconnected();
+        }
+    };
+
+} // namespace apps::codex_backend::detail
+
 namespace {
 
     namespace app = apps::codex_backend;
@@ -74,6 +94,8 @@ namespace {
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
 
     constexpr std::string_view BearerToken = "a1-7b-native-loopback-token";
+    const utils::Timeval EstablishedInactivityProbeTimeout(0.25);
+    const utils::Timeval EstablishedIdleDuration(0.75);
 
     enum class ClientKind : std::size_t { Unix, Ipv4, Ipv6, Tls, Count };
 
@@ -199,8 +221,15 @@ namespace {
                 }
                 ++observation.syncComplete;
                 if (completedClients == expectedClients) {
-                    completed = true;
-                    core::SNodeC::stop();
+                    idleTimer.emplace(core::timer::Timer::singleshotTimer(
+                        [this] {
+                            completed = true;
+                            idleEstablishedSurvived = std::all_of(clients.begin(), clients.end(), [](const ClientObservation& client) {
+                                return client.disconnected == 0;
+                            });
+                            core::SNodeC::stop();
+                        },
+                        EstablishedIdleDuration));
                 }
             } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(message)) {
                 ++observation.protocolErrors;
@@ -230,10 +259,159 @@ namespace {
         std::size_t decodeFailures = 0;
         std::size_t completedClients = 0;
         std::size_t expectedClients = 0;
+        std::optional<core::timer::Timer> idleTimer;
         bool topologyObservedBeforeClients = false;
         bool completed = false;
+        bool idleEstablishedSurvived = false;
         bool timedOut = false;
     };
+
+    class TimeoutProbeSocketAddress final : public core::socket::SocketAddress {
+    public:
+        std::string toString(bool = true) const override {
+            return "timeout-probe";
+        }
+    };
+
+    class TimeoutProbeSocketConnection final : public core::socket::stream::SocketConnection {
+    public:
+        explicit TimeoutProbeSocketConnection(std::string input)
+            : SocketConnection(-1, 1, "frontend-timeout-probe", nullptr)
+            , input(std::move(input)) {
+        }
+
+        ~TimeoutProbeSocketConnection() override = default;
+
+        int getFd() const override {
+            return -1;
+        }
+
+        void sendToPeer(const char*, std::size_t) override {
+        }
+
+        core::socket::stream::QueueResult trySendToPeer(const char*, std::size_t) override {
+            return core::socket::stream::QueueResult::Queued;
+        }
+
+        bool streamToPeer(core::pipe::Source*) override {
+            return false;
+        }
+
+        void streamEof() override {
+        }
+
+        std::size_t readFromPeer(char* chunk, std::size_t chunkLength) override {
+            const std::size_t size = std::min(chunkLength, input.size() - offset);
+            std::copy_n(input.data() + offset, size, chunk);
+            offset += size;
+            return size;
+        }
+
+        void shutdownRead() override {
+        }
+
+        void shutdownWrite() override {
+        }
+
+        const core::socket::SocketAddress& getBindAddress() const override {
+            return address;
+        }
+
+        const core::socket::SocketAddress& getLocalAddress() const override {
+            return address;
+        }
+
+        const core::socket::SocketAddress& getRemoteAddress() const override {
+            return address;
+        }
+
+        void close() override {
+        }
+
+        void setTimeout(const utils::Timeval& timeout) override {
+            readTimeout = timeout;
+            writeTimeout = timeout;
+        }
+
+        void setReadTimeout(const utils::Timeval& timeout) override {
+            readTimeout = timeout;
+            ++readTimeoutChanges;
+        }
+
+        void setWriteTimeout(const utils::Timeval& timeout) override {
+            writeTimeout = timeout;
+            ++writeTimeoutChanges;
+        }
+
+        std::size_t getTotalSent() const override {
+            return 0;
+        }
+
+        std::size_t getTotalQueued() const override {
+            return 0;
+        }
+
+        std::size_t getTotalRead() const override {
+            return offset;
+        }
+
+        std::size_t getTotalProcessed() const override {
+            return offset;
+        }
+
+        utils::Timeval readTimeout = EstablishedInactivityProbeTimeout;
+        utils::Timeval writeTimeout = EstablishedInactivityProbeTimeout;
+        std::size_t readTimeoutChanges = 0;
+        std::size_t writeTimeoutChanges = 0;
+
+    private:
+        TimeoutProbeSocketAddress address;
+        std::string input;
+        std::size_t offset = 0;
+    };
+
+    void expectEstablishedTimeoutTransition(tests::support::TestResult& result) {
+        frontend::Hello hello;
+        hello.authentication = frontend::AuthenticationCredential{frontend::BearerCredential{std::string(BearerToken)}};
+        const auto encoded = frontend::Codec::serializeClient(frontend::ClientMessage{std::move(hello)});
+        result.expectTrue(static_cast<bool>(encoded), "the timeout transition probe serializes a frontend Hello");
+        if (!encoded) {
+            return;
+        }
+
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        FakeBackendCore backend({}, transport);
+        frontend::FrontendServiceOptions options;
+        options.authenticator = [](const frontend::FrontendPeerContext&, const frontend::AuthenticationCredential& credential) {
+            return remoteAuthentication(credential);
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        frontend::FrontendService service(backend, std::move(options));
+
+        TimeoutProbeSocketConnection socketConnection(encoded.value() + '\n');
+        frontend::FrontendPeerContext peer;
+        peer.transport = frontend::FrontendTransportKind::Ipv4;
+        app::FrontendStreamSocketContext context(&socketConnection, service, std::move(peer), {});
+        app::detail::FrontendStreamSocketContextTestAccess::connect(context);
+
+        result.expectTrue(socketConnection.readTimeoutChanges == 0 && socketConnection.writeTimeoutChanges == 0 &&
+                              socketConnection.readTimeout == EstablishedInactivityProbeTimeout &&
+                              socketConnection.writeTimeout == EstablishedInactivityProbeTimeout &&
+                              service.unauthenticatedConnectionCount() == 1,
+                          "raw stream acceptance preserves the finite pre-authentication read and write inactivity timeouts");
+
+        const std::size_t received = app::detail::FrontendStreamSocketContextTestAccess::receive(context);
+        result.expectTrue(received == encoded.value().size() + 1 && service.authenticatedConnectionCount() == 1 &&
+                              socketConnection.readTimeoutChanges == 1 && socketConnection.readTimeout == utils::Timeval({0, 0}),
+                          "successful frontend establishment disables the SNode.C read inactivity timeout exactly once");
+        result.expectTrue(socketConnection.writeTimeoutChanges == 1 && socketConnection.writeTimeout == utils::Timeval({0, 0}),
+                          "successful frontend establishment disables the SNode.C write inactivity timeout exactly once");
+
+        app::detail::FrontendStreamSocketContextTestAccess::disconnect(context);
+    }
 
     class FrontendProtocolClientContext final : public core::socket::stream::SocketContext {
     public:
@@ -525,6 +703,8 @@ namespace {
                 "a1-7b-native-unix-server",
                 [&socketPath](net::un::stream::legacy::config::ConfigSocketServer* config) {
                     config->Local::setSunPath(socketPath);
+                    config->Connection::setReadTimeout(EstablishedInactivityProbeTimeout);
+                    config->Connection::setWriteTimeout(EstablishedInactivityProbeTimeout);
                 },
                 service,
                 app::FrontendStreamSocketContextFactoryOptions{
@@ -539,6 +719,8 @@ namespace {
                 [](net::in::stream::legacy::config::ConfigSocketServer* config) {
                     config->Instance::setDisabled(false);
                     config->Local::setHost("127.0.0.1")->setPort(0);
+                    config->Connection::setReadTimeout(EstablishedInactivityProbeTimeout);
+                    config->Connection::setWriteTimeout(EstablishedInactivityProbeTimeout);
                     config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
                 },
                 service,
@@ -549,6 +731,8 @@ namespace {
                 [](net::in6::stream::legacy::config::ConfigSocketServer* config) {
                     config->Instance::setDisabled(false);
                     config->Local::setHost("::1")->setPort(0);
+                    config->Connection::setReadTimeout(EstablishedInactivityProbeTimeout);
+                    config->Connection::setWriteTimeout(EstablishedInactivityProbeTimeout);
                     config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
                 },
                 service,
@@ -574,6 +758,8 @@ namespace {
                     config->Local::setHost("127.0.0.1")->setPort(0);
                     config->setCert(AISUITE_CODEX_TEST_TLS_CERT);
                     config->setCertKey(AISUITE_CODEX_TEST_TLS_KEY);
+                    config->Connection::setReadTimeout(EstablishedInactivityProbeTimeout);
+                    config->Connection::setWriteTimeout(EstablishedInactivityProbeTimeout);
                     config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
                 },
                 service,
@@ -586,6 +772,8 @@ namespace {
                     config->Local::setHost("::1")->setPort(0);
                     config->setCert(AISUITE_CODEX_TEST_TLS_CERT);
                     config->setCertKey(AISUITE_CODEX_TEST_TLS_KEY);
+                    config->Connection::setReadTimeout(EstablishedInactivityProbeTimeout);
+                    config->Connection::setWriteTimeout(EstablishedInactivityProbeTimeout);
                     config->Connection::setMaximumWriteQueueBytes(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES);
                 },
                 service,
@@ -729,6 +917,8 @@ namespace {
                               "multiple bound native families advertise multi_transport before any client connects");
             result.expectTrue(!state.timedOut && state.completed,
                               "all real native SNode.C loopback clients finish Frontend Protocol v1 synchronization before timeout");
+            result.expectTrue(state.idleEstablishedSurvived,
+                              "idle established native frontends remain connected beyond the configured SNode.C inactivity timeout");
             result.expectTrue(eventLoopResult == 0 && state.listenFailures == 0 && state.listenSuccesses == activeKinds.size() &&
                                   state.connectFailures == 0 && state.connectSuccesses == activeKinds.size() && state.decodeFailures == 0,
                               "Unix, IPv4, pinned-CA TLS, and available IPv6 listeners bind/connect/decode without transport-local "
@@ -797,6 +987,7 @@ int main(int argc, char* argv[]) {
     }
 
     expectTransportFacts(result);
+    expectEstablishedTimeoutTransition(result);
     expectTransportCapabilityIsNotAdvertised(result);
     static_cast<void>(runNativeLoopbackIntegration(argc, argv, result));
     return result.processResult();

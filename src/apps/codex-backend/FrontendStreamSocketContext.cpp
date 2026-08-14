@@ -12,6 +12,7 @@
 #include "apps/codex-backend/FrontendCloseReason.h"
 #include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
+#include "utils/Timeval.h"
 
 #include <array>
 #include <cstddef>
@@ -88,7 +89,14 @@ namespace apps::codex_backend {
                 if (disconnecting || inputBlocked) {
                     return;
                 }
+                const bool helloComplete = frontendConnection.helloComplete();
                 const auto receiveResult = frontendConnection.receive(std::string_view(frame));
+                if (!helloComplete && frontendConnection.helloComplete()) {
+                    if (auto* socketConnection = getSocketConnection()) {
+                        socketConnection->setReadTimeout(utils::Timeval({0, 0}));
+                        socketConnection->setWriteTimeout(utils::Timeval({0, 0}));
+                    }
+                }
                 if (receiveResult.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closing) {
                     inputBlocked = true;
                 } else if (receiveResult.status == ai::openai::codex::frontend::ConnectionReceiveStatus::Closed) {

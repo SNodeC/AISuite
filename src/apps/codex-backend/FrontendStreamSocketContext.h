@@ -27,6 +27,10 @@ namespace core::socket::stream {
 
 namespace apps::codex_backend {
 
+    namespace detail {
+        struct FrontendStreamSocketContextTestAccess;
+    }
+
     // Transport-neutral JSONL bridge used by Unix, TCP, TLS, and RFCOMM
     // listeners. Authentication, authorization, projection, replay, and
     // command dispatch remain exclusively owned by FrontendService.
@@ -57,6 +61,8 @@ namespace apps::codex_backend {
         std::shared_ptr<Lifetime> lifetime;
         bool inputBlocked = false;
         bool disconnecting = false;
+
+        friend struct detail::FrontendStreamSocketContextTestAccess;
     };
 
 } // namespace apps::codex_backend
