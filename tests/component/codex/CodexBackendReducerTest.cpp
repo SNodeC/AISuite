@@ -618,6 +618,33 @@ namespace {
     void testUserMessageSnapshotBounding(tests::support::TestResult& result) {
         backend::Reducer reducer;
 
+        backend::BackendState regressionState;
+        const std::string regressionText = std::string(16'383, 'u') + "€" + std::string(16'381, 'v');
+        const Json regressionContent = Json::array({Json{{"type", "text"}, {"text", regressionText}}});
+        typed::UserMessageThreadItem regressionItem;
+        regressionItem.metadata = metadata("thread-regression", "turn-regression", "item-regression");
+        regressionItem.metadata.raw["content"] = regressionContent;
+        typed::TextInput regressionInput;
+        regressionInput.text = regressionText;
+        regressionInput.raw = regressionContent.front();
+        regressionItem.content = {std::move(regressionInput)};
+        reducer.apply(regressionState,
+                      backend::ItemUpserted{typed::ThreadId{"thread-regression"},
+                                            typed::TurnId{"turn-regression"},
+                                            typed::ThreadItem{regressionItem},
+                                            backend::ItemLifecycle::Completed,
+                                            5});
+        const backend::Snapshot regressionSnapshot = backend::makeSnapshot(regressionState);
+        const Json& regressionData = regressionSnapshot.threads[0].turns[0].items[0].data;
+        result.expectTrue(regressionText.size() > 31U * 1024U && regressionData.at("content") == regressionContent &&
+                              !regressionData.at("contentTruncated").get<bool>() &&
+                              regressionData.at("originalContentBytes") == regressionContent.dump().size() &&
+                              regressionData.at("retainedContentBytes") == regressionContent.dump().size() &&
+                              regressionData.at("originalContentItems") == 1 && regressionData.at("retainedContentItems") == 1 &&
+                              !regressionData.contains("text") && !regressionData.contains("textTruncated") &&
+                              regressionData.dump().size() <= backend::MaxSerializedUserMessageDataBytes,
+                          "a 32 KiB typed textual message retains the same complete structured content capacity as master");
+
         backend::BackendState smallState;
         const Json smallContent =
             Json::array({Json{{"type", "text"}, {"text", "small"}}, Json{{"type", "future"}, {"nested", Json{{"kept", true}}}}});

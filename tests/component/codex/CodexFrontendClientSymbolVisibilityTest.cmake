@@ -124,6 +124,14 @@ if(fingerprint_index EQUAL -1)
     message(FATAL_ERROR "projectionFingerprint is not exported")
 endif()
 
+string(FIND "${symbols}"
+            "ai::openai::codex::frontend::client::userMessageSemanticView"
+            user_message_view_index
+)
+if(user_message_view_index EQUAL -1)
+    message(FATAL_ERROR "userMessageSemanticView is not exported")
+endif()
+
 string(REGEX MATCHALL "[^\n]*ai::openai::codex::frontend::client::[^\n]*"
              client_exports "${symbols}"
 )

@@ -102,6 +102,8 @@ namespace ai::openai::codex::frontend::client {
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<TurnFailureView> failureView(const TurnState& turn);
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT ThreadRealtimeSemanticView
     realtimeSemanticView(const ThreadRealtimeState& realtime);
+    [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<UserMessageSemanticView>
+    userMessageSemanticView(const ItemState& item);
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<ItemSemanticView> itemSemanticView(const ItemState& item);
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT PendingRequestPresentationView
     pendingRequestPresentation(const PendingRequestState& request);

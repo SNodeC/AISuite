@@ -21,6 +21,7 @@
 namespace ai::openai::codex::frontend::internal::model {
     namespace {
         constexpr std::size_t LegacySnapshotMaximumObjectMembers = 4'096;
+        constexpr std::size_t FrontendDetailMaximumStringBytes = 16U * 1024U;
 
         void setSafeDetailError(SafeDetailError* target, SafeDetailError value) noexcept {
             if (target != nullptr) {
@@ -149,10 +150,54 @@ namespace ai::openai::codex::frontend::internal::model {
                 return value;
             }
             const std::string& text = value.get_ref<const std::string&>();
-            return std::string(text.substr(0, frontendUtf8PrefixLength(text, 16U * 1024U)));
+            return std::string(text.substr(0, frontendUtf8PrefixLength(text, FrontendDetailMaximumStringBytes)));
         }
 
-        Json expandedItemDetailObject(const SafeDetail& detail) {
+        struct UserMessageTextProjection {
+            std::string text;
+            bool truncated = false;
+        };
+
+        std::optional<UserMessageTextProjection> userMessageTextProjection(const Json& detail) {
+            constexpr std::string_view FragmentSeparator = "\n\n";
+            const auto content = detail.find("content");
+            if (content == detail.end() || !content->is_array()) {
+                return std::nullopt;
+            }
+
+            UserMessageTextProjection projection;
+            projection.text.reserve(FrontendDetailMaximumStringBytes);
+            const auto append = [&projection](std::string_view value) {
+                if (projection.truncated || value.empty()) {
+                    return;
+                }
+                const std::size_t available = FrontendDetailMaximumStringBytes - projection.text.size();
+                const std::size_t retained = frontendUtf8PrefixLength(value, available);
+                projection.text.append(value.substr(0, retained));
+                projection.truncated = retained != value.size();
+            };
+
+            bool hasTextFragment = false;
+            for (const Json& entry : *content) {
+                if (!entry.is_object()) {
+                    continue;
+                }
+                const auto type = entry.find("type");
+                const auto text = entry.find("text");
+                if (type == entry.end() || !type->is_string() || type->get_ref<const std::string&>() != "text" || text == entry.end() ||
+                    !text->is_string()) {
+                    continue;
+                }
+                if (hasTextFragment) {
+                    append(FragmentSeparator);
+                }
+                hasTextFragment = true;
+                append(text->get_ref<const std::string&>());
+            }
+            return projection;
+        }
+
+        Json expandedItemDetailObject(const SafeDetail& detail, bool userMessage) {
             // Canonical SafeDetail intentionally retains richer bounded JSON,
             // including user-message content objects. Frontend Protocol v1's
             // ExpandedThreadItem.data admits only scalar leaves or scalar
@@ -201,6 +246,14 @@ namespace ai::openai::codex::frontend::internal::model {
                 if (scalarOnly) {
                     projected[key] = std::move(values);
                     ++retained;
+                }
+            }
+            if (userMessage) {
+                projected.erase("text");
+                projected.erase("textTruncated");
+                if (const auto text = userMessageTextProjection(value)) {
+                    projected["text"] = text->text;
+                    projected["textTruncated"] = text->truncated;
                 }
             }
             return projected;
@@ -415,7 +468,7 @@ namespace ai::openai::codex::frontend::internal::model {
             encoded.startedAtMs = data.startedAtMs;
             encoded.completedAtMs = data.completedAtMs;
             if (data.safeDetails.has_value()) {
-                Json projected = expandedItemDetailObject(*data.safeDetails);
+                Json projected = expandedItemDetailObject(*data.safeDetails, threadItemKind(item) == ThreadItemKind::UserMessage);
                 if (!projected.empty()) {
                     encoded.data = std::move(projected);
                 }

@@ -119,6 +119,31 @@ namespace {
                 encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
     }
 
+    frontend::Snapshot expandedUserMessageSnapshot(std::uint64_t sequence, std::uint64_t generation, std::string title) {
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, generation, std::move(title));
+        snapshot.turns.emplace_back(model::TurnIdentity{"runtime-turn"}, model::ThreadIdentity{"adapter-thread"});
+        const std::string sourceText = std::string(16'383, 'm') + "€" + std::string(16'381, 'n');
+        const frontend::Json sourceContent =
+            frontend::Json::array({frontend::Json{{"type", "text"}, {"text", sourceText}}});
+        model::ItemData item{
+            model::ItemIdentity{"runtime-user-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"runtime-turn"}};
+        item.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"clientId", nullptr},
+                                                                      {"content", sourceContent},
+                                                                      {"contentTruncated", false},
+                                                                      {"originalContentBytes", sourceContent.dump().size()},
+                                                                      {"retainedContentBytes", sourceContent.dump().size()},
+                                                                      {"originalContentItems", 1},
+                                                                      {"retainedContentItems", 1}});
+        snapshot.items.push_back(model::UserMessageItem{std::move(item)});
+        const auto expanded = model::encodeSnapshot(snapshot);
+        if (!expanded) {
+            return {frontend::SequenceNumber(sequence), frontend::Json{{"invalid", true}, {"error", expanded.error().message}}};
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
+        return {frontend::SequenceNumber(sequence),
+                encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
     frontend::FrontendEvent providerEvent(std::uint64_t sequence, std::uint64_t generation) {
         model::ProviderState provider;
         provider.lifecycle = model::ProviderLifecycle::Ready;
@@ -276,6 +301,18 @@ namespace {
         semanticItem.generation = 6;
         semanticItem.freshness = model::Freshness::Current;
         direct.items.push_back(model::CommandExecutionItem{std::move(semanticItem)});
+        const std::string semanticUserText = "hello\n\nGrüße";
+        model::ItemData semanticUserItem{
+            model::ItemIdentity{"semantic-user-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"semantic-turn"}};
+        semanticUserItem.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"clientId", "client-user-1"},
+                                                                                   {"contentTruncated", false},
+                                                                                   {"text", semanticUserText},
+                                                                                   {"textTruncated", false},
+                                                                                   {"originalContentBytes", 128},
+                                                                                   {"retainedContentBytes", 128},
+                                                                                   {"originalContentItems", 3},
+                                                                                   {"retainedContentItems", 3}});
+        direct.items.push_back(model::UserMessageItem{std::move(semanticUserItem)});
         direct.controller.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"present", true}});
         direct.truncation.extensions = *model::SafeDetail::fromJson(frontend::Json{{"vendorTruncation", "state-truncation-extension"}});
         direct.processesState.extensions = *model::SafeDetail::fromJson(frontend::Json{{"vendorCollection", "processes-extension"}});
@@ -409,6 +446,7 @@ namespace {
 
         const client::TurnState* publicTurn = first ? first->turn("semantic-turn") : nullptr;
         const client::ItemState* publicItem = first ? first->item("semantic-item") : nullptr;
+        const client::ItemState* publicUserItem = first ? first->item("semantic-user-item") : nullptr;
         const client::PendingRequestState* publicPending =
             first ? first->pendingRequest(client::PendingRequestId{"semantic-pending"}) : nullptr;
         const auto usage = publicTurn ? client::tokenUsageView(*publicTurn) : std::nullopt;
@@ -416,6 +454,8 @@ namespace {
         const auto realtime =
             firstThread && firstThread->realtime ? std::optional{client::realtimeSemanticView(*firstThread->realtime)} : std::nullopt;
         const auto itemView = publicItem ? client::itemSemanticView(*publicItem) : std::nullopt;
+        const auto userMessageView = publicUserItem ? client::userMessageSemanticView(*publicUserItem) : std::nullopt;
+        const auto commandAsUserMessage = publicItem ? client::userMessageSemanticView(*publicItem) : std::nullopt;
         const auto pendingView = publicPending ? std::optional{client::pendingRequestPresentation(*publicPending)} : std::nullopt;
         const auto operations = first ? first->providerOperations() : std::nullopt;
         const auto conversations = first ? first->conversations() : std::nullopt;
@@ -448,8 +488,31 @@ namespace {
                 provenance->limits.maxRetainedProcesses == 111 && provenance->limits.maxProcessOutputBytesPerProcess == 112 &&
                 provenance->limits.maxAccumulatedProcessOutputBytes == 113 &&
                 provenance->limits.maxRetainedFilesystemWatches == 114 &&
-                provenance->limits.maxRetainedFuzzySearchSessions == 115 && provenance->limits.maxRetainedActivityRecords == 116,
+                provenance->limits.maxRetainedFuzzySearchSessions == 115 && provenance->limits.maxRetainedActivityRecords == 116 &&
+                userMessageView && userMessageView->text == semanticUserText &&
+                userMessageView->clientId == typed::ClientUserMessageId{"client-user-1"} && !userMessageView->textTruncated &&
+                !userMessageView->contentTruncated && userMessageView->originalContentBytes == 128 &&
+                userMessageView->retainedContentBytes == 128 && userMessageView->originalContentItems == 3 &&
+                userMessageView->retainedContentItems == 3 && !commandAsUserMessage,
             "public additive semantic views preserve nested turn, realtime, item, request, domain, aggregate, and provenance facts");
+
+        std::optional<client::UserMessageSemanticView> malformedUserMessageView;
+        if (publicUserItem != nullptr) {
+            client::ItemState malformed = *publicUserItem;
+            malformed.data->erase("text");
+            malformedUserMessageView = client::userMessageSemanticView(malformed);
+        }
+        result.expectTrue(!malformedUserMessageView,
+                          "the typed user-message semantic view fails soft when its bounded scalar projection is missing");
+
+        std::optional<client::UserMessageSemanticView> contradictoryUserMessageView;
+        if (publicUserItem != nullptr) {
+            client::ItemState malformed = *publicUserItem;
+            (*malformed.data)["retainedContentBytes"] = 129;
+            contradictoryUserMessageView = client::userMessageSemanticView(malformed);
+        }
+        result.expectTrue(!contradictoryUserMessageView,
+                          "the typed user-message semantic view fails soft on contradictory retained-content metadata");
 
         client::State immutable = first.value_or(client::State{});
         publication.revision = 42;
@@ -640,7 +703,7 @@ namespace {
                           "public Connection delegates one physical generation and one transport-connected transition to ClientCore");
 
         const bool welcomeAccepted = connection.receive(frontend::ServerMessage{welcome(7)}).accepted;
-        const frontend::Snapshot initialSnapshot = expandedSnapshot(7, 3, "runtime title");
+        const frontend::Snapshot initialSnapshot = expandedUserMessageSnapshot(7, 3, "runtime title");
         const auto fixtureDecoded = model::decodeProjectedSnapshot(initialSnapshot, publicOptions().requestedCapabilities);
         const std::string fixtureError = fixtureDecoded ? std::string{} : fixtureDecoded.error().message;
         const bool snapshotAccepted = connection.receive(frontend::ServerMessage{initialSnapshot}).accepted;
@@ -648,6 +711,8 @@ namespace {
         const bool synchronized = connection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(7)}}).accepted;
         harness.recording = false;
         const client::State ready = sdk.state();
+        const client::ItemState* readyUserItem = ready.item("runtime-user-item");
+        const auto readyUserMessage = readyUserItem ? client::userMessageSemanticView(*readyUserItem) : std::nullopt;
         const std::vector<std::string> expectedSynchronizationOrder{"ready", "state", "cursor", "synchronized", "protocol"};
         result.expectTrue(
             welcomeAccepted && snapshotAccepted && synchronized && sdk.isReady() && !harness.revisionMismatch &&
@@ -655,7 +720,10 @@ namespace {
                 !harness.updateRevisions.empty() && !harness.synchronizedRevisions.empty() &&
                 harness.updateRevisions.back() == ready.revision() && harness.synchronizedRevisions.back() == ready.revision() &&
                 ready.visibleSequence() == frontend::SequenceNumber(7) && ready.thread("adapter-thread") != nullptr &&
-                ready.thread("adapter-thread")->title == std::optional<std::string>{"runtime title"},
+                ready.thread("adapter-thread")->title == std::optional<std::string>{"runtime title"} && readyUserMessage &&
+                readyUserMessage->text == std::string(16'383, 'm') && readyUserMessage->textTruncated &&
+                !readyUserMessage->contentTruncated && readyUserMessage->originalContentBytes == readyUserMessage->retainedContentBytes &&
+                readyUserMessage->originalContentItems == 1 && readyUserMessage->retainedContentItems == 1,
             "ClientCore commits the direct public State before state/cursor/synchronized/protocol callbacks in frozen order: " +
                 traceText(harness.callbackOrder) + " accepted=" + std::to_string(welcomeAccepted) + "/" + std::to_string(snapshotAccepted) +
                 "/" + std::to_string(synchronized) + " state=" + std::to_string(static_cast<int>(sdk.connectionState())) + " fixture=" +
