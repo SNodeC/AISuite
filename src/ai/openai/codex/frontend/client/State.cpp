@@ -2154,6 +2154,7 @@ namespace ai::openai::codex::frontend::client {
             return found == values.end() ? std::nullopt : std::optional<std::size_t>{encodedEntityBytes(encoder(*found))};
         }
 
+#ifndef NDEBUG
         std::optional<std::size_t> referenceStateBytes(const detail::StateStorage& state) noexcept {
             try {
                 std::size_t bytes = encodeState(state).dump().size();
@@ -2168,6 +2169,7 @@ namespace ai::openai::codex::frontend::client {
                 return std::nullopt;
             }
         }
+#endif
 
         std::optional<std::size_t> accountedStateBytes(const detail::StateStorage& state) noexcept {
             if (!state.sizeLedger.initialized || state.sizeLedger.failed)
