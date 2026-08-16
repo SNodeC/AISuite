@@ -303,6 +303,10 @@ namespace ai::openai::codex::stdio::detail {
             this->callbacks = std::move(callbacks);
         }
 
+        logger::LogScope scope() const noexcept {
+            return logScope.scope();
+        }
+
         void start() {
             if (core::SNodeC::state() == core::State::STOPPING) {
                 reportStartError({Error::Category::Launch, ECANCELED, "codex app-server launch rejected during event-loop shutdown"});
@@ -1072,7 +1076,8 @@ namespace ai::openai::codex::stdio::detail {
 
     namespace {
         ChildExitPollingReceiver::ChildExitPollingReceiver(int fd, const std::shared_ptr<StdioTransport::Session>& session)
-            : core::eventreceiver::ReadEventReceiver("codex app-server child polling timer", TIMEOUT::DISABLE)
+            : core::eventreceiver::ReadEventReceiver(
+                  "codex app-server child polling timer", session->scope(), TIMEOUT::DISABLE)
             , session(session) {
             if (!ReadEventReceiver::enable(fd)) {
                 throw std::runtime_error("unable to register codex app-server child polling timer");
@@ -1128,7 +1133,7 @@ namespace ai::openai::codex::stdio::detail {
         }
 
         ChildExitReceiver::ChildExitReceiver(int pidfd, const std::shared_ptr<StdioTransport::Session>& session)
-            : core::eventreceiver::ReadEventReceiver("codex app-server pidfd", TIMEOUT::DISABLE)
+            : core::eventreceiver::ReadEventReceiver("codex app-server pidfd", session->scope(), TIMEOUT::DISABLE)
             , session(session) {
             if (!ReadEventReceiver::enable(pidfd)) {
                 throw std::runtime_error("unable to register codex app-server pidfd");
