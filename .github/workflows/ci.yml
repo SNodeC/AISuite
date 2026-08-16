@@ -135,10 +135,10 @@ jobs:
           git init ../snodec
           git -C ../snodec remote add origin https://github.com/SNodeC/snode.c.git
           git -C ../snodec fetch --depth 1 origin \
-            6ae8fafcd50052a9d86932b0be721ef39cce7a44
+            bc43179dbee2b5a0286420a61d8f1ceaef01530d
           git -C ../snodec checkout --detach FETCH_HEAD
           test "$(git -C ../snodec rev-parse HEAD)" = \
-            6ae8fafcd50052a9d86932b0be721ef39cce7a44
+            bc43179dbee2b5a0286420a61d8f1ceaef01530d
 
       - name: Build and install accepted SNode.C 2.0.0 dependency
         run: |

@@ -8,6 +8,7 @@
 #include "apps/codex-backend-client/StdinReader.h"
 
 #include "core/EventReceiver.h"
+#include "log/SemanticLogger.h"
 
 #include <array>
 #include <cerrno>
@@ -27,7 +28,15 @@ namespace apps::codex_backend_client {
     }
 
     StdinReader::StdinReader(LineHandler onLine, EofHandler onEof, ErrorHandler onError, int fd, ShutdownHandler onShutdown)
-        : core::eventreceiver::ReadEventReceiver("codex-backend-client stdin", core::DescriptorEventReceiver::TIMEOUT::DISABLE)
+        : core::eventreceiver::ReadEventReceiver(
+              "codex-backend-client stdin",
+              logger::LogScope{logger::LogOrigin::Application,
+                               logger::LogBoundary::Application,
+                               "app",
+                               "codex-backend-client",
+                               logger::LogRole::Unknown,
+                               {}},
+              core::DescriptorEventReceiver::TIMEOUT::DISABLE)
         , onLine(std::move(onLine))
         , onEof(std::move(onEof))
         , onError(std::move(onError))
