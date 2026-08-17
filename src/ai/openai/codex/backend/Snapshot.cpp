@@ -786,6 +786,16 @@ namespace ai::openai::codex::backend {
                                   }},
                        state.request);
             snapshot.details = boundedJson(snapshot.details);
+            if (snapshot.type == "user_input" &&
+                (!snapshot.details.is_object() || !snapshot.details.contains("questions") ||
+                 !snapshot.details.at("questions").is_array())) {
+                const std::size_t originalBytes =
+                    snapshot.details.is_object() ? snapshot.details.value("originalBytes", std::size_t{0}) : 0;
+                snapshot.details = Json::object({{"questions", Json::array()}, {"questionsTruncated", true}});
+                if (originalBytes != 0) {
+                    snapshot.details["originalDetailsBytes"] = originalBytes;
+                }
+            }
             return snapshot;
         }
 
@@ -1624,7 +1634,11 @@ namespace ai::openai::codex::backend {
             boundAssociation(pending.threadId);
             boundAssociation(pending.turnId);
             boundAssociation(pending.itemId);
-            pending.details = Json::object({{"omitted", true}, {"reason", "minimal snapshot"}});
+            const bool actionableUserInput = pending.type == "user_input" && pending.details.is_object() &&
+                                             pending.details.contains("questions") && pending.details.at("questions").is_array();
+            if (!actionableUserInput) {
+                pending.details = Json::object({{"omitted", true}, {"reason", "minimal snapshot"}});
+            }
         }
 
         std::uint64_t saturatedSize(std::size_t value) noexcept {
