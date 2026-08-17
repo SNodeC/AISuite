@@ -96,6 +96,10 @@ namespace ai::openai::codex::frontend::internal::client {
             return {ErrorOrigin::Protocol, code, protocolCode, std::move(message), std::nullopt, false};
         }
 
+        bool retryableProtocolError(ErrorCode code) noexcept {
+            return code == ErrorCode::InternalError || code == ErrorCode::BackendUnavailable || code == ErrorCode::RateLimited;
+        }
+
         ClientError commandError(const CommandError& error) {
             return {ErrorOrigin::Command, std::nullopt, error.code, error.message, error.details, false};
         }
@@ -3739,7 +3743,8 @@ namespace ai::openai::codex::frontend::internal::client {
     }
 
     void ClientCore::Impl::handleProtocolError(const ProtocolErrorMessage& error, bool& accepted, bool& observeAfterClosure) {
-        ClientError decoded{ErrorOrigin::Protocol, std::nullopt, error.code, error.message, error.details, false};
+        ClientError decoded{
+            ErrorOrigin::Protocol, std::nullopt, error.code, error.message, error.details, retryableProtocolError(error.code)};
         if (error.closeConnection) {
             accepted = true;
             observeAfterClosure = true;
