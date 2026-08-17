@@ -241,7 +241,10 @@ namespace ai::openai::codex::frontend::client {
             std::size_t bytes = securelyErase(authentication.credential);
             if (authentication.continuityKey.has_value()) {
                 addSaturated(bytes, securelyErase(*authentication.continuityKey));
-                authentication.continuityKey.reset();
+                // The initialized, zeroed string can remain engaged until the
+                // context's normal destruction. Resetting it here adds an
+                // unnecessary second lifetime transition and triggers a GCC
+                // 16 -Wmaybe-uninitialized false positive when inlined at -O3.
             }
             return bytes;
         }
