@@ -194,10 +194,11 @@ namespace {
                         return element.is_null() || element.is_boolean() || element.is_number() || element.is_string();
                     }));
         });
+        const std::string expectedBoundedText = std::string(16'383, 'x') + "\xE2\x82\xAC";
         result.expectTrue(safeDetails.has_value() && encoded && projected.size() == 64 && projected.value("", "") == "empty-key-value" &&
                               !projected.contains(postTruncationForbiddenKey) && !projected.contains(truncatedForbiddenKey) &&
                               !projected.contains("nested") && projected.at("array").size() == 64 &&
-                              projected.at("text").get_ref<const std::string&>().size() == 16'383 && scalarLeaves,
+                              projected.at("text").get_ref<const std::string&>() == expectedBoundedText && scalarLeaves,
                           "expanded item detail projection preserves an empty safe key, rejects a forbidden name created by key "
                           "truncation, and enforces exact property/array/UTF-8 string bounds");
     }
