@@ -63,7 +63,7 @@ namespace ai::openai::codex::frontend {
         std::size_t maxConnections = 128;
         std::size_t maxUnauthenticatedConnections = 16;
         std::uint64_t handshakeTimeoutMs = 10000;
-        std::size_t maximumInboundMessageBytes = 1024U * 1024U;
+        std::size_t maximumInboundMessageBytes = DefaultFrontendMaximumInboundMessageBytes;
         std::size_t maxInboundMessagesPerSecond = 50;
         std::size_t maxInboundBurst = 100;
         std::size_t maxOutstandingCommandsPerConnection = 256;

@@ -517,6 +517,22 @@ namespace {
         const bool accepted = inboundClient.receiveEncoded(inboundGeneration, std::string(9, 'x'));
         result.expectTrue(!accepted && inboundClient.connectionState() == core::ConnectionState::Disconnected && inboundHarness.closes == 1,
                           "the inbound frame ceiling is enforced before protocol decoding or state allocation");
+
+        core::ClientOptions outboundOptions = clientOptions();
+        outboundOptions.limits.maximumOutboundMessageBytes = 512;
+        Harness outboundHarness;
+        core::ClientCore outboundClient(std::move(outboundOptions));
+        (void) ready(outboundClient, outboundHarness);
+        const std::size_t messagesBeforeSubmission = outboundHarness.outbound.size();
+        frontend::Json answer = {{"questionId", "question"}, {"answers", frontend::Json::array({std::string(512, 'x')})}};
+        frontend::Json response = {{"pendingRequestId", "1"}, {"answers", frontend::Json::array({std::move(answer)})}};
+        const core::Submission oversized = outboundClient.submit(
+            generated::makeParameters(generated::MethodId::UserInputRespond, std::move(response)));
+        result.expectTrue(!oversized && oversized.error &&
+                              oversized.error->clientCode == core::ClientErrorCode::SerializationFailed && outboundClient.ready() &&
+                              outboundClient.pendingOperationCount() == 0 && outboundHarness.outbound.size() == messagesBeforeSubmission &&
+                              outboundHarness.closes == 0,
+                          "an encoded command exceeding the peer ingress budget is rejected locally without disconnecting the client");
     }
 
     void testPublicOptionParity(tests::support::TestResult& result) {

@@ -856,6 +856,22 @@ namespace {
                           "string, Json, and typed receive overloads all reject over-bound input before protocol dispatch");
     }
 
+    void testPublicOutboundMessageGuard(tests::support::TestResult& result) {
+        client::ClientOptions guardedOptions = options();
+        guardedOptions.credentialProvider = [] {
+            return client::AuthenticationContext{
+                frontend::BearerCredential{std::string(frontend::DefaultFrontendMaximumInboundMessageBytes + 1, 'x')}, std::nullopt};
+        };
+        Harness harness;
+        client::Client sdk(std::move(guardedOptions), harness.callbacks());
+        client::Connection connection = sdk.openConnection(harness.transport());
+        connection.transportConnected();
+
+        result.expectTrue(!connection.isOpen() && harness.messages.empty() && harness.closes == 1 &&
+                              sdk.connectionState() == client::ConnectionState::Disconnected,
+                          "the public adapter rejects a final encoded message above the peer ingress budget before transport send");
+    }
+
     void testDeferredCallbackSubmissions(tests::support::TestResult& result) {
         Harness harness;
         client::Client sdk(options(), harness.callbacks());
@@ -1783,6 +1799,7 @@ int main() {
     testPendingDisconnectAndCallbackContainment(result);
     testExceptionContainmentAndCapacity(result);
     testEquivalentInboundBounds(result);
+    testPublicOutboundMessageGuard(result);
     testDeferredCallbackSubmissions(result);
     testStateCallbackDeferralAndTerminalClose(result);
     testProjectionRefreshCapacity(result);
