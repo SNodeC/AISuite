@@ -2019,6 +2019,25 @@ namespace {
                               snapshot.value().turns.size() == 1 && snapshot.value().items.size() == 1 && boundedPending,
                           "backend snapshots convert once into strong identities and reject secret-bearing safe-detail extensions");
 
+        ai::openai::codex::backend::Snapshot providerOperationSource = source;
+        providerOperationSource.sequence = ai::openai::codex::backend::SequenceNumber{18};
+        providerOperationSource.providerOperations.push_back({"model/list", 12, {4, ai::openai::codex::backend::Freshness::Current}});
+        const std::vector<ai::openai::codex::backend::SequencedBackendEvent> providerOperationEvents{
+            {ai::openai::codex::backend::SequenceNumber{18}, ai::openai::codex::backend::ProviderOperationStateChanged{"model/list"}}};
+        const auto providerOperationBatch = projection.projectOccurrences(providerOperationEvents, providerOperationSource);
+        const frontend::Json providerOperationSemantics =
+            providerOperationBatch ? providerOperationBatch.value().snapshot.extensions.json() : frontend::Json::object();
+        const frontend::Json providerOperations = providerOperationSemantics.value("providerOperationsSemantic", frontend::Json::object());
+        const frontend::Json providerMethods = providerOperations.value("methods", frontend::Json::array());
+        const auto providerOperationWire =
+            providerOperationBatch ? model::encodeProjectedSnapshot(providerOperationBatch.value().snapshot,
+                                                                    model::SnapshotRepresentationSelection{true, true, true, true})
+                                   : model::ModelResult<frontend::Snapshot>{providerOperationBatch.error()};
+        result.expectTrue(providerOperationBatch && providerOperationBatch.value().snapshotRequired &&
+                              std::find(providerMethods.begin(), providerMethods.end(), "model/list") != providerMethods.end() &&
+                              providerOperationWire,
+                          "provider-operation fallback retains a complete publication-ready canonical Snapshot for direct reuse");
+
         ai::openai::codex::backend::Snapshot previewSource = source;
         previewSource.threads.front().preview = std::string(16'383, 'p') + "\xE2\x82\xAC";
         const auto previewSnapshot = projection.projectSnapshot(previewSource);
