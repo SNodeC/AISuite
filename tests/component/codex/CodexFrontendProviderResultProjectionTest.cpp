@@ -47,13 +47,14 @@ namespace {
                 if constexpr (std::is_same_v<Result, typed::Unit>) {
                     return backend::CommandValue{std::in_place_type<Result>};
                 } else if constexpr (std::is_same_v<Result, typed::LoginAccountResponse>) {
-                    typed::ApiKeyLoginAccountResponse alternative;
-                    alternative.raw = raw;
-                    return backend::CommandValue{std::in_place_type<Result>, std::move(alternative)};
+                    backend::CommandValue value{
+                        std::in_place_type<Result>, std::in_place_type<typed::ApiKeyLoginAccountResponse>};
+                    std::get<typed::ApiKeyLoginAccountResponse>(std::get<Result>(value)).raw = raw;
+                    return value;
                 } else {
-                    Result result{};
-                    result.raw = raw;
-                    return backend::CommandValue{std::in_place_type<Result>, std::move(result)};
+                    backend::CommandValue value{std::in_place_type<Result>};
+                    std::get<Result>(value).raw = raw;
+                    return value;
                 }
             }
             return makeProviderResult<Index + 1>(resultType, raw);

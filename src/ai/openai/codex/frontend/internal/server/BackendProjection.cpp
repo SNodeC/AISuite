@@ -98,11 +98,6 @@ namespace ai::openai::codex::frontend::internal::server {
             return offset;
         }
 
-        std::string boundedThreadPreview(std::string_view value) {
-            constexpr std::size_t MaximumThreadPreviewBytes = 16U * 1024U;
-            return std::string(value.substr(0, utf8PrefixLength(value, MaximumThreadPreviewBytes)));
-        }
-
         bool validUtf8(std::string_view value) noexcept {
             for (std::size_t offset = 0; offset < value.size();) {
                 const unsigned char lead = static_cast<unsigned char>(value[offset]);
@@ -140,6 +135,83 @@ namespace ai::openai::codex::frontend::internal::server {
                 offset += width;
             }
             return true;
+        }
+
+        std::size_t utf8CharacterPrefixLength(std::string_view value, std::size_t maximumCharacters) noexcept {
+            std::size_t offset = 0;
+            std::size_t characters = 0;
+            while (offset < value.size() && characters < maximumCharacters) {
+                const unsigned char lead = static_cast<unsigned char>(value[offset]);
+                std::size_t width = 0;
+                if (lead <= 0x7fU) {
+                    width = 1;
+                } else if (lead >= 0xc2U && lead <= 0xdfU) {
+                    width = 2;
+                } else if (lead >= 0xe0U && lead <= 0xefU) {
+                    width = 3;
+                } else if (lead >= 0xf0U && lead <= 0xf4U) {
+                    width = 4;
+                } else {
+                    break;
+                }
+                if (offset + width > value.size()) {
+                    break;
+                }
+                bool continuationValid = true;
+                for (std::size_t index = 1; index < width; ++index) {
+                    continuationValid =
+                        continuationValid && (static_cast<unsigned char>(value[offset + index]) & 0xc0U) == 0x80U;
+                }
+                if (!continuationValid) {
+                    break;
+                }
+                if (width == 3) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xe0U && second < 0xa0U) || (lead == 0xedU && second > 0x9fU)) {
+                        break;
+                    }
+                } else if (width == 4) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xf0U && second < 0x90U) || (lead == 0xf4U && second > 0x8fU)) {
+                        break;
+                    }
+                }
+                offset += width;
+                ++characters;
+            }
+            return offset;
+        }
+
+        void recordOmission(model::TruncationMetadata& truncation, std::string path) {
+            constexpr std::size_t MaximumOmittedPaths = 64;
+            constexpr std::size_t MaximumPathCharacters = 256;
+            const std::size_t retained = utf8CharacterPrefixLength(path, MaximumPathCharacters);
+            path.resize(retained);
+            truncation.truncated = true;
+            if (path.empty() || std::find(truncation.omittedPaths.begin(), truncation.omittedPaths.end(), path) !=
+                                    truncation.omittedPaths.end()) {
+                return;
+            }
+            if (truncation.omittedPaths.size() < MaximumOmittedPaths) {
+                truncation.omittedPaths.push_back(std::move(path));
+                return;
+            }
+            std::size_t omitted = truncation.omittedEntries.value_or(0);
+            if (omitted != std::numeric_limits<std::size_t>::max()) {
+                ++omitted;
+            }
+            truncation.omittedEntries = omitted;
+        }
+
+        std::string boundedFrontendString(std::string_view value,
+                                          std::size_t maximumCharacters,
+                                          model::TruncationMetadata* truncation = nullptr,
+                                          std::string path = {}) {
+            const std::size_t retained = utf8CharacterPrefixLength(value, maximumCharacters);
+            if (retained != value.size() && truncation != nullptr) {
+                recordOmission(*truncation, std::move(path));
+            }
+            return std::string(value.substr(0, retained));
         }
 
         backend::CodexExtensionReceived projectionSafeExtension(const backend::CodexExtensionReceived& extension) {
@@ -205,48 +277,71 @@ namespace ai::openai::codex::frontend::internal::server {
             if (safe) {
                 return std::move(*safe);
             }
-            truncation.truncated = true;
-            truncation.omittedPaths.push_back(std::move(path));
+            recordOmission(truncation, std::move(path));
             return {};
         }
 
-        Json boundedFrontendDetailObject(const Json& value) {
+        Json boundedFrontendDetailObject(const Json& value,
+                                         model::TruncationMetadata* truncation = nullptr,
+                                         std::string_view path = {}) {
             constexpr std::size_t MaximumMembers = 64;
             constexpr std::size_t MaximumArrayItems = 64;
-            constexpr std::size_t MaximumKeyBytes = 256;
-            constexpr std::size_t MaximumStringBytes = 16U * 1024U;
+            constexpr std::size_t MaximumKeyCharacters = 256;
+            constexpr std::size_t MaximumStringCharacters = 16U * 1024U;
             const auto scalar = [](const Json& candidate) {
                 return candidate.is_null() || candidate.is_boolean() || candidate.is_number() || candidate.is_string();
             };
-            const auto boundedScalar = [](const Json& candidate) -> Json {
+            const auto boundedScalar = [&](const Json& candidate, std::string memberPath) -> Json {
                 if (!candidate.is_string()) {
                     return candidate;
                 }
                 const std::string& text = candidate.get_ref<const std::string&>();
-                return std::string(text.substr(0, utf8PrefixLength(text, MaximumStringBytes)));
+                return boundedFrontendString(text, MaximumStringCharacters, truncation, std::move(memberPath));
             };
 
             Json projected = Json::object();
             if (!value.is_object()) {
+                if (truncation != nullptr) {
+                    recordOmission(*truncation, std::string(path));
+                }
                 return projected;
             }
-            for (auto member = value.begin(); member != value.end() && projected.size() < MaximumMembers; ++member) {
+            for (auto member = value.begin(); member != value.end(); ++member) {
+                if (projected.size() == MaximumMembers) {
+                    if (truncation != nullptr) {
+                        recordOmission(*truncation, std::string(path));
+                    }
+                    break;
+                }
                 if (model::SafeDetail::isSecretKey(member.key())) {
+                    if (truncation != nullptr) {
+                        recordOmission(*truncation, std::string(path) + "/" + member.key());
+                    }
                     continue;
                 }
-                const std::size_t keyBytes = utf8PrefixLength(member.key(), MaximumKeyBytes);
+                const std::size_t keyBytes = utf8CharacterPrefixLength(member.key(), MaximumKeyCharacters);
                 if (keyBytes == 0 && !member.key().empty()) {
+                    if (truncation != nullptr) {
+                        recordOmission(*truncation, std::string(path));
+                    }
                     continue;
                 }
                 const std::string key = member.key().substr(0, keyBytes);
                 if (model::SafeDetail::isSecretKey(key)) {
+                    if (truncation != nullptr) {
+                        recordOmission(*truncation, std::string(path) + "/" + key);
+                    }
                     continue;
                 }
+                const std::string memberPath = std::string(path) + "/" + key;
                 if (scalar(member.value())) {
-                    projected[key] = boundedScalar(member.value());
+                    projected[key] = boundedScalar(member.value(), memberPath);
                     continue;
                 }
                 if (!member.value().is_array()) {
+                    if (truncation != nullptr) {
+                        recordOmission(*truncation, memberPath);
+                    }
                     continue;
                 }
                 Json array = Json::array();
@@ -257,10 +352,15 @@ namespace ai::openai::codex::frontend::internal::server {
                         scalarOnly = false;
                         break;
                     }
-                    array.push_back(boundedScalar(member.value()[index]));
+                    array.push_back(boundedScalar(member.value()[index], memberPath + "/" + std::to_string(index)));
                 }
                 if (scalarOnly) {
                     projected[key] = std::move(array);
+                    if (count != member.value().size() && truncation != nullptr) {
+                        recordOmission(*truncation, memberPath);
+                    }
+                } else if (truncation != nullptr) {
+                    recordOmission(*truncation, memberPath);
                 }
             }
             return projected;
@@ -273,6 +373,16 @@ namespace ai::openai::codex::frontend::internal::server {
             } else {
                 destination += increment;
             }
+        }
+
+        void recordOmittedEntries(model::TruncationMetadata& truncation, std::string path, std::size_t count) {
+            if (count == 0) {
+                return;
+            }
+            recordOmission(truncation, std::move(path));
+            std::size_t omitted = truncation.omittedEntries.value_or(0);
+            saturatingAdd(omitted, count);
+            truncation.omittedEntries = omitted;
         }
 
         void removeSecretMembers(Json& value, bool& redacted) {
@@ -293,8 +403,10 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
-        void addTurnFailureSemanticDetails(Json& turnDetails, const Json& failure) {
-            Json compatibility = boundedFrontendDetailObject(failure);
+        void addTurnFailureSemanticDetails(Json& turnDetails,
+                                           const Json& failure,
+                                           model::TruncationMetadata& truncation) {
+            Json compatibility = boundedFrontendDetailObject(failure, &truncation, "/turns/failure");
             if (!compatibility.empty()) {
                 turnDetails["failure"] = std::move(compatibility);
             }
@@ -303,11 +415,18 @@ namespace ai::openai::codex::frontend::internal::server {
                 return;
             }
             if (const auto message = failure.find("message"); message != failure.end() && message->is_string()) {
-                turnDetails["failureMessage"] = *message;
+                turnDetails["failureMessage"] =
+                    boundedFrontendString(message->get_ref<const std::string&>(), 16'384, &truncation, "/turns/failure/message");
             }
             if (const auto additional = failure.find("additionalDetails"); additional != failure.end()) {
-                if (additional->is_null() || additional->is_string()) {
-                    turnDetails["failureAdditionalDetails"] = *additional;
+                if (additional->is_null()) {
+                    turnDetails["failureAdditionalDetails"] = nullptr;
+                    turnDetails["failureAdditionalDetailsPresent"] = true;
+                } else if (additional->is_string()) {
+                    turnDetails["failureAdditionalDetails"] = boundedFrontendString(additional->get_ref<const std::string&>(),
+                                                                                      16'384,
+                                                                                      &truncation,
+                                                                                      "/turns/failure/additionalDetails");
                     turnDetails["failureAdditionalDetailsPresent"] = true;
                 } else {
                     turnDetails["failureDecodingOmitted"] = true;
@@ -330,7 +449,8 @@ namespace ai::openai::codex::frontend::internal::server {
                     turnDetails["failureDecodingOmitted"] = true;
                 }
                 if (discriminator) {
-                    turnDetails["failureCodexErrorDiscriminator"] = *discriminator;
+                    turnDetails["failureCodexErrorDiscriminator"] =
+                        boundedFrontendString(*discriminator, 16'384, &truncation, "/turns/failure/codexErrorInfo");
                 }
                 if (nested && nested->is_object()) {
                     if (const auto status = nested->find("httpStatusCode"); status != nested->end()) {
@@ -342,7 +462,8 @@ namespace ai::openai::codex::frontend::internal::server {
                         }
                     }
                     if (const auto kind = nested->find("turnKind"); kind != nested->end() && kind->is_string()) {
-                        turnDetails["failureNonSteerableTurnKind"] = *kind;
+                        turnDetails["failureNonSteerableTurnKind"] = boundedFrontendString(
+                            kind->get_ref<const std::string&>(), 16'384, &truncation, "/turns/failure/codexErrorInfo/turnKind");
                     }
                 }
             }
@@ -354,8 +475,10 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
-        void addTurnTokenUsageSemanticDetails(Json& turnDetails, const Json& usage) {
-            Json compatibility = boundedFrontendDetailObject(usage);
+        void addTurnTokenUsageSemanticDetails(Json& turnDetails,
+                                              const Json& usage,
+                                              model::TruncationMetadata& truncation) {
+            Json compatibility = boundedFrontendDetailObject(usage, &truncation, "/turns/tokenUsage");
             if (!compatibility.empty()) {
                 turnDetails["tokenUsage"] = std::move(compatibility);
             }
@@ -373,7 +496,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     continue;
                 }
                 turnDetails[std::string{"tokenUsage"} + (name == std::string_view{"last"} ? "Last" : "Total")] =
-                    boundedFrontendDetailObject(*counts);
+                    boundedFrontendDetailObject(*counts, &truncation, std::string{"/turns/tokenUsage/"} + name);
             }
             if (const auto context = usage.find("modelContextWindow"); context != usage.end()) {
                 if (context->is_null() || context->is_number_integer() || context->is_number_unsigned()) {
@@ -399,6 +522,12 @@ namespace ai::openai::codex::frontend::internal::server {
 
         Json semanticDomain(const backend::ProviderDomainSnapshot& domain) {
             constexpr std::size_t MaximumSemanticSummaries = 8;
+            bool textTruncated = false;
+            const auto boundedText = [&textTruncated](std::string_view value) {
+                std::string bounded = boundedFrontendString(value, 16'384);
+                textTruncated = textTruncated || bounded.size() != value.size();
+                return bounded;
+            };
             Json projected{
                 {"resultMethods", Json::array()},
                 {"resultAlternatives", Json::array()},
@@ -424,12 +553,12 @@ namespace ai::openai::codex::frontend::internal::server {
                 domain.latestResults.size() > MaximumSemanticSummaries ? domain.latestResults.size() - MaximumSemanticSummaries : 0;
             for (std::size_t index = resultStart; index < domain.latestResults.size(); ++index) {
                 const backend::ProviderResultSummarySnapshot& result = domain.latestResults[index];
-                projected["resultMethods"].push_back(result.method);
+                projected["resultMethods"].push_back(boundedText(result.method));
                 projected["resultAlternatives"].push_back(result.resultAlternative);
-                projected["resultStatuses"].push_back(result.status);
-                projected["resultSubjectIds"].push_back(result.subjectId.value_or(""));
+                projected["resultStatuses"].push_back(boundedText(result.status));
+                projected["resultSubjectIds"].push_back(boundedText(result.subjectId.value_or("")));
                 projected["resultSubjectIdPresent"].push_back(result.subjectId.has_value());
-                projected["resultNextCursors"].push_back(result.nextCursor.value_or(""));
+                projected["resultNextCursors"].push_back(boundedText(result.nextCursor.value_or("")));
                 projected["resultNextCursorPresent"].push_back(result.nextCursor.has_value());
                 projected["resultItemCounts"].push_back(result.itemCount);
                 projected["resultComplete"].push_back(result.complete);
@@ -441,24 +570,34 @@ namespace ai::openai::codex::frontend::internal::server {
                                                       : 0;
             for (std::size_t index = notificationStart; index < domain.latestNotifications.size(); ++index) {
                 const backend::ProviderNotificationSnapshot& notification = domain.latestNotifications[index];
-                projected["notificationMethods"].push_back(notification.method);
+                projected["notificationMethods"].push_back(boundedText(notification.method));
                 projected["notificationAlternatives"].push_back(notification.eventAlternative);
                 projected["notificationGenerations"].push_back(notification.stamp.generation);
                 projected["notificationFreshness"].push_back(freshnessName(notification.stamp.freshness));
             }
-            projected["truncated"] = projected["omittedResults"] != 0 || projected["omittedNotifications"] != 0;
+            projected["truncated"] =
+                projected["omittedResults"] != 0 || projected["omittedNotifications"] != 0 || textTruncated;
             return projected;
         }
 
-        void addGoalMutation(Json& target, std::string_view prefix, const backend::ConversationDomainSnapshot::GoalMutation& mutation) {
+        bool addGoalMutation(Json& target,
+                             std::string_view prefix,
+                             const backend::ConversationDomainSnapshot::GoalMutation& mutation) {
             const std::string name{prefix};
-            target[name + "Operation"] = mutation.operation;
-            target[name + "ThreadId"] = mutation.threadId;
-            target[name + "Objective"] = mutation.objective ? Json{*mutation.objective} : Json{nullptr};
-            target[name + "Status"] = mutation.status ? Json{*mutation.status} : Json{nullptr};
+            bool truncated = false;
+            const auto boundedText = [&truncated](std::string_view value) {
+                std::string bounded = boundedFrontendString(value, 16'384);
+                truncated = truncated || bounded.size() != value.size();
+                return bounded;
+            };
+            target[name + "Operation"] = boundedText(mutation.operation);
+            target[name + "ThreadId"] = boundedText(mutation.threadId);
+            target[name + "Objective"] = mutation.objective ? Json{boundedText(*mutation.objective)} : Json{nullptr};
+            target[name + "Status"] = mutation.status ? Json{boundedText(*mutation.status)} : Json{nullptr};
             target[name + "Cleared"] = mutation.cleared ? Json{*mutation.cleared} : Json{nullptr};
             target[name + "Generation"] = mutation.stamp.generation;
             target[name + "Freshness"] = freshnessName(mutation.stamp.freshness);
+            return truncated;
         }
 
         Json semanticProjection(const backend::Snapshot& snapshot) {
@@ -470,27 +609,40 @@ namespace ai::openai::codex::frontend::internal::server {
             const std::size_t operationStart = snapshot.providerOperations.size() > MaximumProviderOperations
                                                    ? snapshot.providerOperations.size() - MaximumProviderOperations
                                                    : 0;
+            bool operationTextTruncated = false;
             for (std::size_t index = operationStart; index < snapshot.providerOperations.size(); ++index) {
                 const backend::ProviderOperationSnapshot& operation = snapshot.providerOperations[index];
-                operations["methods"].push_back(operation.method);
+                std::string method = boundedFrontendString(operation.method, 16'384);
+                operationTextTruncated = operationTextTruncated || method.size() != operation.method.size();
+                operations["methods"].push_back(std::move(method));
                 operations["resultAlternatives"].push_back(operation.resultAlternative);
                 operations["generations"].push_back(operation.stamp.generation);
                 operations["freshness"].push_back(freshnessName(operation.stamp.freshness));
             }
-            operations["truncated"] = operationStart != 0;
+            operations["truncated"] = operationStart != 0 || operationTextTruncated;
             operations["omittedEntries"] = operationStart;
             Json conversations = semanticDomain(snapshot.conversations);
+            bool conversationTextTruncated = false;
             if (snapshot.conversations.latestGoal) {
-                addGoalMutation(conversations, "latestGoal", *snapshot.conversations.latestGoal);
+                conversationTextTruncated =
+                    addGoalMutation(conversations, "latestGoal", *snapshot.conversations.latestGoal) || conversationTextTruncated;
             }
             if (snapshot.conversations.latestGoalClear) {
-                addGoalMutation(conversations, "latestGoalClear", *snapshot.conversations.latestGoalClear);
+                conversationTextTruncated = addGoalMutation(
+                                                conversations, "latestGoalClear", *snapshot.conversations.latestGoalClear) ||
+                                            conversationTextTruncated;
             }
             if (snapshot.conversations.latestGoalSet) {
-                addGoalMutation(conversations, "latestGoalSet", *snapshot.conversations.latestGoalSet);
+                conversationTextTruncated =
+                    addGoalMutation(conversations, "latestGoalSet", *snapshot.conversations.latestGoalSet) || conversationTextTruncated;
             }
             if (snapshot.conversations.latestUnsubscribe) {
-                addGoalMutation(conversations, "latestUnsubscribe", *snapshot.conversations.latestUnsubscribe);
+                conversationTextTruncated = addGoalMutation(
+                                                conversations, "latestUnsubscribe", *snapshot.conversations.latestUnsubscribe) ||
+                                            conversationTextTruncated;
+            }
+            if (conversationTextTruncated) {
+                conversations["truncated"] = true;
             }
             return Json{{"providerOperationsSemantic", std::move(operations)},
                         {"conversationSemantic", std::move(conversations)},
@@ -566,6 +718,26 @@ namespace ai::openai::codex::frontend::internal::server {
             return std::nullopt;
         }
 
+        void projectItemContent(std::string_view source,
+                                std::optional<std::string>& destination,
+                                model::ItemData& data,
+                                std::string path) {
+            if (source.empty()) {
+                return;
+            }
+            constexpr std::size_t MaximumContentCharacters = 16U * 1024U;
+            std::string retained = boundedFrontendString(source, MaximumContentCharacters, &data.truncation, std::move(path));
+            if (retained.size() != source.size()) {
+                const std::uint64_t dropped = static_cast<std::uint64_t>(source.size() - retained.size());
+                std::uint64_t droppedContent = data.droppedContentBytes.value_or(0);
+                saturatingAdd(droppedContent, dropped);
+                data.droppedContentBytes = droppedContent;
+                saturatingAdd(data.truncation.droppedBytes, dropped);
+                data.contentTruncated = true;
+            }
+            destination = std::move(retained);
+        }
+
         std::optional<model::ThreadItem> projectItem(const backend::ItemSnapshot& item,
                                                      const model::ThreadIdentity& threadId,
                                                      const model::TurnIdentity& turnId,
@@ -577,23 +749,17 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             model::ItemData data(requiredIdentifier<model::ItemIdentity>(item.id, "/items/id"), threadId, turnId);
             data.legacyDiscriminator = item.type;
-            if (!item.status.empty()) {
-                data.status = item.status;
-            }
-            if (!item.agentText.empty()) {
-                data.agentText = item.agentText;
-            }
-            if (!item.reasoningText.empty()) {
-                data.reasoningText = item.reasoningText;
-            }
-            if (!item.reasoningSummary.empty()) {
-                data.reasoningSummary = item.reasoningSummary;
-            }
-            if (!item.commandOutput.empty()) {
-                data.commandOutput = item.commandOutput;
-            }
             data.droppedContentBytes = item.droppedContentBytes;
             data.contentTruncated = item.contentTruncated;
+            data.truncation.truncated = item.contentTruncated;
+            data.truncation.droppedBytes = item.droppedContentBytes;
+            if (!item.status.empty()) {
+                data.status = boundedFrontendString(item.status, 256, &data.truncation, "/status");
+            }
+            projectItemContent(item.agentText, data.agentText, data, "/agentText");
+            projectItemContent(item.reasoningText, data.reasoningText, data, "/reasoningText");
+            projectItemContent(item.reasoningSummary, data.reasoningSummary, data, "/reasoningSummary");
+            projectItemContent(item.commandOutput, data.commandOutput, data, "/commandOutput");
             data.startedAtMs = item.startedAtMs;
             data.completedAtMs = item.completedAtMs;
             data.connectionInvalidated = item.connectionInvalidated;
@@ -604,8 +770,6 @@ namespace ai::openai::codex::frontend::internal::server {
                 data.safeDetails = boundedDetail(item.data, snapshotTruncation, "/items/details");
             }
             data.legacyExtensions = boundedDetail(item.extensions, snapshotTruncation, "/items/extensions");
-            data.truncation.truncated = item.contentTruncated;
-            data.truncation.droppedBytes = item.droppedContentBytes;
 
 #define AISUITE_PROJECT_ITEM(kindName, typeName)                                                                                           \
     case ThreadItemKind::kindName:                                                                                                         \
@@ -645,14 +809,17 @@ namespace ai::openai::codex::frontend::internal::server {
                                                           std::size_t sourceIndex,
                                                           std::string omissionPath) {
             model::ItemData data(requiredIdentifier<model::ItemIdentity>(item.id, "/items/id"), threadId, turnId);
-            data.status = item.status.empty() ? std::optional<std::string>{} : std::optional<std::string>{item.status};
-            data.agentText = item.agentText.empty() ? std::optional<std::string>{} : std::optional<std::string>{item.agentText};
-            data.reasoningText = item.reasoningText.empty() ? std::optional<std::string>{} : std::optional<std::string>{item.reasoningText};
-            data.reasoningSummary =
-                item.reasoningSummary.empty() ? std::optional<std::string>{} : std::optional<std::string>{item.reasoningSummary};
-            data.commandOutput = item.commandOutput.empty() ? std::optional<std::string>{} : std::optional<std::string>{item.commandOutput};
             data.droppedContentBytes = item.droppedContentBytes;
             data.contentTruncated = item.contentTruncated;
+            data.truncation.truncated = item.contentTruncated;
+            data.truncation.droppedBytes = item.droppedContentBytes;
+            if (!item.status.empty()) {
+                data.status = boundedFrontendString(item.status, 256, &data.truncation, omissionPath + "/status");
+            }
+            projectItemContent(item.agentText, data.agentText, data, omissionPath + "/agentText");
+            projectItemContent(item.reasoningText, data.reasoningText, data, omissionPath + "/reasoningText");
+            projectItemContent(item.reasoningSummary, data.reasoningSummary, data, omissionPath + "/reasoningSummary");
+            projectItemContent(item.commandOutput, data.commandOutput, data, omissionPath + "/commandOutput");
             data.startedAtMs = item.startedAtMs;
             data.completedAtMs = item.completedAtMs;
             data.connectionInvalidated = item.connectionInvalidated;
@@ -660,15 +827,11 @@ namespace ai::openai::codex::frontend::internal::server {
             data.freshness = freshness(item.stamp.freshness);
             data.sourceIndex = sourceIndex;
             if (!item.data.empty()) {
-                data.truncation.truncated = true;
-                data.truncation.omittedPaths.push_back(omissionPath + "/data");
+                recordOmission(data.truncation, omissionPath + "/data");
             }
             if (!item.extensions.empty()) {
-                data.truncation.truncated = true;
-                data.truncation.omittedPaths.push_back(omissionPath + "/extensions");
+                recordOmission(data.truncation, omissionPath + "/extensions");
             }
-            data.truncation.truncated = data.truncation.truncated || item.contentTruncated;
-            data.truncation.droppedBytes = item.droppedContentBytes;
             std::string discriminator;
             const bool validDiscriminator = !item.type.empty() && item.type.find('\0') == std::string::npos && validUtf8(item.type);
             if (!validDiscriminator) {
@@ -736,7 +899,7 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             if (*kind == PendingRequestKind::UserInput) {
                 constexpr std::size_t MaximumPresentationEntries = 64;
-                const auto boundedText = [&](const Json& value, std::size_t maximumBytes, std::string_view path) {
+                const auto boundedText = [&](const Json& value, std::size_t maximumCharacters, std::string_view path) {
                     if (!value.is_string()) {
                         throw ProjectionFailure(std::string(path), "pending-request presentation field must be a string");
                     }
@@ -744,12 +907,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     if (!validUtf8(text)) {
                         throw ProjectionFailure(std::string(path), "pending-request presentation field must contain valid UTF-8");
                     }
-                    if (text.size() > maximumBytes) {
-                        text.resize(utf8PrefixLength(text, maximumBytes));
-                        data.truncation.truncated = true;
-                        data.truncation.omittedPaths.push_back(std::string(path));
-                    }
-                    return text;
+                    return boundedFrontendString(text, maximumCharacters, &data.truncation, std::string(path));
                 };
                 if (const auto questions = details.find("questions"); questions != details.end()) {
                     if (!questions->is_array()) {
@@ -800,14 +958,17 @@ namespace ai::openai::codex::frontend::internal::server {
                     } else if (resolution->is_number_integer() && resolution->get<std::int64_t>() >= 0) {
                         data.autoResolutionMs = static_cast<std::uint64_t>(resolution->get<std::int64_t>());
                     } else {
-                        data.truncation.truncated = true;
-                        data.truncation.omittedPaths.push_back("/pendingRequests/autoResolutionMs");
+                        recordOmission(data.truncation, "/pendingRequests/autoResolutionMs");
                     }
                     details.erase(resolution);
                 }
             }
             if (!details.empty()) {
-                data.safeDetails = boundedDetail(std::move(details), snapshotTruncation, "/pendingRequests/details");
+                Json projectedDetails = boundedFrontendDetailObject(details, &data.truncation, "/pendingRequests/details");
+                if (data.truncation.truncated) {
+                    recordOmission(snapshotTruncation, "/pendingRequests/details");
+                }
+                data.safeDetails = boundedDetail(std::move(projectedDetails), snapshotTruncation, "/pendingRequests/details");
             }
 
 #define AISUITE_PROJECT_PENDING(kindName, typeName)                                                                                        \
@@ -855,8 +1016,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (auto safe = model::SafeDetail::fromJson(std::move(details)); safe.has_value()) {
                     data.safeDetails = std::move(*safe);
                 } else {
-                    data.truncation.truncated = true;
-                    data.truncation.omittedPaths.push_back(omissionPath + "/details");
+                    recordOmission(data.truncation, omissionPath + "/details");
                 }
             }
             return {std::move(data), sourceIndex, std::move(omissionPath)};
@@ -864,6 +1024,16 @@ namespace ai::openai::codex::frontend::internal::server {
 
         constexpr std::size_t MaximumDomainResults = 128;
         constexpr std::size_t MaximumDetailArrayItems = 64;
+        constexpr std::size_t MaximumFrontendSessions = 128;
+        constexpr std::size_t MaximumFrontendThreads = 2'048;
+        constexpr std::size_t MaximumFrontendTurns = 16'384;
+        constexpr std::size_t MaximumFrontendItems = 65'536;
+        constexpr std::size_t MaximumFrontendPendingRequests = 1'024;
+        constexpr std::size_t MaximumFrontendProcesses = 256;
+        constexpr std::size_t MaximumFrontendFilesystemWatches = 1'024;
+        constexpr std::size_t MaximumFrontendFuzzySearches = 256;
+        constexpr std::size_t MaximumFrontendNotices = 256;
+        constexpr std::size_t MaximumFrontendActivities = 512;
 
         backend::SourceStamp domainStamp(const backend::ProviderDomainSnapshot& domain) noexcept {
             if (!domain.latestResults.empty()) {
@@ -880,11 +1050,14 @@ namespace ai::openai::codex::frontend::internal::server {
             projected.stamp = sourceMetadata(domainStamp(domain));
             if (!domain.latestResults.empty()) {
                 const backend::ProviderResultSummarySnapshot& authoritative = domain.latestResults.back();
-                projected.status = authoritative.status;
+                projected.status = boundedFrontendString(authoritative.status, 256, &projected.truncation, "/domains/status");
                 projected.complete = authoritative.complete;
                 projected.completeKnown = true;
                 projected.itemCount = static_cast<std::uint64_t>(authoritative.itemCount);
-                projected.nextCursor = authoritative.nextCursor;
+                if (authoritative.nextCursor) {
+                    projected.nextCursor =
+                        boundedFrontendString(*authoritative.nextCursor, 16'384, &projected.truncation, "/domains/nextCursor");
+                }
             }
             const std::size_t start =
                 domain.latestResults.size() > MaximumDomainResults ? domain.latestResults.size() - MaximumDomainResults : 0;
@@ -895,10 +1068,23 @@ namespace ai::openai::codex::frontend::internal::server {
                     continue;
                 }
                 model::DomainResultSummary result;
-                result.method = summary.method;
-                result.status = summary.status;
-                result.subjectId = summary.subjectId;
-                result.nextCursor = summary.nextCursor;
+                result.method = boundedFrontendString(summary.method, 1'024, &projected.truncation, "/domains/latestResults/method");
+                if (result.method.empty()) {
+                    recordOmission(projected.truncation, "/domains/latestResults");
+                    continue;
+                }
+                result.status = boundedFrontendString(summary.status, 256, &projected.truncation, "/domains/latestResults/status");
+                if (summary.subjectId) {
+                    std::string subject =
+                        boundedFrontendString(*summary.subjectId, 1'024, &projected.truncation, "/domains/latestResults/subjectId");
+                    if (!subject.empty()) {
+                        result.subjectId = std::move(subject);
+                    }
+                }
+                if (summary.nextCursor) {
+                    result.nextCursor = boundedFrontendString(
+                        *summary.nextCursor, 16'384, &projected.truncation, "/domains/latestResults/nextCursor");
+                }
                 result.itemCount = static_cast<std::uint64_t>(summary.itemCount);
                 result.complete = summary.complete;
                 result.completeKnown = true;
@@ -914,14 +1100,17 @@ namespace ai::openai::codex::frontend::internal::server {
             if (!methods.empty()) {
                 details["latestNotificationMethods"] = std::move(methods);
             }
+            Json projectedDetails = boundedFrontendDetailObject(details, &projected.truncation, "/domains/details");
             model::SafeDetailError detailError = model::SafeDetailError::None;
-            auto safeDetails = model::SafeDetail::fromJson(std::move(details), &detailError);
+            auto safeDetails = model::SafeDetail::fromJson(std::move(projectedDetails), &detailError);
             if (!safeDetails) {
                 throw ProjectionFailure("/domains/details", "backend domain details exceed the bounded safe-detail contract");
             }
             projected.safeDetails = std::move(*safeDetails);
-            projected.truncation.truncated = start != 0;
-            projected.truncation.omittedEntries = start;
+            projected.truncation.truncated = projected.truncation.truncated || start != 0;
+            std::size_t omittedEntries = projected.truncation.omittedEntries.value_or(0);
+            saturatingAdd(omittedEntries, start);
+            projected.truncation.omittedEntries = omittedEntries;
             return projected;
         }
 
@@ -1055,13 +1244,14 @@ namespace ai::openai::codex::frontend::internal::server {
             if (!extension.safeProjection || !extension.payload.is_object()) {
                 return std::nullopt;
             }
-            const auto boundedString = [&](std::string_view member, std::size_t maximumBytes = 16'384) -> std::optional<std::string> {
+            const auto boundedString = [&](std::string_view member,
+                                           std::size_t maximumCharacters = 16'384) -> std::optional<std::string> {
                 const auto value = extension.payload.find(member);
                 if (value == extension.payload.end() || !value->is_string() || value->get_ref<const std::string&>().empty()) {
                     return std::nullopt;
                 }
                 const std::string& text = value->get_ref<const std::string&>();
-                return std::string(text.substr(0, utf8PrefixLength(text, maximumBytes)));
+                return boundedFrontendString(text, maximumCharacters);
             };
             const auto exactString = [&](std::string_view member, std::size_t maximumBytes) -> std::optional<std::string> {
                 const auto value = extension.payload.find(member);
@@ -1829,57 +2019,74 @@ namespace ai::openai::codex::frontend::internal::server {
             projected.provider.recovery.delayMs = snapshot.provider.recovery.delayMs;
             if (snapshot.provider.lastError) {
                 const bool messageAvailable = !snapshot.provider.lastError->message.empty();
-                Json error{{"category", snapshot.provider.lastError->category},
+                Json error{{"category",
+                            boundedFrontendString(snapshot.provider.lastError->category,
+                                                  16'384,
+                                                  &projected.truncation,
+                                                  "/provider/lastError/category")},
                            {"code", snapshot.provider.lastError->code},
-                           {"message", messageAvailable ? snapshot.provider.lastError->message : "Codex App Server reported an error"},
+                           {"message",
+                            messageAvailable
+                                ? boundedFrontendString(snapshot.provider.lastError->message,
+                                                        16'384,
+                                                        &projected.truncation,
+                                                        "/provider/lastError/message")
+                                : "Codex App Server reported an error"},
                            {"detailsOmitted", !messageAvailable}};
-                model::SafeDetailError detailError = model::SafeDetailError::None;
-                projected.provider.lastError = model::SafeDetail::fromJson(std::move(error), &detailError);
-                if (!projected.provider.lastError) {
-                    projected.truncation.truncated = true;
-                    projected.truncation.omittedPaths.push_back("/provider/lastError/message");
-                    projected.provider.lastError = boundedDetail(Json{{"category", snapshot.provider.lastError->category},
-                                                                      {"code", snapshot.provider.lastError->code},
-                                                                      {"message", "Codex App Server reported an error"},
-                                                                      {"detailsOmitted", true}},
-                                                                 projected.truncation,
-                                                                 "/provider/lastError");
-                }
+                projected.provider.lastError = boundedDetail(
+                    boundedFrontendDetailObject(error, &projected.truncation, "/provider/lastError"),
+                    projected.truncation,
+                    "/provider/lastError");
             }
             if (snapshot.provider.initialization) {
-                projected.provider.initialization = boundedDetail(Json{{"codexHome", snapshot.provider.initialization->codexHome},
-                                                                       {"platformFamily", snapshot.provider.initialization->platformFamily},
-                                                                       {"platformOs", snapshot.provider.initialization->platformOs},
-                                                                       {"userAgent", snapshot.provider.initialization->userAgent}},
-                                                                  projected.truncation,
-                                                                  "/provider/initialization");
+                const Json initialization{{"codexHome", snapshot.provider.initialization->codexHome},
+                                          {"platformFamily", snapshot.provider.initialization->platformFamily},
+                                          {"platformOs", snapshot.provider.initialization->platformOs},
+                                          {"userAgent", snapshot.provider.initialization->userAgent}};
+                projected.provider.initialization = boundedDetail(
+                    boundedFrontendDetailObject(initialization, &projected.truncation, "/provider/initialization"),
+                    projected.truncation,
+                    "/provider/initialization");
             }
 
             if (snapshot.controller) {
                 const std::string id = std::to_string(snapshot.controller->value());
                 projected.controller.session = requiredIdentifier<model::SessionIdentity>(id, "/controller/sessionId");
             }
-            projected.sessions.reserve(snapshot.sessions.size());
-            for (const backend::SessionSnapshot& session : snapshot.sessions) {
+            const std::size_t sessionCount = std::min(snapshot.sessions.size(), MaximumFrontendSessions);
+            projected.sessions.reserve(sessionCount);
+            for (std::size_t sessionIndex = 0; sessionIndex < sessionCount; ++sessionIndex) {
+                const backend::SessionSnapshot& session = snapshot.sessions[sessionIndex];
                 model::SessionState value(
                     requiredIdentifier<model::SessionIdentity>(std::to_string(session.id.value()), "/sessions/sessionId"));
                 value.role = sessionRole(session.role);
                 projected.sessions.push_back(std::move(value));
             }
+            recordOmittedEntries(projected.truncation, "/sessions", snapshot.sessions.size() - sessionCount);
 
             projected.threadList.hasLoadedPage = snapshot.threadList.hasLoadedPage;
             projected.threadList.complete = snapshot.threadList.complete;
-            projected.threadList.nextCursor = snapshot.threadList.nextCursor;
-            projected.threadList.backwardsCursor = snapshot.threadList.backwardsCursor;
+            if (snapshot.threadList.nextCursor) {
+                projected.threadList.nextCursor = boundedFrontendString(
+                    *snapshot.threadList.nextCursor, 16'384, &projected.truncation, "/threadList/nextCursor");
+            }
+            if (snapshot.threadList.backwardsCursor) {
+                projected.threadList.backwardsCursor = boundedFrontendString(
+                    *snapshot.threadList.backwardsCursor, 16'384, &projected.truncation, "/threadList/backwardsCursor");
+            }
             projected.threadList.pagesLoaded = snapshot.threadList.pagesLoaded;
             projected.threadList.stamp = sourceMetadata(snapshot.threadList.stamp);
 
-            projected.threads.reserve(snapshot.threads.size());
-            for (std::size_t threadIndex = 0; threadIndex < snapshot.threads.size(); ++threadIndex) {
+            const std::size_t threadCount = std::min(snapshot.threads.size(), MaximumFrontendThreads);
+            projected.threads.reserve(threadCount);
+            for (std::size_t threadIndex = 0; threadIndex < threadCount; ++threadIndex) {
                 const backend::ThreadSnapshot& thread = snapshot.threads[threadIndex];
                 const model::ThreadIdentity threadId = requiredIdentifier<model::ThreadIdentity>(thread.id, "/threads/id");
                 model::ThreadState threadState(threadId);
-                threadState.title = thread.title;
+                if (thread.title) {
+                    threadState.title =
+                        boundedFrontendString(*thread.title, 16'384, &projected.truncation, "/threads/title");
+                }
                 threadState.createdAtMs = thread.createdAt;
                 threadState.updatedAtMs = thread.updatedAt;
                 threadState.fullyLoaded = thread.fullyLoaded;
@@ -1887,27 +2094,35 @@ namespace ai::openai::codex::frontend::internal::server {
                 threadState.stamp = sourceMetadata(thread.stamp);
                 Json threadDetails = Json::object();
                 if (thread.cwd) {
-                    threadDetails["cwd"] = *thread.cwd;
+                    threadDetails["cwd"] =
+                        boundedFrontendString(*thread.cwd, 16'384, &projected.truncation, "/threads/cwd");
                 }
                 if (thread.model) {
-                    threadDetails["model"] = *thread.model;
+                    threadDetails["model"] =
+                        boundedFrontendString(*thread.model, 1'024, &projected.truncation, "/threads/model");
                 }
                 if (thread.modelProvider) {
-                    threadDetails["modelProvider"] = *thread.modelProvider;
+                    threadDetails["modelProvider"] = boundedFrontendString(
+                        *thread.modelProvider, 1'024, &projected.truncation, "/threads/modelProvider");
                 }
                 if (thread.preview) {
-                    // Backend snapshots retain up to 32 KiB here, while the
-                    // frozen frontend ThreadState preview is bounded to
-                    // 16 KiB. Keep this projection-only conversion identical
-                    // to the legacy production border; provider command
-                    // results continue to carry their exact backend value.
-                    threadDetails["preview"] = boundedThreadPreview(*thread.preview);
+                    threadDetails["preview"] =
+                        boundedFrontendString(*thread.preview, 16'384, &projected.truncation, "/threads/preview");
                 }
                 if (thread.status) {
-                    threadDetails["status"] = *thread.status;
+                    threadDetails["status"] =
+                        boundedFrontendString(*thread.status, 256, &projected.truncation, "/threads/status");
                 }
-                Json realtime{{"lifecycle", thread.realtime.lifecycle},
-                              {"transcript", thread.realtime.transcript},
+                Json realtime{{"lifecycle",
+                               boundedFrontendString(thread.realtime.lifecycle,
+                                                     16'384,
+                                                     &projected.truncation,
+                                                     "/threads/realtime/lifecycle")},
+                              {"transcript",
+                               boundedFrontendString(thread.realtime.transcript,
+                                                     16'384,
+                                                     &projected.truncation,
+                                                     "/threads/realtime/transcript")},
                               {"itemCount", thread.realtime.itemCount},
                               {"receivedAudioBytes", thread.realtime.receivedAudioBytes},
                               {"droppedAudioBytes", thread.realtime.droppedAudioBytes},
@@ -1915,14 +2130,17 @@ namespace ai::openai::codex::frontend::internal::server {
                               {"sourceGeneration", thread.realtime.stamp.generation},
                               {"sourceFreshness", freshnessName(thread.realtime.stamp.freshness)}};
                 if (thread.realtime.lastError.has_value()) {
-                    realtime["lastError"] = *thread.realtime.lastError;
+                    realtime["lastError"] = boundedFrontendString(
+                        *thread.realtime.lastError, 16'384, &projected.truncation, "/threads/realtime/lastError");
                     realtime["errorDetailsOmitted"] = false;
                 }
                 if (thread.realtime.sessionId.has_value()) {
-                    realtime["sessionId"] = *thread.realtime.sessionId;
+                    realtime["sessionId"] = boundedFrontendString(
+                        *thread.realtime.sessionId, 16'384, &projected.truncation, "/threads/realtime/sessionId");
                 }
                 if (thread.realtime.version.has_value()) {
-                    realtime["version"] = *thread.realtime.version;
+                    realtime["version"] = boundedFrontendString(
+                        *thread.realtime.version, 16'384, &projected.truncation, "/threads/realtime/version");
                 }
                 if (thread.realtime.lastSdpBytes.has_value()) {
                     realtime["lastSdpBytes"] = *thread.realtime.lastSdpBytes;
@@ -1933,13 +2151,18 @@ namespace ai::openai::codex::frontend::internal::server {
                 projected.threads.push_back(std::move(threadState));
 
                 for (std::size_t turnIndex = 0; turnIndex < thread.turns.size(); ++turnIndex) {
+                    if (projected.turns.size() == MaximumFrontendTurns) {
+                        recordOmittedEntries(projected.truncation, "/turns", thread.turns.size() - turnIndex);
+                        break;
+                    }
                     const backend::TurnSnapshot& turn = thread.turns[turnIndex];
                     const model::TurnIdentity turnId = requiredIdentifier<model::TurnIdentity>(turn.id, "/turns/id");
                     const model::ThreadIdentity turnThreadId =
                         requiredIdentifier<model::ThreadIdentity>(turn.threadId, "/turns/threadId");
                     model::TurnState turnState(turnId, turnThreadId);
                     if (!turn.status.empty()) {
-                        turnState.status = turn.status;
+                        turnState.status =
+                            boundedFrontendString(turn.status, 256, &projected.truncation, "/turns/status");
                     }
                     turnState.active = turn.active;
                     turnState.terminal = turn.terminal;
@@ -1947,10 +2170,10 @@ namespace ai::openai::codex::frontend::internal::server {
                     turnState.connectionInvalidated = turn.connectionInvalidated;
                     Json turnDetails = Json::object();
                     if (turn.failure) {
-                        addTurnFailureSemanticDetails(turnDetails, *turn.failure);
+                        addTurnFailureSemanticDetails(turnDetails, *turn.failure, projected.truncation);
                     }
                     if (turn.tokenUsage) {
-                        addTurnTokenUsageSemanticDetails(turnDetails, *turn.tokenUsage);
+                        addTurnTokenUsageSemanticDetails(turnDetails, *turn.tokenUsage, projected.truncation);
                     }
                     turnState.safeDetails = boundedDetail(std::move(turnDetails), projected.truncation, "/turns/details");
                     turnState.legacyExtensions = boundedDetail(turn.extensions, projected.truncation, "/turns/extensions");
@@ -1966,13 +2189,19 @@ namespace ai::openai::codex::frontend::internal::server {
                                 projectLegacyItem(item, turnThreadId, turnId, itemIndex, path));
                             continue;
                         }
-                        projected.items.push_back(std::move(*projectedItem));
+                        if (projected.items.size() < MaximumFrontendItems) {
+                            projected.items.push_back(std::move(*projectedItem));
+                        } else {
+                            recordOmittedEntries(projected.truncation, "/items", 1);
+                        }
                     }
                 }
             }
+            recordOmittedEntries(projected.truncation, "/threads", snapshot.threads.size() - threadCount);
 
-            projected.pendingRequests.reserve(snapshot.pendingRequests.size());
-            for (std::size_t pendingIndex = 0; pendingIndex < snapshot.pendingRequests.size(); ++pendingIndex) {
+            const std::size_t pendingCount = std::min(snapshot.pendingRequests.size(), MaximumFrontendPendingRequests);
+            projected.pendingRequests.reserve(pendingCount);
+            for (std::size_t pendingIndex = 0; pendingIndex < pendingCount; ++pendingIndex) {
                 const backend::PendingRequestSnapshot& pending = snapshot.pendingRequests[pendingIndex];
                 if (backendPendingKind(pending.type).has_value()) {
                     projected.pendingRequests.push_back(projectPending(pending, projected.truncation, pendingIndex));
@@ -1983,6 +2212,9 @@ namespace ai::openai::codex::frontend::internal::server {
                                                                                        std::to_string(pendingIndex)));
                 }
             }
+            recordOmittedEntries(projected.truncation,
+                                 "/pendingRequests",
+                                 snapshot.pendingRequests.size() - pendingCount);
 
             projected.accounts.state = projectDomain(snapshot.accounts, accountDetails(snapshot.accounts));
             projected.models.state = projectDomain(snapshot.models);
@@ -2004,8 +2236,10 @@ namespace ai::openai::codex::frontend::internal::server {
             projected.platform.state = projectDomain(snapshot.platform, projectedPlatformDetails);
             projected.remoteControl.state = projectDomain(snapshot.platform, projectedPlatformDetails);
 
-            projected.processes.reserve(snapshot.processes.size());
-            for (const backend::ProcessSnapshot& process : snapshot.processes) {
+            const std::size_t processCount = std::min(snapshot.processes.size(), MaximumFrontendProcesses);
+            projected.processes.reserve(processCount);
+            for (std::size_t processIndex = 0; processIndex < processCount; ++processIndex) {
+                const backend::ProcessSnapshot& process = snapshot.processes[processIndex];
                 model::ProcessState value(requiredIdentifier<model::ProcessHandle>(process.processHandle, "/processes/processHandle"));
                 value.lifecycle = process.lifecycle;
                 value.status = process.lifecycle;
@@ -2022,11 +2256,14 @@ namespace ai::openai::codex::frontend::internal::server {
                 value.truncation.droppedBytes = process.droppedOutputBytes;
                 projected.processes.push_back(std::move(value));
             }
+            recordOmittedEntries(projected.truncation, "/processes", snapshot.processes.size() - processCount);
 
             projected.filesystemWatches.state = model::DomainState::present();
             projected.filesystemWatches.state.complete = true;
-            projected.filesystemWatches.entries.reserve(snapshot.filesystemWatches.size());
-            for (const backend::FilesystemWatchSnapshot& watch : snapshot.filesystemWatches) {
+            const std::size_t watchCount = std::min(snapshot.filesystemWatches.size(), MaximumFrontendFilesystemWatches);
+            projected.filesystemWatches.entries.reserve(watchCount);
+            for (std::size_t watchIndex = 0; watchIndex < watchCount; ++watchIndex) {
+                const backend::FilesystemWatchSnapshot& watch = snapshot.filesystemWatches[watchIndex];
                 model::FilesystemWatchRecord value;
                 value.watchId = watch.watchId;
                 value.root = watch.root;
@@ -2035,11 +2272,15 @@ namespace ai::openai::codex::frontend::internal::server {
                 value.connectionInvalidated = watch.connectionInvalidated;
                 projected.filesystemWatches.entries.push_back(std::move(value));
             }
+            recordOmittedEntries(
+                projected.truncation, "/filesystemWatches", snapshot.filesystemWatches.size() - watchCount);
 
             projected.fuzzySearches.state = model::DomainState::present();
             projected.fuzzySearches.state.complete = true;
-            projected.fuzzySearches.entries.reserve(snapshot.fuzzySearchSessions.size());
-            for (const backend::FuzzySearchSnapshot& search : snapshot.fuzzySearchSessions) {
+            const std::size_t searchCount = std::min(snapshot.fuzzySearchSessions.size(), MaximumFrontendFuzzySearches);
+            projected.fuzzySearches.entries.reserve(searchCount);
+            for (std::size_t searchIndex = 0; searchIndex < searchCount; ++searchIndex) {
+                const backend::FuzzySearchSnapshot& search = snapshot.fuzzySearchSessions[searchIndex];
                 model::FuzzySearchRecord value;
                 value.sessionId = search.sessionId;
                 value.resultCount = search.resultCount;
@@ -2048,34 +2289,52 @@ namespace ai::openai::codex::frontend::internal::server {
                 value.connectionInvalidated = search.connectionInvalidated;
                 projected.fuzzySearches.entries.push_back(std::move(value));
             }
+            recordOmittedEntries(
+                projected.truncation, "/fuzzySearches", snapshot.fuzzySearchSessions.size() - searchCount);
 
             projected.notices.state = model::DomainState::present();
             projected.notices.state.complete = true;
-            projected.notices.entries.reserve(snapshot.notices.size());
-            for (const backend::NoticeSnapshot& notice : snapshot.notices) {
+            const std::size_t noticeCount = std::min(snapshot.notices.size(), MaximumFrontendNotices);
+            projected.notices.entries.reserve(noticeCount);
+            for (std::size_t noticeIndex = 0; noticeIndex < noticeCount; ++noticeIndex) {
+                const backend::NoticeSnapshot& notice = snapshot.notices[noticeIndex];
                 model::NoticeRecord value;
                 value.occurrence = notice.occurrence;
                 value.category = noticeCategory(notice.category);
-                value.summary = notice.summary;
-                value.details = notice.details;
+                value.summary =
+                    boundedFrontendString(notice.summary, 16'384, &projected.truncation, "/notices/summary");
+                if (notice.details) {
+                    value.details =
+                        boundedFrontendString(*notice.details, 16'384, &projected.truncation, "/notices/details");
+                }
                 if (notice.threadId) {
                     value.threadId = requiredIdentifier<model::ThreadIdentity>(*notice.threadId, "/notices/threadId");
                 }
                 value.stamp = sourceMetadata(notice.stamp);
                 projected.notices.entries.push_back(std::move(value));
             }
+            recordOmittedEntries(projected.truncation, "/notices", snapshot.notices.size() - noticeCount);
 
             projected.activities.state = model::DomainState::present();
             projected.activities.state.complete = true;
-            projected.activities.entries.reserve(snapshot.activities.size());
-            for (const backend::ActivitySnapshot& activity : snapshot.activities) {
+            const std::size_t activityCount = std::min(snapshot.activities.size(), MaximumFrontendActivities);
+            projected.activities.entries.reserve(activityCount);
+            for (std::size_t activityIndex = 0; activityIndex < activityCount; ++activityIndex) {
+                const backend::ActivitySnapshot& activity = snapshot.activities[activityIndex];
                 model::ActivityRecord value;
                 value.key = activity.key;
                 value.subjectId = activity.subjectId;
-                value.kind = activity.kind;
-                value.lifecycle = activity.lifecycle;
-                value.summary = activity.summary;
-                value.details = activity.details;
+                value.kind = boundedFrontendString(activity.kind, 256, &projected.truncation, "/activities/kind");
+                value.lifecycle =
+                    boundedFrontendString(activity.lifecycle, 256, &projected.truncation, "/activities/lifecycle");
+                if (activity.summary) {
+                    value.summary = boundedFrontendString(
+                        *activity.summary, 16'384, &projected.truncation, "/activities/summary");
+                }
+                if (activity.details) {
+                    value.details = boundedFrontendString(
+                        *activity.details, 16'384, &projected.truncation, "/activities/details");
+                }
                 value.active = activity.active;
                 if (activity.threadId) {
                     value.threadId = requiredIdentifier<model::ThreadIdentity>(*activity.threadId, "/activities/threadId");
@@ -2086,6 +2345,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 value.stamp = sourceMetadata(activity.stamp);
                 projected.activities.entries.push_back(std::move(value));
             }
+            recordOmittedEntries(projected.truncation, "/activities", snapshot.activities.size() - activityCount);
 
             projected.diagnostics.state = model::DomainState::present();
             projected.diagnostics.state.complete = true;
@@ -2094,7 +2354,8 @@ namespace ai::openai::codex::frontend::internal::server {
             for (const std::string& message : snapshot.diagnostics.recent) {
                 model::DiagnosticRecord value;
                 value.received = snapshot.diagnostics.received;
-                value.message = message;
+                value.message =
+                    boundedFrontendString(message, 16'384, &projected.truncation, "/diagnostics/recent");
                 projected.diagnostics.entries.push_back(std::move(value));
             }
 

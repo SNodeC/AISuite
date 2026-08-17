@@ -745,6 +745,7 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] std::optional<ConnectionToken> connectionToken(ConnectionIdentity identity) const noexcept;
         void closeNow(ConnectionIdentity identity, ConnectionClose close) noexcept;
         void closeAfterQueuedMessages(ConnectionIdentity identity, ConnectionClose close);
+        void closeWithProtocolError(ConnectionIdentity identity, ConnectionClose close) noexcept;
         [[nodiscard]] bool enqueueQueued(ConnectionIdentity identity, ServerMessage message, bool deferredSnapshot);
         [[nodiscard]] bool enqueue(ConnectionIdentity identity, ServerMessage message);
         [[nodiscard]] bool enqueueDeferredSnapshot(ConnectionIdentity identity, ServerMessage message);
@@ -917,6 +918,26 @@ namespace ai::openai::codex::frontend::internal::server {
             const ConnectionClose drained = *connection->closeAfterDrain;
             connection = nullptr;
             closeNow(identity, drained);
+        }
+    }
+
+    void ServerCore::Impl::closeWithProtocolError(ConnectionIdentity identity, ConnectionClose close) noexcept {
+        try {
+            if (!findConnection(identity)) {
+                return;
+            }
+            ProtocolErrorMessage message;
+            message.code = close.protocolCode.value_or(ErrorCode::InternalError);
+            message.message = close.reason.empty() ? "frontend connection failed" : close.reason;
+            message.supportedVersions.assign(SupportedProtocolVersions.begin(), SupportedProtocolVersions.end());
+            message.closeConnection = true;
+            if (!enqueue(identity, ServerMessage{std::move(message)})) {
+                return;
+            }
+            closeAfterQueuedMessages(identity, close);
+            requestFlush();
+        } catch (...) {
+            closeNow(identity, std::move(close));
         }
     }
 
@@ -1593,9 +1614,10 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         if (!synchronized) {
             if (findConnection(active)) {
-                closeNow(identity, ConnectionClose{"frontend initial synchronization failed", ErrorCode::InternalError, false});
+                closeWithProtocolError(
+                    identity, ConnectionClose{"frontend initial synchronization failed", ErrorCode::InternalError, false});
             }
-            return {ReceiveStatus::Closing, codecFailure(ErrorCode::InternalError, "frontend synchronization failed", false)};
+            return {ReceiveStatus::Closing, codecFailure(ErrorCode::InternalError, "frontend synchronization failed")};
         }
         connection = findConnection(active);
         if (connection && connection->session) {
@@ -2398,20 +2420,34 @@ namespace ai::openai::codex::frontend::internal::server {
             return;
         }
 
-        std::vector<StoredPendingOccurrence*> ordered;
+        using OrderedOccurrence = std::pair<const OccurrenceCoalescingKey*, StoredPendingOccurrence*>;
+        std::vector<OrderedOccurrence> ordered;
         ordered.reserve(dirtyOccurrences.size());
         for (auto& [key, stored] : dirtyOccurrences) {
-            static_cast<void>(key);
-            ordered.push_back(&stored);
+            ordered.emplace_back(&key, &stored);
         }
-        std::sort(ordered.begin(), ordered.end(), [](const StoredPendingOccurrence* left, const StoredPendingOccurrence* right) {
-            return left->insertionOrder < right->insertionOrder;
+        std::sort(ordered.begin(), ordered.end(), [](const OrderedOccurrence& left, const OrderedOccurrence& right) {
+            return left.second->insertionOrder < right.second->insertionOrder;
         });
+        const auto sameItem = [](const OccurrenceCoalescingKey& left, const OccurrenceCoalescingKey& right) {
+            return left.threadId == right.threadId && left.turnId == right.turnId && left.itemId == right.itemId;
+        };
+        for (auto content = ordered.begin(); content != ordered.end(); ++content) {
+            if (content->first->kind != OccurrenceEntityKind::ItemContent) {
+                continue;
+            }
+            const auto item = std::find_if(std::next(content), ordered.end(), [&](const OrderedOccurrence& candidate) {
+                return candidate.first->kind == OccurrenceEntityKind::Item && sameItem(*content->first, *candidate.first);
+            });
+            if (item != ordered.end()) {
+                std::rotate(content, item, std::next(item));
+            }
+        }
 
         std::vector<model::OccurrenceDraft> occurrences;
         occurrences.reserve(ordered.size());
-        for (StoredPendingOccurrence* stored : ordered) {
-            occurrences.push_back(std::move(stored->occurrence));
+        for (const OrderedOccurrence& stored : ordered) {
+            occurrences.push_back(std::move(stored.second->occurrence));
         }
         dirtyOccurrences.clear();
         nextDirtyInsertionOrder = 0;
@@ -2481,8 +2517,9 @@ namespace ai::openai::codex::frontend::internal::server {
             snapshot = applySnapshotBarrier(std::move(snapshot), barrier);
             for (const FrozenSnapshotRecipient& recipient : recipients) {
                 if (findConnection(ConnectionContinuation{recipient.token, true, false}) && !enqueueFrozenSnapshot(recipient, snapshot)) {
-                    closeNow(recipient.token.identity,
-                             ConnectionClose{"frontend snapshot fallback projection or queueing failed", ErrorCode::InternalError, false});
+                    closeWithProtocolError(
+                        recipient.token.identity,
+                        ConnectionClose{"frontend snapshot fallback projection or queueing failed", ErrorCode::InternalError, false});
                 }
             }
             return;
@@ -2537,8 +2574,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 delivered = enqueueFrozenSnapshot(*plan.snapshotRecipient, *fallbackSnapshot);
             }
             if (!delivered && findConnection(ConnectionContinuation{plan.token, true, false})) {
-                closeNow(plan.token.identity,
-                         ConnectionClose{"frontend occurrence projection or queueing failed", ErrorCode::InternalError, false});
+                closeWithProtocolError(
+                    plan.token.identity,
+                    ConnectionClose{"frontend occurrence projection or queueing failed", ErrorCode::InternalError, false});
             }
         }
     }
@@ -3219,7 +3257,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     continue;
                 }
                 if (!impl->enqueueFrozenSnapshot(recipient, snapshot, deferUntilSnapshotBarrier)) {
-                    impl->closeNow(
+                    impl->closeWithProtocolError(
                         recipient.token.identity,
                         ConnectionClose{"frontend live snapshot projection or queueing failed", ErrorCode::InternalError, false});
                     continue;

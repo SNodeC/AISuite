@@ -156,13 +156,12 @@ namespace {
                 return;
             }
 
-            typed::AttestationGenerateRequest wrongMethod{
-                dynamicSuccess->requestId,
-                dynamicSuccess->requestToken,
-                {},
-                dynamicSuccess->raw,
-                {},
-            };
+            // Start from a fully decoded request to avoid GCC 16's false-positive
+            // maybe-uninitialized diagnostic for nested nlohmann::json aggregates.
+            typed::AttestationGenerateRequest wrongMethod = *attestationSuccess;
+            wrongMethod.requestId = dynamicSuccess->requestId;
+            wrongMethod.requestToken = dynamicSuccess->requestToken;
+            wrongMethod.raw = dynamicSuccess->raw;
             const auto wrongMethodResult =
                 client->requests().respond(wrongMethod, typed::AttestationGenerateResponse{"not-sent", codex::Json::object()});
             result.expectTrue(!wrongMethodResult && wrongMethodResult.error && wrongMethodResult.error->code == EINVAL,

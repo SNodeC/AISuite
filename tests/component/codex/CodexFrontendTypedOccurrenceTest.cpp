@@ -357,6 +357,29 @@ namespace {
                           "item upsert and content occurrences target the exact thread/turn/item identity when provider IDs repeat");
     }
 
+    void testUnicodeItemContentReduction(tests::support::TestResult& result) {
+        const std::string content = std::string(16'383, 'x') + "\xE2\x82\xAC";
+        const frontend::ExpandedFrontendEvent event{
+            frontend::SequenceNumber{38},
+            frontend::ExpandedEventType::ItemContentUpdated,
+            {{"threadId", "thread-optional-content"},
+             {"turnId", "turn-optional-content"},
+             {"itemId", "item-optional-content"},
+             {"channel", "agentText"},
+             {"content", content},
+             {"contentTruncated", false},
+             {"droppedContentBytes", std::uint64_t{0}}}};
+        const auto decoded = model::decodeExpandedOccurrence(event, context());
+        const auto reduced =
+            decoded ? model::reduceOccurrence(snapshotWithItem(), decoded.value())
+                    : model::ModelResult<model::CanonicalSnapshot>{{model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const model::ItemData* item =
+            reduced && reduced.value().items.size() == 1 ? &model::itemData(reduced.value().items.front()) : nullptr;
+        result.expectTrue(decoded && item && item->agentText == content && !item->contentTruncated &&
+                              item->droppedContentBytes == std::optional<std::uint64_t>{0},
+                          "client reduction preserves 16,384 Unicode characters even when their UTF-8 encoding exceeds 16 KiB");
+    }
+
     void testPendingOrderingAndAuthorityMigration(tests::support::TestResult& result) {
         model::CanonicalSnapshot state;
         state.pendingRequests.push_back(knownPending("first", 0));
@@ -885,6 +908,7 @@ int main() {
     testItemContentPresence(result);
     testItemOrderingAndAuthorityMigration(result);
     testScopedItemIdentityReduction(result);
+    testUnicodeItemContentReduction(result);
     testPendingOrderingAndAuthorityMigration(result);
     testDescendantReplacementOrdering(result);
     testDiagnosticOccurrenceShape(result);

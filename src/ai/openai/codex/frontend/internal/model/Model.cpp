@@ -21,7 +21,7 @@
 namespace ai::openai::codex::frontend::internal::model {
     namespace {
         constexpr std::size_t LegacySnapshotMaximumObjectMembers = 4'096;
-        constexpr std::size_t FrontendDetailMaximumStringBytes = 16U * 1024U;
+        constexpr std::size_t FrontendDetailMaximumStringCharacters = 16U * 1024U;
 
         void setSafeDetailError(SafeDetailError* target, SafeDetailError value) noexcept {
             if (target != nullptr) {
@@ -114,9 +114,12 @@ namespace ai::openai::codex::frontend::internal::model {
             return detail.json();
         }
 
-        std::size_t frontendUtf8PrefixLength(std::string_view value, std::size_t maximumBytes) noexcept {
+        std::size_t frontendUtf8PrefixLength(std::string_view value,
+                                             std::size_t maximumCharacters,
+                                             std::size_t* retainedCharacters = nullptr) noexcept {
             std::size_t offset = 0;
-            while (offset < value.size() && offset < maximumBytes) {
+            std::size_t characters = 0;
+            while (offset < value.size() && characters < maximumCharacters) {
                 const unsigned char lead = static_cast<unsigned char>(value[offset]);
                 std::size_t width = 0;
                 if (lead <= 0x7fU) {
@@ -130,7 +133,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 } else {
                     break;
                 }
-                if (offset + width > value.size() || offset + width > maximumBytes) {
+                if (offset + width > value.size()) {
                     break;
                 }
                 bool valid = true;
@@ -140,7 +143,22 @@ namespace ai::openai::codex::frontend::internal::model {
                 if (!valid) {
                     break;
                 }
+                if (width == 3) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xe0U && second < 0xa0U) || (lead == 0xedU && second > 0x9fU)) {
+                        break;
+                    }
+                } else if (width == 4) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xf0U && second < 0x90U) || (lead == 0xf4U && second > 0x8fU)) {
+                        break;
+                    }
+                }
                 offset += width;
+                ++characters;
+            }
+            if (retainedCharacters != nullptr) {
+                *retainedCharacters = characters;
             }
             return offset;
         }
@@ -150,11 +168,12 @@ namespace ai::openai::codex::frontend::internal::model {
                 return value;
             }
             const std::string& text = value.get_ref<const std::string&>();
-            return std::string(text.substr(0, frontendUtf8PrefixLength(text, FrontendDetailMaximumStringBytes)));
+            return std::string(text.substr(0, frontendUtf8PrefixLength(text, FrontendDetailMaximumStringCharacters)));
         }
 
         struct UserMessageTextProjection {
             std::string text;
+            std::size_t characters = 0;
             bool truncated = false;
         };
 
@@ -166,14 +185,16 @@ namespace ai::openai::codex::frontend::internal::model {
             }
 
             UserMessageTextProjection projection;
-            projection.text.reserve(FrontendDetailMaximumStringBytes);
+            projection.text.reserve(FrontendDetailMaximumStringCharacters);
             const auto append = [&projection](std::string_view value) {
                 if (projection.truncated || value.empty()) {
                     return;
                 }
-                const std::size_t available = FrontendDetailMaximumStringBytes - projection.text.size();
-                const std::size_t retained = frontendUtf8PrefixLength(value, available);
+                const std::size_t available = FrontendDetailMaximumStringCharacters - projection.characters;
+                std::size_t retainedCharacters = 0;
+                const std::size_t retained = frontendUtf8PrefixLength(value, available, &retainedCharacters);
                 projection.text.append(value.substr(0, retained));
+                projection.characters += retainedCharacters;
                 projection.truncated = retained != value.size();
             };
 
