@@ -96,6 +96,7 @@ namespace {
 } // namespace
 
 int main(int argc, char* argv[]) {
+    apps::codex_backend::AppServerProcessConfiguration appServerProcessConfiguration;
     apps::codex_backend::ProviderRecoveryConfiguration recoveryConfiguration;
     apps::codex_backend::ReferenceAuthenticationConfiguration authenticationConfiguration;
     apps::codex_backend::FrontendRuntimeConfiguration frontendRuntimeConfiguration;
@@ -159,7 +160,12 @@ int main(int argc, char* argv[]) {
 
         ai::openai::codex::backend::BackendCoreOptions backendOptions;
         backendOptions.recovery = recoveryConfiguration.options();
-        ai::openai::codex::backend::BackendCore<ai::openai::codex::stdio::Client> backend(std::move(backendOptions));
+        ai::openai::codex::backend::BackendCore<ai::openai::codex::stdio::Client> backend(
+            std::move(backendOptions),
+            "codex",
+            std::vector<std::string>{"app-server"},
+            ai::openai::codex::ClientInfo{},
+            appServerProcessConfiguration.environmentOverrides());
         ai::openai::codex::frontend::FrontendService frontendService(backend, std::move(frontendOptions));
 
         apps::codex_backend::FrontendStreamSocketContextFactoryOptions unixStreamOptions;

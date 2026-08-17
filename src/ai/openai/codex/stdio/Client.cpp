@@ -34,6 +34,15 @@ namespace ai::openai::codex::stdio {
         : AppServerClient(std::make_unique<detail::StdioTransport>(std::move(executable), std::move(arguments)), std::move(clientInfo)) {
     }
 
+    Client::Client(std::string executable,
+                   std::vector<std::string> arguments,
+                   ClientInfo clientInfo,
+                   std::vector<std::pair<std::string, std::string>> environmentOverrides)
+        : AppServerClient(
+              std::make_unique<detail::StdioTransport>(std::move(executable), std::move(arguments), std::move(environmentOverrides)),
+              std::move(clientInfo)) {
+    }
+
     Client::Client(std::string executable, std::vector<std::string> arguments, typed::InitializeParams initializeParams)
         : AppServerClient(std::make_unique<detail::StdioTransport>(std::move(executable), std::move(arguments)),
                           std::move(initializeParams)) {

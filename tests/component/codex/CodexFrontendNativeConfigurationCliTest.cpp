@@ -19,6 +19,7 @@ int main() {
 
     app::ReferenceAuthenticationConfiguration authentication;
     app::FrontendRuntimeConfiguration runtime;
+    app::AppServerProcessConfiguration appServerProcess;
     std::vector<std::string> arguments{
         "CodexFrontendNativeConfigurationCliTest",
         "--frontend-unix-verified-local-trust=false",
@@ -30,6 +31,7 @@ int main() {
         "--frontend-max-connections=23",
         "--frontend-max-unauthenticated-connections=7",
         "--frontend-maximum-message-bytes=4096",
+        "--codex-home=/tmp/aisuite-cli-codex-home",
     };
     std::vector<char*> argv;
     argv.reserve(arguments.size());
@@ -52,6 +54,10 @@ int main() {
         result.expectTrue(!error && serviceOptions.maxConnections == 23 && serviceOptions.maxUnauthenticatedConnections == 7 &&
                               serviceOptions.maximumInboundMessageBytes == 4096,
                           "effective AISuite policy configuration is applied without listener fields");
+        const auto environmentOverrides = appServerProcess.environmentOverrides();
+        result.expectTrue(environmentOverrides ==
+                              std::vector<std::pair<std::string, std::string>>{{"CODEX_HOME", "/tmp/aisuite-cli-codex-home"}},
+                          "--codex-home is a configurable app-server process environment override");
     }
     core::SNodeC::free();
     return result.processResult();

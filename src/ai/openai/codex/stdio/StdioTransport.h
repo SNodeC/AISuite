@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace ai::openai::codex::stdio::detail {
@@ -25,6 +26,11 @@ namespace ai::openai::codex::stdio::detail {
                        std::vector<std::string> arguments,
                        bool forceChildExitPollingForTests = false,
                        bool failParentSetupForTests = false);
+        StdioTransport(std::string executable,
+                       std::vector<std::string> arguments,
+                       std::vector<std::pair<std::string, std::string>> environmentOverrides,
+                       bool forceChildExitPollingForTests = false,
+                       bool failParentSetupForTests = false);
         ~StdioTransport() override;
 
         void setCallbacks(codex::detail::TransportCallbacks callbacks) override;
@@ -35,6 +41,7 @@ namespace ai::openai::codex::stdio::detail {
     private:
         std::string executable;
         std::vector<std::string> arguments;
+        std::vector<std::pair<std::string, std::string>> environmentOverrides;
         bool forceChildExitPollingForTests;
         bool failParentSetupForTests;
         codex::detail::TransportCallbacks callbacks;

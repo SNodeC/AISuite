@@ -12,6 +12,7 @@
 #include "ai/openai/codex/AppServerClient.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace ai::openai::codex::stdio {
@@ -22,6 +23,10 @@ namespace ai::openai::codex::stdio {
         explicit Client(ClientInfo clientInfo);
         explicit Client(typed::InitializeParams initializeParams);
         Client(std::string executable, std::vector<std::string> arguments, ClientInfo clientInfo = {});
+        Client(std::string executable,
+               std::vector<std::string> arguments,
+               ClientInfo clientInfo,
+               std::vector<std::pair<std::string, std::string>> environmentOverrides);
         Client(std::string executable, std::vector<std::string> arguments, typed::InitializeParams initializeParams);
 
         ~Client() override;

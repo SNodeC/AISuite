@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace CLI {
@@ -39,6 +40,16 @@ namespace apps::codex_backend {
 
     struct SocketFrontendOptions {
         std::size_t maximumFrameSize = DEFAULT_MAXIMUM_FRAME_SIZE;
+    };
+
+    class AppServerProcessConfiguration {
+    public:
+        AppServerProcessConfiguration();
+
+        [[nodiscard]] std::vector<std::pair<std::string, std::string>> environmentOverrides() const;
+
+    private:
+        CLI::Option* codexHomeOption = nullptr;
     };
 
     class ProviderRecoveryConfiguration {

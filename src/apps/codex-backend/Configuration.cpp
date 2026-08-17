@@ -66,6 +66,18 @@ namespace apps::codex_backend {
 
     } // namespace
 
+    AppServerProcessConfiguration::AppServerProcessConfiguration() {
+        codexHomeOption = configurableString("--codex-home", "Set CODEX_HOME for the spawned Codex app-server process", {}, "PATH");
+    }
+
+    std::vector<std::pair<std::string, std::string>> AppServerProcessConfiguration::environmentOverrides() const {
+        const std::string codexHome = codexHomeOption->as<std::string>();
+        if (codexHome.empty()) {
+            return {};
+        }
+        return {{"CODEX_HOME", codexHome}};
+    }
+
     ProviderRecoveryConfiguration::ProviderRecoveryConfiguration() {
         auto& root = utils::Config::configRoot;
 

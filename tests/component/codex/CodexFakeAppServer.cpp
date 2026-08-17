@@ -907,6 +907,13 @@ int main(int argc, char* argv[]) {
         return 18;
     }
 
+    if (mode == "environment") {
+        const char* codexHome = std::getenv("CODEX_HOME");
+        if (!writeAll(STDERR_FILENO, std::string("codex-home=") + (codexHome == nullptr ? "<unset>" : codexHome) + '\n')) {
+            return 19;
+        }
+    }
+
     if (mode == "never-read-stdin" || mode == "never-read-stdin-ignore-term") {
         if (mode == "never-read-stdin-ignore-term") {
             std::signal(SIGTERM, SIG_IGN);

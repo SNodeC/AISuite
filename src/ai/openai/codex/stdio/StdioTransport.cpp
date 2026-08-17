@@ -21,6 +21,7 @@
 #include "log/Logger.h"
 #include "log/SemanticLogger.h"
 
+#include <algorithm>
 #include <array>
 #include <cerrno>
 #include <csignal>
@@ -29,11 +30,13 @@
 #include <exception>
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <spawn.h>
 #include <stdexcept>
 #include <stdlib.h>
 #include <string>
+#include <string_view>
 #include <sys/wait.h>
 #include <system_error>
 #include <time.h>
@@ -130,6 +133,42 @@ namespace ai::openai::codex::stdio::detail {
             }
             argv.push_back(nullptr);
             return argv;
+        }
+
+        bool overridesEnvironmentEntry(std::string_view entry,
+                                       const std::vector<std::pair<std::string, std::string>>& environmentOverrides) {
+            return std::ranges::any_of(environmentOverrides, [entry](const auto& override) {
+                return entry.size() > override.first.size() && entry[override.first.size()] == '=' &&
+                       entry.substr(0, override.first.size()) == override.first;
+            });
+        }
+
+        std::vector<std::string> buildEnvironment(const std::vector<std::pair<std::string, std::string>>& environmentOverrides) {
+            std::vector<std::string> environment;
+            for (char** entry = environ; entry != nullptr && *entry != nullptr; ++entry) {
+                if (!overridesEnvironmentEntry(*entry, environmentOverrides)) {
+                    environment.emplace_back(*entry);
+                }
+            }
+            for (auto override = environmentOverrides.begin(); override != environmentOverrides.end(); ++override) {
+                const bool superseded = std::any_of(std::next(override), environmentOverrides.end(), [&override](const auto& candidate) {
+                    return candidate.first == override->first;
+                });
+                if (!superseded) {
+                    environment.push_back(override->first + '=' + override->second);
+                }
+            }
+            return environment;
+        }
+
+        std::vector<char*> buildEnvironmentPointers(std::vector<std::string>& environment) {
+            std::vector<char*> pointers;
+            pointers.reserve(environment.size() + 1);
+            for (std::string& entry : environment) {
+                pointers.push_back(entry.data());
+            }
+            pointers.push_back(nullptr);
+            return pointers;
         }
 
         int openPidFd(pid_t pid) {
@@ -283,11 +322,13 @@ namespace ai::openai::codex::stdio::detail {
     public:
         Session(std::string executable,
                 std::vector<std::string> arguments,
+                std::vector<std::pair<std::string, std::string>> environmentOverrides,
                 bool forceChildExitPollingForTests,
                 bool failParentSetupForTests,
                 codex::detail::TransportCallbacks callbacks)
             : executable(std::move(executable))
             , arguments(std::move(arguments))
+            , environmentOverrides(std::move(environmentOverrides))
             , forceChildExitPollingForTests(forceChildExitPollingForTests)
             , failParentSetupForTests(failParentSetupForTests)
             , callbacks(std::move(callbacks))
@@ -420,8 +461,16 @@ namespace ai::openai::codex::stdio::detail {
             if (setupResult == 0) {
                 try {
                     std::vector<char*> argv = buildArgv(executable, arguments);
+                    std::vector<std::string> environment;
+                    std::vector<char*> environmentPointers;
+                    char** childEnvironment = environ;
+                    if (!environmentOverrides.empty()) {
+                        environment = buildEnvironment(environmentOverrides);
+                        environmentPointers = buildEnvironmentPointers(environment);
+                        childEnvironment = environmentPointers.data();
+                    }
                     spawnDispatched = true;
-                    setupResult = posix_spawnp(&spawnedPid, executable.c_str(), &fileActions, &attributes, argv.data(), environ);
+                    setupResult = posix_spawnp(&spawnedPid, executable.c_str(), &fileActions, &attributes, argv.data(), childEnvironment);
                 } catch (...) {
                     setupResult = ENOMEM;
                 }
@@ -1045,6 +1094,7 @@ namespace ai::openai::codex::stdio::detail {
 
         std::string executable;
         std::vector<std::string> arguments;
+        std::vector<std::pair<std::string, std::string>> environmentOverrides;
         bool forceChildExitPollingForTests;
         bool failParentSetupForTests;
         codex::detail::TransportCallbacks callbacks;
@@ -1076,8 +1126,7 @@ namespace ai::openai::codex::stdio::detail {
 
     namespace {
         ChildExitPollingReceiver::ChildExitPollingReceiver(int fd, const std::shared_ptr<StdioTransport::Session>& session)
-            : core::eventreceiver::ReadEventReceiver(
-                  "codex app-server child polling timer", session->scope(), TIMEOUT::DISABLE)
+            : core::eventreceiver::ReadEventReceiver("codex app-server child polling timer", session->scope(), TIMEOUT::DISABLE)
             , session(session) {
             if (!ReadEventReceiver::enable(fd)) {
                 throw std::runtime_error("unable to register codex app-server child polling timer");
@@ -1186,8 +1235,17 @@ namespace ai::openai::codex::stdio::detail {
                                    std::vector<std::string> arguments,
                                    bool forceChildExitPollingForTests,
                                    bool failParentSetupForTests)
+        : StdioTransport(std::move(executable), std::move(arguments), {}, forceChildExitPollingForTests, failParentSetupForTests) {
+    }
+
+    StdioTransport::StdioTransport(std::string executable,
+                                   std::vector<std::string> arguments,
+                                   std::vector<std::pair<std::string, std::string>> environmentOverrides,
+                                   bool forceChildExitPollingForTests,
+                                   bool failParentSetupForTests)
         : executable(std::move(executable))
         , arguments(std::move(arguments))
+        , environmentOverrides(std::move(environmentOverrides))
         , forceChildExitPollingForTests(forceChildExitPollingForTests)
         , failParentSetupForTests(failParentSetupForTests) {
     }
@@ -1214,7 +1272,8 @@ namespace ai::openai::codex::stdio::detail {
             session->stop();
         }
 
-        session = std::make_shared<Session>(executable, arguments, forceChildExitPollingForTests, failParentSetupForTests, callbacks);
+        session = std::make_shared<Session>(
+            executable, arguments, environmentOverrides, forceChildExitPollingForTests, failParentSetupForTests, callbacks);
         session->start();
     }
 

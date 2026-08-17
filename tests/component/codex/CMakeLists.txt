@@ -472,6 +472,47 @@ target_compile_definitions(
 )
 add_dependencies(CodexStdioLifecycleTest CodexFakeAppServer)
 
+add_executable(
+    CodexStdioEnvironmentTest
+    CodexStdioEnvironmentTest.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/Configuration.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/FrontendWebSecurity.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceInvocationPolicy.cpp
+)
+target_include_directories(
+    CodexStdioEnvironmentTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(
+    CodexStdioEnvironmentTest
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodex
+        AISuite::OpenAICodexBackend
+        AISuite::OpenAICodexFrontend
+        snodec::core
+)
+target_compile_features(CodexStdioEnvironmentTest PRIVATE cxx_std_20)
+target_compile_definitions(
+    CodexStdioEnvironmentTest
+    PRIVATE CODEX_FAKE_APP_SERVER="$<TARGET_FILE:CodexFakeAppServer>"
+)
+add_dependencies(CodexStdioEnvironmentTest CodexFakeAppServer)
+foreach(scenario IN ITEMS configured inherited)
+    add_test(
+        NAME CodexStdioEnvironment_${scenario}
+        COMMAND CodexStdioEnvironmentTest ${scenario}
+    )
+    set_tests_properties(
+        CodexStdioEnvironment_${scenario}
+        PROPERTIES
+            ENVIRONMENT "CODEX_HOME=/tmp/aisuite-parent-codex-home"
+            LABELS "component;ai;openai;codex;stdio;environment;configuration"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 8
+    )
+endforeach()
+
 add_executable(CodexStdioProtocolFlowTest CodexStdioProtocolFlowTest.cpp)
 target_link_libraries(
     CodexStdioProtocolFlowTest PRIVATE snodec-test-support
