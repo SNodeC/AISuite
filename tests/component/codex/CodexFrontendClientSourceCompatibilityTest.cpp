@@ -17,6 +17,9 @@ namespace client = ai::openai::codex::frontend::client;
 static_assert(requires(const client::ItemState& item) {
     { client::userMessageSemanticView(item) } -> std::same_as<std::optional<client::UserMessageSemanticView>>;
 });
+static_assert(requires(const client::ThreadState& thread) {
+    { client::threadIsIdle(thread) } noexcept -> std::same_as<bool>;
+});
 
 int main() {
     const typed::AuthMode authentication = typed::AuthMode::chatgpt();
