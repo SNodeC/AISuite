@@ -898,6 +898,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 data.summary = "bounded request summary available";
             }
             if (*kind == PendingRequestKind::UserInput) {
+                if (details.value("questionsTruncated", false)) {
+                    recordOmission(data.truncation, "/pendingRequests/details/questions");
+                }
                 constexpr std::size_t MaximumPresentationEntries = 64;
                 const auto boundedText = [&](const Json& value, std::size_t maximumCharacters, std::string_view path) {
                     if (!value.is_string()) {

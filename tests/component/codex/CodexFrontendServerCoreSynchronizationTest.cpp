@@ -1901,6 +1901,76 @@ namespace {
                           "retention, or serialization");
     }
 
+    void testMinimalSnapshotKeepsUserInputActionable(tests::support::TestResult& result) {
+        backend::BackendState state;
+        state.provider.lifecycle = backend::ProviderLifecycle::Ready;
+        state.provider.generation = 1;
+        typed::UserInputQuestion question{
+            "question-1", "Choice", "Select an option", {{"One", "First option", frontend::Json::object()}}, true, false, {}};
+        typed::UserInputRequest request{ai::openai::codex::ServerRequestId{std::int64_t{8}},
+                                        ai::openai::codex::ServerRequestToken{8},
+                                        typed::ThreadId{"thread-actionable"},
+                                        typed::TurnId{"turn-actionable"},
+                                        typed::ItemId{"item-actionable"},
+                                        {std::move(question)},
+                                        std::nullopt,
+                                        frontend::Json::object(),
+                                        {},
+                                        {}};
+        state.pendingRequests.emplace(
+            backend::PendingRequestId{8},
+            backend::PendingRequestState{backend::PendingRequestId{8}, typed::TypedServerRequest{std::move(request)}, 1});
+        state.capacity.limits.maxSnapshotBytes = 0;
+
+        const backend::Snapshot bounded = backend::makeSnapshot(state);
+        server::BackendProjection projection;
+        const auto projected = projection.projectSnapshot(bounded);
+        const auto encoded = projected ? model::encodeProjectedSnapshot(
+                                             projected.value(), model::SnapshotRepresentationSelection{true, true, true, false})
+                                       : model::ModelResult<frontend::Snapshot>{projected.error()};
+        const model::PendingRequestData* pending =
+            projected && projected.value().pendingRequests.size() == 1
+                ? &model::pendingRequestData(projected.value().pendingRequests.front())
+                : nullptr;
+        result.expectTrue(pending && pending->questionsPresent && pending->questions.size() == 1 &&
+                              pending->questions.front().id == "question-1" && pending->questions.front().prompt == "Select an option" &&
+                              pending->questions.front().options.size() == 1 &&
+                              pending->questions.front().options.front().label == "One" && encoded &&
+                              frontend::Codec::encodeServer(frontend::ServerMessage{encoded.value()}).hasValue(),
+                          "minimal snapshots retain response-critical user-input questions and remain wire encodable");
+
+        state.pendingRequests.clear();
+        typed::UserInputQuestion oversizedQuestion{
+            "question-2", "Choice", std::string(70U * 1024U, 'p'), {}, true, false, {}};
+        typed::UserInputRequest oversizedRequest{ai::openai::codex::ServerRequestId{std::int64_t{9}},
+                                                 ai::openai::codex::ServerRequestToken{9},
+                                                 typed::ThreadId{"thread-actionable"},
+                                                 typed::TurnId{"turn-actionable"},
+                                                 typed::ItemId{"item-actionable"},
+                                                 {std::move(oversizedQuestion)},
+                                                 std::nullopt,
+                                                 frontend::Json::object(),
+                                                 {},
+                                                 {}};
+        state.pendingRequests.emplace(
+            backend::PendingRequestId{9},
+            backend::PendingRequestState{backend::PendingRequestId{9}, typed::TypedServerRequest{std::move(oversizedRequest)}, 1});
+        const auto oversizedProjected = projection.projectSnapshot(backend::makeSnapshot(state));
+        const auto oversizedEncoded = oversizedProjected
+                                          ? model::encodeProjectedSnapshot(
+                                                oversizedProjected.value(),
+                                                model::SnapshotRepresentationSelection{true, true, true, false})
+                                          : model::ModelResult<frontend::Snapshot>{oversizedProjected.error()};
+        const model::PendingRequestData* oversizedPending =
+            oversizedProjected && oversizedProjected.value().pendingRequests.size() == 1
+                ? &model::pendingRequestData(oversizedProjected.value().pendingRequests.front())
+                : nullptr;
+        result.expectTrue(oversizedPending && oversizedPending->questionsPresent && oversizedPending->questions.empty() &&
+                              oversizedPending->truncation.truncated && oversizedEncoded &&
+                              frontend::Codec::encodeServer(frontend::ServerMessage{oversizedEncoded.value()}).hasValue(),
+                          "oversized user-input details fail soft as explicitly truncated while preserving the wire contract");
+    }
+
     void testBackendProjection(tests::support::TestResult& result) {
         ai::openai::codex::backend::Snapshot source;
         source.sequence = ai::openai::codex::backend::SequenceNumber{17};
@@ -2385,6 +2455,7 @@ int main() {
     testUnknownBackendItemWireContainment(result);
     testUnknownPendingRequestCompatibility(result);
     testPendingUserInputPresentationUtf8Containment(result);
+    testMinimalSnapshotKeepsUserInputActionable(result);
     testBackendProjection(result);
     return result.processResult();
 }
