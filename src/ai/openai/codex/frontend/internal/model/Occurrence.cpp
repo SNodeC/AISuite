@@ -31,6 +31,50 @@ namespace ai::openai::codex::frontend::internal::model {
             throw OccurrenceFailure(OccurrenceError{code, std::move(path), std::move(message)});
         }
 
+        std::size_t utf8CharacterPrefixLength(std::string_view value, std::size_t maximumCharacters) noexcept {
+            std::size_t offset = 0;
+            std::size_t characters = 0;
+            while (offset < value.size() && characters < maximumCharacters) {
+                const unsigned char lead = static_cast<unsigned char>(value[offset]);
+                std::size_t width = 0;
+                if (lead <= 0x7fU) {
+                    width = 1;
+                } else if (lead >= 0xc2U && lead <= 0xdfU) {
+                    width = 2;
+                } else if (lead >= 0xe0U && lead <= 0xefU) {
+                    width = 3;
+                } else if (lead >= 0xf0U && lead <= 0xf4U) {
+                    width = 4;
+                } else {
+                    break;
+                }
+                if (offset + width > value.size()) {
+                    break;
+                }
+                bool valid = true;
+                for (std::size_t index = 1; index < width; ++index) {
+                    valid = valid && (static_cast<unsigned char>(value[offset + index]) & 0xc0U) == 0x80U;
+                }
+                if (!valid) {
+                    break;
+                }
+                if (width == 3) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xe0U && second < 0xa0U) || (lead == 0xedU && second > 0x9fU)) {
+                        break;
+                    }
+                } else if (width == 4) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xf0U && second < 0x90U) || (lead == 0xf4U && second > 0x8fU)) {
+                        break;
+                    }
+                }
+                offset += width;
+                ++characters;
+            }
+            return offset;
+        }
+
         SafeDetail safeDetail(Json value, const std::string& path) {
             SafeDetailError error = SafeDetailError::None;
             auto detail = SafeDetail::fromJson(std::move(value), &error);
@@ -2182,12 +2226,13 @@ namespace ai::openai::codex::frontend::internal::model {
                                         content = &item.value.commandOutput;
                                     }
                                     std::uint64_t additionalDropped = 0;
-                                    if (content != nullptr && content->has_value() && (*content)->size() > 16'384) {
-                                        const std::size_t excess = (*content)->size() - 16'384;
+                                    if (content != nullptr && content->has_value()) {
+                                        const std::size_t retained = utf8CharacterPrefixLength(**content, 16'384);
+                                        const std::size_t excess = (*content)->size() - retained;
                                         additionalDropped = excess > std::numeric_limits<std::uint64_t>::max()
                                                                 ? std::numeric_limits<std::uint64_t>::max()
                                                                 : static_cast<std::uint64_t>(excess);
-                                        (*content)->resize(16'384);
+                                        (*content)->resize(retained);
                                     }
                                     if (update.contentTruncatedKnown) {
                                         item.value.contentTruncated = update.truncation.truncated;

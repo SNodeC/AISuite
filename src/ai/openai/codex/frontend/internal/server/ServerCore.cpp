@@ -2398,20 +2398,34 @@ namespace ai::openai::codex::frontend::internal::server {
             return;
         }
 
-        std::vector<StoredPendingOccurrence*> ordered;
+        using OrderedOccurrence = std::pair<const OccurrenceCoalescingKey*, StoredPendingOccurrence*>;
+        std::vector<OrderedOccurrence> ordered;
         ordered.reserve(dirtyOccurrences.size());
         for (auto& [key, stored] : dirtyOccurrences) {
-            static_cast<void>(key);
-            ordered.push_back(&stored);
+            ordered.emplace_back(&key, &stored);
         }
-        std::sort(ordered.begin(), ordered.end(), [](const StoredPendingOccurrence* left, const StoredPendingOccurrence* right) {
-            return left->insertionOrder < right->insertionOrder;
+        std::sort(ordered.begin(), ordered.end(), [](const OrderedOccurrence& left, const OrderedOccurrence& right) {
+            return left.second->insertionOrder < right.second->insertionOrder;
         });
+        const auto sameItem = [](const OccurrenceCoalescingKey& left, const OccurrenceCoalescingKey& right) {
+            return left.threadId == right.threadId && left.turnId == right.turnId && left.itemId == right.itemId;
+        };
+        for (auto content = ordered.begin(); content != ordered.end(); ++content) {
+            if (content->first->kind != OccurrenceEntityKind::ItemContent) {
+                continue;
+            }
+            const auto item = std::find_if(std::next(content), ordered.end(), [&](const OrderedOccurrence& candidate) {
+                return candidate.first->kind == OccurrenceEntityKind::Item && sameItem(*content->first, *candidate.first);
+            });
+            if (item != ordered.end()) {
+                std::rotate(content, item, std::next(item));
+            }
+        }
 
         std::vector<model::OccurrenceDraft> occurrences;
         occurrences.reserve(ordered.size());
-        for (StoredPendingOccurrence* stored : ordered) {
-            occurrences.push_back(std::move(stored->occurrence));
+        for (const OrderedOccurrence& stored : ordered) {
+            occurrences.push_back(std::move(stored.second->occurrence));
         }
         dirtyOccurrences.clear();
         nextDirtyInsertionOrder = 0;

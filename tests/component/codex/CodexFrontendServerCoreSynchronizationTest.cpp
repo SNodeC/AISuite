@@ -782,6 +782,28 @@ namespace {
         result.expectTrue(synchronized && staged.accepted() && batch && batch->events.size() == 2 &&
                               batch->events[0].type == "item.upserted" && batch->events[1].type == "item.content.updated",
                           "a coalesced terminal item cannot overtake content that depends on its first upsert (" + observed + ")");
+
+        messages.clear();
+        server::OccurrenceCoalescingKey reversedItemKey;
+        reversedItemKey.kind = server::OccurrenceEntityKind::Item;
+        reversedItemKey.threadId = model::ThreadIdentity{"thread-order"};
+        reversedItemKey.turnId = model::TurnIdentity{"turn-order"};
+        reversedItemKey.itemId = model::ItemIdentity{"item-order"};
+        server::OccurrenceCoalescingKey reversedContentKey = reversedItemKey;
+        reversedContentKey.kind = server::OccurrenceEntityKind::ItemContent;
+        reversedContentKey.channel = "agentText";
+        std::vector<server::OccurrenceStageRequest> reversedGroups;
+        reversedGroups.push_back(
+            {std::move(reversedContentKey), orderedItemContentOccurrence(), server::OccurrenceFlushUrgency::Deferred});
+        reversedGroups.push_back(
+            {std::move(reversedItemKey), itemOccurrence("1004", "completed", "final text"), server::OccurrenceFlushUrgency::Immediate});
+        const server::OccurrenceStageResult reversedStaged = core.stageGroups(std::move(reversedGroups));
+        drainAll(scheduled);
+        const auto* reversedBatch = messages.size() == 1 ? std::get_if<frontend::EventBatch>(&messages.front()) : nullptr;
+        result.expectTrue(reversedStaged.accepted() && reversedBatch && reversedBatch->events.size() == 2 &&
+                              reversedBatch->events[0].type == "item.upserted" &&
+                              reversedBatch->events[1].type == "item.content.updated",
+                          "a dependent content update is emitted after its item even when the backend reports content first");
     }
 
     void testIndependentSnapshotCapabilities(tests::support::TestResult& result) {
@@ -1817,18 +1839,18 @@ namespace {
     }
 
     void testPendingUserInputPresentationUtf8Containment(tests::support::TestResult& result) {
-        const std::string expectedId(1'023, 'i');
-        const std::string expectedHeader(16'383, 'h');
-        const std::string expectedPrompt(16'383, 'p');
-        const std::string expectedOptionLabel(16'383, 'l');
-        const std::string expectedOptionDescription(16'383, 'd');
         const std::string euro = "\xE2\x82\xAC";
+        const std::string expectedId = std::string(1'023, 'i') + euro;
+        const std::string expectedHeader = std::string(16'383, 'h') + euro;
+        const std::string expectedPrompt = std::string(16'383, 'p') + euro;
+        const std::string expectedOptionLabel = std::string(16'383, 'l') + euro;
+        const std::string expectedOptionDescription = std::string(16'383, 'd') + euro;
         const backend::Snapshot oversizedSource = userInputPresentationSnapshot(userInputPresentationQuestion(
-            expectedId + euro,
-            expectedHeader + euro,
-            expectedPrompt + euro,
-            expectedOptionLabel + euro,
-            expectedOptionDescription + euro));
+            expectedId + "overflow",
+            expectedHeader + "overflow",
+            expectedPrompt + "overflow",
+            expectedOptionLabel + "overflow",
+            expectedOptionDescription + "overflow"));
 
         server::BackendProjection projection;
         const auto oversized = projection.projectSnapshot(oversizedSource);
@@ -1937,9 +1959,141 @@ namespace {
         const frontend::Json previewDetails = previewSnapshot && previewSnapshot.value().threads.size() == 1
                                                   ? previewSnapshot.value().threads.front().safeDetails.json()
                                                   : frontend::Json::object();
-        result.expectTrue(previewWire && previewDetails.value("preview", std::string{}).size() == 16'383 &&
-                              previewDetails.value("preview", std::string{}) == std::string(16'383, 'p'),
-                          "backend thread previews are UTF-8 safely bounded to the frozen 16 KiB frontend field");
+        result.expectTrue(previewWire && previewDetails.value("preview", std::string{}).size() == 16'386 &&
+                              previewDetails.value("preview", std::string{}) == std::string(16'383, 'p') + "\xE2\x82\xAC",
+                          "backend thread previews are bounded by frontend Unicode characters without splitting UTF-8");
+
+        ai::openai::codex::backend::Snapshot oversizedItemSource = source;
+        ai::openai::codex::backend::ItemSnapshot& oversizedItem =
+            oversizedItemSource.threads.front().turns.front().items.front();
+        const std::string retainedItemContent = std::string(16'383, 'x') + "\xE2\x82\xAC";
+        const std::string oversizedItemContent = retainedItemContent + "tail";
+        oversizedItem.agentText = oversizedItemContent;
+        oversizedItem.reasoningText = oversizedItemContent;
+        oversizedItem.reasoningSummary = oversizedItemContent;
+        oversizedItem.commandOutput = oversizedItemContent;
+        const auto oversizedItemSnapshot = projection.projectSnapshot(oversizedItemSource);
+        const auto oversizedItemWire =
+            oversizedItemSnapshot
+                ? model::encodeProjectedSnapshot(oversizedItemSnapshot.value(),
+                                                  model::SnapshotRepresentationSelection{true, true, true, true})
+                : model::ModelResult<frontend::Snapshot>{oversizedItemSnapshot.error()};
+        const bool oversizedItemEnvelope =
+            oversizedItemWire && frontend::Codec::encodeServer(frontend::ServerMessage{oversizedItemWire.value()}).hasValue();
+        const model::ItemData* oversizedProjectedItem =
+            oversizedItemSnapshot && oversizedItemSnapshot.value().items.size() == 1
+                ? &model::itemData(oversizedItemSnapshot.value().items.front())
+                : nullptr;
+        result.expectTrue(
+            oversizedProjectedItem && oversizedProjectedItem->agentText == retainedItemContent &&
+                oversizedProjectedItem->reasoningText == retainedItemContent &&
+                oversizedProjectedItem->reasoningSummary == retainedItemContent &&
+                oversizedProjectedItem->commandOutput == retainedItemContent && oversizedProjectedItem->contentTruncated &&
+                oversizedProjectedItem->droppedContentBytes == std::optional<std::uint64_t>{16} &&
+                oversizedProjectedItem->truncation.truncated && oversizedProjectedItem->truncation.droppedBytes == 16 &&
+                oversizedProjectedItem->truncation.omittedPaths ==
+                    std::vector<std::string>{"/agentText", "/reasoningText", "/reasoningSummary", "/commandOutput"} &&
+                oversizedItemEnvelope,
+            "all accumulated item channels retain 16,384 Unicode characters, report the omitted bytes, and remain wire encodable");
+
+        ai::openai::codex::backend::ItemContentChanged oversizedContentEvent;
+        oversizedContentEvent.threadId = ai::openai::codex::typed::ThreadId{thread.id};
+        oversizedContentEvent.turnId = ai::openai::codex::typed::TurnId{turn.id};
+        oversizedContentEvent.itemId = ai::openai::codex::typed::ItemId{item.id};
+        oversizedContentEvent.kind = ai::openai::codex::backend::ItemContentChanged::Kind::CommandOutput;
+        const std::vector<ai::openai::codex::backend::SequencedBackendEvent> oversizedContentEvents{
+            {ai::openai::codex::backend::SequenceNumber{18}, std::move(oversizedContentEvent)}};
+        const auto oversizedContentOccurrence = projection.projectOccurrences(oversizedContentEvents, oversizedItemSource);
+        const auto* boundedContentOccurrence =
+            oversizedContentOccurrence && oversizedContentOccurrence.value().occurrences.size() == 1 &&
+                    oversizedContentOccurrence.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &oversizedContentOccurrence.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(boundedContentOccurrence && boundedContentOccurrence->content == retainedItemContent &&
+                              boundedContentOccurrence->truncation.truncated &&
+                              boundedContentOccurrence->truncation.droppedBytes == 16,
+                          "item-content occurrences reuse the same bounded canonical projection instead of re-emitting oversized text");
+
+        ai::openai::codex::backend::Snapshot oversizedScalarSource = source;
+        const std::string retainedScalar = std::string(16'383, 's') + "\xE2\x82\xAC";
+        const std::string oversizedScalar = retainedScalar + "tail";
+        const std::string retainedMethod = std::string(1'023, 'm') + "\xE2\x82\xAC";
+        const std::string retainedStatus = std::string(255, 'q') + "\xE2\x82\xAC";
+        oversizedScalarSource.provider.lastError =
+            ai::openai::codex::backend::ErrorSnapshot{"provider", 7, oversizedScalar};
+        oversizedScalarSource.threadList.nextCursor = oversizedScalar;
+        oversizedScalarSource.threads.front().title = oversizedScalar;
+        oversizedScalarSource.threads.front().realtime.transcript = oversizedScalar;
+        oversizedScalarSource.models.latestResults.push_back({retainedMethod + "tail",
+                                                               0,
+                                                               retainedStatus + "tail",
+                                                               retainedMethod + "tail",
+                                                               oversizedScalar,
+                                                               1,
+                                                               true,
+                                                               {}});
+        const auto oversizedScalarSnapshot = projection.projectSnapshot(oversizedScalarSource);
+        const auto oversizedScalarWire =
+            oversizedScalarSnapshot
+                ? model::encodeProjectedSnapshot(oversizedScalarSnapshot.value(),
+                                                  model::SnapshotRepresentationSelection{true, true, true, true})
+                : model::ModelResult<frontend::Snapshot>{oversizedScalarSnapshot.error()};
+        const bool oversizedScalarEnvelope =
+            oversizedScalarWire && frontend::Codec::encodeServer(frontend::ServerMessage{oversizedScalarWire.value()}).hasValue();
+        const frontend::Json oversizedThreadDetails =
+            oversizedScalarSnapshot && oversizedScalarSnapshot.value().threads.size() == 1
+                ? oversizedScalarSnapshot.value().threads.front().safeDetails.json()
+                : frontend::Json::object();
+        const model::DomainState* oversizedModels =
+            oversizedScalarSnapshot ? &oversizedScalarSnapshot.value().models.state : nullptr;
+        result.expectTrue(
+            oversizedScalarEnvelope && oversizedScalarSnapshot.value().threads.front().title == retainedScalar &&
+                oversizedScalarSnapshot.value().threadList.nextCursor == retainedScalar &&
+                oversizedThreadDetails.at("realtime").value("transcript", std::string{}) == retainedScalar && oversizedModels &&
+                oversizedModels->status == retainedStatus && oversizedModels->nextCursor == retainedScalar &&
+                oversizedModels->latestResults.size() == 1 && oversizedModels->latestResults.front().method == retainedMethod &&
+                oversizedModels->latestResults.front().subjectId == std::optional<std::string>{retainedMethod} &&
+                oversizedModels->latestResults.front().nextCursor == std::optional<std::string>{retainedScalar} &&
+                oversizedScalarSnapshot.value().truncation.truncated,
+            "provider, thread, cursor, realtime, and domain strings share the same Unicode-safe frontend bounds");
+
+        ai::openai::codex::backend::Snapshot nestedPendingSource = source;
+        nestedPendingSource.pendingRequests.front().details =
+            frontend::Json{{"summary", "approval"}, {"reason", oversizedScalar}, {"params", {{"nested", "omitted"}}}};
+        const auto nestedPendingSnapshot = projection.projectSnapshot(nestedPendingSource);
+        const auto nestedPendingWire =
+            nestedPendingSnapshot
+                ? model::encodeProjectedSnapshot(nestedPendingSnapshot.value(),
+                                                  model::SnapshotRepresentationSelection{true, true, true, true})
+                : model::ModelResult<frontend::Snapshot>{nestedPendingSnapshot.error()};
+        const model::PendingRequestData* nestedPending =
+            nestedPendingSnapshot && nestedPendingSnapshot.value().pendingRequests.size() == 1
+                ? &model::pendingRequestData(nestedPendingSnapshot.value().pendingRequests.front())
+                : nullptr;
+        result.expectTrue(nestedPendingWire &&
+                              frontend::Codec::encodeServer(frontend::ServerMessage{nestedPendingWire.value()}).hasValue() &&
+                              nestedPending && nestedPending->safeDetails &&
+                              nestedPending->safeDetails->json().value("reason", std::string{}) == retainedScalar &&
+                              !nestedPending->safeDetails->json().contains("params") && nestedPending->truncation.truncated,
+                          "pending-request details omit nested provider data and bound retained scalar presentation fields");
+
+        ai::openai::codex::backend::Snapshot excessSessionsSource = source;
+        excessSessionsSource.sessions.clear();
+        for (std::uint64_t id = 1; id <= 129; ++id) {
+            excessSessionsSource.sessions.push_back(
+                {ai::openai::codex::backend::SessionId{id}, ai::openai::codex::backend::SessionRole::Observer});
+        }
+        const auto excessSessionsSnapshot = projection.projectSnapshot(excessSessionsSource);
+        const auto excessSessionsWire =
+            excessSessionsSnapshot
+                ? model::encodeProjectedSnapshot(excessSessionsSnapshot.value(),
+                                                  model::SnapshotRepresentationSelection{true, true, true, true})
+                : model::ModelResult<frontend::Snapshot>{excessSessionsSnapshot.error()};
+        result.expectTrue(excessSessionsWire && excessSessionsSnapshot.value().sessions.size() == 128 &&
+                              excessSessionsSnapshot.value().truncation.truncated &&
+                              frontend::Codec::encodeServer(frontend::ServerMessage{excessSessionsWire.value()}).hasValue(),
+                          "custom backend capacities cannot project more entries than the frozen frontend collection bound");
 
         ai::openai::codex::backend::Snapshot itemDetailsSource = source;
         ai::openai::codex::backend::ItemSnapshot& userItem = itemDetailsSource.threads.front().turns.front().items.front();
@@ -2011,11 +2165,12 @@ namespace {
                 : frontend::Json::object();
         result.expectTrue(longTextWire && projectedLongText.at("content") == longTextContent &&
                               !projectedLongText.value("contentTruncated", true) && !wireLongText.contains("content") &&
-                              wireLongText.value("text", std::string{}) == std::string(16'383, 'u') &&
+                              wireLongText.value("text", std::string{}) == std::string(16'383, 'u') + "\xE2\x82\xAC" &&
                               wireLongText.value("textTruncated", false) && !wireLongText.value("contentTruncated", true) &&
                               wireLongText.value("originalContentBytes", 0U) == longTextContent.dump().size() &&
                               wireLongText.value("retainedContentBytes", 0U) == longTextContent.dump().size(),
-                          "a complete 32 KiB structured message remains intact while rendered text is independently UTF-8 truncated at 16 KiB");
+                          "a complete 32 KiB structured message remains intact while rendered text is independently truncated at "
+                          "16,384 Unicode characters");
 
         ai::openai::codex::backend::Snapshot truncatedContentSource = source;
         ai::openai::codex::backend::ItemSnapshot& truncatedContentItem =
@@ -2203,7 +2358,8 @@ namespace {
                               !deprecationNotice->details && worldWritableNotice &&
                               worldWritableNotice->category == "windows_world_writable" &&
                               worldWritableNotice->details == std::optional<std::string>{"sample paths: 2, additional paths: 3"} &&
-                              utf8BoundaryNotice && utf8BoundaryNotice->summary.size() == 16'383 && oversizedIdentityNotice &&
+                              utf8BoundaryNotice &&
+                              utf8BoundaryNotice->summary == std::string(16'383, 'a') + "\xE2\x82\xAC" && oversizedIdentityNotice &&
                               !oversizedIdentityNotice->threadId && sanitizedLegacy,
                           "notice projection sanitizes unsafe extensions, truncates on UTF-8 boundaries, and preserves omission semantics");
         result.expectTrue(
