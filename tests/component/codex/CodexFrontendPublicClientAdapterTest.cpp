@@ -713,6 +713,7 @@ namespace {
         const client::State ready = sdk.state();
         const client::ItemState* readyUserItem = ready.item("runtime-user-item");
         const auto readyUserMessage = readyUserItem ? client::userMessageSemanticView(*readyUserItem) : std::nullopt;
+        const std::string expectedRetainedText = std::string(16'383, 'm') + "\xE2\x82\xAC";
         const std::vector<std::string> expectedSynchronizationOrder{"ready", "state", "cursor", "synchronized", "protocol"};
         result.expectTrue(
             welcomeAccepted && snapshotAccepted && synchronized && sdk.isReady() && !harness.revisionMismatch &&
@@ -721,7 +722,7 @@ namespace {
                 harness.updateRevisions.back() == ready.revision() && harness.synchronizedRevisions.back() == ready.revision() &&
                 ready.visibleSequence() == frontend::SequenceNumber(7) && ready.thread("adapter-thread") != nullptr &&
                 ready.thread("adapter-thread")->title == std::optional<std::string>{"runtime title"} && readyUserMessage &&
-                readyUserMessage->text == std::string(16'383, 'm') && readyUserMessage->textTruncated &&
+                readyUserMessage->text == expectedRetainedText && readyUserMessage->textTruncated &&
                 !readyUserMessage->contentTruncated && readyUserMessage->originalContentBytes == readyUserMessage->retainedContentBytes &&
                 readyUserMessage->originalContentItems == 1 && readyUserMessage->retainedContentItems == 1,
             "ClientCore commits the direct public State before state/cursor/synchronized/protocol callbacks in frozen order: " +
