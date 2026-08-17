@@ -752,26 +752,35 @@ namespace ai::openai::codex::frontend::internal::server {
                 std::vector<backend::SequencedBackendEvent> projectedEvents;
                 projectedEvents.reserve(events.size());
                 std::optional<backend::SequenceNumber> processedThrough;
-                const auto flushProjectedEvents = [&]() -> bool {
+                enum class ProjectedFlushResult { Staged, SnapshotPublished, Failed };
+                const auto flushProjectedEvents = [&]() -> ProjectedFlushResult {
                     if (projectedEvents.empty()) {
-                        return true;
+                        return ProjectedFlushResult::Staged;
                     }
-                    model::ModelResult<ProjectedBackendBatch> projected =
-                        projection.projectOccurrences(projectedEvents, runtime.snapshot());
+                    const backend::Snapshot snapshot = runtime.snapshot();
+                    model::ModelResult<ProjectedBackendBatch> projected = projection.projectOccurrences(projectedEvents, snapshot);
                     projectedEvents.clear();
                     if (!bindingCurrent(target) || !projected) {
-                        return false;
+                        return ProjectedFlushResult::Failed;
                     }
                     ProjectedBackendBatch batch = std::move(projected).value();
                     if (batch.snapshotRequired) {
-                        return false;
+                        if (!publishProjectedResynchronization(snapshot, std::move(batch.snapshot), *target)) {
+                            return ProjectedFlushResult::Failed;
+                        }
+                        if (snapshot.sequence.value() > observerProcessedThrough.value()) {
+                            observerProcessedThrough = snapshot.sequence;
+                        }
+                        drainDeferredControllerCompletion();
+                        drainDeferredSessionCloses();
+                        return ProjectedFlushResult::SnapshotPublished;
                     }
                     std::vector<OccurrenceStageRequest> groups;
                     groups.reserve(batch.occurrences.size());
                     for (ProjectedBackendOccurrence& occurrence : batch.occurrences) {
                         groups.push_back({std::move(occurrence.key), std::move(occurrence.occurrence), occurrence.urgency});
                     }
-                    return target->stageGroups(std::move(groups)).accepted();
+                    return target->stageGroups(std::move(groups)).accepted() ? ProjectedFlushResult::Staged : ProjectedFlushResult::Failed;
                 };
                 for (const backend::SequencedBackendEvent& event : events) {
                     if (event.sequence.value() <= observerProcessedThrough.value()) {
@@ -779,8 +788,12 @@ namespace ai::openai::codex::frontend::internal::server {
                     }
                     processedThrough = event.sequence;
                     if (const auto* changed = std::get_if<backend::SessionChanged>(&event.event)) {
-                        if (!flushProjectedEvents()) {
+                        const ProjectedFlushResult flushed = flushProjectedEvents();
+                        if (flushed == ProjectedFlushResult::Failed) {
                             recoverCurrentSnapshot(*target);
+                            return;
+                        }
+                        if (flushed == ProjectedFlushResult::SnapshotPublished) {
                             return;
                         }
                         if (const auto owned = ownedBackendSessions.find(changed->id); owned != ownedBackendSessions.end()) {
@@ -823,8 +836,12 @@ namespace ai::openai::codex::frontend::internal::server {
                         continue;
                     }
                     if (const auto* changed = std::get_if<backend::ControllerChanged>(&event.event)) {
-                        if (!flushProjectedEvents()) {
+                        const ProjectedFlushResult flushed = flushProjectedEvents();
+                        if (flushed == ProjectedFlushResult::Failed) {
                             recoverCurrentSnapshot(*target);
+                            return;
+                        }
+                        if (flushed == ProjectedFlushResult::SnapshotPublished) {
                             return;
                         }
                         const std::optional<backend::SessionId> previous = observedBackendController;
@@ -855,8 +872,12 @@ namespace ai::openai::codex::frontend::internal::server {
                     }
                     projectedEvents.push_back(event);
                 }
-                if (!flushProjectedEvents()) {
+                const ProjectedFlushResult flushed = flushProjectedEvents();
+                if (flushed == ProjectedFlushResult::Failed) {
                     recoverCurrentSnapshot(*target);
+                    return;
+                }
+                if (flushed == ProjectedFlushResult::SnapshotPublished) {
                     return;
                 }
                 if (processedThrough && processedThrough->value() > observerProcessedThrough.value()) {
@@ -959,6 +980,23 @@ namespace ai::openai::codex::frontend::internal::server {
                 return runtime.snapshot();
             } catch (...) {
                 return std::nullopt;
+            }
+        }
+
+        [[nodiscard]] bool publishProjectedResynchronization(const backend::Snapshot& snapshot,
+                                                             model::CanonicalSnapshot projected,
+                                                             ServerCore& target) noexcept {
+            try {
+                if (!reconcileTopology(snapshot)) {
+                    return false;
+                }
+                const std::shared_ptr<ServerCore> current = lockCore();
+                if (!bindingCurrent(current) || current.get() != &target) {
+                    return false;
+                }
+                return target.publishSnapshot(std::move(projected)).accepted;
+            } catch (...) {
+                return false;
             }
         }
 
