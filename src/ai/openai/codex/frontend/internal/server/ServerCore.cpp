@@ -2789,7 +2789,11 @@ namespace ai::openai::codex::frontend::internal::server {
             const auto existing = dirtyOccurrences.find(key);
             if (existing != dirtyOccurrences.end()) {
                 existing->second.occurrence = std::move(occurrence);
-                if (immediate) {
+                // A first item upsert can still be dirty when its content and
+                // terminal replacement arrive. Keep that upsert ahead of the
+                // dependent content update; the replacement already contains
+                // the final accumulated item state.
+                if (immediate && key.kind != OccurrenceEntityKind::Item) {
                     if (nextDirtyInsertionOrder == std::numeric_limits<std::uint64_t>::max()) {
                         dirtySnapshotRequired = true;
                         requirePendingDeliverySnapshot(PendingSnapshotSequenceMode::AdvanceSequence);

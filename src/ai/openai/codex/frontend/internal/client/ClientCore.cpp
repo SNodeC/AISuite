@@ -2931,8 +2931,9 @@ namespace ai::openai::codex::frontend::internal::client {
             }
             ReductionResult reduced = reduceCanonicalOccurrence(candidate, *mergedOccurrence);
             if (!reduced.value.has_value()) {
-                diagnostic(
-                    DiagnosticSeverity::Error, "canonical occurrence reduction rejected an event group", ClientErrorCode::StateDivergence);
+                diagnostic(DiagnosticSeverity::Error,
+                           "canonical occurrence reduction rejected an event group: " + reduced.error,
+                           ClientErrorCode::StateDivergence);
                 return false;
             }
             model::CanonicalSnapshot groupCandidate = std::move(*reduced.value);

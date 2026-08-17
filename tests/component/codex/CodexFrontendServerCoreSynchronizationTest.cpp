@@ -199,6 +199,33 @@ namespace {
                 std::move(expanded)};
     }
 
+    model::OccurrenceDraft itemOccurrence(std::string source, std::string status, std::string text) {
+        model::ItemData data{model::ItemIdentity{"item-order"},
+                             model::ThreadIdentity{"thread-order"},
+                             model::TurnIdentity{"turn-order"}};
+        data.status = std::move(status);
+        data.agentText = std::move(text);
+        model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:" + source},
+                                          model::ItemUpsertedOccurrence{model::AgentMessageItem{std::move(data)}}};
+        occurrence.threadId = model::ThreadIdentity{"thread-order"};
+        occurrence.turnId = model::TurnIdentity{"turn-order"};
+        occurrence.itemId = model::ItemIdentity{"item-order"};
+        return occurrence;
+    }
+
+    model::OccurrenceDraft orderedItemContentOccurrence() {
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-order"}};
+        update.threadId = model::ThreadIdentity{"thread-order"};
+        update.turnId = model::TurnIdentity{"turn-order"};
+        update.channel = "agentText";
+        update.content = "final text";
+        model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:1002"}, std::move(update)};
+        occurrence.threadId = model::ThreadIdentity{"thread-order"};
+        occurrence.turnId = model::TurnIdentity{"turn-order"};
+        occurrence.itemId = model::ItemIdentity{"item-order"};
+        return occurrence;
+    }
+
     model::OccurrenceDraft configurationOccurrence() {
         model::ConfigurationState configuration;
         configuration.state = model::DomainState::present();
@@ -702,6 +729,59 @@ namespace {
                 delivered->events.front().type == "backend.lifecycle.changed" &&
                 delivered->events.front().data.value("lifecycle", std::string{}) == "ready",
             "one observer callback retains one dispatch scope, so an inline scheduler coalesces the same key to its latest value");
+    }
+
+    void testTerminalItemKeepsInitialUpsertOrder(tests::support::TestResult& result) {
+        Backend backend;
+        std::vector<std::function<void()>> scheduled;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.scheduler = [&scheduled](std::function<void()> callback) {
+            scheduled.push_back(std::move(callback));
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> messages;
+        const auto connection = core.openConnection({}, collect(messages));
+        frontend::Hello hello;
+        hello.capabilities = {frontend::FrontendCapability::CompleteThreadItems,
+                              frontend::FrontendCapability::DedicatedNotificationEvents};
+        const bool synchronized = connection && core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted();
+        drainAll(scheduled);
+        messages.clear();
+
+        server::OccurrenceCoalescingKey itemKey;
+        itemKey.kind = server::OccurrenceEntityKind::Item;
+        itemKey.threadId = model::ThreadIdentity{"thread-order"};
+        itemKey.turnId = model::TurnIdentity{"turn-order"};
+        itemKey.itemId = model::ItemIdentity{"item-order"};
+        server::OccurrenceCoalescingKey contentKey = itemKey;
+        contentKey.kind = server::OccurrenceEntityKind::ItemContent;
+        contentKey.channel = "agentText";
+
+        std::vector<server::OccurrenceStageRequest> groups;
+        groups.push_back({itemKey, itemOccurrence("1001", "inProgress", ""), server::OccurrenceFlushUrgency::Deferred});
+        groups.push_back(
+            {std::move(contentKey), orderedItemContentOccurrence(), server::OccurrenceFlushUrgency::Deferred});
+        groups.push_back(
+            {std::move(itemKey), itemOccurrence("1003", "completed", "final text"), server::OccurrenceFlushUrgency::Immediate});
+        const server::OccurrenceStageResult staged = core.stageGroups(std::move(groups));
+        drainAll(scheduled);
+
+        const auto* batch = messages.size() == 1 ? std::get_if<frontend::EventBatch>(&messages.front()) : nullptr;
+        std::string observed = "messages=" + std::to_string(messages.size()) +
+                               " synchronized=" + std::to_string(synchronized) +
+                               " staged=" + std::to_string(staged.accepted()) +
+                               " open=" + std::to_string(connection && core.connectionOpen(*connection));
+        if (batch) {
+            for (const frontend::FrontendEvent& event : batch->events) {
+                observed += " " + event.type;
+            }
+        }
+        result.expectTrue(synchronized && staged.accepted() && batch && batch->events.size() == 2 &&
+                              batch->events[0].type == "item.upserted" && batch->events[1].type == "item.content.updated",
+                          "a coalesced terminal item cannot overtake content that depends on its first upsert (" + observed + ")");
     }
 
     void testIndependentSnapshotCapabilities(tests::support::TestResult& result) {
@@ -2140,6 +2220,7 @@ int main() {
     testTypedBatching(result);
     testScopeFilteredSparseReplay(result);
     testInlineObserverBatchCoalescing(result);
+    testTerminalItemKeepsInitialUpsertOrder(result);
     testIndependentSnapshotCapabilities(result);
     testLegacyOnlyPerConnectionContainment(result);
     testSessionAndControllerJournal(result);
