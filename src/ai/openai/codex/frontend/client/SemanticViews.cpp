@@ -397,6 +397,10 @@ namespace ai::openai::codex::frontend::client {
         return result;
     }
 
+    bool threadIsIdle(const ThreadState& thread) noexcept {
+        return thread.status && *thread.status == "idle";
+    }
+
     ThreadRealtimeSemanticView realtimeSemanticView(const ThreadRealtimeState& realtime) {
         ThreadRealtimeSemanticView result;
         result.lifecycle = realtime.lifecycle;

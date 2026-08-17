@@ -261,7 +261,8 @@ namespace {
         direct.plugins.state = model::DomainState::present();
         direct.platform.state = model::DomainState::present();
         direct.threads.front().safeDetails =
-            *model::SafeDetail::fromJson(frontend::Json{{"realtime",
+            *model::SafeDetail::fromJson(frontend::Json{{"status", "idle"},
+                                                        {"realtime",
                                                          {{"lifecycle", "failed"},
                                                           {"transcript", "hello"},
                                                           {"lastError", "safe realtime error"},
@@ -424,6 +425,23 @@ namespace {
         std::string error;
         const auto first = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
         const client::ThreadState* firstThread = first ? first->thread("adapter-thread") : nullptr;
+        client::ThreadState activeThread;
+        client::ThreadState notLoadedThread;
+        client::ThreadState systemErrorThread;
+        client::ThreadState missingStatusThread;
+        client::ThreadState futureStatusThread;
+        if (firstThread != nullptr) {
+            activeThread = *firstThread;
+            activeThread.status = "active";
+            notLoadedThread = *firstThread;
+            notLoadedThread.status = "notLoaded";
+            systemErrorThread = *firstThread;
+            systemErrorThread.status = "systemError";
+            missingStatusThread = *firstThread;
+            missingStatusThread.status.reset();
+            futureStatusThread = *firstThread;
+            futureStatusThread.status = "futureStatus";
+        }
         result.expectTrue(
             first.has_value() && error.empty() && first->revision() == 41 && first->freshness() == client::StateFreshness::Current &&
                 first->representationMode() == client::RepresentationMode::ExpandedV1 &&
@@ -443,6 +461,10 @@ namespace {
                 first->pendingRequests().size() == 2 && first->pendingRequests().front().questions.has_value() &&
                 first->pendingRequests().front().questions->empty(),
             "CanonicalStateBuilder maps the canonical typed publication directly into every sampled public State border");
+        result.expectTrue(firstThread != nullptr && client::threadIsIdle(*firstThread) && !client::threadIsIdle(activeThread) &&
+                              !client::threadIsIdle(notLoadedThread) && !client::threadIsIdle(systemErrorThread) &&
+                              !client::threadIsIdle(missingStatusThread) && !client::threadIsIdle(futureStatusThread),
+                          "the typed thread-idle predicate recognizes only the canonical idle status and fails closed otherwise");
 
         const client::TurnState* publicTurn = first ? first->turn("semantic-turn") : nullptr;
         const client::ItemState* publicItem = first ? first->item("semantic-item") : nullptr;

@@ -132,6 +132,14 @@ if(user_message_view_index EQUAL -1)
     message(FATAL_ERROR "userMessageSemanticView is not exported")
 endif()
 
+string(FIND "${symbols}"
+            "ai::openai::codex::frontend::client::threadIsIdle"
+            thread_is_idle_index
+)
+if(thread_is_idle_index EQUAL -1)
+    message(FATAL_ERROR "threadIsIdle is not exported")
+endif()
+
 string(REGEX MATCHALL "[^\n]*ai::openai::codex::frontend::client::[^\n]*"
              client_exports "${symbols}"
 )

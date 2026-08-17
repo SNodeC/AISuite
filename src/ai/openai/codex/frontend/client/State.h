@@ -100,6 +100,7 @@ namespace ai::openai::codex::frontend::client {
 
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<TurnTokenUsageView> tokenUsageView(const TurnState& turn);
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<TurnFailureView> failureView(const TurnState& turn);
+    [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT bool threadIsIdle(const ThreadState& thread) noexcept;
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT ThreadRealtimeSemanticView
     realtimeSemanticView(const ThreadRealtimeState& realtime);
     [[nodiscard]] AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_EXPORT std::optional<UserMessageSemanticView>
