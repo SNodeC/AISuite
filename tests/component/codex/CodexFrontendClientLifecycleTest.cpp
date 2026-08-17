@@ -29,6 +29,7 @@ namespace {
     struct Harness {
         std::vector<client::OutboundMessage> messages;
         std::vector<client::ConnectionState> states;
+        std::vector<std::optional<client::Error>> stateErrors;
         std::size_t closes = 0;
         std::size_t diagnostics = 0;
         bool rejectCommands = false;
@@ -58,6 +59,7 @@ namespace {
             return {
                 [this](const client::ConnectionStateChange& change) {
                     states.push_back(change.current);
+                    stateErrors.push_back(change.error);
                 },
                 {},
                 {},
@@ -1724,9 +1726,14 @@ namespace {
         fatal.message = "fatal protocol error";
         fatal.closeConnection = true;
         (void) connection.receive(frontend::ServerMessage{fatal});
+        const std::optional<client::Error> terminalError =
+            harness.stateErrors.empty() ? std::nullopt : harness.stateErrors.back();
         result.expectTrue(completions == 1 && observations == 2 && fatalObservations == 1 && harness.closes == 1 && !connection.isOpen() &&
-                              sdk.connectionState() == client::ConnectionState::Disconnected,
-                          "a fatal protocol.error is observed exactly once and then closes only the current connection");
+                              sdk.connectionState() == client::ConnectionState::Disconnected && terminalError &&
+                              terminalError->origin == client::ErrorOrigin::Protocol &&
+                              terminalError->protocolCode == frontend::ErrorCode::InvalidCommand &&
+                              terminalError->message == "fatal protocol error" && !terminalError->retryable,
+                          "a fatal protocol.error is classified as non-retryable and then closes only the current connection");
     }
 
     void testIdentifierExhaustionAndInvalidMethod(tests::support::TestResult& result) {

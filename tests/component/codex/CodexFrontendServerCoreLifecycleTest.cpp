@@ -314,14 +314,75 @@ namespace {
         snapshotOptions.authenticator = authenticate;
         server::ServerCore snapshotCore(snapshotBackend, std::move(snapshotOptions));
         snapshotCore.start();
-        const auto snapshotConnection = snapshotCore.openConnection({}, {[](const frontend::ServerMessage&) {
-                                                                              return true;
-                                                                          },
-                                                                          [](const server::ConnectionClose&) {
-                                                                          }});
+        std::vector<frontend::ServerMessage> snapshotMessages;
+        std::vector<server::ConnectionClose> snapshotCloses;
+        std::size_t snapshotMessageCountAtClose = 0;
+        const auto snapshotConnection =
+            snapshotCore.openConnection({}, {[&snapshotMessages](const frontend::ServerMessage& message) {
+                                                  snapshotMessages.push_back(message);
+                                                  return true;
+                                              },
+                                              [&snapshotMessages, &snapshotCloses, &snapshotMessageCountAtClose](
+                                                  const server::ConnectionClose& close) {
+                                                  snapshotMessageCountAtClose = snapshotMessages.size();
+                                                  snapshotCloses.push_back(close);
+                                              }});
         const server::ReceiveResult failedSnapshot = snapshotCore.receive(*snapshotConnection, frontend::ClientMessage{frontend::Hello{}});
-        result.expectTrue(failedSnapshot.status == server::ReceiveStatus::Closing && snapshotCore.connectionCount() == 0,
-                          "a throwing backend snapshot is contained at synchronization and closes only that connection");
+        const auto* terminalSnapshotError =
+            snapshotMessages.size() == 2 ? std::get_if<frontend::ProtocolErrorMessage>(&snapshotMessages.back()) : nullptr;
+        result.expectTrue(failedSnapshot.status == server::ReceiveStatus::Closing && failedSnapshot.error &&
+                              failedSnapshot.error->code == frontend::ErrorCode::InternalError &&
+                              failedSnapshot.error->closeConnection && snapshotMessages.size() == 2 &&
+                              std::holds_alternative<frontend::Welcome>(snapshotMessages.front()) && terminalSnapshotError &&
+                              terminalSnapshotError->code == frontend::ErrorCode::InternalError &&
+                              terminalSnapshotError->message == "frontend initial synchronization failed" &&
+                              terminalSnapshotError->closeConnection && snapshotMessageCountAtClose == 2 && snapshotCloses.size() == 1 &&
+                              snapshotCloses.front().reason == "frontend initial synchronization failed" &&
+                              snapshotCloses.front().protocolCode == frontend::ErrorCode::InternalError &&
+                              !snapshotCloses.front().clean &&
+                              snapshotCore.connectionCount() == 0,
+                          "a throwing backend snapshot emits one terminal protocol error after Welcome and closes after it drains");
+
+        Backend liveSnapshotBackend;
+        server::ServerCoreOptions liveSnapshotOptions;
+        liveSnapshotOptions.authenticator = authenticate;
+        server::ServerCore liveSnapshotCore(liveSnapshotBackend, std::move(liveSnapshotOptions));
+        liveSnapshotCore.start();
+        std::vector<frontend::ServerMessage> liveSnapshotMessages;
+        std::vector<server::ConnectionClose> liveSnapshotCloses;
+        std::size_t liveSnapshotMessageCountAtClose = 0;
+        const auto liveSnapshotConnection =
+            liveSnapshotCore.openConnection({}, {[&liveSnapshotMessages](const frontend::ServerMessage& message) {
+                                                      liveSnapshotMessages.push_back(message);
+                                                      return true;
+                                                  },
+                                                  [&liveSnapshotMessages, &liveSnapshotCloses, &liveSnapshotMessageCountAtClose](
+                                                      const server::ConnectionClose& close) {
+                                                      liveSnapshotMessageCountAtClose = liveSnapshotMessages.size();
+                                                      liveSnapshotCloses.push_back(close);
+                                                  }});
+        const bool liveSnapshotReady =
+            liveSnapshotConnection &&
+            liveSnapshotCore.receive(*liveSnapshotConnection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        liveSnapshotMessages.clear();
+        model::CanonicalSnapshot unencodableSnapshot;
+        model::ItemData unencodableItem{model::ItemIdentity{"oversized-live-item"}};
+        unencodableItem.agentText = std::string(16'385, 'x');
+        unencodableSnapshot.items.emplace_back(model::AgentMessageItem{std::move(unencodableItem)});
+        const server::SnapshotPublishResult failedLiveSnapshot = liveSnapshotCore.publishSnapshot(std::move(unencodableSnapshot));
+        const auto* terminalLiveSnapshotError = liveSnapshotMessages.size() == 1
+                                                    ? std::get_if<frontend::ProtocolErrorMessage>(&liveSnapshotMessages.front())
+                                                    : nullptr;
+        result.expectTrue(liveSnapshotReady && failedLiveSnapshot.accepted && !failedLiveSnapshot.error &&
+                              failedLiveSnapshot.recipientCount == 0 && terminalLiveSnapshotError &&
+                              terminalLiveSnapshotError->code == frontend::ErrorCode::InternalError &&
+                              terminalLiveSnapshotError->message ==
+                                  "frontend live snapshot projection or queueing failed" &&
+                              terminalLiveSnapshotError->closeConnection && liveSnapshotMessageCountAtClose == 1 &&
+                              liveSnapshotCloses.size() == 1 &&
+                              liveSnapshotCloses.front().protocolCode == frontend::ErrorCode::InternalError &&
+                              !liveSnapshotCloses.front().clean && liveSnapshotCore.connectionCount() == 0,
+                          "an unencodable live Snapshot emits one terminal protocol error before closing only its recipient");
 
         Backend protocolBackend;
         std::vector<std::function<void()>> protocolScheduled;
