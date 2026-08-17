@@ -10,6 +10,7 @@
 #include "support/TestResult.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <functional>
 #include <limits>
@@ -1736,6 +1737,44 @@ namespace {
                           "a fatal protocol.error is classified as non-retryable and then closes only the current connection");
     }
 
+    void testTerminalProtocolErrorRetryability(tests::support::TestResult& result) {
+        struct Case {
+            frontend::ErrorCode code;
+            bool retryable;
+        };
+        constexpr std::array cases{
+            Case{frontend::ErrorCode::InternalError, true},
+            Case{frontend::ErrorCode::BackendUnavailable, true},
+            Case{frontend::ErrorCode::RateLimited, true},
+            Case{frontend::ErrorCode::InvalidCommand, false},
+            Case{frontend::ErrorCode::AuthenticationFailed, false},
+            Case{frontend::ErrorCode::FrameTooLarge, false},
+            Case{frontend::ErrorCode::CapacityExceeded, false},
+        };
+
+        for (const Case& testCase : cases) {
+            Harness harness;
+            client::Client sdk(options(), harness.callbacks());
+            client::Connection connection = sdk.openConnection(harness.transport());
+            connection.transportConnected();
+            makeReady(connection);
+
+            frontend::ProtocolErrorMessage terminal;
+            terminal.code = testCase.code;
+            terminal.message = "classified terminal protocol error";
+            terminal.closeConnection = true;
+            (void) connection.receive(frontend::ServerMessage{terminal});
+
+            const std::optional<client::Error> observed =
+                harness.stateErrors.empty() ? std::nullopt : harness.stateErrors.back();
+            result.expectTrue(observed && observed->origin == client::ErrorOrigin::Protocol &&
+                                  observed->protocolCode == testCase.code && observed->retryable == testCase.retryable &&
+                                  sdk.connectionState() == client::ConnectionState::Disconnected && harness.closes == 1,
+                              "terminal protocol error exposes its automatic-reconnect classification: " +
+                                  std::string(frontend::toString(testCase.code)));
+        }
+    }
+
     void testIdentifierExhaustionAndInvalidMethod(tests::support::TestResult& result) {
         using MethodUnderlying = std::underlying_type_t<generated::MethodId>;
         const generated::MethodId invalidMethod = static_cast<generated::MethodId>(std::numeric_limits<MethodUnderlying>::max());
@@ -1793,6 +1832,7 @@ int main() {
     testMalformedOptionalLegacySnapshotsAreContained(result);
     testAtomicDisconnectCallbacks(result);
     testProtocolFailureCallbackCommitOrdering(result);
+    testTerminalProtocolErrorRetryability(result);
     testExplicitCloseCallbackCommitOrdering(result);
     testGeneratedReverseRequestRejectsStaleSession(result);
     testReentrantConnectionCloseDuringClientClose(result);
