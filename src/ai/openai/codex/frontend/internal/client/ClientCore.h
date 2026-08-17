@@ -138,6 +138,7 @@ namespace ai::openai::codex::frontend::internal::client {
 
     struct ClientLimits {
         std::size_t maximumInboundMessageBytes = 16U * 1024U * 1024U;
+        std::size_t maximumOutboundMessageBytes = DefaultFrontendMaximumInboundMessageBytes;
         std::size_t maximumDecodedStateBytes = 64U * 1024U * 1024U;
         std::size_t maximumRetainedEntities = 1U << 20U;
         std::size_t maximumPendingOperations = 256;

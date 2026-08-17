@@ -565,6 +565,10 @@ namespace ai::openai::codex::frontend::client {
                 std::string compact = encoded.dump();
                 encodedGuard.run();
                 const std::size_t serializedBytes = compact.size();
+                if (serializedBytes > frontend::DefaultFrontendMaximumInboundMessageBytes) {
+                    eraseTransientString(compact);
+                    return {core::SendStatus::Failed, core::TransportError{"frontend message exceeds the peer input limit", false}};
+                }
                 OutboundMessage outbound{kind, std::move(compact), serializedBytes, message.sensitive};
                 if (message.sensitive) {
                     eraseTransientString(compact, true);
