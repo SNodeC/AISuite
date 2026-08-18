@@ -4,6 +4,7 @@
 #include "support/TestResult.h"
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <optional>
 #include <span>
@@ -118,8 +119,10 @@ namespace {
         return canonical;
     }
 
-    frontend::Snapshot projectedSnapshot(model::CanonicalSnapshot state, const std::vector<frontend::FrontendCapability>& selected) {
-        const auto projected = model::encodeProjectedSnapshot(state, selected);
+    frontend::Snapshot projectedSnapshot(model::CanonicalSnapshot state,
+                                         const std::vector<frontend::FrontendCapability>& selected,
+                                         model::ItemContentWireMode itemContentMode = model::ItemContentWireMode::Replacement) {
+        const auto projected = model::encodeProjectedSnapshot(state, selected, itemContentMode);
         if (!projected) {
             throw std::runtime_error(projected.error().path + ": " + projected.error().message);
         }
@@ -218,15 +221,38 @@ namespace {
         return occurrenceEvent(sequence, std::move(content), expanded);
     }
 
+    frontend::FrontendEvent itemContentAppendEvent(std::uint64_t sequence,
+                                                   std::uint64_t baseContentBytes,
+                                                   std::string delta) {
+        return {frontend::SequenceNumber{sequence},
+                "item.content.updated",
+                {{"threadId", "partial-thread"},
+                 {"turnId", "partial-turn"},
+                 {"itemId", "partial-item"},
+                 {"channel", "commandOutput"},
+                 {"content", ""},
+                 {"contentDelta", std::move(delta)},
+                 {"baseContentBytes", baseContentBytes},
+                 {"contentTruncated", false},
+                 {"droppedContentBytes", std::uint64_t{0}}}};
+    }
+
     core::PhysicalGeneration
-    readyWithCapabilities(core::ClientCore& client, Harness& harness, const std::vector<frontend::FrontendCapability>& selected) {
+    readyWithCapabilities(core::ClientCore& client,
+                          Harness& harness,
+                          const std::vector<frontend::FrontendCapability>& selected,
+                          bool selectItemContentAppend = false) {
         const core::PhysicalGeneration generation = *client.attach(harness.transport());
         client.transportConnected(generation);
+        frontend::Json extensions{{"permittedScopes", frontend::Json::array({"observe"})}};
+        if (selectItemContentAppend) {
+            extensions["projection"] = {{"itemContentUpdateMode", "append-v1"}};
+        }
         frontend::Welcome selectedWelcome{"partial-session",
                                           frontend::SessionRole::Observer,
                                           frontend::SequenceNumber(0),
                                           frontend::SyncMode::Snapshot,
-                                          {{"permittedScopes", frontend::Json::array({"observe"})}},
+                                          std::move(extensions),
                                           representationCapabilities(selected),
                                           allMethods(),
                                           allMethods()};
@@ -766,6 +792,49 @@ namespace {
         }
     }
 
+    void testClosingProtocolErrorAcceptance(tests::support::TestResult& result) {
+        struct Case {
+            frontend::ErrorCode code;
+            bool retryable;
+        };
+        constexpr std::array cases{
+            Case{frontend::ErrorCode::InternalError, true},
+            Case{frontend::ErrorCode::InvalidCommand, false},
+        };
+
+        for (const Case& testCase : cases) {
+            Harness harness;
+            std::vector<core::StateChange> stateChanges;
+            std::size_t protocolMessages = 0;
+            core::ClientCallbacks callbacks;
+            callbacks.onConnectionStateChanged = [&stateChanges](const core::StateChange& change) {
+                stateChanges.push_back(change);
+            };
+            callbacks.onProtocolMessage = [&protocolMessages](const frontend::ServerMessage&) {
+                ++protocolMessages;
+            };
+            core::ClientCore client(clientOptions(), std::move(callbacks));
+            const core::PhysicalGeneration generation = *client.attach(harness.transport());
+            client.transportConnected(generation);
+
+            frontend::ProtocolErrorMessage closing;
+            closing.code = testCase.code;
+            closing.message = "classified closing protocol error";
+            closing.closeConnection = true;
+            const bool accepted = client.receive(generation, frontend::ServerMessage{std::move(closing)});
+            const auto terminal = std::find_if(stateChanges.rbegin(), stateChanges.rend(), [](const core::StateChange& change) {
+                return change.current == core::ConnectionState::Disconnected;
+            });
+
+            result.expectTrue(accepted && client.connectionState() == core::ConnectionState::Disconnected && protocolMessages == 1 &&
+                                  terminal != stateChanges.rend() && terminal->error.has_value() &&
+                                  terminal->error->origin == core::ErrorOrigin::Protocol &&
+                                  terminal->error->protocolCode == testCase.code && terminal->error->retryable == testCase.retryable,
+                              "a semantically accepted closing protocol error preserves its retry classification: " +
+                                  std::string(frontend::toString(testCase.code)));
+        }
+    }
+
     void testCompatibilityExtensionFallback(tests::support::TestResult& result) {
         Harness harness;
         std::vector<std::string> observedMethods;
@@ -862,6 +931,268 @@ namespace {
                           "one EventBatch cannot mix independently negotiated expanded and legacy occurrence groups");
     }
 
+    void testBatchReductionIsTransactional(tests::support::TestResult& result) {
+        const std::vector<frontend::FrontendCapability> items{
+            frontend::FrontendCapability::CompleteThreadItems,
+        };
+        Harness harness;
+        std::vector<std::string> diagnostics;
+        core::ClientCallbacks callbacks;
+        callbacks.onDiagnostic = [&diagnostics](const core::Diagnostic& diagnostic) {
+            diagnostics.push_back(diagnostic.message);
+        };
+        core::ClientOptions options = clientOptions();
+        options.requestedCapabilities = items;
+        core::ClientCore client(std::move(options), std::move(callbacks));
+        const core::PhysicalGeneration generation = readyWithCapabilities(client, harness, items);
+        const auto before = client.state();
+
+        frontend::FrontendEvent valid = itemContentEvent(1, true);
+        model::ItemContentUpdatedOccurrence missing{model::ItemIdentity{"missing-item"}};
+        missing.threadId = model::ThreadIdentity{"partial-thread"};
+        missing.turnId = model::TurnIdentity{"partial-turn"};
+        missing.channel = "commandOutput";
+        missing.content = "must not publish";
+        frontend::FrontendEvent invalid = occurrenceEvent(2, std::move(missing), true);
+        const bool accepted = client.receive(
+            generation,
+            frontend::ServerMessage{
+                frontend::EventBatch{valid.sequence, invalid.sequence, {std::move(valid), std::move(invalid)}}});
+        const auto after = client.state();
+        const model::ThreadItem* item = after ? after->item("partial-item") : nullptr;
+        const bool reductionRejected = std::ranges::any_of(diagnostics, [](const std::string& diagnostic) {
+            return diagnostic.find("canonical occurrence reduction rejected an event group") != std::string::npos;
+        });
+        result.expectTrue(!accepted && client.connectionState() == core::ConnectionState::Disconnected && reductionRejected,
+                          "the invalid second occurrence rejects the complete event batch");
+        result.expectTrue(before && after && before->snapshot && after->snapshot && *after->snapshot == *before->snapshot,
+                          "a rejected event batch retains the prior canonical public State rather than its private candidate");
+        result.expectTrue(item != nullptr &&
+                              model::itemData(*item).commandOutput == std::optional<std::string>{"initial"},
+                          "a rejected event batch does not leak its earlier valid occurrence into public State");
+    }
+
+    void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
+        const std::vector<frontend::FrontendCapability> items{frontend::FrontendCapability::CompleteThreadItems};
+        Harness harness;
+        bool observedReplacementChange = false;
+        core::ClientCallbacks callbacks;
+        callbacks.onStateUpdated = [&observedReplacementChange](const core::StateUpdate& update) {
+            observedReplacementChange = observedReplacementChange || std::ranges::any_of(update.changes, [](const core::Change& change) {
+                                            const auto* content = std::get_if<model::ItemContentUpdatedOccurrence>(&change);
+                                            return content != nullptr && content->appendWireRepresentation;
+                                        });
+        };
+        core::ClientOptions options = clientOptions();
+        options.requestedCapabilities = items;
+        core::ClientCore client(std::move(options), std::move(callbacks));
+        const core::PhysicalGeneration generation = readyWithCapabilities(client, harness, items, true);
+        const auto* hello = !harness.outbound.empty() ? std::get_if<frontend::Hello>(&harness.outbound.front().value) : nullptr;
+        const frontend::Json* requestedModes = nullptr;
+        if (hello != nullptr) {
+            const auto projection = hello->extensions.find("projection");
+            if (projection != hello->extensions.end() && projection->is_object()) {
+                const auto modes = projection->find("itemContentUpdateModes");
+                if (modes != projection->end()) {
+                    requestedModes = &*modes;
+                }
+            }
+        }
+        frontend::FrontendEvent append = itemContentAppendEvent(1, 7, "+delta");
+        const bool accepted = client.receive(
+            generation,
+            frontend::ServerMessage{frontend::EventBatch{append.sequence, append.sequence, {std::move(append)}}});
+        const model::ThreadItem* item = client.state() ? client.state()->item("partial-item") : nullptr;
+        result.expectTrue(requestedModes != nullptr && *requestedModes == frontend::Json::array({"append-v1"}),
+                          "client Hello explicitly offers the append-v1 item-content update mode");
+        result.expectTrue(accepted && client.ready() && item != nullptr &&
+                              model::itemData(*item).commandOutput == std::optional<std::string>{"initial+delta"} &&
+                              observedReplacementChange,
+                          "a Welcome-selected append-v1 update reduces canonically and remains an item-content replacement change");
+
+        Harness legacyHarness;
+        core::ClientOptions legacyOptions = clientOptions();
+        legacyOptions.requestedCapabilities = items;
+        core::ClientCore legacy(std::move(legacyOptions));
+        const core::PhysicalGeneration legacyGeneration = readyWithCapabilities(legacy, legacyHarness, items);
+        frontend::FrontendEvent unnegotiated = itemContentAppendEvent(1, 7, "+delta");
+        const bool unnegotiatedAccepted = legacy.receive(
+            legacyGeneration,
+            frontend::ServerMessage{
+                frontend::EventBatch{unnegotiated.sequence, unnegotiated.sequence, {std::move(unnegotiated)}}});
+        result.expectTrue(!unnegotiatedAccepted && legacy.connectionState() == core::ConnectionState::Disconnected,
+                          "append-v1 wire data is rejected unless the Welcome selected the exact offered mode");
+
+        Harness invalidHarness;
+        core::ClientOptions invalidOptions = clientOptions();
+        invalidOptions.requestedCapabilities = items;
+        core::ClientCore invalid(std::move(invalidOptions));
+        const core::PhysicalGeneration invalidGeneration = *invalid.attach(invalidHarness.transport());
+        invalid.transportConnected(invalidGeneration);
+        frontend::Welcome invalidWelcome{"invalid-append-session",
+                                         frontend::SessionRole::Observer,
+                                         frontend::SequenceNumber{0},
+                                         frontend::SyncMode::Snapshot,
+                                         {{"permittedScopes", frontend::Json::array({"observe"})},
+                                          {"projection", {{"itemContentUpdateMode", "future-mode"}}}},
+                                         representationCapabilities(items),
+                                         allMethods(),
+                                         allMethods()};
+        const bool invalidAccepted = invalid.receive(invalidGeneration, frontend::ServerMessage{std::move(invalidWelcome)});
+        result.expectTrue(!invalidAccepted && invalid.connectionState() == core::ConnectionState::Disconnected,
+                          "an unoffered item-content update mode in Welcome is a protocol error");
+
+        const std::string overflowPrefix(16'384, 'p');
+        const std::string overflowSuffix = " retained";
+        const auto overflowState = [&](std::uint64_t sequence, const std::string& suffix) {
+            model::CanonicalSnapshot canonical = itemSnapshotState(sequence);
+            std::visit(
+                [&](auto& value) {
+                    value.value.agentText = overflowPrefix;
+                    value.value.agentTextOverflowV1 = model::ItemContentOverflowV1{
+                        static_cast<std::uint64_t>(overflowPrefix.size()), suffix, 0, false, false};
+                    value.value.contentTruncated = true;
+                    value.value.droppedContentBytes = static_cast<std::uint64_t>(suffix.size());
+                    value.value.truncation.truncated = true;
+                    value.value.truncation.droppedBytes = static_cast<std::uint64_t>(suffix.size());
+                    value.value.truncation.omittedPaths = {"/agentText"};
+                },
+                canonical.items.front());
+            return canonical;
+        };
+        const auto appendWelcome = [](const std::vector<frontend::FrontendCapability>& selected) {
+            return frontend::Welcome{"overflow-session",
+                                     frontend::SessionRole::Observer,
+                                     frontend::SequenceNumber{0},
+                                     frontend::SyncMode::Snapshot,
+                                     {{"permittedScopes", frontend::Json::array({"observe"})},
+                                      {"projection", {{"itemContentUpdateMode", "append-v1"}}}},
+                                     representationCapabilities(selected),
+                                     allMethods(),
+                                     allMethods()};
+        };
+
+        const std::vector<frontend::FrontendCapability> expandedItems{
+            frontend::FrontendCapability::CompleteBackendDomains, frontend::FrontendCapability::CompleteThreadItems};
+        Harness overflowHarness;
+        core::ClientOptions overflowOptions = clientOptions();
+        overflowOptions.requestedCapabilities = expandedItems;
+        core::ClientCore overflowClient(std::move(overflowOptions));
+        const core::PhysicalGeneration overflowGeneration = *overflowClient.attach(overflowHarness.transport());
+        overflowClient.transportConnected(overflowGeneration);
+        const bool overflowWelcomeAccepted =
+            overflowClient.receive(overflowGeneration, frontend::ServerMessage{appendWelcome(expandedItems)});
+        const bool overflowSnapshotAccepted = overflowClient.receive(
+            overflowGeneration,
+            frontend::ServerMessage{projectedSnapshot(
+                overflowState(0, overflowSuffix), expandedItems, model::ItemContentWireMode::AppendV1)});
+        const bool overflowSynchronized = overflowClient.receive(
+            overflowGeneration, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber{0}}});
+        const model::ThreadItem* overflowSnapshotItem =
+            overflowClient.state() ? overflowClient.state()->item("partial-item") : nullptr;
+        const bool overflowSnapshotExact =
+            overflowSnapshotItem != nullptr &&
+            model::itemData(*overflowSnapshotItem).agentText == std::optional<std::string>{overflowPrefix + overflowSuffix};
+
+        model::ItemContentUpdatedOccurrence pastFrozen{model::ItemIdentity{"partial-item"}};
+        pastFrozen.threadId = model::ThreadIdentity{"partial-thread"};
+        pastFrozen.turnId = model::TurnIdentity{"partial-turn"};
+        pastFrozen.channel = "agentText";
+        pastFrozen.content = overflowPrefix;
+        pastFrozen.truncation.truncated = true;
+        pastFrozen.truncation.droppedBytes = static_cast<std::uint64_t>(overflowSuffix.size() + 5);
+        pastFrozen.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(overflowPrefix.size()),
+                                                            overflowSuffix + " next",
+                                                            0,
+                                                            false,
+                                                            false};
+        pastFrozen.appendHint = model::ItemContentAppendHint{
+            static_cast<std::uint64_t>(overflowPrefix.size() + overflowSuffix.size()), " next", true};
+        model::OccurrenceIdentity pastFrozenIdentity{model::FrontendSequence{1},
+                                                     model::OccurrenceGroupIdentity{"overflow-live"},
+                                                     0,
+                                                     1,
+                                                     model::SourceStamp{"overflow-live"}};
+        const auto pastFrozenOccurrence = model::makeOccurrence(std::move(pastFrozenIdentity), std::move(pastFrozen));
+        const auto pastFrozenEncoded =
+            pastFrozenOccurrence
+                ? model::encodeExpandedOccurrence(pastFrozenOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{pastFrozenOccurrence.error()};
+        if (!pastFrozenEncoded) {
+            result.expectTrue(false, "past-boundary append-v1 occurrence encodes for ClientCore synchronization");
+            return;
+        }
+        const frontend::ExpandedFrontendEvent& pastFrozenExpanded = pastFrozenEncoded.value().front();
+        frontend::FrontendEvent pastFrozenEvent{pastFrozenExpanded.sequence,
+                                                std::string(frontend::toString(pastFrozenExpanded.type)),
+                                                pastFrozenExpanded.data,
+                                                pastFrozenExpanded.extensions};
+        const bool pastFrozenAccepted = overflowClient.receive(
+            overflowGeneration,
+            frontend::ServerMessage{
+                frontend::EventBatch{pastFrozenEvent.sequence, pastFrozenEvent.sequence, {std::move(pastFrozenEvent)}}});
+        const model::ThreadItem* pastFrozenItem =
+            overflowClient.state() ? overflowClient.state()->item("partial-item") : nullptr;
+        const bool pastFrozenExact =
+            pastFrozenItem != nullptr &&
+            model::itemData(*pastFrozenItem).agentText ==
+                std::optional<std::string>{overflowPrefix + overflowSuffix + " next"};
+
+        model::CanonicalSnapshot terminalState = overflowState(2, overflowSuffix + " next done");
+        model::OccurrenceIdentity terminalIdentity{model::FrontendSequence{2},
+                                                   model::OccurrenceGroupIdentity{"overflow-terminal"},
+                                                   0,
+                                                   1,
+                                                   model::SourceStamp{"overflow-terminal"}};
+        const auto terminalOccurrence = model::makeOccurrence(
+            std::move(terminalIdentity), model::ItemUpsertedOccurrence{terminalState.items.front()});
+        const auto terminalEncoded =
+            terminalOccurrence
+                ? model::encodeExpandedOccurrence(terminalOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{terminalOccurrence.error()};
+        if (!terminalEncoded) {
+            result.expectTrue(false, "terminal overflow ItemUpserted occurrence encodes for ClientCore synchronization");
+            return;
+        }
+        const frontend::ExpandedFrontendEvent& terminalExpanded = terminalEncoded.value().front();
+        frontend::FrontendEvent terminalEvent{terminalExpanded.sequence,
+                                              std::string(frontend::toString(terminalExpanded.type)),
+                                              terminalExpanded.data,
+                                              terminalExpanded.extensions};
+        const bool terminalAccepted = overflowClient.receive(
+            overflowGeneration,
+            frontend::ServerMessage{frontend::EventBatch{terminalEvent.sequence, terminalEvent.sequence, {std::move(terminalEvent)}}});
+        const model::ThreadItem* terminalItem =
+            overflowClient.state() ? overflowClient.state()->item("partial-item") : nullptr;
+        result.expectTrue(
+            overflowWelcomeAccepted && overflowSnapshotAccepted && overflowSynchronized && overflowSnapshotExact &&
+                pastFrozenEncoded && pastFrozenEncoded.value().front().data.value("baseContentBytes", std::uint64_t{0}) > 16'384 &&
+                pastFrozenAccepted && pastFrozenExact &&
+                terminalAccepted && terminalItem != nullptr &&
+                model::itemData(*terminalItem).agentText ==
+                    std::optional<std::string>{overflowPrefix + overflowSuffix + " next done"},
+            "negotiated ClientCore publishes exact overflow text for initial snapshots, past-boundary live appends, and terminal upserts");
+
+        Harness hybridHarness;
+        core::ClientOptions hybridOptions = clientOptions();
+        hybridOptions.requestedCapabilities = items;
+        core::ClientCore hybridClient(std::move(hybridOptions));
+        const core::PhysicalGeneration hybridGeneration = *hybridClient.attach(hybridHarness.transport());
+        hybridClient.transportConnected(hybridGeneration);
+        const bool hybridWelcomeAccepted = hybridClient.receive(hybridGeneration, frontend::ServerMessage{appendWelcome(items)});
+        const bool hybridSnapshotAccepted = hybridClient.receive(
+            hybridGeneration,
+            frontend::ServerMessage{
+                projectedSnapshot(overflowState(0, overflowSuffix), items, model::ItemContentWireMode::AppendV1)});
+        const bool hybridSynchronized = hybridClient.receive(
+            hybridGeneration, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber{0}}});
+        const model::ThreadItem* hybridItem = hybridClient.state() ? hybridClient.state()->item("partial-item") : nullptr;
+        result.expectTrue(hybridWelcomeAccepted && hybridSnapshotAccepted && hybridSynchronized && hybridItem != nullptr &&
+                              model::itemData(*hybridItem).agentText ==
+                                  std::optional<std::string>{overflowPrefix + overflowSuffix},
+                          "append-v1 restores overflow in the CompleteThreadItems hybrid snapshot representation");
+    }
+
     void testLegacyUnknownCompatibility(tests::support::TestResult& result) {
         Harness harness;
         core::ClientOptions options = clientOptions();
@@ -940,8 +1271,11 @@ int main() {
     testProjectedSequenceRules(result);
     testLiveSnapshotCursorRules(result);
     testLiveCallbackLifecycleInvalidation(result);
+    testClosingProtocolErrorAcceptance(result);
     testCompatibilityExtensionFallback(result);
     testIndependentEventRepresentations(result);
+    testBatchReductionIsTransactional(result);
+    testNegotiatedItemContentAppend(result);
     testLegacyUnknownCompatibility(result);
     return result.processResult();
 }

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <span>
@@ -28,6 +29,119 @@ namespace ai::openai::codex::frontend::internal::server {
     }
 
     namespace {
+
+        constexpr std::string_view ItemContentAppendMode = "append-v1";
+
+        [[nodiscard]] bool requestsItemContentAppend(const Json& extensions) noexcept {
+            try {
+                const auto projection = extensions.find("projection");
+                if (projection == extensions.end() || !projection->is_object()) {
+                    return false;
+                }
+                const auto modes = projection->find("itemContentUpdateModes");
+                return modes != projection->end() && modes->is_array() &&
+                       std::any_of(modes->begin(), modes->end(), [](const Json& mode) {
+                           return mode.is_string() && mode.get_ref<const std::string&>() == ItemContentAppendMode;
+                       });
+            } catch (...) {
+                return false;
+            }
+        }
+
+        model::ItemContentUpdatedOccurrence* itemContentUpdate(model::OccurrenceDraft& occurrence) noexcept {
+            model::ItemContentUpdatedOccurrence* found = nullptr;
+            for (model::OccurrencePayload& payload : occurrence.expandedPayloads) {
+                auto* update = std::get_if<model::ItemContentUpdatedOccurrence>(&payload);
+                if (update == nullptr) {
+                    continue;
+                }
+                if (found != nullptr) {
+                    return nullptr;
+                }
+                found = update;
+            }
+            return found;
+        }
+
+        const model::ItemContentUpdatedOccurrence* itemContentUpdate(const model::OccurrenceDraft& occurrence) noexcept {
+            const model::ItemContentUpdatedOccurrence* found = nullptr;
+            for (const model::OccurrencePayload& payload : occurrence.expandedPayloads) {
+                const auto* update = std::get_if<model::ItemContentUpdatedOccurrence>(&payload);
+                if (update == nullptr) {
+                    continue;
+                }
+                if (found != nullptr) {
+                    return nullptr;
+                }
+                found = update;
+            }
+            return found;
+        }
+
+        void coalesceItemContentAppendHint(const model::OccurrenceDraft& previous,
+                                           model::OccurrenceDraft& replacement) noexcept {
+            model::ItemContentUpdatedOccurrence* next = itemContentUpdate(replacement);
+            const model::ItemContentUpdatedOccurrence* prior = itemContentUpdate(previous);
+            if (next == nullptr || prior == nullptr || !next->appendHint.has_value() || !prior->appendHint.has_value()) {
+                if (next != nullptr) {
+                    next->appendHint.reset();
+                }
+                return;
+            }
+
+            constexpr std::size_t MaximumAppendBytes = 64U * 1024U;
+            const model::ItemContentAppendHint& first = *prior->appendHint;
+            const model::ItemContentAppendHint& second = *next->appendHint;
+            const std::uint64_t firstDeltaBytes = static_cast<std::uint64_t>(first.delta.size());
+            if (firstDeltaBytes > std::numeric_limits<std::uint64_t>::max() - first.baseContentBytes ||
+                second.baseContentBytes != first.baseContentBytes + firstDeltaBytes ||
+                first.delta.size() > MaximumAppendBytes || second.delta.size() > MaximumAppendBytes - first.delta.size()) {
+                next->appendHint.reset();
+                return;
+            }
+            try {
+                std::string combined = first.delta;
+                combined.append(second.delta);
+                next->appendHint = model::ItemContentAppendHint{
+                    first.baseContentBytes, std::move(combined), first.sourceVerified && second.sourceVerified};
+            } catch (...) {
+                next->appendHint.reset();
+            }
+        }
+
+        [[nodiscard]] std::optional<std::size_t> compactEventBatchBytes(SequenceNumber fromSequence,
+                                                                        SequenceNumber toSequence,
+                                                                        std::size_t eventCount,
+                                                                        std::size_t compactEventBytes) noexcept {
+            if (eventCount == 0) {
+                return std::nullopt;
+            }
+            try {
+                // ServerCore creates event batches with no extensions.  Build
+                // only that small envelope, then replace the empty array's
+                // interior with the already encoded event sizes and commas.
+                // This stays byte-for-byte aligned with Codec's compact JSON
+                // without serializing a growing event array for every group.
+                const Json emptyEnvelope{{"events", Json::array()},
+                                         {"fromSequence", fromSequence.value()},
+                                         {"kind", kind::Events},
+                                         {"protocol", ProtocolIdentity},
+                                         {"toSequence", toSequence.value()},
+                                         {"version", ProtocolVersion}};
+                std::size_t total = emptyEnvelope.dump().size();
+                const std::size_t separators = eventCount - 1;
+                if (compactEventBytes > std::numeric_limits<std::size_t>::max() - total) {
+                    return std::nullopt;
+                }
+                total += compactEventBytes;
+                if (separators > std::numeric_limits<std::size_t>::max() - total) {
+                    return std::nullopt;
+                }
+                return total + separators;
+            } catch (...) {
+                return std::nullopt;
+            }
+        }
 
         [[nodiscard]] std::uint64_t defaultMonotonicClockMs() noexcept {
             const auto elapsed = std::chrono::steady_clock::now().time_since_epoch();
@@ -281,11 +395,6 @@ namespace ai::openai::codex::frontend::internal::server {
                 model::JournalConfig{options.journalMaximumEntries, options.journalMaximumBytes, options.journalInitialSequence});
         }
 
-        struct QueuedMessage {
-            ServerMessage message;
-            std::size_t bytes = 0;
-        };
-
         struct Connection {
             FrontendPeerContext peer;
             ConnectionCallbacks callbacks;
@@ -297,11 +406,12 @@ namespace ai::openai::codex::frontend::internal::server {
             std::optional<FrontendPrincipal> principal;
             std::optional<model::SessionIdentity> session;
             std::vector<FrontendCapability> negotiatedCapabilities;
-            std::deque<QueuedMessage> outbound;
+            bool itemContentAppendV1 = false;
+            std::deque<SerializedServerMessage> outbound;
             // A live Snapshot published from inside BackendPort::snapshot()
             // is accepted immediately but must follow the outer snapshot
             // barrier (and its SyncComplete, when present) on the wire.
-            std::deque<QueuedMessage> deferredSnapshotOutbound;
+            std::deque<SerializedServerMessage> deferredSnapshotOutbound;
             std::size_t outboundBytes = 0;
             std::map<std::string, generated::MethodId, std::less<>> outstanding;
             std::uint64_t inboundRateTokens = 0;
@@ -385,6 +495,7 @@ namespace ai::openai::codex::frontend::internal::server {
             ConnectionToken token;
             model::ProjectionContext projection;
             std::vector<FrontendCapability> negotiatedCapabilities;
+            bool itemContentAppendV1 = false;
         };
 
         struct SnapshotBarrier {
@@ -952,7 +1063,8 @@ namespace ai::openai::codex::frontend::internal::server {
             closeNow(identity, ConnectionClose{"frontend protocol encoding failed", ErrorCode::InternalError, false});
             return false;
         }
-        const std::size_t bytes = encoded.value().size();
+        std::string compactJson = std::move(encoded).value();
+        const std::size_t bytes = compactJson.size();
         const bool messageCapacityExceeded =
             connection->outbound.size() >= options.maxOutboundMessagesPerConnection ||
             connection->deferredSnapshotOutbound.size() >= options.maxOutboundMessagesPerConnection - connection->outbound.size();
@@ -963,8 +1075,9 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         try {
-            std::deque<QueuedMessage>& destination = deferredSnapshot ? connection->deferredSnapshotOutbound : connection->outbound;
-            destination.push_back(QueuedMessage{std::move(message), bytes});
+            std::deque<SerializedServerMessage>& destination =
+                deferredSnapshot ? connection->deferredSnapshotOutbound : connection->outbound;
+            destination.push_back(SerializedServerMessage{std::move(message), std::move(compactJson)});
             connection->outboundBytes += bytes;
             return true;
         } catch (...) {
@@ -1165,16 +1278,16 @@ namespace ai::openai::codex::frontend::internal::server {
             }
 
             // Account and remove the message before entering transport code.
-            QueuedMessage queued = std::move(connection->outbound.front());
+            SerializedServerMessage queued = std::move(connection->outbound.front());
             connection->outbound.pop_front();
-            connection->outboundBytes -= queued.bytes;
+            connection->outboundBytes -= queued.compactJson.size();
             ConnectionCallbacks::Send send = connection->callbacks.onMessage;
             const ConnectionContinuation continuation{token, connection->helloComplete, connection->closing};
             connection = nullptr;
             bool accepted = false;
             if (send) {
                 try {
-                    accepted = send(queued.message);
+                    accepted = send(std::move(queued));
                 } catch (...) {
                     if (findConnection(continuation)) {
                         closeNow(token.identity, ConnectionClose{"frontend outbound callback threw", ErrorCode::CapacityExceeded, false});
@@ -1513,6 +1626,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 negotiated.push_back(requested);
             }
         }
+        const bool itemContentAppendV1 =
+            requestsItemContentAppend(hello.extensions) &&
+            containsCapability(negotiated, FrontendCapability::CompleteThreadItems);
 
         connection = findConnection(awaitingHello);
         if (!connection) {
@@ -1538,6 +1654,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         connection->principal = principal;
         connection->negotiatedCapabilities = std::move(negotiated);
+        connection->itemContentAppendV1 = itemContentAppendV1;
         const ConnectionContinuation openingSession{*token, false, false};
         const FrontendSessionToken backendSessionToken{token->identity, token->generation, session};
         connection = nullptr;
@@ -1594,6 +1711,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 permittedScopes.push_back(std::string(toString(scope)));
             }
             welcome.extensions["permittedScopes"] = std::move(permittedScopes);
+        }
+        if (connection->itemContentAppendV1) {
+            welcome.extensions["projection"] = Json{{"itemContentUpdateMode", std::string(ItemContentAppendMode)}};
         }
         if (!options.serverVersion.empty()) {
             welcome.serverVersion = options.serverVersion;
@@ -2049,7 +2169,8 @@ namespace ai::openai::codex::frontend::internal::server {
         if (!connection) {
             return std::nullopt;
         }
-        return FrozenSnapshotRecipient{token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities};
+        return FrozenSnapshotRecipient{
+            token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities, connection->itemContentAppendV1};
     }
 
     bool ServerCore::Impl::enqueueFrozenSnapshot(const FrozenSnapshotRecipient& recipient,
@@ -2067,7 +2188,11 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             const model::CanonicalSnapshot& snapshot = projected.value();
 
-            const model::ModelResult<Snapshot> encoded = model::encodeProjectedSnapshot(snapshot, recipient.negotiatedCapabilities);
+            const model::ModelResult<Snapshot> encoded = model::encodeProjectedSnapshot(
+                snapshot,
+                recipient.negotiatedCapabilities,
+                recipient.itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
+                                              : model::ItemContentWireMode::Replacement);
             return encoded && (deferUntilSnapshotBarrier ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
                                                          : enqueue(recipient.token.identity, ServerMessage{encoded.value()}));
         } catch (...) {
@@ -2111,18 +2236,16 @@ namespace ai::openai::codex::frontend::internal::server {
 
         try {
             std::vector<FrontendEvent> pending;
+            std::size_t pendingEventBytes = 0;
             std::optional<bool> pendingExpanded;
             auto makeBatch = [](std::vector<FrontendEvent> events) {
                 return EventBatch{events.front().sequence, events.back().sequence, std::move(events), Json::object()};
-            };
-            auto encodedSize = [](const EventBatch& batch) -> std::optional<std::size_t> {
-                const auto serialized = Codec::serializeServer(ServerMessage{batch});
-                return serialized ? std::optional<std::size_t>{serialized.value().size()} : std::nullopt;
             };
             auto flushPending = [&] {
                 if (!pending.empty()) {
                     result.batches.push_back(makeBatch(std::move(pending)));
                     pending.clear();
+                    pendingEventBytes = 0;
                     pendingExpanded.reset();
                 }
             };
@@ -2191,7 +2314,10 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 std::vector<FrontendEvent> groupEvents;
                 if (useExpanded) {
-                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded = model::encodeExpandedOccurrence(*projected);
+                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded = model::encodeExpandedOccurrence(
+                        *projected,
+                        connection.itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
+                                                       : model::ItemContentWireMode::Replacement);
                     if (!encoded) {
                         result.batches.clear();
                         return result;
@@ -2214,6 +2340,16 @@ namespace ai::openai::codex::frontend::internal::server {
                     return result;
                 }
 
+                std::size_t groupEventBytes = 0;
+                for (const FrontendEvent& event : groupEvents) {
+                    const CodecResult<std::size_t> encoded = Codec::serializedEventSize(event);
+                    if (!encoded || encoded.value() > std::numeric_limits<std::size_t>::max() - groupEventBytes) {
+                        result.batches.clear();
+                        return result;
+                    }
+                    groupEventBytes += encoded.value();
+                }
+
                 // Legacy and expanded arrays are different schema branches.
                 // A capability mix can switch representation by family, so a
                 // wire batch never straddles that switch.
@@ -2221,34 +2357,44 @@ namespace ai::openai::codex::frontend::internal::server {
                     flushPending();
                 }
 
-                std::vector<FrontendEvent> candidate = pending;
-                candidate.insert(candidate.end(), groupEvents.begin(), groupEvents.end());
-                EventBatch candidateBatch = makeBatch(std::move(candidate));
-                const std::optional<std::size_t> candidateBytes = encodedSize(candidateBatch);
+                if (groupEventBytes > std::numeric_limits<std::size_t>::max() - pendingEventBytes ||
+                    groupEvents.size() > std::numeric_limits<std::size_t>::max() - pending.size()) {
+                    result.batches.clear();
+                    return result;
+                }
+                const std::size_t candidateEventBytes = pendingEventBytes + groupEventBytes;
+                const std::size_t candidateEventCount = pending.size() + groupEvents.size();
+                const SequenceNumber candidateFrom = pending.empty() ? groupEvents.front().sequence : pending.front().sequence;
+                const std::optional<std::size_t> candidateBytes = compactEventBatchBytes(
+                    candidateFrom, groupEvents.back().sequence, candidateEventCount, candidateEventBytes);
                 if (!candidateBytes) {
                     result.batches.clear();
                     return result;
                 }
-                if (candidateBatch.events.size() <= options.maxEventsPerBatch && *candidateBytes <= options.maxBatchBytes) {
-                    pending = std::move(candidateBatch.events);
+                if (candidateEventCount <= options.maxEventsPerBatch && *candidateBytes <= options.maxBatchBytes) {
+                    pending.insert(pending.end(),
+                                   std::make_move_iterator(groupEvents.begin()),
+                                   std::make_move_iterator(groupEvents.end()));
+                    pendingEventBytes = candidateEventBytes;
                     pendingExpanded = useExpanded;
                     begin = end;
                     continue;
                 }
 
                 flushPending();
-                EventBatch groupBatch = makeBatch(std::move(groupEvents));
-                const std::optional<std::size_t> groupBytes = encodedSize(groupBatch);
+                const std::optional<std::size_t> groupBytes = compactEventBatchBytes(
+                    groupEvents.front().sequence, groupEvents.back().sequence, groupEvents.size(), groupEventBytes);
                 if (!groupBytes) {
                     result.batches.clear();
                     return result;
                 }
-                if (groupBatch.events.size() > options.maxEventsPerBatch || *groupBytes > options.maxBatchBytes) {
+                if (groupEvents.size() > options.maxEventsPerBatch || *groupBytes > options.maxBatchBytes) {
                     result.status = BatchBuildStatus::SnapshotRequired;
                     result.batches.clear();
                     return result;
                 }
-                pending = std::move(groupBatch.events);
+                pending = std::move(groupEvents);
+                pendingEventBytes = groupEventBytes;
                 pendingExpanded = useExpanded;
                 begin = end;
             }
@@ -2437,10 +2583,15 @@ namespace ai::openai::codex::frontend::internal::server {
             if (content->first->kind != OccurrenceEntityKind::ItemContent) {
                 continue;
             }
-            const auto item = std::find_if(std::next(content), ordered.end(), [&](const OrderedOccurrence& candidate) {
+            const auto item = std::find_if(ordered.begin(), ordered.end(), [&](const OrderedOccurrence& candidate) {
                 return candidate.first->kind == OccurrenceEntityKind::Item && sameItem(*content->first, *candidate.first);
             });
             if (item != ordered.end()) {
+                if (model::ItemContentUpdatedOccurrence* update = itemContentUpdate(content->second->occurrence)) {
+                    update->appendHint.reset();
+                }
+            }
+            if (item != ordered.end() && item > content) {
                 std::rotate(content, item, std::next(item));
             }
         }
@@ -2827,6 +2978,9 @@ namespace ai::openai::codex::frontend::internal::server {
             const bool scheduleRequired = dirtyOccurrences.empty() && !dirtySnapshotRequired;
             const auto existing = dirtyOccurrences.find(key);
             if (existing != dirtyOccurrences.end()) {
+                if (key.kind == OccurrenceEntityKind::ItemContent) {
+                    coalesceItemContentAppendHint(existing->second.occurrence, occurrence);
+                }
                 existing->second.occurrence = std::move(occurrence);
                 // A first item upsert can still be dirty when its content and
                 // terminal replacement arrive. Keep that upsert ahead of the

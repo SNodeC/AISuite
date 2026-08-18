@@ -422,6 +422,8 @@ namespace {
             std::string turnId;
             std::string channel;
             std::string content;
+            std::string contentDelta;
+            std::optional<std::uint64_t> baseContentBytes;
         };
 
         void observeExpandedEvents(const frontend::ServerMessage& message, const std::string& compactMessage) {
@@ -465,11 +467,18 @@ namespace {
                         const auto member = event.data.find(name);
                         return member != event.data.end() && member->is_string() ? member->get<std::string>() : std::string{};
                     };
+                    std::optional<std::uint64_t> baseContentBytes;
+                    if (const auto base = event.data.find("baseContentBytes");
+                        base != event.data.end() && base->is_number_unsigned()) {
+                        baseContentBytes = base->get<std::uint64_t>();
+                    }
                     wireContent.push_back({stringMember("itemId"),
                                            stringMember("threadId"),
                                            stringMember("turnId"),
                                            stringMember("channel"),
-                                           stringMember("content")});
+                                           stringMember("content"),
+                                           stringMember("contentDelta"),
+                                           baseContentBytes});
                 }
             }
         }
@@ -1257,8 +1266,10 @@ namespace {
                               "serialized item.upserted carries agentMessage with its exact thread, turn, and item identity");
             result.expectTrue(wireAgentContent != nullptr && wireAgentContent->itemId == LifecycleAgentItemId &&
                                   wireAgentContent->threadId == LifecycleThreadId && wireAgentContent->turnId == LifecycleTurnId &&
-                                  wireAgentContent->channel == "agentText" && wireAgentContent->content == LifecycleAgentText,
-                              "serialized item.content.updated carries the exact agentText delta and parent identities");
+                                  wireAgentContent->channel == "agentText" && wireAgentContent->content.empty() &&
+                                  wireAgentContent->contentDelta == LifecycleAgentText &&
+                                  wireAgentContent->baseContentBytes == std::optional<std::uint64_t>{0},
+                              "serialized item.content.updated carries the negotiated exact agentText delta and parent identities");
             result.expectTrue(
                 thread != nullptr &&
                     std::find(thread->orderedTurns.begin(), thread->orderedTurns.end(), typed::TurnId{std::string(LifecycleTurnId)}) !=

@@ -92,9 +92,10 @@ namespace {
     frontend::FrontendConnectionCallbacks callbacksFor(Observations& observations, frontend::FrontendService* service = nullptr) {
         return {[&observations, service](const frontend::OutboundMessage& outbound) {
                     const auto decoded = frontend::Codec::decodeServer(std::string_view(outbound.compactJson));
-                    observations.outboundConversionValid = observations.outboundConversionValid && decoded &&
-                                                           decoded.value() == outbound.message &&
-                                                           outbound.serializedBytes == outbound.compactJson.size();
+                    const auto encoded = frontend::Codec::serializeServer(outbound.message);
+                    observations.outboundConversionValid =
+                        observations.outboundConversionValid && decoded && decoded.value() == outbound.message && encoded &&
+                        encoded.value() == outbound.compactJson && outbound.serializedBytes == outbound.compactJson.size();
                     observations.messages.push_back(outbound.message);
                     if (service) {
                         static_cast<void>(service->connectionCount());

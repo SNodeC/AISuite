@@ -106,9 +106,12 @@ namespace ai::openai::codex::backend {
             }
         }
 
-        std::string safeUtf8Prefix(std::string_view value, std::size_t byteLimit) {
+        std::size_t safeUtf8PrefixLength(std::string_view value,
+                                         std::size_t byteLimit,
+                                         std::size_t characterLimit = std::numeric_limits<std::size_t>::max()) noexcept {
             std::size_t offset = 0;
-            while (offset < value.size() && offset < byteLimit) {
+            std::size_t characters = 0;
+            while (offset < value.size() && offset < byteLimit && characters < characterLimit) {
                 const unsigned char first = static_cast<unsigned char>(value[offset]);
                 std::size_t width = 0;
                 if (first <= 0x7fU) {
@@ -134,8 +137,42 @@ namespace ai::openai::codex::backend {
                     break;
                 }
                 offset += width;
+                ++characters;
             }
-            return std::string(value.substr(0, offset));
+            return offset;
+        }
+
+        std::string safeUtf8Prefix(std::string_view value, std::size_t byteLimit) {
+            return std::string(value.substr(0, safeUtf8PrefixLength(value, byteLimit)));
+        }
+
+        void accountOmittedBytes(std::uint64_t& target, std::size_t omitted) noexcept {
+            std::uint64_t amount = 0;
+            if constexpr (sizeof(std::size_t) > sizeof(std::uint64_t)) {
+                amount = omitted > std::numeric_limits<std::uint64_t>::max()
+                             ? std::numeric_limits<std::uint64_t>::max()
+                             : static_cast<std::uint64_t>(omitted);
+            } else {
+                amount = static_cast<std::uint64_t>(omitted);
+            }
+            target = amount > std::numeric_limits<std::uint64_t>::max() - target
+                         ? std::numeric_limits<std::uint64_t>::max()
+                         : target + amount;
+        }
+
+        std::string boundedSnapshotItemContent(std::string_view value, std::uint64_t& droppedContentBytes) {
+            const std::size_t retained = safeUtf8PrefixLength(value, MaxSnapshotExtensionPayloadBytes);
+            accountOmittedBytes(droppedContentBytes, value.size() - retained);
+            return std::string(value.substr(0, retained));
+        }
+
+        bool accountUnselectedProjectedItemContent(std::string_view value, std::uint64_t& droppedContentBytes) noexcept {
+            constexpr std::size_t MaximumFrontendContentCharacters = 16U * 1024U;
+            const std::size_t snapshotRetained = safeUtf8PrefixLength(value, MaxSnapshotExtensionPayloadBytes);
+            const std::size_t retained =
+                safeUtf8PrefixLength(value, MaxSnapshotExtensionPayloadBytes, MaximumFrontendContentCharacters);
+            accountOmittedBytes(droppedContentBytes, value.size() - retained);
+            return retained != snapshotRetained;
         }
 
         std::string normalizedKey(std::string_view key) {
@@ -397,12 +434,12 @@ namespace ai::openai::codex::backend {
             snapshot.id = safeUtf8Prefix(id.value, MaxSnapshotExtensionMethodBytes);
             snapshot.type = safeUtf8Prefix(itemType(state.item), MaxSnapshotExtensionMethodBytes);
             snapshot.status = safeUtf8Prefix(lifecycleName(state.lifecycle), MaxSnapshotExtensionMethodBytes);
-            snapshot.agentText = safeUtf8Prefix(state.agentText, MaxSnapshotExtensionPayloadBytes);
-            snapshot.reasoningText = safeUtf8Prefix(state.reasoningText, MaxSnapshotExtensionPayloadBytes);
-            snapshot.reasoningSummary = safeUtf8Prefix(state.reasoningSummary, MaxSnapshotExtensionPayloadBytes);
-            snapshot.commandOutput = safeUtf8Prefix(state.commandOutput, MaxSnapshotExtensionPayloadBytes);
             snapshot.droppedContentBytes = state.droppedContentBytes;
-            snapshot.contentTruncated = state.droppedContentBytes != 0;
+            snapshot.agentText = boundedSnapshotItemContent(state.agentText, snapshot.droppedContentBytes);
+            snapshot.reasoningText = boundedSnapshotItemContent(state.reasoningText, snapshot.droppedContentBytes);
+            snapshot.reasoningSummary = boundedSnapshotItemContent(state.reasoningSummary, snapshot.droppedContentBytes);
+            snapshot.commandOutput = boundedSnapshotItemContent(state.commandOutput, snapshot.droppedContentBytes);
+            snapshot.contentTruncated = snapshot.droppedContentBytes != 0;
             snapshot.startedAtMs = state.startedAtMs;
             snapshot.completedAtMs = state.completedAtMs;
             snapshot.extensions = safeSnapshotJson(state.extensions);
@@ -2041,6 +2078,94 @@ namespace ai::openai::codex::backend {
 
     bool Snapshot::operator!=(const Snapshot& other) const {
         return !(*this == other);
+    }
+
+    std::optional<ItemSnapshotBatch> makeItemSnapshotBatch(const BackendState& state, std::span<const ItemSnapshotKey> keys) {
+        ItemSnapshotBatch batch;
+        batch.sequence = state.sequence;
+        batch.items.reserve(keys.size());
+        for (const ItemSnapshotKey& key : keys) {
+            const auto thread = state.threads.find(key.threadId.value);
+            if (thread == state.threads.end()) {
+                return std::nullopt;
+            }
+            const auto turn = thread->second.turns.find(key.turnId.value);
+            if (turn == thread->second.turns.end()) {
+                return std::nullopt;
+            }
+            const auto item = turn->second.items.find(key.itemId.value);
+            if (item == turn->second.items.end()) {
+                return std::nullopt;
+            }
+            batch.items.push_back(snapshotItem(key.itemId, item->second));
+        }
+        return batch;
+    }
+
+    std::optional<ItemContentSnapshotBatch>
+    makeItemContentSnapshotBatch(const BackendState& state, std::span<const ItemContentSnapshotKey> keys) {
+        ItemContentSnapshotBatch batch;
+        batch.sequence = state.sequence;
+        batch.items.reserve(keys.size());
+        for (const ItemContentSnapshotKey& key : keys) {
+            const auto thread = state.threads.find(key.threadId.value);
+            if (thread == state.threads.end()) {
+                return std::nullopt;
+            }
+            const auto turn = thread->second.turns.find(key.turnId.value);
+            if (turn == thread->second.turns.end()) {
+                return std::nullopt;
+            }
+            const auto item = turn->second.items.find(key.itemId.value);
+            if (item == turn->second.items.end()) {
+                return std::nullopt;
+            }
+
+            const ItemState& stateItem = item->second;
+            const std::string* content = nullptr;
+            switch (key.channel) {
+                case ItemContentSnapshotChannel::AgentText:
+                    content = &stateItem.agentText;
+                    break;
+                case ItemContentSnapshotChannel::ReasoningText:
+                    content = &stateItem.reasoningText;
+                    break;
+                case ItemContentSnapshotChannel::ReasoningSummary:
+                    content = &stateItem.reasoningSummary;
+                    break;
+                case ItemContentSnapshotChannel::CommandOutput:
+                    content = &stateItem.commandOutput;
+                    break;
+            }
+            if (content == nullptr) {
+                return std::nullopt;
+            }
+
+            ItemContentSnapshot snapshot;
+            snapshot.key = key;
+            snapshot.status = safeUtf8Prefix(lifecycleName(stateItem.lifecycle), MaxSnapshotExtensionMethodBytes);
+            snapshot.droppedContentBytes = stateItem.droppedContentBytes;
+            snapshot.backendDroppedContentBytes = stateItem.droppedContentBytes;
+            const auto retainChannel = [&](std::string_view candidate, ItemContentSnapshotChannel channel) {
+                if (key.channel == channel) {
+                    snapshot.content = boundedSnapshotItemContent(candidate, snapshot.droppedContentBytes);
+                } else {
+                    if (accountUnselectedProjectedItemContent(candidate, snapshot.droppedContentBytes)) {
+                        snapshot.frontendOmittedContentChannels |=
+                            static_cast<std::uint8_t>(1U << static_cast<unsigned int>(channel));
+                    }
+                }
+            };
+            retainChannel(stateItem.agentText, ItemContentSnapshotChannel::AgentText);
+            retainChannel(stateItem.reasoningText, ItemContentSnapshotChannel::ReasoningText);
+            retainChannel(stateItem.reasoningSummary, ItemContentSnapshotChannel::ReasoningSummary);
+            retainChannel(stateItem.commandOutput, ItemContentSnapshotChannel::CommandOutput);
+            snapshot.contentTruncated = snapshot.droppedContentBytes != 0;
+            snapshot.knownType = !std::holds_alternative<typed::UnknownItem>(stateItem.item);
+            snapshot.connectionInvalidated = stateItem.connectionInvalidated;
+            batch.items.push_back(std::move(snapshot));
+        }
+        return batch;
     }
 
     Snapshot makeSnapshot(const BackendState& state) {

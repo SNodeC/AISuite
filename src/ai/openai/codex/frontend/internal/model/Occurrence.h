@@ -132,6 +132,16 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const ItemUpsertedOccurrence&) const = default;
     };
 
+    struct ItemContentAppendHint {
+        std::uint64_t baseContentBytes = 0;
+        std::string delta;
+        // Set only when projection verified this hint against the bounded
+        // authoritative backend channel rather than the frozen v1 prefix.
+        bool sourceVerified = false;
+
+        bool operator==(const ItemContentAppendHint&) const = default;
+    };
+
     struct ItemContentUpdatedOccurrence {
         std::optional<ThreadIdentity> threadId;
         std::optional<TurnIdentity> turnId;
@@ -141,6 +151,16 @@ namespace ai::openai::codex::frontend::internal::model {
         TruncationMetadata truncation;
         bool contentTruncatedKnown = true;
         bool droppedContentBytesKnown = true;
+        std::optional<ItemContentOverflowV1> overflowV1;
+        // The full replacement is authoritative in server/journal values.
+        // This hint is connection-neutral until an encoder is explicitly
+        // asked to use append-v1 for one negotiated recipient.
+        std::optional<ItemContentAppendHint> appendHint;
+        // True only for an append-v1 occurrence decoded from the wire.
+        bool appendWireRepresentation = false;
+        // True only for a validated append-v1 overflow replacement decoded
+        // from the schema-neutral reserved detail member.
+        bool overflowWireRepresentation = false;
         SafeDetail extensions;
         explicit ItemContentUpdatedOccurrence(ItemIdentity value)
             : itemId(std::move(value)) {
@@ -495,10 +515,13 @@ namespace ai::openai::codex::frontend::internal::model {
     };
 
     [[nodiscard]] OccurrenceResult<std::vector<ExpandedFrontendEvent>>
-    encodeExpandedOccurrence(const CanonicalOccurrence& occurrence) noexcept;
+    encodeExpandedOccurrence(const CanonicalOccurrence& occurrence,
+                             ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] OccurrenceResult<FrontendEvent> encodeLegacyOccurrence(const CanonicalOccurrence& occurrence) noexcept;
     [[nodiscard]] OccurrenceResult<CanonicalOccurrence> decodeExpandedOccurrence(const ExpandedFrontendEvent& event,
-                                                                                 const OccurrenceDecodeContext& context) noexcept;
+                                                                                 const OccurrenceDecodeContext& context,
+                                                                                 ItemContentWireMode itemContentMode =
+                                                                                     ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] OccurrenceResult<CanonicalOccurrence>
     decodeLegacyOccurrence(const FrontendEvent& event,
                            const OccurrenceDecodeContext& context,
@@ -506,6 +529,11 @@ namespace ai::openai::codex::frontend::internal::model {
 
     [[nodiscard]] ModelResult<CanonicalSnapshot> reduceOccurrence(const CanonicalSnapshot& snapshot,
                                                                   const CanonicalOccurrence& occurrence) noexcept;
+    // Mutates a caller-owned transactional candidate. Callers must discard
+    // that candidate if an error is returned; reduceOccurrence() remains the
+    // copy-preserving convenience boundary for standalone reductions.
+    [[nodiscard]] ModelResult<bool> applyOccurrence(CanonicalSnapshot& candidate,
+                                                    const CanonicalOccurrence& occurrence) noexcept;
 
     static_assert(std::variant_size_v<OccurrencePayload> == 26);
 

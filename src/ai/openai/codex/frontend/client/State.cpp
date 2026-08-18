@@ -16,8 +16,10 @@
 #include <initializer_list>
 #include <limits>
 #include <set>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 namespace ai::openai::codex::frontend::client {
@@ -96,6 +98,36 @@ namespace ai::openai::codex::frontend::client {
             StateArrayContribution activities;
             StateArrayContribution diagnostics;
         };
+
+        struct ScopedItemLookupView {
+            std::string_view threadId;
+            std::string_view turnId;
+            std::string_view itemId;
+
+            bool operator==(const ScopedItemLookupView&) const = default;
+        };
+
+        struct ScopedItemLookupHash {
+            [[nodiscard]] std::size_t operator()(const ScopedItemLookupView& value) const noexcept {
+                return hash(value.threadId, value.turnId, value.itemId);
+            }
+
+        private:
+            [[nodiscard]] static std::size_t
+            hash(std::string_view threadId, std::string_view turnId, std::string_view itemId) noexcept {
+                constexpr std::size_t HashMixConstant = 0x9e3779b97f4a7c15ULL;
+                std::size_t result = std::hash<std::string_view>{}(threadId);
+                const auto combine = [&result](std::string_view value) {
+                    result ^= std::hash<std::string_view>{}(value) + HashMixConstant + (result << 6U) + (result >> 2U);
+                };
+                combine(turnId);
+                combine(itemId);
+                return result;
+            }
+        };
+
+        using StringLookupIndex = std::unordered_map<std::string_view, std::size_t>;
+        using ScopedItemLookupIndex = std::unordered_map<ScopedItemLookupView, std::size_t, ScopedItemLookupHash>;
     } // namespace detail
 
     struct detail::StateStorage {
@@ -126,6 +158,14 @@ namespace ai::openai::codex::frontend::client {
         std::vector<ItemState> items;
         bool pendingRequestProjectionPresent = false;
         std::vector<PendingRequestState> pendingRequests;
+        // Built only after the vectors above reach their immutable published
+        // form; the non-owning keys therefore remain valid for this storage's
+        // complete lifetime without duplicating every retained identity.
+        StringLookupIndex threadById;
+        StringLookupIndex turnById;
+        StringLookupIndex firstItemById;
+        ScopedItemLookupIndex itemByScope;
+        StringLookupIndex pendingRequestById;
         Projected<AccountState> accounts;
         Projected<ModelsState> models;
         Projected<ConfigurationState> configuration;
@@ -155,6 +195,34 @@ namespace ai::openai::codex::frontend::client {
     namespace {
         constexpr std::size_t MaximumRetainedNotices = 256;
         constexpr std::size_t MaximumRetainedCompatibilityExtensions = 64;
+
+        void buildStateLookupIndexes(detail::StateStorage& state) {
+            state.threadById.reserve(state.threads.size());
+            for (std::size_t index = 0; index < state.threads.size(); ++index) {
+                state.threadById.emplace(state.threads[index].id.value, index);
+            }
+
+            state.turnById.reserve(state.turns.size());
+            for (std::size_t index = 0; index < state.turns.size(); ++index) {
+                state.turnById.emplace(state.turns[index].id.value, index);
+            }
+
+            state.firstItemById.reserve(state.items.size());
+            state.itemByScope.reserve(state.items.size());
+            for (std::size_t index = 0; index < state.items.size(); ++index) {
+                const ItemState& item = state.items[index];
+                state.firstItemById.try_emplace(item.id.value, index);
+                if (item.threadId && item.turnId) {
+                    state.itemByScope.emplace(
+                        detail::ScopedItemLookupView{item.threadId->value, item.turnId->value, item.id.value}, index);
+                }
+            }
+
+            state.pendingRequestById.reserve(state.pendingRequests.size());
+            for (std::size_t index = 0; index < state.pendingRequests.size(); ++index) {
+                state.pendingRequestById.emplace(state.pendingRequests[index].id.value, index);
+            }
+        }
 
         std::optional<std::string> stringMember(const frontend::Json& object, std::string_view key) {
             if (!object.is_object()) {
@@ -1632,6 +1700,7 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+#ifndef NDEBUG
         frontend::Json encodeProcessCollectionState(const ProcessCollectionState& value) {
             frontend::Json result = value.extensions;
             if (!result.is_object())
@@ -1686,6 +1755,7 @@ namespace ai::openai::codex::frontend::client {
             result["truncation"] = encodeTruncation(value.truncation);
             return result;
         }
+#endif
 
         frontend::Json encodeCapacityState(const CapacityState& value) {
             frontend::Json result = value.extensions;
@@ -1716,6 +1786,7 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+#ifndef NDEBUG
         frontend::Json encodeDiagnosticCollectionState(const DiagnosticCollectionState& value) {
             frontend::Json result = frontend::Json::object();
             addOptional(result, "received", value.received);
@@ -1724,12 +1795,14 @@ namespace ai::openai::codex::frontend::client {
                 result["entries"].push_back(encodeDiagnosticState(entry));
             return result;
         }
+#endif
 
         // IMPORTANT: encodeState() defines the canonical logical decoded-State
         // byte metric. Incremental accounting must remain byte-identical to
         // this compact JSON serialization plus the two explicitly documented
         // internal-only sequence contributions. Changes to one require
         // corresponding changes to the other.
+#ifndef NDEBUG
         frontend::Json encodeState(const detail::StateStorage& state) {
             frontend::Json result = frontend::Json::object();
             result["revision"] = state.revision;
@@ -1807,6 +1880,7 @@ namespace ai::openai::codex::frontend::client {
             result["compatibilityExtensions"] = state.compatibilityExtensions;
             return result;
         }
+#endif
 
         constexpr std::array StateSizeSectionNames{
             std::string_view{"revision"},
@@ -1874,6 +1948,14 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
+        std::optional<std::size_t> compactJsonBytes(const frontend::Json& value) noexcept {
+            try {
+                return value.dump().size();
+            } catch (...) {
+                return std::nullopt;
+            }
+        }
+
         std::optional<std::size_t> arrayBytes(const detail::StateArrayContribution& contribution) noexcept {
             std::size_t bytes = 2;
             if (!checkedAdd(bytes, contribution.elementBytes, bytes))
@@ -1881,101 +1963,6 @@ namespace ai::openai::codex::frontend::client {
             if (contribution.count > 1 && !checkedAdd(bytes, contribution.count - 1, bytes))
                 return std::nullopt;
             return bytes;
-        }
-
-        bool measureArray(const frontend::Json& value, detail::StateArrayContribution& result) noexcept {
-            if (!value.is_array())
-                return false;
-            detail::StateArrayContribution measured;
-            try {
-                for (const frontend::Json& element : value) {
-                    const std::size_t bytes = element.dump().size();
-                    if (!checkedAdd(measured.elementBytes, bytes, measured.elementBytes))
-                        return false;
-                    if (measured.count == std::numeric_limits<std::size_t>::max())
-                        return false;
-                    ++measured.count;
-                }
-            } catch (...) {
-                return false;
-            }
-            result = measured;
-            return true;
-        }
-
-        const frontend::Json* projectedValue(const frontend::Json& encoded, std::string_view section) {
-            const auto projected = encoded.find(std::string(section));
-            if (projected == encoded.end() || !projected->is_object())
-                return nullptr;
-            const auto value = projected->find("value");
-            return value == projected->end() ? nullptr : &*value;
-        }
-
-        const frontend::Json* projectedEntries(const frontend::Json& encoded, std::string_view section) {
-            const frontend::Json* value = projectedValue(encoded, section);
-            if (!value || !value->is_object())
-                return nullptr;
-            const auto entries = value->find("entries");
-            return entries == value->end() ? nullptr : &*entries;
-        }
-
-#ifndef NDEBUG
-        thread_local std::size_t DebugAccountingRebuildCount = 0;
-#endif
-
-        bool rebuildStateSizeLedger(const detail::StateStorage& state) noexcept {
-#ifndef NDEBUG
-            ++DebugAccountingRebuildCount;
-#endif
-            detail::StateSizeLedger next;
-            try {
-                const frontend::Json encoded = encodeState(state);
-                next.canonicalBytes = 2;
-                for (std::size_t index = 0; index < StateSizeSectionNames.size(); ++index) {
-                    const auto found = encoded.find(std::string(StateSizeSectionNames[index]));
-                    if (found == encoded.end())
-                        continue;
-                    const std::size_t valueBytes = found->dump().size();
-                    std::size_t memberBytes = StateSizeSectionNames[index].size() + 3;
-                    if (!checkedAdd(memberBytes, valueBytes, memberBytes) ||
-                        (next.topLevelMemberCount != 0 && !checkedAdd(next.canonicalBytes, 1, next.canonicalBytes)) ||
-                        !checkedAdd(next.canonicalBytes, memberBytes, next.canonicalBytes))
-                        return false;
-                    next.sectionPresent[index] = true;
-                    next.sectionValueBytes[index] = valueBytes;
-                    ++next.topLevelMemberCount;
-                }
-                if (encoded.size() != next.topLevelMemberCount)
-                    return false;
-
-                const frontend::Json* sessions = projectedValue(encoded, "sessions");
-                if (sessions && !measureArray(*sessions, next.sessions))
-                    return false;
-                if (!measureArray(encoded.at("threads"), next.threads) || !measureArray(encoded.at("turns"), next.turns) ||
-                    !measureArray(encoded.at("items"), next.items) || !measureArray(encoded.at("pendingRequests"), next.pendingRequests))
-                    return false;
-                const auto measureProjectedEntries = [&encoded](std::string_view name, detail::StateArrayContribution& contribution) {
-                    const frontend::Json* entries = projectedEntries(encoded, name);
-                    return !entries || measureArray(*entries, contribution);
-                };
-                if (!measureProjectedEntries("processes", next.processes) ||
-                    !measureProjectedEntries("filesystemWatches", next.filesystemWatches) ||
-                    !measureProjectedEntries("fuzzySearches", next.fuzzySearches) || !measureProjectedEntries("notices", next.notices) ||
-                    !measureProjectedEntries("activities", next.activities) || !measureProjectedEntries("diagnostics", next.diagnostics))
-                    return false;
-
-                const std::size_t internalSequences = static_cast<std::size_t>(state.retainedReplayThrough.has_value()) +
-                                                      static_cast<std::size_t>(state.lastSynchronizationBatchSequence.has_value());
-                if (internalSequences != 0 && !checkedAdd(next.internalSequenceBytes,
-                                                          internalSequences * sizeof(frontend::SequenceNumber),
-                                                          next.internalSequenceBytes))
-                    return false;
-                next.initialized = true;
-                state.sizeLedger = std::move(next);
-                return true;
-            } catch (...) {
-                return false;
-            }
         }
 
         bool recomputeCanonicalBytes(detail::StateSizeLedger& ledger) noexcept {
@@ -2004,6 +1991,31 @@ namespace ai::openai::codex::frontend::client {
                 return false;
             }
             return true;
+        }
+
+        bool
+        setSectionJson(detail::StateStorage& state, detail::StateSizeSection section, const std::optional<frontend::Json>& value) noexcept {
+            if (!value)
+                return setSectionBytes(state, section, std::nullopt);
+            const std::optional<std::size_t> bytes = compactJsonBytes(*value);
+            if (!bytes) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+            return setSectionBytes(state, section, bytes);
+        }
+
+        bool setSectionJson(detail::StateStorage& state, detail::StateSizeSection section, const frontend::Json& value) noexcept {
+            const std::optional<std::size_t> bytes = compactJsonBytes(value);
+            if (!bytes) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+            return setSectionBytes(state, section, bytes);
+        }
+
+        std::size_t encodedEntityBytes(const frontend::Json& value) {
+            return value.dump().size();
         }
 
         bool adjustArrayContribution(detail::StateArrayContribution& contribution,
@@ -2064,6 +2076,13 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+        frontend::Json encodeCollectionSkeleton(const DiagnosticCollectionState& value) {
+            frontend::Json result = frontend::Json::object();
+            addOptional(result, "received", value.received);
+            result["entries"] = frontend::Json::array();
+            return result;
+        }
+
         template <typename Collection>
         std::optional<std::size_t> projectedCollectionBytes(const Projected<Collection>& projected,
                                                             const detail::StateArrayContribution& contribution) noexcept {
@@ -2121,6 +2140,193 @@ namespace ai::openai::codex::frontend::client {
             }
             contribution = next;
             return refreshProjectedCollectionSection(state, section, projected, contribution);
+        }
+
+        bool rebuildProjectedSessionsSection(detail::StateStorage& state) noexcept {
+            try {
+                detail::StateArrayContribution next;
+                if (state.sessions.value) {
+                    for (const SessionState& value : *state.sessions.value) {
+                        const std::size_t bytes = encodedEntityBytes(encodeSessionState(value));
+                        if (next.count == std::numeric_limits<std::size_t>::max() ||
+                            !checkedAdd(next.elementBytes, bytes, next.elementBytes)) {
+                            state.sizeLedger.failed = true;
+                            return false;
+                        }
+                        ++next.count;
+                    }
+                }
+                state.sizeLedger.sessions = next;
+                const frontend::Json skeleton = encodeProjected(state.sessions, [](const std::vector<SessionState>&) {
+                    return frontend::Json::array();
+                });
+                std::size_t bytes = skeleton.dump().size();
+                if (state.sessions.value) {
+                    const std::optional<std::size_t> valuesBytes = arrayBytes(next);
+                    if (!valuesBytes || !checkedSubtract(bytes, 2, bytes) || !checkedAdd(bytes, *valuesBytes, bytes)) {
+                        state.sizeLedger.failed = true;
+                        return false;
+                    }
+                }
+                return setSectionBytes(state, detail::StateSizeSection::Sessions, bytes);
+            } catch (...) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+        }
+
+#ifndef NDEBUG
+        thread_local std::size_t DebugAccountingRebuildCount = 0;
+#endif
+
+        bool rebuildStateSizeLedger(detail::StateStorage& state) noexcept {
+#ifndef NDEBUG
+            ++DebugAccountingRebuildCount;
+#endif
+            state.sizeLedger = {};
+            try {
+                const auto optionalSection = [&state](detail::StateSizeSection section, std::optional<frontend::Json> value) {
+                    return setSectionJson(state, section, value);
+                };
+                const auto typedDomainSection = [&state](detail::StateSizeSection section, const auto& projected) {
+                    return setSectionJson(state, section, encodeProjected(projected, [](const auto& value) {
+                                              return encodeTypedDomain(value);
+                                          }));
+                };
+
+                frontend::Json backendCursor = encodeBackendCursor(state.backendCursor);
+                std::optional<frontend::Json> encodedBackendCursor;
+                if (!backendCursor.empty())
+                    encodedBackendCursor = std::move(backendCursor);
+
+                std::optional<frontend::Json> projectionMetadata;
+                if (!state.projectionMetadata.omittedFields.empty() || !state.projectionMetadata.redactedFields.empty())
+                    projectionMetadata = encodeProjectionMetadata(state.projectionMetadata);
+
+                if (!setSectionJson(state, detail::StateSizeSection::Revision, frontend::Json(state.revision)) ||
+                    !setSectionJson(
+                        state, detail::StateSizeSection::Freshness, frontend::Json(static_cast<unsigned>(state.freshness))) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::RepresentationMode,
+                                    frontend::Json(static_cast<unsigned>(state.representationMode))) ||
+                    !optionalSection(detail::StateSizeSection::VisibleSequence,
+                                     state.visibleSequence
+                                         ? std::optional<frontend::Json>{frontend::Json(state.visibleSequence->value())}
+                                         : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::SynchronizedThrough,
+                                     state.synchronizedThrough
+                                         ? std::optional<frontend::Json>{frontend::Json(state.synchronizedThrough->value())}
+                                         : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::Session,
+                                     state.session ? std::optional<frontend::Json>{encodeSessionInfo(*state.session)} : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::BackendCursor, std::move(encodedBackendCursor)) ||
+                    !optionalSection(detail::StateSizeSection::ProjectionFingerprint,
+                                     state.projectionFingerprint
+                                         ? std::optional<frontend::Json>{frontend::Json(state.projectionFingerprint->canonical)}
+                                         : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::ProjectionMetadata, std::move(projectionMetadata)) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Provider,
+                                    encodeProjected(state.provider, encodeProvider)) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Controller,
+                                    encodeProjected(state.controller, encodeControllerState)) ||
+                    !rebuildProjectedSessionsSection(state) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::ThreadList,
+                                    encodeProjected(state.threadList, encodeThreadListState)) ||
+                    !rebuildDirectArraySection(
+                        state, detail::StateSizeSection::Threads, state.sizeLedger.threads, state.threads, encodeThreadState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::ThreadProjectionPresent,
+                                    frontend::Json(state.threadProjectionPresent)) ||
+                    !rebuildDirectArraySection(
+                        state, detail::StateSizeSection::Turns, state.sizeLedger.turns, state.turns, encodeTurnState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::TurnProjectionPresent,
+                                    frontend::Json(state.turnProjectionPresent)) ||
+                    !rebuildDirectArraySection(
+                        state, detail::StateSizeSection::Items, state.sizeLedger.items, state.items, encodeItemState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::ItemProjectionPresent,
+                                    frontend::Json(state.itemProjectionPresent)) ||
+                    !rebuildDirectArraySection(state,
+                                               detail::StateSizeSection::PendingRequests,
+                                               state.sizeLedger.pendingRequests,
+                                               state.pendingRequests,
+                                               encodePendingRequestState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::PendingRequestProjectionPresent,
+                                    frontend::Json(state.pendingRequestProjectionPresent)) ||
+                    !typedDomainSection(detail::StateSizeSection::Accounts, state.accounts) ||
+                    !typedDomainSection(detail::StateSizeSection::Models, state.models) ||
+                    !typedDomainSection(detail::StateSizeSection::Configuration, state.configuration) ||
+                    !typedDomainSection(detail::StateSizeSection::PermissionProfiles, state.permissionProfiles) ||
+                    !typedDomainSection(detail::StateSizeSection::Reviews, state.reviews) ||
+                    !typedDomainSection(detail::StateSizeSection::Apps, state.apps) ||
+                    !typedDomainSection(detail::StateSizeSection::ExternalAgents, state.externalAgents) ||
+                    !typedDomainSection(detail::StateSizeSection::Hooks, state.hooks) ||
+                    !typedDomainSection(detail::StateSizeSection::Marketplace, state.marketplace) ||
+                    !typedDomainSection(detail::StateSizeSection::Plugins, state.plugins) ||
+                    !typedDomainSection(detail::StateSizeSection::Skills, state.skills) ||
+                    !typedDomainSection(detail::StateSizeSection::Mcp, state.mcp) ||
+                    !typedDomainSection(detail::StateSizeSection::WindowsSandbox, state.windowsSandbox) ||
+                    !typedDomainSection(detail::StateSizeSection::Platform, state.platform) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Processes,
+                                                       state.sizeLedger.processes,
+                                                       state.processes,
+                                                       encodeProcessState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::FilesystemWatches,
+                                                       state.sizeLedger.filesystemWatches,
+                                                       state.filesystemWatches,
+                                                       encodeFilesystemWatchState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::FuzzySearches,
+                                                       state.sizeLedger.fuzzySearches,
+                                                       state.fuzzySearches,
+                                                       encodeFuzzySearchState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Notices,
+                                                       state.sizeLedger.notices,
+                                                       state.notices,
+                                                       encodeNoticeState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Activities,
+                                                       state.sizeLedger.activities,
+                                                       state.activities,
+                                                       encodeActivityState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Capacity,
+                                    encodeProjected(state.capacity, encodeCapacityState)) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Truncation,
+                                    encodeProjected(state.truncation, encodeTruncation)) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Diagnostics,
+                                                       state.sizeLedger.diagnostics,
+                                                       state.diagnostics,
+                                                       encodeDiagnosticState) ||
+                    !setSectionJson(
+                        state, detail::StateSizeSection::CompatibilityExtensions, state.compatibilityExtensions)) {
+                    state.sizeLedger.failed = true;
+                    return false;
+                }
+
+                const std::size_t internalSequences = static_cast<std::size_t>(state.retainedReplayThrough.has_value()) +
+                                                      static_cast<std::size_t>(state.lastSynchronizationBatchSequence.has_value());
+                if (internalSequences > std::numeric_limits<std::size_t>::max() / sizeof(frontend::SequenceNumber)) {
+                    state.sizeLedger.failed = true;
+                    return false;
+                }
+                state.sizeLedger.internalSequenceBytes = internalSequences * sizeof(frontend::SequenceNumber);
+                state.sizeLedger.initialized = true;
+                return true;
+            } catch (...) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
         }
 
         bool accountingFailure(detail::StateStorage& state, std::string& error) noexcept;
@@ -2301,43 +2507,32 @@ namespace ai::openai::codex::frontend::client {
         return thread(id.value);
     }
     const ThreadState* State::thread(std::string_view id) const noexcept {
-        const auto found = std::find_if(impl->threads.begin(), impl->threads.end(), [id](const ThreadState& value) {
-            return value.id.value == id;
-        });
-        return found == impl->threads.end() ? nullptr : &*found;
+        const auto found = impl->threadById.find(id);
+        return found == impl->threadById.end() ? nullptr : &impl->threads[found->second];
     }
     const TurnState* State::turn(const typed::TurnId& id) const noexcept {
         return turn(id.value);
     }
     const TurnState* State::turn(std::string_view id) const noexcept {
-        const auto found = std::find_if(impl->turns.begin(), impl->turns.end(), [id](const TurnState& value) {
-            return value.id.value == id;
-        });
-        return found == impl->turns.end() ? nullptr : &*found;
+        const auto found = impl->turnById.find(id);
+        return found == impl->turnById.end() ? nullptr : &impl->turns[found->second];
     }
     const ItemState* State::item(const typed::ItemId& id) const noexcept {
         return item(id.value);
     }
     const ItemState* State::item(std::string_view id) const noexcept {
-        const auto found = std::find_if(impl->items.begin(), impl->items.end(), [id](const ItemState& value) {
-            return value.id.value == id;
-        });
-        return found == impl->items.end() ? nullptr : &*found;
+        const auto found = impl->firstItemById.find(id);
+        return found == impl->firstItemById.end() ? nullptr : &impl->items[found->second];
     }
     const ItemState* State::item(const typed::ThreadId& threadId,
                                  const typed::TurnId& turnId,
                                  const typed::ItemId& id) const noexcept {
-        const auto found = std::find_if(impl->items.begin(), impl->items.end(), [&](const ItemState& value) {
-            return value.threadId == std::optional<typed::ThreadId>{threadId} &&
-                   value.turnId == std::optional<typed::TurnId>{turnId} && value.id == id;
-        });
-        return found == impl->items.end() ? nullptr : &*found;
+        const auto found = impl->itemByScope.find(detail::ScopedItemLookupView{threadId.value, turnId.value, id.value});
+        return found == impl->itemByScope.end() ? nullptr : &impl->items[found->second];
     }
     const PendingRequestState* State::pendingRequest(const PendingRequestId& id) const noexcept {
-        const auto found = std::find_if(impl->pendingRequests.begin(), impl->pendingRequests.end(), [&](const PendingRequestState& value) {
-            return value.id == id;
-        });
-        return found == impl->pendingRequests.end() ? nullptr : &*found;
+        const auto found = impl->pendingRequestById.find(id.value);
+        return found == impl->pendingRequestById.end() ? nullptr : &impl->pendingRequests[found->second];
     }
 
 #define AISUITE_STATE_GETTER(type, name)                                                                                                   \
@@ -2996,6 +3191,58 @@ namespace ai::openai::codex::frontend::client {
                 result->pendingRequestProjectionPresent =
                     source.pendingRequestsPresent && !rootUnrepresented(source.projection, "/pendingRequests");
 
+                struct TurnBuildGroup {
+                    std::string_view threadId;
+                    std::size_t nextFallbackItemIndex = 0;
+                    std::vector<std::pair<std::size_t, typed::ItemId>> orderedItems;
+                };
+                std::unordered_map<std::string_view, std::vector<typed::TurnId>> orderedTurnsByThread;
+                std::unordered_map<std::string_view, TurnBuildGroup> turnBuildGroups;
+                orderedTurnsByThread.reserve(source.threads.size());
+                turnBuildGroups.reserve(source.turns.size());
+                for (const canonical::TurnState& turn : source.turns) {
+                    orderedTurnsByThread[turn.threadId.value()].push_back(typed::TurnId{turn.id.value()});
+                    turnBuildGroups.emplace(
+                        turn.id.value(), TurnBuildGroup{turn.threadId.value(), 0, {}});
+                }
+
+                std::vector<std::pair<std::size_t, ItemState>> orderedItems;
+                orderedItems.reserve(source.items.size() + source.legacyItems.size());
+                std::size_t fallbackItemIndex = 0;
+                for (const canonical::ThreadItem& item : source.items) {
+                    const canonical::ItemData& data = canonical::itemData(item);
+                    const std::size_t itemFallbackIndex = fallbackItemIndex++;
+                    orderedItems.emplace_back(data.sourceIndex.value_or(itemFallbackIndex),
+                                              publicItem(data, ItemKind{canonical::threadItemKind(item)}));
+                    if (data.threadId && data.turnId) {
+                        const auto group = turnBuildGroups.find(data.turnId->value());
+                        if (group != turnBuildGroups.end() && group->second.threadId == data.threadId->value()) {
+                            const std::size_t turnFallbackIndex = group->second.nextFallbackItemIndex++;
+                            group->second.orderedItems.emplace_back(data.sourceIndex.value_or(turnFallbackIndex),
+                                                                    typed::ItemId{data.id.value()});
+                        }
+                    }
+                }
+                for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
+                    const auto known = frontend::threadItemKindFromString(item.discriminator);
+                    orderedItems.emplace_back(item.sourceIndex, publicItem(item.value, ItemKind{item.discriminator, known}));
+                    if (item.value.threadId && item.value.turnId) {
+                        const auto group = turnBuildGroups.find(item.value.turnId->value());
+                        if (group != turnBuildGroups.end() && group->second.threadId == item.value.threadId->value()) {
+                            group->second.orderedItems.emplace_back(item.sourceIndex, typed::ItemId{item.value.id.value()});
+                        }
+                    }
+                }
+                std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const auto& left, const auto& right) {
+                    return left.first < right.first;
+                });
+                for (auto& [turnId, group] : turnBuildGroups) {
+                    (void) turnId;
+                    std::stable_sort(group.orderedItems.begin(), group.orderedItems.end(), [](const auto& left, const auto& right) {
+                        return left.first < right.first;
+                    });
+                }
+
                 result->threads.reserve(source.threads.size());
                 for (const canonical::ThreadState& thread : source.threads) {
                     ThreadState decoded;
@@ -3039,10 +3286,9 @@ namespace ai::openai::codex::frontend::client {
                     for (auto member = canonicalExtensions.begin(); member != canonicalExtensions.end(); ++member) {
                         decoded.extensions[member.key()] = member.value();
                     }
-                    for (const canonical::TurnState& turn : source.turns) {
-                        if (turn.threadId == thread.id) {
-                            decoded.orderedTurns.push_back(typed::TurnId{turn.id.value()});
-                        }
+                    const auto orderedTurns = orderedTurnsByThread.find(thread.id.value());
+                    if (orderedTurns != orderedTurnsByThread.end()) {
+                        decoded.orderedTurns = std::move(orderedTurns->second);
                     }
                     result->threads.push_back(std::move(decoded));
                 }
@@ -3074,47 +3320,17 @@ namespace ai::openai::codex::frontend::client {
                     for (auto member = canonicalExtensions.begin(); member != canonicalExtensions.end(); ++member) {
                         decoded.extensions[member.key()] = member.value();
                     }
-                    std::vector<std::pair<std::size_t, typed::ItemId>> orderedTurnItems;
-                    std::size_t fallbackTurnItemIndex = 0;
-                    for (const canonical::ThreadItem& item : source.items) {
-                        const canonical::ItemData& data = canonical::itemData(item);
-                        if (data.threadId == std::optional<canonical::ThreadIdentity>{turn.threadId} && data.turnId.has_value() &&
-                            *data.turnId == turn.id) {
-                            orderedTurnItems.emplace_back(data.sourceIndex.value_or(fallbackTurnItemIndex++),
-                                                          typed::ItemId{data.id.value()});
+                    const auto group = turnBuildGroups.find(turn.id.value());
+                    if (group != turnBuildGroups.end()) {
+                        decoded.orderedItems.reserve(group->second.orderedItems.size());
+                        for (auto& [index, item] : group->second.orderedItems) {
+                            (void) index;
+                            decoded.orderedItems.push_back(std::move(item));
                         }
-                    }
-                    for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
-                        if (item.value.threadId == std::optional<canonical::ThreadIdentity>{turn.threadId} &&
-                            item.value.turnId.has_value() && *item.value.turnId == turn.id) {
-                            orderedTurnItems.emplace_back(item.sourceIndex, typed::ItemId{item.value.id.value()});
-                        }
-                    }
-                    std::stable_sort(orderedTurnItems.begin(), orderedTurnItems.end(), [](const auto& left, const auto& right) {
-                        return left.first < right.first;
-                    });
-                    for (auto& [index, item] : orderedTurnItems) {
-                        (void) index;
-                        decoded.orderedItems.push_back(std::move(item));
                     }
                     result->turns.push_back(std::move(decoded));
                 }
 
-                std::vector<std::pair<std::size_t, ItemState>> orderedItems;
-                orderedItems.reserve(source.items.size() + source.legacyItems.size());
-                std::size_t fallbackItemIndex = 0;
-                for (const canonical::ThreadItem& item : source.items) {
-                    const canonical::ItemData& data = canonical::itemData(item);
-                    orderedItems.emplace_back(data.sourceIndex.value_or(fallbackItemIndex++),
-                                              publicItem(data, ItemKind{canonical::threadItemKind(item)}));
-                }
-                for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
-                    const auto known = frontend::threadItemKindFromString(item.discriminator);
-                    orderedItems.emplace_back(item.sourceIndex, publicItem(item.value, ItemKind{item.discriminator, known}));
-                }
-                std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const auto& left, const auto& right) {
-                    return left.first < right.first;
-                });
                 result->items.reserve(orderedItems.size());
                 for (auto& [index, item] : orderedItems) {
                     (void) index;
@@ -3430,6 +3646,7 @@ namespace ai::openai::codex::frontend::client {
                 }
             }
 
+            buildStateLookupIndexes(*result);
             if (!rebuildStateSizeLedger(*result) || !stateFits(*result, maximumBytes, error)) {
                 if (failure != nullptr) {
                     *failure = CanonicalStateBuildFailure::Capacity;

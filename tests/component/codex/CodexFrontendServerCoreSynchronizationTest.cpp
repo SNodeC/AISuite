@@ -39,6 +39,57 @@ namespace {
     constexpr std::string_view OpaqueExtensionValue = "safe-looking-extension-sentinel";
     constexpr std::string_view SecretDataValue = "known-secret-item-sentinel";
 
+    backend::ItemContentSnapshotChannel snapshotChannel(backend::ItemContentChanged::Kind kind) {
+        switch (kind) {
+            case backend::ItemContentChanged::Kind::AgentText:
+                return backend::ItemContentSnapshotChannel::AgentText;
+            case backend::ItemContentChanged::Kind::ReasoningText:
+                return backend::ItemContentSnapshotChannel::ReasoningText;
+            case backend::ItemContentChanged::Kind::ReasoningSummary:
+                return backend::ItemContentSnapshotChannel::ReasoningSummary;
+            case backend::ItemContentChanged::Kind::CommandOutput:
+                return backend::ItemContentSnapshotChannel::CommandOutput;
+        }
+        return backend::ItemContentSnapshotChannel::AgentText;
+    }
+
+    constexpr std::uint8_t snapshotChannelBit(backend::ItemContentSnapshotChannel channel) noexcept {
+        return static_cast<std::uint8_t>(1U << static_cast<unsigned int>(channel));
+    }
+
+    backend::ItemContentSnapshot selectedContentSnapshot(const backend::ItemSnapshot& item,
+                                                         const typed::ThreadId& threadId,
+                                                         const typed::TurnId& turnId,
+                                                         backend::ItemContentChanged::Kind kind,
+                                                         std::optional<std::uint64_t> projectedDroppedContentBytesBeforeSelected =
+                                                             std::nullopt,
+                                                         std::uint8_t frontendOmittedContentChannels = 0) {
+        backend::ItemContentSnapshot result;
+        result.key = {threadId, turnId, typed::ItemId{item.id}, snapshotChannel(kind)};
+        result.status = item.status;
+        switch (kind) {
+            case backend::ItemContentChanged::Kind::AgentText:
+                result.content = item.agentText;
+                break;
+            case backend::ItemContentChanged::Kind::ReasoningText:
+                result.content = item.reasoningText;
+                break;
+            case backend::ItemContentChanged::Kind::ReasoningSummary:
+                result.content = item.reasoningSummary;
+                break;
+            case backend::ItemContentChanged::Kind::CommandOutput:
+                result.content = item.commandOutput;
+                break;
+        }
+        result.droppedContentBytes = projectedDroppedContentBytesBeforeSelected.value_or(item.droppedContentBytes);
+        result.backendDroppedContentBytes = item.droppedContentBytes;
+        result.frontendOmittedContentChannels = frontendOmittedContentChannels;
+        result.contentTruncated = result.droppedContentBytes != 0;
+        result.knownType = true;
+        result.connectionInvalidated = item.connectionInvalidated;
+        return result;
+    }
+
     class Backend final : public server::BackendPort {
     public:
         [[nodiscard]] bool providerReady() const noexcept override {
@@ -90,8 +141,8 @@ namespace {
     }
 
     server::ConnectionCallbacks collect(std::vector<frontend::ServerMessage>& messages) {
-        return {[&messages](const frontend::ServerMessage& message) {
-                    messages.push_back(message);
+        return {[&messages](server::SerializedServerMessage message) {
+                    messages.push_back(std::move(message.message));
                     return true;
                 },
                 [](const server::ConnectionClose&) {
@@ -124,25 +175,26 @@ namespace {
         return {model::SourceStamp{"backend-event:" + source}, model::ProcessUpdatedOccurrence{std::move(process)}};
     }
 
-    model::OccurrenceDraft expandedGroup() {
+    model::OccurrenceDraft expandedGroup(std::string summary = "configuration warning",
+                                         std::string source = "server_notification:ServerNotification:method:configWarning") {
         model::ConfigurationState configuration;
         configuration.state = model::DomainState::present();
-        configuration.state.summary = "configuration warning";
+        configuration.state.summary = summary;
         model::NoticeRecord notice;
         notice.occurrence = 1;
         notice.category = "configuration";
-        notice.summary = "configuration warning";
+        notice.summary = summary;
         model::LegacyCompatibilityPayload legacy;
         legacy.kind = model::LegacyCompatibilityKind::CodexExtension;
         legacy.sourcePayloadIndex = 0;
         model::LegacySafeExtension extension;
         extension.method = "configWarning";
-        extension.params = *model::SafeDetail::fromJson(frontend::Json{{"message", "configuration warning"}});
+        extension.params = *model::SafeDetail::fromJson(frontend::Json{{"message", summary}});
         legacy.safeExtension = std::move(extension);
         std::vector<model::OccurrencePayload> expanded;
         expanded.emplace_back(model::ConfigurationUpdatedOccurrence{std::move(configuration)});
         expanded.emplace_back(model::NoticeAddedOccurrence{std::move(notice)});
-        return {model::SourceStamp{"server_notification:ServerNotification:method:configWarning"}, std::move(legacy), std::move(expanded)};
+        return {model::SourceStamp{std::move(source)}, std::move(legacy), std::move(expanded)};
     }
 
     model::OccurrenceDraft containedUnknownOccurrence() {
@@ -197,6 +249,23 @@ namespace {
         return {model::SourceStamp{"server_notification:ServerNotification:method:item/agentMessage/delta"},
                 std::move(legacy),
                 std::move(expanded)};
+    }
+
+    model::OccurrenceDraft appendItemContentOccurrence(std::string source,
+                                                       std::string fullContent,
+                                                       std::uint64_t baseContentBytes,
+                                                       std::string delta) {
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-append"}};
+        update.threadId = model::ThreadIdentity{"thread-append"};
+        update.turnId = model::TurnIdentity{"turn-append"};
+        update.channel = "agentText";
+        update.content = std::move(fullContent);
+        update.appendHint = model::ItemContentAppendHint{baseContentBytes, std::move(delta)};
+        model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:" + std::move(source)}, std::move(update)};
+        occurrence.threadId = model::ThreadIdentity{"thread-append"};
+        occurrence.turnId = model::TurnIdentity{"turn-append"};
+        occurrence.itemId = model::ItemIdentity{"item-append"};
+        return occurrence;
     }
 
     model::OccurrenceDraft itemOccurrence(std::string source, std::string status, std::string text) {
@@ -638,6 +707,291 @@ namespace {
                               std::holds_alternative<frontend::SyncComplete>(oversizedReplayMessages[2]) &&
                               std::holds_alternative<frontend::EventBatch>(oversizedReplayMessages[3]),
                           "initial synchronization advertises Snapshot when projected replay cannot preserve an atomic group");
+    }
+
+    void testExactBatchByteAccounting(tests::support::TestResult& result) {
+        const auto runContentBatch = [](std::size_t maxBatchBytes) {
+            Backend backend;
+            std::vector<std::function<void()>> scheduled;
+            server::ServerCoreOptions options;
+            options.authenticator = authenticate;
+            options.journalInitialSequence = model::FrontendSequence{7};
+            options.maxEventsPerBatch = 8;
+            options.maxBatchBytes = maxBatchBytes;
+            options.scheduler = [&scheduled](std::function<void()> callback) {
+                scheduled.push_back(std::move(callback));
+            };
+            server::ServerCore core(backend, std::move(options));
+            core.start();
+
+            std::vector<frontend::ServerMessage> messages;
+            const auto connection = core.openConnection({}, collect(messages));
+            frontend::Hello hello;
+            hello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                             frontend::FrontendCapability::DedicatedNotificationEvents};
+            if (!connection || !core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted()) {
+                return messages;
+            }
+            drainAll(scheduled);
+            messages.clear();
+
+            static_cast<void>(core.publishGroup(expandedGroup("quote\" slash\\ line\nGrüße ")));
+            static_cast<void>(core.publishGroup(expandedGroup("二つ🙂")));
+            drainAll(scheduled);
+            return messages;
+        };
+
+        const std::vector<frontend::ServerMessage> probeMessages = runContentBatch(frontend::DefaultBatchMaxBytes);
+        const auto* probeBatch = probeMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&probeMessages.front()) : nullptr;
+        const auto probeWire = probeBatch ? frontend::Codec::serializeServer(frontend::ServerMessage{*probeBatch})
+                                          : frontend::CodecResult<std::string>{frontend::CodecError{}};
+        const bool probeShape = probeBatch && probeBatch->events.size() == 4 &&
+                                probeBatch->fromSequence == frontend::SequenceNumber{9} &&
+                                probeBatch->toSequence == frontend::SequenceNumber{10} && probeWire;
+        const std::size_t exactBytes = probeWire ? probeWire.value().size() : frontend::DefaultBatchMaxBytes;
+        result.expectTrue(probeShape && probeWire.value().find("quote\\\"") != std::string::npos &&
+                              probeWire.value().find("slash\\\\") != std::string::npos &&
+                              probeWire.value().find("line\\n") != std::string::npos &&
+                              probeWire.value().find("Grüße") != std::string::npos &&
+                              probeWire.value().find("二つ🙂") != std::string::npos,
+                          "batch sizing probe crosses sequence 9 to 10 and retains exact escaped UTF-8 compact JSON");
+
+        const std::vector<frontend::ServerMessage> exactMessages = runContentBatch(exactBytes);
+        const auto* exactBatch = exactMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&exactMessages.front()) : nullptr;
+        const auto exactWire = exactBatch ? frontend::Codec::serializeServer(frontend::ServerMessage{*exactBatch})
+                                          : frontend::CodecResult<std::string>{frontend::CodecError{}};
+        result.expectTrue(exactBatch && exactBatch->events.size() == 4 && exactWire && exactWire.value().size() == exactBytes,
+                          "an event batch is accepted at the exact compact-byte boundary");
+
+        const std::vector<frontend::ServerMessage> splitMessages = runContentBatch(exactBytes > 0 ? exactBytes - 1 : 0);
+        bool splitWithinBound = splitMessages.size() == 2;
+        for (const frontend::ServerMessage& message : splitMessages) {
+            const auto* batch = std::get_if<frontend::EventBatch>(&message);
+            const auto wire = batch ? frontend::Codec::serializeServer(frontend::ServerMessage{*batch})
+                                    : frontend::CodecResult<std::string>{frontend::CodecError{}};
+            splitWithinBound = splitWithinBound && batch && batch->events.size() == 2 && wire &&
+                               wire.value().size() < exactBytes;
+        }
+        result.expectTrue(splitWithinBound,
+                          "one byte below the combined boundary splits between occurrence groups without dropping either group");
+
+        const auto runExpandedGroup = [](std::size_t maxBatchBytes) {
+            Backend backend;
+            std::vector<std::function<void()>> scheduled;
+            server::ServerCoreOptions options;
+            options.authenticator = authenticate;
+            options.maxEventsPerBatch = 8;
+            options.maxBatchBytes = maxBatchBytes;
+            options.scheduler = [&scheduled](std::function<void()> callback) {
+                scheduled.push_back(std::move(callback));
+            };
+            server::ServerCore core(backend, std::move(options));
+            core.start();
+
+            std::vector<frontend::ServerMessage> messages;
+            const auto connection = core.openConnection({}, collect(messages));
+            frontend::Hello hello;
+            hello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                             frontend::FrontendCapability::DedicatedNotificationEvents};
+            if (!connection || !core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted()) {
+                return messages;
+            }
+            drainAll(scheduled);
+            messages.clear();
+            static_cast<void>(core.publishGroup(expandedGroup()));
+            drainAll(scheduled);
+            return messages;
+        };
+
+        const std::vector<frontend::ServerMessage> expandedProbeMessages =
+            runExpandedGroup(frontend::DefaultBatchMaxBytes);
+        const auto* expandedProbe = expandedProbeMessages.size() == 1
+                                        ? std::get_if<frontend::EventBatch>(&expandedProbeMessages.front())
+                                        : nullptr;
+        const auto expandedProbeWire = expandedProbe
+                                           ? frontend::Codec::serializeServer(frontend::ServerMessage{*expandedProbe})
+                                           : frontend::CodecResult<std::string>{frontend::CodecError{}};
+        const std::size_t expandedExactBytes = expandedProbeWire ? expandedProbeWire.value().size()
+                                                                 : frontend::DefaultBatchMaxBytes;
+        const std::vector<frontend::ServerMessage> expandedExactMessages = runExpandedGroup(expandedExactBytes);
+        const auto* expandedExact = expandedExactMessages.size() == 1
+                                        ? std::get_if<frontend::EventBatch>(&expandedExactMessages.front())
+                                        : nullptr;
+        const std::vector<frontend::ServerMessage> expandedFallbackMessages =
+            runExpandedGroup(expandedExactBytes > 0 ? expandedExactBytes - 1 : 0);
+        result.expectTrue(expandedProbe && expandedProbe->events.size() == 2 && expandedExact &&
+                              expandedExact->events.size() == 2 && expandedFallbackMessages.size() == 1 &&
+                              std::holds_alternative<frontend::Snapshot>(expandedFallbackMessages.front()),
+                          "a same-sequence expanded group fits atomically at its exact byte size and falls back atomically below it");
+    }
+
+    void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
+        Backend backend;
+        const std::string snapshotPrefix(16'384, 'p');
+        const std::string snapshotSuffix = " retained";
+        model::ItemData snapshotItem{model::ItemIdentity{"item-append"},
+                                     model::ThreadIdentity{"thread-append"},
+                                     model::TurnIdentity{"turn-append"}};
+        snapshotItem.agentText = snapshotPrefix;
+        snapshotItem.agentTextOverflowV1 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(snapshotPrefix.size()), snapshotSuffix, 0, false, false};
+        snapshotItem.contentTruncated = true;
+        snapshotItem.droppedContentBytes = static_cast<std::uint64_t>(snapshotSuffix.size());
+        snapshotItem.truncation.truncated = true;
+        snapshotItem.truncation.droppedBytes = static_cast<std::uint64_t>(snapshotSuffix.size());
+        snapshotItem.truncation.omittedPaths = {"/agentText"};
+        backend.state.items = {model::AgentMessageItem{std::move(snapshotItem)}};
+        backend.state.itemsPresent = true;
+        std::vector<std::function<void()>> scheduled;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.scheduler = [&scheduled](std::function<void()> callback) {
+            scheduled.push_back(std::move(callback));
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> replacementMessages;
+        std::vector<frontend::ServerMessage> appendMessages;
+        std::vector<frontend::ServerMessage> missingCapabilityMessages;
+        const auto replacementConnection = core.openConnection({}, collect(replacementMessages));
+        frontend::Hello replacementHello;
+        replacementHello.capabilities = std::vector{frontend::FrontendCapability::CompleteThreadItems};
+        const bool replacementReady = replacementConnection &&
+                                      core.receive(*replacementConnection,
+                                                   frontend::ClientMessage{std::move(replacementHello)}).accepted();
+        drainAll(scheduled);
+
+        const auto appendConnection = core.openConnection({}, collect(appendMessages));
+        frontend::Hello appendHello;
+        appendHello.capabilities = std::vector{frontend::FrontendCapability::CompleteThreadItems};
+        appendHello.extensions["projection"] =
+            frontend::Json{{"itemContentUpdateModes", frontend::Json::array({"append-v1"})}};
+        const bool appendReady = appendConnection &&
+                                 core.receive(*appendConnection, frontend::ClientMessage{std::move(appendHello)}).accepted();
+        drainAll(scheduled);
+
+        const auto missingCapabilityConnection = core.openConnection({}, collect(missingCapabilityMessages));
+        frontend::Hello missingCapabilityHello;
+        missingCapabilityHello.extensions["projection"] =
+            frontend::Json{{"itemContentUpdateModes", frontend::Json::array({"append-v1"})}};
+        const bool missingCapabilityReady =
+            missingCapabilityConnection &&
+            core.receive(*missingCapabilityConnection,
+                         frontend::ClientMessage{std::move(missingCapabilityHello)}).accepted();
+        drainAll(scheduled);
+
+        const auto* appendWelcome = !appendMessages.empty() ? std::get_if<frontend::Welcome>(&appendMessages.front()) : nullptr;
+        const auto* replacementWelcome =
+            !replacementMessages.empty() ? std::get_if<frontend::Welcome>(&replacementMessages.front()) : nullptr;
+        const auto* missingCapabilityWelcome = !missingCapabilityMessages.empty()
+                                                   ? std::get_if<frontend::Welcome>(&missingCapabilityMessages.front())
+                                                   : nullptr;
+        const bool appendSelected = appendWelcome && appendWelcome->extensions.contains("projection") &&
+                                    appendWelcome->extensions.at("projection").value("itemContentUpdateMode", "") == "append-v1";
+        const bool replacementNotSelected = replacementWelcome && !replacementWelcome->extensions.contains("projection");
+        const bool missingCapabilityNotSelected =
+            missingCapabilityWelcome && !missingCapabilityWelcome->extensions.contains("projection");
+        const auto snapshotItemData = [](const std::vector<frontend::ServerMessage>& messages) -> const frontend::Json* {
+            for (const frontend::ServerMessage& message : messages) {
+                const auto* snapshot = std::get_if<frontend::Snapshot>(&message);
+                if (snapshot != nullptr && snapshot->state.contains("items") && !snapshot->state.at("items").empty()) {
+                    const auto data = snapshot->state.at("items").front().find("data");
+                    if (data != snapshot->state.at("items").front().end()) {
+                        return &*data;
+                    }
+                }
+            }
+            return nullptr;
+        };
+        const frontend::Json* replacementSnapshotData = snapshotItemData(replacementMessages);
+        const frontend::Json* appendSnapshotData = snapshotItemData(appendMessages);
+        const bool negotiatedSnapshotSuffix =
+            appendSnapshotData != nullptr &&
+            appendSnapshotData->contains(std::string(model::ItemContentOverflowV1Property)) &&
+            (replacementSnapshotData == nullptr ||
+             !replacementSnapshotData->contains(std::string(model::ItemContentOverflowV1Property)));
+
+        replacementMessages.clear();
+        appendMessages.clear();
+        missingCapabilityMessages.clear();
+        const model::FrontendSequence replayCursor = core.currentSequence();
+        server::OccurrenceCoalescingKey contentKey;
+        contentKey.kind = server::OccurrenceEntityKind::ItemContent;
+        contentKey.threadId = model::ThreadIdentity{"thread-append"};
+        contentKey.turnId = model::TurnIdentity{"turn-append"};
+        contentKey.itemId = model::ItemIdentity{"item-append"};
+        contentKey.entityId = "item-append";
+        contentKey.channel = "agentText";
+        const auto first = core.stageGroup(contentKey, appendItemContentOccurrence("501", "basea", 4, "a"));
+        const auto second = core.stageGroup(contentKey, appendItemContentOccurrence("502", "baseab", 5, "b"));
+        drainAll(scheduled);
+
+        const auto contentData = [](const std::vector<frontend::ServerMessage>& messages) -> const frontend::Json* {
+            for (const frontend::ServerMessage& message : messages) {
+                const auto* batch = std::get_if<frontend::EventBatch>(&message);
+                if (batch == nullptr) {
+                    continue;
+                }
+                for (const frontend::FrontendEvent& event : batch->events) {
+                    if (event.type == "item.content.updated") {
+                        return &event.data;
+                    }
+                }
+            }
+            return nullptr;
+        };
+        const frontend::Json* replacementData = contentData(replacementMessages);
+        const frontend::Json* appendData = contentData(appendMessages);
+        const frontend::Json* missingCapabilityData = contentData(missingCapabilityMessages);
+        result.expectTrue(replacementReady && appendReady && missingCapabilityReady && appendSelected && replacementNotSelected &&
+                              missingCapabilityNotSelected && first.accepted() && second.accepted() && replacementData && appendData &&
+                              missingCapabilityData && negotiatedSnapshotSuffix && replacementData->value("content", "") == "baseab" &&
+                              !replacementData->contains("contentDelta") && appendData->value("contentDelta", "") == "ab" &&
+                              appendData->value("baseContentBytes", std::uint64_t{0}) == 4 && appendData->contains("content") &&
+                              appendData->at("content") == "" &&
+                              missingCapabilityData->value("content", "") == "baseab",
+                          "append-v1 is selected only with complete items and coalesces contiguous deltas per recipient while every "
+                          "unselected recipient retains replacement encoding");
+
+        std::vector<frontend::ServerMessage> replayMessages;
+        const auto replayConnection = core.openConnection({}, collect(replayMessages));
+        frontend::Hello replayHello;
+        replayHello.resumeAfter = frontend::SequenceNumber{replayCursor.protocolValue()};
+        replayHello.capabilities = std::vector{frontend::FrontendCapability::CompleteThreadItems};
+        replayHello.extensions["projection"] =
+            frontend::Json{{"itemContentUpdateModes", frontend::Json::array({"append-v1"})}};
+        const bool replayReady = replayConnection &&
+                                 core.receive(*replayConnection, frontend::ClientMessage{std::move(replayHello)}).accepted();
+        drainAll(scheduled);
+        const frontend::Json* replayData = contentData(replayMessages);
+        result.expectTrue(replayReady && replayData && replayData->contains("content") && replayData->at("content") == "" &&
+                              replayData->value("contentDelta", "") == "ab" &&
+                              replayData->value("baseContentBytes", std::uint64_t{0}) == 4,
+                          "the connection-neutral journal re-encodes a retained content occurrence as append-v1 for selected replay");
+
+        replacementMessages.clear();
+        appendMessages.clear();
+        missingCapabilityMessages.clear();
+        model::ItemData itemData{model::ItemIdentity{"item-append"},
+                                 model::ThreadIdentity{"thread-append"},
+                                 model::TurnIdentity{"turn-append"}};
+        itemData.agentText = "baseabc";
+        model::OccurrenceDraft itemUpsert{model::SourceStamp{"backend-event:503"},
+                                          model::ItemUpsertedOccurrence{model::AgentMessageItem{std::move(itemData)}}};
+        itemUpsert.threadId = model::ThreadIdentity{"thread-append"};
+        itemUpsert.turnId = model::TurnIdentity{"turn-append"};
+        itemUpsert.itemId = model::ItemIdentity{"item-append"};
+        server::OccurrenceCoalescingKey itemKey = contentKey;
+        itemKey.kind = server::OccurrenceEntityKind::Item;
+        itemKey.channel.clear();
+        const auto upserted = core.stageGroup(itemKey, std::move(itemUpsert));
+        const auto content = core.stageGroup(contentKey, appendItemContentOccurrence("504", "baseabc", 6, "c"));
+        drainAll(scheduled);
+        appendData = contentData(appendMessages);
+        result.expectTrue(upserted.accepted() && content.accepted() && appendData &&
+                              appendData->value("content", "") == "baseabc" && !appendData->contains("contentDelta"),
+                          "a same-item upsert carrying final text forces its dependent content event back to replacement encoding");
     }
 
     void testScopeFilteredSparseReplay(tests::support::TestResult& result) {
@@ -2055,6 +2409,7 @@ namespace {
         ai::openai::codex::backend::Snapshot oversizedItemSource = source;
         ai::openai::codex::backend::ItemSnapshot& oversizedItem =
             oversizedItemSource.threads.front().turns.front().items.front();
+        oversizedItem.status = "started";
         const std::string retainedItemContent = std::string(16'383, 'x') + "\xE2\x82\xAC";
         const std::string oversizedItemContent = retainedItemContent + "tail";
         oversizedItem.agentText = oversizedItemContent;
@@ -2093,6 +2448,18 @@ namespace {
         const std::vector<ai::openai::codex::backend::SequencedBackendEvent> oversizedContentEvents{
             {ai::openai::codex::backend::SequenceNumber{18}, std::move(oversizedContentEvent)}};
         const auto oversizedContentOccurrence = projection.projectOccurrences(oversizedContentEvents, oversizedItemSource);
+        const std::vector<ai::openai::codex::backend::ItemContentSnapshot> oversizedContentItems{
+            selectedContentSnapshot(oversizedItem,
+                                    ai::openai::codex::typed::ThreadId{thread.id},
+                                    ai::openai::codex::typed::TurnId{turn.id},
+                                    ai::openai::codex::backend::ItemContentChanged::Kind::CommandOutput,
+                                    12,
+                                    static_cast<std::uint8_t>(
+                                        snapshotChannelBit(backend::ItemContentSnapshotChannel::AgentText) |
+                                        snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningText) |
+                                        snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningSummary)))};
+        const auto directOversizedContentOccurrence =
+            projection.projectItemContentOccurrences(oversizedContentEvents, oversizedContentItems);
         const auto* boundedContentOccurrence =
             oversizedContentOccurrence && oversizedContentOccurrence.value().occurrences.size() == 1 &&
                     oversizedContentOccurrence.value().occurrences.front().occurrence.expandedPayloads.size() == 1
@@ -2101,8 +2468,346 @@ namespace {
                 : nullptr;
         result.expectTrue(boundedContentOccurrence && boundedContentOccurrence->content == retainedItemContent &&
                               boundedContentOccurrence->truncation.truncated &&
-                              boundedContentOccurrence->truncation.droppedBytes == 16,
-                          "item-content occurrences reuse the same bounded canonical projection instead of re-emitting oversized text");
+                              boundedContentOccurrence->truncation.droppedBytes == 16 && directOversizedContentOccurrence &&
+                              directOversizedContentOccurrence.value().occurrences == oversizedContentOccurrence.value().occurrences,
+                          "exact-item content projection preserves the same bounded replacement occurrence without projecting full State");
+
+        model::OccurrenceIdentity aggregateIdentity{model::FrontendSequence{18},
+                                                    model::OccurrenceGroupIdentity{"aggregate-item-content"},
+                                                    0,
+                                                    1,
+                                                    model::SourceStamp{"aggregate-item-content"}};
+        aggregateIdentity.threadId = model::ThreadIdentity{thread.id};
+        aggregateIdentity.turnId = model::TurnIdentity{turn.id};
+        aggregateIdentity.itemId = model::ItemIdentity{item.id};
+        const auto aggregateOccurrence =
+            boundedContentOccurrence
+                ? model::makeOccurrence(aggregateIdentity, model::OccurrencePayload{*boundedContentOccurrence})
+                : model::OccurrenceResult<model::CanonicalOccurrence>{
+                      model::OccurrenceError{model::OccurrenceErrorCode::InvalidPayload, "/item", "projection failed"}};
+        const auto aggregateReduced =
+            aggregateOccurrence && oversizedItemSnapshot
+                ? model::reduceOccurrence(oversizedItemSnapshot.value(), aggregateOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{
+                      model::ModelError{model::ModelErrorCode::InvalidShape, "/item", "projection failed"}};
+        const model::ItemData* aggregateReducedItem =
+            aggregateReduced && !aggregateReduced.value().items.empty()
+                ? &model::itemData(aggregateReduced.value().items.front())
+                : nullptr;
+        result.expectTrue(aggregateReducedItem != nullptr &&
+                              aggregateReducedItem->droppedContentBytes == std::optional<std::uint64_t>{16} &&
+                              aggregateReducedItem->contentTruncated &&
+                              aggregateReducedItem->agentText == retainedItemContent &&
+                              aggregateReducedItem->reasoningText == retainedItemContent &&
+                              aggregateReducedItem->reasoningSummary == retainedItemContent &&
+                              aggregateReducedItem->commandOutput == retainedItemContent,
+                          "a selected-channel occurrence preserves aggregate item truncation across every retained content channel");
+
+        ai::openai::codex::backend::Snapshot appendSource = source;
+        ai::openai::codex::backend::ItemSnapshot& appendItem = appendSource.threads.front().turns.front().items.front();
+        appendItem.status = "started";
+        appendItem.agentText.clear();
+        appendItem.reasoningText.clear();
+        appendItem.reasoningSummary.clear();
+        appendItem.commandOutput = "before after";
+        appendItem.contentTruncated = false;
+        appendItem.droppedContentBytes = 0;
+        ai::openai::codex::backend::ItemContentChanged appendEvent;
+        appendEvent.threadId = ai::openai::codex::typed::ThreadId{thread.id};
+        appendEvent.turnId = ai::openai::codex::typed::TurnId{turn.id};
+        appendEvent.itemId = ai::openai::codex::typed::ItemId{item.id};
+        appendEvent.kind = ai::openai::codex::backend::ItemContentChanged::Kind::CommandOutput;
+        appendEvent.delta = " after";
+        appendEvent.channelBytesBefore = 6;
+        appendEvent.droppedContentBytesBefore = 0;
+        const std::vector<ai::openai::codex::backend::SequencedBackendEvent> appendEvents{
+            {ai::openai::codex::backend::SequenceNumber{19}, appendEvent}};
+        const std::vector<ai::openai::codex::backend::ItemContentSnapshot> appendItems{
+            selectedContentSnapshot(appendItem,
+                                    ai::openai::codex::typed::ThreadId{thread.id},
+                                    ai::openai::codex::typed::TurnId{turn.id},
+                                    ai::openai::codex::backend::ItemContentChanged::Kind::CommandOutput)};
+        const auto directAppend = projection.projectItemContentOccurrences(appendEvents, appendItems);
+        const auto fullAppend = projection.projectOccurrences(appendEvents, appendSource);
+        const auto* projectedAppend =
+            directAppend && directAppend.value().occurrences.size() == 1 &&
+                    directAppend.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &directAppend.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        auto mismatchedAppendEvents = appendEvents;
+        std::get<ai::openai::codex::backend::ItemContentChanged>(mismatchedAppendEvents.front().event).delta = " mismatch";
+        const auto mismatchedAppend = projection.projectItemContentOccurrences(mismatchedAppendEvents, appendItems);
+        const auto* projectedMismatch =
+            mismatchedAppend && mismatchedAppend.value().occurrences.size() == 1 &&
+                    mismatchedAppend.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &mismatchedAppend.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        auto advancedAppendItems = appendItems;
+        advancedAppendItems.front().content += " later";
+        const auto advancedAppend = projection.projectItemContentOccurrences(appendEvents, advancedAppendItems);
+        const auto* projectedAdvanced =
+            advancedAppend && advancedAppend.value().occurrences.size() == 1 &&
+                    advancedAppend.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &advancedAppend.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(
+            projectedAppend && projectedAppend->content == "before after" &&
+                projectedAppend->appendHint == std::optional<model::ItemContentAppendHint>{{6, " after", true}} && fullAppend &&
+                directAppend.value().occurrences == fullAppend.value().occurrences && projectedMismatch &&
+                !projectedMismatch->appendHint.has_value() && projectedAdvanced && !projectedAdvanced->appendHint.has_value(),
+            "content projection retains an append hint only when the exact backend delta accounts for the retained replacement suffix");
+
+        const auto contentEvent = [&](backend::SequenceNumber sequence, backend::ItemContentChanged::Kind kind) {
+            backend::ItemContentChanged content;
+            content.threadId = typed::ThreadId{thread.id};
+            content.turnId = typed::TurnId{turn.id};
+            content.itemId = typed::ItemId{item.id};
+            content.kind = kind;
+            content.delta = "ignored-by-replacement-projection";
+            return backend::SequencedBackendEvent{sequence, std::move(content)};
+        };
+        const std::vector<backend::SequencedBackendEvent> allContentEvents{
+            contentEvent(backend::SequenceNumber{19}, backend::ItemContentChanged::Kind::AgentText),
+            contentEvent(backend::SequenceNumber{20}, backend::ItemContentChanged::Kind::ReasoningText),
+            contentEvent(backend::SequenceNumber{21}, backend::ItemContentChanged::Kind::ReasoningSummary),
+            contentEvent(backend::SequenceNumber{22}, backend::ItemContentChanged::Kind::CommandOutput),
+        };
+        std::vector<backend::ItemContentSnapshot> allContentItems;
+        allContentItems.reserve(allContentEvents.size());
+        for (const backend::SequencedBackendEvent& sequenced : allContentEvents) {
+            const auto& content = std::get<backend::ItemContentChanged>(sequenced.event);
+            constexpr std::uint8_t AllContentChannels =
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::AgentText) |
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningText) |
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningSummary) |
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::CommandOutput);
+            allContentItems.push_back(selectedContentSnapshot(
+                oversizedItem,
+                typed::ThreadId{thread.id},
+                typed::TurnId{turn.id},
+                content.kind,
+                12,
+                static_cast<std::uint8_t>(AllContentChannels & ~snapshotChannelBit(snapshotChannel(content.kind)))));
+        }
+        const auto fullAllContent = projection.projectOccurrences(allContentEvents, oversizedItemSource);
+        const auto directAllContent = projection.projectItemContentOccurrences(allContentEvents, allContentItems);
+        std::vector<backend::ItemContentSnapshot> mismatchedContentItems = allContentItems;
+        mismatchedContentItems.back().key.itemId = typed::ItemId{"other-item"};
+        const auto mismatchedContent = projection.projectItemContentOccurrences(allContentEvents, mismatchedContentItems);
+        std::vector<backend::ItemContentSnapshot> mismatchedScopeItems = allContentItems;
+        mismatchedScopeItems.front().key.threadId = typed::ThreadId{"other-thread"};
+        const auto mismatchedScope = projection.projectItemContentOccurrences(allContentEvents, mismatchedScopeItems);
+        std::vector<backend::ItemContentSnapshot> mismatchedChannelItems = allContentItems;
+        mismatchedChannelItems.front().key.channel = backend::ItemContentSnapshotChannel::CommandOutput;
+        const auto mismatchedChannel = projection.projectItemContentOccurrences(allContentEvents, mismatchedChannelItems);
+        std::vector<backend::ItemContentSnapshot> inactiveContentItems = allContentItems;
+        inactiveContentItems.front().status = "completed";
+        const auto inactiveContent = projection.projectItemContentOccurrences(allContentEvents, inactiveContentItems);
+        std::vector<backend::ItemContentSnapshot> unknownContentItems = allContentItems;
+        unknownContentItems.front().knownType = false;
+        const auto unknownContent = projection.projectItemContentOccurrences(allContentEvents, unknownContentItems);
+        result.expectTrue(fullAllContent && directAllContent && directAllContent.value().occurrences.size() == 4 &&
+                              directAllContent.value().occurrences == fullAllContent.value().occurrences && !mismatchedContent &&
+                              !mismatchedScope && !mismatchedChannel && !inactiveContent && !unknownContent,
+                          "all content channels use exact replacement semantics while identity, channel, activity, and type mismatches "
+                          "fail the complete fast-path batch");
+
+        const auto hintedContentEvent = [&](backend::SequenceNumber sequence,
+                                            std::size_t channelBytesBefore,
+                                            std::uint64_t droppedContentBytesBefore) {
+            backend::ItemContentChanged content;
+            content.threadId = typed::ThreadId{thread.id};
+            content.turnId = typed::TurnId{turn.id};
+            content.itemId = typed::ItemId{item.id};
+            content.kind = backend::ItemContentChanged::Kind::CommandOutput;
+            content.delta = "x";
+            content.channelBytesBefore = channelBytesBefore;
+            content.droppedContentBytesBefore = droppedContentBytesBefore;
+            return backend::SequencedBackendEvent{sequence, std::move(content)};
+        };
+        const std::string asciiPrefix(16'384, 'a');
+        backend::ItemSnapshot asciiFirstOverflow = oversizedItem;
+        asciiFirstOverflow.agentText.clear();
+        asciiFirstOverflow.reasoningText.clear();
+        asciiFirstOverflow.reasoningSummary.clear();
+        asciiFirstOverflow.commandOutput = asciiPrefix + "1";
+        asciiFirstOverflow.droppedContentBytes = 0;
+        asciiFirstOverflow.contentTruncated = false;
+        backend::ItemSnapshot asciiRedundant = asciiFirstOverflow;
+        asciiRedundant.commandOutput += "2";
+        backend::ItemSnapshot asciiMissingHints = asciiRedundant;
+        asciiMissingHints.commandOutput += "3";
+        backend::ItemSnapshot asciiPriorRolling = asciiMissingHints;
+        asciiPriorRolling.commandOutput += "4";
+        backend::ItemSnapshot asciiCurrentRolling = asciiPriorRolling;
+        asciiCurrentRolling.commandOutput += "5";
+        asciiCurrentRolling.droppedContentBytes = 1;
+        asciiCurrentRolling.contentTruncated = true;
+
+        backend::SequencedBackendEvent missingHintEvent =
+            hintedContentEvent(backend::SequenceNumber{25}, asciiPrefix.size() + 2, 0);
+        auto* missingHint = std::get_if<backend::ItemContentChanged>(&missingHintEvent.event);
+        missingHint->channelBytesBefore.reset();
+        missingHint->droppedContentBytesBefore.reset();
+        const std::vector<backend::SequencedBackendEvent> hintedEvents{
+            hintedContentEvent(backend::SequenceNumber{23}, asciiPrefix.size(), 0),
+            hintedContentEvent(backend::SequenceNumber{24}, asciiPrefix.size() + 1, 0),
+            std::move(missingHintEvent),
+            hintedContentEvent(backend::SequenceNumber{26}, asciiPrefix.size() + 3, 1),
+            hintedContentEvent(backend::SequenceNumber{27}, asciiPrefix.size() + 4, 0),
+        };
+        const auto commandContentSnapshot = [&](const backend::ItemSnapshot& item) {
+            return selectedContentSnapshot(
+                item, typed::ThreadId{thread.id}, typed::TurnId{turn.id}, backend::ItemContentChanged::Kind::CommandOutput);
+        };
+        const std::vector<backend::ItemContentSnapshot> hintedItems{commandContentSnapshot(asciiFirstOverflow),
+                                                                    commandContentSnapshot(asciiRedundant),
+                                                                    commandContentSnapshot(asciiMissingHints),
+                                                                    commandContentSnapshot(asciiPriorRolling),
+                                                                    commandContentSnapshot(asciiCurrentRolling)};
+        const auto hintedOccurrences = projection.projectItemContentOccurrences(hintedEvents, hintedItems);
+        const std::vector<backend::SequencedBackendEvent> redundantOnlyEvents{
+            hintedContentEvent(backend::SequenceNumber{24}, asciiPrefix.size() + 1, 0)};
+        const std::vector<backend::ItemContentSnapshot> redundantOnlyItems{commandContentSnapshot(asciiRedundant)};
+        const auto redundantOnly = projection.projectItemContentOccurrences(redundantOnlyEvents, redundantOnlyItems);
+        const bool retainedHintedSources =
+            hintedOccurrences && hintedOccurrences.value().occurrences.size() == 4 &&
+            hintedOccurrences.value().occurrences[0].occurrence.sourceStamp == model::SourceStamp{"backend-event:23"} &&
+            hintedOccurrences.value().occurrences[1].occurrence.sourceStamp == model::SourceStamp{"backend-event:25"} &&
+            hintedOccurrences.value().occurrences[2].occurrence.sourceStamp == model::SourceStamp{"backend-event:26"} &&
+            hintedOccurrences.value().occurrences[3].occurrence.sourceStamp == model::SourceStamp{"backend-event:27"};
+        ai::openai::codex::backend::Snapshot conservativeFallbackSource = source;
+        conservativeFallbackSource.threads.front().turns.front().items.front() = asciiRedundant;
+        const std::vector<backend::SequencedBackendEvent> hintedFallbackEvents{
+            hintedContentEvent(backend::SequenceNumber{24}, asciiPrefix.size() + 1, 0)};
+        const auto hintedFallback = projection.projectOccurrences(hintedFallbackEvents, conservativeFallbackSource);
+        result.expectTrue(retainedHintedSources && redundantOnly && redundantOnly.value().occurrences.empty() &&
+                              !redundantOnly.value().snapshotRequired && hintedFallback &&
+                              hintedFallback.value().occurrences.size() == 1,
+                          "exact-item projection suppresses only provably unchanged post-prefix updates while equality, missing hints, "
+                          "backend rolling retention, and the full fallback remain observable");
+
+        backend::ItemSnapshot snapshotBoundItem = oversizedItem;
+        snapshotBoundItem.agentText = std::string(model::MaximumItemContentOverflowV1Bytes, 's');
+        snapshotBoundItem.reasoningText.clear();
+        snapshotBoundItem.reasoningSummary.clear();
+        snapshotBoundItem.commandOutput.clear();
+        snapshotBoundItem.droppedContentBytes = 0;
+        snapshotBoundItem.contentTruncated = false;
+        backend::ItemContentSnapshot snapshotBoundContent = selectedContentSnapshot(
+            snapshotBoundItem, typed::ThreadId{thread.id}, typed::TurnId{turn.id}, backend::ItemContentChanged::Kind::AgentText);
+        snapshotBoundContent.droppedContentBytes = 1;
+        snapshotBoundContent.contentTruncated = true;
+        backend::ItemContentChanged snapshotBoundEvent;
+        snapshotBoundEvent.threadId = typed::ThreadId{thread.id};
+        snapshotBoundEvent.turnId = typed::TurnId{turn.id};
+        snapshotBoundEvent.itemId = typed::ItemId{item.id};
+        snapshotBoundEvent.kind = backend::ItemContentChanged::Kind::AgentText;
+        snapshotBoundEvent.delta = "x";
+        snapshotBoundEvent.channelBytesBefore = model::MaximumItemContentOverflowV1Bytes;
+        snapshotBoundEvent.droppedContentBytesBefore = 0;
+        const std::vector<backend::SequencedBackendEvent> snapshotBoundEvents{
+            {backend::SequenceNumber{30}, snapshotBoundEvent}};
+        const std::vector<backend::ItemContentSnapshot> snapshotBoundItems{snapshotBoundContent};
+        const auto snapshotBoundProjection =
+            projection.projectItemContentOccurrences(snapshotBoundEvents, snapshotBoundItems);
+        const auto* snapshotBoundUpdate =
+            snapshotBoundProjection && snapshotBoundProjection.value().occurrences.size() == 1 &&
+                    snapshotBoundProjection.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &snapshotBoundProjection.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+
+        backend::ItemSnapshot rollingItem = snapshotBoundItem;
+        rollingItem.agentText = std::string(model::MaximumItemContentOverflowV1Bytes, 'r');
+        rollingItem.droppedContentBytes = 9;
+        rollingItem.contentTruncated = true;
+        backend::ItemContentSnapshot rollingContent = selectedContentSnapshot(
+            rollingItem, typed::ThreadId{thread.id}, typed::TurnId{turn.id}, backend::ItemContentChanged::Kind::AgentText);
+        backend::ItemContentChanged rollingEvent = snapshotBoundEvent;
+        rollingEvent.channelBytesBefore = 4U * 1024U * 1024U;
+        rollingEvent.droppedContentBytesBefore = 8;
+        const std::vector<backend::SequencedBackendEvent> rollingEvents{{backend::SequenceNumber{31}, rollingEvent}};
+        const std::vector<backend::ItemContentSnapshot> rollingItems{rollingContent};
+        const auto rollingProjection = projection.projectItemContentOccurrences(rollingEvents, rollingItems);
+        const auto* rollingUpdate =
+            rollingProjection && rollingProjection.value().occurrences.size() == 1 &&
+                    rollingProjection.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &rollingProjection.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(
+            snapshotBoundUpdate != nullptr && snapshotBoundUpdate->overflowV1.has_value() &&
+                snapshotBoundUpdate->appendHint == std::optional<model::ItemContentAppendHint>{
+                                                       {model::MaximumItemContentOverflowV1Bytes, "", true}} &&
+                rollingUpdate != nullptr && rollingUpdate->overflowV1.has_value() && !rollingUpdate->appendHint.has_value() &&
+                rollingUpdate->content.has_value() && rollingUpdate->content->size() == 16'384,
+            "snapshot-bound overflow emits a metadata-only append, while backend rolling retention remains an observable authoritative "
+            "replacement");
+
+        const std::string unicodePrefix = std::string(16'383, 'u') + "\xE2\x82\xAC";
+        backend::ItemSnapshot unicodeFirstOverflow = asciiFirstOverflow;
+        unicodeFirstOverflow.commandOutput = unicodePrefix + "x";
+        backend::ItemSnapshot unicodeRedundant = unicodeFirstOverflow;
+        unicodeRedundant.commandOutput += "y";
+        const std::vector<backend::SequencedBackendEvent> unicodeEvents{
+            hintedContentEvent(backend::SequenceNumber{28}, unicodePrefix.size(), 0),
+            hintedContentEvent(backend::SequenceNumber{29}, unicodePrefix.size() + 1, 0),
+        };
+        const std::vector<backend::ItemContentSnapshot> unicodeItems{commandContentSnapshot(unicodeFirstOverflow),
+                                                                     commandContentSnapshot(unicodeRedundant)};
+        const auto unicodeOccurrences = projection.projectItemContentOccurrences(unicodeEvents, unicodeItems);
+        const auto* unicodeUpdate =
+            unicodeOccurrences && unicodeOccurrences.value().occurrences.size() == 1 &&
+                    unicodeOccurrences.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &unicodeOccurrences.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(unicodeUpdate && unicodeUpdate->content == unicodePrefix && unicodeUpdate->truncation.truncated &&
+                              unicodeOccurrences.value().occurrences.front().occurrence.sourceStamp ==
+                                  model::SourceStamp{"backend-event:28"},
+                          "the strict overflow boundary compares UTF-8 prefix bytes, emits the first multibyte truncation transition, "
+                          "and suppresses only its unchanged suffix");
+
+        std::string snapshotMultibytePrefix;
+        snapshotMultibytePrefix.reserve(backend::MaxSnapshotExtensionPayloadBytes);
+        for (std::size_t index = 0; index < backend::MaxSnapshotExtensionPayloadBytes / 4; ++index) {
+            snapshotMultibytePrefix += "\xF0\x9F\x99\x82";
+        }
+        backend::ItemContentSnapshot snapshotMultibyteFirst = commandContentSnapshot(asciiFirstOverflow);
+        snapshotMultibyteFirst.content = snapshotMultibytePrefix;
+        snapshotMultibyteFirst.droppedContentBytes = 4;
+        snapshotMultibyteFirst.contentTruncated = true;
+        backend::ItemContentSnapshot snapshotMultibyteRedundant = snapshotMultibyteFirst;
+        snapshotMultibyteRedundant.droppedContentBytes = 8;
+        auto snapshotMultibyteFirstEvent =
+            hintedContentEvent(backend::SequenceNumber{30}, snapshotMultibytePrefix.size(), 0);
+        std::get<backend::ItemContentChanged>(snapshotMultibyteFirstEvent.event).delta = "\xF0\x9F\x99\x82";
+        auto snapshotMultibyteRedundantEvent =
+            hintedContentEvent(backend::SequenceNumber{31}, snapshotMultibytePrefix.size() + 4, 0);
+        std::get<backend::ItemContentChanged>(snapshotMultibyteRedundantEvent.event).delta = "\xF0\x9F\x99\x82";
+        const std::vector<backend::SequencedBackendEvent> snapshotMultibyteEvents{
+            std::move(snapshotMultibyteFirstEvent), std::move(snapshotMultibyteRedundantEvent)};
+        const std::vector<backend::ItemContentSnapshot> snapshotMultibyteItems{
+            std::move(snapshotMultibyteFirst), std::move(snapshotMultibyteRedundant)};
+        const auto snapshotMultibyteOccurrences =
+            projection.projectItemContentOccurrences(snapshotMultibyteEvents, snapshotMultibyteItems);
+        const auto* snapshotMultibyteUpdate =
+            snapshotMultibyteOccurrences && snapshotMultibyteOccurrences.value().occurrences.size() == 1 &&
+                    snapshotMultibyteOccurrences.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &snapshotMultibyteOccurrences.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(snapshotMultibyteUpdate && snapshotMultibyteUpdate->content == snapshotMultibytePrefix &&
+                              snapshotMultibyteUpdate->truncation.truncated &&
+                              snapshotMultibyteUpdate->truncation.droppedBytes == 4 &&
+                              snapshotMultibyteOccurrences.value().occurrences.front().occurrence.sourceStamp ==
+                                  model::SourceStamp{"backend-event:30"},
+                          "a valid multibyte channel crossing the 32-KiB backend snapshot bound emits its first truthful truncation "
+                          "transition before later unchanged projected prefixes are suppressed");
 
         ai::openai::codex::backend::Snapshot oversizedScalarSource = source;
         const std::string retainedScalar = std::string(16'383, 's') + "\xE2\x82\xAC";
@@ -2463,6 +3168,8 @@ int main() {
     tests::support::TestResult result;
     testSynchronization(result);
     testTypedBatching(result);
+    testExactBatchByteAccounting(result);
+    testNegotiatedItemContentAppend(result);
     testScopeFilteredSparseReplay(result);
     testInlineObserverBatchCoalescing(result);
     testTerminalItemKeepsInitialUpsertOrder(result);

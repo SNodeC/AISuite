@@ -250,6 +250,7 @@ namespace {
         std::vector<std::uint64_t> synchronizedRevisions;
         std::vector<frontend::SequenceNumber> cursors;
         std::vector<std::string> diagnostics;
+        std::vector<client::Error> connectionErrors;
         std::vector<client::Change> changes;
         std::size_t protocolMessages = 0;
         std::size_t closes = 0;
@@ -273,6 +274,7 @@ namespace {
             result.onConnectionStateChanged = [this](const client::ConnectionStateChange& change) {
                 if (change.error.has_value()) {
                     diagnostics.push_back(change.error->message);
+                    connectionErrors.push_back(*change.error);
                 }
                 if (recording && change.current == client::ConnectionState::Ready) {
                     callbackOrder.emplace_back("ready");
@@ -506,8 +508,17 @@ namespace {
                                                                           {"mandatoryCoreExceedsLimit", false}}}});
         publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(direct));
 
+        // This fixture spans every public State section. Keep its compact logical
+        // encoding boundary fixed while the production ledger is assembled
+        // section-by-section; debug builds also compare it with encodeState().
+        constexpr std::size_t exactStateBytes = 8521;
         std::string error;
-        const auto first = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const auto first = buildCanonicalState(adopter, publication, exactStateBytes, 64, error);
+        std::string belowBoundaryError;
+        client::detail::CanonicalStateBuildFailure belowBoundaryFailure =
+            client::detail::CanonicalStateBuildFailure::StateDivergence;
+        const auto belowBoundary = buildCanonicalState(
+            adopter, publication, exactStateBytes - 1, 64, belowBoundaryError, &belowBoundaryFailure);
         const client::ThreadState* firstThread = first ? first->thread("adapter-thread") : nullptr;
         client::ThreadState activeThread;
         client::ThreadState notLoadedThread;
@@ -527,7 +538,9 @@ namespace {
             futureStatusThread.status = "futureStatus";
         }
         result.expectTrue(
-            first.has_value() && error.empty() && first->revision() == 41 && first->freshness() == client::StateFreshness::Current &&
+            first.has_value() && error.empty() && !belowBoundary.has_value() && !belowBoundaryError.empty() &&
+                belowBoundaryFailure == client::detail::CanonicalStateBuildFailure::Capacity && first->revision() == 41 &&
+                first->freshness() == client::StateFreshness::Current &&
                 first->representationMode() == client::RepresentationMode::ExpandedV1 &&
                 first->visibleSequence() == frontend::SequenceNumber(17) && first->synchronizedThrough() == frontend::SequenceNumber(16) &&
                 first->provider().value.has_value() && first->provider().value->generation == 3 && first->controller().value.has_value() &&
@@ -544,7 +557,7 @@ namespace {
                 first->processes().value->entries.front().stamp.extensions.value("vendorStamp", "") == "process-stamp-extension" &&
                 first->pendingRequests().size() == 2 && first->pendingRequests().front().questions.has_value() &&
                 first->pendingRequests().front().questions->empty(),
-            "CanonicalStateBuilder maps the canonical typed publication directly into every sampled public State border");
+            "CanonicalStateBuilder maps every sampled public State border and enforces its exact encoded byte boundary");
         result.expectTrue(firstThread != nullptr && client::threadIsIdle(*firstThread) && !client::threadIsIdle(activeThread) &&
                               !client::threadIsIdle(notLoadedThread) && !client::threadIsIdle(systemErrorThread) &&
                               !client::threadIsIdle(missingStatusThread) && !client::threadIsIdle(futureStatusThread),
@@ -767,6 +780,85 @@ namespace {
                           "CanonicalStateBuilder retains repeated provider item IDs under distinct thread and turn parents");
     }
 
+    void testIndexedStateLookupsAndGroupedOrdering(tests::support::TestResult& result) {
+        constexpr std::size_t ThreadCount = 128;
+        constexpr std::size_t TurnsPerThread = 4;
+        constexpr std::size_t ItemsPerTurn = 4;
+
+        client::Client adopter(publicOptions());
+        core::PublishedState publication;
+        publication.revision = 1;
+        publication.freshness = core::PublishedFreshness::Current;
+        publication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(1, 1, "indexed state");
+        snapshot.threads.clear();
+        snapshot.threads.reserve(ThreadCount);
+        snapshot.turns.reserve(ThreadCount * TurnsPerThread);
+        snapshot.items.reserve(ThreadCount * TurnsPerThread * ItemsPerTurn);
+        snapshot.pendingRequests.reserve(ThreadCount);
+        for (std::size_t threadIndex = 0; threadIndex < ThreadCount; ++threadIndex) {
+            const std::string threadId = "indexed-thread-" + std::to_string(threadIndex);
+            snapshot.threads.emplace_back(model::ThreadIdentity{threadId});
+            for (std::size_t turnIndex = 0; turnIndex < TurnsPerThread; ++turnIndex) {
+                const std::string turnId = threadId + "-turn-" + std::to_string(turnIndex);
+                snapshot.turns.emplace_back(model::TurnIdentity{turnId}, model::ThreadIdentity{threadId});
+                for (std::size_t itemIndex = 0; itemIndex < ItemsPerTurn; ++itemIndex) {
+                    const std::string itemId = turnId + "-item-" + std::to_string(itemIndex);
+                    model::ItemData item{
+                        model::ItemIdentity{itemId}, model::ThreadIdentity{threadId}, model::TurnIdentity{turnId}};
+                    item.summary = itemId;
+                    item.sourceIndex = ItemsPerTurn - itemIndex - 1;
+                    snapshot.items.push_back(model::AgentMessageItem{std::move(item)});
+                }
+            }
+            const std::string requestId = "indexed-request-" + std::to_string(threadIndex);
+            model::PendingRequestData request{model::PendingRequestIdentity{requestId}, model::ThreadIdentity{threadId}};
+            request.summary = requestId;
+            request.sourceIndex = ThreadCount - threadIndex - 1;
+            snapshot.pendingRequests.push_back(model::CommandExecutionApprovalRequest{std::move(request)});
+        }
+        publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
+
+        std::string error;
+        const auto state = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        bool exact = state.has_value() && error.empty() && state->threads().size() == ThreadCount &&
+                     state->turns().size() == ThreadCount * TurnsPerThread &&
+                     state->items().size() == ThreadCount * TurnsPerThread * ItemsPerTurn &&
+                     state->pendingRequests().size() == ThreadCount;
+        for (std::size_t threadIndex = 0; exact && threadIndex < ThreadCount; ++threadIndex) {
+            const std::string threadId = "indexed-thread-" + std::to_string(threadIndex);
+            const client::ThreadState* thread = state->thread(threadId);
+            exact = thread != nullptr && thread->orderedTurns.size() == TurnsPerThread;
+            for (std::size_t turnIndex = 0; exact && turnIndex < TurnsPerThread; ++turnIndex) {
+                const std::string turnId = threadId + "-turn-" + std::to_string(turnIndex);
+                exact = thread->orderedTurns[turnIndex] == typed::TurnId{turnId};
+                const client::TurnState* turn = state->turn(turnId);
+                exact = exact && turn != nullptr && turn->threadId == typed::ThreadId{threadId} &&
+                        turn->orderedItems.size() == ItemsPerTurn;
+                for (std::size_t orderedIndex = 0; exact && orderedIndex < ItemsPerTurn; ++orderedIndex) {
+                    const std::size_t sourceItemIndex = ItemsPerTurn - orderedIndex - 1;
+                    const std::string itemId = turnId + "-item-" + std::to_string(sourceItemIndex);
+                    const client::ItemState* bare = state->item(itemId);
+                    const client::ItemState* scoped =
+                        state->item(typed::ThreadId{threadId}, typed::TurnId{turnId}, typed::ItemId{itemId});
+                    exact = turn->orderedItems[orderedIndex] == typed::ItemId{itemId} && bare != nullptr && scoped == bare &&
+                            scoped->summary == std::optional<std::string>{itemId};
+                }
+            }
+            const std::string requestId = "indexed-request-" + std::to_string(threadIndex);
+            const client::PendingRequestState* request = state->pendingRequest(client::PendingRequestId{requestId});
+            exact = exact && request != nullptr && request->summary == std::optional<std::string>{requestId};
+        }
+        exact = exact && state->thread("missing-thread") == nullptr && state->turn("missing-turn") == nullptr &&
+                state->item("missing-item") == nullptr &&
+                state->item(typed::ThreadId{"missing-thread"}, typed::TurnId{"missing-turn"}, typed::ItemId{"missing-item"}) ==
+                    nullptr &&
+                state->pendingRequest(client::PendingRequestId{"missing-request"}) == nullptr;
+        result.expectTrue(exact,
+                          "large immutable State uses indexed identity lookup while preserving grouped thread/turn/item ordering");
+    }
+
     void testScopedItemChanges(tests::support::TestResult& result) {
         PublicHarness harness;
         client::Client sdk(publicOptions(), harness.callbacks());
@@ -939,6 +1031,42 @@ namespace {
                           "the public configured fallback bounds the exact final encoded Hello before transport delivery");
     }
 
+    void testClosingProtocolErrorReceiveResult(tests::support::TestResult& result) {
+        struct Case {
+            frontend::ErrorCode code;
+            bool retryable;
+        };
+        constexpr std::array cases{
+            Case{frontend::ErrorCode::InternalError, true},
+            Case{frontend::ErrorCode::InvalidCommand, false},
+        };
+
+        for (const Case& testCase : cases) {
+            PublicHarness harness;
+            client::Client sdk(publicOptions(), harness.callbacks());
+            harness.sdk = &sdk;
+            client::Connection connection = sdk.openConnection(harness.transport());
+            connection.transportConnected();
+
+            frontend::ProtocolErrorMessage closing;
+            closing.code = testCase.code;
+            closing.message = "public classified closing protocol error";
+            closing.closeConnection = true;
+            const auto encoded = frontend::Codec::encodeServer(frontend::ServerMessage{std::move(closing)});
+            const std::string compact = encoded ? encoded.value().dump() : std::string{};
+            const client::ReceiveResult received = connection.receive(std::string_view(compact));
+            const std::optional<client::Error> terminal =
+                harness.connectionErrors.empty() ? std::nullopt : std::optional<client::Error>{harness.connectionErrors.back()};
+
+            result.expectTrue(encoded && received.accepted && !received.error.has_value() && !connection.isOpen() &&
+                                  sdk.connectionState() == client::ConnectionState::Disconnected && harness.closes == 1 && terminal &&
+                                  terminal->origin == client::ErrorOrigin::Protocol && terminal->protocolCode == testCase.code &&
+                                  terminal->retryable == testCase.retryable,
+                              "public receive accepts a closing protocol frame without replacing its retry classification: " +
+                                  std::string(frontend::toString(testCase.code)));
+        }
+    }
+
     void testTransactionalPreparationFailure(tests::support::TestResult& result) {
         core::ClientOptions options;
         options.credentialProvider = [] {
@@ -1067,9 +1195,11 @@ int main() {
     testDirectCanonicalStateBuilder(result);
     testCanonicalLookupIdentityPreflight(result);
     testScopedItemIdentities(result);
+    testIndexedStateLookupsAndGroupedOrdering(result);
     testScopedItemChanges(result);
     testHybridExpandedPublicationRetainsLegacyItems(result);
     testPublicClientCoreAdapter(result);
+    testClosingProtocolErrorReceiveResult(result);
     testTransactionalPreparationFailure(result);
     testTransactionalStaleFallback(result);
     return result.processResult();

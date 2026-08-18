@@ -843,6 +843,14 @@ namespace ai::openai::codex::backend {
             return snapshot;
         }
 
+        std::optional<ItemSnapshotBatch> itemSnapshots(std::span<const ItemSnapshotKey> keys) const {
+            return makeItemSnapshotBatch(state, keys);
+        }
+
+        std::optional<ItemContentSnapshotBatch> itemContentSnapshots(std::span<const ItemContentSnapshotKey> keys) const {
+            return makeItemContentSnapshotBatch(state, keys);
+        }
+
         bool ready() const noexcept {
             return state.provider.lifecycle == ProviderLifecycle::Ready;
         }
@@ -975,6 +983,28 @@ namespace ai::openai::codex::backend {
                 state.provider.lastError = Error{Error::Category::Capacity, EOVERFLOW, "Backend sequence number exhausted."};
                 client.stop();
                 return false;
+            }
+
+            if (auto* content = std::get_if<ItemContentChanged>(&event)) {
+                content->channelBytesBefore.reset();
+                content->droppedContentBytesBefore.reset();
+                if (const ItemState* item = findItem(state, content->threadId, content->turnId, content->itemId)) {
+                    content->droppedContentBytesBefore = item->droppedContentBytes;
+                    switch (content->kind) {
+                        case ItemContentChanged::Kind::AgentText:
+                            content->channelBytesBefore = item->agentText.size();
+                            break;
+                        case ItemContentChanged::Kind::ReasoningText:
+                            content->channelBytesBefore = item->reasoningText.size();
+                            break;
+                        case ItemContentChanged::Kind::ReasoningSummary:
+                            content->channelBytesBefore = item->reasoningSummary.size();
+                            break;
+                        case ItemContentChanged::Kind::CommandOutput:
+                            content->channelBytesBefore = item->commandOutput.size();
+                            break;
+                    }
+                }
             }
 
             const Reduction reduction = reducer.apply(state, event);
@@ -2330,6 +2360,15 @@ namespace ai::openai::codex::backend {
 
     Snapshot detail::BackendCoreRuntime::snapshot() const {
         return impl->makeCurrentSnapshot();
+    }
+
+    std::optional<ItemSnapshotBatch> detail::BackendCoreRuntime::itemSnapshots(std::span<const ItemSnapshotKey> keys) const {
+        return impl->itemSnapshots(keys);
+    }
+
+    std::optional<ItemContentSnapshotBatch>
+    detail::BackendCoreRuntime::itemContentSnapshots(std::span<const ItemContentSnapshotKey> keys) const {
+        return impl->itemContentSnapshots(keys);
     }
 
     bool detail::BackendCoreRuntime::isReady() const noexcept {

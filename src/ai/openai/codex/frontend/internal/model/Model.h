@@ -171,6 +171,21 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const TruncationMetadata&) const = default;
     };
 
+    inline constexpr std::string_view ItemContentOverflowV1Property = "aisuiteItemContentOverflowV1";
+    inline constexpr std::size_t MaximumItemContentOverflowV1Bytes = 32U * 1024U;
+
+    enum class ItemContentWireMode { Replacement, AppendV1 };
+
+    struct ItemContentOverflowV1 {
+        std::uint64_t baseContentBytes = 0;
+        std::string suffix;
+        std::uint64_t droppedContentBytesBeforeProjection = 0;
+        bool contentTruncatedBeforeProjection = false;
+        bool truncationBeforeProjection = false;
+
+        bool operator==(const ItemContentOverflowV1&) const = default;
+    };
+
     struct ProjectionMetadata {
         std::optional<ProjectionStamp> projectionStamp;
         std::optional<SourceStamp> sourceStamp;
@@ -469,6 +484,9 @@ namespace ai::openai::codex::frontend::internal::model {
         std::optional<std::string> reasoningText;
         std::optional<std::string> reasoningSummary;
         std::optional<std::string> commandOutput;
+        // Connection-neutral suffix retained only so append-v1 recipients can
+        // reconstruct agentText beyond the frozen v1 scalar field bound.
+        std::optional<ItemContentOverflowV1> agentTextOverflowV1;
         std::optional<std::uint64_t> droppedContentBytes;
         bool contentTruncated = false;
         std::optional<std::int64_t> startedAtMs;
@@ -825,10 +843,19 @@ namespace ai::openai::codex::frontend::internal::model {
         std::variant<Value, ModelError> result;
     };
 
-    [[nodiscard]] ModelResult<ExpandedSnapshot> encodeSnapshot(const CanonicalSnapshot& snapshot) noexcept;
-    [[nodiscard]] ModelResult<CanonicalSnapshot> decodeSnapshot(const ExpandedSnapshot& snapshot) noexcept;
+    [[nodiscard]] ModelResult<Json> encodeItemContentOverflowV1(const ItemContentOverflowV1& overflow) noexcept;
+    [[nodiscard]] ModelResult<ItemContentOverflowV1>
+    decodeItemContentOverflowV1(const Json& encoded, std::string path) noexcept;
+    [[nodiscard]] std::optional<ModelError>
+    restoreAgentTextOverflowV1(ItemData& item, const ItemContentOverflowV1& overflow, std::string path) noexcept;
+
+    [[nodiscard]] ModelResult<ExpandedSnapshot>
+    encodeSnapshot(const CanonicalSnapshot& snapshot, ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
+    [[nodiscard]] ModelResult<CanonicalSnapshot>
+    decodeSnapshot(const ExpandedSnapshot& snapshot, ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] ModelResult<Snapshot> encodeLegacySnapshot(const CanonicalSnapshot& snapshot) noexcept;
-    [[nodiscard]] ModelResult<CanonicalSnapshot> decodeLegacySnapshot(const Snapshot& snapshot) noexcept;
+    [[nodiscard]] ModelResult<CanonicalSnapshot>
+    decodeLegacySnapshot(const Snapshot& snapshot, ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
 
     struct SnapshotRepresentationSelection {
         bool expandedDomains = false;
@@ -842,13 +869,17 @@ namespace ai::openai::codex::frontend::internal::model {
     [[nodiscard]] SnapshotRepresentationSelection
     snapshotRepresentationSelection(std::span<const FrontendCapability> selectedCapabilities) noexcept;
     [[nodiscard]] ModelResult<Snapshot> encodeProjectedSnapshot(const CanonicalSnapshot& snapshot,
-                                                                SnapshotRepresentationSelection selection) noexcept;
+                                                                SnapshotRepresentationSelection selection,
+                                                                ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] ModelResult<Snapshot> encodeProjectedSnapshot(const CanonicalSnapshot& snapshot,
-                                                                std::span<const FrontendCapability> selectedCapabilities) noexcept;
+                                                                std::span<const FrontendCapability> selectedCapabilities,
+                                                                ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] ModelResult<CanonicalSnapshot> decodeProjectedSnapshot(const Snapshot& snapshot,
-                                                                         SnapshotRepresentationSelection selection) noexcept;
+                                                                         SnapshotRepresentationSelection selection,
+                                                                         ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] ModelResult<CanonicalSnapshot> decodeProjectedSnapshot(const Snapshot& snapshot,
-                                                                         std::span<const FrontendCapability> selectedCapabilities) noexcept;
+                                                                         std::span<const FrontendCapability> selectedCapabilities,
+                                                                         ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
 
     static_assert(std::variant_size_v<ThreadItem> == 18);
     static_assert(std::variant_size_v<PendingRequest> == 10);

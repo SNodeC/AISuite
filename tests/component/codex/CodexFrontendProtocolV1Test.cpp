@@ -354,6 +354,25 @@ namespace {
         result.expectTrue(serializedValid.hasValue() && decodedValid.hasValue(),
                           "a valid generic expanded event passes producer schema validation and round-trips");
 
+        const FrontendEvent schemaNeutralAppend{
+            SequenceNumber{125},
+            "item.content.updated",
+            Json{{"threadId", "thread-1"},
+                 {"turnId", "turn-1"},
+                 {"itemId", "item-1"},
+                 {"channel", "agentText"},
+                 {"content", ""},
+                 {"contentDelta", "suffix"},
+                 {"baseContentBytes", std::uint64_t{6}}},
+            Json::object()};
+        const auto encodedSchemaNeutralAppend = Codec::encodeEvent(schemaNeutralAppend);
+        FrontendEvent appendWithoutRequiredContent = schemaNeutralAppend;
+        appendWithoutRequiredContent.data.erase("content");
+        const auto encodedAppendWithoutRequiredContent = Codec::encodeEvent(appendWithoutRequiredContent);
+        result.expectTrue(encodedSchemaNeutralAppend.hasValue() && !encodedAppendWithoutRequiredContent.hasValue(),
+                          "schema-neutral append metadata is accepted through SafeDetail additional properties only when the frozen "
+                          "item-content replacement shape remains complete");
+
         const FrontendEvent legacy{
             SequenceNumber{125},
             "item.updated",

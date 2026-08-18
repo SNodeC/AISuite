@@ -185,8 +185,8 @@ namespace {
     }
 
     server::ConnectionCallbacks collect(std::vector<frontend::ServerMessage>& messages, std::vector<server::ConnectionClose>& closes) {
-        return {[&messages](const frontend::ServerMessage& message) {
-                    messages.push_back(message);
+        return {[&messages](server::SerializedServerMessage outbound) {
+                    messages.push_back(std::move(outbound.message));
                     return true;
                 },
                 [&closes](const server::ConnectionClose& close) {

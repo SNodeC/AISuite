@@ -158,16 +158,15 @@ namespace ai::openai::codex::frontend {
             }
             const std::optional<server::ConnectionIdentity> identity = target->openConnection(
                 std::move(peer),
-                server::ConnectionCallbacks{[callbackState](const ServerMessage& message) {
-                                                const CodecResult<std::string> encoded = Codec::serializeServer(message);
-                                                if (!encoded) {
-                                                    return false;
-                                                }
+                server::ConnectionCallbacks{[callbackState](server::SerializedServerMessage outbound) {
                                                 if (!callbackState->callbacks.onMessage) {
                                                     return false;
                                                 }
+                                                const std::size_t serializedBytes = outbound.compactJson.size();
                                                 return callbackState->callbacks.onMessage(
-                                                    OutboundMessage{message, encoded.value(), encoded.value().size()});
+                                                    OutboundMessage{std::move(outbound.message),
+                                                                    std::move(outbound.compactJson),
+                                                                    serializedBytes});
                                             },
                                             [callbackState](const server::ConnectionClose& close) {
                                                 if (callbackState->callbacks.onClosed) {

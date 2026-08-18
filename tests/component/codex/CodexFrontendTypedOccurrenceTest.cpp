@@ -220,6 +220,47 @@ namespace {
                 model::SourceStamp{"typed-occurrence-ordering"}};
     }
 
+    void testInPlaceAndCopyPreservingReduction(tests::support::TestResult& result) {
+        model::CanonicalSnapshot candidate = snapshotWithItem();
+        model::ItemData unchanged{model::ItemIdentity{"unchanged-item"},
+                                  model::ThreadIdentity{"thread-optional-content"},
+                                  model::TurnIdentity{"turn-optional-content"}};
+        unchanged.agentText = "unchanged";
+        candidate.items.emplace_back(model::AgentMessageItem{std::move(unchanged)});
+        const model::CanonicalSnapshot source = candidate;
+        const model::CanonicalSnapshot sourceBefore = source;
+
+        model::ItemContentUpdatedOccurrence content{model::ItemIdentity{"item-optional-content"}};
+        content.threadId = model::ThreadIdentity{"thread-optional-content"};
+        content.turnId = model::TurnIdentity{"turn-optional-content"};
+        content.channel = "agentText";
+        content.content = "after";
+        auto identity = occurrenceIdentity(31, "in-place-item-content");
+        identity.threadId = content.threadId;
+        identity.turnId = content.turnId;
+        identity.itemId = content.itemId;
+        const auto occurrence = model::makeOccurrence(std::move(identity), std::move(content));
+        if (!occurrence) {
+            result.expectTrue(false, "in-place occurrence reduction mutates the caller-owned candidate");
+            result.expectTrue(false, "copy-preserving occurrence reduction leaves its source unchanged");
+            return;
+        }
+
+        const model::ThreadItem* const itemStorage = candidate.items.data();
+        const model::ThreadItem* const unchangedStorage = &candidate.items.back();
+        const auto applied = model::applyOccurrence(candidate, occurrence.value());
+        result.expectTrue(applied && candidate.items.data() == itemStorage && &candidate.items.back() == unchangedStorage &&
+                              model::itemData(candidate.items.front()).agentText == std::optional<std::string>{"after"} &&
+                              model::itemData(candidate.items.back()).agentText == std::optional<std::string>{"unchanged"},
+                          "in-place occurrence reduction mutates the caller candidate without replacing retained item storage");
+
+        const auto reduced = model::reduceOccurrence(source, occurrence.value());
+        result.expectTrue(reduced && source == sourceBefore &&
+                              model::itemData(source.items.front()).agentText == std::optional<std::string>{"before"} &&
+                              model::itemData(reduced.value().items.front()).agentText == std::optional<std::string>{"after"},
+                          "copy-preserving occurrence reduction leaves its source unchanged");
+    }
+
     void testItemOrderingAndAuthorityMigration(tests::support::TestResult& result) {
         model::CanonicalSnapshot state;
         state.items.push_back(knownItem("first", 0));
@@ -537,6 +578,318 @@ namespace {
         result.expectTrue(resetItem != nullptr && !resetItem->contentTruncated &&
                               resetItem->droppedContentBytes == std::optional<std::uint64_t>{0},
                           "item-content reduction applies an explicit false/zero truncation reset");
+    }
+
+    void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-optional-content"}};
+        update.threadId = model::ThreadIdentity{"thread-optional-content"};
+        update.turnId = model::TurnIdentity{"turn-optional-content"};
+        update.channel = "agentText";
+        update.content = "before after";
+        update.appendHint = model::ItemContentAppendHint{6, " after"};
+        update.truncation = {};
+        const auto occurrence = model::makeOccurrence(occurrenceIdentity(11, "append-content"), std::move(update));
+        const auto replacementWire = occurrence
+                                         ? model::encodeExpandedOccurrence(occurrence.value())
+                                         : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{occurrence.error()};
+        const auto appendWire = occurrence
+                                    ? model::encodeExpandedOccurrence(occurrence.value(), model::ItemContentWireMode::AppendV1)
+                                    : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{occurrence.error()};
+        const auto legacyWire = occurrence ? model::encodeLegacyOccurrence(occurrence.value())
+                                           : model::OccurrenceResult<frontend::FrontendEvent>{occurrence.error()};
+        const auto decoded = appendWire ? model::decodeExpandedOccurrence(
+                                              appendWire.value().front(), context(), model::ItemContentWireMode::AppendV1)
+                                        : model::OccurrenceResult<model::CanonicalOccurrence>{appendWire.error()};
+        const auto reduced = decoded
+                                 ? model::reduceOccurrence(snapshotWithItem(), decoded.value())
+                                 : model::ModelResult<model::CanonicalSnapshot>{
+                                       {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const auto* decodedUpdate = decoded && !decoded.value().expandedPayloads().empty()
+                                        ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                                              &decoded.value().expandedPayloads().front())
+                                        : nullptr;
+        const model::ItemData* reducedItem =
+            reduced && !reduced.value().items.empty() ? &model::itemData(reduced.value().items.front()) : nullptr;
+
+        result.expectTrue(replacementWire && replacementWire.value().front().data.value("content", "") == "before after" &&
+                              !replacementWire.value().front().data.contains("contentDelta") &&
+                              !replacementWire.value().front().data.contains("baseContentBytes") && legacyWire &&
+                              legacyWire.value().data.value("content", "") == "before after" &&
+                              !legacyWire.value().data.contains("contentDelta"),
+                          "default expanded and legacy item-content encodings remain exact full replacements");
+        result.expectTrue(appendWire && appendWire.value().front().data.contains("content") &&
+                              appendWire.value().front().data.at("content") == "" &&
+                              appendWire.value().front().data.value("contentDelta", "") == " after" &&
+                              appendWire.value().front().data.value("baseContentBytes", std::uint64_t{0}) == 6 && decodedUpdate != nullptr &&
+                              decodedUpdate->appendWireRepresentation && !decodedUpdate->content.has_value() &&
+                              decodedUpdate->appendHint == std::optional<model::ItemContentAppendHint>{{6, " after"}} && reducedItem != nullptr &&
+                              reducedItem->agentText == std::optional<std::string>{"before after"} && !reducedItem->contentTruncated &&
+                              reducedItem->droppedContentBytes == std::optional<std::uint64_t>{0},
+                          "append-v1 encodes only the suffix and applies it to the exact retained byte base");
+
+        model::ItemContentUpdatedOccurrence staleHint{model::ItemIdentity{"item-optional-content"}};
+        staleHint.threadId = model::ThreadIdentity{"thread-optional-content"};
+        staleHint.turnId = model::TurnIdentity{"turn-optional-content"};
+        staleHint.channel = "agentText";
+        staleHint.content = "before after later";
+        staleHint.appendHint = model::ItemContentAppendHint{6, " after"};
+        const auto staleOccurrence = model::makeOccurrence(occurrenceIdentity(12, "stale-append-content"), std::move(staleHint));
+        const auto staleWire =
+            staleOccurrence
+                ? model::encodeExpandedOccurrence(staleOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{staleOccurrence.error()};
+        result.expectTrue(staleWire && staleWire.value().front().data.value("content", "") == "before after later" &&
+                              !staleWire.value().front().data.contains("contentDelta") &&
+                              !staleWire.value().front().data.contains("baseContentBytes"),
+                          "append-v1 falls back to the authoritative replacement when a hint does not span its exact suffix");
+
+        frontend::ExpandedFrontendEvent nonemptyHybrid = appendWire.value().front();
+        nonemptyHybrid.data["content"] = "ambiguous";
+        frontend::ExpandedFrontendEvent missingContent = appendWire.value().front();
+        missingContent.data.erase("content");
+        frontend::ExpandedFrontendEvent incompleteAppend = appendWire.value().front();
+        incompleteAppend.data.erase("contentDelta");
+        frontend::ExpandedFrontendEvent invalidDelta = appendWire.value().front();
+        invalidDelta.data["contentDelta"] = frontend::Json::object();
+        frontend::ExpandedFrontendEvent invalidBase = appendWire.value().front();
+        invalidBase.data["baseContentBytes"] = -1;
+        frontend::ExpandedFrontendEvent emptyReplacement = appendWire.value().front();
+        emptyReplacement.data.erase("contentDelta");
+        emptyReplacement.data.erase("baseContentBytes");
+        const auto decodedEmptyReplacement =
+            model::decodeExpandedOccurrence(emptyReplacement, context(), model::ItemContentWireMode::AppendV1);
+        const auto* emptyReplacementUpdate =
+            decodedEmptyReplacement && !decodedEmptyReplacement.value().expandedPayloads().empty()
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &decodedEmptyReplacement.value().expandedPayloads().front())
+                : nullptr;
+        result.expectTrue(!model::decodeExpandedOccurrence(nonemptyHybrid, context(), model::ItemContentWireMode::AppendV1) &&
+                              !model::decodeExpandedOccurrence(missingContent, context(), model::ItemContentWireMode::AppendV1) &&
+                              !model::decodeExpandedOccurrence(incompleteAppend, context(), model::ItemContentWireMode::AppendV1) &&
+                              !model::decodeExpandedOccurrence(invalidDelta, context(), model::ItemContentWireMode::AppendV1) &&
+                              !model::decodeExpandedOccurrence(invalidBase, context(), model::ItemContentWireMode::AppendV1) &&
+                              emptyReplacementUpdate != nullptr &&
+                              emptyReplacementUpdate->content == std::optional<std::string>{""} &&
+                              !emptyReplacementUpdate->appendWireRepresentation,
+                          "item-content wire data rejects absent, incomplete, ill-typed, and nonempty hybrid append forms while an "
+                          "ordinary empty content-only replacement remains valid");
+
+        frontend::ExpandedFrontendEvent mismatch = appendWire.value().front();
+        mismatch.sequence = frontend::SequenceNumber{12};
+        mismatch.data["baseContentBytes"] = std::uint64_t{5};
+        const auto mismatchOccurrence =
+            model::decodeExpandedOccurrence(mismatch, context(), model::ItemContentWireMode::AppendV1);
+        model::CanonicalSnapshot unchanged = snapshotWithItem();
+        const auto mismatchApplied = mismatchOccurrence ? model::applyOccurrence(unchanged, mismatchOccurrence.value())
+                                                        : model::ModelResult<bool>{{model::ModelErrorCode::InvalidShape,
+                                                                                   "/event",
+                                                                                   "decode failed"}};
+        result.expectTrue(mismatchOccurrence && !mismatchApplied &&
+                              model::itemData(unchanged.items.front()).agentText == std::optional<std::string>{"before"},
+                          "an append-v1 base mismatch is rejected atomically without changing canonical content");
+
+        model::CanonicalSnapshot bounded = snapshotWithItem();
+        std::visit(
+            [](auto& item) {
+                item.value.agentText = std::string(16'380, 'x');
+                item.value.contentTruncated = false;
+                item.value.droppedContentBytes = 0;
+            },
+            bounded.items.front());
+        frontend::ExpandedFrontendEvent boundedAppend{
+            frontend::SequenceNumber{13},
+            frontend::ExpandedEventType::ItemContentUpdated,
+            {{"threadId", "thread-optional-content"},
+             {"turnId", "turn-optional-content"},
+             {"itemId", "item-optional-content"},
+             {"channel", "agentText"},
+             {"content", ""},
+             {"contentDelta", "abcdefgh"},
+             {"baseContentBytes", std::uint64_t{16'380}},
+             {"contentTruncated", true},
+             {"droppedContentBytes", std::uint64_t{4}}}};
+        const auto boundedOccurrence =
+            model::decodeExpandedOccurrence(boundedAppend, context(), model::ItemContentWireMode::AppendV1);
+        const auto boundedReduced = boundedOccurrence
+                                        ? model::reduceOccurrence(bounded, boundedOccurrence.value())
+                                        : model::ModelResult<model::CanonicalSnapshot>{
+                                              {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const model::ItemData* boundedItem = boundedReduced && !boundedReduced.value().items.empty()
+                                                 ? &model::itemData(boundedReduced.value().items.front())
+                                                 : nullptr;
+        result.expectTrue(boundedItem != nullptr && boundedItem->agentText.has_value() && boundedItem->agentText->size() == 16'388 &&
+                              boundedItem->agentText->ends_with("abcdefgh") && boundedItem->contentTruncated &&
+                              boundedItem->droppedContentBytes == std::optional<std::uint64_t>{4},
+                          "append-v1 extends negotiated agent text while preserving authoritative backend truncation metadata");
+
+        const std::string overflowPrefix(16'384, 'p');
+        const std::string overflowSuffix = std::string{" retained "} + "\xE2\x82\xAC";
+        model::ItemContentUpdatedOccurrence overflow{model::ItemIdentity{"item-optional-content"}};
+        overflow.threadId = model::ThreadIdentity{"thread-optional-content"};
+        overflow.turnId = model::TurnIdentity{"turn-optional-content"};
+        overflow.channel = "agentText";
+        overflow.content = overflowPrefix;
+        overflow.truncation.truncated = true;
+        overflow.truncation.droppedBytes = static_cast<std::uint64_t>(overflowSuffix.size());
+        overflow.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(overflowPrefix.size()),
+                                                          overflowSuffix,
+                                                          0,
+                                                          false,
+                                                          false};
+        const auto overflowOccurrence =
+            model::makeOccurrence(occurrenceIdentity(14, "overflow-content"), std::move(overflow));
+        const auto overflowReplacementWire =
+            overflowOccurrence
+                ? model::encodeExpandedOccurrence(overflowOccurrence.value())
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{overflowOccurrence.error()};
+        const auto overflowWire =
+            overflowOccurrence
+                ? model::encodeExpandedOccurrence(overflowOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{overflowOccurrence.error()};
+        if (!overflowWire) {
+            result.expectTrue(false, "item-content overflow occurrence encodes for append-v1");
+            return;
+        }
+        const auto overflowDecoded =
+            overflowWire ? model::decodeExpandedOccurrence(overflowWire.value().front(), context(), model::ItemContentWireMode::AppendV1)
+                         : model::OccurrenceResult<model::CanonicalOccurrence>{overflowWire.error()};
+        const auto overflowReduced =
+            overflowDecoded
+                ? model::reduceOccurrence(snapshotWithItem(), overflowDecoded.value())
+                : model::ModelResult<model::CanonicalSnapshot>{
+                      {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const model::ItemData* overflowItem =
+            overflowReduced && !overflowReduced.value().items.empty()
+                ? &model::itemData(overflowReduced.value().items.front())
+                : nullptr;
+        frontend::ExpandedFrontendEvent malformedOverflow = overflowWire.value().front();
+        malformedOverflow.data[std::string(model::ItemContentOverflowV1Property)][0] = std::uint64_t{16'383};
+        result.expectTrue(
+            overflowReplacementWire && overflowWire &&
+                !overflowReplacementWire.value().front().data.contains(std::string(model::ItemContentOverflowV1Property)) &&
+                overflowReplacementWire.value().front().data.value("content", "") == overflowPrefix &&
+                overflowWire.value().front().data.contains(std::string(model::ItemContentOverflowV1Property)) && overflowItem != nullptr &&
+                overflowItem->agentText == std::optional<std::string>{overflowPrefix + overflowSuffix} &&
+                !overflowItem->contentTruncated && overflowItem->droppedContentBytes == std::optional<std::uint64_t>{0} &&
+                !model::decodeExpandedOccurrence(
+                    overflowWire.value().front(), context(), model::ItemContentWireMode::Replacement) &&
+                !model::decodeExpandedOccurrence(malformedOverflow, context(), model::ItemContentWireMode::AppendV1),
+            "only append-v1 restores a UTF-8 overflow suffix while replacement peers keep the truthful prefix and malformed bases fail");
+
+        model::ItemContentUpdatedOccurrence pastFrozen{model::ItemIdentity{"item-optional-content"}};
+        pastFrozen.threadId = model::ThreadIdentity{"thread-optional-content"};
+        pastFrozen.turnId = model::TurnIdentity{"turn-optional-content"};
+        pastFrozen.channel = "agentText";
+        pastFrozen.content = overflowPrefix;
+        pastFrozen.truncation.truncated = true;
+        pastFrozen.truncation.droppedBytes = static_cast<std::uint64_t>(overflowSuffix.size() + 5);
+        pastFrozen.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(overflowPrefix.size()),
+                                                            overflowSuffix + " next",
+                                                            0,
+                                                            false,
+                                                            false};
+        pastFrozen.appendHint = model::ItemContentAppendHint{
+            static_cast<std::uint64_t>(overflowPrefix.size() + overflowSuffix.size()), " next", true};
+        const auto pastFrozenOccurrence =
+            model::makeOccurrence(occurrenceIdentity(15, "past-frozen-content"), std::move(pastFrozen));
+        const auto pastFrozenWire =
+            pastFrozenOccurrence
+                ? model::encodeExpandedOccurrence(pastFrozenOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{pastFrozenOccurrence.error()};
+        const auto pastFrozenDecoded =
+            pastFrozenWire
+                ? model::decodeExpandedOccurrence(pastFrozenWire.value().front(), context(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<model::CanonicalOccurrence>{pastFrozenWire.error()};
+        const auto pastFrozenReduced =
+            pastFrozenDecoded && overflowReduced
+                ? model::reduceOccurrence(overflowReduced.value(), pastFrozenDecoded.value())
+                : model::ModelResult<model::CanonicalSnapshot>{
+                      {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const model::ItemData* pastFrozenItem =
+            pastFrozenReduced && !pastFrozenReduced.value().items.empty()
+                ? &model::itemData(pastFrozenReduced.value().items.front())
+                : nullptr;
+        result.expectTrue(pastFrozenWire && pastFrozenWire.value().front().data.value("contentDelta", "") == " next" &&
+                              pastFrozenWire.value().front().data.value("baseContentBytes", std::uint64_t{0}) ==
+                                  overflowPrefix.size() + overflowSuffix.size() &&
+                              pastFrozenItem != nullptr &&
+                              pastFrozenItem->agentText == std::optional<std::string>{overflowPrefix + overflowSuffix + " next"},
+                          "append-v1 continues with exact deltas after the frozen agentText field boundary");
+
+        model::CanonicalSnapshot snapshotOverflow = snapshotWithItem();
+        std::visit(
+            [&](auto& item) {
+                item.value.agentText = overflowPrefix;
+                item.value.agentTextOverflowV1 = model::ItemContentOverflowV1{
+                    static_cast<std::uint64_t>(overflowPrefix.size()), overflowSuffix, 0, false, false};
+                item.value.contentTruncated = true;
+                item.value.droppedContentBytes = static_cast<std::uint64_t>(overflowSuffix.size());
+                item.value.truncation.truncated = true;
+                item.value.truncation.droppedBytes = static_cast<std::uint64_t>(overflowSuffix.size());
+                item.value.truncation.omittedPaths = {"/agentText"};
+            },
+            snapshotOverflow.items.front());
+        const auto encodedOverflowSnapshot = model::encodeSnapshot(snapshotOverflow, model::ItemContentWireMode::AppendV1);
+        const auto decodedOverflowSnapshot =
+            encodedOverflowSnapshot
+                ? model::decodeSnapshot(encodedOverflowSnapshot.value(), model::ItemContentWireMode::AppendV1)
+                : model::ModelResult<model::CanonicalSnapshot>{encodedOverflowSnapshot.error()};
+        const model::ItemData* snapshotOverflowItem =
+            decodedOverflowSnapshot && !decodedOverflowSnapshot.value().items.empty()
+                ? &model::itemData(decodedOverflowSnapshot.value().items.front())
+                : nullptr;
+        result.expectTrue(snapshotOverflowItem != nullptr &&
+                              snapshotOverflowItem->agentText == std::optional<std::string>{overflowPrefix + overflowSuffix} &&
+                              !snapshotOverflowItem->contentTruncated &&
+                              snapshotOverflowItem->droppedContentBytes == std::optional<std::uint64_t>{0},
+                          "append-v1 snapshot decoding restores the same bounded suffix used by live and terminal item replacements");
+
+        const auto snapshotWithDetails = [&](bool reservedCollision) {
+            model::CanonicalSnapshot value = snapshotOverflow;
+            frontend::Json details = frontend::Json::object();
+            const std::size_t ordinaryMembers = reservedCollision ? 63 : 64;
+            for (std::size_t index = 0; index < ordinaryMembers; ++index) {
+                details["detail" + std::to_string(index)] = static_cast<std::uint64_t>(index);
+            }
+            if (reservedCollision) {
+                details[std::string(model::ItemContentOverflowV1Property)] = "provider collision";
+            }
+            std::visit(
+                [&](auto& item) {
+                    item.value.safeDetails = *model::SafeDetail::fromJson(std::move(details));
+                },
+                value.items.front());
+            return value;
+        };
+        const auto capacitySnapshot =
+            model::encodeSnapshot(snapshotWithDetails(false), model::ItemContentWireMode::AppendV1);
+        const auto collisionSnapshot =
+            model::encodeSnapshot(snapshotWithDetails(true), model::ItemContentWireMode::AppendV1);
+        const frontend::ExpandedThreadItem* capacityItem =
+            capacitySnapshot && capacitySnapshot.value().state.items.has_value() &&
+                    !capacitySnapshot.value().state.items->empty()
+                ? &capacitySnapshot.value().state.items->front()
+                : nullptr;
+        const frontend::ExpandedThreadItem* collisionItem =
+            collisionSnapshot && collisionSnapshot.value().state.items.has_value() &&
+                    !collisionSnapshot.value().state.items->empty()
+                ? &collisionSnapshot.value().state.items->front()
+                : nullptr;
+        const bool capacityAccounted =
+            capacityItem != nullptr && capacityItem->data.has_value() && capacityItem->data->size() == 64 && capacityItem->truncated &&
+            std::find(capacityItem->omittedFields.begin(), capacityItem->omittedFields.end(), "/data") !=
+                capacityItem->omittedFields.end() &&
+            capacityItem->data->contains(std::string(model::ItemContentOverflowV1Property));
+        const bool collisionAccounted =
+            collisionItem != nullptr && collisionItem->data.has_value() && collisionItem->truncated &&
+            std::find(collisionItem->omittedFields.begin(), collisionItem->omittedFields.end(), "/data") !=
+                collisionItem->omittedFields.end() &&
+            collisionItem->data->at(std::string(model::ItemContentOverflowV1Property)).is_array();
+        result.expectTrue(capacityAccounted && collisionAccounted &&
+                              !model::decodeSnapshot(
+                                  collisionSnapshot.value(), model::ItemContentWireMode::Replacement),
+                          "overflow reserves one bounded detail member, accounts capacity/collisions truthfully, and is rejected without "
+                          "append-v1 negotiation");
     }
 
     void testDiagnosticOccurrenceShape(tests::support::TestResult& result) {
@@ -905,7 +1258,9 @@ int main() {
     testContainedExtension(result);
     testLegacyExtensionWireShape(result);
     testGeneratedMultiFamilyGroup(result);
+    testInPlaceAndCopyPreservingReduction(result);
     testItemContentPresence(result);
+    testNegotiatedItemContentAppend(result);
     testItemOrderingAndAuthorityMigration(result);
     testScopedItemIdentityReduction(result);
     testUnicodeItemContentReduction(result);

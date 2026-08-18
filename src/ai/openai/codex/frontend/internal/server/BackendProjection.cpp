@@ -10,6 +10,7 @@
 #include "ai/openai/codex/frontend/GeneratedProtocol.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
@@ -721,13 +722,24 @@ namespace ai::openai::codex::frontend::internal::server {
         void projectItemContent(std::string_view source,
                                 std::optional<std::string>& destination,
                                 model::ItemData& data,
-                                std::string path) {
+                                std::string path,
+                                bool retainAgentTextOverflow = false) {
             if (source.empty()) {
                 return;
             }
             constexpr std::size_t MaximumContentCharacters = 16U * 1024U;
+            const std::uint64_t droppedBeforeProjection = data.droppedContentBytes.value_or(0);
+            const bool contentTruncatedBeforeProjection = data.contentTruncated;
+            const bool truncationBeforeProjection = data.truncation.truncated;
             std::string retained = boundedFrontendString(source, MaximumContentCharacters, &data.truncation, std::move(path));
             if (retained.size() != source.size()) {
+                if (retainAgentTextOverflow && source.size() <= model::MaximumItemContentOverflowV1Bytes && validUtf8(source)) {
+                    data.agentTextOverflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(retained.size()),
+                                                                           std::string(source.substr(retained.size())),
+                                                                           droppedBeforeProjection,
+                                                                           contentTruncatedBeforeProjection,
+                                                                           truncationBeforeProjection};
+                }
                 const std::uint64_t dropped = static_cast<std::uint64_t>(source.size() - retained.size());
                 std::uint64_t droppedContent = data.droppedContentBytes.value_or(0);
                 saturatingAdd(droppedContent, dropped);
@@ -736,6 +748,47 @@ namespace ai::openai::codex::frontend::internal::server {
                 data.contentTruncated = true;
             }
             destination = std::move(retained);
+        }
+
+        model::ItemData projectItemData(const backend::ItemSnapshot& item,
+                                        const model::ThreadIdentity& threadId,
+                                        const model::TurnIdentity& turnId,
+                                        std::optional<std::size_t> sourceIndex = std::nullopt) {
+            model::ItemData data(requiredIdentifier<model::ItemIdentity>(item.id, "/items/id"), threadId, turnId);
+            data.legacyDiscriminator = item.type;
+            data.droppedContentBytes = item.droppedContentBytes;
+            data.contentTruncated = item.contentTruncated;
+            data.truncation.truncated = item.contentTruncated;
+            data.truncation.droppedBytes = item.droppedContentBytes;
+            if (!item.status.empty()) {
+                data.status = boundedFrontendString(item.status, 256, &data.truncation, "/status");
+            }
+            projectItemContent(item.agentText, data.agentText, data, "/agentText", true);
+            projectItemContent(item.reasoningText, data.reasoningText, data, "/reasoningText");
+            projectItemContent(item.reasoningSummary, data.reasoningSummary, data, "/reasoningSummary");
+            projectItemContent(item.commandOutput, data.commandOutput, data, "/commandOutput");
+            if (data.agentTextOverflowV1.has_value()) {
+                model::ItemContentOverflowV1& overflow = *data.agentTextOverflowV1;
+                const std::uint64_t suffixBytes = static_cast<std::uint64_t>(overflow.suffix.size());
+                if (data.droppedContentBytes.has_value() && *data.droppedContentBytes >= suffixBytes) {
+                    overflow.droppedContentBytesBeforeProjection = *data.droppedContentBytes - suffixBytes;
+                }
+                overflow.contentTruncatedBeforeProjection =
+                    overflow.contentTruncatedBeforeProjection || overflow.droppedContentBytesBeforeProjection != 0;
+                overflow.truncationBeforeProjection =
+                    overflow.truncationBeforeProjection || overflow.contentTruncatedBeforeProjection ||
+                    data.truncation.omittedEntries.value_or(0) != 0 ||
+                    std::any_of(data.truncation.omittedPaths.begin(), data.truncation.omittedPaths.end(), [](const std::string& path) {
+                        return path != "/agentText";
+                    });
+            }
+            data.startedAtMs = item.startedAtMs;
+            data.completedAtMs = item.completedAtMs;
+            data.connectionInvalidated = item.connectionInvalidated;
+            data.generation = item.stamp.generation;
+            data.freshness = freshness(item.stamp.freshness);
+            data.sourceIndex = sourceIndex;
+            return data;
         }
 
         std::optional<model::ThreadItem> projectItem(const backend::ItemSnapshot& item,
@@ -747,25 +800,7 @@ namespace ai::openai::codex::frontend::internal::server {
             if (!kind) {
                 return std::nullopt;
             }
-            model::ItemData data(requiredIdentifier<model::ItemIdentity>(item.id, "/items/id"), threadId, turnId);
-            data.legacyDiscriminator = item.type;
-            data.droppedContentBytes = item.droppedContentBytes;
-            data.contentTruncated = item.contentTruncated;
-            data.truncation.truncated = item.contentTruncated;
-            data.truncation.droppedBytes = item.droppedContentBytes;
-            if (!item.status.empty()) {
-                data.status = boundedFrontendString(item.status, 256, &data.truncation, "/status");
-            }
-            projectItemContent(item.agentText, data.agentText, data, "/agentText");
-            projectItemContent(item.reasoningText, data.reasoningText, data, "/reasoningText");
-            projectItemContent(item.reasoningSummary, data.reasoningSummary, data, "/reasoningSummary");
-            projectItemContent(item.commandOutput, data.commandOutput, data, "/commandOutput");
-            data.startedAtMs = item.startedAtMs;
-            data.completedAtMs = item.completedAtMs;
-            data.connectionInvalidated = item.connectionInvalidated;
-            data.generation = item.stamp.generation;
-            data.freshness = freshness(item.stamp.freshness);
-            data.sourceIndex = sourceIndex;
+            model::ItemData data = projectItemData(item, threadId, turnId, sourceIndex);
             if (!item.data.empty()) {
                 data.safeDetails = boundedDetail(item.data, snapshotTruncation, "/items/details");
             }
@@ -1546,6 +1581,33 @@ namespace ai::openai::codex::frontend::internal::server {
             return found;
         }
 
+        const backend::ItemSnapshot* findBackendItem(const backend::Snapshot& snapshot,
+                                                      const typed::ThreadId& threadId,
+                                                      const typed::TurnId& turnId,
+                                                      const typed::ItemId& itemId) noexcept {
+            const backend::ItemSnapshot* found = nullptr;
+            for (const backend::ThreadSnapshot& thread : snapshot.threads) {
+                if (thread.id != threadId.value) {
+                    continue;
+                }
+                for (const backend::TurnSnapshot& turn : thread.turns) {
+                    if (turn.id != turnId.value) {
+                        continue;
+                    }
+                    for (const backend::ItemSnapshot& item : turn.items) {
+                        if (item.id != itemId.value) {
+                            continue;
+                        }
+                        if (found != nullptr) {
+                            return nullptr;
+                        }
+                        found = &item;
+                    }
+                }
+            }
+            return found;
+        }
+
         const model::ProcessState* findProcess(const model::CanonicalSnapshot& snapshot, const model::ProcessHandle& handle) noexcept {
             const model::ProcessState* found = nullptr;
             for (const model::ProcessState& process : snapshot.processes) {
@@ -1680,6 +1742,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     update.channel = *selection.channel;
                     if (*update.channel == "agentText") {
                         update.content = data.agentText;
+                        update.overflowV1 = data.agentTextOverflowV1;
                     } else if (*update.channel == "reasoningText") {
                         update.content = data.reasoningText;
                     } else if (*update.channel == "reasoningSummary") {
@@ -2000,6 +2063,85 @@ namespace ai::openai::codex::frontend::internal::server {
                     return "commandOutput";
             }
             return "agentText";
+        }
+
+        backend::ItemContentSnapshotChannel itemContentSnapshotChannel(backend::ItemContentChanged::Kind kind) noexcept {
+            switch (kind) {
+                case backend::ItemContentChanged::Kind::AgentText:
+                    return backend::ItemContentSnapshotChannel::AgentText;
+                case backend::ItemContentChanged::Kind::ReasoningText:
+                    return backend::ItemContentSnapshotChannel::ReasoningText;
+                case backend::ItemContentChanged::Kind::ReasoningSummary:
+                    return backend::ItemContentSnapshotChannel::ReasoningSummary;
+                case backend::ItemContentChanged::Kind::CommandOutput:
+                    return backend::ItemContentSnapshotChannel::CommandOutput;
+            }
+            return backend::ItemContentSnapshotChannel::AgentText;
+        }
+
+        void projectSelectedItemContent(model::ItemContentUpdatedOccurrence& update,
+                                        std::string_view source,
+                                        std::uint64_t droppedContentBytes,
+                                        bool contentTruncated,
+                                        backend::ItemContentSnapshotChannel selectedChannel,
+                                        std::uint8_t frontendOmittedContentChannels = 0) {
+            if (source.empty()) {
+                return;
+            }
+            constexpr std::size_t MaximumContentCharacters = 16U * 1024U;
+            update.truncation.truncated = contentTruncated;
+            update.truncation.droppedBytes = droppedContentBytes;
+            std::string retained = boundedFrontendString(source, MaximumContentCharacters);
+            if (retained.size() != source.size()) {
+                if (selectedChannel == backend::ItemContentSnapshotChannel::AgentText &&
+                    source.size() <= model::MaximumItemContentOverflowV1Bytes && validUtf8(source)) {
+                    update.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(retained.size()),
+                                                                    std::string(source.substr(retained.size())),
+                                                                    droppedContentBytes,
+                                                                    contentTruncated,
+                                                                    contentTruncated};
+                }
+                saturatingAdd(update.truncation.droppedBytes,
+                              static_cast<std::uint64_t>(source.size() - retained.size()));
+                update.truncation.truncated = true;
+                frontendOmittedContentChannels |=
+                    static_cast<std::uint8_t>(1U << static_cast<unsigned int>(selectedChannel));
+            }
+            constexpr std::array<std::pair<backend::ItemContentSnapshotChannel, std::string_view>, 4> ContentPaths{{
+                {backend::ItemContentSnapshotChannel::AgentText, "/agentText"},
+                {backend::ItemContentSnapshotChannel::ReasoningText, "/reasoningText"},
+                {backend::ItemContentSnapshotChannel::ReasoningSummary, "/reasoningSummary"},
+                {backend::ItemContentSnapshotChannel::CommandOutput, "/commandOutput"},
+            }};
+            for (const auto& [channel, path] : ContentPaths) {
+                if ((frontendOmittedContentChannels &
+                     static_cast<std::uint8_t>(1U << static_cast<unsigned int>(channel))) != 0) {
+                    recordOmission(update.truncation, std::string(path));
+                }
+            }
+            update.content = std::move(retained);
+        }
+
+        void retainItemContentAppendHint(model::ItemContentUpdatedOccurrence& update,
+                                         const backend::ItemContentChanged& event,
+                                         std::uint64_t currentBackendDroppedBytes,
+                                         std::string_view fullContent) {
+            if (!update.content.has_value() || !event.channelBytesBefore.has_value() ||
+                !event.droppedContentBytesBefore.has_value() || *event.droppedContentBytesBefore != 0 ||
+                currentBackendDroppedBytes != 0 || *event.channelBytesBefore > fullContent.size()) {
+                return;
+            }
+
+            const std::size_t base = *event.channelBytesBefore;
+            const std::size_t retainedDeltaBytes = fullContent.size() - base;
+            if (event.delta.size() < retainedDeltaBytes) {
+                return;
+            }
+            if (fullContent.compare(base, retainedDeltaBytes, event.delta, 0, retainedDeltaBytes) != 0) {
+                return;
+            }
+            update.appendHint = model::ItemContentAppendHint{
+                static_cast<std::uint64_t>(base), std::string(fullContent.substr(base, retainedDeltaBytes)), true};
         }
 
         template <typename>
@@ -2445,6 +2587,106 @@ namespace ai::openai::codex::frontend::internal::server {
         }
     }
 
+    model::ModelResult<ProjectedBackendBatch>
+    BackendProjection::projectItemContentOccurrences(std::span<const backend::SequencedBackendEvent> events,
+                                                     std::span<const backend::ItemContentSnapshot> items) const noexcept {
+        try {
+            if (events.size() != items.size()) {
+                return model::ModelError{
+                    model::ModelErrorCode::InvalidShape, "/events", "content event and item snapshot counts differ"};
+            }
+
+            ProjectedBackendBatch projected;
+            projected.occurrences.reserve(events.size());
+            std::optional<backend::SequenceNumber> previousSequence;
+            for (std::size_t index = 0; index < events.size(); ++index) {
+                if (previousSequence && events[index].sequence < *previousSequence) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape, "/events/sequence", "backend events are not in deterministic sequence order"};
+                }
+                previousSequence = events[index].sequence;
+                const auto* event = std::get_if<backend::ItemContentChanged>(&events[index].event);
+                if (event == nullptr) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape, "/events", "content fast path received a non-content event"};
+                }
+                const backend::ItemContentSnapshot& item = items[index];
+                const bool activeItem = item.connectionInvalidated || item.status == "started" || item.status == "unknown";
+                const backend::ItemContentSnapshotKey expectedKey{
+                    event->threadId, event->turnId, event->itemId, itemContentSnapshotChannel(event->kind)};
+                if (item.key != expectedKey || !item.knownType || !activeItem) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape,
+                        "/events/item",
+                        "content event does not resolve to one active known exact item"};
+                }
+                const std::optional<model::ThreadIdentity> threadId = model::ThreadIdentity::parse(event->threadId.value);
+                const std::optional<model::TurnIdentity> turnId = model::TurnIdentity::parse(event->turnId.value);
+                const std::optional<model::ItemIdentity> itemId = model::ItemIdentity::parse(event->itemId.value);
+                if (!threadId || !turnId || !itemId) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidIdentifier, "/events/item", "content event has an invalid composite identity"};
+                }
+
+                model::ItemContentUpdatedOccurrence update{*itemId};
+                update.threadId = threadId;
+                update.turnId = turnId;
+                update.channel = itemContentChannel(event->kind);
+                projectSelectedItemContent(update,
+                                           item.content,
+                                           item.droppedContentBytes,
+                                           item.contentTruncated,
+                                           item.key.channel,
+                                           item.frontendOmittedContentChannels);
+                if (!update.content) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape, "/events/item/content", "content channel is absent from the exact item"};
+                }
+                retainItemContentAppendHint(update, *event, item.backendDroppedContentBytes, item.content);
+
+                // Once an append-only backend channel was already longer than
+                // the final projected UTF-8 prefix, another append cannot
+                // change that prefix. Equality is deliberately not suppressed:
+                // it is the first overflow transition which makes truncation
+                // observable to the client. Any missing hint or backend-side
+                // rolling retention remains on the conservative emit path.
+                const std::size_t projectedContentBytes =
+                    update.content->size() + (update.overflowV1.has_value() ? update.overflowV1->suffix.size() : 0);
+                const bool unchangedFrozenContent =
+                    event->channelBytesBefore.has_value() && event->droppedContentBytesBefore.has_value() &&
+                    *event->droppedContentBytesBefore == 0 && item.backendDroppedContentBytes == 0 &&
+                    *event->channelBytesBefore > projectedContentBytes;
+                if (unchangedFrozenContent) {
+                    continue;
+                }
+
+                OccurrenceSelection selection;
+                selection.threadId = threadId;
+                selection.turnId = turnId;
+                selection.itemId = itemId;
+                selection.channel = update.channel;
+                model::OccurrencePayload payload{std::move(update)};
+                OccurrenceCoalescingKey key = occurrenceKey(payload, selection, {});
+                model::OccurrenceDraft occurrence{
+                    model::SourceStamp{"backend-event:" + std::to_string(events[index].sequence.value())}, std::move(payload)};
+                attachOccurrenceIdentities(occurrence, selection);
+                model::OccurrenceError validation;
+                if (!model::validateOccurrenceDraft(occurrence, &validation)) {
+                    return model::ModelError{model::ModelErrorCode::InvalidShape, validation.path, validation.message};
+                }
+                projected.occurrences.push_back(
+                    {std::move(key), std::move(occurrence), OccurrenceFlushUrgency::Deferred});
+            }
+            return projected;
+        } catch (const ProjectionFailure& failure) {
+            return model::ModelError{model::ModelErrorCode::InvalidIdentifier, failure.path(), failure.what()};
+        } catch (const std::exception& error) {
+            return model::ModelError{model::ModelErrorCode::InvalidShape, "/events", error.what()};
+        } catch (...) {
+            return model::ModelError{model::ModelErrorCode::InvalidShape, "/events", "content occurrence projection failed"};
+        }
+    }
+
     model::ModelResult<ProjectedBackendBatch> BackendProjection::projectOccurrences(std::span<const backend::SequencedBackendEvent> events,
                                                                                     const backend::Snapshot& snapshot) const noexcept {
         static_assert(std::variant_size_v<backend::BackendEvent> == 26);
@@ -2663,10 +2905,39 @@ namespace ai::openai::codex::frontend::internal::server {
                             selection.turnId = model::TurnIdentity::parse(event.turnId.value);
                             selection.itemId = model::ItemIdentity::parse(event.itemId.value);
                             selection.channel = itemContentChannel(event.kind);
-                            appendFamily(sequenced.sequence,
-                                         ExpandedEventType::ItemContentUpdated,
-                                         std::move(selection),
-                                         OccurrenceFlushUrgency::Deferred);
+                            if (!selection.threadId || !selection.turnId || !selection.itemId) {
+                                projected.snapshotRequired = true;
+                                return;
+                            }
+                            std::optional<model::OccurrencePayload> payload =
+                                payloadForFamily(ExpandedEventType::ItemContentUpdated, projected.snapshot, selection);
+                            const backend::ItemSnapshot* backendItem =
+                                findBackendItem(snapshot, event.threadId, event.turnId, event.itemId);
+                            if (!payload || backendItem == nullptr) {
+                                projected.snapshotRequired = true;
+                            } else {
+                                const std::string_view fullContent = [&]() -> std::string_view {
+                                    switch (event.kind) {
+                                        case backend::ItemContentChanged::Kind::AgentText:
+                                            return backendItem->agentText;
+                                        case backend::ItemContentChanged::Kind::ReasoningText:
+                                            return backendItem->reasoningText;
+                                        case backend::ItemContentChanged::Kind::ReasoningSummary:
+                                            return backendItem->reasoningSummary;
+                                        case backend::ItemContentChanged::Kind::CommandOutput:
+                                            return backendItem->commandOutput;
+                                    }
+                                    return {};
+                                }();
+                                retainItemContentAppendHint(std::get<model::ItemContentUpdatedOccurrence>(*payload),
+                                                            event,
+                                                            backendItem->droppedContentBytes,
+                                                            fullContent);
+                                append(sequenced.sequence,
+                                       std::move(*payload),
+                                       std::move(selection),
+                                       OccurrenceFlushUrgency::Deferred);
+                            }
                         } else if constexpr (std::is_same_v<Event, backend::FileChangeUpdated>) {
                             OccurrenceSelection selection;
                             selection.threadId = model::ThreadIdentity::parse(event.threadId.value);
