@@ -4,6 +4,7 @@
 #include "support/TestResult.h"
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <optional>
 #include <span>
@@ -789,6 +790,49 @@ namespace {
         }
     }
 
+    void testClosingProtocolErrorAcceptance(tests::support::TestResult& result) {
+        struct Case {
+            frontend::ErrorCode code;
+            bool retryable;
+        };
+        constexpr std::array cases{
+            Case{frontend::ErrorCode::InternalError, true},
+            Case{frontend::ErrorCode::InvalidCommand, false},
+        };
+
+        for (const Case& testCase : cases) {
+            Harness harness;
+            std::vector<core::StateChange> stateChanges;
+            std::size_t protocolMessages = 0;
+            core::ClientCallbacks callbacks;
+            callbacks.onConnectionStateChanged = [&stateChanges](const core::StateChange& change) {
+                stateChanges.push_back(change);
+            };
+            callbacks.onProtocolMessage = [&protocolMessages](const frontend::ServerMessage&) {
+                ++protocolMessages;
+            };
+            core::ClientCore client(clientOptions(), std::move(callbacks));
+            const core::PhysicalGeneration generation = *client.attach(harness.transport());
+            client.transportConnected(generation);
+
+            frontend::ProtocolErrorMessage closing;
+            closing.code = testCase.code;
+            closing.message = "classified closing protocol error";
+            closing.closeConnection = true;
+            const bool accepted = client.receive(generation, frontend::ServerMessage{std::move(closing)});
+            const auto terminal = std::find_if(stateChanges.rbegin(), stateChanges.rend(), [](const core::StateChange& change) {
+                return change.current == core::ConnectionState::Disconnected;
+            });
+
+            result.expectTrue(accepted && client.connectionState() == core::ConnectionState::Disconnected && protocolMessages == 1 &&
+                                  terminal != stateChanges.rend() && terminal->error.has_value() &&
+                                  terminal->error->origin == core::ErrorOrigin::Protocol &&
+                                  terminal->error->protocolCode == testCase.code && terminal->error->retryable == testCase.retryable,
+                              "a semantically accepted closing protocol error preserves its retry classification: " +
+                                  std::string(frontend::toString(testCase.code)));
+        }
+    }
+
     void testCompatibilityExtensionFallback(tests::support::TestResult& result) {
         Harness harness;
         std::vector<std::string> observedMethods;
@@ -1075,6 +1119,7 @@ int main() {
     testProjectedSequenceRules(result);
     testLiveSnapshotCursorRules(result);
     testLiveCallbackLifecycleInvalidation(result);
+    testClosingProtocolErrorAcceptance(result);
     testCompatibilityExtensionFallback(result);
     testIndependentEventRepresentations(result);
     testBatchReductionIsTransactional(result);

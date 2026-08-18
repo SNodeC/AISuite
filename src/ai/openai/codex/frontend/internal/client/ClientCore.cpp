@@ -3926,7 +3926,8 @@ namespace ai::openai::codex::frontend::internal::client {
         if (dispatchDepth == 0) {
             flushDeferredCommands();
         }
-        return owns(generation) && connectionState != ConnectionState::Disconnected;
+        return semanticallyAccepted &&
+               (observeAfterProtocolErrorClosure || (owns(generation) && connectionState != ConnectionState::Disconnected));
     }
 
     bool ClientCore::Impl::receiveEncoded(PhysicalGeneration generation, std::string_view message) {

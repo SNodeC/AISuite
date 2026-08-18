@@ -250,6 +250,7 @@ namespace {
         std::vector<std::uint64_t> synchronizedRevisions;
         std::vector<frontend::SequenceNumber> cursors;
         std::vector<std::string> diagnostics;
+        std::vector<client::Error> connectionErrors;
         std::vector<client::Change> changes;
         std::size_t protocolMessages = 0;
         std::size_t closes = 0;
@@ -273,6 +274,7 @@ namespace {
             result.onConnectionStateChanged = [this](const client::ConnectionStateChange& change) {
                 if (change.error.has_value()) {
                     diagnostics.push_back(change.error->message);
+                    connectionErrors.push_back(*change.error);
                 }
                 if (recording && change.current == client::ConnectionState::Ready) {
                     callbackOrder.emplace_back("ready");
@@ -1029,6 +1031,42 @@ namespace {
                           "the public configured fallback bounds the exact final encoded Hello before transport delivery");
     }
 
+    void testClosingProtocolErrorReceiveResult(tests::support::TestResult& result) {
+        struct Case {
+            frontend::ErrorCode code;
+            bool retryable;
+        };
+        constexpr std::array cases{
+            Case{frontend::ErrorCode::InternalError, true},
+            Case{frontend::ErrorCode::InvalidCommand, false},
+        };
+
+        for (const Case& testCase : cases) {
+            PublicHarness harness;
+            client::Client sdk(publicOptions(), harness.callbacks());
+            harness.sdk = &sdk;
+            client::Connection connection = sdk.openConnection(harness.transport());
+            connection.transportConnected();
+
+            frontend::ProtocolErrorMessage closing;
+            closing.code = testCase.code;
+            closing.message = "public classified closing protocol error";
+            closing.closeConnection = true;
+            const auto encoded = frontend::Codec::encodeServer(frontend::ServerMessage{std::move(closing)});
+            const std::string compact = encoded ? encoded.value().dump() : std::string{};
+            const client::ReceiveResult received = connection.receive(std::string_view(compact));
+            const std::optional<client::Error> terminal =
+                harness.connectionErrors.empty() ? std::nullopt : std::optional<client::Error>{harness.connectionErrors.back()};
+
+            result.expectTrue(encoded && received.accepted && !received.error.has_value() && !connection.isOpen() &&
+                                  sdk.connectionState() == client::ConnectionState::Disconnected && harness.closes == 1 && terminal &&
+                                  terminal->origin == client::ErrorOrigin::Protocol && terminal->protocolCode == testCase.code &&
+                                  terminal->retryable == testCase.retryable,
+                              "public receive accepts a closing protocol frame without replacing its retry classification: " +
+                                  std::string(frontend::toString(testCase.code)));
+        }
+    }
+
     void testTransactionalPreparationFailure(tests::support::TestResult& result) {
         core::ClientOptions options;
         options.credentialProvider = [] {
@@ -1161,6 +1199,7 @@ int main() {
     testScopedItemChanges(result);
     testHybridExpandedPublicationRetainsLegacyItems(result);
     testPublicClientCoreAdapter(result);
+    testClosingProtocolErrorReceiveResult(result);
     testTransactionalPreparationFailure(result);
     testTransactionalStaleFallback(result);
     return result.processResult();
