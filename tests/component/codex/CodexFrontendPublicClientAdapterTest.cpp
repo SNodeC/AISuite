@@ -144,6 +144,76 @@ namespace {
                 encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
     }
 
+    frontend::Snapshot expandedScopedItemsSnapshot(std::uint64_t sequence) {
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, 3, "scoped items");
+        snapshot.threads.emplace_back(model::ThreadIdentity{"second-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"first-turn"}, model::ThreadIdentity{"adapter-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"second-turn"}, model::ThreadIdentity{"second-thread"});
+
+        model::ItemData first{
+            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"first-turn"}};
+        first.agentText = "first scoped item";
+        snapshot.items.push_back(model::AgentMessageItem{std::move(first)});
+        model::ItemData second{
+            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"second-thread"}, model::TurnIdentity{"second-turn"}};
+        second.agentText = "second scoped item";
+        snapshot.items.push_back(model::AgentMessageItem{std::move(second)});
+
+        const auto expanded = model::encodeSnapshot(snapshot);
+        if (!expanded) {
+            return {frontend::SequenceNumber(sequence), frontend::Json{{"invalid", true}, {"error", expanded.error().message}}};
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
+        return {frontend::SequenceNumber(sequence),
+                encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::FrontendEvent occurrenceEvent(model::OccurrenceIdentity identity, model::OccurrencePayload payload) {
+        auto occurrence = model::makeOccurrence(std::move(identity), std::move(payload));
+        if (!occurrence) {
+            return {frontend::SequenceNumber{}, "invalid", frontend::Json::object()};
+        }
+        auto expanded = model::encodeExpandedOccurrence(occurrence.value());
+        if (!expanded || expanded.value().empty()) {
+            return {frontend::SequenceNumber{}, "invalid", frontend::Json::object()};
+        }
+        const frontend::ExpandedFrontendEvent& value = expanded.value().front();
+        return {value.sequence, std::string(frontend::toString(value.type)), value.data, value.extensions};
+    }
+
+    frontend::FrontendEvent scopedItemUpsertEvent(std::uint64_t sequence) {
+        model::ItemData replacement{
+            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"second-thread"}, model::TurnIdentity{"second-turn"}};
+        replacement.agentText = "second upserted item";
+        model::OccurrenceIdentity identity{model::FrontendSequence(sequence),
+                                           model::OccurrenceGroupIdentity{"scoped-upsert"},
+                                           0,
+                                           1,
+                                           model::SourceStamp{"adapter-source"}};
+        identity.threadId = replacement.threadId;
+        identity.turnId = replacement.turnId;
+        identity.itemId = replacement.id;
+        return occurrenceEvent(
+            std::move(identity), model::ItemUpsertedOccurrence{model::AgentMessageItem{std::move(replacement)}});
+    }
+
+    frontend::FrontendEvent scopedItemContentEvent(std::uint64_t sequence) {
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-1"}};
+        update.threadId = model::ThreadIdentity{"second-thread"};
+        update.turnId = model::TurnIdentity{"second-turn"};
+        update.channel = "agentText";
+        update.content = "second streamed item";
+        model::OccurrenceIdentity identity{model::FrontendSequence(sequence),
+                                           model::OccurrenceGroupIdentity{"scoped-content"},
+                                           0,
+                                           1,
+                                           model::SourceStamp{"adapter-source"}};
+        identity.threadId = update.threadId;
+        identity.turnId = update.turnId;
+        identity.itemId = update.itemId;
+        return occurrenceEvent(std::move(identity), std::move(update));
+    }
+
     frontend::FrontendEvent providerEvent(std::uint64_t sequence, std::uint64_t generation) {
         model::ProviderState provider;
         provider.lifecycle = model::ProviderLifecycle::Ready;
@@ -178,6 +248,7 @@ namespace {
         std::vector<std::uint64_t> synchronizedRevisions;
         std::vector<frontend::SequenceNumber> cursors;
         std::vector<std::string> diagnostics;
+        std::vector<client::Change> changes;
         std::size_t protocolMessages = 0;
         std::size_t closes = 0;
         bool recording = false;
@@ -212,6 +283,7 @@ namespace {
                     revisionMismatch = true;
                 }
                 updateRevisions.push_back(update.state.revision());
+                changes.insert(changes.end(), update.changes.begin(), update.changes.end());
                 if (recording) {
                     callbackOrder.emplace_back("state");
                 }
@@ -243,6 +315,16 @@ namespace {
             return result;
         }
     };
+
+    template <typename Change>
+    const Change* findChange(const std::vector<client::Change>& changes) {
+        for (const client::Change& change : changes) {
+            if (const auto* value = std::get_if<Change>(&change)) {
+                return value;
+            }
+        }
+        return nullptr;
+    }
 
     void testDirectCanonicalStateBuilder(tests::support::TestResult& result) {
         client::Client adopter(publicOptions());
@@ -683,6 +765,58 @@ namespace {
                           "CanonicalStateBuilder retains repeated provider item IDs under distinct thread and turn parents");
     }
 
+    void testScopedItemChanges(tests::support::TestResult& result) {
+        PublicHarness harness;
+        client::Client sdk(publicOptions(), harness.callbacks());
+        harness.sdk = &sdk;
+        client::Connection connection = sdk.openConnection(harness.transport());
+        connection.transportConnected();
+        const bool synchronized = connection.receive(frontend::ServerMessage{welcome(7)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{expandedScopedItemsSnapshot(7)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{
+                                      frontend::SyncComplete{frontend::SequenceNumber(7)}})
+                                      .accepted;
+
+        harness.changes.clear();
+        const frontend::FrontendEvent upsert = scopedItemUpsertEvent(8);
+        const bool upserted = connection
+                                  .receive(frontend::ServerMessage{frontend::EventBatch{
+                                      frontend::SequenceNumber(8), frontend::SequenceNumber(8), {upsert}}})
+                                  .accepted;
+        const auto* upsertChange = findChange<client::ItemUpsertedChange>(harness.changes);
+        const client::ItemState* firstAfterUpsert = sdk.state().item(
+            typed::ThreadId{"adapter-thread"}, typed::TurnId{"first-turn"}, typed::ItemId{"item-1"});
+        const client::ItemState* secondAfterUpsert = sdk.state().item(
+            typed::ThreadId{"second-thread"}, typed::TurnId{"second-turn"}, typed::ItemId{"item-1"});
+        result.expectTrue(
+            synchronized && upserted && upsertChange && upsertChange->itemId == typed::ItemId{"item-1"} &&
+                upsertChange->threadId == std::optional<typed::ThreadId>{typed::ThreadId{"second-thread"}} &&
+                upsertChange->turnId == std::optional<typed::TurnId>{typed::TurnId{"second-turn"}} && firstAfterUpsert &&
+                firstAfterUpsert->agentText == std::optional<std::string>{"first scoped item"} && secondAfterUpsert &&
+                secondAfterUpsert->agentText == std::optional<std::string>{"second upserted item"},
+            "public item-upsert changes retain canonical thread/turn scope when bare item IDs repeat");
+
+        harness.changes.clear();
+        const frontend::FrontendEvent content = scopedItemContentEvent(9);
+        const bool replaced = connection
+                                  .receive(frontend::ServerMessage{frontend::EventBatch{
+                                      frontend::SequenceNumber(9), frontend::SequenceNumber(9), {content}}})
+                                  .accepted;
+        const auto* contentChange = findChange<client::ItemContentReplacedChange>(harness.changes);
+        const client::ItemState* firstAfterContent = sdk.state().item(
+            typed::ThreadId{"adapter-thread"}, typed::TurnId{"first-turn"}, typed::ItemId{"item-1"});
+        const client::ItemState* secondAfterContent = sdk.state().item(
+            typed::ThreadId{"second-thread"}, typed::TurnId{"second-turn"}, typed::ItemId{"item-1"});
+        result.expectTrue(
+            replaced && contentChange && contentChange->itemId == typed::ItemId{"item-1"} &&
+                contentChange->channel == client::ItemContentChannel::AgentText &&
+                contentChange->threadId == std::optional<typed::ThreadId>{typed::ThreadId{"second-thread"}} &&
+                contentChange->turnId == std::optional<typed::TurnId>{typed::TurnId{"second-turn"}} && firstAfterContent &&
+                firstAfterContent->agentText == std::optional<std::string>{"first scoped item"} && secondAfterContent &&
+                secondAfterContent->agentText == std::optional<std::string>{"second streamed item"},
+            "public item-content changes retain canonical thread/turn scope when bare item IDs repeat");
+    }
+
     void testHybridExpandedPublicationRetainsLegacyItems(tests::support::TestResult& result) {
         client::Client adopter(publicOptions());
         core::PublishedState publication;
@@ -917,6 +1051,7 @@ int main() {
     testDirectCanonicalStateBuilder(result);
     testCanonicalLookupIdentityPreflight(result);
     testScopedItemIdentities(result);
+    testScopedItemChanges(result);
     testHybridExpandedPublicationRetainsLegacyItems(result);
     testPublicClientCoreAdapter(result);
     testTransactionalPreparationFailure(result);

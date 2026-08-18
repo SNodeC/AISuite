@@ -20,6 +20,10 @@ static_assert(requires(const client::ItemState& item) {
 static_assert(requires(const client::ThreadState& thread) {
     { client::threadIsIdle(thread) } noexcept -> std::same_as<bool>;
 });
+static_assert(requires {
+    client::ItemUpsertedChange{typed::ItemId{"item"}};
+    client::ItemContentReplacedChange{typed::ItemId{"item"}, client::ItemContentChannel::AgentText};
+});
 
 int main() {
     const typed::AuthMode authentication = typed::AuthMode::chatgpt();

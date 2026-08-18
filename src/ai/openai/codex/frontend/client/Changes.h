@@ -46,12 +46,18 @@ namespace ai::openai::codex::frontend::client {
     struct TurnUpsertedChange {
         typed::TurnId turnId;
     };
+    // Provider item IDs are not globally unique. Consumers must use the
+    // available parent scope when resolving either item-change record.
     struct ItemUpsertedChange {
         typed::ItemId itemId;
+        std::optional<typed::ThreadId> threadId;
+        std::optional<typed::TurnId> turnId;
     };
     struct ItemContentReplacedChange {
         typed::ItemId itemId;
         ItemContentChannel channel = ItemContentChannel::AgentText;
+        std::optional<typed::ThreadId> threadId;
+        std::optional<typed::TurnId> turnId;
     };
     struct PendingRequestsUpdatedChange {};
     struct AccountUpdatedChange {};
