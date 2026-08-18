@@ -178,6 +178,14 @@ namespace ai::openai::codex::frontend::client {
             return std::nullopt;
         }
 
+        std::optional<typed::ThreadId> publicThreadId(const std::optional<model::ThreadIdentity>& source) {
+            return source ? std::optional<typed::ThreadId>{typed::ThreadId{source->value()}} : std::nullopt;
+        }
+
+        std::optional<typed::TurnId> publicTurnId(const std::optional<model::TurnIdentity>& source) {
+            return source ? std::optional<typed::TurnId>{typed::TurnId{source->value()}} : std::nullopt;
+        }
+
         void addSaturated(std::size_t& target, std::size_t value) noexcept {
             target = value > std::numeric_limits<std::size_t>::max() - target ? std::numeric_limits<std::size_t>::max() : target + value;
         }
@@ -428,12 +436,17 @@ namespace ai::openai::codex::frontend::client {
                             } else if constexpr (std::is_same_v<Value, model::TurnUpsertedOccurrence>) {
                                 publicUpdate.changes.emplace_back(TurnUpsertedChange{typed::TurnId{value.turn.id.value()}});
                             } else if constexpr (std::is_same_v<Value, model::ItemUpsertedOccurrence>) {
+                                const model::ItemData& item = model::itemData(value.item);
                                 publicUpdate.changes.emplace_back(
-                                    ItemUpsertedChange{typed::ItemId{model::itemData(value.item).id.value()}});
+                                    ItemUpsertedChange{typed::ItemId{item.id.value()},
+                                                       publicThreadId(item.threadId),
+                                                       publicTurnId(item.turnId)});
                             } else if constexpr (std::is_same_v<Value, model::ItemContentUpdatedOccurrence>) {
                                 publicUpdate.changes.emplace_back(
                                     ItemContentReplacedChange{typed::ItemId{value.itemId.value()},
-                                                              publicChannel(value.channel).value_or(ItemContentChannel::AgentText)});
+                                                              publicChannel(value.channel).value_or(ItemContentChannel::AgentText),
+                                                              publicThreadId(value.threadId),
+                                                              publicTurnId(value.turnId)});
                             } else if constexpr (std::is_same_v<Value, model::PendingRequestsUpdatedOccurrence>) {
                                 publicUpdate.changes.emplace_back(PendingRequestsUpdatedChange{});
                             } else if constexpr (std::is_same_v<Value, model::AccountUpdatedOccurrence>) {
