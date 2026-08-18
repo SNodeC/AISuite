@@ -368,6 +368,7 @@ namespace ai::openai::codex::frontend::internal::model {
                                    static_cast<std::size_t>(hint.baseContentBytes), hint.delta.size(), hint.delta) == 0;
                     }();
                     if (itemContentMode == ItemContentWireMode::AppendV1 && exactAppendHint) {
+                        data["content"] = "";
                         data["contentDelta"] = update.appendHint->delta;
                         data["baseContentBytes"] = update.appendHint->baseContentBytes;
                     } else if (update.content.has_value()) {
@@ -553,20 +554,31 @@ namespace ai::openai::codex::frontend::internal::model {
                         }
                     }
                     update.channel = optionalString(data, "channel");
-                    const bool hasReplacement = data.contains("content");
+                    const bool hasContent = data.contains("content");
                     const bool hasDelta = data.contains("contentDelta");
                     const bool hasBase = data.contains("baseContentBytes");
-                    if (hasReplacement == hasDelta || hasDelta != hasBase) {
+                    if (!hasContent) {
                         fail(OccurrenceErrorCode::InvalidPayload,
                              "/data/content",
-                             "item content update must contain exactly one replacement or complete append representation");
+                             "item content update is missing its schema-required content field");
                     }
-                    if (hasReplacement) {
-                        update.content = optionalString(data, "content");
-                        if (!update.content.has_value()) {
-                            fail(OccurrenceErrorCode::InvalidPayload, "/data/content", "item content replacement is invalid");
-                        }
+                    const auto wireContent = optionalString(data, "content");
+                    if (!wireContent.has_value()) {
+                        fail(OccurrenceErrorCode::InvalidPayload, "/data/content", "item content representation is invalid");
+                    }
+                    if (hasDelta != hasBase) {
+                        fail(OccurrenceErrorCode::InvalidPayload,
+                             "/data/contentDelta",
+                             "item content append representation is incomplete");
+                    }
+                    if (!hasDelta) {
+                        update.content = *wireContent;
                     } else {
+                        if (!wireContent->empty()) {
+                            fail(OccurrenceErrorCode::InvalidPayload,
+                                 "/data/content",
+                                 "item content append placeholder must be empty");
+                        }
                         const auto delta = optionalString(data, "contentDelta");
                         const auto base = optionalUnsigned(data, "baseContentBytes");
                         if (!delta.has_value() || !base.has_value()) {

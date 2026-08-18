@@ -488,8 +488,7 @@
             "sessionId": { "$ref": "#/$defs/DecimalId" },
             "role": { "const": "observer" },
             "currentSequence": { "$ref": "#/$defs/UInt64" },
-            "syncMode": { "enum": ["replay", "snapshot"] },
-            "maximumInboundMessageBytes": { "$ref": "#/$defs/PositiveUInt64" }
+            "syncMode": { "enum": ["replay", "snapshot"] }
           },
           "additionalProperties": true
         }

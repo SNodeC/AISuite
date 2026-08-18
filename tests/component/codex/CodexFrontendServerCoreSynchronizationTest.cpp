@@ -914,7 +914,8 @@ namespace {
                               missingCapabilityNotSelected && first.accepted() && second.accepted() && replacementData && appendData &&
                               missingCapabilityData && replacementData->value("content", "") == "baseab" &&
                               !replacementData->contains("contentDelta") && appendData->value("contentDelta", "") == "ab" &&
-                              appendData->value("baseContentBytes", std::uint64_t{0}) == 4 && !appendData->contains("content") &&
+                              appendData->value("baseContentBytes", std::uint64_t{0}) == 4 && appendData->contains("content") &&
+                              appendData->at("content") == "" &&
                               missingCapabilityData->value("content", "") == "baseab",
                           "append-v1 is selected only with complete items and coalesces contiguous deltas per recipient while every "
                           "unselected recipient retains replacement encoding");
@@ -930,7 +931,8 @@ namespace {
                                  core.receive(*replayConnection, frontend::ClientMessage{std::move(replayHello)}).accepted();
         drainAll(scheduled);
         const frontend::Json* replayData = contentData(replayMessages);
-        result.expectTrue(replayReady && replayData && replayData->value("contentDelta", "") == "ab" &&
+        result.expectTrue(replayReady && replayData && replayData->contains("content") && replayData->at("content") == "" &&
+                              replayData->value("contentDelta", "") == "ab" &&
                               replayData->value("baseContentBytes", std::uint64_t{0}) == 4,
                           "the connection-neutral journal re-encodes a retained content occurrence as append-v1 for selected replay");
 

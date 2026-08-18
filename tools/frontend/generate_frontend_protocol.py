@@ -2221,7 +2221,7 @@ def generate_schema(
         "thread.removed": ("threadId",),
         "turn.upserted": ("turn",),
         "item.upserted": ("item",),
-        "item.content.updated": ("threadId", "turnId", "itemId"),
+        "item.content.updated": ("threadId", "turnId", "itemId", "content"),
         "pendingRequests.updated": ("pendingRequests",),
         "account.updated": ("domain",),
         "models.updated": ("domain",),
@@ -2284,69 +2284,9 @@ def generate_schema(
                     "data": {
                         "type": "object",
                         "required": list(event_required_fields[event_type]),
-                        "properties": {
-                            **event_data_properties,
-                            **(
-                                {
-                                    "contentDelta": bounded_string,
-                                    "baseContentBytes": {"$ref": "#/$defs/UInt64"},
-                                }
-                                if event_type == "item.content.updated"
-                                else {}
-                            ),
-                        },
+                        "properties": event_data_properties,
                         "maxProperties": 32,
                         "additionalProperties": True,
-                        **(
-                            {
-                                "oneOf": [
-                                    {
-                                        "required": [
-                                            "threadId",
-                                            "turnId",
-                                            "itemId",
-                                            "content",
-                                        ],
-                                        "properties": {
-                                            name: event_data_properties[name]
-                                            for name in (
-                                                "threadId",
-                                                "turnId",
-                                                "itemId",
-                                                "content",
-                                            )
-                                        },
-                                        "not": {
-                                            "anyOf": [
-                                                {"required": ["contentDelta"]},
-                                                {"required": ["baseContentBytes"]},
-                                            ]
-                                        },
-                                    },
-                                    {
-                                        "required": [
-                                            "threadId",
-                                            "turnId",
-                                            "itemId",
-                                            "contentDelta",
-                                            "baseContentBytes",
-                                        ],
-                                        "properties": {
-                                            "threadId": event_data_properties["threadId"],
-                                            "turnId": event_data_properties["turnId"],
-                                            "itemId": event_data_properties["itemId"],
-                                            "contentDelta": bounded_string,
-                                            "baseContentBytes": {
-                                                "$ref": "#/$defs/UInt64"
-                                            },
-                                        },
-                                        "not": {"required": ["content"]},
-                                    },
-                                ]
-                            }
-                            if event_type == "item.content.updated"
-                            else {}
-                        ),
                     },
                 },
                 "additionalProperties": True,

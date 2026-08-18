@@ -616,7 +616,8 @@ namespace {
                               legacyWire.value().data.value("content", "") == "before after" &&
                               !legacyWire.value().data.contains("contentDelta"),
                           "default expanded and legacy item-content encodings remain exact full replacements");
-        result.expectTrue(appendWire && !appendWire.value().front().data.contains("content") &&
+        result.expectTrue(appendWire && appendWire.value().front().data.contains("content") &&
+                              appendWire.value().front().data.at("content") == "" &&
                               appendWire.value().front().data.value("contentDelta", "") == " after" &&
                               appendWire.value().front().data.value("baseContentBytes", std::uint64_t{0}) == 6 && decodedUpdate != nullptr &&
                               decodedUpdate->appendWireRepresentation && !decodedUpdate->content.has_value() &&
@@ -641,17 +642,34 @@ namespace {
                               !staleWire.value().front().data.contains("baseContentBytes"),
                           "append-v1 falls back to the authoritative replacement when a hint does not span its exact suffix");
 
-        frontend::ExpandedFrontendEvent bothForms = appendWire.value().front();
-        bothForms.data["content"] = "ambiguous";
-        frontend::ExpandedFrontendEvent neitherForm = appendWire.value().front();
-        neitherForm.data.erase("contentDelta");
-        neitherForm.data.erase("baseContentBytes");
+        frontend::ExpandedFrontendEvent nonemptyHybrid = appendWire.value().front();
+        nonemptyHybrid.data["content"] = "ambiguous";
+        frontend::ExpandedFrontendEvent missingContent = appendWire.value().front();
+        missingContent.data.erase("content");
         frontend::ExpandedFrontendEvent incompleteAppend = appendWire.value().front();
         incompleteAppend.data.erase("contentDelta");
-        result.expectTrue(!model::decodeExpandedOccurrence(bothForms, context()) &&
-                              !model::decodeExpandedOccurrence(neitherForm, context()) &&
-                              !model::decodeExpandedOccurrence(incompleteAppend, context()),
-                          "item-content wire data rejects ambiguous, absent, and incomplete append representations");
+        frontend::ExpandedFrontendEvent invalidDelta = appendWire.value().front();
+        invalidDelta.data["contentDelta"] = frontend::Json::object();
+        frontend::ExpandedFrontendEvent invalidBase = appendWire.value().front();
+        invalidBase.data["baseContentBytes"] = -1;
+        frontend::ExpandedFrontendEvent emptyReplacement = appendWire.value().front();
+        emptyReplacement.data.erase("contentDelta");
+        emptyReplacement.data.erase("baseContentBytes");
+        const auto decodedEmptyReplacement = model::decodeExpandedOccurrence(emptyReplacement, context());
+        const auto* emptyReplacementUpdate =
+            decodedEmptyReplacement && !decodedEmptyReplacement.value().expandedPayloads().empty()
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &decodedEmptyReplacement.value().expandedPayloads().front())
+                : nullptr;
+        result.expectTrue(!model::decodeExpandedOccurrence(nonemptyHybrid, context()) &&
+                              !model::decodeExpandedOccurrence(missingContent, context()) &&
+                              !model::decodeExpandedOccurrence(incompleteAppend, context()) &&
+                              !model::decodeExpandedOccurrence(invalidDelta, context()) &&
+                              !model::decodeExpandedOccurrence(invalidBase, context()) && emptyReplacementUpdate != nullptr &&
+                              emptyReplacementUpdate->content == std::optional<std::string>{""} &&
+                              !emptyReplacementUpdate->appendWireRepresentation,
+                          "item-content wire data rejects absent, incomplete, ill-typed, and nonempty hybrid append forms while an "
+                          "ordinary empty content-only replacement remains valid");
 
         frontend::ExpandedFrontendEvent mismatch = appendWire.value().front();
         mismatch.sequence = frontend::SequenceNumber{12};
@@ -681,6 +699,7 @@ namespace {
              {"turnId", "turn-optional-content"},
              {"itemId", "item-optional-content"},
              {"channel", "agentText"},
+             {"content", ""},
              {"contentDelta", "abcdefgh"},
              {"baseContentBytes", std::uint64_t{16'380}},
              {"contentTruncated", true},

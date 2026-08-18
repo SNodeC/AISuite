@@ -227,6 +227,7 @@ namespace {
                  {"turnId", "partial-turn"},
                  {"itemId", "partial-item"},
                  {"channel", "commandOutput"},
+                 {"content", ""},
                  {"contentDelta", std::move(delta)},
                  {"baseContentBytes", baseContentBytes},
                  {"contentTruncated", false},

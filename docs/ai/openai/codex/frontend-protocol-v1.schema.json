@@ -1779,9 +1779,6 @@
                 "snapshot"
               ]
             },
-            "maximumInboundMessageBytes": {
-              "$ref": "#/$defs/PositiveUInt64"
-            },
             "capabilities": {
               "$ref": "#/$defs/CapabilityAdvertisement"
             },
@@ -34845,7 +34842,8 @@
               "required": [
                 "threadId",
                 "turnId",
-                "itemId"
+                "itemId",
+                "content"
               ],
               "properties": {
                 "provider": {
@@ -34926,122 +34924,12 @@
                 },
                 "diagnostic": {
                   "$ref": "#/$defs/SafeDetailObject"
-                },
-                "contentDelta": {
-                  "type": "string",
-                  "maxLength": 16384
-                },
-                "baseContentBytes": {
-                  "$ref": "#/$defs/UInt64"
                 }
               },
               "maxProperties": 32,
               "additionalProperties": {
                 "$ref": "#/$defs/SafeDetailValue"
               },
-              "oneOf": [
-                {
-                  "required": [
-                    "threadId",
-                    "turnId",
-                    "itemId",
-                    "content"
-                  ],
-                  "properties": {
-                    "threadId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "turnId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "itemId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "content": {
-                      "type": "string",
-                      "maxLength": 16384
-                    }
-                  },
-                  "not": {
-                    "anyOf": [
-                      {
-                        "required": [
-                          "contentDelta"
-                        ],
-                        "maxProperties": 512,
-                        "propertyNames": {
-                          "$ref": "#/$defs/SafePropertyName"
-                        }
-                      },
-                      {
-                        "required": [
-                          "baseContentBytes"
-                        ],
-                        "maxProperties": 512,
-                        "propertyNames": {
-                          "$ref": "#/$defs/SafePropertyName"
-                        }
-                      }
-                    ]
-                  },
-                  "maxProperties": 512,
-                  "propertyNames": {
-                    "$ref": "#/$defs/SafePropertyName"
-                  }
-                },
-                {
-                  "required": [
-                    "threadId",
-                    "turnId",
-                    "itemId",
-                    "contentDelta",
-                    "baseContentBytes"
-                  ],
-                  "properties": {
-                    "threadId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "turnId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "itemId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "contentDelta": {
-                      "type": "string",
-                      "maxLength": 16384
-                    },
-                    "baseContentBytes": {
-                      "$ref": "#/$defs/UInt64"
-                    }
-                  },
-                  "not": {
-                    "required": [
-                      "content"
-                    ],
-                    "maxProperties": 512,
-                    "propertyNames": {
-                      "$ref": "#/$defs/SafePropertyName"
-                    }
-                  },
-                  "maxProperties": 512,
-                  "propertyNames": {
-                    "$ref": "#/$defs/SafePropertyName"
-                  }
-                }
-              ],
               "propertyNames": {
                 "$ref": "#/$defs/SafePropertyName"
               }
