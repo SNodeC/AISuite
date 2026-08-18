@@ -757,19 +757,52 @@ namespace ai::openai::codex::frontend::internal::server {
                     if (projectedEvents.empty()) {
                         return ProjectedFlushResult::Staged;
                     }
-                    const backend::Snapshot snapshot = runtime.snapshot();
-                    model::ModelResult<ProjectedBackendBatch> projected = projection.projectOccurrences(projectedEvents, snapshot);
-                    projectedEvents.clear();
-                    if (!bindingCurrent(target) || !projected) {
-                        return ProjectedFlushResult::Failed;
+                    std::optional<ProjectedBackendBatch> projectedBatch;
+                    std::vector<backend::ItemSnapshotKey> contentKeys;
+                    contentKeys.reserve(projectedEvents.size());
+                    bool contentOnly = true;
+                    for (const backend::SequencedBackendEvent& sequenced : projectedEvents) {
+                        const auto* content = std::get_if<backend::ItemContentChanged>(&sequenced.event);
+                        if (content == nullptr) {
+                            contentOnly = false;
+                            break;
+                        }
+                        contentKeys.push_back({content->threadId, content->turnId, content->itemId});
                     }
-                    ProjectedBackendBatch batch = std::move(projected).value();
-                    if (batch.snapshotRequired) {
-                        if (!publishProjectedResynchronization(snapshot, std::move(batch.snapshot), *target)) {
+                    if (contentOnly) {
+                        std::optional<backend::ItemSnapshotBatch> contentItems = runtime.itemSnapshots(contentKeys);
+                        if (contentItems && !projectedEvents.empty() &&
+                            contentItems->sequence.value() >= projectedEvents.back().sequence.value()) {
+                            model::ModelResult<ProjectedBackendBatch> direct =
+                                projection.projectItemContentOccurrences(projectedEvents, contentItems->items);
+                            if (direct && !direct.value().snapshotRequired) {
+                                projectedBatch = std::move(direct).value();
+                            }
+                        }
+                    }
+
+                    std::optional<backend::Snapshot> snapshot;
+                    if (!projectedBatch) {
+                        snapshot = runtime.snapshot();
+                        model::ModelResult<ProjectedBackendBatch> projected =
+                            projection.projectOccurrences(projectedEvents, *snapshot);
+                        if (!projected) {
+                            projectedEvents.clear();
                             return ProjectedFlushResult::Failed;
                         }
-                        if (snapshot.sequence.value() > observerProcessedThrough.value()) {
-                            observerProcessedThrough = snapshot.sequence;
+                        projectedBatch = std::move(projected).value();
+                    }
+                    projectedEvents.clear();
+                    if (!bindingCurrent(target)) {
+                        return ProjectedFlushResult::Failed;
+                    }
+                    ProjectedBackendBatch batch = std::move(*projectedBatch);
+                    if (batch.snapshotRequired) {
+                        if (!snapshot || !publishProjectedResynchronization(*snapshot, std::move(batch.snapshot), *target)) {
+                            return ProjectedFlushResult::Failed;
+                        }
+                        if (snapshot->sequence.value() > observerProcessedThrough.value()) {
+                            observerProcessedThrough = snapshot->sequence;
                         }
                         drainDeferredControllerCompletion();
                         drainDeferredSessionCloses();

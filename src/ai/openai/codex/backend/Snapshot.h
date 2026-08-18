@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -61,6 +62,21 @@ namespace ai::openai::codex::backend {
         bool connectionInvalidated = false;
 
         bool operator==(const ItemSnapshot&) const = default;
+    };
+
+    struct ItemSnapshotKey {
+        typed::ThreadId threadId;
+        typed::TurnId turnId;
+        typed::ItemId itemId;
+
+        bool operator==(const ItemSnapshotKey&) const = default;
+    };
+
+    struct ItemSnapshotBatch {
+        SequenceNumber sequence;
+        std::vector<ItemSnapshot> items;
+
+        bool operator==(const ItemSnapshotBatch&) const = default;
     };
 
     struct TurnSnapshot {
@@ -454,6 +470,8 @@ namespace ai::openai::codex::backend {
     };
 
     Snapshot makeSnapshot(const BackendState& state);
+    [[nodiscard]] std::optional<ItemSnapshotBatch> makeItemSnapshotBatch(const BackendState& state,
+                                                                         std::span<const ItemSnapshotKey> keys);
     std::size_t snapshotSizeBytes(const Snapshot& snapshot) noexcept;
     ExtensionSnapshot makeExtensionSnapshot(const ExtensionRecord& extension);
 

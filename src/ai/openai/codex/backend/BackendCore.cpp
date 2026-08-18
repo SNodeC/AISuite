@@ -843,6 +843,10 @@ namespace ai::openai::codex::backend {
             return snapshot;
         }
 
+        std::optional<ItemSnapshotBatch> itemSnapshots(std::span<const ItemSnapshotKey> keys) const {
+            return makeItemSnapshotBatch(state, keys);
+        }
+
         bool ready() const noexcept {
             return state.provider.lifecycle == ProviderLifecycle::Ready;
         }
@@ -2330,6 +2334,10 @@ namespace ai::openai::codex::backend {
 
     Snapshot detail::BackendCoreRuntime::snapshot() const {
         return impl->makeCurrentSnapshot();
+    }
+
+    std::optional<ItemSnapshotBatch> detail::BackendCoreRuntime::itemSnapshots(std::span<const ItemSnapshotKey> keys) const {
+        return impl->itemSnapshots(keys);
     }
 
     bool detail::BackendCoreRuntime::isReady() const noexcept {

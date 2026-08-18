@@ -2055,6 +2055,7 @@ namespace {
         ai::openai::codex::backend::Snapshot oversizedItemSource = source;
         ai::openai::codex::backend::ItemSnapshot& oversizedItem =
             oversizedItemSource.threads.front().turns.front().items.front();
+        oversizedItem.status = "started";
         const std::string retainedItemContent = std::string(16'383, 'x') + "\xE2\x82\xAC";
         const std::string oversizedItemContent = retainedItemContent + "tail";
         oversizedItem.agentText = oversizedItemContent;
@@ -2093,6 +2094,9 @@ namespace {
         const std::vector<ai::openai::codex::backend::SequencedBackendEvent> oversizedContentEvents{
             {ai::openai::codex::backend::SequenceNumber{18}, std::move(oversizedContentEvent)}};
         const auto oversizedContentOccurrence = projection.projectOccurrences(oversizedContentEvents, oversizedItemSource);
+        const std::vector<ai::openai::codex::backend::ItemSnapshot> oversizedContentItems{oversizedItem};
+        const auto directOversizedContentOccurrence =
+            projection.projectItemContentOccurrences(oversizedContentEvents, oversizedContentItems);
         const auto* boundedContentOccurrence =
             oversizedContentOccurrence && oversizedContentOccurrence.value().occurrences.size() == 1 &&
                     oversizedContentOccurrence.value().occurrences.front().occurrence.expandedPayloads.size() == 1
@@ -2101,8 +2105,34 @@ namespace {
                 : nullptr;
         result.expectTrue(boundedContentOccurrence && boundedContentOccurrence->content == retainedItemContent &&
                               boundedContentOccurrence->truncation.truncated &&
-                              boundedContentOccurrence->truncation.droppedBytes == 16,
-                          "item-content occurrences reuse the same bounded canonical projection instead of re-emitting oversized text");
+                              boundedContentOccurrence->truncation.droppedBytes == 16 && directOversizedContentOccurrence &&
+                              directOversizedContentOccurrence.value().occurrences == oversizedContentOccurrence.value().occurrences,
+                          "exact-item content projection preserves the same bounded replacement occurrence without projecting full State");
+
+        const auto contentEvent = [&](backend::SequenceNumber sequence, backend::ItemContentChanged::Kind kind) {
+            backend::ItemContentChanged content;
+            content.threadId = typed::ThreadId{thread.id};
+            content.turnId = typed::TurnId{turn.id};
+            content.itemId = typed::ItemId{item.id};
+            content.kind = kind;
+            content.delta = "ignored-by-replacement-projection";
+            return backend::SequencedBackendEvent{sequence, std::move(content)};
+        };
+        const std::vector<backend::SequencedBackendEvent> allContentEvents{
+            contentEvent(backend::SequenceNumber{19}, backend::ItemContentChanged::Kind::AgentText),
+            contentEvent(backend::SequenceNumber{20}, backend::ItemContentChanged::Kind::ReasoningText),
+            contentEvent(backend::SequenceNumber{21}, backend::ItemContentChanged::Kind::ReasoningSummary),
+            contentEvent(backend::SequenceNumber{22}, backend::ItemContentChanged::Kind::CommandOutput),
+        };
+        const std::vector<backend::ItemSnapshot> allContentItems(allContentEvents.size(), oversizedItem);
+        const auto fullAllContent = projection.projectOccurrences(allContentEvents, oversizedItemSource);
+        const auto directAllContent = projection.projectItemContentOccurrences(allContentEvents, allContentItems);
+        std::vector<backend::ItemSnapshot> mismatchedContentItems = allContentItems;
+        mismatchedContentItems.back().id = "other-item";
+        const auto mismatchedContent = projection.projectItemContentOccurrences(allContentEvents, mismatchedContentItems);
+        result.expectTrue(fullAllContent && directAllContent && directAllContent.value().occurrences.size() == 4 &&
+                              directAllContent.value().occurrences == fullAllContent.value().occurrences && !mismatchedContent,
+                          "all content channels use exact replacement semantics and a mismatched batch cannot project a partial prefix");
 
         ai::openai::codex::backend::Snapshot oversizedScalarSource = source;
         const std::string retainedScalar = std::string(16'383, 's') + "\xE2\x82\xAC";

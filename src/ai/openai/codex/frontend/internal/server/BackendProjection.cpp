@@ -738,15 +738,10 @@ namespace ai::openai::codex::frontend::internal::server {
             destination = std::move(retained);
         }
 
-        std::optional<model::ThreadItem> projectItem(const backend::ItemSnapshot& item,
-                                                     const model::ThreadIdentity& threadId,
-                                                     const model::TurnIdentity& turnId,
-                                                     model::TruncationMetadata& snapshotTruncation,
-                                                     std::optional<std::size_t> sourceIndex = std::nullopt) {
-            const std::optional<ThreadItemKind> kind = backendItemKind(item);
-            if (!kind) {
-                return std::nullopt;
-            }
+        model::ItemData projectItemData(const backend::ItemSnapshot& item,
+                                        const model::ThreadIdentity& threadId,
+                                        const model::TurnIdentity& turnId,
+                                        std::optional<std::size_t> sourceIndex = std::nullopt) {
             model::ItemData data(requiredIdentifier<model::ItemIdentity>(item.id, "/items/id"), threadId, turnId);
             data.legacyDiscriminator = item.type;
             data.droppedContentBytes = item.droppedContentBytes;
@@ -766,6 +761,19 @@ namespace ai::openai::codex::frontend::internal::server {
             data.generation = item.stamp.generation;
             data.freshness = freshness(item.stamp.freshness);
             data.sourceIndex = sourceIndex;
+            return data;
+        }
+
+        std::optional<model::ThreadItem> projectItem(const backend::ItemSnapshot& item,
+                                                     const model::ThreadIdentity& threadId,
+                                                     const model::TurnIdentity& turnId,
+                                                     model::TruncationMetadata& snapshotTruncation,
+                                                     std::optional<std::size_t> sourceIndex = std::nullopt) {
+            const std::optional<ThreadItemKind> kind = backendItemKind(item);
+            if (!kind) {
+                return std::nullopt;
+            }
+            model::ItemData data = projectItemData(item, threadId, turnId, sourceIndex);
             if (!item.data.empty()) {
                 data.safeDetails = boundedDetail(item.data, snapshotTruncation, "/items/details");
             }
@@ -2442,6 +2450,92 @@ namespace ai::openai::codex::frontend::internal::server {
             return model::ModelError{model::ModelErrorCode::InvalidShape, "/", error.what()};
         } catch (...) {
             return model::ModelError{model::ModelErrorCode::InvalidShape, "/", "backend snapshot projection failed"};
+        }
+    }
+
+    model::ModelResult<ProjectedBackendBatch>
+    BackendProjection::projectItemContentOccurrences(std::span<const backend::SequencedBackendEvent> events,
+                                                     std::span<const backend::ItemSnapshot> items) const noexcept {
+        try {
+            if (events.size() != items.size()) {
+                return model::ModelError{
+                    model::ModelErrorCode::InvalidShape, "/events", "content event and item snapshot counts differ"};
+            }
+
+            ProjectedBackendBatch projected;
+            projected.occurrences.reserve(events.size());
+            std::optional<backend::SequenceNumber> previousSequence;
+            for (std::size_t index = 0; index < events.size(); ++index) {
+                if (previousSequence && events[index].sequence < *previousSequence) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape, "/events/sequence", "backend events are not in deterministic sequence order"};
+                }
+                previousSequence = events[index].sequence;
+                const auto* event = std::get_if<backend::ItemContentChanged>(&events[index].event);
+                if (event == nullptr) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape, "/events", "content fast path received a non-content event"};
+                }
+                const backend::ItemSnapshot& item = items[index];
+                const bool activeItem = item.connectionInvalidated || item.status == "started" || item.status == "unknown";
+                if (item.id != event->itemId.value || !backendItemKind(item) || !activeItem) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape,
+                        "/events/item",
+                        "content event does not resolve to one active known exact item"};
+                }
+                const std::optional<model::ThreadIdentity> threadId = model::ThreadIdentity::parse(event->threadId.value);
+                const std::optional<model::TurnIdentity> turnId = model::TurnIdentity::parse(event->turnId.value);
+                const std::optional<model::ItemIdentity> itemId = model::ItemIdentity::parse(event->itemId.value);
+                if (!threadId || !turnId || !itemId) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidIdentifier, "/events/item", "content event has an invalid composite identity"};
+                }
+
+                model::ItemData data = projectItemData(item, *threadId, *turnId);
+                model::ItemContentUpdatedOccurrence update{*itemId};
+                update.threadId = threadId;
+                update.turnId = turnId;
+                update.channel = itemContentChannel(event->kind);
+                if (*update.channel == "agentText") {
+                    update.content = data.agentText;
+                } else if (*update.channel == "reasoningText") {
+                    update.content = data.reasoningText;
+                } else if (*update.channel == "reasoningSummary") {
+                    update.content = data.reasoningSummary;
+                } else if (*update.channel == "commandOutput") {
+                    update.content = data.commandOutput;
+                }
+                if (!update.content) {
+                    return model::ModelError{
+                        model::ModelErrorCode::InvalidShape, "/events/item/content", "content channel is absent from the exact item"};
+                }
+                update.truncation = data.truncation;
+
+                OccurrenceSelection selection;
+                selection.threadId = threadId;
+                selection.turnId = turnId;
+                selection.itemId = itemId;
+                selection.channel = update.channel;
+                model::OccurrencePayload payload{std::move(update)};
+                OccurrenceCoalescingKey key = occurrenceKey(payload, selection, {});
+                model::OccurrenceDraft occurrence{
+                    model::SourceStamp{"backend-event:" + std::to_string(events[index].sequence.value())}, std::move(payload)};
+                attachOccurrenceIdentities(occurrence, selection);
+                model::OccurrenceError validation;
+                if (!model::validateOccurrenceDraft(occurrence, &validation)) {
+                    return model::ModelError{model::ModelErrorCode::InvalidShape, validation.path, validation.message};
+                }
+                projected.occurrences.push_back(
+                    {std::move(key), std::move(occurrence), OccurrenceFlushUrgency::Deferred});
+            }
+            return projected;
+        } catch (const ProjectionFailure& failure) {
+            return model::ModelError{model::ModelErrorCode::InvalidIdentifier, failure.path(), failure.what()};
+        } catch (const std::exception& error) {
+            return model::ModelError{model::ModelErrorCode::InvalidShape, "/events", error.what()};
+        } catch (...) {
+            return model::ModelError{model::ModelErrorCode::InvalidShape, "/events", "content occurrence projection failed"};
         }
     }
 

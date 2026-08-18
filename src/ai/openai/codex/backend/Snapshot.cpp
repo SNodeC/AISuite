@@ -2043,6 +2043,28 @@ namespace ai::openai::codex::backend {
         return !(*this == other);
     }
 
+    std::optional<ItemSnapshotBatch> makeItemSnapshotBatch(const BackendState& state, std::span<const ItemSnapshotKey> keys) {
+        ItemSnapshotBatch batch;
+        batch.sequence = state.sequence;
+        batch.items.reserve(keys.size());
+        for (const ItemSnapshotKey& key : keys) {
+            const auto thread = state.threads.find(key.threadId.value);
+            if (thread == state.threads.end()) {
+                return std::nullopt;
+            }
+            const auto turn = thread->second.turns.find(key.turnId.value);
+            if (turn == thread->second.turns.end()) {
+                return std::nullopt;
+            }
+            const auto item = turn->second.items.find(key.itemId.value);
+            if (item == turn->second.items.end()) {
+                return std::nullopt;
+            }
+            batch.items.push_back(snapshotItem(key.itemId, item->second));
+        }
+        return batch;
+    }
+
     Snapshot makeSnapshot(const BackendState& state) {
         Snapshot snapshot;
         snapshot.sequence = state.sequence;

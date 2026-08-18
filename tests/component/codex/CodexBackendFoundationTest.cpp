@@ -108,6 +108,63 @@ namespace {
                state.capacity.retainedItems == recomputed.items && state.capacity.accumulatedContentBytes == recomputed.contentBytes;
     }
 
+    void testTargetedItemSnapshotBatch(tests::support::TestResult& result) {
+        backend::BackendState state;
+        backend::Reducer reducer;
+        reducer.apply(state,
+                      backend::ThreadUpserted{retainedThread("thread-a", "turn-a", true, "shared-item", ""),
+                                              backend::EntityLoad::Full});
+        reducer.apply(state,
+                      backend::ThreadUpserted{retainedThread("thread-b", "turn-b", true, "shared-item", ""),
+                                              backend::EntityLoad::Full});
+        reducer.apply(state,
+                      backend::ItemContentChanged{typed::ThreadId{"thread-a"},
+                                                  typed::TurnId{"turn-a"},
+                                                  typed::ItemId{"shared-item"},
+                                                  backend::ItemContentChanged::Kind::AgentText,
+                                                  "alpha",
+                                                  std::nullopt});
+        reducer.apply(state,
+                      backend::ItemContentChanged{typed::ThreadId{"thread-b"},
+                                                  typed::TurnId{"turn-b"},
+                                                  typed::ItemId{"shared-item"},
+                                                  backend::ItemContentChanged::Kind::AgentText,
+                                                  "beta",
+                                                  std::nullopt});
+        state.sequence = backend::SequenceNumber{17};
+
+        const std::vector<backend::ItemSnapshotKey> keys{
+            {typed::ThreadId{"thread-a"}, typed::TurnId{"turn-a"}, typed::ItemId{"shared-item"}},
+            {typed::ThreadId{"thread-b"}, typed::TurnId{"turn-b"}, typed::ItemId{"shared-item"}},
+        };
+        const auto targeted = backend::makeItemSnapshotBatch(state, keys);
+        const backend::Snapshot ordinary = backend::makeSnapshot(state);
+        const backend::ItemSnapshot* ordinaryA = nullptr;
+        const backend::ItemSnapshot* ordinaryB = nullptr;
+        for (const backend::ThreadSnapshot& thread : ordinary.threads) {
+            for (const backend::TurnSnapshot& turn : thread.turns) {
+                for (const backend::ItemSnapshot& item : turn.items) {
+                    if (thread.id == "thread-a" && turn.id == "turn-a") {
+                        ordinaryA = &item;
+                    } else if (thread.id == "thread-b" && turn.id == "turn-b") {
+                        ordinaryB = &item;
+                    }
+                }
+            }
+        }
+        result.expectTrue(targeted && targeted->sequence == backend::SequenceNumber{17} && targeted->items.size() == 2 &&
+                              ordinaryA != nullptr && ordinaryB != nullptr && targeted->items[0] == *ordinaryA &&
+                              targeted->items[1] == *ordinaryB && targeted->items[0].agentText == "alpha" &&
+                              targeted->items[1].agentText == "beta",
+                          "targeted item snapshots preserve exact composite identity and ordinary snapshot bounding");
+
+        std::vector<backend::ItemSnapshotKey> withMissing = keys;
+        withMissing.push_back(
+            {typed::ThreadId{"thread-a"}, typed::TurnId{"turn-a"}, typed::ItemId{"missing-item"}});
+        result.expectTrue(!backend::makeItemSnapshotBatch(state, withMissing),
+                          "a missing exact item makes the targeted snapshot batch wholly unavailable");
+    }
+
     void testReducerCapacityAndFreshness(tests::support::TestResult& result) {
         backend::BackendState state;
         backend::Reducer reducer;
@@ -1700,6 +1757,7 @@ int main(int argc, char* argv[]) {
     } else {
         core::SNodeC::init(argc, argv);
         testRecoveryPolicyEligibility(result);
+        testTargetedItemSnapshotBatch(result);
         testReducerCapacityAndFreshness(result);
         testIncrementalRetentionAndFreshness(result);
         testZeroHandleCapacities(result);

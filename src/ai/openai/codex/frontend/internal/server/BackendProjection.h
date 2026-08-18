@@ -50,6 +50,13 @@ namespace ai::openai::codex::frontend::internal::server {
         projectOccurrences(std::span<const backend::SequencedBackendEvent> events,
                            const backend::Snapshot& snapshot) const noexcept;
 
+        // Streaming content changes can be projected from the affected item
+        // snapshots alone. Callers fall back atomically to projectOccurrences
+        // when this exact-entity fast path cannot represent the whole batch.
+        [[nodiscard]] model::ModelResult<ProjectedBackendBatch>
+        projectItemContentOccurrences(std::span<const backend::SequencedBackendEvent> events,
+                                      std::span<const backend::ItemSnapshot> items) const noexcept;
+
     private:
         friend struct BackendProjectionTestAccess;
 
