@@ -281,11 +281,6 @@ namespace ai::openai::codex::frontend::internal::server {
                 model::JournalConfig{options.journalMaximumEntries, options.journalMaximumBytes, options.journalInitialSequence});
         }
 
-        struct QueuedMessage {
-            ServerMessage message;
-            std::size_t bytes = 0;
-        };
-
         struct Connection {
             FrontendPeerContext peer;
             ConnectionCallbacks callbacks;
@@ -297,11 +292,11 @@ namespace ai::openai::codex::frontend::internal::server {
             std::optional<FrontendPrincipal> principal;
             std::optional<model::SessionIdentity> session;
             std::vector<FrontendCapability> negotiatedCapabilities;
-            std::deque<QueuedMessage> outbound;
+            std::deque<SerializedServerMessage> outbound;
             // A live Snapshot published from inside BackendPort::snapshot()
             // is accepted immediately but must follow the outer snapshot
             // barrier (and its SyncComplete, when present) on the wire.
-            std::deque<QueuedMessage> deferredSnapshotOutbound;
+            std::deque<SerializedServerMessage> deferredSnapshotOutbound;
             std::size_t outboundBytes = 0;
             std::map<std::string, generated::MethodId, std::less<>> outstanding;
             std::uint64_t inboundRateTokens = 0;
@@ -952,7 +947,8 @@ namespace ai::openai::codex::frontend::internal::server {
             closeNow(identity, ConnectionClose{"frontend protocol encoding failed", ErrorCode::InternalError, false});
             return false;
         }
-        const std::size_t bytes = encoded.value().size();
+        std::string compactJson = std::move(encoded).value();
+        const std::size_t bytes = compactJson.size();
         const bool messageCapacityExceeded =
             connection->outbound.size() >= options.maxOutboundMessagesPerConnection ||
             connection->deferredSnapshotOutbound.size() >= options.maxOutboundMessagesPerConnection - connection->outbound.size();
@@ -963,8 +959,9 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         try {
-            std::deque<QueuedMessage>& destination = deferredSnapshot ? connection->deferredSnapshotOutbound : connection->outbound;
-            destination.push_back(QueuedMessage{std::move(message), bytes});
+            std::deque<SerializedServerMessage>& destination =
+                deferredSnapshot ? connection->deferredSnapshotOutbound : connection->outbound;
+            destination.push_back(SerializedServerMessage{std::move(message), std::move(compactJson)});
             connection->outboundBytes += bytes;
             return true;
         } catch (...) {
@@ -1165,16 +1162,16 @@ namespace ai::openai::codex::frontend::internal::server {
             }
 
             // Account and remove the message before entering transport code.
-            QueuedMessage queued = std::move(connection->outbound.front());
+            SerializedServerMessage queued = std::move(connection->outbound.front());
             connection->outbound.pop_front();
-            connection->outboundBytes -= queued.bytes;
+            connection->outboundBytes -= queued.compactJson.size();
             ConnectionCallbacks::Send send = connection->callbacks.onMessage;
             const ConnectionContinuation continuation{token, connection->helloComplete, connection->closing};
             connection = nullptr;
             bool accepted = false;
             if (send) {
                 try {
-                    accepted = send(queued.message);
+                    accepted = send(std::move(queued));
                 } catch (...) {
                     if (findConnection(continuation)) {
                         closeNow(token.identity, ConnectionClose{"frontend outbound callback threw", ErrorCode::CapacityExceeded, false});

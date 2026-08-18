@@ -90,8 +90,8 @@ namespace {
     }
 
     server::ConnectionCallbacks collect(std::vector<frontend::ServerMessage>& messages) {
-        return {[&messages](const frontend::ServerMessage& message) {
-                    messages.push_back(message);
+        return {[&messages](server::SerializedServerMessage message) {
+                    messages.push_back(std::move(message.message));
                     return true;
                 },
                 [](const server::ConnectionClose&) {

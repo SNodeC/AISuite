@@ -201,10 +201,17 @@ namespace ai::openai::codex::frontend::internal::server {
         bool operator==(const ConnectionClose&) const = default;
     };
 
+    struct SerializedServerMessage {
+        ServerMessage message;
+        std::string compactJson;
+
+        bool operator==(const SerializedServerMessage&) const = default;
+    };
+
     struct ConnectionCallbacks {
         // Returning false means the transport cannot accept another message
         // without violating its own queue bound. Only this connection closes.
-        using Send = std::function<bool(const ServerMessage&)>;
+        using Send = std::function<bool(SerializedServerMessage)>;
         using Closed = std::function<void(const ConnectionClose&)>;
 
         Send onMessage;

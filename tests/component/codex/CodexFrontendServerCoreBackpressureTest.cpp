@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 
+#include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/internal/server/ServerCore.h"
 #include "support/TestResult.h"
 
@@ -8,6 +9,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -86,7 +88,7 @@ namespace {
         bounded.start();
         std::vector<server::ConnectionClose> boundedCloses;
         const auto boundedConnection = bounded.openConnection({},
-                                                              {[](const frontend::ServerMessage&) {
+                                                              {[](server::SerializedServerMessage) {
                                                                    return true;
                                                                },
                                                                [&boundedCloses](const server::ConnectionClose& close) {
@@ -109,7 +111,7 @@ namespace {
         transport.start();
         std::vector<server::ConnectionClose> transportCloses;
         const auto transportConnection = transport.openConnection({},
-                                                                  {[](const frontend::ServerMessage&) {
+                                                                  {[](server::SerializedServerMessage) {
                                                                        return false;
                                                                    },
                                                                    [&transportCloses](const server::ConnectionClose& close) {
@@ -138,7 +140,7 @@ namespace {
         throwing.start();
         std::vector<server::ConnectionClose> throwingCloses;
         const auto throwingConnection = throwing.openConnection({},
-                                                                {[](const frontend::ServerMessage&) -> bool {
+                                                                {[](server::SerializedServerMessage) -> bool {
                                                                      throw std::runtime_error("send callback probe");
                                                                  },
                                                                  [&throwingCloses](const server::ConnectionClose& close) {
@@ -167,14 +169,14 @@ namespace {
         std::size_t firstDeliveries = 0;
         std::size_t secondDeliveries = 0;
         const auto first = core.openConnection({},
-                                               {[&firstDeliveries](const frontend::ServerMessage&) {
+                                               {[&firstDeliveries](server::SerializedServerMessage) {
                                                     ++firstDeliveries;
                                                     return true;
                                                 },
                                                 [](const server::ConnectionClose&) {
                                                 }});
         const auto second = core.openConnection({},
-                                                {[&secondDeliveries](const frontend::ServerMessage&) {
+                                                {[&secondDeliveries](server::SerializedServerMessage) {
                                                      ++secondDeliveries;
                                                      return true;
                                                  },
@@ -203,6 +205,44 @@ namespace {
         result.expectTrue(firstDeliveries == 4 && secondDeliveries == 4 && core.queuedMessages(*first) == 0 &&
                               core.queuedMessages(*second) == 0,
                           "bounded delivery turns reschedule fairly until both synchronization queues drain");
+    }
+
+    void testSerializedOutboundFrames(tests::support::TestResult& result) {
+        Backend backend;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.scheduler = [](std::function<void()> callback) {
+            callback();
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<server::SerializedServerMessage> frames;
+        const auto connection = core.openConnection({}, {[&frames](server::SerializedServerMessage outbound) {
+                                                               frames.push_back(std::move(outbound));
+                                                               return true;
+                                                           },
+                                                           [](const server::ConnectionClose&) {
+                                                           }});
+        const bool synchronized = connection && core.receive(*connection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        frames.clear();
+
+        const server::PublishResult first = core.publishGroup(providerOccurrence("501"));
+        const server::PublishResult second = core.publishGroup(providerOccurrence("502"));
+
+        const bool exactFrames = std::all_of(frames.begin(), frames.end(), [](const server::SerializedServerMessage& frame) {
+            const auto decoded = frontend::Codec::decodeServer(std::string_view(frame.compactJson));
+            const auto encoded = frontend::Codec::serializeServer(frame.message);
+            return decoded && decoded.value() == frame.message && encoded && encoded.value() == frame.compactJson;
+        });
+        const std::size_t eventCount = static_cast<std::size_t>(
+            std::count_if(frames.begin(), frames.end(), [](const server::SerializedServerMessage& frame) {
+                const auto* batch = std::get_if<frontend::EventBatch>(&frame.message);
+                return batch && batch->events.size() == 1;
+            }));
+        result.expectTrue(synchronized && first.accepted && second.accepted && exactFrames && frames.size() == 2 && eventCount == 2 &&
+                              core.queuedMessages(*connection) == 0 && core.queuedBytes(*connection) == 0,
+                          "compact serializations follow multiple typed event batches through queue accounting and delivery");
     }
 
     void testCapacityAndSequenceExhaustion(tests::support::TestResult& result) {
@@ -244,8 +284,8 @@ namespace {
         std::vector<frontend::ServerMessage> messages;
         std::vector<server::ConnectionClose> closes;
         const auto connection = exhausted.openConnection({},
-                                                         {[&messages](const frontend::ServerMessage& message) {
-                                                              messages.push_back(message);
+                                                         {[&messages](server::SerializedServerMessage outbound) {
+                                                              messages.push_back(std::move(outbound.message));
                                                               return true;
                                                           },
                                                           [&closes](const server::ConnectionClose& close) {
@@ -310,8 +350,8 @@ namespace {
 
         std::vector<frontend::ServerMessage> messages;
         const auto connection = fallback.openConnection({},
-                                                        {[&messages](const frontend::ServerMessage& message) {
-                                                             messages.push_back(message);
+                                                        {[&messages](server::SerializedServerMessage outbound) {
+                                                             messages.push_back(std::move(outbound.message));
                                                              return true;
                                                          },
                                                          [](const server::ConnectionClose&) {
@@ -354,8 +394,8 @@ namespace {
 
         std::vector<frontend::ServerMessage> replayMessages;
         const auto replay = fallback.openConnection({},
-                                                    {[&replayMessages](const frontend::ServerMessage& message) {
-                                                         replayMessages.push_back(message);
+                                                    {[&replayMessages](server::SerializedServerMessage outbound) {
+                                                         replayMessages.push_back(std::move(outbound.message));
                                                          return true;
                                                      },
                                                      [](const server::ConnectionClose&) {
@@ -390,8 +430,8 @@ namespace {
 
         std::vector<frontend::ServerMessage> messages;
         const auto connection = core.openConnection({},
-                                                    {[&messages](const frontend::ServerMessage& message) {
-                                                         messages.push_back(message);
+                                                    {[&messages](server::SerializedServerMessage outbound) {
+                                                         messages.push_back(std::move(outbound.message));
                                                          return true;
                                                      },
                                                      [](const server::ConnectionClose&) {
@@ -447,8 +487,8 @@ namespace {
 
         const auto replayProbe = [&core](model::FrontendSequence after, std::vector<frontend::ServerMessage>& received) {
             const auto replayConnection = core.openConnection({},
-                                                              {[&received](const frontend::ServerMessage& message) {
-                                                                   received.push_back(message);
+                                                              {[&received](server::SerializedServerMessage outbound) {
+                                                                   received.push_back(std::move(outbound.message));
                                                                    return true;
                                                                },
                                                                [](const server::ConnectionClose&) {
@@ -519,9 +559,10 @@ namespace {
         bool triggerNested = false;
         bool nestedTriggered = false;
         std::optional<server::PublishResult> nestedResult;
-        const auto connection = core.openConnection({}, {[&](const frontend::ServerMessage& message) {
+        const auto connection = core.openConnection({}, {[&](server::SerializedServerMessage outbound) {
                                                                ++callbackDepth;
                                                                maximumCallbackDepth = std::max(maximumCallbackDepth, callbackDepth);
+                                                               const frontend::ServerMessage& message = outbound.message;
                                                                messages.push_back(message);
                                                                if (triggerNested && !nestedTriggered &&
                                                                    std::holds_alternative<frontend::EventBatch>(message)) {
@@ -559,6 +600,7 @@ int main() {
     tests::support::TestResult result;
     testQueueAndTransportBackpressure(result);
     testDeliveryFairness(result);
+    testSerializedOutboundFrames(result);
     testCapacityAndSequenceExhaustion(result);
     testPublishResultDeliveryContract(result);
     testMixedSnapshotFallbackAdvancesSequence(result);

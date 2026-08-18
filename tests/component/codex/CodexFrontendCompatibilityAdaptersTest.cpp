@@ -115,7 +115,8 @@ namespace {
                                                    }});
         const frontend::ServerMessage message = frontend::ProtocolErrorMessage{
             frontend::ErrorCode::InvalidCommand, "adapter probe", {}, false, std::nullopt, std::nullopt, frontend::Json::object()};
-        const bool accepted = callbacks.onMessage(message);
+        const auto compact = frontend::Codec::serializeServer(message);
+        const bool accepted = compact && callbacks.onMessage({message, compact.value()});
         callbacks.onClosed({"adapter close", frontend::ErrorCode::InvalidCommand, false});
         result.expectTrue(accepted && sent && sent->message == message && sent->serializedBytes == sent->compactJson.size() &&
                               closed == "adapter close",

@@ -75,8 +75,8 @@ namespace {
         std::vector<server::ConnectionClose> closes;
 
         server::ConnectionCallbacks callbacks() {
-            return {[this](const frontend::ServerMessage& message) {
-                        messages.push_back(message);
+            return {[this](server::SerializedServerMessage outbound) {
+                        messages.push_back(std::move(outbound.message));
                         return true;
                     },
                     [this](const server::ConnectionClose& close) {

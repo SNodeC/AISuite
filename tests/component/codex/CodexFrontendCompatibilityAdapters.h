@@ -110,16 +110,13 @@ namespace tests::codex::frontend_compatibility {
 
     inline core_server::ConnectionCallbacks serverCallbacks(frontend::FrontendConnectionCallbacks source) {
         return {
-            [send = std::move(source.onMessage)](const frontend::ServerMessage& message) mutable {
+            [send = std::move(source.onMessage)](core_server::SerializedServerMessage outbound) mutable {
                 if (!send) {
                     return false;
                 }
-                auto serialized = frontend::Codec::serializeServer(message);
-                if (!serialized) {
-                    return false;
-                }
-                frontend::OutboundMessage outbound{message, serialized.value(), serialized.value().size()};
-                return send(outbound);
+                const std::size_t serializedBytes = outbound.compactJson.size();
+                return send(frontend::OutboundMessage{
+                    std::move(outbound.message), std::move(outbound.compactJson), serializedBytes});
             },
             [closed = std::move(source.onClosed)](const core_server::ConnectionClose& close) mutable {
                 if (closed) {

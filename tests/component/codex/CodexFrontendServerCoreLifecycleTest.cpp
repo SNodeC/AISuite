@@ -156,8 +156,8 @@ namespace {
         std::vector<frontend::ServerMessage> firstMessages;
         std::vector<server::ConnectionClose> closes;
         const auto callbacks = [&](std::vector<frontend::ServerMessage>& messages) {
-            return server::ConnectionCallbacks{[&messages](const frontend::ServerMessage& message) {
-                                                   messages.push_back(message);
+            return server::ConnectionCallbacks{[&messages](server::SerializedServerMessage outbound) {
+                                                   messages.push_back(std::move(outbound.message));
                                                    return true;
                                                },
                                                [&closes](const server::ConnectionClose& close) {
@@ -256,8 +256,8 @@ namespace {
 
         std::vector<frontend::ServerMessage> firstMessages;
         const auto callbacks = [](std::vector<frontend::ServerMessage>& messages) {
-            return server::ConnectionCallbacks{[&messages](const frontend::ServerMessage& message) {
-                                                   messages.push_back(message);
+            return server::ConnectionCallbacks{[&messages](server::SerializedServerMessage outbound) {
+                                                   messages.push_back(std::move(outbound.message));
                                                    return true;
                                                },
                                                [](const server::ConnectionClose&) {
@@ -302,8 +302,8 @@ namespace {
         server::ServerCore schedulerCore(schedulerBackend, std::move(schedulerOptions));
         schedulerCore.start();
         std::vector<frontend::ServerMessage> messages;
-        const auto scheduled = schedulerCore.openConnection({}, {[&messages](const frontend::ServerMessage& message) {
-                                                                      messages.push_back(message);
+        const auto scheduled = schedulerCore.openConnection({}, {[&messages](server::SerializedServerMessage outbound) {
+                                                                      messages.push_back(std::move(outbound.message));
                                                                       return true;
                                                                   },
                                                                   [](const server::ConnectionClose&) {
@@ -322,8 +322,8 @@ namespace {
         std::vector<server::ConnectionClose> snapshotCloses;
         std::size_t snapshotMessageCountAtClose = 0;
         const auto snapshotConnection =
-            snapshotCore.openConnection({}, {[&snapshotMessages](const frontend::ServerMessage& message) {
-                                                  snapshotMessages.push_back(message);
+            snapshotCore.openConnection({}, {[&snapshotMessages](server::SerializedServerMessage outbound) {
+                                                  snapshotMessages.push_back(std::move(outbound.message));
                                                   return true;
                                               },
                                               [&snapshotMessages, &snapshotCloses, &snapshotMessageCountAtClose](
@@ -356,8 +356,8 @@ namespace {
         std::vector<server::ConnectionClose> liveSnapshotCloses;
         std::size_t liveSnapshotMessageCountAtClose = 0;
         const auto liveSnapshotConnection =
-            liveSnapshotCore.openConnection({}, {[&liveSnapshotMessages](const frontend::ServerMessage& message) {
-                                                      liveSnapshotMessages.push_back(message);
+            liveSnapshotCore.openConnection({}, {[&liveSnapshotMessages](server::SerializedServerMessage outbound) {
+                                                      liveSnapshotMessages.push_back(std::move(outbound.message));
                                                       return true;
                                                   },
                                                   [&liveSnapshotMessages, &liveSnapshotCloses, &liveSnapshotMessageCountAtClose](
@@ -399,8 +399,8 @@ namespace {
         std::vector<frontend::ServerMessage> protocolMessages;
         std::vector<server::ConnectionClose> protocolCloses;
         const auto protocolConnection = protocolCore.openConnection({},
-                                                                    {[&protocolMessages](const frontend::ServerMessage& message) {
-                                                                         protocolMessages.push_back(message);
+                                                                    {[&protocolMessages](server::SerializedServerMessage outbound) {
+                                                                         protocolMessages.push_back(std::move(outbound.message));
                                                                          return true;
                                                                      },
                                                                      [&protocolCloses](const server::ConnectionClose& close) {
@@ -440,7 +440,7 @@ namespace {
         server::ServerCore authenticatorCore(authenticatorBackend, std::move(authenticatorOptions));
         authenticatorCorePointer = &authenticatorCore;
         authenticatorCore.start();
-        authenticatorIdentity = authenticatorCore.openConnection({}, {[](const frontend::ServerMessage&) {
+        authenticatorIdentity = authenticatorCore.openConnection({}, {[](server::SerializedServerMessage) {
                                                                             return true;
                                                                         },
                                                                         [&](const server::ConnectionClose&) {
@@ -477,7 +477,7 @@ namespace {
         server::ServerCore cancellationCore(cancellationBackend, std::move(cancellationOptions));
         cancellationCorePointer = &cancellationCore;
         cancellationCore.start();
-        cancellationIdentity = cancellationCore.openConnection({}, {[](const frontend::ServerMessage&) {
+        cancellationIdentity = cancellationCore.openConnection({}, {[](server::SerializedServerMessage) {
                                                                           return true;
                                                                       },
                                                                       [&](const server::ConnectionClose&) {
@@ -506,8 +506,8 @@ namespace {
         server::ServerCore immediate(immediateBackend, std::move(immediateOptions));
         immediate.start();
         std::vector<frontend::ServerMessage> immediateMessages;
-        const auto immediateConnection = immediate.openConnection({}, {[&immediateMessages](const frontend::ServerMessage& message) {
-                                                                           immediateMessages.push_back(message);
+        const auto immediateConnection = immediate.openConnection({}, {[&immediateMessages](server::SerializedServerMessage outbound) {
+                                                                           immediateMessages.push_back(std::move(outbound.message));
                                                                            return true;
                                                                        },
                                                                        [](const server::ConnectionClose&) {
@@ -530,7 +530,7 @@ namespace {
         };
         server::ServerCore immediateTimer(immediateTimerBackend, std::move(immediateTimerOptions));
         immediateTimer.start();
-        const auto timedOut = immediateTimer.openConnection({}, {[](const frontend::ServerMessage&) {
+        const auto timedOut = immediateTimer.openConnection({}, {[](server::SerializedServerMessage) {
                                                                       return true;
                                                                   },
                                                                   [&immediateTimerCloses](const server::ConnectionClose&) {
@@ -552,7 +552,7 @@ namespace {
         std::size_t selfMessages = 0;
         std::size_t selfCloses = 0;
         bool closeSelf = false;
-        selfIdentity = selfClosing.openConnection({}, {[&](const frontend::ServerMessage&) {
+        selfIdentity = selfClosing.openConnection({}, {[&](server::SerializedServerMessage) {
                                                             ++selfMessages;
                                                             if (closeSelf) {
                                                                 closeSelf = false;
@@ -583,8 +583,8 @@ namespace {
         server::ServerCore peerClosing(peerBackend, std::move(peerOptions));
         peerClosing.start();
         std::optional<server::ConnectionIdentity> secondIdentity;
-        const auto firstIdentity = peerClosing.openConnection({}, {[&](const frontend::ServerMessage& message) {
-                                                                        firstMessages.push_back(message);
+        const auto firstIdentity = peerClosing.openConnection({}, {[&](server::SerializedServerMessage outbound) {
+                                                                        firstMessages.push_back(std::move(outbound.message));
                                                                         if (closePeer) {
                                                                             closePeer = false;
                                                                             peerClosing.closeConnection(*secondIdentity,
@@ -594,7 +594,7 @@ namespace {
                                                                     },
                                                                     [](const server::ConnectionClose&) {
                                                                     }});
-        secondIdentity = peerClosing.openConnection({}, {[&](const frontend::ServerMessage&) {
+        secondIdentity = peerClosing.openConnection({}, {[&](server::SerializedServerMessage) {
                                                                 ++secondMessages;
                                                                 return true;
                                                             },
@@ -626,7 +626,7 @@ namespace {
         bool removedBeforeCallback = false;
         std::size_t firstClosedCallbacks = 0;
         std::size_t secondClosedCallbacks = 0;
-        closedFirst = closedReentry.openConnection({}, {[](const frontend::ServerMessage&) {
+        closedFirst = closedReentry.openConnection({}, {[](server::SerializedServerMessage) {
                                                              return true;
                                                          },
                                                          [&](const server::ConnectionClose&) {
@@ -634,7 +634,7 @@ namespace {
                                                              removedBeforeCallback = !closedReentry.connectionOpen(*closedFirst);
                                                              closedReentry.closeConnection(*closedSecond, "closed callback reentry");
                                                          }});
-        closedSecond = closedReentry.openConnection({}, {[](const frontend::ServerMessage&) {
+        closedSecond = closedReentry.openConnection({}, {[](server::SerializedServerMessage) {
                                                               return true;
                                                           },
                                                           [&](const server::ConnectionClose&) {
@@ -655,7 +655,7 @@ namespace {
         server::ServerCore sessionReentry(sessionBackend, std::move(sessionOptions));
         sessionReentry.start();
         std::size_t sessionCloses = 0;
-        const auto sessionIdentity = sessionReentry.openConnection({}, {[](const frontend::ServerMessage&) {
+        const auto sessionIdentity = sessionReentry.openConnection({}, {[](server::SerializedServerMessage) {
                                                                             return true;
                                                                         },
                                                                         [&](const server::ConnectionClose&) {
@@ -691,8 +691,8 @@ namespace {
         std::size_t prematureCloses = 0;
         const auto prematureIdentity = prematureCommandCore.openConnection(
             {},
-            {[&](const frontend::ServerMessage& message) {
-                 prematureMessages.push_back(message);
+            {[&](server::SerializedServerMessage outbound) {
+                 prematureMessages.push_back(std::move(outbound.message));
                  return true;
              },
              [&](const server::ConnectionClose&) {
@@ -733,7 +733,7 @@ namespace {
         server::ServerCore controllerReentry(controllerBackend, std::move(controllerOptions));
         controllerReentry.start();
         std::size_t controllerCloses = 0;
-        const auto controllerIdentity = controllerReentry.openConnection({}, {[](const frontend::ServerMessage&) {
+        const auto controllerIdentity = controllerReentry.openConnection({}, {[](server::SerializedServerMessage) {
                                                                                    return true;
                                                                                },
                                                                                [&](const server::ConnectionClose&) {
@@ -768,8 +768,8 @@ namespace {
         server::ServerCore releaseCore(releaseBackend, std::move(releaseOptions));
         releaseCore.start();
         std::vector<frontend::ServerMessage> releaseMessages;
-        const auto releaseIdentity = releaseCore.openConnection({}, {[&](const frontend::ServerMessage& message) {
-                                                                          releaseMessages.push_back(message);
+        const auto releaseIdentity = releaseCore.openConnection({}, {[&](server::SerializedServerMessage outbound) {
+                                                                          releaseMessages.push_back(std::move(outbound.message));
                                                                           return true;
                                                                       },
                                                                       [](const server::ConnectionClose&) {
@@ -836,7 +836,7 @@ namespace {
         server::ServerCore policyCore(policyBackend, std::move(policyOptions));
         policyCorePointer = &policyCore;
         policyCore.start();
-        policyIdentity = policyCore.openConnection({}, {[](const frontend::ServerMessage&) {
+        policyIdentity = policyCore.openConnection({}, {[](server::SerializedServerMessage) {
                                                               return true;
                                                           },
                                                           [&](const server::ConnectionClose&) {
@@ -870,7 +870,7 @@ namespace {
         };
         server::ServerCore staleTimerCore(staleTimerBackend, std::move(staleTimerOptions));
         staleTimerCore.start();
-        const auto staleIdentity = staleTimerCore.openConnection({}, {[](const frontend::ServerMessage&) {
+        const auto staleIdentity = staleTimerCore.openConnection({}, {[](server::SerializedServerMessage) {
                                                                           return true;
                                                                       },
                                                                       [&](const server::ConnectionClose&) {
@@ -898,7 +898,7 @@ namespace {
         };
         server::ServerCore serverTimerCore(serverTimerBackend, std::move(serverTimerOptions));
         serverTimerCore.start();
-        const auto serverTimerIdentity = serverTimerCore.openConnection({}, {[](const frontend::ServerMessage&) {
+        const auto serverTimerIdentity = serverTimerCore.openConnection({}, {[](server::SerializedServerMessage) {
                                                                                   return true;
                                                                               },
                                                                               [&](const server::ConnectionClose&) {
@@ -927,16 +927,16 @@ namespace {
         std::vector<frontend::ServerMessage> secondMessages;
         std::size_t firstCloses = 0;
         std::optional<server::PublishResult> reentrantPublish;
-        const auto first = core.openConnection({}, {[&](const frontend::ServerMessage& message) {
-                                                          firstMessages.push_back(message);
+        const auto first = core.openConnection({}, {[&](server::SerializedServerMessage outbound) {
+                                                          firstMessages.push_back(std::move(outbound.message));
                                                           return true;
                                                       },
                                                       [&](const server::ConnectionClose&) {
                                                           ++firstCloses;
                                                           reentrantPublish = core.publishGroup(providerOccurrence("904"));
                                                       }});
-        const auto second = core.openConnection({}, {[&](const frontend::ServerMessage& message) {
-                                                           secondMessages.push_back(message);
+        const auto second = core.openConnection({}, {[&](server::SerializedServerMessage outbound) {
+                                                           secondMessages.push_back(std::move(outbound.message));
                                                            return true;
                                                        },
                                                        [](const server::ConnectionClose&) {
@@ -1027,12 +1027,12 @@ namespace {
         };
         server::ServerCore core(backend, std::move(options));
         core.start();
-        const auto first = core.openConnection({}, {[](const frontend::ServerMessage&) {
+        const auto first = core.openConnection({}, {[](server::SerializedServerMessage) {
                                                          return true;
                                                      },
                                                      [](const server::ConnectionClose&) {
                                                      }});
-        const auto second = core.openConnection({}, {[](const frontend::ServerMessage&) {
+        const auto second = core.openConnection({}, {[](server::SerializedServerMessage) {
                                                           return true;
                                                       },
                                                       [](const server::ConnectionClose&) {
