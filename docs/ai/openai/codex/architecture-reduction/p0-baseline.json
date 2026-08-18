@@ -6923,7 +6923,7 @@
           ],
           "soversion": 2,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.0"
+          "version": "0.1.1"
         },
         {
           "importedTarget": "AISuite::OpenAICodexBackend",
@@ -6940,7 +6940,7 @@
           ],
           "soversion": 2,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.0"
+          "version": "0.1.1"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontend",
@@ -6959,7 +6959,7 @@
           ],
           "soversion": 2,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.0"
+          "version": "0.1.1"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontendClient",
@@ -7002,7 +7002,7 @@
           ],
           "soversion": 2,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.0"
+          "version": "0.1.1"
         }
       ]
     },

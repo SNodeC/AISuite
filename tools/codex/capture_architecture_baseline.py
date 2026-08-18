@@ -2595,7 +2595,7 @@ def _validate_external_shape(contract: Mapping[str, Any]) -> None:
             raise BaselineError(f"public C++ target mapping drifted: {row.get('importedTarget')}")
         if (
             row.get("targetType") != "SHARED_LIBRARY"
-            or row.get("version") != "0.1.0"
+            or row.get("version") != "0.1.1"
             or row.get("soversion") != 2
             or row.get("installedPackageExportFile") != "lib/cmake/AISuite/AISuiteTargets.cmake"
         ):
