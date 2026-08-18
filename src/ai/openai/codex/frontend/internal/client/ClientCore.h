@@ -179,6 +179,7 @@ namespace ai::openai::codex::frontend::internal::client {
         std::optional<std::vector<generated::MethodId>> availableMethods;
         std::optional<std::vector<generated::MethodId>> permittedMethods;
         std::optional<std::vector<FrontendScope>> permittedScopes;
+        bool itemContentAppendV1 = false;
 
         explicit SessionInfo(model::SessionIdentity sessionId)
             : id(std::move(sessionId)) {

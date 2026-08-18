@@ -311,7 +311,9 @@ namespace ai::openai::codex::frontend::internal::model {
             return encoded;
         }
 
-        Json payloadData(const OccurrencePayload& payload, FrontendSequence sequence) {
+        Json payloadData(const OccurrencePayload& payload,
+                         FrontendSequence sequence,
+                         ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) {
             CanonicalSnapshot snapshot;
             snapshot.sequence = sequence;
             const ExpandedEventType type = occurrenceType(payload);
@@ -352,7 +354,10 @@ namespace ai::openai::codex::frontend::internal::model {
                     if (update.channel.has_value()) {
                         data["channel"] = *update.channel;
                     }
-                    if (update.content.has_value()) {
+                    if (itemContentMode == ItemContentWireMode::AppendV1 && update.appendHint.has_value()) {
+                        data["contentDelta"] = update.appendHint->delta;
+                        data["baseContentBytes"] = update.appendHint->baseContentBytes;
+                    } else if (update.content.has_value()) {
                         data["content"] = *update.content;
                     }
                     if (update.contentTruncatedKnown) {
@@ -535,7 +540,28 @@ namespace ai::openai::codex::frontend::internal::model {
                         }
                     }
                     update.channel = optionalString(data, "channel");
-                    update.content = optionalString(data, "content");
+                    const bool hasReplacement = data.contains("content");
+                    const bool hasDelta = data.contains("contentDelta");
+                    const bool hasBase = data.contains("baseContentBytes");
+                    if (hasReplacement == hasDelta || hasDelta != hasBase) {
+                        fail(OccurrenceErrorCode::InvalidPayload,
+                             "/data/content",
+                             "item content update must contain exactly one replacement or complete append representation");
+                    }
+                    if (hasReplacement) {
+                        update.content = optionalString(data, "content");
+                        if (!update.content.has_value()) {
+                            fail(OccurrenceErrorCode::InvalidPayload, "/data/content", "item content replacement is invalid");
+                        }
+                    } else {
+                        const auto delta = optionalString(data, "contentDelta");
+                        const auto base = optionalUnsigned(data, "baseContentBytes");
+                        if (!delta.has_value() || !base.has_value()) {
+                            fail(OccurrenceErrorCode::InvalidPayload, "/data/contentDelta", "item content append representation is invalid");
+                        }
+                        update.appendHint = ItemContentAppendHint{*base, *delta};
+                        update.appendWireRepresentation = true;
+                    }
                     const auto truncated = data.find("contentTruncated");
                     update.contentTruncatedKnown = truncated != data.end();
                     update.truncation.truncated = truncated != data.end() && truncated->is_boolean() && truncated->get<bool>();
@@ -1299,7 +1325,8 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
-    OccurrenceResult<std::vector<ExpandedFrontendEvent>> encodeExpandedOccurrence(const CanonicalOccurrence& occurrence) noexcept {
+    OccurrenceResult<std::vector<ExpandedFrontendEvent>>
+    encodeExpandedOccurrence(const CanonicalOccurrence& occurrence, ItemContentWireMode itemContentMode) noexcept {
         try {
             std::vector<ExpandedFrontendEvent> events;
             events.reserve(occurrence.expandedPayloads().size());
@@ -1308,7 +1335,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 requireExpandedSemantics(payload, index);
                 ExpandedFrontendEvent event{occurrence.identity().sequence.protocolValue(),
                                             occurrenceType(payload),
-                                            payloadData(payload, occurrence.identity().sequence),
+                                            payloadData(payload, occurrence.identity().sequence, itemContentMode),
                                             occurrenceExtensions(payload).json()};
                 const auto validated = Codec::encodeExpandedEvent(event);
                 if (!validated) {
@@ -2203,17 +2230,6 @@ namespace ai::openai::codex::frontend::internal::model {
                             }
                             std::visit(
                                 [&](auto& item) {
-                                    if (update.channel == std::optional<std::string>{"agentText"}) {
-                                        item.value.agentText = update.content;
-                                    } else if (update.channel == std::optional<std::string>{"reasoningText"}) {
-                                        item.value.reasoningText = update.content;
-                                    } else if (update.channel == std::optional<std::string>{"reasoningSummary"}) {
-                                        item.value.reasoningSummary = update.content;
-                                    } else if (update.channel == std::optional<std::string>{"commandOutput"}) {
-                                        item.value.commandOutput = update.content;
-                                    } else {
-                                        fail(OccurrenceErrorCode::InvalidPayload, "/channel", "item content channel is invalid");
-                                    }
                                     std::optional<std::string>* content = nullptr;
                                     if (update.channel == std::optional<std::string>{"agentText"}) {
                                         content = &item.value.agentText;
@@ -2224,8 +2240,30 @@ namespace ai::openai::codex::frontend::internal::model {
                                     } else if (update.channel == std::optional<std::string>{"commandOutput"}) {
                                         content = &item.value.commandOutput;
                                     }
+                                    if (content == nullptr) {
+                                        fail(OccurrenceErrorCode::InvalidPayload, "/channel", "item content channel is invalid");
+                                    }
+                                    std::optional<std::string> replacement;
+                                    if (update.appendWireRepresentation) {
+                                        if (!update.appendHint.has_value()) {
+                                            fail(OccurrenceErrorCode::InvalidPayload,
+                                                 "/contentDelta",
+                                                 "item content append representation is incomplete");
+                                        }
+                                        const std::size_t retainedBytes = content->has_value() ? (*content)->size() : 0;
+                                        if (update.appendHint->baseContentBytes != static_cast<std::uint64_t>(retainedBytes)) {
+                                            fail(OccurrenceErrorCode::InvalidPayload,
+                                                 "/baseContentBytes",
+                                                 "item content append base does not match the retained canonical content");
+                                        }
+                                        replacement = content->value_or(std::string{});
+                                        replacement->append(update.appendHint->delta);
+                                    } else {
+                                        replacement = update.content;
+                                    }
+                                    *content = std::move(replacement);
                                     std::uint64_t additionalDropped = 0;
-                                    if (content != nullptr && content->has_value()) {
+                                    if (content->has_value()) {
                                         const std::size_t retained = utf8CharacterPrefixLength(**content, 16'384);
                                         const std::size_t excess = (*content)->size() - retained;
                                         additionalDropped = excess > std::numeric_limits<std::uint64_t>::max()
@@ -2239,7 +2277,11 @@ namespace ai::openai::codex::frontend::internal::model {
                                     if (additionalDropped != 0) {
                                         item.value.contentTruncated = true;
                                     }
-                                    if (update.droppedContentBytesKnown) {
+                                    if (update.droppedContentBytesKnown && update.appendWireRepresentation) {
+                                        // Append metadata is the authoritative post-update
+                                        // count and already includes any trimmed suffix.
+                                        item.value.droppedContentBytes = update.truncation.droppedBytes;
+                                    } else if (update.droppedContentBytesKnown) {
                                         const std::uint64_t baseDropped = update.truncation.droppedBytes;
                                         item.value.droppedContentBytes =
                                             additionalDropped > std::numeric_limits<std::uint64_t>::max() - baseDropped

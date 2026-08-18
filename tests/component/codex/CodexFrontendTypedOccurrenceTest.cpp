@@ -580,6 +580,109 @@ namespace {
                           "item-content reduction applies an explicit false/zero truncation reset");
     }
 
+    void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-optional-content"}};
+        update.threadId = model::ThreadIdentity{"thread-optional-content"};
+        update.turnId = model::TurnIdentity{"turn-optional-content"};
+        update.channel = "agentText";
+        update.content = "before after";
+        update.appendHint = model::ItemContentAppendHint{6, " after"};
+        update.truncation = {};
+        const auto occurrence = model::makeOccurrence(occurrenceIdentity(11, "append-content"), std::move(update));
+        const auto replacementWire = occurrence
+                                         ? model::encodeExpandedOccurrence(occurrence.value())
+                                         : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{occurrence.error()};
+        const auto appendWire = occurrence
+                                    ? model::encodeExpandedOccurrence(occurrence.value(), model::ItemContentWireMode::AppendV1)
+                                    : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{occurrence.error()};
+        const auto legacyWire = occurrence ? model::encodeLegacyOccurrence(occurrence.value())
+                                           : model::OccurrenceResult<frontend::FrontendEvent>{occurrence.error()};
+        const auto decoded = appendWire ? model::decodeExpandedOccurrence(appendWire.value().front(), context())
+                                        : model::OccurrenceResult<model::CanonicalOccurrence>{appendWire.error()};
+        const auto reduced = decoded
+                                 ? model::reduceOccurrence(snapshotWithItem(), decoded.value())
+                                 : model::ModelResult<model::CanonicalSnapshot>{
+                                       {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const auto* decodedUpdate = decoded && !decoded.value().expandedPayloads().empty()
+                                        ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                                              &decoded.value().expandedPayloads().front())
+                                        : nullptr;
+        const model::ItemData* reducedItem =
+            reduced && !reduced.value().items.empty() ? &model::itemData(reduced.value().items.front()) : nullptr;
+
+        result.expectTrue(replacementWire && replacementWire.value().front().data.value("content", "") == "before after" &&
+                              !replacementWire.value().front().data.contains("contentDelta") &&
+                              !replacementWire.value().front().data.contains("baseContentBytes") && legacyWire &&
+                              legacyWire.value().data.value("content", "") == "before after" &&
+                              !legacyWire.value().data.contains("contentDelta"),
+                          "default expanded and legacy item-content encodings remain exact full replacements");
+        result.expectTrue(appendWire && !appendWire.value().front().data.contains("content") &&
+                              appendWire.value().front().data.value("contentDelta", "") == " after" &&
+                              appendWire.value().front().data.value("baseContentBytes", std::uint64_t{0}) == 6 && decodedUpdate != nullptr &&
+                              decodedUpdate->appendWireRepresentation && !decodedUpdate->content.has_value() &&
+                              decodedUpdate->appendHint == std::optional<model::ItemContentAppendHint>{{6, " after"}} && reducedItem != nullptr &&
+                              reducedItem->agentText == std::optional<std::string>{"before after"} && !reducedItem->contentTruncated &&
+                              reducedItem->droppedContentBytes == std::optional<std::uint64_t>{0},
+                          "append-v1 encodes only the suffix and applies it to the exact retained byte base");
+
+        frontend::ExpandedFrontendEvent bothForms = appendWire.value().front();
+        bothForms.data["content"] = "ambiguous";
+        frontend::ExpandedFrontendEvent neitherForm = appendWire.value().front();
+        neitherForm.data.erase("contentDelta");
+        neitherForm.data.erase("baseContentBytes");
+        frontend::ExpandedFrontendEvent incompleteAppend = appendWire.value().front();
+        incompleteAppend.data.erase("contentDelta");
+        result.expectTrue(!model::decodeExpandedOccurrence(bothForms, context()) &&
+                              !model::decodeExpandedOccurrence(neitherForm, context()) &&
+                              !model::decodeExpandedOccurrence(incompleteAppend, context()),
+                          "item-content wire data rejects ambiguous, absent, and incomplete append representations");
+
+        frontend::ExpandedFrontendEvent mismatch = appendWire.value().front();
+        mismatch.sequence = frontend::SequenceNumber{12};
+        mismatch.data["baseContentBytes"] = std::uint64_t{5};
+        const auto mismatchOccurrence = model::decodeExpandedOccurrence(mismatch, context());
+        model::CanonicalSnapshot unchanged = snapshotWithItem();
+        const auto mismatchApplied = mismatchOccurrence ? model::applyOccurrence(unchanged, mismatchOccurrence.value())
+                                                        : model::ModelResult<bool>{{model::ModelErrorCode::InvalidShape,
+                                                                                   "/event",
+                                                                                   "decode failed"}};
+        result.expectTrue(mismatchOccurrence && !mismatchApplied &&
+                              model::itemData(unchanged.items.front()).agentText == std::optional<std::string>{"before"},
+                          "an append-v1 base mismatch is rejected atomically without changing canonical content");
+
+        model::CanonicalSnapshot bounded = snapshotWithItem();
+        std::visit(
+            [](auto& item) {
+                item.value.agentText = std::string(16'380, 'x');
+                item.value.contentTruncated = false;
+                item.value.droppedContentBytes = 0;
+            },
+            bounded.items.front());
+        frontend::ExpandedFrontendEvent boundedAppend{
+            frontend::SequenceNumber{13},
+            frontend::ExpandedEventType::ItemContentUpdated,
+            {{"threadId", "thread-optional-content"},
+             {"turnId", "turn-optional-content"},
+             {"itemId", "item-optional-content"},
+             {"channel", "agentText"},
+             {"contentDelta", "abcdefgh"},
+             {"baseContentBytes", std::uint64_t{16'380}},
+             {"contentTruncated", true},
+             {"droppedContentBytes", std::uint64_t{4}}}};
+        const auto boundedOccurrence = model::decodeExpandedOccurrence(boundedAppend, context());
+        const auto boundedReduced = boundedOccurrence
+                                        ? model::reduceOccurrence(bounded, boundedOccurrence.value())
+                                        : model::ModelResult<model::CanonicalSnapshot>{
+                                              {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const model::ItemData* boundedItem = boundedReduced && !boundedReduced.value().items.empty()
+                                                 ? &model::itemData(boundedReduced.value().items.front())
+                                                 : nullptr;
+        result.expectTrue(boundedItem != nullptr && boundedItem->agentText.has_value() && boundedItem->agentText->size() == 16'384 &&
+                              boundedItem->agentText->ends_with("abcd") && boundedItem->contentTruncated &&
+                              boundedItem->droppedContentBytes == std::optional<std::uint64_t>{4},
+                          "append-v1 preserves the retained-character bound and authoritative post-update truncation count");
+    }
+
     void testDiagnosticOccurrenceShape(tests::support::TestResult& result) {
         const frontend::ExpandedFrontendEvent expanded{
             frontend::SequenceNumber{11}, frontend::ExpandedEventType::DiagnosticsUpdated, {{"diagnostic", frontend::Json::object()}}};
@@ -948,6 +1051,7 @@ int main() {
     testGeneratedMultiFamilyGroup(result);
     testInPlaceAndCopyPreservingReduction(result);
     testItemContentPresence(result);
+    testNegotiatedItemContentAppend(result);
     testItemOrderingAndAuthorityMigration(result);
     testScopedItemIdentityReduction(result);
     testUnicodeItemContentReduction(result);

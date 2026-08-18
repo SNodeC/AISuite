@@ -218,15 +218,37 @@ namespace {
         return occurrenceEvent(sequence, std::move(content), expanded);
     }
 
+    frontend::FrontendEvent itemContentAppendEvent(std::uint64_t sequence,
+                                                   std::uint64_t baseContentBytes,
+                                                   std::string delta) {
+        return {frontend::SequenceNumber{sequence},
+                "item.content.updated",
+                {{"threadId", "partial-thread"},
+                 {"turnId", "partial-turn"},
+                 {"itemId", "partial-item"},
+                 {"channel", "commandOutput"},
+                 {"contentDelta", std::move(delta)},
+                 {"baseContentBytes", baseContentBytes},
+                 {"contentTruncated", false},
+                 {"droppedContentBytes", std::uint64_t{0}}}};
+    }
+
     core::PhysicalGeneration
-    readyWithCapabilities(core::ClientCore& client, Harness& harness, const std::vector<frontend::FrontendCapability>& selected) {
+    readyWithCapabilities(core::ClientCore& client,
+                          Harness& harness,
+                          const std::vector<frontend::FrontendCapability>& selected,
+                          bool selectItemContentAppend = false) {
         const core::PhysicalGeneration generation = *client.attach(harness.transport());
         client.transportConnected(generation);
+        frontend::Json extensions{{"permittedScopes", frontend::Json::array({"observe"})}};
+        if (selectItemContentAppend) {
+            extensions["projection"] = {{"itemContentUpdateMode", "append-v1"}};
+        }
         frontend::Welcome selectedWelcome{"partial-session",
                                           frontend::SessionRole::Observer,
                                           frontend::SequenceNumber(0),
                                           frontend::SyncMode::Snapshot,
-                                          {{"permittedScopes", frontend::Json::array({"observe"})}},
+                                          std::move(extensions),
                                           representationCapabilities(selected),
                                           allMethods(),
                                           allMethods()};
@@ -903,6 +925,77 @@ namespace {
                           "a rejected event batch does not leak its earlier valid occurrence into public State");
     }
 
+    void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
+        const std::vector<frontend::FrontendCapability> items{frontend::FrontendCapability::CompleteThreadItems};
+        Harness harness;
+        bool observedReplacementChange = false;
+        core::ClientCallbacks callbacks;
+        callbacks.onStateUpdated = [&observedReplacementChange](const core::StateUpdate& update) {
+            observedReplacementChange = observedReplacementChange || std::ranges::any_of(update.changes, [](const core::Change& change) {
+                                            const auto* content = std::get_if<model::ItemContentUpdatedOccurrence>(&change);
+                                            return content != nullptr && content->appendWireRepresentation;
+                                        });
+        };
+        core::ClientOptions options = clientOptions();
+        options.requestedCapabilities = items;
+        core::ClientCore client(std::move(options), std::move(callbacks));
+        const core::PhysicalGeneration generation = readyWithCapabilities(client, harness, items, true);
+        const auto* hello = !harness.outbound.empty() ? std::get_if<frontend::Hello>(&harness.outbound.front().value) : nullptr;
+        const frontend::Json* requestedModes = nullptr;
+        if (hello != nullptr) {
+            const auto projection = hello->extensions.find("projection");
+            if (projection != hello->extensions.end() && projection->is_object()) {
+                const auto modes = projection->find("itemContentUpdateModes");
+                if (modes != projection->end()) {
+                    requestedModes = &*modes;
+                }
+            }
+        }
+        frontend::FrontendEvent append = itemContentAppendEvent(1, 7, "+delta");
+        const bool accepted = client.receive(
+            generation,
+            frontend::ServerMessage{frontend::EventBatch{append.sequence, append.sequence, {std::move(append)}}});
+        const model::ThreadItem* item = client.state() ? client.state()->item("partial-item") : nullptr;
+        result.expectTrue(requestedModes != nullptr && *requestedModes == frontend::Json::array({"append-v1"}),
+                          "client Hello explicitly offers the append-v1 item-content update mode");
+        result.expectTrue(accepted && client.ready() && item != nullptr &&
+                              model::itemData(*item).commandOutput == std::optional<std::string>{"initial+delta"} &&
+                              observedReplacementChange,
+                          "a Welcome-selected append-v1 update reduces canonically and remains an item-content replacement change");
+
+        Harness legacyHarness;
+        core::ClientOptions legacyOptions = clientOptions();
+        legacyOptions.requestedCapabilities = items;
+        core::ClientCore legacy(std::move(legacyOptions));
+        const core::PhysicalGeneration legacyGeneration = readyWithCapabilities(legacy, legacyHarness, items);
+        frontend::FrontendEvent unnegotiated = itemContentAppendEvent(1, 7, "+delta");
+        const bool unnegotiatedAccepted = legacy.receive(
+            legacyGeneration,
+            frontend::ServerMessage{
+                frontend::EventBatch{unnegotiated.sequence, unnegotiated.sequence, {std::move(unnegotiated)}}});
+        result.expectTrue(!unnegotiatedAccepted && legacy.connectionState() == core::ConnectionState::Disconnected,
+                          "append-v1 wire data is rejected unless the Welcome selected the exact offered mode");
+
+        Harness invalidHarness;
+        core::ClientOptions invalidOptions = clientOptions();
+        invalidOptions.requestedCapabilities = items;
+        core::ClientCore invalid(std::move(invalidOptions));
+        const core::PhysicalGeneration invalidGeneration = *invalid.attach(invalidHarness.transport());
+        invalid.transportConnected(invalidGeneration);
+        frontend::Welcome invalidWelcome{"invalid-append-session",
+                                         frontend::SessionRole::Observer,
+                                         frontend::SequenceNumber{0},
+                                         frontend::SyncMode::Snapshot,
+                                         {{"permittedScopes", frontend::Json::array({"observe"})},
+                                          {"projection", {{"itemContentUpdateMode", "future-mode"}}}},
+                                         representationCapabilities(items),
+                                         allMethods(),
+                                         allMethods()};
+        const bool invalidAccepted = invalid.receive(invalidGeneration, frontend::ServerMessage{std::move(invalidWelcome)});
+        result.expectTrue(!invalidAccepted && invalid.connectionState() == core::ConnectionState::Disconnected,
+                          "an unoffered item-content update mode in Welcome is a protocol error");
+    }
+
     void testLegacyUnknownCompatibility(tests::support::TestResult& result) {
         Harness harness;
         core::ClientOptions options = clientOptions();
@@ -984,6 +1077,7 @@ int main() {
     testCompatibilityExtensionFallback(result);
     testIndependentEventRepresentations(result);
     testBatchReductionIsTransactional(result);
+    testNegotiatedItemContentAppend(result);
     testLegacyUnknownCompatibility(result);
     return result.processResult();
 }

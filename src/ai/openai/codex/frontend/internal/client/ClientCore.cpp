@@ -32,6 +32,7 @@ namespace ai::openai::codex::frontend::internal::client {
             FrontendCapability::ScopeProjectedState,
         };
         constexpr std::size_t MaximumContinuityKeyBytes = 256;
+        constexpr std::string_view ItemContentAppendMode = "append-v1";
 
         template <typename Callback>
         class ScopeExit final {
@@ -2388,8 +2389,10 @@ namespace ai::openai::codex::frontend::internal::client {
         }
 
         const bool sensitive = std::holds_alternative<BearerCredential>(authentication.credential);
+        Json helloExtensions{{"projection",
+                              {{"itemContentUpdateModes", Json::array({std::string(ItemContentAppendMode)})}}}};
         OutboundMessage outbound{Hello{helloResumeAfter ? std::optional<SequenceNumber>{helloResumeAfter->protocolValue()} : std::nullopt,
-                                       Json::object(),
+                                       std::move(helloExtensions),
                                        options.requestedCapabilities,
                                        std::nullopt},
                                  sensitive,
@@ -2570,6 +2573,17 @@ namespace ai::openai::codex::frontend::internal::client {
                                "frontend projection metadata rejected",
                                true);
                 return;
+            }
+            if (const auto selectedMode = projection->find("itemContentUpdateMode"); selectedMode != projection->end()) {
+                if (!selectedMode->is_string() || selectedMode->get_ref<const std::string&>() != ItemContentAppendMode ||
+                    !contains(decoded.selectedCapabilities, FrontendCapability::CompleteThreadItems)) {
+                    failConnection(protocolError(ClientErrorCode::UnexpectedMessage,
+                                                 "item-content update mode selection is invalid or unavailable"),
+                                   "frontend projection metadata rejected",
+                                   true);
+                    return;
+                }
+                decoded.itemContentAppendV1 = true;
             }
             explicitProjectionMetadata = *projection;
         }
@@ -2879,6 +2893,14 @@ namespace ai::openai::codex::frontend::internal::client {
                     return model::decodeLegacyOccurrence(event, context);
                 }();
                 if (!decoded || decoded.value().identity().sequence != sequence) {
+                    return false;
+                }
+                const bool containsAppend = std::ranges::any_of(
+                    decoded.value().expandedPayloads(), [](const model::OccurrencePayload& payload) {
+                        const auto* update = std::get_if<model::ItemContentUpdatedOccurrence>(&payload);
+                        return update != nullptr && update->appendWireRepresentation;
+                    });
+                if (containsAppend && (!session.has_value() || !session->itemContentAppendV1)) {
                     return false;
                 }
                 decodedMembers.push_back(std::move(decoded).value());

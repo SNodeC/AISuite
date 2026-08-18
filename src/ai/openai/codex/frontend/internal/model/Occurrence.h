@@ -132,6 +132,13 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const ItemUpsertedOccurrence&) const = default;
     };
 
+    struct ItemContentAppendHint {
+        std::uint64_t baseContentBytes = 0;
+        std::string delta;
+
+        bool operator==(const ItemContentAppendHint&) const = default;
+    };
+
     struct ItemContentUpdatedOccurrence {
         std::optional<ThreadIdentity> threadId;
         std::optional<TurnIdentity> turnId;
@@ -141,12 +148,20 @@ namespace ai::openai::codex::frontend::internal::model {
         TruncationMetadata truncation;
         bool contentTruncatedKnown = true;
         bool droppedContentBytesKnown = true;
+        // The full replacement is authoritative in server/journal values.
+        // This hint is connection-neutral until an encoder is explicitly
+        // asked to use append-v1 for one negotiated recipient.
+        std::optional<ItemContentAppendHint> appendHint;
+        // True only for an append-v1 occurrence decoded from the wire.
+        bool appendWireRepresentation = false;
         SafeDetail extensions;
         explicit ItemContentUpdatedOccurrence(ItemIdentity value)
             : itemId(std::move(value)) {
         }
         bool operator==(const ItemContentUpdatedOccurrence&) const = default;
     };
+
+    enum class ItemContentWireMode { Replacement, AppendV1 };
 
     struct PendingRequestsUpdatedOccurrence {
         std::vector<PendingRequest> pendingRequests;
@@ -495,7 +510,8 @@ namespace ai::openai::codex::frontend::internal::model {
     };
 
     [[nodiscard]] OccurrenceResult<std::vector<ExpandedFrontendEvent>>
-    encodeExpandedOccurrence(const CanonicalOccurrence& occurrence) noexcept;
+    encodeExpandedOccurrence(const CanonicalOccurrence& occurrence,
+                             ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] OccurrenceResult<FrontendEvent> encodeLegacyOccurrence(const CanonicalOccurrence& occurrence) noexcept;
     [[nodiscard]] OccurrenceResult<CanonicalOccurrence> decodeExpandedOccurrence(const ExpandedFrontendEvent& event,
                                                                                  const OccurrenceDecodeContext& context) noexcept;
