@@ -377,6 +377,7 @@ def require_exact_entity_lookup_policy(source_dir: pathlib.Path) -> None:
         "findThread(",
         "findTurn(",
         "findItem(",
+        "findBackendItem(",
         "findProcess(",
         "findFilesystemWatch(",
         "findFuzzySearch(",
@@ -390,6 +391,9 @@ def require_exact_entity_lookup_policy(source_dir: pathlib.Path) -> None:
         "findItem strong parents and identity":
             r"findItem\s*\([^)]*const\s+model::ThreadIdentity\s*&[^)]*const\s+model::TurnIdentity\s*&"
             r"[^)]*const\s+model::ItemIdentity\s*&",
+        "findBackendItem strong parents and identity":
+            r"findBackendItem\s*\([^)]*const\s+backend::Snapshot\s*&[^)]*const\s+typed::ThreadId\s*&"
+            r"[^)]*const\s+typed::TurnId\s*&[^)]*const\s+typed::ItemId\s*&",
         "findProcess strong handle": r"findProcess\s*\([^)]*const\s+model::ProcessHandle\s*&",
         "findFilesystemWatch required key": r"findFilesystemWatch\s*\([^)]*std::string_view\s+watchId",
         "findFuzzySearch required key": r"findFuzzySearch\s*\([^)]*std::string_view\s+sessionId",
@@ -414,7 +418,7 @@ def require_exact_entity_lookup_policy(source_dir: pathlib.Path) -> None:
     }
     rejected = [name for name, pattern in helper_forbidden_patterns.items() if pattern.search(block)]
     rejected.extend(name for name, pattern in entity_forbidden_patterns.items() if pattern.search(entity_projection_block))
-    # Each of the seven entity helpers must reject a second match instead of
+    # Each exact-entity helper must reject a second match instead of
     # returning the first retained entity with that identity.
     unique_match_guards = block.count("if (found != nullptr)")
     if missing or missing_signatures or rejected or unique_match_guards != len(required_helpers):
