@@ -2134,6 +2134,97 @@ namespace {
                               directAllContent.value().occurrences == fullAllContent.value().occurrences && !mismatchedContent,
                           "all content channels use exact replacement semantics and a mismatched batch cannot project a partial prefix");
 
+        const auto hintedContentEvent = [&](backend::SequenceNumber sequence,
+                                            std::size_t channelBytesBefore,
+                                            std::uint64_t droppedContentBytesBefore) {
+            backend::ItemContentChanged content;
+            content.threadId = typed::ThreadId{thread.id};
+            content.turnId = typed::TurnId{turn.id};
+            content.itemId = typed::ItemId{item.id};
+            content.kind = backend::ItemContentChanged::Kind::CommandOutput;
+            content.delta = "x";
+            content.channelBytesBefore = channelBytesBefore;
+            content.droppedContentBytesBefore = droppedContentBytesBefore;
+            return backend::SequencedBackendEvent{sequence, std::move(content)};
+        };
+        const std::string asciiPrefix(16'384, 'a');
+        backend::ItemSnapshot asciiFirstOverflow = oversizedItem;
+        asciiFirstOverflow.agentText.clear();
+        asciiFirstOverflow.reasoningText.clear();
+        asciiFirstOverflow.reasoningSummary.clear();
+        asciiFirstOverflow.commandOutput = asciiPrefix + "1";
+        asciiFirstOverflow.droppedContentBytes = 0;
+        asciiFirstOverflow.contentTruncated = false;
+        backend::ItemSnapshot asciiRedundant = asciiFirstOverflow;
+        asciiRedundant.commandOutput += "2";
+        backend::ItemSnapshot asciiMissingHints = asciiRedundant;
+        asciiMissingHints.commandOutput += "3";
+        backend::ItemSnapshot asciiPriorRolling = asciiMissingHints;
+        asciiPriorRolling.commandOutput += "4";
+        backend::ItemSnapshot asciiCurrentRolling = asciiPriorRolling;
+        asciiCurrentRolling.commandOutput += "5";
+        asciiCurrentRolling.droppedContentBytes = 1;
+        asciiCurrentRolling.contentTruncated = true;
+
+        backend::SequencedBackendEvent missingHintEvent =
+            hintedContentEvent(backend::SequenceNumber{25}, asciiPrefix.size() + 2, 0);
+        auto* missingHint = std::get_if<backend::ItemContentChanged>(&missingHintEvent.event);
+        missingHint->channelBytesBefore.reset();
+        missingHint->droppedContentBytesBefore.reset();
+        const std::vector<backend::SequencedBackendEvent> hintedEvents{
+            hintedContentEvent(backend::SequenceNumber{23}, asciiPrefix.size(), 0),
+            hintedContentEvent(backend::SequenceNumber{24}, asciiPrefix.size() + 1, 0),
+            std::move(missingHintEvent),
+            hintedContentEvent(backend::SequenceNumber{26}, asciiPrefix.size() + 3, 1),
+            hintedContentEvent(backend::SequenceNumber{27}, asciiPrefix.size() + 4, 0),
+        };
+        const std::vector<backend::ItemSnapshot> hintedItems{
+            asciiFirstOverflow, asciiRedundant, asciiMissingHints, asciiPriorRolling, asciiCurrentRolling};
+        const auto hintedOccurrences = projection.projectItemContentOccurrences(hintedEvents, hintedItems);
+        const std::vector<backend::SequencedBackendEvent> redundantOnlyEvents{
+            hintedContentEvent(backend::SequenceNumber{24}, asciiPrefix.size() + 1, 0)};
+        const std::vector<backend::ItemSnapshot> redundantOnlyItems{asciiRedundant};
+        const auto redundantOnly = projection.projectItemContentOccurrences(redundantOnlyEvents, redundantOnlyItems);
+        const bool retainedHintedSources =
+            hintedOccurrences && hintedOccurrences.value().occurrences.size() == 4 &&
+            hintedOccurrences.value().occurrences[0].occurrence.sourceStamp == model::SourceStamp{"backend-event:23"} &&
+            hintedOccurrences.value().occurrences[1].occurrence.sourceStamp == model::SourceStamp{"backend-event:25"} &&
+            hintedOccurrences.value().occurrences[2].occurrence.sourceStamp == model::SourceStamp{"backend-event:26"} &&
+            hintedOccurrences.value().occurrences[3].occurrence.sourceStamp == model::SourceStamp{"backend-event:27"};
+        ai::openai::codex::backend::Snapshot conservativeFallbackSource = source;
+        conservativeFallbackSource.threads.front().turns.front().items.front() = asciiRedundant;
+        const std::vector<backend::SequencedBackendEvent> hintedFallbackEvents{
+            hintedContentEvent(backend::SequenceNumber{24}, asciiPrefix.size() + 1, 0)};
+        const auto hintedFallback = projection.projectOccurrences(hintedFallbackEvents, conservativeFallbackSource);
+        result.expectTrue(retainedHintedSources && redundantOnly && redundantOnly.value().occurrences.empty() &&
+                              !redundantOnly.value().snapshotRequired && hintedFallback &&
+                              hintedFallback.value().occurrences.size() == 1,
+                          "exact-item projection suppresses only provably unchanged post-prefix updates while equality, missing hints, "
+                          "backend rolling retention, and the full fallback remain observable");
+
+        const std::string unicodePrefix = std::string(16'383, 'u') + "\xE2\x82\xAC";
+        backend::ItemSnapshot unicodeFirstOverflow = asciiFirstOverflow;
+        unicodeFirstOverflow.commandOutput = unicodePrefix + "x";
+        backend::ItemSnapshot unicodeRedundant = unicodeFirstOverflow;
+        unicodeRedundant.commandOutput += "y";
+        const std::vector<backend::SequencedBackendEvent> unicodeEvents{
+            hintedContentEvent(backend::SequenceNumber{28}, unicodePrefix.size(), 0),
+            hintedContentEvent(backend::SequenceNumber{29}, unicodePrefix.size() + 1, 0),
+        };
+        const std::vector<backend::ItemSnapshot> unicodeItems{unicodeFirstOverflow, unicodeRedundant};
+        const auto unicodeOccurrences = projection.projectItemContentOccurrences(unicodeEvents, unicodeItems);
+        const auto* unicodeUpdate =
+            unicodeOccurrences && unicodeOccurrences.value().occurrences.size() == 1 &&
+                    unicodeOccurrences.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &unicodeOccurrences.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(unicodeUpdate && unicodeUpdate->content == unicodePrefix && unicodeUpdate->truncation.truncated &&
+                              unicodeOccurrences.value().occurrences.front().occurrence.sourceStamp ==
+                                  model::SourceStamp{"backend-event:28"},
+                          "the strict overflow boundary compares UTF-8 prefix bytes, emits the first multibyte truncation transition, "
+                          "and suppresses only its unchanged suffix");
+
         ai::openai::codex::backend::Snapshot oversizedScalarSource = source;
         const std::string retainedScalar = std::string(16'383, 's') + "\xE2\x82\xAC";
         const std::string oversizedScalar = retainedScalar + "tail";

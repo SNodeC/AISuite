@@ -2512,6 +2512,18 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 update.truncation = data.truncation;
 
+                // Once an append-only backend channel was already longer than
+                // the final projected UTF-8 prefix, another append cannot
+                // change that prefix. Equality is deliberately not suppressed:
+                // it is the first overflow transition which makes truncation
+                // observable to the client. Any missing hint or backend-side
+                // rolling retention remains on the conservative emit path.
+                if (event->channelBytesBefore.has_value() && event->droppedContentBytesBefore.has_value() &&
+                    *event->droppedContentBytesBefore == 0 && item.droppedContentBytes == 0 &&
+                    *event->channelBytesBefore > update.content->size()) {
+                    continue;
+                }
+
                 OccurrenceSelection selection;
                 selection.threadId = threadId;
                 selection.turnId = turnId;

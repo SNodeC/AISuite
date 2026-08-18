@@ -981,6 +981,28 @@ namespace ai::openai::codex::backend {
                 return false;
             }
 
+            if (auto* content = std::get_if<ItemContentChanged>(&event)) {
+                content->channelBytesBefore.reset();
+                content->droppedContentBytesBefore.reset();
+                if (const ItemState* item = findItem(state, content->threadId, content->turnId, content->itemId)) {
+                    content->droppedContentBytesBefore = item->droppedContentBytes;
+                    switch (content->kind) {
+                        case ItemContentChanged::Kind::AgentText:
+                            content->channelBytesBefore = item->agentText.size();
+                            break;
+                        case ItemContentChanged::Kind::ReasoningText:
+                            content->channelBytesBefore = item->reasoningText.size();
+                            break;
+                        case ItemContentChanged::Kind::ReasoningSummary:
+                            content->channelBytesBefore = item->reasoningSummary.size();
+                            break;
+                        case ItemContentChanged::Kind::CommandOutput:
+                            content->channelBytesBefore = item->commandOutput.size();
+                            break;
+                    }
+                }
+            }
+
             const Reduction reduction = reducer.apply(state, event);
             if (!reduction.changed) {
                 return false;

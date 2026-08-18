@@ -14,6 +14,7 @@
 #include "ai/openai/codex/typed/Threads.h"
 #include "ai/openai/codex/typed/Turns.h"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <variant>
@@ -146,6 +147,11 @@ namespace ai::openai::codex::backend {
         Kind kind = Kind::AgentText;
         std::string delta;
         std::optional<std::int64_t> index;
+        // BackendCore records these from the exact canonical item immediately
+        // before reducer application. They are intentionally absent on
+        // translated, legacy, or otherwise unobserved event paths.
+        std::optional<std::size_t> channelBytesBefore = std::nullopt;
+        std::optional<std::uint64_t> droppedContentBytesBefore = std::nullopt;
     };
 
     struct FileChangeUpdated {
