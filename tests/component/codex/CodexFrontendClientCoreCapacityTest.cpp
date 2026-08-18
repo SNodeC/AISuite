@@ -126,6 +126,16 @@ namespace {
         return generated::makeParameters(generated::MethodId::AuthenticationRespond, std::move(parameters));
     }
 
+    generated::CompleteCommandParameters userInputParameters(std::string answer) {
+        frontend::Json response = {
+            {"pendingRequestId", "1"},
+            {"answers",
+             frontend::Json::array(
+                 {frontend::Json{{"questionId", "question"}, {"answers", frontend::Json::array({std::move(answer)})}}})},
+        };
+        return generated::makeParameters(generated::MethodId::UserInputRespond, std::move(response));
+    }
+
     frontend::FrontendEvent diagnosticEvent(std::uint64_t sequence) {
         model::DiagnosticRecord diagnostic;
         diagnostic.received = sequence;
@@ -217,6 +227,49 @@ namespace {
                               deniedSubmission.error->clientCode == core::ClientErrorCode::MethodNotPermitted &&
                               deniedErased >= secret.size(),
                           "a sensitive policy denial overwrites its Core-owned parameter storage before returning");
+    }
+
+    void testSensitiveSerializedSizeProbe(tests::support::TestResult& result) {
+        const std::string secret =
+            "CLIENT_CORE_SERIALIZED_SIZE_SECRET_SENTINEL_" + std::string(512, 's') + "_END_SENTINEL";
+
+        Harness measuredHarness;
+        core::ClientCore measured(clientOptions());
+        (void) ready(measured, measuredHarness);
+        const std::size_t erasedBefore = core::ClientCoreTestAccess::erasedTransientBytes(measured);
+        const core::Submission measuredSubmission = measured.submit(userInputParameters(secret));
+        const std::size_t erasedAfter = core::ClientCoreTestAccess::erasedTransientBytes(measured);
+        const auto* measuredCommand = measuredHarness.outbound.empty()
+                                          ? nullptr
+                                          : std::get_if<generated::DefinedCommand>(&measuredHarness.outbound.back().value);
+        const std::optional<frontend::CodecResult<frontend::Json>> measuredWire =
+            measuredCommand ? std::optional{frontend::Codec::encodeDefinedCommand(*measuredCommand)} : std::nullopt;
+        const std::size_t exactBytes = measuredWire && *measuredWire ? measuredWire->value().dump().size() : 0;
+        const std::size_t erasedDelta = erasedAfter >= erasedBefore ? erasedAfter - erasedBefore : 0;
+
+        core::ClientOptions belowOptions = clientOptions();
+        belowOptions.limits.maximumOutboundMessageBytes = exactBytes > 0 ? exactBytes - 1 : 0;
+        Harness belowHarness;
+        core::ClientCore below(std::move(belowOptions));
+        (void) ready(below, belowHarness);
+        const std::size_t belowMessagesBefore = belowHarness.outbound.size();
+        const core::Submission belowSubmission = below.submit(userInputParameters(secret));
+
+        core::ClientOptions exactOptions = clientOptions();
+        exactOptions.limits.maximumOutboundMessageBytes = exactBytes;
+        Harness exactHarness;
+        core::ClientCore exact(std::move(exactOptions));
+        (void) ready(exact, exactHarness);
+        const std::size_t exactMessagesBefore = exactHarness.outbound.size();
+        const core::Submission exactSubmission = exact.submit(userInputParameters(secret));
+
+        result.expectTrue(measuredSubmission && measuredWire && *measuredWire && exactBytes > secret.size() &&
+                              erasedDelta >= exactBytes + secret.size(),
+                          "sensitive command sizing overwrites both the exact compact size probe and validated secret storage");
+        result.expectTrue(!belowSubmission && belowSubmission.error && below.ready() &&
+                              belowHarness.outbound.size() == belowMessagesBefore && exactSubmission && exact.ready() &&
+                              exactHarness.outbound.size() == exactMessagesBefore + 1,
+                          "sensitive command preflight rejects exact compact size minus one and accepts the exact byte boundary");
     }
 
     void testPublishedRevisionExhaustion(tests::support::TestResult& result) {
@@ -629,6 +682,7 @@ int main() {
     tests::support::TestResult result;
     testOperationAndRequestIdBounds(result);
     testSensitiveEarlyRejectionErasure(result);
+    testSensitiveSerializedSizeProbe(result);
     testPublishedRevisionExhaustion(result);
     testPublishedRevisionAuthority(result);
     testStateAndDiagnosticBounds(result);

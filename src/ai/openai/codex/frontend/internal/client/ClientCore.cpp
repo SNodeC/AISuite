@@ -3567,15 +3567,23 @@ namespace ai::openai::codex::frontend::internal::client {
             return {std::nullopt, localError(ClientErrorCode::SerializationFailed, "generated frontend command failed schema validation")};
         }
         Json validatedWire = std::move(validated).value();
+        std::string serializedProbe;
+        auto serializedProbeGuard = ScopeExit([this, &serializedProbe, sensitive]() noexcept {
+            if (sensitive) {
+                eraseTransient(serializedProbe);
+            }
+        });
         std::size_t serializedBytes = 0;
         try {
-            serializedBytes = validatedWire.dump().size();
+            serializedProbe = validatedWire.dump();
+            serializedBytes = serializedProbe.size();
         } catch (...) {
             eraseTransient(validatedWire);
             eraseTransient(command);
             return {std::nullopt,
                     localError(ClientErrorCode::SerializationFailed, "generated frontend command size could not be measured")};
         }
+        serializedProbeGuard.run();
         eraseTransient(validatedWire);
         const std::size_t outboundLimit = maximumOutboundMessageBytes();
         if (serializedBytes > outboundLimit) {
