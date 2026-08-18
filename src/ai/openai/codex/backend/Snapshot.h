@@ -79,6 +79,48 @@ namespace ai::openai::codex::backend {
         bool operator==(const ItemSnapshotBatch&) const = default;
     };
 
+    enum class ItemContentSnapshotChannel { AgentText, ReasoningText, ReasoningSummary, CommandOutput };
+
+    struct ItemContentSnapshotKey {
+        typed::ThreadId threadId;
+        typed::TurnId turnId;
+        typed::ItemId itemId;
+        ItemContentSnapshotChannel channel = ItemContentSnapshotChannel::AgentText;
+
+        bool operator==(const ItemContentSnapshotKey&) const = default;
+    };
+
+    // Exact streaming projection needs one bounded channel and only the small
+    // amount of item metadata required to validate it.  It deliberately does
+    // not retain the other content channels or general item details.
+    struct ItemContentSnapshot {
+        ItemContentSnapshotKey key;
+        std::string status;
+        std::string content;
+        // Item-wide projected truncation accumulated before the selected
+        // channel's final frontend character bound is applied.
+        std::uint64_t droppedContentBytes = 0;
+        // Canonical backend retention is tracked separately so append and
+        // unchanged-prefix decisions do not confuse projection truncation
+        // with backend rolling retention.
+        std::uint64_t backendDroppedContentBytes = 0;
+        // Bit positions follow ItemContentSnapshotChannel and identify
+        // unselected channels that the frontend character bound omits.
+        std::uint8_t frontendOmittedContentChannels = 0;
+        bool contentTruncated = false;
+        bool knownType = false;
+        bool connectionInvalidated = false;
+
+        bool operator==(const ItemContentSnapshot&) const = default;
+    };
+
+    struct ItemContentSnapshotBatch {
+        SequenceNumber sequence;
+        std::vector<ItemContentSnapshot> items;
+
+        bool operator==(const ItemContentSnapshotBatch&) const = default;
+    };
+
     struct TurnSnapshot {
         std::string id;
         std::string threadId;
@@ -472,6 +514,8 @@ namespace ai::openai::codex::backend {
     Snapshot makeSnapshot(const BackendState& state);
     [[nodiscard]] std::optional<ItemSnapshotBatch> makeItemSnapshotBatch(const BackendState& state,
                                                                          std::span<const ItemSnapshotKey> keys);
+    [[nodiscard]] std::optional<ItemContentSnapshotBatch>
+    makeItemContentSnapshotBatch(const BackendState& state, std::span<const ItemContentSnapshotKey> keys);
     std::size_t snapshotSizeBytes(const Snapshot& snapshot) noexcept;
     ExtensionSnapshot makeExtensionSnapshot(const ExtensionRecord& extension);
 

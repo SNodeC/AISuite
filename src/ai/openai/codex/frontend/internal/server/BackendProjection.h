@@ -55,7 +55,7 @@ namespace ai::openai::codex::frontend::internal::server {
         // when this exact-entity fast path cannot represent the whole batch.
         [[nodiscard]] model::ModelResult<ProjectedBackendBatch>
         projectItemContentOccurrences(std::span<const backend::SequencedBackendEvent> events,
-                                      std::span<const backend::ItemSnapshot> items) const noexcept;
+                                      std::span<const backend::ItemContentSnapshot> items) const noexcept;
 
     private:
         friend struct BackendProjectionTestAccess;

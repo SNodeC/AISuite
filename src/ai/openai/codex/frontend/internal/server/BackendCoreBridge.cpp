@@ -84,6 +84,20 @@ namespace ai::openai::codex::frontend::internal::server {
                    type == "plan" || type == "sleep" || type == "subAgentActivity";
         }
 
+        backend::ItemContentSnapshotChannel contentSnapshotChannel(backend::ItemContentChanged::Kind kind) noexcept {
+            switch (kind) {
+                case backend::ItemContentChanged::Kind::AgentText:
+                    return backend::ItemContentSnapshotChannel::AgentText;
+                case backend::ItemContentChanged::Kind::ReasoningText:
+                    return backend::ItemContentSnapshotChannel::ReasoningText;
+                case backend::ItemContentChanged::Kind::ReasoningSummary:
+                    return backend::ItemContentSnapshotChannel::ReasoningSummary;
+                case backend::ItemContentChanged::Kind::CommandOutput:
+                    return backend::ItemContentSnapshotChannel::CommandOutput;
+            }
+            return backend::ItemContentSnapshotChannel::AgentText;
+        }
+
         Json legacyItemSnapshotJson(const backend::ItemSnapshot& item) {
             const Json frontendData = isFrontendV1MetadataOnlyItem(item.type) ? Json::object({{"codexType", item.type}}) : item.data;
             Json encoded{{"id", item.id},
@@ -758,7 +772,7 @@ namespace ai::openai::codex::frontend::internal::server {
                         return ProjectedFlushResult::Staged;
                     }
                     std::optional<ProjectedBackendBatch> projectedBatch;
-                    std::vector<backend::ItemSnapshotKey> contentKeys;
+                    std::vector<backend::ItemContentSnapshotKey> contentKeys;
                     contentKeys.reserve(projectedEvents.size());
                     bool contentOnly = true;
                     for (const backend::SequencedBackendEvent& sequenced : projectedEvents) {
@@ -767,10 +781,11 @@ namespace ai::openai::codex::frontend::internal::server {
                             contentOnly = false;
                             break;
                         }
-                        contentKeys.push_back({content->threadId, content->turnId, content->itemId});
+                        contentKeys.push_back(
+                            {content->threadId, content->turnId, content->itemId, contentSnapshotChannel(content->kind)});
                     }
                     if (contentOnly) {
-                        std::optional<backend::ItemSnapshotBatch> contentItems = runtime.itemSnapshots(contentKeys);
+                        std::optional<backend::ItemContentSnapshotBatch> contentItems = runtime.itemContentSnapshots(contentKeys);
                         if (contentItems && !projectedEvents.empty() &&
                             contentItems->sequence.value() >= projectedEvents.back().sequence.value()) {
                             model::ModelResult<ProjectedBackendBatch> direct =

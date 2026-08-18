@@ -131,6 +131,42 @@ namespace {
                                                   backend::ItemContentChanged::Kind::AgentText,
                                                   "beta",
                                                   std::nullopt});
+        const std::string retainedUtf8Prefix =
+            std::string(backend::MaxSnapshotExtensionPayloadBytes - 3, 'u') + "\xE2\x82\xAC";
+        reducer.apply(state,
+                      backend::ItemContentChanged{typed::ThreadId{"thread-a"},
+                                                  typed::TurnId{"turn-a"},
+                                                  typed::ItemId{"shared-item"},
+                                                  backend::ItemContentChanged::Kind::ReasoningText,
+                                                  retainedUtf8Prefix + "tail",
+                                                  std::nullopt});
+        reducer.apply(state,
+                      backend::ItemContentChanged{typed::ThreadId{"thread-a"},
+                                                  typed::TurnId{"turn-a"},
+                                                  typed::ItemId{"shared-item"},
+                                                  backend::ItemContentChanged::Kind::ReasoningSummary,
+                                                  "summary",
+                                                  std::nullopt});
+        reducer.apply(state,
+                      backend::ItemContentChanged{typed::ThreadId{"thread-a"},
+                                                  typed::TurnId{"turn-a"},
+                                                  typed::ItemId{"shared-item"},
+                                                  backend::ItemContentChanged::Kind::CommandOutput,
+                                                  "command",
+                                                  std::nullopt});
+        std::string multibytePrefix;
+        multibytePrefix.reserve(backend::MaxSnapshotExtensionPayloadBytes);
+        for (std::size_t index = 0; index < backend::MaxSnapshotExtensionPayloadBytes / 4; ++index) {
+            multibytePrefix += "\xF0\x9F\x99\x82";
+        }
+        const std::string multibyteBeyondSnapshot = multibytePrefix + "\xF0\x9F\x99\x82";
+        reducer.apply(state,
+                      backend::ItemContentChanged{typed::ThreadId{"thread-b"},
+                                                  typed::TurnId{"turn-b"},
+                                                  typed::ItemId{"shared-item"},
+                                                  backend::ItemContentChanged::Kind::ReasoningText,
+                                                  multibyteBeyondSnapshot,
+                                                  std::nullopt});
         state.sequence = backend::SequenceNumber{17};
 
         const std::vector<backend::ItemSnapshotKey> keys{
@@ -155,7 +191,8 @@ namespace {
         result.expectTrue(targeted && targeted->sequence == backend::SequenceNumber{17} && targeted->items.size() == 2 &&
                               ordinaryA != nullptr && ordinaryB != nullptr && targeted->items[0] == *ordinaryA &&
                               targeted->items[1] == *ordinaryB && targeted->items[0].agentText == "alpha" &&
-                              targeted->items[1].agentText == "beta",
+                              targeted->items[1].agentText == "beta" && ordinaryB->reasoningText == multibytePrefix &&
+                              ordinaryB->contentTruncated && ordinaryB->droppedContentBytes == 4,
                           "targeted item snapshots preserve exact composite identity and ordinary snapshot bounding");
 
         std::vector<backend::ItemSnapshotKey> withMissing = keys;
@@ -163,6 +200,53 @@ namespace {
             {typed::ThreadId{"thread-a"}, typed::TurnId{"turn-a"}, typed::ItemId{"missing-item"}});
         result.expectTrue(!backend::makeItemSnapshotBatch(state, withMissing),
                           "a missing exact item makes the targeted snapshot batch wholly unavailable");
+
+        const std::vector<backend::ItemContentSnapshotKey> contentKeys{
+            {typed::ThreadId{"thread-a"},
+             typed::TurnId{"turn-a"},
+             typed::ItemId{"shared-item"},
+             backend::ItemContentSnapshotChannel::AgentText},
+            {typed::ThreadId{"thread-a"},
+             typed::TurnId{"turn-a"},
+             typed::ItemId{"shared-item"},
+             backend::ItemContentSnapshotChannel::ReasoningText},
+            {typed::ThreadId{"thread-a"},
+             typed::TurnId{"turn-a"},
+             typed::ItemId{"shared-item"},
+             backend::ItemContentSnapshotChannel::ReasoningSummary},
+            {typed::ThreadId{"thread-a"},
+             typed::TurnId{"turn-a"},
+             typed::ItemId{"shared-item"},
+             backend::ItemContentSnapshotChannel::CommandOutput},
+            {typed::ThreadId{"thread-b"},
+             typed::TurnId{"turn-b"},
+             typed::ItemId{"shared-item"},
+             backend::ItemContentSnapshotChannel::AgentText},
+            {typed::ThreadId{"thread-b"},
+             typed::TurnId{"turn-b"},
+             typed::ItemId{"shared-item"},
+             backend::ItemContentSnapshotChannel::ReasoningText},
+        };
+        const auto content = backend::makeItemContentSnapshotBatch(state, contentKeys);
+        result.expectTrue(content && content->sequence == backend::SequenceNumber{17} && content->items.size() == 6 &&
+                              content->items[0].key == contentKeys[0] && content->items[0].content == "alpha" &&
+                              content->items[1].key == contentKeys[1] && content->items[1].content == retainedUtf8Prefix &&
+                              content->items[2].content == "summary" && content->items[3].content == "command" &&
+                              content->items[4].key == contentKeys[4] && content->items[4].content == "beta" &&
+                              content->items[4].droppedContentBytes == 4 && content->items[4].contentTruncated &&
+                              content->items[5].key == contentKeys[5] && content->items[5].content == multibytePrefix &&
+                              content->items[5].droppedContentBytes == 4 && content->items[5].backendDroppedContentBytes == 0 &&
+                              content->items[5].contentTruncated && content->items[0].knownType && content->items[4].knownType,
+                          "targeted content snapshots preserve duplicate composite identities, select every channel independently, "
+                          "and report a bounded complete UTF-8 prefix without copying a large unselected channel");
+
+        std::vector<backend::ItemContentSnapshotKey> missingContent = contentKeys;
+        missingContent.push_back({typed::ThreadId{"thread-a"},
+                                  typed::TurnId{"turn-b"},
+                                  typed::ItemId{"shared-item"},
+                                  backend::ItemContentSnapshotChannel::AgentText});
+        result.expectTrue(!backend::makeItemContentSnapshotBatch(state, missingContent),
+                          "a scope mismatch or missing composite item makes the targeted content batch wholly unavailable");
     }
 
     void testReducerCapacityAndFreshness(tests::support::TestResult& result) {

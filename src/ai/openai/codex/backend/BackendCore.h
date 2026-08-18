@@ -76,6 +76,8 @@ namespace ai::openai::codex::backend {
             [[nodiscard]] BackendState state() const;
             [[nodiscard]] Snapshot snapshot() const;
             [[nodiscard]] std::optional<ItemSnapshotBatch> itemSnapshots(std::span<const ItemSnapshotKey> keys) const;
+            [[nodiscard]] std::optional<ItemContentSnapshotBatch>
+            itemContentSnapshots(std::span<const ItemContentSnapshotKey> keys) const;
             [[nodiscard]] bool isReady() const noexcept;
 
             [[nodiscard]] FrontendSession openSession(FrontendSessionCallbacks callbacks);

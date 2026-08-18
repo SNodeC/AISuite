@@ -39,6 +39,57 @@ namespace {
     constexpr std::string_view OpaqueExtensionValue = "safe-looking-extension-sentinel";
     constexpr std::string_view SecretDataValue = "known-secret-item-sentinel";
 
+    backend::ItemContentSnapshotChannel snapshotChannel(backend::ItemContentChanged::Kind kind) {
+        switch (kind) {
+            case backend::ItemContentChanged::Kind::AgentText:
+                return backend::ItemContentSnapshotChannel::AgentText;
+            case backend::ItemContentChanged::Kind::ReasoningText:
+                return backend::ItemContentSnapshotChannel::ReasoningText;
+            case backend::ItemContentChanged::Kind::ReasoningSummary:
+                return backend::ItemContentSnapshotChannel::ReasoningSummary;
+            case backend::ItemContentChanged::Kind::CommandOutput:
+                return backend::ItemContentSnapshotChannel::CommandOutput;
+        }
+        return backend::ItemContentSnapshotChannel::AgentText;
+    }
+
+    constexpr std::uint8_t snapshotChannelBit(backend::ItemContentSnapshotChannel channel) noexcept {
+        return static_cast<std::uint8_t>(1U << static_cast<unsigned int>(channel));
+    }
+
+    backend::ItemContentSnapshot selectedContentSnapshot(const backend::ItemSnapshot& item,
+                                                         const typed::ThreadId& threadId,
+                                                         const typed::TurnId& turnId,
+                                                         backend::ItemContentChanged::Kind kind,
+                                                         std::optional<std::uint64_t> projectedDroppedContentBytesBeforeSelected =
+                                                             std::nullopt,
+                                                         std::uint8_t frontendOmittedContentChannels = 0) {
+        backend::ItemContentSnapshot result;
+        result.key = {threadId, turnId, typed::ItemId{item.id}, snapshotChannel(kind)};
+        result.status = item.status;
+        switch (kind) {
+            case backend::ItemContentChanged::Kind::AgentText:
+                result.content = item.agentText;
+                break;
+            case backend::ItemContentChanged::Kind::ReasoningText:
+                result.content = item.reasoningText;
+                break;
+            case backend::ItemContentChanged::Kind::ReasoningSummary:
+                result.content = item.reasoningSummary;
+                break;
+            case backend::ItemContentChanged::Kind::CommandOutput:
+                result.content = item.commandOutput;
+                break;
+        }
+        result.droppedContentBytes = projectedDroppedContentBytesBeforeSelected.value_or(item.droppedContentBytes);
+        result.backendDroppedContentBytes = item.droppedContentBytes;
+        result.frontendOmittedContentChannels = frontendOmittedContentChannels;
+        result.contentTruncated = result.droppedContentBytes != 0;
+        result.knownType = true;
+        result.connectionInvalidated = item.connectionInvalidated;
+        return result;
+    }
+
     class Backend final : public server::BackendPort {
     public:
         [[nodiscard]] bool providerReady() const noexcept override {
@@ -2361,7 +2412,16 @@ namespace {
         const std::vector<ai::openai::codex::backend::SequencedBackendEvent> oversizedContentEvents{
             {ai::openai::codex::backend::SequenceNumber{18}, std::move(oversizedContentEvent)}};
         const auto oversizedContentOccurrence = projection.projectOccurrences(oversizedContentEvents, oversizedItemSource);
-        const std::vector<ai::openai::codex::backend::ItemSnapshot> oversizedContentItems{oversizedItem};
+        const std::vector<ai::openai::codex::backend::ItemContentSnapshot> oversizedContentItems{
+            selectedContentSnapshot(oversizedItem,
+                                    ai::openai::codex::typed::ThreadId{thread.id},
+                                    ai::openai::codex::typed::TurnId{turn.id},
+                                    ai::openai::codex::backend::ItemContentChanged::Kind::CommandOutput,
+                                    12,
+                                    static_cast<std::uint8_t>(
+                                        snapshotChannelBit(backend::ItemContentSnapshotChannel::AgentText) |
+                                        snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningText) |
+                                        snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningSummary)))};
         const auto directOversizedContentOccurrence =
             projection.projectItemContentOccurrences(oversizedContentEvents, oversizedContentItems);
         const auto* boundedContentOccurrence =
@@ -2375,6 +2435,37 @@ namespace {
                               boundedContentOccurrence->truncation.droppedBytes == 16 && directOversizedContentOccurrence &&
                               directOversizedContentOccurrence.value().occurrences == oversizedContentOccurrence.value().occurrences,
                           "exact-item content projection preserves the same bounded replacement occurrence without projecting full State");
+
+        model::OccurrenceIdentity aggregateIdentity{model::FrontendSequence{18},
+                                                    model::OccurrenceGroupIdentity{"aggregate-item-content"},
+                                                    0,
+                                                    1,
+                                                    model::SourceStamp{"aggregate-item-content"}};
+        aggregateIdentity.threadId = model::ThreadIdentity{thread.id};
+        aggregateIdentity.turnId = model::TurnIdentity{turn.id};
+        aggregateIdentity.itemId = model::ItemIdentity{item.id};
+        const auto aggregateOccurrence =
+            boundedContentOccurrence
+                ? model::makeOccurrence(aggregateIdentity, model::OccurrencePayload{*boundedContentOccurrence})
+                : model::OccurrenceResult<model::CanonicalOccurrence>{
+                      model::OccurrenceError{model::OccurrenceErrorCode::InvalidPayload, "/item", "projection failed"}};
+        const auto aggregateReduced =
+            aggregateOccurrence && oversizedItemSnapshot
+                ? model::reduceOccurrence(oversizedItemSnapshot.value(), aggregateOccurrence.value())
+                : model::ModelResult<model::CanonicalSnapshot>{
+                      model::ModelError{model::ModelErrorCode::InvalidShape, "/item", "projection failed"}};
+        const model::ItemData* aggregateReducedItem =
+            aggregateReduced && !aggregateReduced.value().items.empty()
+                ? &model::itemData(aggregateReduced.value().items.front())
+                : nullptr;
+        result.expectTrue(aggregateReducedItem != nullptr &&
+                              aggregateReducedItem->droppedContentBytes == std::optional<std::uint64_t>{16} &&
+                              aggregateReducedItem->contentTruncated &&
+                              aggregateReducedItem->agentText == retainedItemContent &&
+                              aggregateReducedItem->reasoningText == retainedItemContent &&
+                              aggregateReducedItem->reasoningSummary == retainedItemContent &&
+                              aggregateReducedItem->commandOutput == retainedItemContent,
+                          "a selected-channel occurrence preserves aggregate item truncation across every retained content channel");
 
         ai::openai::codex::backend::Snapshot appendSource = source;
         ai::openai::codex::backend::ItemSnapshot& appendItem = appendSource.threads.front().turns.front().items.front();
@@ -2395,7 +2486,11 @@ namespace {
         appendEvent.droppedContentBytesBefore = 0;
         const std::vector<ai::openai::codex::backend::SequencedBackendEvent> appendEvents{
             {ai::openai::codex::backend::SequenceNumber{19}, appendEvent}};
-        const std::vector<ai::openai::codex::backend::ItemSnapshot> appendItems{appendItem};
+        const std::vector<ai::openai::codex::backend::ItemContentSnapshot> appendItems{
+            selectedContentSnapshot(appendItem,
+                                    ai::openai::codex::typed::ThreadId{thread.id},
+                                    ai::openai::codex::typed::TurnId{turn.id},
+                                    ai::openai::codex::backend::ItemContentChanged::Kind::CommandOutput)};
         const auto directAppend = projection.projectItemContentOccurrences(appendEvents, appendItems);
         const auto fullAppend = projection.projectOccurrences(appendEvents, appendSource);
         const auto* projectedAppend =
@@ -2414,7 +2509,7 @@ namespace {
                       &mismatchedAppend.value().occurrences.front().occurrence.expandedPayloads.front())
                 : nullptr;
         auto advancedAppendItems = appendItems;
-        advancedAppendItems.front().commandOutput += " later";
+        advancedAppendItems.front().content += " later";
         const auto advancedAppend = projection.projectItemContentOccurrences(appendEvents, advancedAppendItems);
         const auto* projectedAdvanced =
             advancedAppend && advancedAppend.value().occurrences.size() == 1 &&
@@ -2444,15 +2539,45 @@ namespace {
             contentEvent(backend::SequenceNumber{21}, backend::ItemContentChanged::Kind::ReasoningSummary),
             contentEvent(backend::SequenceNumber{22}, backend::ItemContentChanged::Kind::CommandOutput),
         };
-        const std::vector<backend::ItemSnapshot> allContentItems(allContentEvents.size(), oversizedItem);
+        std::vector<backend::ItemContentSnapshot> allContentItems;
+        allContentItems.reserve(allContentEvents.size());
+        for (const backend::SequencedBackendEvent& sequenced : allContentEvents) {
+            const auto& content = std::get<backend::ItemContentChanged>(sequenced.event);
+            constexpr std::uint8_t AllContentChannels =
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::AgentText) |
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningText) |
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::ReasoningSummary) |
+                snapshotChannelBit(backend::ItemContentSnapshotChannel::CommandOutput);
+            allContentItems.push_back(selectedContentSnapshot(
+                oversizedItem,
+                typed::ThreadId{thread.id},
+                typed::TurnId{turn.id},
+                content.kind,
+                12,
+                static_cast<std::uint8_t>(AllContentChannels & ~snapshotChannelBit(snapshotChannel(content.kind)))));
+        }
         const auto fullAllContent = projection.projectOccurrences(allContentEvents, oversizedItemSource);
         const auto directAllContent = projection.projectItemContentOccurrences(allContentEvents, allContentItems);
-        std::vector<backend::ItemSnapshot> mismatchedContentItems = allContentItems;
-        mismatchedContentItems.back().id = "other-item";
+        std::vector<backend::ItemContentSnapshot> mismatchedContentItems = allContentItems;
+        mismatchedContentItems.back().key.itemId = typed::ItemId{"other-item"};
         const auto mismatchedContent = projection.projectItemContentOccurrences(allContentEvents, mismatchedContentItems);
+        std::vector<backend::ItemContentSnapshot> mismatchedScopeItems = allContentItems;
+        mismatchedScopeItems.front().key.threadId = typed::ThreadId{"other-thread"};
+        const auto mismatchedScope = projection.projectItemContentOccurrences(allContentEvents, mismatchedScopeItems);
+        std::vector<backend::ItemContentSnapshot> mismatchedChannelItems = allContentItems;
+        mismatchedChannelItems.front().key.channel = backend::ItemContentSnapshotChannel::CommandOutput;
+        const auto mismatchedChannel = projection.projectItemContentOccurrences(allContentEvents, mismatchedChannelItems);
+        std::vector<backend::ItemContentSnapshot> inactiveContentItems = allContentItems;
+        inactiveContentItems.front().status = "completed";
+        const auto inactiveContent = projection.projectItemContentOccurrences(allContentEvents, inactiveContentItems);
+        std::vector<backend::ItemContentSnapshot> unknownContentItems = allContentItems;
+        unknownContentItems.front().knownType = false;
+        const auto unknownContent = projection.projectItemContentOccurrences(allContentEvents, unknownContentItems);
         result.expectTrue(fullAllContent && directAllContent && directAllContent.value().occurrences.size() == 4 &&
-                              directAllContent.value().occurrences == fullAllContent.value().occurrences && !mismatchedContent,
-                          "all content channels use exact replacement semantics and a mismatched batch cannot project a partial prefix");
+                              directAllContent.value().occurrences == fullAllContent.value().occurrences && !mismatchedContent &&
+                              !mismatchedScope && !mismatchedChannel && !inactiveContent && !unknownContent,
+                          "all content channels use exact replacement semantics while identity, channel, activity, and type mismatches "
+                          "fail the complete fast-path batch");
 
         const auto hintedContentEvent = [&](backend::SequenceNumber sequence,
                                             std::size_t channelBytesBefore,
@@ -2498,12 +2623,19 @@ namespace {
             hintedContentEvent(backend::SequenceNumber{26}, asciiPrefix.size() + 3, 1),
             hintedContentEvent(backend::SequenceNumber{27}, asciiPrefix.size() + 4, 0),
         };
-        const std::vector<backend::ItemSnapshot> hintedItems{
-            asciiFirstOverflow, asciiRedundant, asciiMissingHints, asciiPriorRolling, asciiCurrentRolling};
+        const auto commandContentSnapshot = [&](const backend::ItemSnapshot& item) {
+            return selectedContentSnapshot(
+                item, typed::ThreadId{thread.id}, typed::TurnId{turn.id}, backend::ItemContentChanged::Kind::CommandOutput);
+        };
+        const std::vector<backend::ItemContentSnapshot> hintedItems{commandContentSnapshot(asciiFirstOverflow),
+                                                                    commandContentSnapshot(asciiRedundant),
+                                                                    commandContentSnapshot(asciiMissingHints),
+                                                                    commandContentSnapshot(asciiPriorRolling),
+                                                                    commandContentSnapshot(asciiCurrentRolling)};
         const auto hintedOccurrences = projection.projectItemContentOccurrences(hintedEvents, hintedItems);
         const std::vector<backend::SequencedBackendEvent> redundantOnlyEvents{
             hintedContentEvent(backend::SequenceNumber{24}, asciiPrefix.size() + 1, 0)};
-        const std::vector<backend::ItemSnapshot> redundantOnlyItems{asciiRedundant};
+        const std::vector<backend::ItemContentSnapshot> redundantOnlyItems{commandContentSnapshot(asciiRedundant)};
         const auto redundantOnly = projection.projectItemContentOccurrences(redundantOnlyEvents, redundantOnlyItems);
         const bool retainedHintedSources =
             hintedOccurrences && hintedOccurrences.value().occurrences.size() == 4 &&
@@ -2531,7 +2663,8 @@ namespace {
             hintedContentEvent(backend::SequenceNumber{28}, unicodePrefix.size(), 0),
             hintedContentEvent(backend::SequenceNumber{29}, unicodePrefix.size() + 1, 0),
         };
-        const std::vector<backend::ItemSnapshot> unicodeItems{unicodeFirstOverflow, unicodeRedundant};
+        const std::vector<backend::ItemContentSnapshot> unicodeItems{commandContentSnapshot(unicodeFirstOverflow),
+                                                                     commandContentSnapshot(unicodeRedundant)};
         const auto unicodeOccurrences = projection.projectItemContentOccurrences(unicodeEvents, unicodeItems);
         const auto* unicodeUpdate =
             unicodeOccurrences && unicodeOccurrences.value().occurrences.size() == 1 &&
@@ -2544,6 +2677,43 @@ namespace {
                                   model::SourceStamp{"backend-event:28"},
                           "the strict overflow boundary compares UTF-8 prefix bytes, emits the first multibyte truncation transition, "
                           "and suppresses only its unchanged suffix");
+
+        std::string snapshotMultibytePrefix;
+        snapshotMultibytePrefix.reserve(backend::MaxSnapshotExtensionPayloadBytes);
+        for (std::size_t index = 0; index < backend::MaxSnapshotExtensionPayloadBytes / 4; ++index) {
+            snapshotMultibytePrefix += "\xF0\x9F\x99\x82";
+        }
+        backend::ItemContentSnapshot snapshotMultibyteFirst = commandContentSnapshot(asciiFirstOverflow);
+        snapshotMultibyteFirst.content = snapshotMultibytePrefix;
+        snapshotMultibyteFirst.droppedContentBytes = 4;
+        snapshotMultibyteFirst.contentTruncated = true;
+        backend::ItemContentSnapshot snapshotMultibyteRedundant = snapshotMultibyteFirst;
+        snapshotMultibyteRedundant.droppedContentBytes = 8;
+        auto snapshotMultibyteFirstEvent =
+            hintedContentEvent(backend::SequenceNumber{30}, snapshotMultibytePrefix.size(), 0);
+        std::get<backend::ItemContentChanged>(snapshotMultibyteFirstEvent.event).delta = "\xF0\x9F\x99\x82";
+        auto snapshotMultibyteRedundantEvent =
+            hintedContentEvent(backend::SequenceNumber{31}, snapshotMultibytePrefix.size() + 4, 0);
+        std::get<backend::ItemContentChanged>(snapshotMultibyteRedundantEvent.event).delta = "\xF0\x9F\x99\x82";
+        const std::vector<backend::SequencedBackendEvent> snapshotMultibyteEvents{
+            std::move(snapshotMultibyteFirstEvent), std::move(snapshotMultibyteRedundantEvent)};
+        const std::vector<backend::ItemContentSnapshot> snapshotMultibyteItems{
+            std::move(snapshotMultibyteFirst), std::move(snapshotMultibyteRedundant)};
+        const auto snapshotMultibyteOccurrences =
+            projection.projectItemContentOccurrences(snapshotMultibyteEvents, snapshotMultibyteItems);
+        const auto* snapshotMultibyteUpdate =
+            snapshotMultibyteOccurrences && snapshotMultibyteOccurrences.value().occurrences.size() == 1 &&
+                    snapshotMultibyteOccurrences.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &snapshotMultibyteOccurrences.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(snapshotMultibyteUpdate && snapshotMultibyteUpdate->content == snapshotMultibytePrefix &&
+                              snapshotMultibyteUpdate->truncation.truncated &&
+                              snapshotMultibyteUpdate->truncation.droppedBytes == 4 &&
+                              snapshotMultibyteOccurrences.value().occurrences.front().occurrence.sourceStamp ==
+                                  model::SourceStamp{"backend-event:30"},
+                          "a valid multibyte channel crossing the 32-KiB backend snapshot bound emits its first truthful truncation "
+                          "transition before later unchanged projected prefixes are suppressed");
 
         ai::openai::codex::backend::Snapshot oversizedScalarSource = source;
         const std::string retainedScalar = std::string(16'383, 's') + "\xE2\x82\xAC";
