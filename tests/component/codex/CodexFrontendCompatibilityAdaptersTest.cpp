@@ -130,6 +130,7 @@ namespace {
             return public_client::AuthenticationContext{frontend::NoCredential{}, std::string("continuity")};
         };
         source.maximumInboundMessageBytes = 101;
+        source.maximumOutboundMessageBytes = 102;
         source.maximumDecodedStateBytes = 103;
         source.maximumPendingOperations = 107;
         source.maximumRetainedDiagnostics = 109;
@@ -140,6 +141,7 @@ namespace {
         const bool optionsParity = roundTrip.requestedCapabilities == source.requestedCapabilities &&
                                    roundTrip.requiredCapabilities == source.requiredCapabilities &&
                                    roundTrip.maximumInboundMessageBytes == source.maximumInboundMessageBytes &&
+                                   roundTrip.maximumOutboundMessageBytes == source.maximumOutboundMessageBytes &&
                                    roundTrip.maximumDecodedStateBytes == source.maximumDecodedStateBytes &&
                                    roundTrip.maximumPendingOperations == source.maximumPendingOperations &&
                                    roundTrip.maximumRetainedDiagnostics == source.maximumRetainedDiagnostics &&

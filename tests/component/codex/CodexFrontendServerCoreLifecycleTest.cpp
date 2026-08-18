@@ -248,6 +248,7 @@ namespace {
         server::ServerCoreOptions options;
         options.authenticator = authenticate;
         options.implementedCapabilities.push_back(frontend::FrontendCapability::CppClientSdk);
+        options.maximumInboundMessageBytes = 768U * 1024U;
         server::ServerCore core(backend, std::move(options));
         core.start();
         core.declareTransportFamily(frontend::FrontendTransportKind::Unix);
@@ -269,6 +270,9 @@ namespace {
         const auto* firstWelcome = !firstMessages.empty() ? std::get_if<frontend::Welcome>(&firstMessages.front()) : nullptr;
         const std::optional<frontend::CapabilityAdvertisement> frozenAdvertisement =
             firstWelcome ? firstWelcome->capabilities : std::nullopt;
+        result.expectTrue(firstWelcome &&
+                              firstWelcome->maximumInboundMessageBytes == std::optional<std::uint64_t>{768U * 1024U},
+                          "Welcome advertises the effective per-connection frontend ingress limit");
 
         core.withdrawTransportFamily(frontend::FrontendTransportKind::WebSocket);
         const std::vector<frontend::FrontendCapability> reduced = core.implementedCapabilities();

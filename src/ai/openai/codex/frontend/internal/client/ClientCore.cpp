@@ -1787,6 +1787,7 @@ namespace ai::openai::codex::frontend::internal::client {
         void flushDeferredCommands() noexcept;
         bool methodAvailable(generated::MethodId method) const noexcept;
         bool methodPermitted(generated::MethodId method) const noexcept;
+        std::size_t maximumOutboundMessageBytes() const noexcept;
         std::size_t outstandingOperationCount() const noexcept;
 
         ClientOptions options;
@@ -2399,7 +2400,8 @@ namespace ai::openai::codex::frontend::internal::client {
                                        Json::object(),
                                        options.requestedCapabilities,
                                        std::nullopt},
-                                 sensitive};
+                                 sensitive,
+                                 options.limits.maximumOutboundMessageBytes};
         if (sensitive) {
             // Keep the provider result sized until it has been overwritten;
             // moving an SSO token first could leave credential bytes behind
@@ -2483,6 +2485,7 @@ namespace ai::openai::codex::frontend::internal::client {
         decoded.synchronizationMode = welcome.syncMode;
         decoded.serverCurrentSequence = model::FrontendSequence(welcome.currentSequence);
         decoded.serverVersion = welcome.serverVersion;
+        decoded.serverMaximumInboundMessageBytes = welcome.maximumInboundMessageBytes;
         decoded.requestedCapabilities = options.requestedCapabilities;
 
         if (welcome.capabilities.has_value()) {
@@ -3303,6 +3306,17 @@ namespace ai::openai::codex::frontend::internal::client {
         return !session->permittedMethods.has_value() || contains(*session->permittedMethods, method);
     }
 
+    std::size_t ClientCore::Impl::maximumOutboundMessageBytes() const noexcept {
+        if (!session.has_value() || !session->serverMaximumInboundMessageBytes.has_value()) {
+            return options.limits.maximumOutboundMessageBytes;
+        }
+        const std::uint64_t advertised = *session->serverMaximumInboundMessageBytes;
+        if (advertised > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+            return std::numeric_limits<std::size_t>::max();
+        }
+        return static_cast<std::size_t>(advertised);
+    }
+
     std::size_t ClientCore::Impl::outstandingOperationCount() const noexcept {
         std::size_t result = pending.size();
         const auto add = [&result](bool present) {
@@ -3349,7 +3363,7 @@ namespace ai::openai::codex::frontend::internal::client {
         synchronization->projectionSnapshotRequested = true;
         synchronization->projectionSnapshotResponseAccepted = false;
         SendResult sent;
-        OutboundMessage outbound{std::move(command), false};
+        OutboundMessage outbound{std::move(command), false, maximumOutboundMessageBytes()};
         try {
             sent = attachment->transport.send(std::move(outbound));
         } catch (...) {
@@ -3563,7 +3577,8 @@ namespace ai::openai::codex::frontend::internal::client {
                     localError(ClientErrorCode::SerializationFailed, "generated frontend command size could not be measured")};
         }
         eraseTransient(validatedWire);
-        if (serializedBytes > options.limits.maximumOutboundMessageBytes) {
+        const std::size_t outboundLimit = maximumOutboundMessageBytes();
+        if (serializedBytes > outboundLimit) {
             eraseTransient(command);
             return {std::nullopt,
                     localError(ClientErrorCode::SerializationFailed, "generated frontend command exceeds the outbound byte limit")};
@@ -3598,7 +3613,7 @@ namespace ai::openai::codex::frontend::internal::client {
             synchronization = std::move(next);
         }
 
-        OutboundMessage outbound{std::move(command), sensitive};
+        OutboundMessage outbound{std::move(command), sensitive, outboundLimit};
         if (sensitive) {
             eraseTransient(command);
         }

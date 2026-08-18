@@ -396,12 +396,19 @@ namespace {
             std::vector<frontend::FrontendMethod>{"snapshot.get", "thread.list"},
             std::vector<frontend::FrontendMethod>{"snapshot.get"},
             "0.1.0",
+            768U * 1024U,
         };
         const auto encoded = frontend::Codec::encodeServer(frontend::ServerMessage{welcome});
         const auto decoded =
             encoded ? frontend::Codec::decodeServer(encoded.value()) : frontend::CodecResult<frontend::ServerMessage>{encoded.error()};
         result.expectTrue(encoded.hasValue() && decoded.hasValue() && std::get<frontend::Welcome>(decoded.value()) == welcome,
                           "additive welcome discovery metadata round-trips while remaining optional");
+
+        frontend::Json invalidMaximum = encoded.value();
+        invalidMaximum["maximumInboundMessageBytes"] = 0;
+        const auto invalidMaximumDecoded = frontend::Codec::decodeServer(invalidMaximum);
+        result.expectTrue(!invalidMaximumDecoded && invalidMaximumDecoded.error().code == frontend::ErrorCode::InvalidField,
+                          "Welcome rejects a non-positive advertised peer-ingress limit");
 
         constexpr std::array AddedErrors{
             frontend::ErrorCode::AuthenticationRequired,

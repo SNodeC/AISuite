@@ -128,6 +128,7 @@ namespace ai::openai::codex::frontend::client {
             result.syncMode = source.synchronizationMode;
             result.serverCurrentSequence = source.serverCurrentSequence.protocolValue();
             result.serverVersion = source.serverVersion;
+            result.serverMaximumInboundMessageBytes = source.serverMaximumInboundMessageBytes;
             result.requestedRepresentationCapabilities = source.requestedCapabilities;
             result.selectedRepresentationCapabilities = source.selectedCapabilities;
             result.availableMethods = source.availableMethods;
@@ -329,6 +330,7 @@ namespace ai::openai::codex::frontend::client {
             result.requiredCapabilities = options.requiredCapabilities;
             result.allowLegacyV1 = options.allowLegacyV1;
             result.limits.maximumInboundMessageBytes = options.maximumInboundMessageBytes;
+            result.limits.maximumOutboundMessageBytes = options.maximumOutboundMessageBytes;
             result.limits.maximumDecodedStateBytes = options.maximumDecodedStateBytes;
             result.limits.maximumPendingOperations = options.maximumPendingOperations;
             result.limits.maximumRetainedDiagnostics = options.maximumRetainedDiagnostics;
@@ -578,7 +580,7 @@ namespace ai::openai::codex::frontend::client {
                 std::string compact = encoded.dump();
                 encodedGuard.run();
                 const std::size_t serializedBytes = compact.size();
-                if (serializedBytes > frontend::DefaultFrontendMaximumInboundMessageBytes) {
+                if (serializedBytes > message.maximumBytes) {
                     eraseTransientString(compact);
                     return {core::SendStatus::Failed, core::TransportError{"frontend message exceeds the peer input limit", false}};
                 }

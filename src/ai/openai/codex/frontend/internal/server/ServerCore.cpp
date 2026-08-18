@@ -1580,6 +1580,7 @@ namespace ai::openai::codex::frontend::internal::server {
         welcome.role = SessionRole::Observer;
         welcome.currentSequence = synchronizationBarrier.sequence.protocolValue();
         welcome.syncMode = syncMode;
+        welcome.maximumInboundMessageBytes = static_cast<std::uint64_t>(options.maximumInboundMessageBytes);
         if (hello.capabilities) {
             CapabilityAdvertisement advertisement;
             advertisement.defined = definedCapabilities();

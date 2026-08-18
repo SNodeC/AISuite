@@ -1449,7 +1449,8 @@ namespace ai::openai::codex::frontend {
                                               "capabilities",
                                               "availableMethods",
                                               "permittedMethods",
-                                              "serverVersion"})};
+                                              "serverVersion",
+                                              "maximumInboundMessageBytes"})};
                 const auto capabilities = message.find("capabilities");
                 if (capabilities != message.end()) {
                     welcome.capabilities = decodeCapabilityAdvertisement(*capabilities);
@@ -1457,6 +1458,13 @@ namespace ai::openai::codex::frontend {
                 welcome.availableMethods = optionalMethods(message, "availableMethods");
                 welcome.permittedMethods = optionalMethods(message, "permittedMethods");
                 welcome.serverVersion = optionalString(message, "serverVersion");
+                if (const auto maximumBytes = message.find("maximumInboundMessageBytes"); maximumBytes != message.end()) {
+                    const std::uint64_t value = unsignedInteger(*maximumBytes, "maximumInboundMessageBytes");
+                    if (value == 0) {
+                        fail(ErrorCode::InvalidField, "field 'maximumInboundMessageBytes' must be positive");
+                    }
+                    welcome.maximumInboundMessageBytes = value;
+                }
                 return welcome;
             }
             if (messageKind == kind::SyncComplete) {
@@ -1562,6 +1570,12 @@ namespace ai::openai::codex::frontend {
                             encoded["permittedMethods"] = encodeMethods(*value.permittedMethods);
                         }
                         addOptional(encoded, "serverVersion", value.serverVersion);
+                        if (value.maximumInboundMessageBytes.has_value()) {
+                            if (*value.maximumInboundMessageBytes == 0) {
+                                fail(ErrorCode::InvalidField, "welcome maximumInboundMessageBytes must be positive");
+                            }
+                            encoded["maximumInboundMessageBytes"] = *value.maximumInboundMessageBytes;
+                        }
                         return encoded;
                     } else if constexpr (std::is_same_v<T, SyncComplete>) {
                         Json encoded = envelope(kind::SyncComplete, value.extensions);

@@ -90,7 +90,9 @@ namespace {
                                {"projection", frontend::Json{{"identity", "public-adapter"}}}},
                 expandedCapabilities(),
                 allMethods(),
-                allMethods()};
+                allMethods(),
+                std::nullopt,
+                768U * 1024U};
     }
 
     model::CanonicalSnapshot canonicalSnapshot(std::uint64_t sequence, std::uint64_t generation, std::string title) {
@@ -867,6 +869,7 @@ namespace {
         const bool synchronized = connection.receive(frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(7)}}).accepted;
         harness.recording = false;
         const client::State ready = sdk.state();
+        const std::optional<client::SessionInfo> readySession = sdk.session();
         const client::ItemState* readyUserItem = ready.item("runtime-user-item");
         const auto readyUserMessage = readyUserItem ? client::userMessageSemanticView(*readyUserItem) : std::nullopt;
         const std::string expectedRetainedText = std::string(16'383, 'm') + "\xE2\x82\xAC";
@@ -876,6 +879,8 @@ namespace {
                 harness.readySawCommittedState && harness.callbackOrder == expectedSynchronizationOrder &&
                 !harness.updateRevisions.empty() && !harness.synchronizedRevisions.empty() &&
                 harness.updateRevisions.back() == ready.revision() && harness.synchronizedRevisions.back() == ready.revision() &&
+                readySession &&
+                readySession->serverMaximumInboundMessageBytes == std::optional<std::uint64_t>{768U * 1024U} &&
                 ready.visibleSequence() == frontend::SequenceNumber(7) && ready.thread("adapter-thread") != nullptr &&
                 ready.thread("adapter-thread")->title == std::optional<std::string>{"runtime title"} && readyUserMessage &&
                 readyUserMessage->text == expectedRetainedText && readyUserMessage->textTruncated &&
@@ -921,6 +926,17 @@ namespace {
                               sdk.connectionState() == client::ConnectionState::Connecting &&
                               harness.protocolMessages == observedBeforeStale,
                           "a retired public Connection cannot continue into the next ClientCore physical generation");
+
+        client::ClientOptions oneByteOptions = publicOptions();
+        oneByteOptions.maximumOutboundMessageBytes = 1;
+        PublicHarness oneByteHarness;
+        client::Client oneByteClient(std::move(oneByteOptions), oneByteHarness.callbacks());
+        oneByteHarness.sdk = &oneByteClient;
+        client::Connection oneByteConnection = oneByteClient.openConnection(oneByteHarness.transport());
+        oneByteConnection.transportConnected();
+        result.expectTrue(oneByteClient.connectionState() == client::ConnectionState::Disconnected &&
+                              oneByteHarness.outbound.empty() && oneByteHarness.closes == 1,
+                          "the public configured fallback bounds the exact final encoded Hello before transport delivery");
     }
 
     void testTransactionalPreparationFailure(tests::support::TestResult& result) {
