@@ -124,25 +124,26 @@ namespace {
         return {model::SourceStamp{"backend-event:" + source}, model::ProcessUpdatedOccurrence{std::move(process)}};
     }
 
-    model::OccurrenceDraft expandedGroup() {
+    model::OccurrenceDraft expandedGroup(std::string summary = "configuration warning",
+                                         std::string source = "server_notification:ServerNotification:method:configWarning") {
         model::ConfigurationState configuration;
         configuration.state = model::DomainState::present();
-        configuration.state.summary = "configuration warning";
+        configuration.state.summary = summary;
         model::NoticeRecord notice;
         notice.occurrence = 1;
         notice.category = "configuration";
-        notice.summary = "configuration warning";
+        notice.summary = summary;
         model::LegacyCompatibilityPayload legacy;
         legacy.kind = model::LegacyCompatibilityKind::CodexExtension;
         legacy.sourcePayloadIndex = 0;
         model::LegacySafeExtension extension;
         extension.method = "configWarning";
-        extension.params = *model::SafeDetail::fromJson(frontend::Json{{"message", "configuration warning"}});
+        extension.params = *model::SafeDetail::fromJson(frontend::Json{{"message", summary}});
         legacy.safeExtension = std::move(extension);
         std::vector<model::OccurrencePayload> expanded;
         expanded.emplace_back(model::ConfigurationUpdatedOccurrence{std::move(configuration)});
         expanded.emplace_back(model::NoticeAddedOccurrence{std::move(notice)});
-        return {model::SourceStamp{"server_notification:ServerNotification:method:configWarning"}, std::move(legacy), std::move(expanded)};
+        return {model::SourceStamp{std::move(source)}, std::move(legacy), std::move(expanded)};
     }
 
     model::OccurrenceDraft containedUnknownOccurrence() {
@@ -655,6 +656,122 @@ namespace {
                               std::holds_alternative<frontend::SyncComplete>(oversizedReplayMessages[2]) &&
                               std::holds_alternative<frontend::EventBatch>(oversizedReplayMessages[3]),
                           "initial synchronization advertises Snapshot when projected replay cannot preserve an atomic group");
+    }
+
+    void testExactBatchByteAccounting(tests::support::TestResult& result) {
+        const auto runContentBatch = [](std::size_t maxBatchBytes) {
+            Backend backend;
+            std::vector<std::function<void()>> scheduled;
+            server::ServerCoreOptions options;
+            options.authenticator = authenticate;
+            options.journalInitialSequence = model::FrontendSequence{7};
+            options.maxEventsPerBatch = 8;
+            options.maxBatchBytes = maxBatchBytes;
+            options.scheduler = [&scheduled](std::function<void()> callback) {
+                scheduled.push_back(std::move(callback));
+            };
+            server::ServerCore core(backend, std::move(options));
+            core.start();
+
+            std::vector<frontend::ServerMessage> messages;
+            const auto connection = core.openConnection({}, collect(messages));
+            frontend::Hello hello;
+            hello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                             frontend::FrontendCapability::DedicatedNotificationEvents};
+            if (!connection || !core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted()) {
+                return messages;
+            }
+            drainAll(scheduled);
+            messages.clear();
+
+            static_cast<void>(core.publishGroup(expandedGroup("quote\" slash\\ line\nGrüße ")));
+            static_cast<void>(core.publishGroup(expandedGroup("二つ🙂")));
+            drainAll(scheduled);
+            return messages;
+        };
+
+        const std::vector<frontend::ServerMessage> probeMessages = runContentBatch(frontend::DefaultBatchMaxBytes);
+        const auto* probeBatch = probeMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&probeMessages.front()) : nullptr;
+        const auto probeWire = probeBatch ? frontend::Codec::serializeServer(frontend::ServerMessage{*probeBatch})
+                                          : frontend::CodecResult<std::string>{frontend::CodecError{}};
+        const bool probeShape = probeBatch && probeBatch->events.size() == 4 &&
+                                probeBatch->fromSequence == frontend::SequenceNumber{9} &&
+                                probeBatch->toSequence == frontend::SequenceNumber{10} && probeWire;
+        const std::size_t exactBytes = probeWire ? probeWire.value().size() : frontend::DefaultBatchMaxBytes;
+        result.expectTrue(probeShape && probeWire.value().find("quote\\\"") != std::string::npos &&
+                              probeWire.value().find("slash\\\\") != std::string::npos &&
+                              probeWire.value().find("line\\n") != std::string::npos &&
+                              probeWire.value().find("Grüße") != std::string::npos &&
+                              probeWire.value().find("二つ🙂") != std::string::npos,
+                          "batch sizing probe crosses sequence 9 to 10 and retains exact escaped UTF-8 compact JSON");
+
+        const std::vector<frontend::ServerMessage> exactMessages = runContentBatch(exactBytes);
+        const auto* exactBatch = exactMessages.size() == 1 ? std::get_if<frontend::EventBatch>(&exactMessages.front()) : nullptr;
+        const auto exactWire = exactBatch ? frontend::Codec::serializeServer(frontend::ServerMessage{*exactBatch})
+                                          : frontend::CodecResult<std::string>{frontend::CodecError{}};
+        result.expectTrue(exactBatch && exactBatch->events.size() == 4 && exactWire && exactWire.value().size() == exactBytes,
+                          "an event batch is accepted at the exact compact-byte boundary");
+
+        const std::vector<frontend::ServerMessage> splitMessages = runContentBatch(exactBytes > 0 ? exactBytes - 1 : 0);
+        bool splitWithinBound = splitMessages.size() == 2;
+        for (const frontend::ServerMessage& message : splitMessages) {
+            const auto* batch = std::get_if<frontend::EventBatch>(&message);
+            const auto wire = batch ? frontend::Codec::serializeServer(frontend::ServerMessage{*batch})
+                                    : frontend::CodecResult<std::string>{frontend::CodecError{}};
+            splitWithinBound = splitWithinBound && batch && batch->events.size() == 2 && wire &&
+                               wire.value().size() < exactBytes;
+        }
+        result.expectTrue(splitWithinBound,
+                          "one byte below the combined boundary splits between occurrence groups without dropping either group");
+
+        const auto runExpandedGroup = [](std::size_t maxBatchBytes) {
+            Backend backend;
+            std::vector<std::function<void()>> scheduled;
+            server::ServerCoreOptions options;
+            options.authenticator = authenticate;
+            options.maxEventsPerBatch = 8;
+            options.maxBatchBytes = maxBatchBytes;
+            options.scheduler = [&scheduled](std::function<void()> callback) {
+                scheduled.push_back(std::move(callback));
+            };
+            server::ServerCore core(backend, std::move(options));
+            core.start();
+
+            std::vector<frontend::ServerMessage> messages;
+            const auto connection = core.openConnection({}, collect(messages));
+            frontend::Hello hello;
+            hello.capabilities = std::vector{frontend::FrontendCapability::CompleteBackendDomains,
+                                             frontend::FrontendCapability::DedicatedNotificationEvents};
+            if (!connection || !core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted()) {
+                return messages;
+            }
+            drainAll(scheduled);
+            messages.clear();
+            static_cast<void>(core.publishGroup(expandedGroup()));
+            drainAll(scheduled);
+            return messages;
+        };
+
+        const std::vector<frontend::ServerMessage> expandedProbeMessages =
+            runExpandedGroup(frontend::DefaultBatchMaxBytes);
+        const auto* expandedProbe = expandedProbeMessages.size() == 1
+                                        ? std::get_if<frontend::EventBatch>(&expandedProbeMessages.front())
+                                        : nullptr;
+        const auto expandedProbeWire = expandedProbe
+                                           ? frontend::Codec::serializeServer(frontend::ServerMessage{*expandedProbe})
+                                           : frontend::CodecResult<std::string>{frontend::CodecError{}};
+        const std::size_t expandedExactBytes = expandedProbeWire ? expandedProbeWire.value().size()
+                                                                 : frontend::DefaultBatchMaxBytes;
+        const std::vector<frontend::ServerMessage> expandedExactMessages = runExpandedGroup(expandedExactBytes);
+        const auto* expandedExact = expandedExactMessages.size() == 1
+                                        ? std::get_if<frontend::EventBatch>(&expandedExactMessages.front())
+                                        : nullptr;
+        const std::vector<frontend::ServerMessage> expandedFallbackMessages =
+            runExpandedGroup(expandedExactBytes > 0 ? expandedExactBytes - 1 : 0);
+        result.expectTrue(expandedProbe && expandedProbe->events.size() == 2 && expandedExact &&
+                              expandedExact->events.size() == 2 && expandedFallbackMessages.size() == 1 &&
+                              std::holds_alternative<frontend::Snapshot>(expandedFallbackMessages.front()),
+                          "a same-sequence expanded group fits atomically at its exact byte size and falls back atomically below it");
     }
 
     void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
@@ -2787,6 +2904,7 @@ int main() {
     tests::support::TestResult result;
     testSynchronization(result);
     testTypedBatching(result);
+    testExactBatchByteAccounting(result);
     testNegotiatedItemContentAppend(result);
     testScopeFilteredSparseReplay(result);
     testInlineObserverBatchCoalescing(result);

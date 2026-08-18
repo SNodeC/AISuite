@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <span>
@@ -104,6 +105,40 @@ namespace ai::openai::codex::frontend::internal::server {
                 next->appendHint = model::ItemContentAppendHint{first.baseContentBytes, std::move(combined)};
             } catch (...) {
                 next->appendHint.reset();
+            }
+        }
+
+        [[nodiscard]] std::optional<std::size_t> compactEventBatchBytes(SequenceNumber fromSequence,
+                                                                        SequenceNumber toSequence,
+                                                                        std::size_t eventCount,
+                                                                        std::size_t compactEventBytes) noexcept {
+            if (eventCount == 0) {
+                return std::nullopt;
+            }
+            try {
+                // ServerCore creates event batches with no extensions.  Build
+                // only that small envelope, then replace the empty array's
+                // interior with the already encoded event sizes and commas.
+                // This stays byte-for-byte aligned with Codec's compact JSON
+                // without serializing a growing event array for every group.
+                const Json emptyEnvelope{{"events", Json::array()},
+                                         {"fromSequence", fromSequence.value()},
+                                         {"kind", kind::Events},
+                                         {"protocol", ProtocolIdentity},
+                                         {"toSequence", toSequence.value()},
+                                         {"version", ProtocolVersion}};
+                std::size_t total = emptyEnvelope.dump().size();
+                const std::size_t separators = eventCount - 1;
+                if (compactEventBytes > std::numeric_limits<std::size_t>::max() - total) {
+                    return std::nullopt;
+                }
+                total += compactEventBytes;
+                if (separators > std::numeric_limits<std::size_t>::max() - total) {
+                    return std::nullopt;
+                }
+                return total + separators;
+            } catch (...) {
+                return std::nullopt;
             }
         }
 
@@ -2194,18 +2229,16 @@ namespace ai::openai::codex::frontend::internal::server {
 
         try {
             std::vector<FrontendEvent> pending;
+            std::size_t pendingEventBytes = 0;
             std::optional<bool> pendingExpanded;
             auto makeBatch = [](std::vector<FrontendEvent> events) {
                 return EventBatch{events.front().sequence, events.back().sequence, std::move(events), Json::object()};
-            };
-            auto encodedSize = [](const EventBatch& batch) -> std::optional<std::size_t> {
-                const auto serialized = Codec::serializeServer(ServerMessage{batch});
-                return serialized ? std::optional<std::size_t>{serialized.value().size()} : std::nullopt;
             };
             auto flushPending = [&] {
                 if (!pending.empty()) {
                     result.batches.push_back(makeBatch(std::move(pending)));
                     pending.clear();
+                    pendingEventBytes = 0;
                     pendingExpanded.reset();
                 }
             };
@@ -2300,6 +2333,16 @@ namespace ai::openai::codex::frontend::internal::server {
                     return result;
                 }
 
+                std::size_t groupEventBytes = 0;
+                for (const FrontendEvent& event : groupEvents) {
+                    const CodecResult<std::size_t> encoded = Codec::serializedEventSize(event);
+                    if (!encoded || encoded.value() > std::numeric_limits<std::size_t>::max() - groupEventBytes) {
+                        result.batches.clear();
+                        return result;
+                    }
+                    groupEventBytes += encoded.value();
+                }
+
                 // Legacy and expanded arrays are different schema branches.
                 // A capability mix can switch representation by family, so a
                 // wire batch never straddles that switch.
@@ -2307,34 +2350,44 @@ namespace ai::openai::codex::frontend::internal::server {
                     flushPending();
                 }
 
-                std::vector<FrontendEvent> candidate = pending;
-                candidate.insert(candidate.end(), groupEvents.begin(), groupEvents.end());
-                EventBatch candidateBatch = makeBatch(std::move(candidate));
-                const std::optional<std::size_t> candidateBytes = encodedSize(candidateBatch);
+                if (groupEventBytes > std::numeric_limits<std::size_t>::max() - pendingEventBytes ||
+                    groupEvents.size() > std::numeric_limits<std::size_t>::max() - pending.size()) {
+                    result.batches.clear();
+                    return result;
+                }
+                const std::size_t candidateEventBytes = pendingEventBytes + groupEventBytes;
+                const std::size_t candidateEventCount = pending.size() + groupEvents.size();
+                const SequenceNumber candidateFrom = pending.empty() ? groupEvents.front().sequence : pending.front().sequence;
+                const std::optional<std::size_t> candidateBytes = compactEventBatchBytes(
+                    candidateFrom, groupEvents.back().sequence, candidateEventCount, candidateEventBytes);
                 if (!candidateBytes) {
                     result.batches.clear();
                     return result;
                 }
-                if (candidateBatch.events.size() <= options.maxEventsPerBatch && *candidateBytes <= options.maxBatchBytes) {
-                    pending = std::move(candidateBatch.events);
+                if (candidateEventCount <= options.maxEventsPerBatch && *candidateBytes <= options.maxBatchBytes) {
+                    pending.insert(pending.end(),
+                                   std::make_move_iterator(groupEvents.begin()),
+                                   std::make_move_iterator(groupEvents.end()));
+                    pendingEventBytes = candidateEventBytes;
                     pendingExpanded = useExpanded;
                     begin = end;
                     continue;
                 }
 
                 flushPending();
-                EventBatch groupBatch = makeBatch(std::move(groupEvents));
-                const std::optional<std::size_t> groupBytes = encodedSize(groupBatch);
+                const std::optional<std::size_t> groupBytes = compactEventBatchBytes(
+                    groupEvents.front().sequence, groupEvents.back().sequence, groupEvents.size(), groupEventBytes);
                 if (!groupBytes) {
                     result.batches.clear();
                     return result;
                 }
-                if (groupBatch.events.size() > options.maxEventsPerBatch || *groupBytes > options.maxBatchBytes) {
+                if (groupEvents.size() > options.maxEventsPerBatch || *groupBytes > options.maxBatchBytes) {
                     result.status = BatchBuildStatus::SnapshotRequired;
                     result.batches.clear();
                     return result;
                 }
-                pending = std::move(groupBatch.events);
+                pending = std::move(groupEvents);
+                pendingEventBytes = groupEventBytes;
                 pendingExpanded = useExpanded;
                 begin = end;
             }
