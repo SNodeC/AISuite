@@ -119,6 +119,7 @@ namespace ai::openai::codex::frontend::internal::client {
 
         Value value;
         bool sensitive = false;
+        std::size_t maximumBytes = DefaultFrontendMaximumInboundMessageBytes;
 
         [[nodiscard]] bool isHello() const noexcept;
         [[nodiscard]] bool isCommand() const noexcept;
@@ -171,6 +172,7 @@ namespace ai::openai::codex::frontend::internal::client {
         SyncMode synchronizationMode = SyncMode::Snapshot;
         model::FrontendSequence serverCurrentSequence;
         std::optional<std::string> serverVersion;
+        std::optional<std::uint64_t> serverMaximumInboundMessageBytes;
         std::vector<FrontendCapability> requestedCapabilities;
         std::vector<FrontendCapability> selectedCapabilities;
         std::vector<FrontendCapability> observedCapabilities;

@@ -96,8 +96,8 @@ inventory is 29 main, seven backend, and nine frontend headers, or 45 total.
 A1.7b replaces `frontend/BackendAdapter.h` with
 `frontend/FrontendService.h` and installs no compatibility alias, so that
 inventory does not change.
-Project version `0.1.0`, all three Codex libraries' SOVERSION 2, protocol
-identity, and protocol version remain unchanged.
+Project version is `0.1.1`; all Codex libraries retain SOVERSION 2, and the
+protocol identity and protocol version remain unchanged.
 
 Complete upstream inventory registration, typed implementation, BackendCore
 support, canonical-state support, frontend definition, runtime availability,
@@ -321,9 +321,12 @@ the App Server, or another frontend.
 ### Capability and method discovery
 
 A hello may add a `capabilities` array to request additive behavior. A welcome
-may add `capabilities`, `availableMethods`, `permittedMethods`, and
-`serverVersion`. All four welcome fields and the hello field are optional, so
-an original v1 peer retains its existing bytes and behavior. Capability
+may add `capabilities`, `availableMethods`, `permittedMethods`, `serverVersion`,
+and `maximumInboundMessageBytes`. All five welcome fields and the hello field
+are optional, so an original v1 peer retains its existing bytes and behavior.
+The positive byte limit is the server's effective command-ingress limit for
+that connection; a client uses its configured conservative fallback when an
+older server omits it. Capability
 advertisement contains three independent arrays:
 
 - `defined`: the server understands the contract name;

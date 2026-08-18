@@ -30,10 +30,10 @@ if(NOT archive_count EQUAL 1)
 endif()
 list(GET archives 0 archive)
 get_filename_component(archive_name "${archive}" NAME)
-if(NOT archive_name MATCHES "^AISuite-0[.]1[.]0(-[^/]*)?[.]tar[.]gz$")
+if(NOT archive_name MATCHES "^AISuite-0[.]1[.]1(-[^/]*)?[.]tar[.]gz$")
     message(
         FATAL_ERROR
-            "A1.7b must retain PROJECT_VERSION 0.1.0; unexpected binary archive ${archive_name}"
+            "unexpected AISuite 0.1.1 binary archive name ${archive_name}"
     )
 endif()
 execute_process(

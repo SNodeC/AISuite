@@ -1779,6 +1779,9 @@
                 "snapshot"
               ]
             },
+            "maximumInboundMessageBytes": {
+              "$ref": "#/$defs/PositiveUInt64"
+            },
             "capabilities": {
               "$ref": "#/$defs/CapabilityAdvertisement"
             },

@@ -569,6 +569,7 @@ namespace ai::openai::codex::frontend {
         std::optional<std::vector<FrontendMethod>> availableMethods;
         std::optional<std::vector<FrontendMethod>> permittedMethods;
         std::optional<std::string> serverVersion;
+        std::optional<std::uint64_t> maximumInboundMessageBytes;
 
         Welcome() = default;
 
@@ -580,7 +581,8 @@ namespace ai::openai::codex::frontend {
                 std::optional<CapabilityAdvertisement> capabilities = std::nullopt,
                 std::optional<std::vector<FrontendMethod>> availableMethods = std::nullopt,
                 std::optional<std::vector<FrontendMethod>> permittedMethods = std::nullopt,
-                std::optional<std::string> serverVersion = std::nullopt)
+                std::optional<std::string> serverVersion = std::nullopt,
+                std::optional<std::uint64_t> maximumInboundMessageBytes = std::nullopt)
             : sessionId(std::move(sessionId))
             , role(role)
             , currentSequence(currentSequence)
@@ -589,7 +591,8 @@ namespace ai::openai::codex::frontend {
             , capabilities(std::move(capabilities))
             , availableMethods(std::move(availableMethods))
             , permittedMethods(std::move(permittedMethods))
-            , serverVersion(std::move(serverVersion)) {
+            , serverVersion(std::move(serverVersion))
+            , maximumInboundMessageBytes(maximumInboundMessageBytes) {
         }
 
         bool operator==(const Welcome&) const = default;

@@ -84,7 +84,8 @@ namespace {
     core::PhysicalGeneration ready(core::ClientCore& client,
                                    Harness& harness,
                                    model::CanonicalSnapshot state = {},
-                                   std::optional<std::vector<frontend::FrontendMethod>> permittedMethods = std::nullopt) {
+                                   std::optional<std::vector<frontend::FrontendMethod>> permittedMethods = std::nullopt,
+                                   std::optional<std::uint64_t> maximumInboundMessageBytes = std::nullopt) {
         const core::PhysicalGeneration generation = *client.attach(harness.transport());
         client.transportConnected(generation);
         std::vector<frontend::FrontendMethod> availableMethods = methods();
@@ -110,6 +111,7 @@ namespace {
                                   capabilities(),
                                   std::move(availableMethods),
                                   std::move(effectivePermittedMethods)};
+        welcome.maximumInboundMessageBytes = maximumInboundMessageBytes;
         (void) client.receive(generation, frontend::ServerMessage{welcome});
         (void) client.receive(generation, frontend::ServerMessage{snapshot(std::move(state))});
         (void) client.receive(generation, frontend::ServerMessage{frontend::SyncComplete{welcome.currentSequence}});
@@ -533,6 +535,36 @@ namespace {
                               outboundClient.pendingOperationCount() == 0 && outboundHarness.outbound.size() == messagesBeforeSubmission &&
                               outboundHarness.closes == 0,
                           "an encoded command exceeding the peer ingress budget is rejected locally without disconnecting the client");
+
+        core::ClientOptions expandedOptions = clientOptions();
+        expandedOptions.limits.maximumOutboundMessageBytes = 512;
+        Harness expandedHarness;
+        core::ClientCore expandedClient(std::move(expandedOptions));
+        (void) ready(expandedClient, expandedHarness, {}, std::nullopt, 2048);
+        frontend::Json expandedAnswer = {
+            {"questionId", "question"}, {"answers", frontend::Json::array({std::string(700, 'x')})}};
+        frontend::Json expandedResponse = {
+            {"pendingRequestId", "1"}, {"answers", frontend::Json::array({std::move(expandedAnswer)})}};
+        const core::Submission expanded = expandedClient.submit(
+            generated::makeParameters(generated::MethodId::UserInputRespond, std::move(expandedResponse)));
+        result.expectTrue(expanded && !expandedHarness.outbound.empty() && expandedHarness.outbound.back().maximumBytes == 2048,
+                          "a Welcome ingress advertisement replaces the conservative configured fallback after authentication");
+
+        core::ClientOptions reducedOptions = clientOptions();
+        reducedOptions.limits.maximumOutboundMessageBytes = 2048;
+        Harness reducedHarness;
+        core::ClientCore reducedClient(std::move(reducedOptions));
+        (void) ready(reducedClient, reducedHarness, {}, std::nullopt, 512);
+        const std::size_t reducedMessagesBefore = reducedHarness.outbound.size();
+        frontend::Json reducedAnswer = {
+            {"questionId", "question"}, {"answers", frontend::Json::array({std::string(700, 'x')})}};
+        frontend::Json reducedResponse = {
+            {"pendingRequestId", "1"}, {"answers", frontend::Json::array({std::move(reducedAnswer)})}};
+        const core::Submission reduced = reducedClient.submit(
+            generated::makeParameters(generated::MethodId::UserInputRespond, std::move(reducedResponse)));
+        result.expectTrue(!reduced && reduced.error && reducedClient.ready() &&
+                              reducedHarness.outbound.size() == reducedMessagesBefore && reducedHarness.closes == 0,
+                          "a smaller advertised ingress limit narrows command preflight without disconnecting the client");
     }
 
     void testPublicOptionParity(tests::support::TestResult& result) {

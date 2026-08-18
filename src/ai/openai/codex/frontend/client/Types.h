@@ -3,6 +3,7 @@
 
 #include "ai/openai/codex/frontend/GeneratedProtocol.h"
 #include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/Security.h"
 #include "ai/openai/codex/frontend/client/Results.h"
 #include "ai/openai/codex/typed/ServerRequests.h"
@@ -39,6 +40,7 @@ namespace ai::openai::codex::frontend::client {
         std::vector<frontend::FrontendCapability> requiredCapabilities;
         CredentialProvider credentialProvider;
         std::size_t maximumInboundMessageBytes = 16U * 1024U * 1024U;
+        std::size_t maximumOutboundMessageBytes = frontend::DefaultFrontendMaximumInboundMessageBytes;
         std::size_t maximumDecodedStateBytes = 64U * 1024U * 1024U;
         std::size_t maximumPendingOperations = 256;
         std::size_t maximumRetainedDiagnostics = 64;
@@ -68,6 +70,7 @@ namespace ai::openai::codex::frontend::client {
         frontend::SyncMode syncMode = frontend::SyncMode::Snapshot;
         frontend::SequenceNumber serverCurrentSequence{};
         std::optional<std::string> serverVersion;
+        std::optional<std::uint64_t> serverMaximumInboundMessageBytes;
         std::vector<frontend::FrontendCapability> requestedRepresentationCapabilities;
         std::vector<frontend::FrontendCapability> selectedRepresentationCapabilities;
         std::vector<frontend::FrontendCapability> observedMechanismCapabilities;

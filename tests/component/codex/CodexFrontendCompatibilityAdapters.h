@@ -140,6 +140,7 @@ namespace tests::codex::frontend_compatibility {
             };
         }
         target.limits.maximumInboundMessageBytes = source.maximumInboundMessageBytes;
+        target.limits.maximumOutboundMessageBytes = source.maximumOutboundMessageBytes;
         target.limits.maximumDecodedStateBytes = source.maximumDecodedStateBytes;
         target.limits.maximumPendingOperations = source.maximumPendingOperations;
         target.limits.maximumRetainedDiagnostics = source.maximumRetainedDiagnostics;
@@ -158,6 +159,7 @@ namespace tests::codex::frontend_compatibility {
             };
         }
         target.maximumInboundMessageBytes = source.limits.maximumInboundMessageBytes;
+        target.maximumOutboundMessageBytes = source.limits.maximumOutboundMessageBytes;
         target.maximumDecodedStateBytes = source.limits.maximumDecodedStateBytes;
         target.maximumPendingOperations = source.limits.maximumPendingOperations;
         target.maximumRetainedDiagnostics = source.limits.maximumRetainedDiagnostics;
@@ -206,6 +208,11 @@ namespace tests::codex::frontend_compatibility {
                     outbound.compactJson = std::move(encoded).value();
                 }
                 outbound.serializedBytes = outbound.compactJson.size();
+                if (outbound.serializedBytes > message.maximumBytes) {
+                    return core_client::SendResult{
+                        core_client::SendStatus::Failed,
+                        core_client::TransportError{"frontend message exceeds the peer input limit", false}};
+                }
                 public_client::SendResult result = send(std::move(outbound));
                 std::optional<core_client::TransportError> error;
                 if (result.error) {
