@@ -506,8 +506,17 @@ namespace {
                                                                           {"mandatoryCoreExceedsLimit", false}}}});
         publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(direct));
 
+        // This fixture spans every public State section. Keep its compact logical
+        // encoding boundary fixed while the production ledger is assembled
+        // section-by-section; debug builds also compare it with encodeState().
+        constexpr std::size_t exactStateBytes = 8521;
         std::string error;
-        const auto first = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const auto first = buildCanonicalState(adopter, publication, exactStateBytes, 64, error);
+        std::string belowBoundaryError;
+        client::detail::CanonicalStateBuildFailure belowBoundaryFailure =
+            client::detail::CanonicalStateBuildFailure::StateDivergence;
+        const auto belowBoundary = buildCanonicalState(
+            adopter, publication, exactStateBytes - 1, 64, belowBoundaryError, &belowBoundaryFailure);
         const client::ThreadState* firstThread = first ? first->thread("adapter-thread") : nullptr;
         client::ThreadState activeThread;
         client::ThreadState notLoadedThread;
@@ -527,7 +536,9 @@ namespace {
             futureStatusThread.status = "futureStatus";
         }
         result.expectTrue(
-            first.has_value() && error.empty() && first->revision() == 41 && first->freshness() == client::StateFreshness::Current &&
+            first.has_value() && error.empty() && !belowBoundary.has_value() && !belowBoundaryError.empty() &&
+                belowBoundaryFailure == client::detail::CanonicalStateBuildFailure::Capacity && first->revision() == 41 &&
+                first->freshness() == client::StateFreshness::Current &&
                 first->representationMode() == client::RepresentationMode::ExpandedV1 &&
                 first->visibleSequence() == frontend::SequenceNumber(17) && first->synchronizedThrough() == frontend::SequenceNumber(16) &&
                 first->provider().value.has_value() && first->provider().value->generation == 3 && first->controller().value.has_value() &&
@@ -544,7 +555,7 @@ namespace {
                 first->processes().value->entries.front().stamp.extensions.value("vendorStamp", "") == "process-stamp-extension" &&
                 first->pendingRequests().size() == 2 && first->pendingRequests().front().questions.has_value() &&
                 first->pendingRequests().front().questions->empty(),
-            "CanonicalStateBuilder maps the canonical typed publication directly into every sampled public State border");
+            "CanonicalStateBuilder maps every sampled public State border and enforces its exact encoded byte boundary");
         result.expectTrue(firstThread != nullptr && client::threadIsIdle(*firstThread) && !client::threadIsIdle(activeThread) &&
                               !client::threadIsIdle(notLoadedThread) && !client::threadIsIdle(systemErrorThread) &&
                               !client::threadIsIdle(missingStatusThread) && !client::threadIsIdle(futureStatusThread),

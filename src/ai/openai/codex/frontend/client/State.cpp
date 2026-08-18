@@ -1700,6 +1700,7 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+#ifndef NDEBUG
         frontend::Json encodeProcessCollectionState(const ProcessCollectionState& value) {
             frontend::Json result = value.extensions;
             if (!result.is_object())
@@ -1754,6 +1755,7 @@ namespace ai::openai::codex::frontend::client {
             result["truncation"] = encodeTruncation(value.truncation);
             return result;
         }
+#endif
 
         frontend::Json encodeCapacityState(const CapacityState& value) {
             frontend::Json result = value.extensions;
@@ -1784,6 +1786,7 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+#ifndef NDEBUG
         frontend::Json encodeDiagnosticCollectionState(const DiagnosticCollectionState& value) {
             frontend::Json result = frontend::Json::object();
             addOptional(result, "received", value.received);
@@ -1792,12 +1795,14 @@ namespace ai::openai::codex::frontend::client {
                 result["entries"].push_back(encodeDiagnosticState(entry));
             return result;
         }
+#endif
 
         // IMPORTANT: encodeState() defines the canonical logical decoded-State
         // byte metric. Incremental accounting must remain byte-identical to
         // this compact JSON serialization plus the two explicitly documented
         // internal-only sequence contributions. Changes to one require
         // corresponding changes to the other.
+#ifndef NDEBUG
         frontend::Json encodeState(const detail::StateStorage& state) {
             frontend::Json result = frontend::Json::object();
             result["revision"] = state.revision;
@@ -1875,6 +1880,7 @@ namespace ai::openai::codex::frontend::client {
             result["compatibilityExtensions"] = state.compatibilityExtensions;
             return result;
         }
+#endif
 
         constexpr std::array StateSizeSectionNames{
             std::string_view{"revision"},
@@ -1942,6 +1948,14 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
+        std::optional<std::size_t> compactJsonBytes(const frontend::Json& value) noexcept {
+            try {
+                return value.dump().size();
+            } catch (...) {
+                return std::nullopt;
+            }
+        }
+
         std::optional<std::size_t> arrayBytes(const detail::StateArrayContribution& contribution) noexcept {
             std::size_t bytes = 2;
             if (!checkedAdd(bytes, contribution.elementBytes, bytes))
@@ -1949,101 +1963,6 @@ namespace ai::openai::codex::frontend::client {
             if (contribution.count > 1 && !checkedAdd(bytes, contribution.count - 1, bytes))
                 return std::nullopt;
             return bytes;
-        }
-
-        bool measureArray(const frontend::Json& value, detail::StateArrayContribution& result) noexcept {
-            if (!value.is_array())
-                return false;
-            detail::StateArrayContribution measured;
-            try {
-                for (const frontend::Json& element : value) {
-                    const std::size_t bytes = element.dump().size();
-                    if (!checkedAdd(measured.elementBytes, bytes, measured.elementBytes))
-                        return false;
-                    if (measured.count == std::numeric_limits<std::size_t>::max())
-                        return false;
-                    ++measured.count;
-                }
-            } catch (...) {
-                return false;
-            }
-            result = measured;
-            return true;
-        }
-
-        const frontend::Json* projectedValue(const frontend::Json& encoded, std::string_view section) {
-            const auto projected = encoded.find(std::string(section));
-            if (projected == encoded.end() || !projected->is_object())
-                return nullptr;
-            const auto value = projected->find("value");
-            return value == projected->end() ? nullptr : &*value;
-        }
-
-        const frontend::Json* projectedEntries(const frontend::Json& encoded, std::string_view section) {
-            const frontend::Json* value = projectedValue(encoded, section);
-            if (!value || !value->is_object())
-                return nullptr;
-            const auto entries = value->find("entries");
-            return entries == value->end() ? nullptr : &*entries;
-        }
-
-#ifndef NDEBUG
-        thread_local std::size_t DebugAccountingRebuildCount = 0;
-#endif
-
-        bool rebuildStateSizeLedger(const detail::StateStorage& state) noexcept {
-#ifndef NDEBUG
-            ++DebugAccountingRebuildCount;
-#endif
-            detail::StateSizeLedger next;
-            try {
-                const frontend::Json encoded = encodeState(state);
-                next.canonicalBytes = 2;
-                for (std::size_t index = 0; index < StateSizeSectionNames.size(); ++index) {
-                    const auto found = encoded.find(std::string(StateSizeSectionNames[index]));
-                    if (found == encoded.end())
-                        continue;
-                    const std::size_t valueBytes = found->dump().size();
-                    std::size_t memberBytes = StateSizeSectionNames[index].size() + 3;
-                    if (!checkedAdd(memberBytes, valueBytes, memberBytes) ||
-                        (next.topLevelMemberCount != 0 && !checkedAdd(next.canonicalBytes, 1, next.canonicalBytes)) ||
-                        !checkedAdd(next.canonicalBytes, memberBytes, next.canonicalBytes))
-                        return false;
-                    next.sectionPresent[index] = true;
-                    next.sectionValueBytes[index] = valueBytes;
-                    ++next.topLevelMemberCount;
-                }
-                if (encoded.size() != next.topLevelMemberCount)
-                    return false;
-
-                const frontend::Json* sessions = projectedValue(encoded, "sessions");
-                if (sessions && !measureArray(*sessions, next.sessions))
-                    return false;
-                if (!measureArray(encoded.at("threads"), next.threads) || !measureArray(encoded.at("turns"), next.turns) ||
-                    !measureArray(encoded.at("items"), next.items) || !measureArray(encoded.at("pendingRequests"), next.pendingRequests))
-                    return false;
-                const auto measureProjectedEntries = [&encoded](std::string_view name, detail::StateArrayContribution& contribution) {
-                    const frontend::Json* entries = projectedEntries(encoded, name);
-                    return !entries || measureArray(*entries, contribution);
-                };
-                if (!measureProjectedEntries("processes", next.processes) ||
-                    !measureProjectedEntries("filesystemWatches", next.filesystemWatches) ||
-                    !measureProjectedEntries("fuzzySearches", next.fuzzySearches) || !measureProjectedEntries("notices", next.notices) ||
-                    !measureProjectedEntries("activities", next.activities) || !measureProjectedEntries("diagnostics", next.diagnostics))
-                    return false;
-
-                const std::size_t internalSequences = static_cast<std::size_t>(state.retainedReplayThrough.has_value()) +
-                                                      static_cast<std::size_t>(state.lastSynchronizationBatchSequence.has_value());
-                if (internalSequences != 0 && !checkedAdd(next.internalSequenceBytes,
-                                                          internalSequences * sizeof(frontend::SequenceNumber),
-                                                          next.internalSequenceBytes))
-                    return false;
-                next.initialized = true;
-                state.sizeLedger = std::move(next);
-                return true;
-            } catch (...) {
-                return false;
-            }
         }
 
         bool recomputeCanonicalBytes(detail::StateSizeLedger& ledger) noexcept {
@@ -2072,6 +1991,31 @@ namespace ai::openai::codex::frontend::client {
                 return false;
             }
             return true;
+        }
+
+        bool
+        setSectionJson(detail::StateStorage& state, detail::StateSizeSection section, const std::optional<frontend::Json>& value) noexcept {
+            if (!value)
+                return setSectionBytes(state, section, std::nullopt);
+            const std::optional<std::size_t> bytes = compactJsonBytes(*value);
+            if (!bytes) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+            return setSectionBytes(state, section, bytes);
+        }
+
+        bool setSectionJson(detail::StateStorage& state, detail::StateSizeSection section, const frontend::Json& value) noexcept {
+            const std::optional<std::size_t> bytes = compactJsonBytes(value);
+            if (!bytes) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+            return setSectionBytes(state, section, bytes);
+        }
+
+        std::size_t encodedEntityBytes(const frontend::Json& value) {
+            return value.dump().size();
         }
 
         bool adjustArrayContribution(detail::StateArrayContribution& contribution,
@@ -2132,6 +2076,13 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+        frontend::Json encodeCollectionSkeleton(const DiagnosticCollectionState& value) {
+            frontend::Json result = frontend::Json::object();
+            addOptional(result, "received", value.received);
+            result["entries"] = frontend::Json::array();
+            return result;
+        }
+
         template <typename Collection>
         std::optional<std::size_t> projectedCollectionBytes(const Projected<Collection>& projected,
                                                             const detail::StateArrayContribution& contribution) noexcept {
@@ -2189,6 +2140,193 @@ namespace ai::openai::codex::frontend::client {
             }
             contribution = next;
             return refreshProjectedCollectionSection(state, section, projected, contribution);
+        }
+
+        bool rebuildProjectedSessionsSection(detail::StateStorage& state) noexcept {
+            try {
+                detail::StateArrayContribution next;
+                if (state.sessions.value) {
+                    for (const SessionState& value : *state.sessions.value) {
+                        const std::size_t bytes = encodedEntityBytes(encodeSessionState(value));
+                        if (next.count == std::numeric_limits<std::size_t>::max() ||
+                            !checkedAdd(next.elementBytes, bytes, next.elementBytes)) {
+                            state.sizeLedger.failed = true;
+                            return false;
+                        }
+                        ++next.count;
+                    }
+                }
+                state.sizeLedger.sessions = next;
+                const frontend::Json skeleton = encodeProjected(state.sessions, [](const std::vector<SessionState>&) {
+                    return frontend::Json::array();
+                });
+                std::size_t bytes = skeleton.dump().size();
+                if (state.sessions.value) {
+                    const std::optional<std::size_t> valuesBytes = arrayBytes(next);
+                    if (!valuesBytes || !checkedSubtract(bytes, 2, bytes) || !checkedAdd(bytes, *valuesBytes, bytes)) {
+                        state.sizeLedger.failed = true;
+                        return false;
+                    }
+                }
+                return setSectionBytes(state, detail::StateSizeSection::Sessions, bytes);
+            } catch (...) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+        }
+
+#ifndef NDEBUG
+        thread_local std::size_t DebugAccountingRebuildCount = 0;
+#endif
+
+        bool rebuildStateSizeLedger(detail::StateStorage& state) noexcept {
+#ifndef NDEBUG
+            ++DebugAccountingRebuildCount;
+#endif
+            state.sizeLedger = {};
+            try {
+                const auto optionalSection = [&state](detail::StateSizeSection section, std::optional<frontend::Json> value) {
+                    return setSectionJson(state, section, value);
+                };
+                const auto typedDomainSection = [&state](detail::StateSizeSection section, const auto& projected) {
+                    return setSectionJson(state, section, encodeProjected(projected, [](const auto& value) {
+                                              return encodeTypedDomain(value);
+                                          }));
+                };
+
+                frontend::Json backendCursor = encodeBackendCursor(state.backendCursor);
+                std::optional<frontend::Json> encodedBackendCursor;
+                if (!backendCursor.empty())
+                    encodedBackendCursor = std::move(backendCursor);
+
+                std::optional<frontend::Json> projectionMetadata;
+                if (!state.projectionMetadata.omittedFields.empty() || !state.projectionMetadata.redactedFields.empty())
+                    projectionMetadata = encodeProjectionMetadata(state.projectionMetadata);
+
+                if (!setSectionJson(state, detail::StateSizeSection::Revision, frontend::Json(state.revision)) ||
+                    !setSectionJson(
+                        state, detail::StateSizeSection::Freshness, frontend::Json(static_cast<unsigned>(state.freshness))) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::RepresentationMode,
+                                    frontend::Json(static_cast<unsigned>(state.representationMode))) ||
+                    !optionalSection(detail::StateSizeSection::VisibleSequence,
+                                     state.visibleSequence
+                                         ? std::optional<frontend::Json>{frontend::Json(state.visibleSequence->value())}
+                                         : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::SynchronizedThrough,
+                                     state.synchronizedThrough
+                                         ? std::optional<frontend::Json>{frontend::Json(state.synchronizedThrough->value())}
+                                         : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::Session,
+                                     state.session ? std::optional<frontend::Json>{encodeSessionInfo(*state.session)} : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::BackendCursor, std::move(encodedBackendCursor)) ||
+                    !optionalSection(detail::StateSizeSection::ProjectionFingerprint,
+                                     state.projectionFingerprint
+                                         ? std::optional<frontend::Json>{frontend::Json(state.projectionFingerprint->canonical)}
+                                         : std::nullopt) ||
+                    !optionalSection(detail::StateSizeSection::ProjectionMetadata, std::move(projectionMetadata)) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Provider,
+                                    encodeProjected(state.provider, encodeProvider)) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Controller,
+                                    encodeProjected(state.controller, encodeControllerState)) ||
+                    !rebuildProjectedSessionsSection(state) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::ThreadList,
+                                    encodeProjected(state.threadList, encodeThreadListState)) ||
+                    !rebuildDirectArraySection(
+                        state, detail::StateSizeSection::Threads, state.sizeLedger.threads, state.threads, encodeThreadState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::ThreadProjectionPresent,
+                                    frontend::Json(state.threadProjectionPresent)) ||
+                    !rebuildDirectArraySection(
+                        state, detail::StateSizeSection::Turns, state.sizeLedger.turns, state.turns, encodeTurnState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::TurnProjectionPresent,
+                                    frontend::Json(state.turnProjectionPresent)) ||
+                    !rebuildDirectArraySection(
+                        state, detail::StateSizeSection::Items, state.sizeLedger.items, state.items, encodeItemState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::ItemProjectionPresent,
+                                    frontend::Json(state.itemProjectionPresent)) ||
+                    !rebuildDirectArraySection(state,
+                                               detail::StateSizeSection::PendingRequests,
+                                               state.sizeLedger.pendingRequests,
+                                               state.pendingRequests,
+                                               encodePendingRequestState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::PendingRequestProjectionPresent,
+                                    frontend::Json(state.pendingRequestProjectionPresent)) ||
+                    !typedDomainSection(detail::StateSizeSection::Accounts, state.accounts) ||
+                    !typedDomainSection(detail::StateSizeSection::Models, state.models) ||
+                    !typedDomainSection(detail::StateSizeSection::Configuration, state.configuration) ||
+                    !typedDomainSection(detail::StateSizeSection::PermissionProfiles, state.permissionProfiles) ||
+                    !typedDomainSection(detail::StateSizeSection::Reviews, state.reviews) ||
+                    !typedDomainSection(detail::StateSizeSection::Apps, state.apps) ||
+                    !typedDomainSection(detail::StateSizeSection::ExternalAgents, state.externalAgents) ||
+                    !typedDomainSection(detail::StateSizeSection::Hooks, state.hooks) ||
+                    !typedDomainSection(detail::StateSizeSection::Marketplace, state.marketplace) ||
+                    !typedDomainSection(detail::StateSizeSection::Plugins, state.plugins) ||
+                    !typedDomainSection(detail::StateSizeSection::Skills, state.skills) ||
+                    !typedDomainSection(detail::StateSizeSection::Mcp, state.mcp) ||
+                    !typedDomainSection(detail::StateSizeSection::WindowsSandbox, state.windowsSandbox) ||
+                    !typedDomainSection(detail::StateSizeSection::Platform, state.platform) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Processes,
+                                                       state.sizeLedger.processes,
+                                                       state.processes,
+                                                       encodeProcessState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::FilesystemWatches,
+                                                       state.sizeLedger.filesystemWatches,
+                                                       state.filesystemWatches,
+                                                       encodeFilesystemWatchState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::FuzzySearches,
+                                                       state.sizeLedger.fuzzySearches,
+                                                       state.fuzzySearches,
+                                                       encodeFuzzySearchState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Notices,
+                                                       state.sizeLedger.notices,
+                                                       state.notices,
+                                                       encodeNoticeState) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Activities,
+                                                       state.sizeLedger.activities,
+                                                       state.activities,
+                                                       encodeActivityState) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Capacity,
+                                    encodeProjected(state.capacity, encodeCapacityState)) ||
+                    !setSectionJson(state,
+                                    detail::StateSizeSection::Truncation,
+                                    encodeProjected(state.truncation, encodeTruncation)) ||
+                    !rebuildProjectedCollectionSection(state,
+                                                       detail::StateSizeSection::Diagnostics,
+                                                       state.sizeLedger.diagnostics,
+                                                       state.diagnostics,
+                                                       encodeDiagnosticState) ||
+                    !setSectionJson(
+                        state, detail::StateSizeSection::CompatibilityExtensions, state.compatibilityExtensions)) {
+                    state.sizeLedger.failed = true;
+                    return false;
+                }
+
+                const std::size_t internalSequences = static_cast<std::size_t>(state.retainedReplayThrough.has_value()) +
+                                                      static_cast<std::size_t>(state.lastSynchronizationBatchSequence.has_value());
+                if (internalSequences > std::numeric_limits<std::size_t>::max() / sizeof(frontend::SequenceNumber)) {
+                    state.sizeLedger.failed = true;
+                    return false;
+                }
+                state.sizeLedger.internalSequenceBytes = internalSequences * sizeof(frontend::SequenceNumber);
+                state.sizeLedger.initialized = true;
+                return true;
+            } catch (...) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
         }
 
         bool accountingFailure(detail::StateStorage& state, std::string& error) noexcept;
