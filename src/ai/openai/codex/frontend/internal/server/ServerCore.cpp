@@ -29,6 +29,84 @@ namespace ai::openai::codex::frontend::internal::server {
 
     namespace {
 
+        constexpr std::string_view ItemContentAppendMode = "append-v1";
+
+        [[nodiscard]] bool requestsItemContentAppend(const Json& extensions) noexcept {
+            try {
+                const auto projection = extensions.find("projection");
+                if (projection == extensions.end() || !projection->is_object()) {
+                    return false;
+                }
+                const auto modes = projection->find("itemContentUpdateModes");
+                return modes != projection->end() && modes->is_array() &&
+                       std::any_of(modes->begin(), modes->end(), [](const Json& mode) {
+                           return mode.is_string() && mode.get_ref<const std::string&>() == ItemContentAppendMode;
+                       });
+            } catch (...) {
+                return false;
+            }
+        }
+
+        model::ItemContentUpdatedOccurrence* itemContentUpdate(model::OccurrenceDraft& occurrence) noexcept {
+            model::ItemContentUpdatedOccurrence* found = nullptr;
+            for (model::OccurrencePayload& payload : occurrence.expandedPayloads) {
+                auto* update = std::get_if<model::ItemContentUpdatedOccurrence>(&payload);
+                if (update == nullptr) {
+                    continue;
+                }
+                if (found != nullptr) {
+                    return nullptr;
+                }
+                found = update;
+            }
+            return found;
+        }
+
+        const model::ItemContentUpdatedOccurrence* itemContentUpdate(const model::OccurrenceDraft& occurrence) noexcept {
+            const model::ItemContentUpdatedOccurrence* found = nullptr;
+            for (const model::OccurrencePayload& payload : occurrence.expandedPayloads) {
+                const auto* update = std::get_if<model::ItemContentUpdatedOccurrence>(&payload);
+                if (update == nullptr) {
+                    continue;
+                }
+                if (found != nullptr) {
+                    return nullptr;
+                }
+                found = update;
+            }
+            return found;
+        }
+
+        void coalesceItemContentAppendHint(const model::OccurrenceDraft& previous,
+                                           model::OccurrenceDraft& replacement) noexcept {
+            model::ItemContentUpdatedOccurrence* next = itemContentUpdate(replacement);
+            const model::ItemContentUpdatedOccurrence* prior = itemContentUpdate(previous);
+            if (next == nullptr || prior == nullptr || !next->appendHint.has_value() || !prior->appendHint.has_value()) {
+                if (next != nullptr) {
+                    next->appendHint.reset();
+                }
+                return;
+            }
+
+            constexpr std::size_t MaximumAppendBytes = 64U * 1024U;
+            const model::ItemContentAppendHint& first = *prior->appendHint;
+            const model::ItemContentAppendHint& second = *next->appendHint;
+            const std::uint64_t firstDeltaBytes = static_cast<std::uint64_t>(first.delta.size());
+            if (firstDeltaBytes > std::numeric_limits<std::uint64_t>::max() - first.baseContentBytes ||
+                second.baseContentBytes != first.baseContentBytes + firstDeltaBytes ||
+                first.delta.size() > MaximumAppendBytes || second.delta.size() > MaximumAppendBytes - first.delta.size()) {
+                next->appendHint.reset();
+                return;
+            }
+            try {
+                std::string combined = first.delta;
+                combined.append(second.delta);
+                next->appendHint = model::ItemContentAppendHint{first.baseContentBytes, std::move(combined)};
+            } catch (...) {
+                next->appendHint.reset();
+            }
+        }
+
         [[nodiscard]] std::uint64_t defaultMonotonicClockMs() noexcept {
             const auto elapsed = std::chrono::steady_clock::now().time_since_epoch();
             return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
@@ -292,6 +370,7 @@ namespace ai::openai::codex::frontend::internal::server {
             std::optional<FrontendPrincipal> principal;
             std::optional<model::SessionIdentity> session;
             std::vector<FrontendCapability> negotiatedCapabilities;
+            bool itemContentAppendV1 = false;
             std::deque<SerializedServerMessage> outbound;
             // A live Snapshot published from inside BackendPort::snapshot()
             // is accepted immediately but must follow the outer snapshot
@@ -1510,6 +1589,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 negotiated.push_back(requested);
             }
         }
+        const bool itemContentAppendV1 =
+            requestsItemContentAppend(hello.extensions) &&
+            containsCapability(negotiated, FrontendCapability::CompleteThreadItems);
 
         connection = findConnection(awaitingHello);
         if (!connection) {
@@ -1535,6 +1617,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         connection->principal = principal;
         connection->negotiatedCapabilities = std::move(negotiated);
+        connection->itemContentAppendV1 = itemContentAppendV1;
         const ConnectionContinuation openingSession{*token, false, false};
         const FrontendSessionToken backendSessionToken{token->identity, token->generation, session};
         connection = nullptr;
@@ -1591,6 +1674,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 permittedScopes.push_back(std::string(toString(scope)));
             }
             welcome.extensions["permittedScopes"] = std::move(permittedScopes);
+        }
+        if (connection->itemContentAppendV1) {
+            welcome.extensions["projection"] = Json{{"itemContentUpdateMode", std::string(ItemContentAppendMode)}};
         }
         if (!options.serverVersion.empty()) {
             welcome.serverVersion = options.serverVersion;
@@ -2188,7 +2274,10 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 std::vector<FrontendEvent> groupEvents;
                 if (useExpanded) {
-                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded = model::encodeExpandedOccurrence(*projected);
+                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded = model::encodeExpandedOccurrence(
+                        *projected,
+                        connection.itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
+                                                       : model::ItemContentWireMode::Replacement);
                     if (!encoded) {
                         result.batches.clear();
                         return result;
@@ -2434,10 +2523,15 @@ namespace ai::openai::codex::frontend::internal::server {
             if (content->first->kind != OccurrenceEntityKind::ItemContent) {
                 continue;
             }
-            const auto item = std::find_if(std::next(content), ordered.end(), [&](const OrderedOccurrence& candidate) {
+            const auto item = std::find_if(ordered.begin(), ordered.end(), [&](const OrderedOccurrence& candidate) {
                 return candidate.first->kind == OccurrenceEntityKind::Item && sameItem(*content->first, *candidate.first);
             });
             if (item != ordered.end()) {
+                if (model::ItemContentUpdatedOccurrence* update = itemContentUpdate(content->second->occurrence)) {
+                    update->appendHint.reset();
+                }
+            }
+            if (item != ordered.end() && item > content) {
                 std::rotate(content, item, std::next(item));
             }
         }
@@ -2824,6 +2918,9 @@ namespace ai::openai::codex::frontend::internal::server {
             const bool scheduleRequired = dirtyOccurrences.empty() && !dirtySnapshotRequired;
             const auto existing = dirtyOccurrences.find(key);
             if (existing != dirtyOccurrences.end()) {
+                if (key.kind == OccurrenceEntityKind::ItemContent) {
+                    coalesceItemContentAppendHint(existing->second.occurrence, occurrence);
+                }
                 existing->second.occurrence = std::move(occurrence);
                 // A first item upsert can still be dirty when its content and
                 // terminal replacement arrive. Keep that upsert ahead of the

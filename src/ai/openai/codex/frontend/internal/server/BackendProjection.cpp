@@ -1554,6 +1554,33 @@ namespace ai::openai::codex::frontend::internal::server {
             return found;
         }
 
+        const backend::ItemSnapshot* findBackendItem(const backend::Snapshot& snapshot,
+                                                      const typed::ThreadId& threadId,
+                                                      const typed::TurnId& turnId,
+                                                      const typed::ItemId& itemId) noexcept {
+            const backend::ItemSnapshot* found = nullptr;
+            for (const backend::ThreadSnapshot& thread : snapshot.threads) {
+                if (thread.id != threadId.value) {
+                    continue;
+                }
+                for (const backend::TurnSnapshot& turn : thread.turns) {
+                    if (turn.id != turnId.value) {
+                        continue;
+                    }
+                    for (const backend::ItemSnapshot& item : turn.items) {
+                        if (item.id != itemId.value) {
+                            continue;
+                        }
+                        if (found != nullptr) {
+                            return nullptr;
+                        }
+                        found = &item;
+                    }
+                }
+            }
+            return found;
+        }
+
         const model::ProcessState* findProcess(const model::CanonicalSnapshot& snapshot, const model::ProcessHandle& handle) noexcept {
             const model::ProcessState* found = nullptr;
             for (const model::ProcessState& process : snapshot.processes) {
@@ -2008,6 +2035,27 @@ namespace ai::openai::codex::frontend::internal::server {
                     return "commandOutput";
             }
             return "agentText";
+        }
+
+        void retainItemContentAppendHint(model::ItemContentUpdatedOccurrence& update,
+                                         const backend::ItemContentChanged& event,
+                                         std::uint64_t currentBackendDroppedBytes) {
+            if (!update.content.has_value() || !event.channelBytesBefore.has_value() ||
+                !event.droppedContentBytesBefore.has_value() || *event.droppedContentBytesBefore != 0 ||
+                currentBackendDroppedBytes != 0 || *event.channelBytesBefore > update.content->size()) {
+                return;
+            }
+
+            const std::size_t base = *event.channelBytesBefore;
+            const std::size_t retainedDeltaBytes = update.content->size() - base;
+            if (event.delta.size() < retainedDeltaBytes) {
+                return;
+            }
+            if (update.content->compare(base, retainedDeltaBytes, event.delta, 0, retainedDeltaBytes) != 0) {
+                return;
+            }
+            update.appendHint = model::ItemContentAppendHint{
+                static_cast<std::uint64_t>(base), update.content->substr(base, retainedDeltaBytes)};
         }
 
         template <typename>
@@ -2511,6 +2559,7 @@ namespace ai::openai::codex::frontend::internal::server {
                         model::ModelErrorCode::InvalidShape, "/events/item/content", "content channel is absent from the exact item"};
                 }
                 update.truncation = data.truncation;
+                retainItemContentAppendHint(update, *event, item.droppedContentBytes);
 
                 // Once an append-only backend channel was already longer than
                 // the final projected UTF-8 prefix, another append cannot
@@ -2769,10 +2818,20 @@ namespace ai::openai::codex::frontend::internal::server {
                             selection.turnId = model::TurnIdentity::parse(event.turnId.value);
                             selection.itemId = model::ItemIdentity::parse(event.itemId.value);
                             selection.channel = itemContentChannel(event.kind);
-                            appendFamily(sequenced.sequence,
-                                         ExpandedEventType::ItemContentUpdated,
-                                         std::move(selection),
-                                         OccurrenceFlushUrgency::Deferred);
+                            std::optional<model::OccurrencePayload> payload =
+                                payloadForFamily(ExpandedEventType::ItemContentUpdated, projected.snapshot, selection);
+                            const backend::ItemSnapshot* backendItem =
+                                findBackendItem(snapshot, event.threadId, event.turnId, event.itemId);
+                            if (!payload || backendItem == nullptr) {
+                                projected.snapshotRequired = true;
+                            } else {
+                                retainItemContentAppendHint(
+                                    std::get<model::ItemContentUpdatedOccurrence>(*payload), event, backendItem->droppedContentBytes);
+                                append(sequenced.sequence,
+                                       std::move(*payload),
+                                       std::move(selection),
+                                       OccurrenceFlushUrgency::Deferred);
+                            }
                         } else if constexpr (std::is_same_v<Event, backend::FileChangeUpdated>) {
                             OccurrenceSelection selection;
                             selection.threadId = model::ThreadIdentity::parse(event.threadId.value);

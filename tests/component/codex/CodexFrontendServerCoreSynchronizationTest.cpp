@@ -199,6 +199,23 @@ namespace {
                 std::move(expanded)};
     }
 
+    model::OccurrenceDraft appendItemContentOccurrence(std::string source,
+                                                       std::string fullContent,
+                                                       std::uint64_t baseContentBytes,
+                                                       std::string delta) {
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-append"}};
+        update.threadId = model::ThreadIdentity{"thread-append"};
+        update.turnId = model::TurnIdentity{"turn-append"};
+        update.channel = "agentText";
+        update.content = std::move(fullContent);
+        update.appendHint = model::ItemContentAppendHint{baseContentBytes, std::move(delta)};
+        model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:" + std::move(source)}, std::move(update)};
+        occurrence.threadId = model::ThreadIdentity{"thread-append"};
+        occurrence.turnId = model::TurnIdentity{"turn-append"};
+        occurrence.itemId = model::ItemIdentity{"item-append"};
+        return occurrence;
+    }
+
     model::OccurrenceDraft itemOccurrence(std::string source, std::string status, std::string text) {
         model::ItemData data{model::ItemIdentity{"item-order"},
                              model::ThreadIdentity{"thread-order"},
@@ -638,6 +655,139 @@ namespace {
                               std::holds_alternative<frontend::SyncComplete>(oversizedReplayMessages[2]) &&
                               std::holds_alternative<frontend::EventBatch>(oversizedReplayMessages[3]),
                           "initial synchronization advertises Snapshot when projected replay cannot preserve an atomic group");
+    }
+
+    void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
+        Backend backend;
+        std::vector<std::function<void()>> scheduled;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.scheduler = [&scheduled](std::function<void()> callback) {
+            scheduled.push_back(std::move(callback));
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> replacementMessages;
+        std::vector<frontend::ServerMessage> appendMessages;
+        std::vector<frontend::ServerMessage> missingCapabilityMessages;
+        const auto replacementConnection = core.openConnection({}, collect(replacementMessages));
+        frontend::Hello replacementHello;
+        replacementHello.capabilities = std::vector{frontend::FrontendCapability::CompleteThreadItems};
+        const bool replacementReady = replacementConnection &&
+                                      core.receive(*replacementConnection,
+                                                   frontend::ClientMessage{std::move(replacementHello)}).accepted();
+        drainAll(scheduled);
+
+        const auto appendConnection = core.openConnection({}, collect(appendMessages));
+        frontend::Hello appendHello;
+        appendHello.capabilities = std::vector{frontend::FrontendCapability::CompleteThreadItems};
+        appendHello.extensions["projection"] =
+            frontend::Json{{"itemContentUpdateModes", frontend::Json::array({"append-v1"})}};
+        const bool appendReady = appendConnection &&
+                                 core.receive(*appendConnection, frontend::ClientMessage{std::move(appendHello)}).accepted();
+        drainAll(scheduled);
+
+        const auto missingCapabilityConnection = core.openConnection({}, collect(missingCapabilityMessages));
+        frontend::Hello missingCapabilityHello;
+        missingCapabilityHello.extensions["projection"] =
+            frontend::Json{{"itemContentUpdateModes", frontend::Json::array({"append-v1"})}};
+        const bool missingCapabilityReady =
+            missingCapabilityConnection &&
+            core.receive(*missingCapabilityConnection,
+                         frontend::ClientMessage{std::move(missingCapabilityHello)}).accepted();
+        drainAll(scheduled);
+
+        const auto* appendWelcome = !appendMessages.empty() ? std::get_if<frontend::Welcome>(&appendMessages.front()) : nullptr;
+        const auto* replacementWelcome =
+            !replacementMessages.empty() ? std::get_if<frontend::Welcome>(&replacementMessages.front()) : nullptr;
+        const auto* missingCapabilityWelcome = !missingCapabilityMessages.empty()
+                                                   ? std::get_if<frontend::Welcome>(&missingCapabilityMessages.front())
+                                                   : nullptr;
+        const bool appendSelected = appendWelcome && appendWelcome->extensions.contains("projection") &&
+                                    appendWelcome->extensions.at("projection").value("itemContentUpdateMode", "") == "append-v1";
+        const bool replacementNotSelected = replacementWelcome && !replacementWelcome->extensions.contains("projection");
+        const bool missingCapabilityNotSelected =
+            missingCapabilityWelcome && !missingCapabilityWelcome->extensions.contains("projection");
+
+        replacementMessages.clear();
+        appendMessages.clear();
+        missingCapabilityMessages.clear();
+        const model::FrontendSequence replayCursor = core.currentSequence();
+        server::OccurrenceCoalescingKey contentKey;
+        contentKey.kind = server::OccurrenceEntityKind::ItemContent;
+        contentKey.threadId = model::ThreadIdentity{"thread-append"};
+        contentKey.turnId = model::TurnIdentity{"turn-append"};
+        contentKey.itemId = model::ItemIdentity{"item-append"};
+        contentKey.entityId = "item-append";
+        contentKey.channel = "agentText";
+        const auto first = core.stageGroup(contentKey, appendItemContentOccurrence("501", "basea", 4, "a"));
+        const auto second = core.stageGroup(contentKey, appendItemContentOccurrence("502", "baseab", 5, "b"));
+        drainAll(scheduled);
+
+        const auto contentData = [](const std::vector<frontend::ServerMessage>& messages) -> const frontend::Json* {
+            for (const frontend::ServerMessage& message : messages) {
+                const auto* batch = std::get_if<frontend::EventBatch>(&message);
+                if (batch == nullptr) {
+                    continue;
+                }
+                for (const frontend::FrontendEvent& event : batch->events) {
+                    if (event.type == "item.content.updated") {
+                        return &event.data;
+                    }
+                }
+            }
+            return nullptr;
+        };
+        const frontend::Json* replacementData = contentData(replacementMessages);
+        const frontend::Json* appendData = contentData(appendMessages);
+        const frontend::Json* missingCapabilityData = contentData(missingCapabilityMessages);
+        result.expectTrue(replacementReady && appendReady && missingCapabilityReady && appendSelected && replacementNotSelected &&
+                              missingCapabilityNotSelected && first.accepted() && second.accepted() && replacementData && appendData &&
+                              missingCapabilityData && replacementData->value("content", "") == "baseab" &&
+                              !replacementData->contains("contentDelta") && appendData->value("contentDelta", "") == "ab" &&
+                              appendData->value("baseContentBytes", std::uint64_t{0}) == 4 && !appendData->contains("content") &&
+                              missingCapabilityData->value("content", "") == "baseab",
+                          "append-v1 is selected only with complete items and coalesces contiguous deltas per recipient while every "
+                          "unselected recipient retains replacement encoding");
+
+        std::vector<frontend::ServerMessage> replayMessages;
+        const auto replayConnection = core.openConnection({}, collect(replayMessages));
+        frontend::Hello replayHello;
+        replayHello.resumeAfter = frontend::SequenceNumber{replayCursor.protocolValue()};
+        replayHello.capabilities = std::vector{frontend::FrontendCapability::CompleteThreadItems};
+        replayHello.extensions["projection"] =
+            frontend::Json{{"itemContentUpdateModes", frontend::Json::array({"append-v1"})}};
+        const bool replayReady = replayConnection &&
+                                 core.receive(*replayConnection, frontend::ClientMessage{std::move(replayHello)}).accepted();
+        drainAll(scheduled);
+        const frontend::Json* replayData = contentData(replayMessages);
+        result.expectTrue(replayReady && replayData && replayData->value("contentDelta", "") == "ab" &&
+                              replayData->value("baseContentBytes", std::uint64_t{0}) == 4,
+                          "the connection-neutral journal re-encodes a retained content occurrence as append-v1 for selected replay");
+
+        replacementMessages.clear();
+        appendMessages.clear();
+        missingCapabilityMessages.clear();
+        model::ItemData itemData{model::ItemIdentity{"item-append"},
+                                 model::ThreadIdentity{"thread-append"},
+                                 model::TurnIdentity{"turn-append"}};
+        itemData.agentText = "baseabc";
+        model::OccurrenceDraft itemUpsert{model::SourceStamp{"backend-event:503"},
+                                          model::ItemUpsertedOccurrence{model::AgentMessageItem{std::move(itemData)}}};
+        itemUpsert.threadId = model::ThreadIdentity{"thread-append"};
+        itemUpsert.turnId = model::TurnIdentity{"turn-append"};
+        itemUpsert.itemId = model::ItemIdentity{"item-append"};
+        server::OccurrenceCoalescingKey itemKey = contentKey;
+        itemKey.kind = server::OccurrenceEntityKind::Item;
+        itemKey.channel.clear();
+        const auto upserted = core.stageGroup(itemKey, std::move(itemUpsert));
+        const auto content = core.stageGroup(contentKey, appendItemContentOccurrence("504", "baseabc", 6, "c"));
+        drainAll(scheduled);
+        appendData = contentData(appendMessages);
+        result.expectTrue(upserted.accepted() && content.accepted() && appendData &&
+                              appendData->value("content", "") == "baseabc" && !appendData->contains("contentDelta"),
+                          "a same-item upsert carrying final text forces its dependent content event back to replacement encoding");
     }
 
     void testScopeFilteredSparseReplay(tests::support::TestResult& result) {
@@ -2109,6 +2259,59 @@ namespace {
                               directOversizedContentOccurrence.value().occurrences == oversizedContentOccurrence.value().occurrences,
                           "exact-item content projection preserves the same bounded replacement occurrence without projecting full State");
 
+        ai::openai::codex::backend::Snapshot appendSource = source;
+        ai::openai::codex::backend::ItemSnapshot& appendItem = appendSource.threads.front().turns.front().items.front();
+        appendItem.status = "started";
+        appendItem.agentText.clear();
+        appendItem.reasoningText.clear();
+        appendItem.reasoningSummary.clear();
+        appendItem.commandOutput = "before after";
+        appendItem.contentTruncated = false;
+        appendItem.droppedContentBytes = 0;
+        ai::openai::codex::backend::ItemContentChanged appendEvent;
+        appendEvent.threadId = ai::openai::codex::typed::ThreadId{thread.id};
+        appendEvent.turnId = ai::openai::codex::typed::TurnId{turn.id};
+        appendEvent.itemId = ai::openai::codex::typed::ItemId{item.id};
+        appendEvent.kind = ai::openai::codex::backend::ItemContentChanged::Kind::CommandOutput;
+        appendEvent.delta = " after";
+        appendEvent.channelBytesBefore = 6;
+        appendEvent.droppedContentBytesBefore = 0;
+        const std::vector<ai::openai::codex::backend::SequencedBackendEvent> appendEvents{
+            {ai::openai::codex::backend::SequenceNumber{19}, appendEvent}};
+        const std::vector<ai::openai::codex::backend::ItemSnapshot> appendItems{appendItem};
+        const auto directAppend = projection.projectItemContentOccurrences(appendEvents, appendItems);
+        const auto fullAppend = projection.projectOccurrences(appendEvents, appendSource);
+        const auto* projectedAppend =
+            directAppend && directAppend.value().occurrences.size() == 1 &&
+                    directAppend.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &directAppend.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        auto mismatchedAppendEvents = appendEvents;
+        std::get<ai::openai::codex::backend::ItemContentChanged>(mismatchedAppendEvents.front().event).delta = " mismatch";
+        const auto mismatchedAppend = projection.projectItemContentOccurrences(mismatchedAppendEvents, appendItems);
+        const auto* projectedMismatch =
+            mismatchedAppend && mismatchedAppend.value().occurrences.size() == 1 &&
+                    mismatchedAppend.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &mismatchedAppend.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        auto advancedAppendItems = appendItems;
+        advancedAppendItems.front().commandOutput += " later";
+        const auto advancedAppend = projection.projectItemContentOccurrences(appendEvents, advancedAppendItems);
+        const auto* projectedAdvanced =
+            advancedAppend && advancedAppend.value().occurrences.size() == 1 &&
+                    advancedAppend.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &advancedAppend.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(
+            projectedAppend && projectedAppend->content == "before after" &&
+                projectedAppend->appendHint == std::optional<model::ItemContentAppendHint>{{6, " after"}} && fullAppend &&
+                directAppend.value().occurrences == fullAppend.value().occurrences && projectedMismatch &&
+                !projectedMismatch->appendHint.has_value() && projectedAdvanced && !projectedAdvanced->appendHint.has_value(),
+            "content projection retains an append hint only when the exact backend delta accounts for the retained replacement suffix");
+
         const auto contentEvent = [&](backend::SequenceNumber sequence, backend::ItemContentChanged::Kind kind) {
             backend::ItemContentChanged content;
             content.threadId = typed::ThreadId{thread.id};
@@ -2584,6 +2787,7 @@ int main() {
     tests::support::TestResult result;
     testSynchronization(result);
     testTypedBatching(result);
+    testNegotiatedItemContentAppend(result);
     testScopeFilteredSparseReplay(result);
     testInlineObserverBatchCoalescing(result);
     testTerminalItemKeepsInitialUpsertOrder(result);

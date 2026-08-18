@@ -625,6 +625,22 @@ namespace {
                               reducedItem->droppedContentBytes == std::optional<std::uint64_t>{0},
                           "append-v1 encodes only the suffix and applies it to the exact retained byte base");
 
+        model::ItemContentUpdatedOccurrence staleHint{model::ItemIdentity{"item-optional-content"}};
+        staleHint.threadId = model::ThreadIdentity{"thread-optional-content"};
+        staleHint.turnId = model::TurnIdentity{"turn-optional-content"};
+        staleHint.channel = "agentText";
+        staleHint.content = "before after later";
+        staleHint.appendHint = model::ItemContentAppendHint{6, " after"};
+        const auto staleOccurrence = model::makeOccurrence(occurrenceIdentity(12, "stale-append-content"), std::move(staleHint));
+        const auto staleWire =
+            staleOccurrence
+                ? model::encodeExpandedOccurrence(staleOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{staleOccurrence.error()};
+        result.expectTrue(staleWire && staleWire.value().front().data.value("content", "") == "before after later" &&
+                              !staleWire.value().front().data.contains("contentDelta") &&
+                              !staleWire.value().front().data.contains("baseContentBytes"),
+                          "append-v1 falls back to the authoritative replacement when a hint does not span its exact suffix");
+
         frontend::ExpandedFrontendEvent bothForms = appendWire.value().front();
         bothForms.data["content"] = "ambiguous";
         frontend::ExpandedFrontendEvent neitherForm = appendWire.value().front();

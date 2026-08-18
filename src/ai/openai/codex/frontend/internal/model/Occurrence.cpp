@@ -354,7 +354,20 @@ namespace ai::openai::codex::frontend::internal::model {
                     if (update.channel.has_value()) {
                         data["channel"] = *update.channel;
                     }
-                    if (itemContentMode == ItemContentWireMode::AppendV1 && update.appendHint.has_value()) {
+                    const bool exactAppendHint = [&update] {
+                        if (!update.content.has_value() || !update.appendHint.has_value()) {
+                            return false;
+                        }
+                        const std::uint64_t contentBytes = static_cast<std::uint64_t>(update.content->size());
+                        const ItemContentAppendHint& hint = *update.appendHint;
+                        if (hint.baseContentBytes > contentBytes ||
+                            hint.delta.size() != static_cast<std::size_t>(contentBytes - hint.baseContentBytes)) {
+                            return false;
+                        }
+                        return update.content->compare(
+                                   static_cast<std::size_t>(hint.baseContentBytes), hint.delta.size(), hint.delta) == 0;
+                    }();
+                    if (itemContentMode == ItemContentWireMode::AppendV1 && exactAppendHint) {
                         data["contentDelta"] = update.appendHint->delta;
                         data["baseContentBytes"] = update.appendHint->baseContentBytes;
                     } else if (update.content.has_value()) {
