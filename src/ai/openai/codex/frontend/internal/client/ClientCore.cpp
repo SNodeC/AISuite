@@ -1244,14 +1244,6 @@ namespace ai::openai::codex::frontend::internal::client {
             }
         }
 
-        struct ReductionResult {
-            std::optional<model::CanonicalSnapshot> value;
-            std::string error;
-        };
-
-        ReductionResult reduceCanonicalOccurrence(const model::CanonicalSnapshot& snapshot,
-                                                  const model::CanonicalOccurrence& occurrence) noexcept;
-
         std::optional<ExpandedEventType> expandedFamily(std::string_view type) noexcept {
             return expandedEventTypeFromString(type);
         }
@@ -2811,13 +2803,13 @@ namespace ai::openai::codex::frontend::internal::client {
     }
 
     namespace {
-        ReductionResult reduceCanonicalOccurrence(const model::CanonicalSnapshot& snapshot,
-                                                  const model::CanonicalOccurrence& occurrence) noexcept {
-            auto reduced = model::reduceOccurrence(snapshot, occurrence);
-            if (!reduced) {
-                return {std::nullopt, reduced.error().path + ": " + reduced.error().message};
+        std::optional<std::string> applyCanonicalOccurrence(model::CanonicalSnapshot& snapshot,
+                                                            const model::CanonicalOccurrence& occurrence) noexcept {
+            auto applied = model::applyOccurrence(snapshot, occurrence);
+            if (!applied) {
+                return applied.error().path + ": " + applied.error().message;
             }
-            return {std::move(reduced).value(), {}};
+            return std::nullopt;
         }
     } // namespace
 
@@ -2936,17 +2928,15 @@ namespace ai::openai::codex::frontend::internal::client {
             if (sequence <= candidate.sequence) {
                 return false;
             }
-            ReductionResult reduced = reduceCanonicalOccurrence(candidate, *mergedOccurrence);
-            if (!reduced.value.has_value()) {
+            const std::optional<std::string> reductionError = applyCanonicalOccurrence(candidate, *mergedOccurrence);
+            if (reductionError.has_value()) {
                 diagnostic(DiagnosticSeverity::Error,
-                           "canonical occurrence reduction rejected an event group: " + reduced.error,
+                           "canonical occurrence reduction rejected an event group: " + *reductionError,
                            ClientErrorCode::StateDivergence);
                 return false;
             }
-            model::CanonicalSnapshot groupCandidate = std::move(*reduced.value);
-            groupCandidate.sequence = sequence;
-            boundProtocolDiagnostics(groupCandidate, options.limits.maximumRetainedDiagnostics);
-            candidate = std::move(groupCandidate);
+            candidate.sequence = sequence;
+            boundProtocolDiagnostics(candidate, options.limits.maximumRetainedDiagnostics);
             for (const model::OccurrencePayload& payload : mergedOccurrence->expandedPayloads()) {
                 std::visit(
                     [&changes](const auto& value) {

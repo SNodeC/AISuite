@@ -2032,7 +2032,7 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
-    ModelResult<CanonicalSnapshot> reduceOccurrence(const CanonicalSnapshot& snapshot, const CanonicalOccurrence& occurrence) noexcept {
+    ModelResult<bool> applyOccurrence(CanonicalSnapshot& reduced, const CanonicalOccurrence& occurrence) noexcept {
         try {
             OccurrenceError validation;
             if ((occurrence.expandedPayloads().empty() &&
@@ -2040,7 +2040,6 @@ namespace ai::openai::codex::frontend::internal::model {
                 (!occurrence.expandedPayloads().empty() && !validateOccurrenceGroup(occurrence.expandedPayloads(), &validation))) {
                 return occurrenceModelError(validation);
             }
-            CanonicalSnapshot reduced = snapshot;
             const auto upsert = []<typename Value, typename Identity>(std::vector<Value>& values, Value replacement, Identity&& identity) {
                 const auto found = std::find_if(values.begin(), values.end(), [&](const Value& value) {
                     return identity(value);
@@ -2407,9 +2406,24 @@ namespace ai::openai::codex::frontend::internal::model {
             reduced.sequence = occurrence.identity().sequence;
             reduced.projection.sourceStamp = occurrence.identity().sourceStamp;
             reduced.projection.projectionStamp = occurrence.identity().projectionStamp;
-            return reduced;
+            return true;
         } catch (const OccurrenceFailure& failure) {
             return occurrenceModelError(failure.error);
+        } catch (const std::exception& error) {
+            return ModelError{ModelErrorCode::InvalidShape, "/occurrence", error.what()};
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, "/occurrence", "occurrence reduction failed"};
+        }
+    }
+
+    ModelResult<CanonicalSnapshot> reduceOccurrence(const CanonicalSnapshot& snapshot, const CanonicalOccurrence& occurrence) noexcept {
+        try {
+            CanonicalSnapshot reduced = snapshot;
+            ModelResult<bool> applied = applyOccurrence(reduced, occurrence);
+            if (!applied) {
+                return applied.error();
+            }
+            return reduced;
         } catch (const std::exception& error) {
             return ModelError{ModelErrorCode::InvalidShape, "/occurrence", error.what()};
         } catch (...) {

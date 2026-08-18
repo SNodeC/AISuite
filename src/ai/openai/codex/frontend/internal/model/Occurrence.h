@@ -506,6 +506,11 @@ namespace ai::openai::codex::frontend::internal::model {
 
     [[nodiscard]] ModelResult<CanonicalSnapshot> reduceOccurrence(const CanonicalSnapshot& snapshot,
                                                                   const CanonicalOccurrence& occurrence) noexcept;
+    // Mutates a caller-owned transactional candidate. Callers must discard
+    // that candidate if an error is returned; reduceOccurrence() remains the
+    // copy-preserving convenience boundary for standalone reductions.
+    [[nodiscard]] ModelResult<bool> applyOccurrence(CanonicalSnapshot& candidate,
+                                                    const CanonicalOccurrence& occurrence) noexcept;
 
     static_assert(std::variant_size_v<OccurrencePayload> == 26);
 

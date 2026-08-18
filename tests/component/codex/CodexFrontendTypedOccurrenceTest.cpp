@@ -220,6 +220,47 @@ namespace {
                 model::SourceStamp{"typed-occurrence-ordering"}};
     }
 
+    void testInPlaceAndCopyPreservingReduction(tests::support::TestResult& result) {
+        model::CanonicalSnapshot candidate = snapshotWithItem();
+        model::ItemData unchanged{model::ItemIdentity{"unchanged-item"},
+                                  model::ThreadIdentity{"thread-optional-content"},
+                                  model::TurnIdentity{"turn-optional-content"}};
+        unchanged.agentText = "unchanged";
+        candidate.items.emplace_back(model::AgentMessageItem{std::move(unchanged)});
+        const model::CanonicalSnapshot source = candidate;
+        const model::CanonicalSnapshot sourceBefore = source;
+
+        model::ItemContentUpdatedOccurrence content{model::ItemIdentity{"item-optional-content"}};
+        content.threadId = model::ThreadIdentity{"thread-optional-content"};
+        content.turnId = model::TurnIdentity{"turn-optional-content"};
+        content.channel = "agentText";
+        content.content = "after";
+        auto identity = occurrenceIdentity(31, "in-place-item-content");
+        identity.threadId = content.threadId;
+        identity.turnId = content.turnId;
+        identity.itemId = content.itemId;
+        const auto occurrence = model::makeOccurrence(std::move(identity), std::move(content));
+        if (!occurrence) {
+            result.expectTrue(false, "in-place occurrence reduction mutates the caller-owned candidate");
+            result.expectTrue(false, "copy-preserving occurrence reduction leaves its source unchanged");
+            return;
+        }
+
+        const model::ThreadItem* const itemStorage = candidate.items.data();
+        const model::ThreadItem* const unchangedStorage = &candidate.items.back();
+        const auto applied = model::applyOccurrence(candidate, occurrence.value());
+        result.expectTrue(applied && candidate.items.data() == itemStorage && &candidate.items.back() == unchangedStorage &&
+                              model::itemData(candidate.items.front()).agentText == std::optional<std::string>{"after"} &&
+                              model::itemData(candidate.items.back()).agentText == std::optional<std::string>{"unchanged"},
+                          "in-place occurrence reduction mutates the caller candidate without replacing retained item storage");
+
+        const auto reduced = model::reduceOccurrence(source, occurrence.value());
+        result.expectTrue(reduced && source == sourceBefore &&
+                              model::itemData(source.items.front()).agentText == std::optional<std::string>{"before"} &&
+                              model::itemData(reduced.value().items.front()).agentText == std::optional<std::string>{"after"},
+                          "copy-preserving occurrence reduction leaves its source unchanged");
+    }
+
     void testItemOrderingAndAuthorityMigration(tests::support::TestResult& result) {
         model::CanonicalSnapshot state;
         state.items.push_back(knownItem("first", 0));
@@ -905,6 +946,7 @@ int main() {
     testContainedExtension(result);
     testLegacyExtensionWireShape(result);
     testGeneratedMultiFamilyGroup(result);
+    testInPlaceAndCopyPreservingReduction(result);
     testItemContentPresence(result);
     testItemOrderingAndAuthorityMigration(result);
     testScopedItemIdentityReduction(result);

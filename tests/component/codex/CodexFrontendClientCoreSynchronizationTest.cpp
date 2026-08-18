@@ -862,6 +862,47 @@ namespace {
                           "one EventBatch cannot mix independently negotiated expanded and legacy occurrence groups");
     }
 
+    void testBatchReductionIsTransactional(tests::support::TestResult& result) {
+        const std::vector<frontend::FrontendCapability> items{
+            frontend::FrontendCapability::CompleteThreadItems,
+        };
+        Harness harness;
+        std::vector<std::string> diagnostics;
+        core::ClientCallbacks callbacks;
+        callbacks.onDiagnostic = [&diagnostics](const core::Diagnostic& diagnostic) {
+            diagnostics.push_back(diagnostic.message);
+        };
+        core::ClientOptions options = clientOptions();
+        options.requestedCapabilities = items;
+        core::ClientCore client(std::move(options), std::move(callbacks));
+        const core::PhysicalGeneration generation = readyWithCapabilities(client, harness, items);
+        const auto before = client.state();
+
+        frontend::FrontendEvent valid = itemContentEvent(1, true);
+        model::ItemContentUpdatedOccurrence missing{model::ItemIdentity{"missing-item"}};
+        missing.threadId = model::ThreadIdentity{"partial-thread"};
+        missing.turnId = model::TurnIdentity{"partial-turn"};
+        missing.channel = "commandOutput";
+        missing.content = "must not publish";
+        frontend::FrontendEvent invalid = occurrenceEvent(2, std::move(missing), true);
+        const bool accepted = client.receive(
+            generation,
+            frontend::ServerMessage{
+                frontend::EventBatch{valid.sequence, invalid.sequence, {std::move(valid), std::move(invalid)}}});
+        const auto after = client.state();
+        const model::ThreadItem* item = after ? after->item("partial-item") : nullptr;
+        const bool reductionRejected = std::ranges::any_of(diagnostics, [](const std::string& diagnostic) {
+            return diagnostic.find("canonical occurrence reduction rejected an event group") != std::string::npos;
+        });
+        result.expectTrue(!accepted && client.connectionState() == core::ConnectionState::Disconnected && reductionRejected,
+                          "the invalid second occurrence rejects the complete event batch");
+        result.expectTrue(before && after && before->snapshot && after->snapshot && *after->snapshot == *before->snapshot,
+                          "a rejected event batch retains the prior canonical public State rather than its private candidate");
+        result.expectTrue(item != nullptr &&
+                              model::itemData(*item).commandOutput == std::optional<std::string>{"initial"},
+                          "a rejected event batch does not leak its earlier valid occurrence into public State");
+    }
+
     void testLegacyUnknownCompatibility(tests::support::TestResult& result) {
         Harness harness;
         core::ClientOptions options = clientOptions();
@@ -942,6 +983,7 @@ int main() {
     testLiveCallbackLifecycleInvalidation(result);
     testCompatibilityExtensionFallback(result);
     testIndependentEventRepresentations(result);
+    testBatchReductionIsTransactional(result);
     testLegacyUnknownCompatibility(result);
     return result.processResult();
 }
