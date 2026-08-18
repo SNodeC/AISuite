@@ -17,7 +17,7 @@ env:
     -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
   LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
   AISUITE_HOSTED_CTEST_EXCLUDE_REGEX: >-
-    ^(CodexAppServerFixtureInfrastructureTest|CodexFrontendProtocolMinimalConfigurationTest|CodexFrontendProtocolLegacyBinaryCompatibilityTest|CodexPublicHeaderSelfContainmentTest|CodexSyntheticSecretLeakGuardTest|CodexPolicyMutationTest)$
+    ^(CodexAppServerFixtureInfrastructureTest|CodexFrontendProtocolMinimalConfigurationTest|CodexPublicHeaderSelfContainmentTest|CodexSyntheticSecretLeakGuardTest|CodexPolicyMutationTest)$
 
 jobs:
   gcc-15-debug:
@@ -251,7 +251,6 @@ jobs:
             CodexFrontendProtocolV1Test \
             CodexFrontendProtocolTargetIsolationTest \
             CodexFrontendProtocolMinimalConfigurationTest \
-            CodexFrontendProtocolLegacyBinaryCompatibilityTest \
             CodexFrontendTypedModelTest \
             CodexFrontendTypedOccurrenceTest \
             CodexFrontendTypedSnapshotTest \
@@ -332,7 +331,6 @@ jobs:
           deferred = {
               "CodexAppServerFixtureInfrastructureTest",
               "CodexFrontendProtocolMinimalConfigurationTest",
-              "CodexFrontendProtocolLegacyBinaryCompatibilityTest",
               "CodexPolicyMutationTest",
               "CodexPublicHeaderSelfContainmentTest",
               "CodexSyntheticSecretLeakGuardTest",

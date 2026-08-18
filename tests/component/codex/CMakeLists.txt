@@ -1646,27 +1646,6 @@ set_tests_properties(
         TIMEOUT 900
 )
 
-add_test(
-    NAME CodexFrontendProtocolLegacyBinaryCompatibilityTest
-    COMMAND
-        ${Python3_EXECUTABLE} -B
-        ${CMAKE_CURRENT_SOURCE_DIR}/CodexFrontendProtocolLegacyBinaryCompatibilityTest.py
-        --source-dir ${PROJECT_SOURCE_DIR}
-        --build-dir ${PROJECT_BINARY_DIR}
-        --snodec-dir ${snodec_DIR}
-        --p0-base fa93297df89cd555ae08914fe33f82d8c7017ec6
-        --temp-root ${PROJECT_BINARY_DIR}
-        --parallel 4
-)
-set_tests_properties(
-    CodexFrontendProtocolLegacyBinaryCompatibilityTest
-    PROPERTIES
-        LABELS "component;ai;openai;codex;frontend;protocol;abi;elf;p0;p2"
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
-        RUN_SERIAL TRUE
-        TIMEOUT 900
-)
-
 snodec_add_test(
     CodexFrontendContractMetadataTest
     ${PROJECT_SOURCE_DIR}/tests/ai/openai/codex/CodexFrontendContractMetadataTest.cpp

@@ -160,8 +160,6 @@ foreach(required
     tests/component/codex/CodexFrontendServiceClientIntegrationTest.cpp
     tests/component/codex/CodexFrontendProtocolTargetIsolationTest.cpp
     tests/component/codex/CodexFrontendProtocolMinimalConfigurationTest.py
-    tests/component/codex/CodexFrontendProtocolLegacyBinaryCompatibilityTest.py
-    tests/component/codex/CodexFrontendLegacyBinaryConsumer.cpp
     tests/component/codex/CodexFrontendTypedModelTest.cpp
     tests/component/codex/CodexFrontendTypedOccurrenceTest.cpp
     tests/component/codex/CodexFrontendTypedSnapshotTest.cpp

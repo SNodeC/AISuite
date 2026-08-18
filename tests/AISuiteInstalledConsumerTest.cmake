@@ -190,15 +190,19 @@ list(REMOVE_DUPLICATES forbidden_evidence_paths)
 find_program(readelf_executable readelf REQUIRED)
 find_program(ldd_executable ldd REQUIRED)
 
+# SNode.C and AISuite may intentionally share one installation prefix. Check
+# only SNode.C-owned namespaces so an already installed AISuite is not
+# mistaken for a duplicate SNode.C Codex installation.
 file(
     GLOB_RECURSE snodec_installed_codex_artifacts
     LIST_DIRECTORIES FALSE
-    "${snodec_install}/include/*/ai/openai/codex/*"
-    "${snodec_install}/lib/*ai-openai-codex*"
+    "${snodec_install}/include/snode.c/ai/openai/codex/*"
+    "${snodec_install}/lib/libsnodec-ai-openai-codex*"
+    "${snodec_package_dir_real}/snodec_ai-openai-codex*"
 )
 if(snodec_installed_codex_artifacts)
     fail_cross_repo(
-        "installed SNode.C package contains duplicate Codex headers or libraries: ${snodec_installed_codex_artifacts}"
+        "installed SNode.C package contains duplicate Codex headers, libraries, or exports: ${snodec_installed_codex_artifacts}"
     )
 endif()
 
