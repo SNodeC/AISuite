@@ -2663,7 +2663,11 @@ namespace ai::openai::codex::frontend::internal::client {
         if (!expandedDomains && !options.allowLegacyV1) {
             return std::nullopt;
         }
-        auto decoded = model::decodeProjectedSnapshot(snapshot, session->selectedCapabilities);
+        auto decoded = model::decodeProjectedSnapshot(
+            snapshot,
+            session->selectedCapabilities,
+            session->itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
+                                         : model::ItemContentWireMode::Replacement);
         if (!decoded) {
             return std::nullopt;
         }
@@ -2888,7 +2892,11 @@ namespace ai::openai::codex::frontend::internal::client {
                             return model::OccurrenceResult<model::CanonicalOccurrence>{model::OccurrenceError{
                                 model::OccurrenceErrorCode::InvalidPayload, "/events", "expanded event validation failed"}};
                         }
-                        return model::decodeExpandedOccurrence(expanded, context);
+                        return model::decodeExpandedOccurrence(
+                            expanded,
+                            context,
+                            session.has_value() && session->itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
+                                                                               : model::ItemContentWireMode::Replacement);
                     }
                     return model::decodeLegacyOccurrence(event, context);
                 }();

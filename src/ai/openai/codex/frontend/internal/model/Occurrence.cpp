@@ -121,8 +121,9 @@ namespace ai::openai::codex::frontend::internal::model {
             return std::nullopt;
         }
 
-        Json encodedSnapshotState(const CanonicalSnapshot& snapshot) {
-            const auto typed = encodeSnapshot(snapshot);
+        Json encodedSnapshotState(const CanonicalSnapshot& snapshot,
+                                  ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) {
+            const auto typed = encodeSnapshot(snapshot, itemContentMode);
             if (!typed) {
                 fail(OccurrenceErrorCode::EncodingFailure, typed.error().path, typed.error().message);
             }
@@ -133,7 +134,9 @@ namespace ai::openai::codex::frontend::internal::model {
             return member(encoded.value(), "state", "");
         }
 
-        CanonicalSnapshot decodedSnapshotState(Json state, FrontendSequence sequence) {
+        CanonicalSnapshot decodedSnapshotState(Json state,
+                                               FrontendSequence sequence,
+                                               ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) {
             Json envelope{{"protocol", ProtocolIdentity},
                           {"version", ProtocolVersion},
                           {"kind", kind::Snapshot},
@@ -143,7 +146,7 @@ namespace ai::openai::codex::frontend::internal::model {
             if (!wire) {
                 fail(OccurrenceErrorCode::InvalidPayload, "/data", wire.error().message);
             }
-            auto decoded = decodeSnapshot(wire.value());
+            auto decoded = decodeSnapshot(wire.value(), itemContentMode);
             if (!decoded) {
                 fail(OccurrenceErrorCode::InvalidPayload, decoded.error().path, decoded.error().message);
             }
@@ -340,10 +343,15 @@ namespace ai::openai::codex::frontend::internal::model {
                     return Json{{"turn", encodedSnapshotState(snapshot).at("turns").at(0)}};
                 case ExpandedEventType::ItemUpserted:
                     snapshot.items = {payloadAs<ItemUpsertedOccurrence>(payload).item};
-                    return Json{{"item", encodedSnapshotState(snapshot).at("items").at(0)}};
+                    return Json{{"item", encodedSnapshotState(snapshot, itemContentMode).at("items").at(0)}};
                 case ExpandedEventType::ItemContentUpdated: {
                     const auto& update = payloadAs<ItemContentUpdatedOccurrence>(payload);
                     Json data = update.extensions.json();
+                    if (data.erase(ItemContentOverflowV1Property) != 0) {
+                        fail(OccurrenceErrorCode::EncodingFailure,
+                             "/data/" + std::string(ItemContentOverflowV1Property),
+                             "item content extensions collide with the reserved overflow member");
+                    }
                     if (update.threadId.has_value()) {
                         data["threadId"] = update.threadId->value();
                     }
@@ -354,17 +362,42 @@ namespace ai::openai::codex::frontend::internal::model {
                     if (update.channel.has_value()) {
                         data["channel"] = *update.channel;
                     }
+                    if (update.overflowV1.has_value()) {
+                        const ItemContentOverflowV1& overflow = *update.overflowV1;
+                        const std::uint64_t suffixBytes = static_cast<std::uint64_t>(overflow.suffix.size());
+                        if (update.channel != std::optional<std::string>{"agentText"} || !update.content.has_value() ||
+                            overflow.baseContentBytes != static_cast<std::uint64_t>(update.content->size()) ||
+                            !update.contentTruncatedKnown || !update.truncation.truncated || !update.droppedContentBytesKnown ||
+                            update.truncation.droppedBytes < suffixBytes ||
+                            update.truncation.droppedBytes - suffixBytes != overflow.droppedContentBytesBeforeProjection) {
+                            fail(OccurrenceErrorCode::EncodingFailure,
+                                 "/data/" + std::string(ItemContentOverflowV1Property),
+                                 "item content overflow does not match the projected occurrence");
+                        }
+                    }
                     const bool exactAppendHint = [&update] {
                         if (!update.content.has_value() || !update.appendHint.has_value()) {
                             return false;
                         }
-                        const std::uint64_t contentBytes = static_cast<std::uint64_t>(update.content->size());
                         const ItemContentAppendHint& hint = *update.appendHint;
+                        if (update.overflowV1.has_value() && !hint.sourceVerified) {
+                            return false;
+                        }
+                        if (utf8CharacterPrefixLength(hint.delta, 16U * 1024U) != hint.delta.size()) {
+                            return false;
+                        }
+                        std::string verifiedContent = *update.content;
+                        if (hint.sourceVerified && update.overflowV1.has_value()) {
+                            verifiedContent.append(update.overflowV1->suffix);
+                        }
+                        const std::uint64_t contentBytes = static_cast<std::uint64_t>(verifiedContent.size());
                         if (hint.baseContentBytes > contentBytes ||
                             hint.delta.size() != static_cast<std::size_t>(contentBytes - hint.baseContentBytes)) {
                             return false;
                         }
-                        return update.content->compare(
+                        return verifiedContent.size() <= MaximumItemContentOverflowV1Bytes &&
+                               utf8CharacterPrefixLength(verifiedContent, verifiedContent.size()) == verifiedContent.size() &&
+                               verifiedContent.compare(
                                    static_cast<std::size_t>(hint.baseContentBytes), hint.delta.size(), hint.delta) == 0;
                     }();
                     if (itemContentMode == ItemContentWireMode::AppendV1 && exactAppendHint) {
@@ -373,12 +406,25 @@ namespace ai::openai::codex::frontend::internal::model {
                         data["baseContentBytes"] = update.appendHint->baseContentBytes;
                     } else if (update.content.has_value()) {
                         data["content"] = *update.content;
+                        if (itemContentMode == ItemContentWireMode::AppendV1 && update.overflowV1.has_value()) {
+                            const auto overflow = encodeItemContentOverflowV1(*update.overflowV1);
+                            if (!overflow) {
+                                fail(OccurrenceErrorCode::EncodingFailure, overflow.error().path, overflow.error().message);
+                            }
+                            data[std::string(ItemContentOverflowV1Property)] = overflow.value();
+                        }
                     }
                     if (update.contentTruncatedKnown) {
-                        data["contentTruncated"] = update.truncation.truncated;
+                        data["contentTruncated"] =
+                            itemContentMode == ItemContentWireMode::AppendV1 && exactAppendHint && update.overflowV1.has_value()
+                                ? update.overflowV1->contentTruncatedBeforeProjection
+                                : update.truncation.truncated;
                     }
                     if (update.droppedContentBytesKnown) {
-                        data["droppedContentBytes"] = update.truncation.droppedBytes;
+                        data["droppedContentBytes"] =
+                            itemContentMode == ItemContentWireMode::AppendV1 && exactAppendHint && update.overflowV1.has_value()
+                                ? update.overflowV1->droppedContentBytesBeforeProjection
+                                : update.truncation.droppedBytes;
                     }
                     return data;
                 }
@@ -502,7 +548,10 @@ namespace ai::openai::codex::frontend::internal::model {
                 payload);
         }
 
-        OccurrencePayload decodePayload(ExpandedEventType type, const Json& data, FrontendSequence sequence) {
+        OccurrencePayload decodePayload(ExpandedEventType type,
+                                        const Json& data,
+                                        FrontendSequence sequence,
+                                        ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) {
             Json state = baseSnapshotState(sequence);
             switch (type) {
                 case ExpandedEventType::ProviderUpdated:
@@ -533,7 +582,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     return TurnUpsertedOccurrence{decodedSnapshotState(std::move(state), sequence).turns.at(0)};
                 case ExpandedEventType::ItemUpserted:
                     state["items"] = Json::array({member(data, "item", "/data")});
-                    return ItemUpsertedOccurrence{decodedSnapshotState(std::move(state), sequence).items.at(0)};
+                    return ItemUpsertedOccurrence{decodedSnapshotState(std::move(state), sequence, itemContentMode).items.at(0)};
                 case ExpandedEventType::ItemContentUpdated: {
                     const auto identity = optionalString(data, "itemId");
                     auto parsed = identity.has_value() ? ItemIdentity::parse(*identity) : std::nullopt;
@@ -557,6 +606,8 @@ namespace ai::openai::codex::frontend::internal::model {
                     const bool hasContent = data.contains("content");
                     const bool hasDelta = data.contains("contentDelta");
                     const bool hasBase = data.contains("baseContentBytes");
+                    const auto overflowMember = data.find(ItemContentOverflowV1Property);
+                    const bool hasOverflow = overflowMember != data.end();
                     if (!hasContent) {
                         fail(OccurrenceErrorCode::InvalidPayload,
                              "/data/content",
@@ -570,6 +621,21 @@ namespace ai::openai::codex::frontend::internal::model {
                         fail(OccurrenceErrorCode::InvalidPayload,
                              "/data/contentDelta",
                              "item content append representation is incomplete");
+                    }
+                    if (hasDelta && itemContentMode != ItemContentWireMode::AppendV1) {
+                        fail(OccurrenceErrorCode::InvalidPayload,
+                             "/data/contentDelta",
+                             "item content append representation requires negotiated append-v1");
+                    }
+                    if (hasOverflow && itemContentMode != ItemContentWireMode::AppendV1) {
+                        fail(OccurrenceErrorCode::InvalidPayload,
+                             "/data/" + std::string(ItemContentOverflowV1Property),
+                             "item content overflow requires negotiated append-v1");
+                    }
+                    if (hasOverflow && hasDelta) {
+                        fail(OccurrenceErrorCode::InvalidPayload,
+                             "/data/" + std::string(ItemContentOverflowV1Property),
+                             "item content overflow cannot accompany an append representation");
                     }
                     if (!hasDelta) {
                         update.content = *wireContent;
@@ -589,9 +655,56 @@ namespace ai::openai::codex::frontend::internal::model {
                     }
                     const auto truncated = data.find("contentTruncated");
                     update.contentTruncatedKnown = truncated != data.end();
-                    update.truncation.truncated = truncated != data.end() && truncated->is_boolean() && truncated->get<bool>();
+                    if (truncated != data.end() && !truncated->is_boolean()) {
+                        fail(OccurrenceErrorCode::InvalidPayload,
+                             "/data/contentTruncated",
+                             "item content truncation marker is invalid");
+                    }
+                    update.truncation.truncated = truncated != data.end() && truncated->get<bool>();
                     update.droppedContentBytesKnown = data.contains("droppedContentBytes");
-                    update.truncation.droppedBytes = optionalUnsigned(data, "droppedContentBytes").value_or(0);
+                    const auto dropped = optionalUnsigned(data, "droppedContentBytes");
+                    if (update.droppedContentBytesKnown && !dropped.has_value()) {
+                        fail(OccurrenceErrorCode::InvalidPayload,
+                             "/data/droppedContentBytes",
+                             "item content dropped-byte count is invalid");
+                    }
+                    update.truncation.droppedBytes = dropped.value_or(0);
+                    if (hasOverflow) {
+                        if (update.channel != std::optional<std::string>{"agentText"} || !update.content.has_value() ||
+                            !update.contentTruncatedKnown || !update.truncation.truncated || !update.droppedContentBytesKnown) {
+                            fail(OccurrenceErrorCode::InvalidPayload,
+                                 "/data/" + std::string(ItemContentOverflowV1Property),
+                                 "item content overflow metadata is incomplete");
+                        }
+                        const auto overflow = decodeItemContentOverflowV1(
+                            *overflowMember, "/data/" + std::string(ItemContentOverflowV1Property));
+                        if (!overflow) {
+                            fail(OccurrenceErrorCode::InvalidPayload, overflow.error().path, overflow.error().message);
+                        }
+                        const ItemContentOverflowV1& value = overflow.value();
+                        const std::uint64_t prefixBytes = static_cast<std::uint64_t>(update.content->size());
+                        const std::uint64_t suffixBytes = static_cast<std::uint64_t>(value.suffix.size());
+                        if (value.baseContentBytes != prefixBytes ||
+                            value.droppedContentBytesBeforeProjection >
+                                std::numeric_limits<std::uint64_t>::max() - suffixBytes ||
+                            update.truncation.droppedBytes != value.droppedContentBytesBeforeProjection + suffixBytes) {
+                            fail(OccurrenceErrorCode::InvalidPayload,
+                                 "/data/" + std::string(ItemContentOverflowV1Property),
+                                 "item content overflow does not match the retained prefix metadata");
+                        }
+                        std::string restored = *update.content;
+                        restored.append(value.suffix);
+                        if (restored.size() > MaximumItemContentOverflowV1Bytes ||
+                            utf8CharacterPrefixLength(restored, restored.size()) != restored.size()) {
+                            fail(OccurrenceErrorCode::InvalidPayload,
+                                 "/data/" + std::string(ItemContentOverflowV1Property),
+                                 "item content overflow exceeds the retained channel bound");
+                        }
+                        update.content = std::move(restored);
+                        update.truncation.droppedBytes = value.droppedContentBytesBeforeProjection;
+                        update.truncation.truncated = value.contentTruncatedBeforeProjection;
+                        update.overflowWireRepresentation = true;
+                    }
                     return update;
                 }
                 case ExpandedEventType::PendingRequestsUpdated:
@@ -1668,13 +1781,14 @@ namespace ai::openai::codex::frontend::internal::model {
     }
 
     OccurrenceResult<CanonicalOccurrence> decodeExpandedOccurrence(const ExpandedFrontendEvent& event,
-                                                                   const OccurrenceDecodeContext& context) noexcept {
+                                                                   const OccurrenceDecodeContext& context,
+                                                                   ItemContentWireMode itemContentMode) noexcept {
         try {
             const auto validated = Codec::encodeExpandedEvent(event);
             if (!validated) {
                 fail(OccurrenceErrorCode::InvalidPayload, "/event", validated.error().message);
             }
-            OccurrencePayload payload = decodePayload(event.type, event.data, FrontendSequence(event.sequence));
+            OccurrencePayload payload = decodePayload(event.type, event.data, FrontendSequence(event.sequence), itemContentMode);
             setWireExtensions(payload, safeDetail(event.extensions, "/extensions"));
             return makeOccurrence(identityFromContext(FrontendSequence(event.sequence), context), std::move(payload));
         } catch (const OccurrenceFailure& failure) {
@@ -2268,6 +2382,14 @@ namespace ai::openai::codex::frontend::internal::model {
                                     if (content == nullptr) {
                                         fail(OccurrenceErrorCode::InvalidPayload, "/channel", "item content channel is invalid");
                                     }
+                                    const bool extendedAgentText = update.channel == std::optional<std::string>{"agentText"} &&
+                                                                   (update.appendWireRepresentation ||
+                                                                    update.overflowWireRepresentation);
+                                    if (update.overflowWireRepresentation && !extendedAgentText) {
+                                        fail(OccurrenceErrorCode::InvalidPayload,
+                                             "/channel",
+                                             "extended item content representation is valid only for agentText");
+                                    }
                                     std::optional<std::string> replacement;
                                     if (update.appendWireRepresentation) {
                                         if (!update.appendHint.has_value()) {
@@ -2286,16 +2408,23 @@ namespace ai::openai::codex::frontend::internal::model {
                                     } else {
                                         replacement = update.content;
                                     }
-                                    *content = std::move(replacement);
                                     std::uint64_t additionalDropped = 0;
-                                    if (content->has_value()) {
-                                        const std::size_t retained = utf8CharacterPrefixLength(**content, 16'384);
-                                        const std::size_t excess = (*content)->size() - retained;
+                                    if (replacement.has_value() && extendedAgentText) {
+                                        if (replacement->size() > MaximumItemContentOverflowV1Bytes ||
+                                            utf8CharacterPrefixLength(*replacement, replacement->size()) != replacement->size()) {
+                                            fail(OccurrenceErrorCode::InvalidPayload,
+                                                 "/content",
+                                                 "extended agentText exceeds the retained channel bound or is invalid UTF-8");
+                                        }
+                                    } else if (replacement.has_value()) {
+                                        const std::size_t retained = utf8CharacterPrefixLength(*replacement, 16'384);
+                                        const std::size_t excess = replacement->size() - retained;
                                         additionalDropped = excess > std::numeric_limits<std::uint64_t>::max()
                                                                 ? std::numeric_limits<std::uint64_t>::max()
                                                                 : static_cast<std::uint64_t>(excess);
-                                        (*content)->resize(retained);
+                                        replacement->resize(retained);
                                     }
+                                    *content = std::move(replacement);
                                     if (update.contentTruncatedKnown) {
                                         item.value.contentTruncated = update.truncation.truncated;
                                     }

@@ -464,7 +464,7 @@ namespace ai::openai::codex::frontend::internal::model {
             fail(ModelErrorCode::UnsupportedDiscriminator, "/state/pendingRequests/kind", "unsupported pending-request discriminator");
         }
 
-        ExpandedThreadItem encodeItem(const ThreadItem& item) {
+        ExpandedThreadItem encodeItem(const ThreadItem& item, ItemContentWireMode itemContentMode) {
             const ItemData& data = itemData(item);
             ExpandedThreadItem encoded;
             encoded.id = data.id.value();
@@ -488,14 +488,42 @@ namespace ai::openai::codex::frontend::internal::model {
             encoded.contentTruncated = data.contentTruncated;
             encoded.startedAtMs = data.startedAtMs;
             encoded.completedAtMs = data.completedAtMs;
-            if (data.safeDetails.has_value()) {
-                Json projected = expandedItemDetailObject(*data.safeDetails, threadItemKind(item) == ThreadItemKind::UserMessage);
-                if (!projected.empty()) {
-                    encoded.data = std::move(projected);
+            Json projected = data.safeDetails.has_value()
+                                 ? expandedItemDetailObject(*data.safeDetails, threadItemKind(item) == ThreadItemKind::UserMessage)
+                                 : Json::object();
+            bool dataOmittedForOverflow = projected.erase(std::string(ItemContentOverflowV1Property)) != 0;
+            const bool emitOverflow = itemContentMode == ItemContentWireMode::AppendV1 && data.agentTextOverflowV1.has_value();
+            if (emitOverflow && projected.size() >= 64) {
+                while (projected.size() >= 64) {
+                    projected.erase(std::prev(projected.end()));
                 }
+                // `truncated` remains authoritative even when the frozen
+                // omittedFields array is itself already at capacity.
+                dataOmittedForOverflow = true;
             }
-            encoded.truncated = data.truncation.truncated;
+            if (emitOverflow) {
+                ItemData validatedItem = data;
+                if (const std::optional<ModelError> validation =
+                        restoreAgentTextOverflowV1(validatedItem, *data.agentTextOverflowV1, "/state/items/agentText");
+                    validation.has_value()) {
+                    fail(validation->code, validation->path, validation->message);
+                }
+                const auto overflow = encodeItemContentOverflowV1(*data.agentTextOverflowV1);
+                if (!overflow) {
+                    fail(overflow.error().code, overflow.error().path, overflow.error().message);
+                }
+                projected[std::string(ItemContentOverflowV1Property)] = overflow.value();
+            }
+            if (!projected.empty()) {
+                encoded.data = std::move(projected);
+            }
+            encoded.truncated = data.truncation.truncated || dataOmittedForOverflow;
             encoded.omittedFields = data.truncation.omittedPaths;
+            if (dataOmittedForOverflow &&
+                std::find(encoded.omittedFields.begin(), encoded.omittedFields.end(), "/data") == encoded.omittedFields.end() &&
+                encoded.omittedFields.size() < 64) {
+                encoded.omittedFields.push_back("/data");
+            }
             encoded.connectionInvalidated = data.connectionInvalidated;
             encoded.generation = data.generation;
             encoded.freshness = protocolFreshness(data.freshness);
@@ -503,7 +531,7 @@ namespace ai::openai::codex::frontend::internal::model {
             return encoded;
         }
 
-        ThreadItem decodeItem(const ExpandedThreadItem& item, std::size_t index) {
+        ThreadItem decodeItem(const ExpandedThreadItem& item, std::size_t index, ItemContentWireMode itemContentMode) {
             const std::string path = "/state/items/" + std::to_string(index);
             auto id = ItemIdentity::parse(item.id);
             if (!id.has_value()) {
@@ -527,11 +555,33 @@ namespace ai::openai::codex::frontend::internal::model {
             data.contentTruncated = item.contentTruncated.value_or(false);
             data.startedAtMs = item.startedAtMs;
             data.completedAtMs = item.completedAtMs;
-            if (item.data.has_value()) {
-                data.safeDetails = safeDetail(*item.data, path + "/data");
-            }
             data.truncation.truncated = item.truncated;
             data.truncation.omittedPaths = item.omittedFields;
+            if (item.data.has_value()) {
+                Json details = *item.data;
+                const auto overflowMember = details.find(std::string(ItemContentOverflowV1Property));
+                if (overflowMember != details.end()) {
+                    if (itemContentMode != ItemContentWireMode::AppendV1) {
+                        fail(ModelErrorCode::InvalidShape,
+                             path + "/data/" + std::string(ItemContentOverflowV1Property),
+                             "item content overflow representation was not negotiated");
+                    }
+                    const auto overflow = decodeItemContentOverflowV1(
+                        *overflowMember, path + "/data/" + std::string(ItemContentOverflowV1Property));
+                    if (!overflow) {
+                        fail(overflow.error().code, overflow.error().path, overflow.error().message);
+                    }
+                    details.erase(overflowMember);
+                    const std::optional<ModelError> restoration =
+                        restoreAgentTextOverflowV1(data, overflow.value(), path + "/agentText");
+                    if (restoration.has_value()) {
+                        fail(restoration->code, restoration->path, restoration->message);
+                    }
+                }
+                if (!details.empty()) {
+                    data.safeDetails = safeDetail(std::move(details), path + "/data");
+                }
+            }
             data.connectionInvalidated = item.connectionInvalidated;
             data.generation = item.generation;
             data.freshness = modelFreshness(item.freshness);
@@ -1389,6 +1439,117 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
+    ModelResult<Json> encodeItemContentOverflowV1(const ItemContentOverflowV1& overflow) noexcept {
+        try {
+            const bool validUtf8 = frontendUtf8PrefixLength(overflow.suffix, overflow.suffix.size()) == overflow.suffix.size();
+            const bool withinFrozenScalar = frontendUtf8PrefixLength(overflow.suffix, 16U * 1024U) == overflow.suffix.size();
+            if (overflow.suffix.empty() || !validUtf8 || !withinFrozenScalar ||
+                overflow.baseContentBytes > MaximumItemContentOverflowV1Bytes ||
+                overflow.suffix.size() > MaximumItemContentOverflowV1Bytes - static_cast<std::size_t>(overflow.baseContentBytes)) {
+                return ModelError{ModelErrorCode::InvalidShape,
+                                  "/" + std::string(ItemContentOverflowV1Property),
+                                  "item content overflow suffix is invalid or over capacity"};
+            }
+            return Json::array({overflow.baseContentBytes,
+                                overflow.suffix,
+                                overflow.droppedContentBytesBeforeProjection,
+                                overflow.contentTruncatedBeforeProjection,
+                                overflow.truncationBeforeProjection});
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape,
+                              "/" + std::string(ItemContentOverflowV1Property),
+                              "item content overflow encoding failed"};
+        }
+    }
+
+    ModelResult<ItemContentOverflowV1> decodeItemContentOverflowV1(const Json& encoded, std::string path) noexcept {
+        try {
+            const auto unsignedValue = [](const Json& value) -> std::optional<std::uint64_t> {
+                if (value.is_number_unsigned()) {
+                    return value.get<std::uint64_t>();
+                }
+                if (value.is_number_integer()) {
+                    const std::int64_t signedValue = value.get<std::int64_t>();
+                    if (signedValue >= 0) {
+                        return static_cast<std::uint64_t>(signedValue);
+                    }
+                }
+                return std::nullopt;
+            };
+            if (!encoded.is_array() || encoded.size() != 5 || !encoded[1].is_string() || !encoded[3].is_boolean() ||
+                !encoded[4].is_boolean()) {
+                return ModelError{ModelErrorCode::InvalidShape, std::move(path), "item content overflow representation is malformed"};
+            }
+            const std::optional<std::uint64_t> base = unsignedValue(encoded[0]);
+            const std::optional<std::uint64_t> droppedBefore = unsignedValue(encoded[2]);
+            if (!base.has_value() || !droppedBefore.has_value()) {
+                return ModelError{ModelErrorCode::InvalidShape, std::move(path), "item content overflow counters are invalid"};
+            }
+            ItemContentOverflowV1 overflow{*base,
+                                          encoded[1].get<std::string>(),
+                                          *droppedBefore,
+                                          encoded[3].get<bool>(),
+                                          encoded[4].get<bool>()};
+            const auto validated = encodeItemContentOverflowV1(overflow);
+            if (!validated) {
+                return ModelError{validated.error().code, std::move(path), validated.error().message};
+            }
+            return overflow;
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, std::move(path), "item content overflow decoding failed"};
+        }
+    }
+
+    std::optional<ModelError>
+    restoreAgentTextOverflowV1(ItemData& item, const ItemContentOverflowV1& overflow, std::string path) noexcept {
+        try {
+            const auto invalid = [&path](std::string message) {
+                return std::optional<ModelError>{ModelError{ModelErrorCode::InvalidShape, path, std::move(message)}};
+            };
+            if (!item.agentText.has_value() || item.agentText->size() != overflow.baseContentBytes ||
+                frontendUtf8PrefixLength(*item.agentText, item.agentText->size()) != item.agentText->size()) {
+                return invalid("item content overflow base does not match the retained agent text");
+            }
+            if (!item.contentTruncated || !item.droppedContentBytes.has_value() ||
+                *item.droppedContentBytes < overflow.suffix.size()) {
+                return invalid("item content overflow has no matching projection-drop metadata");
+            }
+            const std::uint64_t remainingDropped = *item.droppedContentBytes - static_cast<std::uint64_t>(overflow.suffix.size());
+            if (remainingDropped != overflow.droppedContentBytesBeforeProjection) {
+                return invalid("item content overflow would subtract non-projection drop metadata");
+            }
+            const auto omitted = std::find(item.truncation.omittedPaths.begin(), item.truncation.omittedPaths.end(), "/agentText");
+            if (!item.truncation.truncated || omitted == item.truncation.omittedPaths.end()) {
+                return invalid("item content overflow has no matching agent-text truncation marker");
+            }
+            std::optional<std::uint64_t> remainingCanonicalDropped;
+            if (item.truncation.droppedBytesPresent || item.truncation.droppedBytes != 0) {
+                if (item.truncation.droppedBytes < overflow.suffix.size()) {
+                    return invalid("item content overflow exceeds canonical dropped-byte metadata");
+                }
+                remainingCanonicalDropped = item.truncation.droppedBytes - static_cast<std::uint64_t>(overflow.suffix.size());
+            }
+            std::string restored = *item.agentText;
+            restored.append(overflow.suffix);
+
+            item.agentText = std::move(restored);
+            item.droppedContentBytes = remainingDropped;
+            if (!overflow.contentTruncatedBeforeProjection) {
+                item.truncation.omittedPaths.erase(omitted);
+            }
+            if (remainingCanonicalDropped.has_value()) {
+                item.truncation.droppedBytes = *remainingCanonicalDropped;
+            }
+            item.contentTruncated = overflow.contentTruncatedBeforeProjection || remainingDropped != 0;
+            item.truncation.truncated = overflow.truncationBeforeProjection || item.contentTruncated ||
+                                        item.truncation.omittedEntries.value_or(0) != 0 || !item.truncation.omittedPaths.empty();
+            item.agentTextOverflowV1.reset();
+            return std::nullopt;
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, std::move(path), "item content overflow restoration failed"};
+        }
+    }
+
     std::string_view toString(ProviderLifecycle lifecycle) noexcept {
         switch (lifecycle) {
             case ProviderLifecycle::Stopped:
@@ -1491,7 +1652,7 @@ namespace ai::openai::codex::frontend::internal::model {
             request);
     }
 
-    ModelResult<ExpandedSnapshot> encodeSnapshot(const CanonicalSnapshot& snapshot) noexcept {
+    ModelResult<ExpandedSnapshot> encodeSnapshot(const CanonicalSnapshot& snapshot, ItemContentWireMode itemContentMode) noexcept {
         try {
             ExpandedBackendSnapshotState state;
 
@@ -1586,7 +1747,7 @@ namespace ai::openai::codex::frontend::internal::model {
             std::vector<ExpandedThreadItem> items;
             items.reserve(snapshot.items.size());
             for (const ThreadItem& item : snapshot.items) {
-                items.push_back(encodeItem(item));
+                items.push_back(encodeItem(item, itemContentMode));
             }
             state.items = std::move(items);
 
@@ -1694,7 +1855,7 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
-    ModelResult<CanonicalSnapshot> decodeSnapshot(const ExpandedSnapshot& snapshot) noexcept {
+    ModelResult<CanonicalSnapshot> decodeSnapshot(const ExpandedSnapshot& snapshot, ItemContentWireMode itemContentMode) noexcept {
         try {
             CanonicalSnapshot decoded;
             decoded.sequence = FrontendSequence(snapshot.sequence);
@@ -1858,7 +2019,7 @@ namespace ai::openai::codex::frontend::internal::model {
             if (snapshot.state.items.has_value()) {
                 decoded.items.reserve(snapshot.state.items->size());
                 for (std::size_t index = 0; index < snapshot.state.items->size(); ++index) {
-                    decoded.items.push_back(decodeItem(snapshot.state.items->at(index), index));
+                    decoded.items.push_back(decodeItem(snapshot.state.items->at(index), index, itemContentMode));
                 }
             }
             if (snapshot.state.pendingRequests.has_value()) {
@@ -3202,7 +3363,9 @@ namespace ai::openai::codex::frontend::internal::model {
             return state;
         }
 
-        ModelResult<CanonicalSnapshot> decodeExpandedState(const Snapshot& snapshot, Json state) noexcept {
+        ModelResult<CanonicalSnapshot> decodeExpandedState(const Snapshot& snapshot,
+                                                           Json state,
+                                                           ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept {
             try {
                 Json encoded{{"protocol", ProtocolIdentity},
                              {"version", ProtocolVersion},
@@ -3221,7 +3384,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 if (!expanded) {
                     return ModelError{ModelErrorCode::InvalidShape, "/state", expanded.error().message};
                 }
-                return decodeSnapshot(expanded.value());
+                return decodeSnapshot(expanded.value(), itemContentMode);
             } catch (const ModelFailure& failure) {
                 return failure.error;
             } catch (const std::exception& error) {
@@ -3339,7 +3502,7 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
-    ModelResult<CanonicalSnapshot> decodeLegacySnapshot(const Snapshot& snapshot) noexcept {
+    ModelResult<CanonicalSnapshot> decodeLegacySnapshot(const Snapshot& snapshot, ItemContentWireMode itemContentMode) noexcept {
         try {
             Json sanitizedLegacy = snapshot.state;
             preserveLegacyPendingQuestionClassifications(sanitizedLegacy);
@@ -3353,7 +3516,8 @@ namespace ai::openai::codex::frontend::internal::model {
             }
             std::vector<LegacyItemCompatibility> legacyItems;
             std::vector<LegacyPendingRequestCompatibility> legacyPending;
-            auto decoded = decodeExpandedState(snapshot, expandedStateFromLegacy(sanitizedLegacy, &legacyItems, &legacyPending));
+            auto decoded =
+                decodeExpandedState(snapshot, expandedStateFromLegacy(sanitizedLegacy, &legacyItems, &legacyPending), itemContentMode);
             if (!decoded) {
                 return decoded.error();
             }
@@ -3389,7 +3553,9 @@ namespace ai::openai::codex::frontend::internal::model {
                 selected(FrontendCapability::ScopeProjectedState)};
     }
 
-    ModelResult<Snapshot> encodeProjectedSnapshot(const CanonicalSnapshot& snapshot, SnapshotRepresentationSelection selection) noexcept {
+    ModelResult<Snapshot> encodeProjectedSnapshot(const CanonicalSnapshot& snapshot,
+                                                  SnapshotRepresentationSelection selection,
+                                                  ItemContentWireMode itemContentMode) noexcept {
         try {
             auto legacy = encodeLegacySnapshot(snapshot);
             CanonicalSnapshot represented = snapshot;
@@ -3409,7 +3575,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     accountOmission(represented.truncation, request.omissionPath);
                 }
             }
-            auto expanded = encodeSnapshot(represented);
+            auto expanded = encodeSnapshot(represented, itemContentMode);
             if (!legacy) {
                 return legacy.error();
             }
@@ -3483,14 +3649,17 @@ namespace ai::openai::codex::frontend::internal::model {
     }
 
     ModelResult<Snapshot> encodeProjectedSnapshot(const CanonicalSnapshot& snapshot,
-                                                  std::span<const FrontendCapability> selectedCapabilities) noexcept {
-        return encodeProjectedSnapshot(snapshot, snapshotRepresentationSelection(selectedCapabilities));
+                                                  std::span<const FrontendCapability> selectedCapabilities,
+                                                  ItemContentWireMode itemContentMode) noexcept {
+        return encodeProjectedSnapshot(snapshot, snapshotRepresentationSelection(selectedCapabilities), itemContentMode);
     }
 
-    ModelResult<CanonicalSnapshot> decodeProjectedSnapshot(const Snapshot& snapshot, SnapshotRepresentationSelection selection) noexcept {
+    ModelResult<CanonicalSnapshot> decodeProjectedSnapshot(const Snapshot& snapshot,
+                                                           SnapshotRepresentationSelection selection,
+                                                           ItemContentWireMode itemContentMode) noexcept {
         try {
             if (!selection.expandedDomains) {
-                return decodeLegacySnapshot(snapshot);
+                return decodeLegacySnapshot(snapshot, itemContentMode);
             }
             Json normalized = snapshot.state;
             std::vector<LegacyItemCompatibility> legacyItems;
@@ -3527,7 +3696,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 }
                 normalized["pendingRequests"] = std::move(pending);
             }
-            auto decoded = decodeExpandedState(snapshot, std::move(normalized));
+            auto decoded = decodeExpandedState(snapshot, std::move(normalized), itemContentMode);
             if (!decoded) {
                 return decoded.error();
             }
@@ -3543,8 +3712,9 @@ namespace ai::openai::codex::frontend::internal::model {
     }
 
     ModelResult<CanonicalSnapshot> decodeProjectedSnapshot(const Snapshot& snapshot,
-                                                           std::span<const FrontendCapability> selectedCapabilities) noexcept {
-        return decodeProjectedSnapshot(snapshot, snapshotRepresentationSelection(selectedCapabilities));
+                                                           std::span<const FrontendCapability> selectedCapabilities,
+                                                           ItemContentWireMode itemContentMode) noexcept {
+        return decodeProjectedSnapshot(snapshot, snapshotRepresentationSelection(selectedCapabilities), itemContentMode);
     }
 
 } // namespace ai::openai::codex::frontend::internal::model

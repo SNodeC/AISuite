@@ -102,7 +102,8 @@ namespace ai::openai::codex::frontend::internal::server {
             try {
                 std::string combined = first.delta;
                 combined.append(second.delta);
-                next->appendHint = model::ItemContentAppendHint{first.baseContentBytes, std::move(combined)};
+                next->appendHint = model::ItemContentAppendHint{
+                    first.baseContentBytes, std::move(combined), first.sourceVerified && second.sourceVerified};
             } catch (...) {
                 next->appendHint.reset();
             }
@@ -494,6 +495,7 @@ namespace ai::openai::codex::frontend::internal::server {
             ConnectionToken token;
             model::ProjectionContext projection;
             std::vector<FrontendCapability> negotiatedCapabilities;
+            bool itemContentAppendV1 = false;
         };
 
         struct SnapshotBarrier {
@@ -2167,7 +2169,8 @@ namespace ai::openai::codex::frontend::internal::server {
         if (!connection) {
             return std::nullopt;
         }
-        return FrozenSnapshotRecipient{token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities};
+        return FrozenSnapshotRecipient{
+            token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities, connection->itemContentAppendV1};
     }
 
     bool ServerCore::Impl::enqueueFrozenSnapshot(const FrozenSnapshotRecipient& recipient,
@@ -2185,7 +2188,11 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             const model::CanonicalSnapshot& snapshot = projected.value();
 
-            const model::ModelResult<Snapshot> encoded = model::encodeProjectedSnapshot(snapshot, recipient.negotiatedCapabilities);
+            const model::ModelResult<Snapshot> encoded = model::encodeProjectedSnapshot(
+                snapshot,
+                recipient.negotiatedCapabilities,
+                recipient.itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
+                                              : model::ItemContentWireMode::Replacement);
             return encoded && (deferUntilSnapshotBarrier ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
                                                          : enqueue(recipient.token.identity, ServerMessage{encoded.value()}));
         } catch (...) {

@@ -135,6 +135,9 @@ namespace ai::openai::codex::frontend::internal::model {
     struct ItemContentAppendHint {
         std::uint64_t baseContentBytes = 0;
         std::string delta;
+        // Set only when projection verified this hint against the bounded
+        // authoritative backend channel rather than the frozen v1 prefix.
+        bool sourceVerified = false;
 
         bool operator==(const ItemContentAppendHint&) const = default;
     };
@@ -148,20 +151,22 @@ namespace ai::openai::codex::frontend::internal::model {
         TruncationMetadata truncation;
         bool contentTruncatedKnown = true;
         bool droppedContentBytesKnown = true;
+        std::optional<ItemContentOverflowV1> overflowV1;
         // The full replacement is authoritative in server/journal values.
         // This hint is connection-neutral until an encoder is explicitly
         // asked to use append-v1 for one negotiated recipient.
         std::optional<ItemContentAppendHint> appendHint;
         // True only for an append-v1 occurrence decoded from the wire.
         bool appendWireRepresentation = false;
+        // True only for a validated append-v1 overflow replacement decoded
+        // from the schema-neutral reserved detail member.
+        bool overflowWireRepresentation = false;
         SafeDetail extensions;
         explicit ItemContentUpdatedOccurrence(ItemIdentity value)
             : itemId(std::move(value)) {
         }
         bool operator==(const ItemContentUpdatedOccurrence&) const = default;
     };
-
-    enum class ItemContentWireMode { Replacement, AppendV1 };
 
     struct PendingRequestsUpdatedOccurrence {
         std::vector<PendingRequest> pendingRequests;
@@ -514,7 +519,9 @@ namespace ai::openai::codex::frontend::internal::model {
                              ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] OccurrenceResult<FrontendEvent> encodeLegacyOccurrence(const CanonicalOccurrence& occurrence) noexcept;
     [[nodiscard]] OccurrenceResult<CanonicalOccurrence> decodeExpandedOccurrence(const ExpandedFrontendEvent& event,
-                                                                                 const OccurrenceDecodeContext& context) noexcept;
+                                                                                 const OccurrenceDecodeContext& context,
+                                                                                 ItemContentWireMode itemContentMode =
+                                                                                     ItemContentWireMode::Replacement) noexcept;
     [[nodiscard]] OccurrenceResult<CanonicalOccurrence>
     decodeLegacyOccurrence(const FrontendEvent& event,
                            const OccurrenceDecodeContext& context,

@@ -722,13 +722,24 @@ namespace ai::openai::codex::frontend::internal::server {
         void projectItemContent(std::string_view source,
                                 std::optional<std::string>& destination,
                                 model::ItemData& data,
-                                std::string path) {
+                                std::string path,
+                                bool retainAgentTextOverflow = false) {
             if (source.empty()) {
                 return;
             }
             constexpr std::size_t MaximumContentCharacters = 16U * 1024U;
+            const std::uint64_t droppedBeforeProjection = data.droppedContentBytes.value_or(0);
+            const bool contentTruncatedBeforeProjection = data.contentTruncated;
+            const bool truncationBeforeProjection = data.truncation.truncated;
             std::string retained = boundedFrontendString(source, MaximumContentCharacters, &data.truncation, std::move(path));
             if (retained.size() != source.size()) {
+                if (retainAgentTextOverflow && source.size() <= model::MaximumItemContentOverflowV1Bytes && validUtf8(source)) {
+                    data.agentTextOverflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(retained.size()),
+                                                                           std::string(source.substr(retained.size())),
+                                                                           droppedBeforeProjection,
+                                                                           contentTruncatedBeforeProjection,
+                                                                           truncationBeforeProjection};
+                }
                 const std::uint64_t dropped = static_cast<std::uint64_t>(source.size() - retained.size());
                 std::uint64_t droppedContent = data.droppedContentBytes.value_or(0);
                 saturatingAdd(droppedContent, dropped);
@@ -752,10 +763,25 @@ namespace ai::openai::codex::frontend::internal::server {
             if (!item.status.empty()) {
                 data.status = boundedFrontendString(item.status, 256, &data.truncation, "/status");
             }
-            projectItemContent(item.agentText, data.agentText, data, "/agentText");
+            projectItemContent(item.agentText, data.agentText, data, "/agentText", true);
             projectItemContent(item.reasoningText, data.reasoningText, data, "/reasoningText");
             projectItemContent(item.reasoningSummary, data.reasoningSummary, data, "/reasoningSummary");
             projectItemContent(item.commandOutput, data.commandOutput, data, "/commandOutput");
+            if (data.agentTextOverflowV1.has_value()) {
+                model::ItemContentOverflowV1& overflow = *data.agentTextOverflowV1;
+                const std::uint64_t suffixBytes = static_cast<std::uint64_t>(overflow.suffix.size());
+                if (data.droppedContentBytes.has_value() && *data.droppedContentBytes >= suffixBytes) {
+                    overflow.droppedContentBytesBeforeProjection = *data.droppedContentBytes - suffixBytes;
+                }
+                overflow.contentTruncatedBeforeProjection =
+                    overflow.contentTruncatedBeforeProjection || overflow.droppedContentBytesBeforeProjection != 0;
+                overflow.truncationBeforeProjection =
+                    overflow.truncationBeforeProjection || overflow.contentTruncatedBeforeProjection ||
+                    data.truncation.omittedEntries.value_or(0) != 0 ||
+                    std::any_of(data.truncation.omittedPaths.begin(), data.truncation.omittedPaths.end(), [](const std::string& path) {
+                        return path != "/agentText";
+                    });
+            }
             data.startedAtMs = item.startedAtMs;
             data.completedAtMs = item.completedAtMs;
             data.connectionInvalidated = item.connectionInvalidated;
@@ -1716,6 +1742,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     update.channel = *selection.channel;
                     if (*update.channel == "agentText") {
                         update.content = data.agentText;
+                        update.overflowV1 = data.agentTextOverflowV1;
                     } else if (*update.channel == "reasoningText") {
                         update.content = data.reasoningText;
                     } else if (*update.channel == "reasoningSummary") {
@@ -2066,6 +2093,14 @@ namespace ai::openai::codex::frontend::internal::server {
             update.truncation.droppedBytes = droppedContentBytes;
             std::string retained = boundedFrontendString(source, MaximumContentCharacters);
             if (retained.size() != source.size()) {
+                if (selectedChannel == backend::ItemContentSnapshotChannel::AgentText &&
+                    source.size() <= model::MaximumItemContentOverflowV1Bytes && validUtf8(source)) {
+                    update.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(retained.size()),
+                                                                    std::string(source.substr(retained.size())),
+                                                                    droppedContentBytes,
+                                                                    contentTruncated,
+                                                                    contentTruncated};
+                }
                 saturatingAdd(update.truncation.droppedBytes,
                               static_cast<std::uint64_t>(source.size() - retained.size()));
                 update.truncation.truncated = true;
@@ -2089,23 +2124,24 @@ namespace ai::openai::codex::frontend::internal::server {
 
         void retainItemContentAppendHint(model::ItemContentUpdatedOccurrence& update,
                                          const backend::ItemContentChanged& event,
-                                         std::uint64_t currentBackendDroppedBytes) {
+                                         std::uint64_t currentBackendDroppedBytes,
+                                         std::string_view fullContent) {
             if (!update.content.has_value() || !event.channelBytesBefore.has_value() ||
                 !event.droppedContentBytesBefore.has_value() || *event.droppedContentBytesBefore != 0 ||
-                currentBackendDroppedBytes != 0 || *event.channelBytesBefore > update.content->size()) {
+                currentBackendDroppedBytes != 0 || *event.channelBytesBefore > fullContent.size()) {
                 return;
             }
 
             const std::size_t base = *event.channelBytesBefore;
-            const std::size_t retainedDeltaBytes = update.content->size() - base;
+            const std::size_t retainedDeltaBytes = fullContent.size() - base;
             if (event.delta.size() < retainedDeltaBytes) {
                 return;
             }
-            if (update.content->compare(base, retainedDeltaBytes, event.delta, 0, retainedDeltaBytes) != 0) {
+            if (fullContent.compare(base, retainedDeltaBytes, event.delta, 0, retainedDeltaBytes) != 0) {
                 return;
             }
             update.appendHint = model::ItemContentAppendHint{
-                static_cast<std::uint64_t>(base), update.content->substr(base, retainedDeltaBytes)};
+                static_cast<std::uint64_t>(base), std::string(fullContent.substr(base, retainedDeltaBytes)), true};
         }
 
         template <typename>
@@ -2606,7 +2642,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     return model::ModelError{
                         model::ModelErrorCode::InvalidShape, "/events/item/content", "content channel is absent from the exact item"};
                 }
-                retainItemContentAppendHint(update, *event, item.backendDroppedContentBytes);
+                retainItemContentAppendHint(update, *event, item.backendDroppedContentBytes, item.content);
 
                 // Once an append-only backend channel was already longer than
                 // the final projected UTF-8 prefix, another append cannot
@@ -2614,9 +2650,13 @@ namespace ai::openai::codex::frontend::internal::server {
                 // it is the first overflow transition which makes truncation
                 // observable to the client. Any missing hint or backend-side
                 // rolling retention remains on the conservative emit path.
-                if (event->channelBytesBefore.has_value() && event->droppedContentBytesBefore.has_value() &&
+                const std::size_t projectedContentBytes =
+                    update.content->size() + (update.overflowV1.has_value() ? update.overflowV1->suffix.size() : 0);
+                const bool unchangedFrozenContent =
+                    event->channelBytesBefore.has_value() && event->droppedContentBytesBefore.has_value() &&
                     *event->droppedContentBytesBefore == 0 && item.backendDroppedContentBytes == 0 &&
-                    *event->channelBytesBefore > update.content->size()) {
+                    *event->channelBytesBefore > projectedContentBytes;
+                if (unchangedFrozenContent) {
                     continue;
                 }
 
@@ -2876,8 +2916,23 @@ namespace ai::openai::codex::frontend::internal::server {
                             if (!payload || backendItem == nullptr) {
                                 projected.snapshotRequired = true;
                             } else {
-                                retainItemContentAppendHint(
-                                    std::get<model::ItemContentUpdatedOccurrence>(*payload), event, backendItem->droppedContentBytes);
+                                const std::string_view fullContent = [&]() -> std::string_view {
+                                    switch (event.kind) {
+                                        case backend::ItemContentChanged::Kind::AgentText:
+                                            return backendItem->agentText;
+                                        case backend::ItemContentChanged::Kind::ReasoningText:
+                                            return backendItem->reasoningText;
+                                        case backend::ItemContentChanged::Kind::ReasoningSummary:
+                                            return backendItem->reasoningSummary;
+                                        case backend::ItemContentChanged::Kind::CommandOutput:
+                                            return backendItem->commandOutput;
+                                    }
+                                    return {};
+                                }();
+                                retainItemContentAppendHint(std::get<model::ItemContentUpdatedOccurrence>(*payload),
+                                                            event,
+                                                            backendItem->droppedContentBytes,
+                                                            fullContent);
                                 append(sequenced.sequence,
                                        std::move(*payload),
                                        std::move(selection),

@@ -119,8 +119,10 @@ namespace {
         return canonical;
     }
 
-    frontend::Snapshot projectedSnapshot(model::CanonicalSnapshot state, const std::vector<frontend::FrontendCapability>& selected) {
-        const auto projected = model::encodeProjectedSnapshot(state, selected);
+    frontend::Snapshot projectedSnapshot(model::CanonicalSnapshot state,
+                                         const std::vector<frontend::FrontendCapability>& selected,
+                                         model::ItemContentWireMode itemContentMode = model::ItemContentWireMode::Replacement) {
+        const auto projected = model::encodeProjectedSnapshot(state, selected, itemContentMode);
         if (!projected) {
             throw std::runtime_error(projected.error().path + ": " + projected.error().message);
         }
@@ -1039,6 +1041,156 @@ namespace {
         const bool invalidAccepted = invalid.receive(invalidGeneration, frontend::ServerMessage{std::move(invalidWelcome)});
         result.expectTrue(!invalidAccepted && invalid.connectionState() == core::ConnectionState::Disconnected,
                           "an unoffered item-content update mode in Welcome is a protocol error");
+
+        const std::string overflowPrefix(16'384, 'p');
+        const std::string overflowSuffix = " retained";
+        const auto overflowState = [&](std::uint64_t sequence, const std::string& suffix) {
+            model::CanonicalSnapshot canonical = itemSnapshotState(sequence);
+            std::visit(
+                [&](auto& value) {
+                    value.value.agentText = overflowPrefix;
+                    value.value.agentTextOverflowV1 = model::ItemContentOverflowV1{
+                        static_cast<std::uint64_t>(overflowPrefix.size()), suffix, 0, false, false};
+                    value.value.contentTruncated = true;
+                    value.value.droppedContentBytes = static_cast<std::uint64_t>(suffix.size());
+                    value.value.truncation.truncated = true;
+                    value.value.truncation.droppedBytes = static_cast<std::uint64_t>(suffix.size());
+                    value.value.truncation.omittedPaths = {"/agentText"};
+                },
+                canonical.items.front());
+            return canonical;
+        };
+        const auto appendWelcome = [](const std::vector<frontend::FrontendCapability>& selected) {
+            return frontend::Welcome{"overflow-session",
+                                     frontend::SessionRole::Observer,
+                                     frontend::SequenceNumber{0},
+                                     frontend::SyncMode::Snapshot,
+                                     {{"permittedScopes", frontend::Json::array({"observe"})},
+                                      {"projection", {{"itemContentUpdateMode", "append-v1"}}}},
+                                     representationCapabilities(selected),
+                                     allMethods(),
+                                     allMethods()};
+        };
+
+        const std::vector<frontend::FrontendCapability> expandedItems{
+            frontend::FrontendCapability::CompleteBackendDomains, frontend::FrontendCapability::CompleteThreadItems};
+        Harness overflowHarness;
+        core::ClientOptions overflowOptions = clientOptions();
+        overflowOptions.requestedCapabilities = expandedItems;
+        core::ClientCore overflowClient(std::move(overflowOptions));
+        const core::PhysicalGeneration overflowGeneration = *overflowClient.attach(overflowHarness.transport());
+        overflowClient.transportConnected(overflowGeneration);
+        const bool overflowWelcomeAccepted =
+            overflowClient.receive(overflowGeneration, frontend::ServerMessage{appendWelcome(expandedItems)});
+        const bool overflowSnapshotAccepted = overflowClient.receive(
+            overflowGeneration,
+            frontend::ServerMessage{projectedSnapshot(
+                overflowState(0, overflowSuffix), expandedItems, model::ItemContentWireMode::AppendV1)});
+        const bool overflowSynchronized = overflowClient.receive(
+            overflowGeneration, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber{0}}});
+        const model::ThreadItem* overflowSnapshotItem =
+            overflowClient.state() ? overflowClient.state()->item("partial-item") : nullptr;
+        const bool overflowSnapshotExact =
+            overflowSnapshotItem != nullptr &&
+            model::itemData(*overflowSnapshotItem).agentText == std::optional<std::string>{overflowPrefix + overflowSuffix};
+
+        model::ItemContentUpdatedOccurrence pastFrozen{model::ItemIdentity{"partial-item"}};
+        pastFrozen.threadId = model::ThreadIdentity{"partial-thread"};
+        pastFrozen.turnId = model::TurnIdentity{"partial-turn"};
+        pastFrozen.channel = "agentText";
+        pastFrozen.content = overflowPrefix;
+        pastFrozen.truncation.truncated = true;
+        pastFrozen.truncation.droppedBytes = static_cast<std::uint64_t>(overflowSuffix.size() + 5);
+        pastFrozen.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(overflowPrefix.size()),
+                                                            overflowSuffix + " next",
+                                                            0,
+                                                            false,
+                                                            false};
+        pastFrozen.appendHint = model::ItemContentAppendHint{
+            static_cast<std::uint64_t>(overflowPrefix.size() + overflowSuffix.size()), " next", true};
+        model::OccurrenceIdentity pastFrozenIdentity{model::FrontendSequence{1},
+                                                     model::OccurrenceGroupIdentity{"overflow-live"},
+                                                     0,
+                                                     1,
+                                                     model::SourceStamp{"overflow-live"}};
+        const auto pastFrozenOccurrence = model::makeOccurrence(std::move(pastFrozenIdentity), std::move(pastFrozen));
+        const auto pastFrozenEncoded =
+            pastFrozenOccurrence
+                ? model::encodeExpandedOccurrence(pastFrozenOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{pastFrozenOccurrence.error()};
+        if (!pastFrozenEncoded) {
+            result.expectTrue(false, "past-boundary append-v1 occurrence encodes for ClientCore synchronization");
+            return;
+        }
+        const frontend::ExpandedFrontendEvent& pastFrozenExpanded = pastFrozenEncoded.value().front();
+        frontend::FrontendEvent pastFrozenEvent{pastFrozenExpanded.sequence,
+                                                std::string(frontend::toString(pastFrozenExpanded.type)),
+                                                pastFrozenExpanded.data,
+                                                pastFrozenExpanded.extensions};
+        const bool pastFrozenAccepted = overflowClient.receive(
+            overflowGeneration,
+            frontend::ServerMessage{
+                frontend::EventBatch{pastFrozenEvent.sequence, pastFrozenEvent.sequence, {std::move(pastFrozenEvent)}}});
+        const model::ThreadItem* pastFrozenItem =
+            overflowClient.state() ? overflowClient.state()->item("partial-item") : nullptr;
+        const bool pastFrozenExact =
+            pastFrozenItem != nullptr &&
+            model::itemData(*pastFrozenItem).agentText ==
+                std::optional<std::string>{overflowPrefix + overflowSuffix + " next"};
+
+        model::CanonicalSnapshot terminalState = overflowState(2, overflowSuffix + " next done");
+        model::OccurrenceIdentity terminalIdentity{model::FrontendSequence{2},
+                                                   model::OccurrenceGroupIdentity{"overflow-terminal"},
+                                                   0,
+                                                   1,
+                                                   model::SourceStamp{"overflow-terminal"}};
+        const auto terminalOccurrence = model::makeOccurrence(
+            std::move(terminalIdentity), model::ItemUpsertedOccurrence{terminalState.items.front()});
+        const auto terminalEncoded =
+            terminalOccurrence
+                ? model::encodeExpandedOccurrence(terminalOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{terminalOccurrence.error()};
+        if (!terminalEncoded) {
+            result.expectTrue(false, "terminal overflow ItemUpserted occurrence encodes for ClientCore synchronization");
+            return;
+        }
+        const frontend::ExpandedFrontendEvent& terminalExpanded = terminalEncoded.value().front();
+        frontend::FrontendEvent terminalEvent{terminalExpanded.sequence,
+                                              std::string(frontend::toString(terminalExpanded.type)),
+                                              terminalExpanded.data,
+                                              terminalExpanded.extensions};
+        const bool terminalAccepted = overflowClient.receive(
+            overflowGeneration,
+            frontend::ServerMessage{frontend::EventBatch{terminalEvent.sequence, terminalEvent.sequence, {std::move(terminalEvent)}}});
+        const model::ThreadItem* terminalItem =
+            overflowClient.state() ? overflowClient.state()->item("partial-item") : nullptr;
+        result.expectTrue(
+            overflowWelcomeAccepted && overflowSnapshotAccepted && overflowSynchronized && overflowSnapshotExact &&
+                pastFrozenEncoded && pastFrozenEncoded.value().front().data.value("baseContentBytes", std::uint64_t{0}) > 16'384 &&
+                pastFrozenAccepted && pastFrozenExact &&
+                terminalAccepted && terminalItem != nullptr &&
+                model::itemData(*terminalItem).agentText ==
+                    std::optional<std::string>{overflowPrefix + overflowSuffix + " next done"},
+            "negotiated ClientCore publishes exact overflow text for initial snapshots, past-boundary live appends, and terminal upserts");
+
+        Harness hybridHarness;
+        core::ClientOptions hybridOptions = clientOptions();
+        hybridOptions.requestedCapabilities = items;
+        core::ClientCore hybridClient(std::move(hybridOptions));
+        const core::PhysicalGeneration hybridGeneration = *hybridClient.attach(hybridHarness.transport());
+        hybridClient.transportConnected(hybridGeneration);
+        const bool hybridWelcomeAccepted = hybridClient.receive(hybridGeneration, frontend::ServerMessage{appendWelcome(items)});
+        const bool hybridSnapshotAccepted = hybridClient.receive(
+            hybridGeneration,
+            frontend::ServerMessage{
+                projectedSnapshot(overflowState(0, overflowSuffix), items, model::ItemContentWireMode::AppendV1)});
+        const bool hybridSynchronized = hybridClient.receive(
+            hybridGeneration, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber{0}}});
+        const model::ThreadItem* hybridItem = hybridClient.state() ? hybridClient.state()->item("partial-item") : nullptr;
+        result.expectTrue(hybridWelcomeAccepted && hybridSnapshotAccepted && hybridSynchronized && hybridItem != nullptr &&
+                              model::itemData(*hybridItem).agentText ==
+                                  std::optional<std::string>{overflowPrefix + overflowSuffix},
+                          "append-v1 restores overflow in the CompleteThreadItems hybrid snapshot representation");
     }
 
     void testLegacyUnknownCompatibility(tests::support::TestResult& result) {

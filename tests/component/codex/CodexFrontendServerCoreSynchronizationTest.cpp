@@ -827,6 +827,21 @@ namespace {
 
     void testNegotiatedItemContentAppend(tests::support::TestResult& result) {
         Backend backend;
+        const std::string snapshotPrefix(16'384, 'p');
+        const std::string snapshotSuffix = " retained";
+        model::ItemData snapshotItem{model::ItemIdentity{"item-append"},
+                                     model::ThreadIdentity{"thread-append"},
+                                     model::TurnIdentity{"turn-append"}};
+        snapshotItem.agentText = snapshotPrefix;
+        snapshotItem.agentTextOverflowV1 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(snapshotPrefix.size()), snapshotSuffix, 0, false, false};
+        snapshotItem.contentTruncated = true;
+        snapshotItem.droppedContentBytes = static_cast<std::uint64_t>(snapshotSuffix.size());
+        snapshotItem.truncation.truncated = true;
+        snapshotItem.truncation.droppedBytes = static_cast<std::uint64_t>(snapshotSuffix.size());
+        snapshotItem.truncation.omittedPaths = {"/agentText"};
+        backend.state.items = {model::AgentMessageItem{std::move(snapshotItem)}};
+        backend.state.itemsPresent = true;
         std::vector<std::function<void()>> scheduled;
         server::ServerCoreOptions options;
         options.authenticator = authenticate;
@@ -877,6 +892,25 @@ namespace {
         const bool replacementNotSelected = replacementWelcome && !replacementWelcome->extensions.contains("projection");
         const bool missingCapabilityNotSelected =
             missingCapabilityWelcome && !missingCapabilityWelcome->extensions.contains("projection");
+        const auto snapshotItemData = [](const std::vector<frontend::ServerMessage>& messages) -> const frontend::Json* {
+            for (const frontend::ServerMessage& message : messages) {
+                const auto* snapshot = std::get_if<frontend::Snapshot>(&message);
+                if (snapshot != nullptr && snapshot->state.contains("items") && !snapshot->state.at("items").empty()) {
+                    const auto data = snapshot->state.at("items").front().find("data");
+                    if (data != snapshot->state.at("items").front().end()) {
+                        return &*data;
+                    }
+                }
+            }
+            return nullptr;
+        };
+        const frontend::Json* replacementSnapshotData = snapshotItemData(replacementMessages);
+        const frontend::Json* appendSnapshotData = snapshotItemData(appendMessages);
+        const bool negotiatedSnapshotSuffix =
+            appendSnapshotData != nullptr &&
+            appendSnapshotData->contains(std::string(model::ItemContentOverflowV1Property)) &&
+            (replacementSnapshotData == nullptr ||
+             !replacementSnapshotData->contains(std::string(model::ItemContentOverflowV1Property)));
 
         replacementMessages.clear();
         appendMessages.clear();
@@ -912,7 +946,7 @@ namespace {
         const frontend::Json* missingCapabilityData = contentData(missingCapabilityMessages);
         result.expectTrue(replacementReady && appendReady && missingCapabilityReady && appendSelected && replacementNotSelected &&
                               missingCapabilityNotSelected && first.accepted() && second.accepted() && replacementData && appendData &&
-                              missingCapabilityData && replacementData->value("content", "") == "baseab" &&
+                              missingCapabilityData && negotiatedSnapshotSuffix && replacementData->value("content", "") == "baseab" &&
                               !replacementData->contains("contentDelta") && appendData->value("contentDelta", "") == "ab" &&
                               appendData->value("baseContentBytes", std::uint64_t{0}) == 4 && appendData->contains("content") &&
                               appendData->at("content") == "" &&
@@ -2521,7 +2555,7 @@ namespace {
                 : nullptr;
         result.expectTrue(
             projectedAppend && projectedAppend->content == "before after" &&
-                projectedAppend->appendHint == std::optional<model::ItemContentAppendHint>{{6, " after"}} && fullAppend &&
+                projectedAppend->appendHint == std::optional<model::ItemContentAppendHint>{{6, " after", true}} && fullAppend &&
                 directAppend.value().occurrences == fullAppend.value().occurrences && projectedMismatch &&
                 !projectedMismatch->appendHint.has_value() && projectedAdvanced && !projectedAdvanced->appendHint.has_value(),
             "content projection retains an append hint only when the exact backend delta accounts for the retained replacement suffix");
@@ -2655,6 +2689,64 @@ namespace {
                               hintedFallback.value().occurrences.size() == 1,
                           "exact-item projection suppresses only provably unchanged post-prefix updates while equality, missing hints, "
                           "backend rolling retention, and the full fallback remain observable");
+
+        backend::ItemSnapshot snapshotBoundItem = oversizedItem;
+        snapshotBoundItem.agentText = std::string(model::MaximumItemContentOverflowV1Bytes, 's');
+        snapshotBoundItem.reasoningText.clear();
+        snapshotBoundItem.reasoningSummary.clear();
+        snapshotBoundItem.commandOutput.clear();
+        snapshotBoundItem.droppedContentBytes = 0;
+        snapshotBoundItem.contentTruncated = false;
+        backend::ItemContentSnapshot snapshotBoundContent = selectedContentSnapshot(
+            snapshotBoundItem, typed::ThreadId{thread.id}, typed::TurnId{turn.id}, backend::ItemContentChanged::Kind::AgentText);
+        snapshotBoundContent.droppedContentBytes = 1;
+        snapshotBoundContent.contentTruncated = true;
+        backend::ItemContentChanged snapshotBoundEvent;
+        snapshotBoundEvent.threadId = typed::ThreadId{thread.id};
+        snapshotBoundEvent.turnId = typed::TurnId{turn.id};
+        snapshotBoundEvent.itemId = typed::ItemId{item.id};
+        snapshotBoundEvent.kind = backend::ItemContentChanged::Kind::AgentText;
+        snapshotBoundEvent.delta = "x";
+        snapshotBoundEvent.channelBytesBefore = model::MaximumItemContentOverflowV1Bytes;
+        snapshotBoundEvent.droppedContentBytesBefore = 0;
+        const std::vector<backend::SequencedBackendEvent> snapshotBoundEvents{
+            {backend::SequenceNumber{30}, snapshotBoundEvent}};
+        const std::vector<backend::ItemContentSnapshot> snapshotBoundItems{snapshotBoundContent};
+        const auto snapshotBoundProjection =
+            projection.projectItemContentOccurrences(snapshotBoundEvents, snapshotBoundItems);
+        const auto* snapshotBoundUpdate =
+            snapshotBoundProjection && snapshotBoundProjection.value().occurrences.size() == 1 &&
+                    snapshotBoundProjection.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &snapshotBoundProjection.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+
+        backend::ItemSnapshot rollingItem = snapshotBoundItem;
+        rollingItem.agentText = std::string(model::MaximumItemContentOverflowV1Bytes, 'r');
+        rollingItem.droppedContentBytes = 9;
+        rollingItem.contentTruncated = true;
+        backend::ItemContentSnapshot rollingContent = selectedContentSnapshot(
+            rollingItem, typed::ThreadId{thread.id}, typed::TurnId{turn.id}, backend::ItemContentChanged::Kind::AgentText);
+        backend::ItemContentChanged rollingEvent = snapshotBoundEvent;
+        rollingEvent.channelBytesBefore = 4U * 1024U * 1024U;
+        rollingEvent.droppedContentBytesBefore = 8;
+        const std::vector<backend::SequencedBackendEvent> rollingEvents{{backend::SequenceNumber{31}, rollingEvent}};
+        const std::vector<backend::ItemContentSnapshot> rollingItems{rollingContent};
+        const auto rollingProjection = projection.projectItemContentOccurrences(rollingEvents, rollingItems);
+        const auto* rollingUpdate =
+            rollingProjection && rollingProjection.value().occurrences.size() == 1 &&
+                    rollingProjection.value().occurrences.front().occurrence.expandedPayloads.size() == 1
+                ? std::get_if<model::ItemContentUpdatedOccurrence>(
+                      &rollingProjection.value().occurrences.front().occurrence.expandedPayloads.front())
+                : nullptr;
+        result.expectTrue(
+            snapshotBoundUpdate != nullptr && snapshotBoundUpdate->overflowV1.has_value() &&
+                snapshotBoundUpdate->appendHint == std::optional<model::ItemContentAppendHint>{
+                                                       {model::MaximumItemContentOverflowV1Bytes, "", true}} &&
+                rollingUpdate != nullptr && rollingUpdate->overflowV1.has_value() && !rollingUpdate->appendHint.has_value() &&
+                rollingUpdate->content.has_value() && rollingUpdate->content->size() == 16'384,
+            "snapshot-bound overflow emits a metadata-only append, while backend rolling retention remains an observable authoritative "
+            "replacement");
 
         const std::string unicodePrefix = std::string(16'383, 'u') + "\xE2\x82\xAC";
         backend::ItemSnapshot unicodeFirstOverflow = asciiFirstOverflow;
