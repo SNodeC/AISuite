@@ -16,8 +16,10 @@
 #include <initializer_list>
 #include <limits>
 #include <set>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 namespace ai::openai::codex::frontend::client {
@@ -96,6 +98,36 @@ namespace ai::openai::codex::frontend::client {
             StateArrayContribution activities;
             StateArrayContribution diagnostics;
         };
+
+        struct ScopedItemLookupView {
+            std::string_view threadId;
+            std::string_view turnId;
+            std::string_view itemId;
+
+            bool operator==(const ScopedItemLookupView&) const = default;
+        };
+
+        struct ScopedItemLookupHash {
+            [[nodiscard]] std::size_t operator()(const ScopedItemLookupView& value) const noexcept {
+                return hash(value.threadId, value.turnId, value.itemId);
+            }
+
+        private:
+            [[nodiscard]] static std::size_t
+            hash(std::string_view threadId, std::string_view turnId, std::string_view itemId) noexcept {
+                constexpr std::size_t HashMixConstant = 0x9e3779b97f4a7c15ULL;
+                std::size_t result = std::hash<std::string_view>{}(threadId);
+                const auto combine = [&result](std::string_view value) {
+                    result ^= std::hash<std::string_view>{}(value) + HashMixConstant + (result << 6U) + (result >> 2U);
+                };
+                combine(turnId);
+                combine(itemId);
+                return result;
+            }
+        };
+
+        using StringLookupIndex = std::unordered_map<std::string_view, std::size_t>;
+        using ScopedItemLookupIndex = std::unordered_map<ScopedItemLookupView, std::size_t, ScopedItemLookupHash>;
     } // namespace detail
 
     struct detail::StateStorage {
@@ -126,6 +158,14 @@ namespace ai::openai::codex::frontend::client {
         std::vector<ItemState> items;
         bool pendingRequestProjectionPresent = false;
         std::vector<PendingRequestState> pendingRequests;
+        // Built only after the vectors above reach their immutable published
+        // form; the non-owning keys therefore remain valid for this storage's
+        // complete lifetime without duplicating every retained identity.
+        StringLookupIndex threadById;
+        StringLookupIndex turnById;
+        StringLookupIndex firstItemById;
+        ScopedItemLookupIndex itemByScope;
+        StringLookupIndex pendingRequestById;
         Projected<AccountState> accounts;
         Projected<ModelsState> models;
         Projected<ConfigurationState> configuration;
@@ -155,6 +195,34 @@ namespace ai::openai::codex::frontend::client {
     namespace {
         constexpr std::size_t MaximumRetainedNotices = 256;
         constexpr std::size_t MaximumRetainedCompatibilityExtensions = 64;
+
+        void buildStateLookupIndexes(detail::StateStorage& state) {
+            state.threadById.reserve(state.threads.size());
+            for (std::size_t index = 0; index < state.threads.size(); ++index) {
+                state.threadById.emplace(state.threads[index].id.value, index);
+            }
+
+            state.turnById.reserve(state.turns.size());
+            for (std::size_t index = 0; index < state.turns.size(); ++index) {
+                state.turnById.emplace(state.turns[index].id.value, index);
+            }
+
+            state.firstItemById.reserve(state.items.size());
+            state.itemByScope.reserve(state.items.size());
+            for (std::size_t index = 0; index < state.items.size(); ++index) {
+                const ItemState& item = state.items[index];
+                state.firstItemById.try_emplace(item.id.value, index);
+                if (item.threadId && item.turnId) {
+                    state.itemByScope.emplace(
+                        detail::ScopedItemLookupView{item.threadId->value, item.turnId->value, item.id.value}, index);
+                }
+            }
+
+            state.pendingRequestById.reserve(state.pendingRequests.size());
+            for (std::size_t index = 0; index < state.pendingRequests.size(); ++index) {
+                state.pendingRequestById.emplace(state.pendingRequests[index].id.value, index);
+            }
+        }
 
         std::optional<std::string> stringMember(const frontend::Json& object, std::string_view key) {
             if (!object.is_object()) {
@@ -2301,43 +2369,32 @@ namespace ai::openai::codex::frontend::client {
         return thread(id.value);
     }
     const ThreadState* State::thread(std::string_view id) const noexcept {
-        const auto found = std::find_if(impl->threads.begin(), impl->threads.end(), [id](const ThreadState& value) {
-            return value.id.value == id;
-        });
-        return found == impl->threads.end() ? nullptr : &*found;
+        const auto found = impl->threadById.find(id);
+        return found == impl->threadById.end() ? nullptr : &impl->threads[found->second];
     }
     const TurnState* State::turn(const typed::TurnId& id) const noexcept {
         return turn(id.value);
     }
     const TurnState* State::turn(std::string_view id) const noexcept {
-        const auto found = std::find_if(impl->turns.begin(), impl->turns.end(), [id](const TurnState& value) {
-            return value.id.value == id;
-        });
-        return found == impl->turns.end() ? nullptr : &*found;
+        const auto found = impl->turnById.find(id);
+        return found == impl->turnById.end() ? nullptr : &impl->turns[found->second];
     }
     const ItemState* State::item(const typed::ItemId& id) const noexcept {
         return item(id.value);
     }
     const ItemState* State::item(std::string_view id) const noexcept {
-        const auto found = std::find_if(impl->items.begin(), impl->items.end(), [id](const ItemState& value) {
-            return value.id.value == id;
-        });
-        return found == impl->items.end() ? nullptr : &*found;
+        const auto found = impl->firstItemById.find(id);
+        return found == impl->firstItemById.end() ? nullptr : &impl->items[found->second];
     }
     const ItemState* State::item(const typed::ThreadId& threadId,
                                  const typed::TurnId& turnId,
                                  const typed::ItemId& id) const noexcept {
-        const auto found = std::find_if(impl->items.begin(), impl->items.end(), [&](const ItemState& value) {
-            return value.threadId == std::optional<typed::ThreadId>{threadId} &&
-                   value.turnId == std::optional<typed::TurnId>{turnId} && value.id == id;
-        });
-        return found == impl->items.end() ? nullptr : &*found;
+        const auto found = impl->itemByScope.find(detail::ScopedItemLookupView{threadId.value, turnId.value, id.value});
+        return found == impl->itemByScope.end() ? nullptr : &impl->items[found->second];
     }
     const PendingRequestState* State::pendingRequest(const PendingRequestId& id) const noexcept {
-        const auto found = std::find_if(impl->pendingRequests.begin(), impl->pendingRequests.end(), [&](const PendingRequestState& value) {
-            return value.id == id;
-        });
-        return found == impl->pendingRequests.end() ? nullptr : &*found;
+        const auto found = impl->pendingRequestById.find(id.value);
+        return found == impl->pendingRequestById.end() ? nullptr : &impl->pendingRequests[found->second];
     }
 
 #define AISUITE_STATE_GETTER(type, name)                                                                                                   \
@@ -2996,6 +3053,58 @@ namespace ai::openai::codex::frontend::client {
                 result->pendingRequestProjectionPresent =
                     source.pendingRequestsPresent && !rootUnrepresented(source.projection, "/pendingRequests");
 
+                struct TurnBuildGroup {
+                    std::string_view threadId;
+                    std::size_t nextFallbackItemIndex = 0;
+                    std::vector<std::pair<std::size_t, typed::ItemId>> orderedItems;
+                };
+                std::unordered_map<std::string_view, std::vector<typed::TurnId>> orderedTurnsByThread;
+                std::unordered_map<std::string_view, TurnBuildGroup> turnBuildGroups;
+                orderedTurnsByThread.reserve(source.threads.size());
+                turnBuildGroups.reserve(source.turns.size());
+                for (const canonical::TurnState& turn : source.turns) {
+                    orderedTurnsByThread[turn.threadId.value()].push_back(typed::TurnId{turn.id.value()});
+                    turnBuildGroups.emplace(
+                        turn.id.value(), TurnBuildGroup{turn.threadId.value(), 0, {}});
+                }
+
+                std::vector<std::pair<std::size_t, ItemState>> orderedItems;
+                orderedItems.reserve(source.items.size() + source.legacyItems.size());
+                std::size_t fallbackItemIndex = 0;
+                for (const canonical::ThreadItem& item : source.items) {
+                    const canonical::ItemData& data = canonical::itemData(item);
+                    const std::size_t itemFallbackIndex = fallbackItemIndex++;
+                    orderedItems.emplace_back(data.sourceIndex.value_or(itemFallbackIndex),
+                                              publicItem(data, ItemKind{canonical::threadItemKind(item)}));
+                    if (data.threadId && data.turnId) {
+                        const auto group = turnBuildGroups.find(data.turnId->value());
+                        if (group != turnBuildGroups.end() && group->second.threadId == data.threadId->value()) {
+                            const std::size_t turnFallbackIndex = group->second.nextFallbackItemIndex++;
+                            group->second.orderedItems.emplace_back(data.sourceIndex.value_or(turnFallbackIndex),
+                                                                    typed::ItemId{data.id.value()});
+                        }
+                    }
+                }
+                for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
+                    const auto known = frontend::threadItemKindFromString(item.discriminator);
+                    orderedItems.emplace_back(item.sourceIndex, publicItem(item.value, ItemKind{item.discriminator, known}));
+                    if (item.value.threadId && item.value.turnId) {
+                        const auto group = turnBuildGroups.find(item.value.turnId->value());
+                        if (group != turnBuildGroups.end() && group->second.threadId == item.value.threadId->value()) {
+                            group->second.orderedItems.emplace_back(item.sourceIndex, typed::ItemId{item.value.id.value()});
+                        }
+                    }
+                }
+                std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const auto& left, const auto& right) {
+                    return left.first < right.first;
+                });
+                for (auto& [turnId, group] : turnBuildGroups) {
+                    (void) turnId;
+                    std::stable_sort(group.orderedItems.begin(), group.orderedItems.end(), [](const auto& left, const auto& right) {
+                        return left.first < right.first;
+                    });
+                }
+
                 result->threads.reserve(source.threads.size());
                 for (const canonical::ThreadState& thread : source.threads) {
                     ThreadState decoded;
@@ -3039,10 +3148,9 @@ namespace ai::openai::codex::frontend::client {
                     for (auto member = canonicalExtensions.begin(); member != canonicalExtensions.end(); ++member) {
                         decoded.extensions[member.key()] = member.value();
                     }
-                    for (const canonical::TurnState& turn : source.turns) {
-                        if (turn.threadId == thread.id) {
-                            decoded.orderedTurns.push_back(typed::TurnId{turn.id.value()});
-                        }
+                    const auto orderedTurns = orderedTurnsByThread.find(thread.id.value());
+                    if (orderedTurns != orderedTurnsByThread.end()) {
+                        decoded.orderedTurns = std::move(orderedTurns->second);
                     }
                     result->threads.push_back(std::move(decoded));
                 }
@@ -3074,47 +3182,17 @@ namespace ai::openai::codex::frontend::client {
                     for (auto member = canonicalExtensions.begin(); member != canonicalExtensions.end(); ++member) {
                         decoded.extensions[member.key()] = member.value();
                     }
-                    std::vector<std::pair<std::size_t, typed::ItemId>> orderedTurnItems;
-                    std::size_t fallbackTurnItemIndex = 0;
-                    for (const canonical::ThreadItem& item : source.items) {
-                        const canonical::ItemData& data = canonical::itemData(item);
-                        if (data.threadId == std::optional<canonical::ThreadIdentity>{turn.threadId} && data.turnId.has_value() &&
-                            *data.turnId == turn.id) {
-                            orderedTurnItems.emplace_back(data.sourceIndex.value_or(fallbackTurnItemIndex++),
-                                                          typed::ItemId{data.id.value()});
+                    const auto group = turnBuildGroups.find(turn.id.value());
+                    if (group != turnBuildGroups.end()) {
+                        decoded.orderedItems.reserve(group->second.orderedItems.size());
+                        for (auto& [index, item] : group->second.orderedItems) {
+                            (void) index;
+                            decoded.orderedItems.push_back(std::move(item));
                         }
-                    }
-                    for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
-                        if (item.value.threadId == std::optional<canonical::ThreadIdentity>{turn.threadId} &&
-                            item.value.turnId.has_value() && *item.value.turnId == turn.id) {
-                            orderedTurnItems.emplace_back(item.sourceIndex, typed::ItemId{item.value.id.value()});
-                        }
-                    }
-                    std::stable_sort(orderedTurnItems.begin(), orderedTurnItems.end(), [](const auto& left, const auto& right) {
-                        return left.first < right.first;
-                    });
-                    for (auto& [index, item] : orderedTurnItems) {
-                        (void) index;
-                        decoded.orderedItems.push_back(std::move(item));
                     }
                     result->turns.push_back(std::move(decoded));
                 }
 
-                std::vector<std::pair<std::size_t, ItemState>> orderedItems;
-                orderedItems.reserve(source.items.size() + source.legacyItems.size());
-                std::size_t fallbackItemIndex = 0;
-                for (const canonical::ThreadItem& item : source.items) {
-                    const canonical::ItemData& data = canonical::itemData(item);
-                    orderedItems.emplace_back(data.sourceIndex.value_or(fallbackItemIndex++),
-                                              publicItem(data, ItemKind{canonical::threadItemKind(item)}));
-                }
-                for (const canonical::LegacyItemCompatibility& item : source.legacyItems) {
-                    const auto known = frontend::threadItemKindFromString(item.discriminator);
-                    orderedItems.emplace_back(item.sourceIndex, publicItem(item.value, ItemKind{item.discriminator, known}));
-                }
-                std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const auto& left, const auto& right) {
-                    return left.first < right.first;
-                });
                 result->items.reserve(orderedItems.size());
                 for (auto& [index, item] : orderedItems) {
                     (void) index;
@@ -3430,6 +3508,7 @@ namespace ai::openai::codex::frontend::client {
                 }
             }
 
+            buildStateLookupIndexes(*result);
             if (!rebuildStateSizeLedger(*result) || !stateFits(*result, maximumBytes, error)) {
                 if (failure != nullptr) {
                     *failure = CanonicalStateBuildFailure::Capacity;
