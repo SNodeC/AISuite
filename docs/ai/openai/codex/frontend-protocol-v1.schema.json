@@ -32186,6 +32186,61 @@
         }
       ]
     },
+    "UserMessageSemanticData": {
+      "type": "object",
+      "required": [
+        "clientId",
+        "text",
+        "textTruncated",
+        "contentTruncated",
+        "originalContentBytes",
+        "retainedContentBytes",
+        "originalContentItems",
+        "retainedContentItems"
+      ],
+      "properties": {
+        "clientId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 16777216
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 16777216
+        },
+        "textTruncated": {
+          "type": "boolean"
+        },
+        "contentTruncated": {
+          "type": "boolean"
+        },
+        "originalContentBytes": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "retainedContentBytes": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "originalContentItems": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "retainedContentItems": {
+          "$ref": "#/$defs/UInt64"
+        }
+      },
+      "maxProperties": 64,
+      "additionalProperties": {
+        "$ref": "#/$defs/SafeDetailValue"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      }
+    },
     "TruncationMetadata": {
       "type": "object",
       "required": [
@@ -32284,9 +32339,6 @@
         "completedAtMs": {
           "type": "integer"
         },
-        "data": {
-          "$ref": "#/$defs/SafeDetailObject"
-        },
         "truncated": {
           "type": "boolean"
         },
@@ -32307,7 +32359,8 @@
         },
         "freshness": {
           "$ref": "#/$defs/StateFreshness"
-        }
+        },
+        "data": {}
       },
       "additionalProperties": {
         "$ref": "#/$defs/SafeDetailValue"
@@ -32329,6 +32382,9 @@
               "properties": {
                 "type": {
                   "const": "agentMessage"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32348,6 +32404,9 @@
               "properties": {
                 "type": {
                   "const": "collabAgentToolCall"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32367,6 +32426,9 @@
               "properties": {
                 "type": {
                   "const": "commandExecution"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32386,6 +32448,9 @@
               "properties": {
                 "type": {
                   "const": "contextCompaction"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32405,6 +32470,9 @@
               "properties": {
                 "type": {
                   "const": "dynamicToolCall"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32424,6 +32492,9 @@
               "properties": {
                 "type": {
                   "const": "enteredReviewMode"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32443,6 +32514,9 @@
               "properties": {
                 "type": {
                   "const": "exitedReviewMode"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32462,6 +32536,9 @@
               "properties": {
                 "type": {
                   "const": "fileChange"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32481,6 +32558,9 @@
               "properties": {
                 "type": {
                   "const": "hookPrompt"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32500,6 +32580,9 @@
               "properties": {
                 "type": {
                   "const": "imageGeneration"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32519,6 +32602,9 @@
               "properties": {
                 "type": {
                   "const": "imageView"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32538,6 +32624,9 @@
               "properties": {
                 "type": {
                   "const": "mcpToolCall"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32557,6 +32646,9 @@
               "properties": {
                 "type": {
                   "const": "plan"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32576,6 +32668,9 @@
               "properties": {
                 "type": {
                   "const": "reasoning"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32595,6 +32690,9 @@
               "properties": {
                 "type": {
                   "const": "sleep"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32614,6 +32712,9 @@
               "properties": {
                 "type": {
                   "const": "subAgentActivity"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,
@@ -32633,6 +32734,9 @@
               "properties": {
                 "type": {
                   "const": "userMessage"
+                },
+                "data": {
+                  "$ref": "#/$defs/UserMessageSemanticData"
                 }
               },
               "maxProperties": 512,
@@ -32652,6 +32756,9 @@
               "properties": {
                 "type": {
                   "const": "webSearch"
+                },
+                "data": {
+                  "$ref": "#/$defs/SafeDetailObject"
                 }
               },
               "maxProperties": 512,

@@ -30,7 +30,6 @@ namespace ai::openai::codex::backend {
     inline constexpr std::size_t MaxSnapshotExtensionDecodingErrorBytes = 2U * 1024U;
     inline constexpr std::size_t MaxSerializedCodexExtensionEventBytes = 64U * 1024U;
     inline constexpr std::size_t MaxSerializedCodexExtensionEnvelopeOverheadBytes = 4U * 1024U;
-    inline constexpr std::size_t MaxSerializedUserMessageDataBytes = 64U * 1024U;
     static_assert(MaxSnapshotExtensionMethodBytes * 6U + MaxSnapshotExtensionPayloadBytes + MaxSnapshotExtensionDecodingErrorBytes * 6U +
                           MaxSerializedCodexExtensionEnvelopeOverheadBytes <=
                       MaxSerializedCodexExtensionEventBytes,
@@ -42,6 +41,20 @@ namespace ai::openai::codex::backend {
         std::string message;
 
         bool operator==(const ErrorSnapshot&) const = default;
+    };
+
+    struct UserMessageSnapshot {
+        std::optional<std::string> clientId;
+        std::string text;
+        bool textTruncated = false;
+        bool contentTruncated = false;
+        std::uint64_t originalContentBytes = 0;
+        std::uint64_t retainedContentBytes = 0;
+        std::uint64_t originalContentItems = 0;
+        std::uint64_t retainedContentItems = 0;
+        std::vector<std::string> textParts;
+
+        bool operator==(const UserMessageSnapshot&) const = default;
     };
 
     struct ItemSnapshot {
@@ -56,6 +69,7 @@ namespace ai::openai::codex::backend {
         bool contentTruncated = false;
         std::optional<std::int64_t> startedAtMs;
         std::optional<std::int64_t> completedAtMs;
+        std::optional<UserMessageSnapshot> userMessage;
         Json data = Json::object();
         Json extensions = Json::object();
         SourceStamp stamp;

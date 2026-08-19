@@ -784,6 +784,17 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             data.startedAtMs = item.startedAtMs;
             data.completedAtMs = item.completedAtMs;
+            if (item.userMessage) {
+                data.userMessage = model::UserMessageProjection{item.userMessage->clientId,
+                                                                item.userMessage->text,
+                                                                item.userMessage->textTruncated,
+                                                                item.userMessage->contentTruncated,
+                                                                item.userMessage->originalContentBytes,
+                                                                item.userMessage->retainedContentBytes,
+                                                                item.userMessage->originalContentItems,
+                                                                item.userMessage->retainedContentItems,
+                                                                item.userMessage->textParts};
+            }
             data.connectionInvalidated = item.connectionInvalidated;
             data.generation = item.stamp.generation;
             data.freshness = freshness(item.stamp.freshness);

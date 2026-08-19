@@ -19,7 +19,7 @@ namespace CLI {
 
 namespace apps::codex_backend_client {
 
-    // A complete backend snapshot may be larger than the command-side one MiB
+    // A complete backend snapshot may be larger than the command-side 8 MiB
     // limit. Match the reference backend's bounded Unix writer capacity.
     inline constexpr std::size_t DEFAULT_MAXIMUM_FRAME_SIZE = 13U * 1024U * 1024U;
     inline constexpr std::size_t DEFAULT_MAXIMUM_OUTBOUND_BYTES = 13U * 1024U * 1024U;

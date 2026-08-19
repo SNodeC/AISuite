@@ -433,8 +433,36 @@ namespace ai::openai::codex::frontend::client {
             return std::nullopt;
         }
         const frontend::Json& data = *item.data;
-        const std::optional<std::string> retainedText = text(data, "text");
-        const std::optional<bool> textWasTruncated = boolean(data, "textTruncated");
+        std::optional<std::string> retainedText = text(data, "text");
+        std::optional<bool> textWasTruncated = boolean(data, "textTruncated");
+        if (!retainedText) {
+            const auto content = data.find("content");
+            if (content == data.end() || !content->is_array()) {
+                return std::nullopt;
+            }
+            std::string flattened;
+            bool hasText = false;
+            for (const frontend::Json& entry : *content) {
+                if (!entry.is_object()) {
+                    continue;
+                }
+                const auto type = entry.find("type");
+                if (type == entry.end() || !type->is_string() || type->get_ref<const std::string&>() != "text") {
+                    continue;
+                }
+                const auto value = entry.find("text");
+                if (value == entry.end() || !value->is_string()) {
+                    return std::nullopt;
+                }
+                if (hasText) {
+                    flattened.append("\n\n");
+                }
+                hasText = true;
+                flattened.append(value->get_ref<const std::string&>());
+            }
+            retainedText = std::move(flattened);
+            textWasTruncated = textWasTruncated.value_or(false);
+        }
         const std::optional<bool> contentWasTruncated = boolean(data, "contentTruncated");
         const std::optional<std::uint64_t> originalContentBytes = unsignedInteger(data, "originalContentBytes");
         const std::optional<std::uint64_t> retainedContentBytes = unsignedInteger(data, "retainedContentBytes");
@@ -445,8 +473,8 @@ namespace ai::openai::codex::frontend::client {
             !originalContentItems || !retainedContentItems || clientId == data.end() ||
             (!clientId->is_null() && !clientId->is_string()) || *retainedContentBytes > *originalContentBytes ||
             *retainedContentItems > *originalContentItems ||
-            *contentWasTruncated != (*retainedContentBytes < *originalContentBytes) ||
-            *contentWasTruncated != (*retainedContentItems < *originalContentItems)) {
+            *contentWasTruncated != (*retainedContentBytes < *originalContentBytes ||
+                                     *retainedContentItems < *originalContentItems)) {
             return std::nullopt;
         }
 

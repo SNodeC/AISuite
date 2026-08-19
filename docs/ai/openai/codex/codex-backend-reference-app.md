@@ -473,7 +473,7 @@ newline is removed. A JSON string containing an escaped newline uses the two
 wire characters `\` and `n`, so it does not terminate a frame. Server messages
 are serialized compactly and never pretty-printed.
 
-The default maximum frame payload is exactly 1 MiB (1,048,576 bytes), excluding
+The default maximum frame payload is exactly 8 MiB (8,388,608 bytes), excluding
 the terminating newline. A payload of exactly that size is accepted if its
 next byte is the newline. A further non-newline byte clears the bounded
 accumulator, yields `frame_too_large`, sends a bounded local protocol error

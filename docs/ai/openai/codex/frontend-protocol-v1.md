@@ -595,26 +595,27 @@ status is `unknown`, `started`, `completed`, or `failed`; turn status remains a
 stable Codex status string with independent `active` and `terminal` Booleans.
 Known item `type` strings are `user_message`, `agent_message`, `reasoning`,
 `command_execution`, `file_change`, `tool_call`, and `web_search`; a future
-unknown item retains its provided Codex type or uses `unknown`. A user-message
-item's normalized `data` is an object with a nullable string `clientId` and a
-`content` array. The typed layer retains the complete opaque App Server content
-array, while a snapshot or `item.updated` event retains an ordered prefix of
-complete entries whose complete normalized `data` serialization is at most
-65,536 bytes. Retained entries remain exact JSON values, including unknown
-future content-entry variants; no partial JSON serialization is exposed as an
-entry.
+unknown item retains its provided Codex type or uses `unknown`. An expanded
+user-message item's normalized `data` contains a nullable string `clientId`,
+the complete retained textual presentation in `text`, and `textTruncated`.
+Text input parts remain in source order and are separated by `\n\n`, including
+empty parts. The projection accepts Codex's aggregate 1,048,576-Unicode-scalar
+text limit without applying the generic frontend-detail bounds. Non-text input
+and additional content-entry metadata are not exposed. The frozen legacy
+representation carries the same retained text as normalized `content` text
+entries for compatibility.
 
 User-message `data` also contains `contentTruncated`,
 `originalContentBytes`, `retainedContentBytes`, `originalContentItems`, and
 `retainedContentItems`. The byte counts are the compact serialized sizes of
-the original and retained content arrays, including their array delimiters;
-an empty retained array is therefore two bytes. The item counts report the
-corresponding array lengths. If even the first entry cannot fit with the
-client ID and metadata, `content` is empty and `contentTruncated` is true.
-These user-message fields describe normalized payload truncation. They do not
-change the top-level item `contentTruncated` and `droppedContentBytes`, which
-continue to describe old prefixes discarded from accumulated visible text and
-command-output channels.
+the original content array and the retained normalized text-entry array,
+including their array delimiters; an empty retained array is therefore two
+bytes. The item counts report the corresponding array lengths.
+`contentTruncated` is true when non-text content or entry metadata was omitted;
+`textTruncated` independently reports incomplete textual retention. These
+payload-specific fields do not change the top-level item `contentTruncated`
+and `droppedContentBytes`, which continue to describe old prefixes discarded
+from accumulated visible text and command-output channels.
 
 Snapshots do not contain callbacks, pointers, internal request-occurrence
 tokens, App Server client request IDs, authentication access tokens, or secret
@@ -987,7 +988,9 @@ in-process consumer or WebSocket transport uses the same `Codec` and
 `FrontendService` without inheriting JSONL. Stream transports use one compact
 JSON object plus newline; WebSocket uses one complete JSON object per text
 message and rejects binary protocol messages. The reference WebSocket maximum
-is the same exact 1 MiB (1,048,576-byte) inbound bound as stream framing.
+is the same exact 8 MiB (8,388,608-byte) inbound bound as stream framing. This
+admits a maximum Codex text input even when every Unicode scalar requires a
+six-byte JSON escape.
 
 The reference HTTP/WebSocket transport configures SNode.C 2.0's HTTP parser
 and server with 8 KiB start/header lines, 64 KiB aggregate headers, 128 fields,

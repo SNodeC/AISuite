@@ -32,7 +32,9 @@ namespace ai::openai::codex::frontend {
     inline constexpr std::size_t DefaultBatchMaxEvents = 64;
     inline constexpr std::size_t DefaultBatchMaxBytes = 256 * 1024;
     inline constexpr std::size_t DefaultMaxDirtyEntities = 4096;
-    inline constexpr std::size_t DefaultFrontendMaximumInboundMessageBytes = 1024U * 1024U;
+    // A maximum Codex text input can require six JSON bytes per Unicode
+    // scalar (for example U+0000 -> "\\u0000"), plus the command envelope.
+    inline constexpr std::size_t DefaultFrontendMaximumInboundMessageBytes = 8U * 1024U * 1024U;
     inline constexpr std::size_t DefaultFrontendServiceMaxOutboundMessages = 512;
 
     // Journal byte accounting measures compact event objects. Replaying them

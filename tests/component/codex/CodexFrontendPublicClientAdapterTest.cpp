@@ -129,13 +129,15 @@ namespace {
             frontend::Json::array({frontend::Json{{"type", "text"}, {"text", sourceText}}});
         model::ItemData item{
             model::ItemIdentity{"runtime-user-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"runtime-turn"}};
-        item.safeDetails = *model::SafeDetail::fromJson(frontend::Json{{"clientId", nullptr},
-                                                                      {"content", sourceContent},
-                                                                      {"contentTruncated", false},
-                                                                      {"originalContentBytes", sourceContent.dump().size()},
-                                                                      {"retainedContentBytes", sourceContent.dump().size()},
-                                                                      {"originalContentItems", 1},
-                                                                      {"retainedContentItems", 1}});
+        item.userMessage = model::UserMessageProjection{std::nullopt,
+                                                        sourceText,
+                                                        false,
+                                                        false,
+                                                        sourceContent.dump().size(),
+                                                        sourceContent.dump().size(),
+                                                        1,
+                                                        1,
+                                                        {sourceText}};
         snapshot.items.push_back(model::UserMessageItem{std::move(item)});
         const auto expanded = model::encodeSnapshot(snapshot);
         if (!expanded) {
@@ -633,6 +635,26 @@ namespace {
         result.expectTrue(!contradictoryUserMessageView,
                           "the typed user-message semantic view fails soft on contradictory retained-content metadata");
 
+        std::optional<client::UserMessageSemanticView> legacyUserMessageView;
+        if (publicUserItem != nullptr) {
+            client::ItemState legacy = *publicUserItem;
+            legacy.data = frontend::Json{{"clientId", "legacy-client"},
+                                         {"content",
+                                          frontend::Json::array({frontend::Json{{"type", "text"}, {"text", "part one"}},
+                                                                 frontend::Json{{"type", "text"}, {"text", ""}},
+                                                                 frontend::Json{{"type", "text"}, {"text", "part two"}}})},
+                                         {"textTruncated", false},
+                                         {"contentTruncated", false},
+                                         {"originalContentBytes", 100},
+                                         {"retainedContentBytes", 100},
+                                         {"originalContentItems", 3},
+                                         {"retainedContentItems", 3}};
+            legacyUserMessageView = client::userMessageSemanticView(legacy);
+        }
+        result.expectTrue(legacyUserMessageView && legacyUserMessageView->text == "part one\n\n\n\npart two" &&
+                              !legacyUserMessageView->textTruncated && !legacyUserMessageView->contentTruncated,
+                          "the typed semantic accessor preserves ordered multipart text from the frozen legacy representation");
+
         client::State immutable = first.value_or(client::State{});
         publication.revision = 42;
         publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(canonicalSnapshot(18, 4, "second title"));
@@ -964,7 +986,7 @@ namespace {
         const std::optional<client::SessionInfo> readySession = sdk.session();
         const client::ItemState* readyUserItem = ready.item("runtime-user-item");
         const auto readyUserMessage = readyUserItem ? client::userMessageSemanticView(*readyUserItem) : std::nullopt;
-        const std::string expectedRetainedText = std::string(16'383, 'm') + "\xE2\x82\xAC";
+        const std::string expectedRetainedText = std::string(16'383, 'm') + "€" + std::string(16'381, 'n');
         const std::vector<std::string> expectedSynchronizationOrder{"ready", "state", "cursor", "synchronized", "protocol"};
         result.expectTrue(
             welcomeAccepted && snapshotAccepted && synchronized && sdk.isReady() && !harness.revisionMismatch &&
@@ -975,7 +997,7 @@ namespace {
                 readySession->serverMaximumInboundMessageBytes == std::optional<std::uint64_t>{768U * 1024U} &&
                 ready.visibleSequence() == frontend::SequenceNumber(7) && ready.thread("adapter-thread") != nullptr &&
                 ready.thread("adapter-thread")->title == std::optional<std::string>{"runtime title"} && readyUserMessage &&
-                readyUserMessage->text == expectedRetainedText && readyUserMessage->textTruncated &&
+                readyUserMessage->text == expectedRetainedText && !readyUserMessage->textTruncated &&
                 !readyUserMessage->contentTruncated && readyUserMessage->originalContentBytes == readyUserMessage->retainedContentBytes &&
                 readyUserMessage->originalContentItems == 1 && readyUserMessage->retainedContentItems == 1,
             "ClientCore commits the direct public State before state/cursor/synchronized/protocol callbacks in frozen order: " +

@@ -473,6 +473,20 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const TurnState&) const = default;
     };
 
+    struct UserMessageProjection {
+        std::optional<std::string> clientId;
+        std::string text;
+        bool textTruncated = false;
+        bool contentTruncated = false;
+        std::uint64_t originalContentBytes = 0;
+        std::uint64_t retainedContentBytes = 0;
+        std::uint64_t originalContentItems = 0;
+        std::uint64_t retainedContentItems = 0;
+        std::vector<std::string> textParts;
+
+        bool operator==(const UserMessageProjection&) const = default;
+    };
+
     struct ItemData {
         ItemIdentity id;
         std::optional<ThreadIdentity> threadId;
@@ -491,6 +505,7 @@ namespace ai::openai::codex::frontend::internal::model {
         bool contentTruncated = false;
         std::optional<std::int64_t> startedAtMs;
         std::optional<std::int64_t> completedAtMs;
+        std::optional<UserMessageProjection> userMessage;
         std::optional<SafeDetail> safeDetails;
         // Frontend Protocol v1 exposes several pre-expanded discriminators and a
         // nested extensions object.  Retain those bounded representation hints

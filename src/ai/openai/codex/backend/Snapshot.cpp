@@ -7,6 +7,7 @@
 
 #include "ai/openai/codex/backend/Snapshot.h"
 
+#include "ai/openai/codex/detail/ConversationCodec.h"
 #include "ai/openai/codex/detail/DecodeDiagnostic.h"
 #include "ai/openai/codex/typed/Items.h"
 #include "ai/openai/codex/typed/Types.h"
@@ -55,60 +56,10 @@ namespace ai::openai::codex::backend {
             }
         }
 
-        Json userMessageData(const typed::UserMessageThreadItem& item) {
-            try {
-                const auto rawContent = item.metadata.raw.find("content");
-                const Json content = rawContent != item.metadata.raw.end() && rawContent->is_array() ? *rawContent : Json::array();
-                const std::size_t originalContentBytes = content.dump().size();
-                const std::size_t originalContentItems = content.size();
-                const Json clientId = item.clientId ? Json(item.clientId->value) : Json(nullptr);
-                Json retainedContent = Json::array();
-                std::size_t retainedContentBytes = retainedContent.dump().size();
-                std::size_t retainedContentItems = 0;
-
-                const auto makeData = [&](const Json& retained, bool contentTruncated, std::size_t contentBytes, std::size_t contentItems) {
-                    return Json::object({{"clientId", clientId},
-                                         {"content", retained},
-                                         {"contentTruncated", contentTruncated},
-                                         {"originalContentBytes", static_cast<std::uint64_t>(originalContentBytes)},
-                                         {"retainedContentBytes", static_cast<std::uint64_t>(contentBytes)},
-                                         {"originalContentItems", static_cast<std::uint64_t>(originalContentItems)},
-                                         {"retainedContentItems", static_cast<std::uint64_t>(contentItems)}});
-                };
-
-                for (const Json& contentEntry : content) {
-                    const std::size_t separatorBytes = retainedContentItems == 0 ? 0 : 1;
-                    const std::size_t contentEntryBytes = contentEntry.dump().size();
-                    if (retainedContentBytes > MaxSerializedUserMessageDataBytes - separatorBytes ||
-                        contentEntryBytes > MaxSerializedUserMessageDataBytes - separatorBytes - retainedContentBytes) {
-                        break;
-                    }
-
-                    const std::size_t candidateContentBytes = retainedContentBytes + separatorBytes + contentEntryBytes;
-                    const std::size_t candidateContentItems = retainedContentItems + 1;
-                    const bool candidateTruncated = candidateContentItems < originalContentItems;
-                    const Json candidateSkeleton =
-                        makeData(Json::array(), candidateTruncated, candidateContentBytes, candidateContentItems);
-                    const std::size_t candidateDataBytes =
-                        candidateSkeleton.dump().size() - Json::array().dump().size() + candidateContentBytes;
-                    if (candidateDataBytes > MaxSerializedUserMessageDataBytes) {
-                        break;
-                    }
-
-                    retainedContent.push_back(contentEntry);
-                    retainedContentBytes = candidateContentBytes;
-                    retainedContentItems = candidateContentItems;
-                }
-
-                return makeData(retainedContent, retainedContentItems < originalContentItems, retainedContentBytes, retainedContentItems);
-            } catch (...) {
-                return Json::object({{"omitted", true}, {"reason", "user message content could not be serialized safely"}});
-            }
-        }
-
         std::size_t safeUtf8PrefixLength(std::string_view value,
                                          std::size_t byteLimit,
-                                         std::size_t characterLimit = std::numeric_limits<std::size_t>::max()) noexcept {
+                                         std::size_t characterLimit = std::numeric_limits<std::size_t>::max(),
+                                         std::size_t* retainedCharacters = nullptr) noexcept {
             std::size_t offset = 0;
             std::size_t characters = 0;
             while (offset < value.size() && offset < byteLimit && characters < characterLimit) {
@@ -139,11 +90,82 @@ namespace ai::openai::codex::backend {
                 offset += width;
                 ++characters;
             }
+            if (retainedCharacters != nullptr) {
+                *retainedCharacters = characters;
+            }
             return offset;
         }
 
         std::string safeUtf8Prefix(std::string_view value, std::size_t byteLimit) {
             return std::string(value.substr(0, safeUtf8PrefixLength(value, byteLimit)));
+        }
+
+        Json encodedUserInput(const typed::TurnInput& input) {
+            const Json* raw = std::visit(
+                [](const auto& value) -> const Json* {
+                    return value.raw.is_object() && !value.raw.empty() ? &value.raw : nullptr;
+                },
+                input);
+            if (raw != nullptr) {
+                return *raw;
+            }
+            std::string error;
+            if (std::optional<Json> encoded = ai::openai::codex::detail::encodeUserInput(input, error); encoded.has_value()) {
+                return std::move(*encoded);
+            }
+            return std::visit([](const auto& value) { return value.raw; }, input);
+        }
+
+        UserMessageSnapshot userMessageSnapshot(const typed::UserMessageThreadItem& item) {
+            UserMessageSnapshot result;
+            if (item.clientId) {
+                result.clientId = item.clientId->value;
+            }
+
+            Json originalContent = Json::array();
+            Json retainedContent = Json::array();
+            std::size_t retainedSourceCharacters = 0;
+            bool hasTextFragment = false;
+            for (const typed::TurnInput& input : item.content) {
+                Json encoded = encodedUserInput(input);
+                originalContent.push_back(encoded);
+                const auto* text = std::get_if<typed::TextInput>(&input);
+                if (text == nullptr) {
+                    continue;
+                }
+                if (hasTextFragment) {
+                    result.text.append("\n\n");
+                }
+                hasTextFragment = true;
+                const std::size_t available = typed::MaximumTurnInputTextUnicodeScalars - retainedSourceCharacters;
+                std::size_t retainedCharacters = 0;
+                const std::size_t retainedBytes =
+                    safeUtf8PrefixLength(text->text, text->text.size(), available, &retainedCharacters);
+                const std::string retainedText = text->text.substr(0, retainedBytes);
+                result.text.append(retainedText);
+                result.textParts.push_back(retainedText);
+                retainedContent.push_back(Json{{"type", "text"}, {"text", retainedText}});
+                retainedSourceCharacters += retainedCharacters;
+                if (retainedBytes != text->text.size()) {
+                    result.textTruncated = true;
+                }
+            }
+
+            const auto saturated = [](std::size_t value) {
+                if constexpr (sizeof(std::size_t) > sizeof(std::uint64_t)) {
+                    return value > std::numeric_limits<std::uint64_t>::max()
+                               ? std::numeric_limits<std::uint64_t>::max()
+                               : static_cast<std::uint64_t>(value);
+                }
+                return static_cast<std::uint64_t>(value);
+            };
+            result.originalContentBytes = saturated(originalContent.dump().size());
+            result.retainedContentBytes = saturated(retainedContent.dump().size());
+            result.originalContentItems = saturated(originalContent.size());
+            result.retainedContentItems = saturated(retainedContent.size());
+            result.contentTruncated = result.retainedContentBytes < result.originalContentBytes ||
+                                      result.retainedContentItems < result.originalContentItems;
+            return result;
         }
 
         void accountOmittedBytes(std::uint64_t& target, std::size_t omitted) noexcept {
@@ -454,7 +476,7 @@ namespace ai::openai::codex::backend {
                         }
                     },
                     [&snapshot](const typed::UserMessageThreadItem& value) {
-                        snapshot.data = userMessageData(value);
+                        snapshot.userMessage = userMessageSnapshot(value);
                     },
                     [&snapshot](const typed::ReasoningThreadItem&) {
                         snapshot.data["hasSummary"] = !snapshot.reasoningSummary.empty();
@@ -873,6 +895,16 @@ namespace ai::openai::codex::backend {
             }
             if (item.completedAtMs) {
                 encoded["completedAtMs"] = *item.completedAtMs;
+            }
+            if (item.userMessage) {
+                encoded["userMessage"] = Json{{"clientId", item.userMessage->clientId ? Json(*item.userMessage->clientId) : Json(nullptr)},
+                                                {"text", item.userMessage->text},
+                                                {"textTruncated", item.userMessage->textTruncated},
+                                                {"contentTruncated", item.userMessage->contentTruncated},
+                                                {"originalContentBytes", item.userMessage->originalContentBytes},
+                                                {"retainedContentBytes", item.userMessage->retainedContentBytes},
+                                                {"originalContentItems", item.userMessage->originalContentItems},
+                                                {"retainedContentItems", item.userMessage->retainedContentItems}};
             }
             return encoded;
         }
