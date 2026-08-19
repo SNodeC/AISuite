@@ -16,6 +16,8 @@
 #include "ai/openai/codex/frontend/detail/ProviderResultProjection.h"
 #include "ai/openai/codex/frontend/internal/server/BackendProjection.h"
 
+#include <algorithm>
+#include <limits>
 #include <map>
 #include <optional>
 #include <set>
@@ -98,8 +100,38 @@ namespace ai::openai::codex::frontend::internal::server {
             return backend::ItemContentSnapshotChannel::AgentText;
         }
 
+        Json legacyUserMessageData(const backend::UserMessageSnapshot& message) {
+            Json content = Json::array();
+            for (const std::string& text : message.textParts) {
+                content.push_back(Json{{"type", "text"}, {"text", text}});
+            }
+            if (content.empty() && !message.text.empty()) {
+                content.push_back(Json{{"type", "text"}, {"text", message.text}});
+            }
+            const auto retainedBytes = static_cast<std::uint64_t>(content.dump().size());
+            const auto retainedItems = static_cast<std::uint64_t>(content.size());
+            std::uint64_t originalBytes = std::max(message.originalContentBytes, retainedBytes);
+            const std::uint64_t originalItems = std::max(message.originalContentItems, retainedItems);
+            if (message.textTruncated && originalBytes == retainedBytes &&
+                originalBytes != std::numeric_limits<std::uint64_t>::max()) {
+                ++originalBytes;
+            }
+            const bool truncated = originalBytes > retainedBytes || originalItems > retainedItems;
+            return Json{{"clientId", message.clientId ? Json(*message.clientId) : Json(nullptr)},
+                        {"content", std::move(content)},
+                        {"textTruncated", message.textTruncated},
+                        {"contentTruncated", truncated},
+                        {"originalContentBytes", originalBytes},
+                        {"retainedContentBytes", retainedBytes},
+                        {"originalContentItems", originalItems},
+                        {"retainedContentItems", retainedItems}};
+        }
+
         Json legacyItemSnapshotJson(const backend::ItemSnapshot& item) {
-            const Json frontendData = isFrontendV1MetadataOnlyItem(item.type) ? Json::object({{"codexType", item.type}}) : item.data;
+            const Json frontendData = isFrontendV1MetadataOnlyItem(item.type)
+                                          ? Json::object({{"codexType", item.type}})
+                                      : item.userMessage ? legacyUserMessageData(*item.userMessage)
+                                                         : item.data;
             Json encoded{{"id", item.id},
                          {"type", item.type},
                          {"status", item.status},

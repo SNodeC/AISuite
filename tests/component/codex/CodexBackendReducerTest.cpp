@@ -116,7 +116,14 @@ namespace {
             if (const auto discriminator = entry.find("type"); discriminator != entry.end() && discriminator->is_string()) {
                 type = discriminator->get<std::string>();
             }
-            item.content.emplace_back(typed::UnknownTurnInput{std::move(type), std::move(entry), std::nullopt});
+            if (type == "text") {
+                typed::TextInput text;
+                text.text = entry.value("text", std::string{});
+                text.raw = std::move(entry);
+                item.content.emplace_back(std::move(text));
+            } else {
+                item.content.emplace_back(typed::UnknownTurnInput{std::move(type), std::move(entry), std::nullopt});
+            }
         }
         return item;
     }
@@ -594,17 +601,14 @@ namespace {
             "userMessage completion updates the same canonical item and retains both lifecycle timestamps without extensions");
 
         const backend::Snapshot itemSnapshot = backend::makeSnapshot(state);
-        const Json& userMessageData = itemSnapshot.threads[0].turns[0].items[0].data;
+        const std::optional<backend::UserMessageSnapshot>& userMessage = itemSnapshot.threads[0].turns[0].items[0].userMessage;
         result.expectTrue(itemSnapshot.threads.size() == 1 && itemSnapshot.threads[0].turns.size() == 1 &&
                               itemSnapshot.threads[0].turns[0].items.size() == 1 &&
                               itemSnapshot.threads[0].turns[0].items[0].type == "user_message" &&
-                              userMessageData.at("content").is_array() && userMessageData.at("content") == completedContent &&
-                              userMessageData.at("clientId").is_null() && !userMessageData.at("contentTruncated").get<bool>() &&
-                              userMessageData.at("originalContentBytes") == completedContent.dump().size() &&
-                              userMessageData.at("retainedContentBytes") == completedContent.dump().size() &&
-                              userMessageData.at("originalContentItems") == completedContent.size() &&
-                              userMessageData.at("retainedContentItems") == completedContent.size(),
-                          "small userMessage snapshots preserve array content and report equal original and retained bounds");
+                              userMessage && userMessage->text == "Answer just with OK!" && !userMessage->textTruncated &&
+                              userMessage->contentTruncated && userMessage->originalContentBytes == completedContent.dump().size() &&
+                              userMessage->retainedContentItems == 1 && userMessage->originalContentItems == completedContent.size(),
+                          "userMessage snapshots retain complete typed text and truthfully mark omitted non-text content");
 
         typed::Turn terminalTurn = turn(
             "thread-user", "turn-user", typed::TurnStatus::completed(), std::vector<typed::ThreadItem>{typed::ThreadItem{completedItem}});
@@ -635,15 +639,33 @@ namespace {
                                             backend::ItemLifecycle::Completed,
                                             5});
         const backend::Snapshot regressionSnapshot = backend::makeSnapshot(regressionState);
-        const Json& regressionData = regressionSnapshot.threads[0].turns[0].items[0].data;
-        result.expectTrue(regressionText.size() > 31U * 1024U && regressionData.at("content") == regressionContent &&
-                              !regressionData.at("contentTruncated").get<bool>() &&
-                              regressionData.at("originalContentBytes") == regressionContent.dump().size() &&
-                              regressionData.at("retainedContentBytes") == regressionContent.dump().size() &&
-                              regressionData.at("originalContentItems") == 1 && regressionData.at("retainedContentItems") == 1 &&
-                              !regressionData.contains("text") && !regressionData.contains("textTruncated") &&
-                              regressionData.dump().size() <= backend::MaxSerializedUserMessageDataBytes,
-                          "a 32 KiB typed textual message retains the same complete structured content capacity as master");
+        const auto& regressionProjection = regressionSnapshot.threads[0].turns[0].items[0].userMessage;
+        result.expectTrue(regressionText.size() > 31U * 1024U && regressionProjection &&
+                              regressionProjection->text == regressionText && !regressionProjection->textTruncated &&
+                              !regressionProjection->contentTruncated && regressionProjection->originalContentItems == 1 &&
+                              regressionProjection->retainedContentItems == 1,
+                          "typed textual messages bypass the former 16 KiB and 64 KiB retention boundaries");
+
+        backend::BackendState metadataState;
+        typed::UserMessageThreadItem metadataItem;
+        metadataItem.metadata = metadata("thread-metadata", "turn-metadata", "item-metadata");
+        typed::TextInput metadataInput;
+        metadataInput.text = "complete text";
+        metadataInput.raw = Json{{"type", "text"}, {"text", metadataInput.text}, {"text_elements", Json::array()}};
+        metadataItem.content.emplace_back(std::move(metadataInput));
+        reducer.apply(metadataState,
+                      backend::ItemUpserted{typed::ThreadId{"thread-metadata"},
+                                            typed::TurnId{"turn-metadata"},
+                                            typed::ThreadItem{std::move(metadataItem)},
+                                            backend::ItemLifecycle::Completed,
+                                            7});
+        const backend::Snapshot metadataSnapshot = backend::makeSnapshot(metadataState);
+        const auto& metadataProjection = metadataSnapshot.threads[0].turns[0].items[0].userMessage;
+        result.expectTrue(metadataProjection && metadataProjection->text == "complete text" &&
+                              !metadataProjection->textTruncated && metadataProjection->contentTruncated &&
+                              metadataProjection->originalContentItems == metadataProjection->retainedContentItems &&
+                              metadataProjection->originalContentBytes > metadataProjection->retainedContentBytes,
+                          "omitted text-entry metadata is distinguished from complete retained text");
 
         backend::BackendState smallState;
         const Json smallContent =
@@ -658,73 +680,83 @@ namespace {
                                             10});
         const backend::Snapshot smallStateSnapshot = backend::makeSnapshot(smallState);
         const backend::ItemSnapshot& smallSnapshot = smallStateSnapshot.threads[0].turns[0].items[0];
-        const Json& smallData = smallSnapshot.data;
-        result.expectTrue(
-            smallData.at("clientId") == "client-small" && smallData.at("content").is_array() && smallData.at("content") == smallContent &&
-                !smallData.at("contentTruncated").get<bool>() && smallData.at("originalContentBytes") == smallContent.dump().size() &&
-                smallData.at("retainedContentBytes") == smallContent.dump().size() &&
-                smallData.at("originalContentItems") == smallContent.size() && smallData.at("retainedContentItems") == smallContent.size(),
-            "small userMessage content and a non-null clientId remain lossless with complete bound metadata");
+        result.expectTrue(smallSnapshot.userMessage && smallSnapshot.userMessage->clientId == "client-small" &&
+                              smallSnapshot.userMessage->text == "small" && !smallSnapshot.userMessage->textTruncated &&
+                              smallSnapshot.userMessage->contentTruncated && smallSnapshot.userMessage->originalContentItems == 2 &&
+                              smallSnapshot.userMessage->retainedContentItems == 1,
+                          "non-text content is omitted truthfully while retained text and client identity remain exact");
 
-        backend::BackendState largeState;
-        Json largeContent = Json::array();
-        largeContent.push_back(Json{{"type", "futureNested"}, {"payload", Json{{"unknown", Json::array({1, Json{{"deep", true}}})}}}});
-        for (std::size_t index = 0; index < 8; ++index) {
-            largeContent.push_back(Json{{"type", "futureChunk"},
-                                        {"index", index},
-                                        {"payload", std::string(12U * 1024U, static_cast<char>('a' + index))},
-                                        {"opaque", Json{{"index", index}, {"enabled", index % 2 == 0}}}});
-        }
-        typed::UserMessageThreadItem largeItem =
-            userMessageItem("thread-large", "turn-large", "item-large", largeContent, Json{{"id", "item-large"}}, "client-large");
-        reducer.apply(largeState,
-                      backend::ItemUpserted{typed::ThreadId{"thread-large"},
-                                            typed::TurnId{"turn-large"},
-                                            typed::ThreadItem{largeItem},
+        backend::BackendState maximumState;
+        const std::string maximumText(typed::MaximumTurnInputTextUnicodeScalars, 'm');
+        typed::UserMessageThreadItem maximumItem;
+        maximumItem.metadata = metadata("thread-maximum", "turn-maximum", "item-maximum");
+        typed::TextInput maximumInput;
+        maximumInput.text = maximumText;
+        maximumInput.raw = Json{{"type", "text"}, {"text", maximumText}};
+        maximumItem.content.emplace_back(std::move(maximumInput));
+        reducer.apply(maximumState,
+                      backend::ItemUpserted{typed::ThreadId{"thread-maximum"},
+                                            typed::TurnId{"turn-maximum"},
+                                            typed::ThreadItem{std::move(maximumItem)},
                                             backend::ItemLifecycle::Completed,
                                             20});
-        const backend::Snapshot largeStateSnapshot = backend::makeSnapshot(largeState);
-        const backend::ItemSnapshot& largeSnapshot = largeStateSnapshot.threads[0].turns[0].items[0];
-        const Json& largeData = largeSnapshot.data;
-        const Json& retainedContent = largeData.at("content");
-        const std::size_t retainedItems = retainedContent.size();
-        bool retainedPrefixUnchanged = retainedItems > 0 && retainedItems < largeContent.size();
-        for (std::size_t index = 0; index < retainedItems; ++index) {
-            retainedPrefixUnchanged = retainedPrefixUnchanged && retainedContent[index] == largeContent[index] &&
-                                      retainedContent[index].dump() == largeContent[index].dump();
-        }
-        const backend::ItemState* canonicalLarge = findItem(largeState, "thread-large", "turn-large", "item-large");
-        const auto* canonicalLargeUser = canonicalLarge ? std::get_if<typed::UserMessageThreadItem>(&canonicalLarge->item) : nullptr;
-        result.expectTrue(largeContent.dump().size() > backend::MaxSerializedUserMessageDataBytes && retainedContent.is_array() &&
-                              largeData.at("contentTruncated").get<bool>() && retainedPrefixUnchanged &&
-                              largeData.at("originalContentItems") == largeContent.size() &&
-                              largeData.at("retainedContentItems") == retainedItems &&
-                              largeData.at("originalContentBytes") == largeContent.dump().size() &&
-                              largeData.at("retainedContentBytes") == retainedContent.dump().size() &&
-                              largeData.dump().size() <= backend::MaxSerializedUserMessageDataBytes && canonicalLargeUser &&
-                              canonicalLargeUser->metadata.raw.at("content") == largeContent && !largeSnapshot.contentTruncated &&
-                              largeSnapshot.droppedContentBytes == 0,
-                          "large userMessage snapshots retain an unchanged ordered prefix of complete opaque entries within 64 KiB");
+        const backend::Snapshot maximumSnapshot = backend::makeSnapshot(maximumState);
+        const auto& maximumProjection = maximumSnapshot.threads[0].turns[0].items[0].userMessage;
+        result.expectTrue(maximumProjection && maximumProjection->text == maximumText && !maximumProjection->textTruncated &&
+                              !maximumProjection->contentTruncated && maximumProjection->originalContentItems == 1 &&
+                              maximumProjection->retainedContentItems == 1,
+                          "the exact Codex maximum text input remains complete in the backend snapshot");
 
-        backend::BackendState oversizedFirstState;
-        const Json oversizedFirstContent = Json::array({Json{{"type", "futureHuge"}, {"payload", std::string(70U * 1024U, 'z')}}});
-        typed::UserMessageThreadItem oversizedFirstItem =
-            userMessageItem("thread-first", "turn-first", "item-first", oversizedFirstContent, Json{{"id", "item-first"}});
-        reducer.apply(oversizedFirstState,
-                      backend::ItemUpserted{typed::ThreadId{"thread-first"},
-                                            typed::TurnId{"turn-first"},
-                                            typed::ThreadItem{oversizedFirstItem},
+        backend::BackendState oversizedState;
+        typed::UserMessageThreadItem oversizedItem;
+        oversizedItem.metadata = metadata("thread-oversized", "turn-oversized", "item-oversized");
+        typed::TextInput oversizedInput;
+        oversizedInput.text.assign(typed::MaximumTurnInputTextUnicodeScalars + 1U, 'o');
+        oversizedInput.raw = Json{{"type", "text"}, {"text", oversizedInput.text}};
+        oversizedItem.content.emplace_back(std::move(oversizedInput));
+        reducer.apply(oversizedState,
+                      backend::ItemUpserted{typed::ThreadId{"thread-oversized"},
+                                            typed::TurnId{"turn-oversized"},
+                                            typed::ThreadItem{std::move(oversizedItem)},
+                                            backend::ItemLifecycle::Completed,
+                                            25});
+        const backend::Snapshot oversizedSnapshot = backend::makeSnapshot(oversizedState);
+        const auto& oversizedProjection = oversizedSnapshot.threads[0].turns[0].items[0].userMessage;
+        result.expectTrue(oversizedProjection && oversizedProjection->text.size() == typed::MaximumTurnInputTextUnicodeScalars &&
+                              oversizedProjection->textTruncated && oversizedProjection->contentTruncated &&
+                              oversizedProjection->originalContentItems == 1 && oversizedProjection->retainedContentItems == 1 &&
+                              oversizedProjection->retainedContentBytes < oversizedProjection->originalContentBytes &&
+                              oversizedProjection->textParts.size() == 1 &&
+                              oversizedProjection->textParts.front().size() == typed::MaximumTurnInputTextUnicodeScalars,
+                          "a malformed historical message cannot bypass the retained-text bound through legacy multipart storage "
+                          "(text=" +
+                              std::to_string(oversizedProjection ? oversizedProjection->text.size() : 0) + ", parts=" +
+                              std::to_string(oversizedProjection ? oversizedProjection->textParts.size() : 0) + ", textTruncated=" +
+                              std::to_string(oversizedProjection && oversizedProjection->textTruncated) + ", contentTruncated=" +
+                              std::to_string(oversizedProjection && oversizedProjection->contentTruncated) + ")");
+
+        backend::BackendState multipartState;
+        const Json multipartContent = Json::array(
+            {Json{{"type", "text"}, {"text", "part one"}},
+             Json{{"type", "text"}, {"text", ""}},
+             Json{{"type", "text"}, {"text", "part two 🌍"}}});
+        typed::UserMessageThreadItem multipart =
+            userMessageItem("thread-parts", "turn-parts", "item-parts", multipartContent, Json{{"id", "item-parts"}});
+        reducer.apply(multipartState,
+                      backend::ItemUpserted{typed::ThreadId{"thread-parts"},
+                                            typed::TurnId{"turn-parts"},
+                                            typed::ThreadItem{std::move(multipart)},
                                             backend::ItemLifecycle::Completed,
                                             30});
-        const backend::Snapshot oversizedFirstSnapshot = backend::makeSnapshot(oversizedFirstState);
-        const Json& oversizedFirstData = oversizedFirstSnapshot.threads[0].turns[0].items[0].data;
-        result.expectTrue(oversizedFirstData.at("content").is_array() && oversizedFirstData.at("content").empty() &&
-                              oversizedFirstData.at("contentTruncated").get<bool>() && oversizedFirstData.at("originalContentItems") == 1 &&
-                              oversizedFirstData.at("retainedContentItems") == 0 &&
-                              oversizedFirstData.at("originalContentBytes") == oversizedFirstContent.dump().size() &&
-                              oversizedFirstData.at("retainedContentBytes") == Json::array().dump().size() &&
-                              oversizedFirstData.dump().size() <= backend::MaxSerializedUserMessageDataBytes,
-                          "an oversized first userMessage entry yields an empty array without exposing partial JSON or text");
+        const backend::Snapshot multipartSnapshot = backend::makeSnapshot(multipartState);
+        const auto& multipartProjection = multipartSnapshot.threads[0].turns[0].items[0].userMessage;
+        result.expectTrue(multipartProjection && multipartProjection->text == "part one\n\n\n\npart two 🌍" &&
+                              !multipartProjection->textTruncated && !multipartProjection->contentTruncated &&
+                              multipartProjection->textParts == std::vector<std::string>({"part one", "", "part two 🌍"}),
+                          "multipart retained text preserves empty fragments, exact order, and UTF-8 (text='" +
+                              (multipartProjection ? multipartProjection->text : std::string{}) + "', parts=" +
+                              std::to_string(multipartProjection ? multipartProjection->textParts.size() : 0) + ", truncated=" +
+                              std::to_string(multipartProjection && multipartProjection->contentTruncated) + ")");
     }
 
     void testUnknownItemCommonMetadataFallbacks(tests::support::TestResult& result) {

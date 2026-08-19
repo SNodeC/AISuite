@@ -75,8 +75,8 @@
     },
     {
       "path": "src/ai/openai/codex/detail/TurnCodec.cpp",
-      "bytes": 17745,
-      "sha256": "1a6fd47e15499fedb0e445680b301729ef0c09d42ffaf0b395da327ac8b6557f"
+      "bytes": 20871,
+      "sha256": "5b12c70087026afe76884a1df249e23b6aa72c2ac7d21d5a1ba69ee862046f16"
     },
     {
       "path": "src/ai/openai/codex/detail/TurnCodec.h",
@@ -90,8 +90,8 @@
     },
     {
       "path": "src/ai/openai/codex/typed/Conversation.h",
-      "bytes": 14960,
-      "sha256": "b0a5065c8ba2630ac7ee29d9b2d2f7b18333ace67714d9c0a54410cebe2fbefd"
+      "bytes": 15197,
+      "sha256": "99ef040e942f09ec1e18b6c54926ccde585d32b93b28a95b70fc09c2207745c4"
     },
     {
       "path": "src/ai/openai/codex/typed/Items.h",

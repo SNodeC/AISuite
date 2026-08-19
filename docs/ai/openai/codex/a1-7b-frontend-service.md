@@ -101,7 +101,7 @@ peer/address in an event-loop time window; its defaults are three failures in
 `transport_security_required`, and `rate_limited`.
 
 The default service limits are 128 total connections, 16 unauthenticated
-connections, a 10-second handshake deadline, a 1 MiB inbound message, 50
+connections, a 10-second handshake deadline, an 8 MiB inbound message, 50
 messages per second with a burst of 100, 256 outstanding commands per
 connection, and the three-per-minute failed-authentication budget. Zero means
 zero capacity. Scheduling and expiry use the SNode.C event loop; the service
@@ -425,7 +425,7 @@ URL/query, cookie, Authorization header, and WebSocket subprotocol channels.
 Non-loopback browser deployment requires WSS unless the explicit insecure
 override is present.
 
-The default WebSocket message ceiling is exactly 1 MiB (1,048,576 bytes).
+The default WebSocket message ceiling is exactly 8 MiB (8,388,608 bytes).
 Each accepted message must be one complete text JSON value; SNode.C enforces
 frame/message limits and the AISuite subprotocol rejects binary messages. An
 upgrade requires exactly the WebSocket subprotocol token `codex`, which is

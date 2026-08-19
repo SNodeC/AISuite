@@ -171,58 +171,11 @@ namespace ai::openai::codex::frontend::internal::model {
             return std::string(text.substr(0, frontendUtf8PrefixLength(text, FrontendDetailMaximumStringCharacters)));
         }
 
-        struct UserMessageTextProjection {
-            std::string text;
-            std::size_t characters = 0;
-            bool truncated = false;
-        };
-
-        std::optional<UserMessageTextProjection> userMessageTextProjection(const Json& detail) {
-            constexpr std::string_view FragmentSeparator = "\n\n";
-            const auto content = detail.find("content");
-            if (content == detail.end() || !content->is_array()) {
-                return std::nullopt;
-            }
-
-            UserMessageTextProjection projection;
-            projection.text.reserve(FrontendDetailMaximumStringCharacters);
-            const auto append = [&projection](std::string_view value) {
-                if (projection.truncated || value.empty()) {
-                    return;
-                }
-                const std::size_t available = FrontendDetailMaximumStringCharacters - projection.characters;
-                std::size_t retainedCharacters = 0;
-                const std::size_t retained = frontendUtf8PrefixLength(value, available, &retainedCharacters);
-                projection.text.append(value.substr(0, retained));
-                projection.characters += retainedCharacters;
-                projection.truncated = retained != value.size();
-            };
-
-            bool hasTextFragment = false;
-            for (const Json& entry : *content) {
-                if (!entry.is_object()) {
-                    continue;
-                }
-                const auto type = entry.find("type");
-                const auto text = entry.find("text");
-                if (type == entry.end() || !type->is_string() || type->get_ref<const std::string&>() != "text" || text == entry.end() ||
-                    !text->is_string()) {
-                    continue;
-                }
-                if (hasTextFragment) {
-                    append(FragmentSeparator);
-                }
-                hasTextFragment = true;
-                append(text->get_ref<const std::string&>());
-            }
-            return projection;
-        }
-
-        Json expandedItemDetailObject(const SafeDetail& detail, bool userMessage) {
-            // Canonical SafeDetail intentionally retains richer bounded JSON,
-            // including user-message content objects. Frontend Protocol v1's
-            // ExpandedThreadItem.data admits only scalar leaves or scalar
-            // arrays, so normalize exactly once at the expanded-wire seam.
+        Json expandedItemDetailObject(const SafeDetail& detail) {
+            // Canonical SafeDetail intentionally retains richer bounded JSON.
+            // Frontend Protocol v1's ExpandedThreadItem.data admits only
+            // scalar leaves or scalar arrays, so normalize exactly once at
+            // the expanded-wire seam. User text uses its typed projection.
             const Json& value = detail.json();
             Json projected = Json::object();
             if (!value.is_object()) {
@@ -267,14 +220,6 @@ namespace ai::openai::codex::frontend::internal::model {
                 if (scalarOnly) {
                     projected[key] = std::move(values);
                     ++retained;
-                }
-            }
-            if (userMessage) {
-                projected.erase("text");
-                projected.erase("textTruncated");
-                if (const auto text = userMessageTextProjection(value)) {
-                    projected["text"] = text->text;
-                    projected["textTruncated"] = text->truncated;
                 }
             }
             return projected;
@@ -339,6 +284,46 @@ namespace ai::openai::codex::frontend::internal::model {
                 }
             }
             return std::nullopt;
+        }
+
+        std::optional<UserMessageProjection> takeUserMessageProjection(Json& value) {
+            const auto clientId = value.find("clientId");
+            const auto text = value.find("text");
+            const auto textTruncated = value.find("textTruncated");
+            const auto contentTruncated = value.find("contentTruncated");
+            const std::optional<std::uint64_t> originalBytes = optionalUnsigned(value, "originalContentBytes");
+            const std::optional<std::uint64_t> retainedBytes = optionalUnsigned(value, "retainedContentBytes");
+            const std::optional<std::uint64_t> originalItems = optionalUnsigned(value, "originalContentItems");
+            const std::optional<std::uint64_t> retainedItems = optionalUnsigned(value, "retainedContentItems");
+            if (clientId == value.end() || (!clientId->is_null() && !clientId->is_string()) || text == value.end() ||
+                !text->is_string() || textTruncated == value.end() || !textTruncated->is_boolean() ||
+                contentTruncated == value.end() || !contentTruncated->is_boolean() || !originalBytes || !retainedBytes ||
+                !originalItems || !retainedItems || *retainedBytes > *originalBytes || *retainedItems > *originalItems) {
+                return std::nullopt;
+            }
+
+            UserMessageProjection result;
+            if (clientId->is_string()) {
+                result.clientId = clientId->get<std::string>();
+            }
+            result.text = text->get<std::string>();
+            result.textTruncated = textTruncated->get<bool>();
+            result.contentTruncated = contentTruncated->get<bool>();
+            result.originalContentBytes = *originalBytes;
+            result.retainedContentBytes = *retainedBytes;
+            result.originalContentItems = *originalItems;
+            result.retainedContentItems = *retainedItems;
+            for (const std::string_view key : {"clientId",
+                                               "text",
+                                               "textTruncated",
+                                               "contentTruncated",
+                                               "originalContentBytes",
+                                               "retainedContentBytes",
+                                               "originalContentItems",
+                                               "retainedContentItems"}) {
+                value.erase(std::string(key));
+            }
+            return result;
         }
 
         bool booleanOr(const Json& value, std::string_view key, bool fallback) {
@@ -488,9 +473,7 @@ namespace ai::openai::codex::frontend::internal::model {
             encoded.contentTruncated = data.contentTruncated;
             encoded.startedAtMs = data.startedAtMs;
             encoded.completedAtMs = data.completedAtMs;
-            Json projected = data.safeDetails.has_value()
-                                 ? expandedItemDetailObject(*data.safeDetails, threadItemKind(item) == ThreadItemKind::UserMessage)
-                                 : Json::object();
+            Json projected = data.safeDetails.has_value() ? expandedItemDetailObject(*data.safeDetails) : Json::object();
             bool dataOmittedForOverflow = projected.erase(std::string(ItemContentOverflowV1Property)) != 0;
             const bool emitOverflow = itemContentMode == ItemContentWireMode::AppendV1 && data.agentTextOverflowV1.has_value();
             if (emitOverflow && projected.size() >= 64) {
@@ -513,6 +496,20 @@ namespace ai::openai::codex::frontend::internal::model {
                     fail(overflow.error().code, overflow.error().path, overflow.error().message);
                 }
                 projected[std::string(ItemContentOverflowV1Property)] = overflow.value();
+            }
+            if (threadItemKind(item) == ThreadItemKind::UserMessage && data.userMessage) {
+                while (projected.size() > 56) {
+                    projected.erase(std::prev(projected.end()));
+                    dataOmittedForOverflow = true;
+                }
+                projected["clientId"] = data.userMessage->clientId ? Json(*data.userMessage->clientId) : Json(nullptr);
+                projected["text"] = data.userMessage->text;
+                projected["textTruncated"] = data.userMessage->textTruncated;
+                projected["contentTruncated"] = data.userMessage->contentTruncated;
+                projected["originalContentBytes"] = data.userMessage->originalContentBytes;
+                projected["retainedContentBytes"] = data.userMessage->retainedContentBytes;
+                projected["originalContentItems"] = data.userMessage->originalContentItems;
+                projected["retainedContentItems"] = data.userMessage->retainedContentItems;
             }
             if (!projected.empty()) {
                 encoded.data = std::move(projected);
@@ -559,6 +556,9 @@ namespace ai::openai::codex::frontend::internal::model {
             data.truncation.omittedPaths = item.omittedFields;
             if (item.data.has_value()) {
                 Json details = *item.data;
+                if (item.type == ThreadItemKind::UserMessage) {
+                    data.userMessage = takeUserMessageProjection(details);
+                }
                 const auto overflowMember = details.find(std::string(ItemContentOverflowV1Property));
                 if (overflowMember != details.end()) {
                     if (itemContentMode != ItemContentWireMode::AppendV1) {
@@ -2295,6 +2295,33 @@ namespace ai::openai::codex::frontend::internal::model {
             return metadata != generated::AllThreadItemProjections.end() && metadata->legacyContract == "legacy_metadata_only";
         }
 
+        Json legacyUserMessageData(const UserMessageProjection& message) {
+            Json content = Json::array();
+            for (const std::string& text : message.textParts) {
+                content.push_back(Json{{"type", "text"}, {"text", text}});
+            }
+            if (content.empty() && !message.text.empty()) {
+                content.push_back(Json{{"type", "text"}, {"text", message.text}});
+            }
+            const auto retainedBytes = static_cast<std::uint64_t>(content.dump().size());
+            const auto retainedItems = static_cast<std::uint64_t>(content.size());
+            std::uint64_t originalBytes = std::max(message.originalContentBytes, retainedBytes);
+            const std::uint64_t originalItems = std::max(message.originalContentItems, retainedItems);
+            if (message.textTruncated && originalBytes == retainedBytes &&
+                originalBytes != std::numeric_limits<std::uint64_t>::max()) {
+                ++originalBytes;
+            }
+            const bool truncated = originalBytes > retainedBytes || originalItems > retainedItems;
+            return Json{{"clientId", message.clientId ? Json(*message.clientId) : Json(nullptr)},
+                        {"content", std::move(content)},
+                        {"textTruncated", message.textTruncated},
+                        {"contentTruncated", truncated},
+                        {"originalContentBytes", originalBytes},
+                        {"retainedContentBytes", retainedBytes},
+                        {"originalContentItems", originalItems},
+                        {"retainedContentItems", retainedItems}};
+        }
+
         Json legacyItem(const ThreadItem& item) {
             const ItemData& value = itemData(item);
             const std::string discriminator = value.legacyDiscriminator.value_or(std::string(toString(threadItemKind(item))));
@@ -2305,6 +2332,8 @@ namespace ai::openai::codex::frontend::internal::model {
             Json data = value.safeDetails.has_value() && value.safeDetails->json().is_object() ? value.safeDetails->json() : Json::object();
             if (legacyMetadataOnlyItem(threadItemKind(item))) {
                 data = Json{{"codexType", discriminator}};
+            } else if (threadItemKind(item) == ThreadItemKind::UserMessage && value.userMessage) {
+                data = legacyUserMessageData(*value.userMessage);
             }
             const Json& extensions = value.legacyDiscriminator.has_value() ? value.legacyExtensions.json() : value.extensions.json();
             Json encoded{{"id", value.id.value()},

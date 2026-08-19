@@ -9,6 +9,7 @@
 #include "ai/openai/codex/stdio/StdioTransport.h"
 
 #include "ai/openai/codex/AppServerClient.h"
+#include "ai/openai/codex/typed/Conversation.h"
 #include "ai/openai/codex/Protocol.h"
 #include "core/SNodeC.h"
 #include "core/eventreceiver/ReadEventReceiver.h"
@@ -55,6 +56,8 @@ namespace ai::openai::codex::stdio::detail {
 
     namespace {
         constexpr std::size_t MAX_APP_SERVER_FRAMED_LINE_BYTES = 16U * 1024U * 1024U;
+        constexpr std::size_t MAX_APP_SERVER_STDIN_QUEUED_BYTES = MAX_APP_SERVER_FRAMED_LINE_BYTES + 1U;
+        static_assert(MAX_APP_SERVER_STDIN_QUEUED_BYTES >= 6U * typed::MaximumTurnInputTextUnicodeScalars + 1U);
         const utils::Timeval CHILD_EXIT_POLL_INTERVAL = {0, 20000};
         const utils::Timeval STDIN_FLUSH_INTERVAL = {0, 250000};
         const utils::Timeval SIGTERM_GRACE_INTERVAL = {0, 250000};
@@ -514,7 +517,7 @@ namespace ai::openai::codex::stdio::detail {
                     throw std::runtime_error("injected parent receiver setup failure");
                 }
 
-                core::pipe::PipeSource* const writer = stdinPipe.releaseWriteAsSource(core::pipe::PipeSource::DEFAULT_MAX_QUEUED_BYTES,
+                core::pipe::PipeSource* const writer = stdinPipe.releaseWriteAsSource(MAX_APP_SERVER_STDIN_QUEUED_BYTES,
                                                                                       core::pipe::PipeSource::TIMEOUT::DISABLE);
                 if (writer == nullptr) {
                     throw std::runtime_error("unable to create app-server stdin receiver");

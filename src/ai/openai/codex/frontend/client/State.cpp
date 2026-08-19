@@ -2897,6 +2897,18 @@ namespace ai::openai::codex::frontend::client {
             if (source.safeDetails.has_value()) {
                 result.data = source.safeDetails->json();
             }
+            if (source.userMessage) {
+                frontend::Json data = result.data.value_or(frontend::Json::object());
+                data["clientId"] = source.userMessage->clientId ? frontend::Json(*source.userMessage->clientId) : frontend::Json(nullptr);
+                data["text"] = source.userMessage->text;
+                data["textTruncated"] = source.userMessage->textTruncated;
+                data["contentTruncated"] = source.userMessage->contentTruncated;
+                data["originalContentBytes"] = source.userMessage->originalContentBytes;
+                data["retainedContentBytes"] = source.userMessage->retainedContentBytes;
+                data["originalContentItems"] = source.userMessage->originalContentItems;
+                data["retainedContentItems"] = source.userMessage->retainedContentItems;
+                result.data = std::move(data);
+            }
             result.truncated = source.truncation.truncated;
             result.omittedFields = source.truncation.omittedPaths;
             result.connectionInvalidated = source.connectionInvalidated;

@@ -137,6 +137,69 @@ namespace ai::openai::codex::detail {
             return std::optional<Json>{std::in_place, value.value};
         }
 
+        std::optional<std::size_t> unicodeScalarCount(std::string_view value) noexcept {
+            std::size_t offset = 0;
+            std::size_t count = 0;
+            while (offset < value.size()) {
+                const unsigned char lead = static_cast<unsigned char>(value[offset]);
+                std::size_t width = 0;
+                if (lead <= 0x7fU) {
+                    width = 1;
+                } else if (lead >= 0xc2U && lead <= 0xdfU) {
+                    width = 2;
+                } else if (lead >= 0xe0U && lead <= 0xefU) {
+                    width = 3;
+                } else if (lead >= 0xf0U && lead <= 0xf4U) {
+                    width = 4;
+                } else {
+                    return std::nullopt;
+                }
+                if (width > value.size() - offset) {
+                    return std::nullopt;
+                }
+                for (std::size_t index = 1; index < width; ++index) {
+                    if ((static_cast<unsigned char>(value[offset + index]) & 0xc0U) != 0x80U) {
+                        return std::nullopt;
+                    }
+                }
+                if (width == 3) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xe0U && second < 0xa0U) || (lead == 0xedU && second >= 0xa0U)) {
+                        return std::nullopt;
+                    }
+                } else if (width == 4) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    if ((lead == 0xf0U && second < 0x90U) || (lead == 0xf4U && second > 0x8fU)) {
+                        return std::nullopt;
+                    }
+                }
+                offset += width;
+                ++count;
+            }
+            return count;
+        }
+
+        bool validateTurnInputText(const std::vector<typed::TurnInput>& input, std::string& error) {
+            std::size_t aggregate = 0;
+            for (const typed::TurnInput& part : input) {
+                const auto* text = std::get_if<typed::TextInput>(&part);
+                if (text == nullptr) {
+                    continue;
+                }
+                const std::optional<std::size_t> partCharacters = unicodeScalarCount(text->text);
+                if (!partCharacters.has_value()) {
+                    return fail(error, "turn text input is not valid UTF-8");
+                }
+                if (*partCharacters > typed::MaximumTurnInputTextUnicodeScalars - aggregate) {
+                    return fail(error,
+                                "turn text input exceeds the Codex limit of " +
+                                    std::to_string(typed::MaximumTurnInputTextUnicodeScalars) + " Unicode scalar values");
+                }
+                aggregate += *partCharacters;
+            }
+            return true;
+        }
+
         std::optional<Json> encodeInputArray(const std::vector<typed::TurnInput>& input, std::string& error) {
             Json result = Json::array();
             for (std::size_t index = 0; index < input.size(); ++index) {
@@ -198,6 +261,9 @@ namespace ai::openai::codex::detail {
     std::optional<Json> encodeTurnStartParams(const typed::TurnStartParams& params, std::string& error) {
         try {
             error.clear();
+            if (!validateTurnInputText(params.input, error)) {
+                return std::nullopt;
+            }
             auto input = encodeInputArray(params.input, error);
             if (!input) {
                 return std::nullopt;
@@ -240,6 +306,9 @@ namespace ai::openai::codex::detail {
     std::optional<Json> encodeTurnSteerParams(const typed::TurnSteerParams& params, std::string& error) {
         try {
             error.clear();
+            if (!validateTurnInputText(params.input, error)) {
+                return std::nullopt;
+            }
             auto input = encodeInputArray(params.input, error);
             if (!input) {
                 return std::nullopt;

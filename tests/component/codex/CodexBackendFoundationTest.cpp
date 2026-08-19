@@ -688,11 +688,19 @@ namespace {
         malformedThread.turns = {std::move(malformedTurn)};
         reducer.apply(malformedSnapshotState, backend::ThreadUpserted{std::move(malformedThread), backend::EntityLoad::Full});
         const backend::Snapshot malformedSnapshot = backend::makeSnapshot(malformedSnapshotState);
+        const backend::ItemSnapshot& malformedSnapshotItem = malformedSnapshot.threads.front().turns.front().items.front();
         result.expectTrue(malformedSnapshot.threads.size() == 1 && malformedSnapshot.threads.front().turns.size() == 1 &&
                               malformedSnapshot.threads.front().turns.front().items.size() == 1 &&
-                              malformedSnapshot.threads.front().turns.front().items.front().data.value("omitted", false) &&
+                              malformedSnapshotItem.data.empty() && malformedSnapshotItem.userMessage &&
+                              !malformedSnapshotItem.userMessage->clientId && malformedSnapshotItem.userMessage->text.empty() &&
+                              malformedSnapshotItem.userMessage->textParts.empty() && !malformedSnapshotItem.userMessage->textTruncated &&
+                              !malformedSnapshotItem.userMessage->contentTruncated &&
+                              malformedSnapshotItem.userMessage->originalContentBytes == Json::array().dump().size() &&
+                              malformedSnapshotItem.userMessage->retainedContentBytes == Json::array().dump().size() &&
+                              malformedSnapshotItem.userMessage->originalContentItems == 0 &&
+                              malformedSnapshotItem.userMessage->retainedContentItems == 0 &&
                               retentionCountersMatch(malformedSnapshotState),
-                          "snapshot projection contains malformed serialized content without throwing or exposing its value");
+                          "snapshot projection ignores malformed raw user content and exposes only empty typed semantics");
     }
 
     void testIncrementalRetentionAndFreshness(tests::support::TestResult& result) {

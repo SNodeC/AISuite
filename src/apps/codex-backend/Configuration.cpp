@@ -255,7 +255,10 @@ namespace apps::codex_backend {
         handshakeTimeoutOption = configurableUnsigned<std::uint64_t>(
             "--frontend-handshake-timeout-ms", "Frontend authentication handshake timeout", "MILLISECONDS", 10000);
         maximumInboundMessageBytesOption = configurableUnsigned<std::size_t>(
-            "--frontend-maximum-message-bytes", "Maximum inbound frontend message bytes", "BYTES", 1024U * 1024U);
+            "--frontend-maximum-message-bytes",
+            "Maximum inbound frontend message bytes",
+            "BYTES",
+            ai::openai::codex::frontend::DefaultFrontendMaximumInboundMessageBytes);
         maxInboundMessagesPerSecondOption =
             configurableUnsigned<std::size_t>("--frontend-max-messages-per-second", "Sustained inbound frontend message rate", "COUNT", 50);
         maxInboundBurstOption =

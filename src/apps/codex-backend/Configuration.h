@@ -28,7 +28,8 @@ namespace CLI {
 
 namespace apps::codex_backend {
 
-    inline constexpr std::size_t DEFAULT_MAXIMUM_FRAME_SIZE = 1024U * 1024U;
+    inline constexpr std::size_t DEFAULT_MAXIMUM_FRAME_SIZE =
+        ai::openai::codex::frontend::DefaultFrontendMaximumInboundMessageBytes;
 
     // Keep transport framing and already-delivered writer data outside the
     // reusable service's bounded queue. This remains finite while ensuring a

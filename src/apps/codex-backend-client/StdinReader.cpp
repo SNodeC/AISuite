@@ -23,10 +23,6 @@
 
 namespace apps::codex_backend_client {
 
-    namespace {
-        constexpr std::size_t MaximumBufferedLineBytes = 1024 * 1024;
-    }
-
     StdinReader::StdinReader(LineHandler onLine, EofHandler onEof, ErrorHandler onError, int fd, ShutdownHandler onShutdown)
         : core::eventreceiver::ReadEventReceiver(
               "codex-backend-client stdin",
@@ -118,12 +114,12 @@ namespace apps::codex_backend_client {
             const ssize_t count = ::read(inputFd, bytes.data(), bytes.size());
             if (count > 0) {
                 const std::size_t size = static_cast<std::size_t>(count);
-                if (size > MaximumBufferedLineBytes || buffered.size() > MaximumBufferedLineBytes - size) {
-                    fail("stdin command exceeds the one MiB line limit");
-                    return;
-                }
                 buffered.append(bytes.data(), size);
                 emitLines();
+                if (activeReader && buffered.size() > MaximumLineBytes) {
+                    fail("stdin command exceeds the default frontend message limit");
+                    return;
+                }
                 continue;
             }
             if (count == 0) {
@@ -163,6 +159,12 @@ namespace apps::codex_backend_client {
         while (activeReader) {
             const std::size_t newline = buffered.find('\n');
             if (newline == std::string::npos) {
+                return;
+            }
+            const bool hasCarriageReturn = newline > 0 && buffered[newline - 1] == '\r';
+            const std::size_t lineBytes = newline - static_cast<std::size_t>(hasCarriageReturn);
+            if (lineBytes > MaximumLineBytes) {
+                fail("stdin command exceeds the default frontend message limit");
                 return;
             }
             std::string line = buffered.substr(0, newline);

@@ -253,6 +253,25 @@ namespace {
         futureItemEvent["data"]["item"]["type"] = "future_item";
         result.expectTrue(matchesSchema(schema, frontendEventSchema, futureItemEvent),
                           "the user-message condition leaves future item data shapes unrestricted");
+
+        const Json& definitions = schema["$defs"];
+        const Json* expandedUserMessage = nullptr;
+        for (const Json& alternative : definitions.at("ExpandedThreadItem").at("oneOf")) {
+            const Json& properties = alternative.at("allOf").at(1).at("properties");
+            if (properties.at("type").value("const", std::string{}) == "userMessage") {
+                expandedUserMessage = &properties;
+                break;
+            }
+        }
+        const Json& semantic = definitions.at("UserMessageSemanticData");
+        result.expectTrue(expandedUserMessage &&
+                              expandedUserMessage->at("data").value("$ref", std::string{}) ==
+                                  "#/$defs/UserMessageSemanticData" &&
+                              definitions.at("ExpandedThreadItemBase").at("properties").at("data").empty() &&
+                              semantic.at("properties").at("text").value("maxLength", 0U) == 16U * 1024U * 1024U &&
+                              semantic.at("properties").at("clientId").at("anyOf").at(0).value("maxLength", 0U) ==
+                                  16U * 1024U * 1024U,
+                          "expanded user messages use their dedicated app-server-sized semantic schema instead of generic detail bounds");
     }
 
     void testDefaultReplayHeadroom(tests::support::TestResult& result) {

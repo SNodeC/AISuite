@@ -36,11 +36,12 @@ int main() {
 
     const frontend::FrontendServiceOptions serviceDefaults;
     result.expectTrue(serviceDefaults.maxConnections == 128 && serviceDefaults.maxUnauthenticatedConnections == 16 &&
-                          serviceDefaults.maximumInboundMessageBytes == 1024U * 1024U,
+                          serviceDefaults.maximumInboundMessageBytes == frontend::DefaultFrontendMaximumInboundMessageBytes &&
+                          frontend::DefaultFrontendMaximumInboundMessageBytes == 8U * 1024U * 1024U,
                       "FrontendService retains its independent protocol resource limits");
-    result.expectTrue(app::SocketFrontendOptions{}.maximumFrameSize == 1024U * 1024U &&
+    result.expectTrue(app::SocketFrontendOptions{}.maximumFrameSize == frontend::DefaultFrontendMaximumInboundMessageBytes &&
                           app::DEFAULT_MAXIMUM_OUTBOUND_BYTES == 13U * 1024U * 1024U,
-                      "native framing remains one MiB while SNode.C owns the distinct 13 MiB writer queue");
+                      "native framing accepts a maximum Codex text command while SNode.C owns the distinct 13 MiB writer queue");
 
     const std::string configuration = readFile(CODEX_BACKEND_CONFIGURATION_SOURCE);
     const std::string main = readFile(CODEX_BACKEND_MAIN_SOURCE);

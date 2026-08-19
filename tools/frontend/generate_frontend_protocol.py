@@ -1829,6 +1829,41 @@ def generate_schema(
             {"$ref": "#/$defs/SafeDetailObject"},
         ]
     }
+    definitions["UserMessageSemanticData"] = {
+        "type": "object",
+        "required": [
+            "clientId",
+            "text",
+            "textTruncated",
+            "contentTruncated",
+            "originalContentBytes",
+            "retainedContentBytes",
+            "originalContentItems",
+            "retainedContentItems",
+        ],
+        "properties": {
+            # Codex does not impose a separate client-id character limit. The
+            # app-server JSONL input bound is the authoritative source bound.
+            "clientId": {
+                "anyOf": [
+                    {"type": "string", "maxLength": 16 << 20},
+                    {"type": "null"},
+                ]
+            },
+            # Multipart presentation preserves empty fragments and separators.
+            # The app-server JSONL input bound, rather than the scalar-only
+            # content limit, is therefore the authoritative presentation cap.
+            "text": {"type": "string", "maxLength": 16 << 20},
+            "textTruncated": {"type": "boolean"},
+            "contentTruncated": {"type": "boolean"},
+            "originalContentBytes": {"$ref": "#/$defs/UInt64"},
+            "retainedContentBytes": {"$ref": "#/$defs/UInt64"},
+            "originalContentItems": {"$ref": "#/$defs/UInt64"},
+            "retainedContentItems": {"$ref": "#/$defs/UInt64"},
+        },
+        "maxProperties": 64,
+        "additionalProperties": True,
+    }
     definitions["TruncationMetadata"] = {
         "type": "object",
         "required": ["truncated"],
@@ -1869,7 +1904,6 @@ def generate_schema(
             "contentTruncated": {"type": "boolean"},
             "startedAtMs": {"type": "integer"},
             "completedAtMs": {"type": "integer"},
-            "data": {"$ref": "#/$defs/SafeDetailObject"},
             "truncated": {"type": "boolean"},
             "omittedFields": {
                 "type": "array",
@@ -1880,6 +1914,11 @@ def generate_schema(
             "connectionInvalidated": {"type": "boolean"},
             "generation": {"$ref": "#/$defs/UInt64"},
             "freshness": {"$ref": "#/$defs/StateFreshness"},
+            # Each concrete item variant constrains data below. Declaring it
+            # here prevents the base object's additionalProperties rule from
+            # also forcing generic SafeDetailValue bounds onto the typed
+            # user-message semantic projection.
+            "data": {},
         },
         "additionalProperties": True,
     }
@@ -1890,7 +1929,16 @@ def generate_schema(
                     {"$ref": "#/$defs/ExpandedThreadItemBase"},
                     {
                         "type": "object",
-                        "properties": {"type": {"const": item_name}},
+                        "properties": {
+                            "type": {"const": item_name},
+                            "data": {
+                                "$ref": (
+                                    "#/$defs/UserMessageSemanticData"
+                                    if item_name == "userMessage"
+                                    else "#/$defs/SafeDetailObject"
+                                )
+                            },
+                        },
                     },
                 ]
             }

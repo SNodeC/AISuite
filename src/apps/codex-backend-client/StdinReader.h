@@ -8,8 +8,10 @@
 #ifndef APPS_CODEX_BACKEND_CLIENT_STDINREADER_H
 #define APPS_CODEX_BACKEND_CLIENT_STDINREADER_H
 
+#include "ai/openai/codex/frontend/Protocol.h"
 #include "core/eventreceiver/ReadEventReceiver.h"
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
@@ -37,6 +39,9 @@ namespace apps::codex_backend_client {
 
     private:
         friend struct StdinReaderTestAccess;
+
+        static constexpr std::size_t MaximumLineBytes =
+            ai::openai::codex::frontend::DefaultFrontendMaximumInboundMessageBytes;
 
         void readEvent() override;
         void unobservedEvent() override;

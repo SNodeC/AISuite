@@ -10,7 +10,6 @@
 #include "ai/openai/codex/stdio/Client.h"
 #include "ai/openai/codex/stdio/StdioTransport.h"
 #include "core/SNodeC.h"
-#include "core/pipe/PipeSource.h"
 #include "core/timer/Timer.h"
 #include "log/Logger.h"
 #include "support/DescriptorRegistrationFailure.h"
@@ -162,9 +161,9 @@ int main(int argc, char* argv[]) {
     ai::openai::codex::ClientInfo clientInfo;
     if (scenario == "bounded-overflow") {
         fakeMode = "hold-initialize";
-        clientInfo.title.assign(core::pipe::PipeSource::DEFAULT_MAX_QUEUED_BYTES + 1024, 'x');
+        clientInfo.title.assign(16U * 1024U * 1024U + 1U, 'x');
     } else if (scenario == "slow-stdin") {
-        clientInfo.title.assign(512 * 1024, 'x');
+        clientInfo.title.assign(1024U * 1024U + 64U * 1024U, 'x');
     } else if (scenario == "blocked-shutdown" || scenario == "blocked-ignore-shutdown") {
         fakeMode = scenario == "blocked-shutdown" ? "never-read-stdin" : "never-read-stdin-ignore-term";
         clientInfo.title.assign(512 * 1024, 'x');
@@ -374,12 +373,12 @@ int main(int argc, char* argv[]) {
                               scenario + ": partial parent setup is closed and the child is reaped");
         testResult.expectTrue(failureWasAsynchronous, scenario + ": registration failure callback runs after start returns");
     } else if (scenario == "bounded-overflow") {
-        testResult.expectEqual(1, failureCount, "bounded queue overflow reports failure exactly once");
+        testResult.expectEqual(1, failureCount, "a request above the sixteen MiB stdin queue reports failure exactly once");
         testResult.expectTrue(failure && failure->category == ai::openai::codex::Error::Category::Transport,
                               "bounded queue overflow is a transport failure");
         testResult.expectTrue(failure && failure->code == ENOBUFS, "bounded queue overflow reports ENOBUFS");
     } else if (scenario == "slow-stdin") {
-        testResult.expectEqual(0, failureCount, "slow stdin consumption does not fail initialization");
+        testResult.expectEqual(0, failureCount, "a request above the former one MiB stdin bound survives slow consumption");
         testResult.expectTrue(containsState(states, CodexState::Ready), "partial writes eventually complete initialization");
         testResult.expectTrue(containsState(states, CodexState::Stopped), "slow-consumer child stops cleanly");
         testResult.expectTrue(probeDelay && *probeDelay < std::chrono::milliseconds(200),

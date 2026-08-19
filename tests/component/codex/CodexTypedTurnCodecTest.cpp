@@ -6,6 +6,7 @@
  */
 
 #include "ai/openai/codex/detail/TurnCodec.h"
+#include "ai/openai/codex/frontend/Protocol.h"
 #include "support/TestResult.h"
 
 #include <cstdint>
@@ -24,6 +25,7 @@ namespace {
     using ai::openai::codex::detail::encodeTurnInput;
     using ai::openai::codex::detail::encodeTurnInterruptParams;
     using ai::openai::codex::detail::encodeTurnStartParams;
+    using ai::openai::codex::detail::encodeTurnSteerParams;
     using ai::openai::codex::typed::AbsolutePath;
     using ai::openai::codex::typed::ApprovalPolicy;
     using ai::openai::codex::typed::AskForApproval;
@@ -46,6 +48,7 @@ namespace {
     using ai::openai::codex::typed::TurnId;
     using ai::openai::codex::typed::TurnInput;
     using ai::openai::codex::typed::TurnStartParams;
+    using ai::openai::codex::typed::TurnSteerParams;
     using ai::openai::codex::typed::UnknownTurnInput;
     using ai::openai::codex::typed::WorkspaceWriteSandboxPolicy;
 
@@ -388,6 +391,91 @@ namespace {
                               "turn/start encodes the current danger-full-access sandbox policy shape");
     }
 
+    void testTurnTextInputLimit(tests::support::TestResult& testResult) {
+        namespace frontend = ai::openai::codex::frontend;
+        namespace typed = ai::openai::codex::typed;
+
+        static_assert(typed::MaximumTurnInputTextUnicodeScalars == 1U << 20U);
+        static_assert(frontend::DefaultFrontendMaximumInboundMessageBytes == 8U * 1024U * 1024U);
+
+        std::string error;
+        TurnStartParams exactStart;
+        exactStart.threadId = ThreadId{"thread-exact"};
+        TextInput exactText;
+        exactText.text.assign(typed::MaximumTurnInputTextUnicodeScalars, 'a');
+        exactStart.input.emplace_back(std::move(exactText));
+        const std::optional<Json> encodedExactStart = encodeTurnStartParams(exactStart, error);
+        testResult.expectTrue(
+            encodedExactStart && error.empty() && encodedExactStart->at("input").size() == 1 &&
+                encodedExactStart->at("input").front().at("text").get_ref<const std::string&>().size() ==
+                    typed::MaximumTurnInputTextUnicodeScalars,
+            "turn/start accepts the exact Codex aggregate Unicode-scalar text limit without truncation");
+
+        TurnStartParams oversizedStart;
+        oversizedStart.threadId = ThreadId{"thread-oversized"};
+        TextInput oversizedText;
+        oversizedText.text.assign(typed::MaximumTurnInputTextUnicodeScalars + 1U, 'b');
+        oversizedStart.input.emplace_back(std::move(oversizedText));
+        testResult.expectTrue(
+            !encodeTurnStartParams(oversizedStart, error) &&
+                error.find(std::to_string(typed::MaximumTurnInputTextUnicodeScalars)) != std::string::npos,
+            "turn/start rejects one Unicode scalar beyond the Codex aggregate text limit");
+
+        const std::vector<std::string> invalidUtf8{
+            std::string("\x80", 1),
+            std::string("\xC0\x80", 2),
+            std::string("\xE2\x28\xA1", 3),
+            std::string("\xE0\x80\x80", 3),
+            std::string("\xED\xA0\x80", 3),
+            std::string("\xF4\x90\x80\x80", 4),
+            std::string("\xF0\x9F", 2),
+        };
+        bool invalidUtf8Rejected = true;
+        for (const std::string& invalid : invalidUtf8) {
+            TurnStartParams malformed;
+            malformed.threadId = ThreadId{"thread-invalid-utf8"};
+            TextInput malformedText;
+            malformedText.text = invalid;
+            malformed.input.emplace_back(std::move(malformedText));
+            invalidUtf8Rejected = invalidUtf8Rejected && !encodeTurnStartParams(malformed, error) &&
+                                  error.find("valid UTF-8") != std::string::npos;
+        }
+        testResult.expectTrue(invalidUtf8Rejected,
+                              "turn text rejects invalid leads, continuations, overlong forms, surrogates, overflow, and truncation");
+
+        TurnSteerParams exactMultipartSteer;
+        exactMultipartSteer.threadId = ThreadId{"thread-steer"};
+        exactMultipartSteer.expectedTurnId = TurnId{"turn-steer"};
+        TextInput multipartPrefix;
+        multipartPrefix.text.assign(typed::MaximumTurnInputTextUnicodeScalars - 1U, 'c');
+        TextInput astralScalar;
+        astralScalar.text = "\xF0\x9F\x8C\x8D";
+        exactMultipartSteer.input.emplace_back(std::move(multipartPrefix));
+        exactMultipartSteer.input.emplace_back(std::move(astralScalar));
+        const std::optional<Json> encodedExactSteer = encodeTurnSteerParams(exactMultipartSteer, error);
+        testResult.expectTrue(
+            encodedExactSteer && error.empty() && encodedExactSteer->at("input").size() == 2 &&
+                encodedExactSteer->at("input")[1].at("text") == "\xF0\x9F\x8C\x8D",
+            "turn/steer aggregates multipart text and counts one astral UTF-8 code point as one Unicode scalar");
+
+        TurnSteerParams oversizedMultipartSteer = exactMultipartSteer;
+        std::get<TextInput>(oversizedMultipartSteer.input[1]).text += 'd';
+        testResult.expectTrue(!encodeTurnSteerParams(oversizedMultipartSteer, error) && !error.empty(),
+                              "turn/steer rejects multipart text whose aggregate is one Unicode scalar over the limit");
+
+        TurnStartParams escapedStart;
+        escapedStart.threadId = ThreadId{"thread-escaped"};
+        TextInput escapedText;
+        escapedText.text.assign(typed::MaximumTurnInputTextUnicodeScalars, '\0');
+        escapedStart.input.emplace_back(std::move(escapedText));
+        const std::optional<Json> encodedEscapedStart = encodeTurnStartParams(escapedStart, error);
+        const std::size_t encodedBytes = encodedEscapedStart ? encodedEscapedStart->dump().size() : 0U;
+        testResult.expectTrue(
+            encodedEscapedStart && error.empty() && encodedBytes > 6U * typed::MaximumTurnInputTextUnicodeScalars &&
+                encodedBytes < frontend::DefaultFrontendMaximumInboundMessageBytes,
+            "the worst-case JSON-escaped maximum Codex text input fits within the eight MiB frontend frame limit");
+    }
+
     void testResultWrappersAndInterrupt(tests::support::TestResult& testResult) {
         const Json rawTurn = validTurn();
         const Json rawResult = {{"turn", rawTurn}, {"futureResultField", true}};
@@ -428,6 +516,7 @@ int main() {
     testRequiredOptionalAndExtensibleFields(testResult);
     testInputEncoding(testResult);
     testTurnStartEncoding(testResult);
+    testTurnTextInputLimit(testResult);
     testResultWrappersAndInterrupt(testResult);
 
     return testResult.processResult();

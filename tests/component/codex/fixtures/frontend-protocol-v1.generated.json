@@ -3691,7 +3691,16 @@
           "completedAtMs": 0,
           "connectionInvalidated": false,
           "contentTruncated": false,
-          "data": {},
+          "data": {
+            "clientId": "x",
+            "contentTruncated": false,
+            "originalContentBytes": 0,
+            "originalContentItems": 0,
+            "retainedContentBytes": 0,
+            "retainedContentItems": 0,
+            "text": "x",
+            "textTruncated": false
+          },
           "droppedContentBytes": 0,
           "freshness": "unknown",
           "generation": 0,

@@ -30,6 +30,15 @@ namespace apps::codex_backend_client {
         static void readNow(StdinReader& reader) {
             reader.readEvent();
         }
+
+        static void emitBuffered(StdinReader& reader, std::string input) {
+            reader.buffered = std::move(input);
+            reader.emitLines();
+        }
+
+        static constexpr std::size_t maximumLineBytes() noexcept {
+            return StdinReader::MaximumLineBytes;
+        }
     };
 
 } // namespace apps::codex_backend_client
@@ -184,6 +193,7 @@ int main(int argc, char* argv[]) {
     std::size_t eagainLineCount = 0;
     std::size_t eagainEofCount = 0;
     std::size_t eagainErrorCount = 0;
+    std::string eagainError;
     std::size_t shutdownNotificationCount = 0;
 
     try {
@@ -233,8 +243,9 @@ int main(int argc, char* argv[]) {
             [&]() {
                 ++eagainEofCount;
             },
-            [&](std::string) {
+            [&](std::string error) {
                 ++eagainErrorCount;
+                eagainError = std::move(error);
             },
             eagainPipe.readFd);
 
@@ -287,7 +298,16 @@ int main(int argc, char* argv[]) {
     apps::codex_backend_client::StdinReaderTestAccess::readNow(*eagainReader);
     testResult.expectTrue(eagainReader->active() && eagainLineCount == 0 && eagainEofCount == 0 && eagainErrorCount == 0,
                           "stdin EAGAIN leaves the reader active and does not synthesize EOF or failure");
-    eagainReader->stop();
+    const std::size_t maximumLineBytes = apps::codex_backend_client::StdinReaderTestAccess::maximumLineBytes();
+    apps::codex_backend_client::StdinReaderTestAccess::emitBuffered(
+        *eagainReader, std::string(maximumLineBytes, 'x') + "\n{}\n");
+    testResult.expectTrue(eagainReader->active() && eagainLineCount == 2 && eagainErrorCount == 0,
+                          "stdin accepts an exact default-frontend-limit command followed by another line");
+    apps::codex_backend_client::StdinReaderTestAccess::emitBuffered(
+        *eagainReader, std::string(maximumLineBytes + 1, 'x') + "\n");
+    testResult.expectTrue(!eagainReader->active() && eagainLineCount == 2 && eagainErrorCount == 1 &&
+                              eagainError == "stdin command exceeds the default frontend message limit",
+                          "stdin rejects a command line one byte beyond the default frontend limit");
 
     core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
         [&]() {

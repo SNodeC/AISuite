@@ -10,6 +10,7 @@
 
 #include "ai/openai/codex/typed/Types.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -18,6 +19,10 @@
 #include <vector>
 
 namespace ai::openai::codex::typed {
+
+    // Codex app-server rejects turn/start and turn/steer when the aggregate
+    // text input exceeds this many Unicode scalar values.
+    inline constexpr std::size_t MaximumTurnInputTextUnicodeScalars = 1U << 20U;
 
     struct SubAgentSourceKind {
         std::string value;

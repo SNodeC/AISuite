@@ -2895,76 +2895,105 @@ namespace {
         const frontend::Json sourceUserContent = frontend::Json::array(
             {frontend::Json{{"type", "text"}, {"text", "hello"}},
              frontend::Json{{"type", "image"}, {"url", "https://private.invalid/MUST_NOT_REACH_FRONTEND_IMAGE"}},
+             frontend::Json{{"type", "text"}, {"text", ""}},
              frontend::Json{{"type", "text"}, {"text", "Grüße 🌍"}},
              frontend::Json{{"type", "skill"}, {"name", "private-skill"}, {"path", "/MUST_NOT_REACH_FRONTEND_SKILL"}}});
-        userItem.data = frontend::Json{{"clientId", nullptr},
-                                       {"content", sourceUserContent},
-                                       {"contentTruncated", false},
-                                       {"originalContentBytes", sourceUserContent.dump().size()},
-                                       {"retainedContentBytes", sourceUserContent.dump().size()},
-                                       {"originalContentItems", 4},
-                                       {"retainedContentItems", 4}};
+        const frontend::Json retainedUserContent =
+            frontend::Json::array({sourceUserContent[0], sourceUserContent[2], sourceUserContent[3]});
+        userItem.userMessage = ai::openai::codex::backend::UserMessageSnapshot{std::nullopt,
+                                                                              "hello\n\n\n\nGrüße 🌍",
+                                                                              false,
+                                                                              true,
+                                                                              sourceUserContent.dump().size(),
+                                                                              retainedUserContent.dump().size(),
+                                                                              5,
+                                                                              3,
+                                                                              {"hello", "", "Grüße 🌍"}};
         userItem.extensions = frontend::Json{{"accessToken", "MUST_NOT_REACH_FRONTEND"}};
         const auto itemDetailsSnapshot = projection.projectSnapshot(itemDetailsSource);
         const auto itemDetailsWire = itemDetailsSnapshot
                                          ? model::encodeProjectedSnapshot(itemDetailsSnapshot.value(),
                                                                           model::SnapshotRepresentationSelection{true, true, true, true})
                                          : model::ModelResult<frontend::Snapshot>{itemDetailsSnapshot.error()};
-        const frontend::Json projectedItemDetails = itemDetailsSnapshot && itemDetailsSnapshot.value().items.size() == 1 &&
-                                                            model::itemData(itemDetailsSnapshot.value().items.front()).safeDetails
-                                                        ? model::itemData(itemDetailsSnapshot.value().items.front()).safeDetails->json()
-                                                        : frontend::Json::object();
         const frontend::Json wireItemDetails =
             itemDetailsWire && itemDetailsWire.value().state.contains("items") && !itemDetailsWire.value().state.at("items").empty()
                 ? itemDetailsWire.value().state.at("items").front().value("data", frontend::Json::object())
                 : frontend::Json::object();
-        result.expectTrue(itemDetailsWire && projectedItemDetails.contains("content") && projectedItemDetails.at("content").is_array() &&
-                              projectedItemDetails.at("content").size() == 4 && projectedItemDetails.at("content").front().is_object() &&
-                              !wireItemDetails.contains("content") && wireItemDetails.contains("clientId") &&
-                              wireItemDetails.at("clientId").is_null() && wireItemDetails.value("contentTruncated", true) == false &&
-                              wireItemDetails.value("text", std::string{}) == "hello\n\nGrüße 🌍" &&
-                              !wireItemDetails.value("textTruncated", true) && wireItemDetails.value("originalContentItems", 0) == 4 &&
-                              wireItemDetails.value("retainedContentItems", 0) == 4 && projectedItemDetails.contains("clientId") &&
-                              projectedItemDetails.at("clientId").is_null() && projectedItemDetails.value("originalContentItems", 0) == 4 &&
+        result.expectTrue(itemDetailsWire && !wireItemDetails.contains("content") && wireItemDetails.contains("clientId") &&
+                              wireItemDetails.at("clientId").is_null() && wireItemDetails.value("contentTruncated", false) &&
+                              wireItemDetails.value("text", std::string{}) == "hello\n\n\n\nGrüße 🌍" &&
+                              !wireItemDetails.value("textTruncated", true) && wireItemDetails.value("originalContentItems", 0) == 5 &&
+                              wireItemDetails.value("retainedContentItems", 0) == 3 &&
                               itemDetailsWire.value().state.dump().find("MUST_NOT_REACH_FRONTEND") == std::string::npos &&
                               itemDetailsWire.value().state.dump().find("private-skill") == std::string::npos,
-                          "canonical item details retain bounded provider content while the expanded-wire seam emits only "
-                          "ordered UTF-8 user text and no non-text or sensitive values");
+                          "the typed user-message projection emits ordered UTF-8 text and truthfully omits non-text or sensitive values");
+
+        const auto legacyItemDetailsWire =
+            itemDetailsSnapshot
+                ? model::encodeProjectedSnapshot(itemDetailsSnapshot.value(), model::SnapshotRepresentationSelection{})
+                : model::ModelResult<frontend::Snapshot>{itemDetailsSnapshot.error()};
+        const frontend::Json legacyUserData =
+            legacyItemDetailsWire && legacyItemDetailsWire.value().state.contains("threads") &&
+                    !legacyItemDetailsWire.value().state.at("threads").empty() &&
+                    !legacyItemDetailsWire.value().state.at("threads").front().at("turns").empty() &&
+                    !legacyItemDetailsWire.value().state.at("threads").front().at("turns").front().at("items").empty()
+                ? legacyItemDetailsWire.value()
+                      .state.at("threads")
+                      .front()
+                      .at("turns")
+                      .front()
+                      .at("items")
+                      .front()
+                      .value("data", frontend::Json::object())
+                : frontend::Json::object();
+        result.expectTrue(legacyItemDetailsWire && legacyUserData.value("contentTruncated", false) &&
+                              legacyUserData.at("content").size() == 3 &&
+                              legacyUserData.at("content").at(0).value("text", std::string{}) == "hello" &&
+                              legacyUserData.at("content").at(1).value("text", std::string{}) == "" &&
+                              legacyUserData.at("content").at(2).value("text", std::string{}) == "Grüße 🌍" &&
+                              legacyUserData.value("retainedContentBytes", 0U) == legacyUserData.at("content").dump().size() &&
+                              legacyUserData.value("retainedContentItems", 0U) == 3 &&
+                              legacyUserData.value("originalContentItems", 0U) > 3 &&
+                              legacyItemDetailsWire.value().state.dump().find("MUST_NOT_REACH_FRONTEND") == std::string::npos,
+                          "the frozen legacy snapshot keeps complete ordered text while truthfully omitting non-text content");
 
         ai::openai::codex::backend::Snapshot longTextSource = source;
         ai::openai::codex::backend::ItemSnapshot& longTextItem = longTextSource.threads.front().turns.front().items.front();
         longTextItem.type = "user_message";
-        const std::string sourceUserText = std::string(16'383, 'u') + "€" + std::string(16'381, 'v');
+        const std::string sourceUserText(typed::MaximumTurnInputTextUnicodeScalars, '\0');
         const frontend::Json longTextContent =
             frontend::Json::array({frontend::Json{{"type", "text"}, {"text", sourceUserText}}});
-        longTextItem.data = frontend::Json{{"clientId", "client-long"},
-                                           {"content", longTextContent},
-                                           {"contentTruncated", false},
-                                           {"originalContentBytes", longTextContent.dump().size()},
-                                           {"retainedContentBytes", longTextContent.dump().size()},
-                                           {"originalContentItems", 1},
-                                           {"retainedContentItems", 1}};
+        longTextItem.userMessage = ai::openai::codex::backend::UserMessageSnapshot{"client-long",
+                                                                                   sourceUserText,
+                                                                                   false,
+                                                                                   false,
+                                                                                   longTextContent.dump().size(),
+                                                                                   longTextContent.dump().size(),
+                                                                                   1,
+                                                                                   1,
+                                                                                   {sourceUserText}};
         const auto longTextSnapshot = projection.projectSnapshot(longTextSource);
         const auto longTextWire = longTextSnapshot
                                       ? model::encodeProjectedSnapshot(longTextSnapshot.value(),
                                                                        model::SnapshotRepresentationSelection{true, true, true, true})
                                       : model::ModelResult<frontend::Snapshot>{longTextSnapshot.error()};
-        const frontend::Json projectedLongText = longTextSnapshot && longTextSnapshot.value().items.size() == 1 &&
-                                                         model::itemData(longTextSnapshot.value().items.front()).safeDetails
-                                                     ? model::itemData(longTextSnapshot.value().items.front()).safeDetails->json()
-                                                     : frontend::Json::object();
         const frontend::Json wireLongText =
             longTextWire && longTextWire.value().state.contains("items") && !longTextWire.value().state.at("items").empty()
                 ? longTextWire.value().state.at("items").front().value("data", frontend::Json::object())
                 : frontend::Json::object();
-        result.expectTrue(longTextWire && projectedLongText.at("content") == longTextContent &&
-                              !projectedLongText.value("contentTruncated", true) && !wireLongText.contains("content") &&
-                              wireLongText.value("text", std::string{}) == std::string(16'383, 'u') + "\xE2\x82\xAC" &&
-                              wireLongText.value("textTruncated", false) && !wireLongText.value("contentTruncated", true) &&
+        std::optional<std::size_t> encodedLongTextBytes;
+        if (longTextWire) {
+            const auto encoded = frontend::Codec::serializeServer(frontend::ServerMessage{longTextWire.value()});
+            if (encoded) {
+                encodedLongTextBytes = encoded.value().size();
+            }
+        }
+        result.expectTrue(longTextWire && !wireLongText.contains("content") && wireLongText.value("text", std::string{}) == sourceUserText &&
+                              !wireLongText.value("textTruncated", true) && !wireLongText.value("contentTruncated", true) &&
                               wireLongText.value("originalContentBytes", 0U) == longTextContent.dump().size() &&
-                              wireLongText.value("retainedContentBytes", 0U) == longTextContent.dump().size(),
-                          "a complete 32 KiB structured message remains intact while rendered text is independently truncated at "
-                          "16,384 Unicode characters");
+                              wireLongText.value("retainedContentBytes", 0U) == longTextContent.dump().size() && encodedLongTextBytes &&
+                              *encodedLongTextBytes < frontend::DefaultFrontendMaximumInboundMessageBytes,
+                          "a complete typed user message is not constrained by generic frontend-detail text bounds");
 
         ai::openai::codex::backend::Snapshot truncatedContentSource = source;
         ai::openai::codex::backend::ItemSnapshot& truncatedContentItem =
@@ -2972,13 +3001,15 @@ namespace {
         truncatedContentItem.type = "user_message";
         const frontend::Json retainedPrefix =
             frontend::Json::array({frontend::Json{{"type", "text"}, {"text", "retained text"}}});
-        truncatedContentItem.data = frontend::Json{{"clientId", nullptr},
-                                                   {"content", retainedPrefix},
-                                                   {"contentTruncated", true},
-                                                   {"originalContentBytes", retainedPrefix.dump().size() + 100},
-                                                   {"retainedContentBytes", retainedPrefix.dump().size()},
-                                                   {"originalContentItems", 2},
-                                                   {"retainedContentItems", 1}};
+        truncatedContentItem.userMessage = ai::openai::codex::backend::UserMessageSnapshot{std::nullopt,
+                                                                                           "retained text",
+                                                                                           false,
+                                                                                           true,
+                                                                                           retainedPrefix.dump().size() + 100,
+                                                                                           retainedPrefix.dump().size(),
+                                                                                           2,
+                                                                                           1,
+                                                                                           {"retained text"}};
         const auto truncatedContentSnapshot = projection.projectSnapshot(truncatedContentSource);
         const auto truncatedContentWire =
             truncatedContentSnapshot
