@@ -4,6 +4,7 @@
 #include "ai/openai/codex/frontend/Messages.h"
 #include "ai/openai/codex/typed/Accounts.h"
 #include "ai/openai/codex/typed/Configuration.h"
+#include "ai/openai/codex/typed/Conversation.h"
 #include "ai/openai/codex/typed/Events.h"
 #include "ai/openai/codex/typed/Filesystem.h"
 #include "ai/openai/codex/typed/Mcp.h"
@@ -205,6 +206,28 @@ namespace ai::openai::codex::frontend::client {
         bool operator==(const ThreadRealtimeState&) const = default;
     };
 
+    // Public typed execution settings projected from the authoritative
+    // app-server ThreadSettings notification. A missing cwd means the
+    // recipient did not have filesystem-read authority.
+    struct ExecutionConfiguration {
+        typed::OptionalNullable<typed::ActivePermissionProfile> activePermissionProfile;
+        typed::AskForApproval approvalPolicy;
+        typed::ApprovalsReviewer approvalsReviewer;
+        typed::CollaborationMode collaborationMode;
+        std::optional<typed::AbsolutePath> cwd;
+        typed::OptionalNullable<typed::ReasoningEffort> effort;
+        typed::ModelId model;
+        std::string modelProvider;
+        typed::OptionalNullable<typed::ReasoningSummary> summary;
+        typed::OptionalNullable<typed::Personality> personality;
+        typed::SandboxPolicy sandboxPolicy;
+        typed::OptionalNullable<std::string> serviceTier;
+
+        bool operator==(const ExecutionConfiguration&) const = default;
+    };
+
+    enum class EffectiveExecutionConfigurationProvenance { TurnStartAccepted, ThreadSettingsUpdated };
+
     struct ThreadState {
         typed::ThreadId id;
         std::optional<std::string> title;
@@ -213,6 +236,9 @@ namespace ai::openai::codex::frontend::client {
         std::optional<typed::ModelId> model;
         std::optional<std::string> modelProvider;
         std::optional<std::string> status;
+        std::optional<bool> ephemeral;
+        std::optional<bool> archived;
+        std::optional<ExecutionConfiguration> executionConfiguration;
         bool fullyLoaded = false;
         std::optional<ThreadRealtimeState> realtime;
         std::optional<SourceStamp> stamp;
@@ -238,6 +264,8 @@ namespace ai::openai::codex::frontend::client {
         // than as the provider's richer private wire types.
         std::optional<frontend::Json> failure;
         std::optional<frontend::Json> tokenUsage;
+        std::optional<ExecutionConfiguration> effectiveExecutionConfiguration;
+        std::optional<EffectiveExecutionConfigurationProvenance> effectiveExecutionConfigurationProvenance;
         frontend::Json extensions = frontend::Json::object();
 
         bool operator==(const TurnState&) const = default;

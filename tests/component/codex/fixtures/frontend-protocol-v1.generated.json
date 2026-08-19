@@ -94,8 +94,37 @@
       },
       "completeResult": {
         "thread": {
+          "archived": false,
           "createdAt": -9223372036854775808,
           "cwd": "x",
+          "ephemeral": false,
+          "executionConfiguration": {
+            "activePermissionProfile": {
+              "extends": "x",
+              "id": "x"
+            },
+            "approvalPolicy": "x",
+            "approvalsReviewer": "x",
+            "collaborationMode": {
+              "mode": "x",
+              "settings": {
+                "developerInstructions": "x",
+                "model": "x",
+                "reasoningEffort": "x"
+              }
+            },
+            "cwd": "x",
+            "effort": "x",
+            "model": "x",
+            "modelProvider": "x",
+            "personality": "x",
+            "sandboxPolicy": {
+              "networkAccess": false,
+              "type": "dangerFullAccess"
+            },
+            "serviceTier": "x",
+            "summary": "x"
+          },
           "extensions": {},
           "fullyLoaded": false,
           "id": "x",
@@ -136,8 +165,37 @@
       },
       "completeResult": {
         "thread": {
+          "archived": false,
           "createdAt": -9223372036854775808,
           "cwd": "x",
+          "ephemeral": false,
+          "executionConfiguration": {
+            "activePermissionProfile": {
+              "extends": "x",
+              "id": "x"
+            },
+            "approvalPolicy": "x",
+            "approvalsReviewer": "x",
+            "collaborationMode": {
+              "mode": "x",
+              "settings": {
+                "developerInstructions": "x",
+                "model": "x",
+                "reasoningEffort": "x"
+              }
+            },
+            "cwd": "x",
+            "effort": "x",
+            "model": "x",
+            "modelProvider": "x",
+            "personality": "x",
+            "sandboxPolicy": {
+              "networkAccess": false,
+              "type": "dangerFullAccess"
+            },
+            "serviceTier": "x",
+            "summary": "x"
+          },
           "extensions": {},
           "fullyLoaded": false,
           "id": "x",
@@ -196,8 +254,37 @@
       },
       "completeResult": {
         "thread": {
+          "archived": false,
           "createdAt": -9223372036854775808,
           "cwd": "x",
+          "ephemeral": false,
+          "executionConfiguration": {
+            "activePermissionProfile": {
+              "extends": "x",
+              "id": "x"
+            },
+            "approvalPolicy": "x",
+            "approvalsReviewer": "x",
+            "collaborationMode": {
+              "mode": "x",
+              "settings": {
+                "developerInstructions": "x",
+                "model": "x",
+                "reasoningEffort": "x"
+              }
+            },
+            "cwd": "x",
+            "effort": "x",
+            "model": "x",
+            "modelProvider": "x",
+            "personality": "x",
+            "sandboxPolicy": {
+              "networkAccess": false,
+              "type": "dangerFullAccess"
+            },
+            "serviceTier": "x",
+            "summary": "x"
+          },
           "extensions": {},
           "fullyLoaded": false,
           "id": "x",
@@ -228,7 +315,17 @@
       },
       "completeParams": {
         "approvalPolicy": "x",
+        "approvalsReviewer": "x",
+        "collaborationMode": {
+          "mode": "x",
+          "settings": {
+            "developer_instructions": "x",
+            "model": "x",
+            "reasoning_effort": "x"
+          }
+        },
         "cwd": "x",
+        "effort": "x",
         "input": [
           {
             "text": "x",
@@ -236,11 +333,14 @@
           }
         ],
         "model": "x",
-        "reasoningEffort": "x",
+        "outputSchema": null,
+        "personality": "x",
         "sandboxPolicy": {
           "networkAccess": false,
           "type": "dangerFullAccess"
         },
+        "serviceTier": "x",
+        "summary": "x",
         "threadId": "x"
       },
       "minimalResult": {
@@ -257,6 +357,34 @@
       "completeResult": {
         "turn": {
           "active": false,
+          "effectiveExecutionConfiguration": {
+            "activePermissionProfile": {
+              "extends": "x",
+              "id": "x"
+            },
+            "approvalPolicy": "x",
+            "approvalsReviewer": "x",
+            "collaborationMode": {
+              "mode": "x",
+              "settings": {
+                "developerInstructions": "x",
+                "model": "x",
+                "reasoningEffort": "x"
+              }
+            },
+            "cwd": "x",
+            "effort": "x",
+            "model": "x",
+            "modelProvider": "x",
+            "personality": "x",
+            "sandboxPolicy": {
+              "networkAccess": false,
+              "type": "dangerFullAccess"
+            },
+            "serviceTier": "x",
+            "summary": "x"
+          },
+          "effectiveExecutionConfigurationProvenance": "turn_start_accepted",
           "extensions": {},
           "failure": null,
           "id": "x",
@@ -267,7 +395,118 @@
           "tokenUsage": null
         }
       },
-      "nullableParams": [],
+      "nullableParams": [
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "cwd": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "model": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "effort": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "approvalPolicy": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "approvalsReviewer": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "personality": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "serviceTier": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "summary": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "outputSchema": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "sandboxPolicy": null
+        },
+        {
+          "input": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "threadId": "x",
+          "collaborationMode": null
+        }
+      ],
       "nullableResults": [],
       "malformedParams": [],
       "malformedResult": []

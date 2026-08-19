@@ -353,6 +353,55 @@ namespace ai::openai::codex::typed {
         auto operator<=>(const ReasoningSummary&) const = default;
     };
 
+    // Shared execution-configuration aggregates. The app-server reports these
+    // in thread/settings/updated and accepts CollaborationMode as an
+    // experimental turn/start override, so they cannot live only in Events.h.
+    struct ModeKind {
+        std::string value;
+
+        static ModeKind plan() {
+            return {"plan"};
+        }
+
+        static ModeKind defaultMode() {
+            return {"default"};
+        }
+
+        [[nodiscard]] bool isKnown() const noexcept {
+            return value == "plan" || value == "default";
+        }
+
+        auto operator<=>(const ModeKind&) const = default;
+    };
+
+    struct ActivePermissionProfile {
+        OptionalNullable<std::string> extends;
+        std::string id;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+
+        bool operator==(const ActivePermissionProfile&) const = default;
+    };
+
+    struct Settings {
+        OptionalNullable<std::string> developerInstructions;
+        ModelId model;
+        OptionalNullable<ReasoningEffort> reasoningEffort;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+
+        bool operator==(const Settings&) const = default;
+    };
+
+    struct CollaborationMode {
+        ModeKind mode;
+        Settings settings;
+        Json raw = Json::object();
+        std::vector<DecodeDiagnostic> diagnostics;
+
+        bool operator==(const CollaborationMode&) const = default;
+    };
+
     struct SortDirection {
         std::string value;
         static SortDirection ascending();

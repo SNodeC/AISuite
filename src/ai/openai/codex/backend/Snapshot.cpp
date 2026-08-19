@@ -413,6 +413,82 @@ namespace ai::openai::codex::backend {
             return boundedJson(sanitizeExtensionJson(value, sanitizer));
         }
 
+        template <typename T, typename Encode>
+        void encodeOptionalNullable(Json& object,
+                                    std::string_view name,
+                                    const typed::OptionalNullable<T>& value,
+                                    Encode&& encode) {
+            if (value.isOmitted()) {
+                return;
+            }
+            object[std::string(name)] = value.isNull() ? Json(nullptr) : encode(*value.value);
+        }
+
+        std::optional<Json> executionConfigurationSnapshot(const typed::ThreadSettings& settings) {
+            if (settings.approvalsReviewer.value.empty() || settings.collaborationMode.mode.value.empty() ||
+                settings.collaborationMode.settings.model.value.empty() || settings.model.value.empty() ||
+                settings.modelProvider.empty() ||
+                (settings.activePermissionProfile.hasValue() && settings.activePermissionProfile->id.empty())) {
+                return std::nullopt;
+            }
+            std::string error;
+            const std::optional<Json> approval = detail::encodeAskForApproval(settings.approvalPolicy, error);
+            const std::optional<Json> sandbox = detail::encodeSandboxPolicy(settings.sandboxPolicy, error);
+            if (!approval || !sandbox) {
+                return std::nullopt;
+            }
+
+            Json collaborationSettings{{"model", settings.collaborationMode.settings.model.value}};
+            encodeOptionalNullable(
+                collaborationSettings,
+                "developerInstructions",
+                settings.collaborationMode.settings.developerInstructions,
+                [](const std::string& value) { return Json(value); });
+            encodeOptionalNullable(collaborationSettings,
+                                   "reasoningEffort",
+                                   settings.collaborationMode.settings.reasoningEffort,
+                                   [](const typed::ReasoningEffort& value) { return Json(value.value); });
+
+            Json result{{"approvalPolicy", *approval},
+                        {"approvalsReviewer", settings.approvalsReviewer.value},
+                        {"collaborationMode",
+                         Json{{"mode", settings.collaborationMode.mode.value}, {"settings", std::move(collaborationSettings)}}},
+                        {"cwd", settings.cwd.value},
+                        {"model", settings.model.value},
+                        {"modelProvider", settings.modelProvider},
+                        {"sandboxPolicy", *sandbox}};
+            encodeOptionalNullable(result,
+                                   "activePermissionProfile",
+                                   settings.activePermissionProfile,
+                                   [](const typed::ActivePermissionProfile& value) {
+                                       Json encoded{{"id", value.id}};
+                                       encodeOptionalNullable(encoded,
+                                                              "extends",
+                                                              value.extends,
+                                                              [](const std::string& item) { return Json(item); });
+                                       return encoded;
+                                   });
+            encodeOptionalNullable(result,
+                                   "effort",
+                                   settings.effort,
+                                   [](const typed::ReasoningEffort& value) { return Json(value.value); });
+            encodeOptionalNullable(result,
+                                   "summary",
+                                   settings.summary,
+                                   [](const typed::ReasoningSummary& value) { return Json(value.value); });
+            encodeOptionalNullable(result,
+                                   "personality",
+                                   settings.personality,
+                                   [](const typed::Personality& value) { return Json(value.value); });
+            encodeOptionalNullable(
+                result, "serviceTier", settings.serviceTier, [](const std::string& value) { return Json(value); });
+            Json bounded = boundedJson(result);
+            if (!bounded.contains("approvalPolicy")) {
+                return std::nullopt;
+            }
+            return std::optional<Json>{std::in_place, std::move(bounded)};
+        }
+
         std::string lifecycleName(ItemLifecycle lifecycle) {
             switch (lifecycle) {
                 case ItemLifecycle::Unknown:
@@ -610,6 +686,12 @@ namespace ai::openai::codex::backend {
             if (state.tokenUsage) {
                 snapshot.tokenUsage = safeSnapshotJson(*state.tokenUsage);
             }
+            if (state.effectiveExecutionConfiguration) {
+                snapshot.effectiveExecutionConfiguration = executionConfigurationSnapshot(*state.effectiveExecutionConfiguration);
+                if (snapshot.effectiveExecutionConfiguration) {
+                    snapshot.effectiveExecutionConfigurationProvenance = state.effectiveExecutionConfigurationProvenance;
+                }
+            }
             snapshot.extensions = safeSnapshotJson(state.extensions);
             snapshot.stamp = state.stamp;
             snapshot.connectionInvalidated = state.connectionInvalidated;
@@ -642,12 +724,17 @@ namespace ai::openai::codex::backend {
                  (state.thread.raw.size() == 2 && state.thread.raw.value("backendPlaceholderStatusKnown", false)));
             const bool backendPlaceholderStatusKnown = backendPlaceholder && state.thread.raw.size() == 2;
             if (!backendPlaceholder && !state.thread.cwd.value.empty()) {
-                snapshot.cwd = "[redacted]";
+                snapshot.cwd = state.thread.cwd.value;
             }
             if (state.thread.model) {
                 snapshot.model = safeUtf8Prefix(state.thread.model->value, MaxSnapshotExtensionMethodBytes);
             }
             if (!backendPlaceholder) {
+                snapshot.ephemeral = state.thread.ephemeral;
+                snapshot.archived = state.archived;
+                if (state.executionConfiguration) {
+                    snapshot.executionConfiguration = executionConfigurationSnapshot(*state.executionConfiguration);
+                }
                 snapshot.modelProvider = safeUtf8Prefix(state.thread.modelProvider, MaxSnapshotExtensionMethodBytes);
                 snapshot.preview = safeUtf8Prefix(state.thread.preview, MaxSnapshotExtensionPayloadBytes);
                 snapshot.createdAt = state.thread.createdAt;

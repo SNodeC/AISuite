@@ -143,6 +143,8 @@ namespace ai::openai::codex::backend {
         bool terminal = false;
         std::optional<Json> failure;
         std::optional<Json> tokenUsage;
+        std::optional<Json> effectiveExecutionConfiguration;
+        std::optional<std::string> effectiveExecutionConfigurationProvenance;
         std::vector<ItemSnapshot> items;
         Json extensions = Json::object();
         SourceStamp stamp;
@@ -175,6 +177,9 @@ namespace ai::openai::codex::backend {
         std::optional<std::string> modelProvider;
         std::optional<std::string> preview;
         std::optional<std::string> status;
+        std::optional<bool> ephemeral;
+        std::optional<bool> archived;
+        std::optional<Json> executionConfiguration;
         std::optional<std::int64_t> createdAt;
         std::optional<std::int64_t> updatedAt;
         bool fullyLoaded = false;

@@ -2098,6 +2098,10 @@ def generate_schema(
             "connectionInvalidated": {"type": "boolean"},
             "failure": {"$ref": "#/$defs/SafeDetailObject"},
             "tokenUsage": {"$ref": "#/$defs/SafeDetailObject"},
+            "effectiveExecutionConfiguration": {"$ref": "#/$defs/ExecutionConfiguration"},
+            "effectiveExecutionConfigurationProvenance": {
+                "enum": ["turn_start_accepted", "thread_settings_updated"]
+            },
         },
         "additionalProperties": True,
     }
@@ -2112,6 +2116,9 @@ def generate_schema(
             "modelProvider": {"type": "string", "maxLength": 1024},
             "preview": bounded_string,
             "status": {"type": "string", "maxLength": 256},
+            "ephemeral": {"type": "boolean"},
+            "archived": {"type": "boolean"},
+            "executionConfiguration": {"$ref": "#/$defs/ExecutionConfiguration"},
             "fullyLoaded": {"type": "boolean"},
             "turns": {
                 "type": "array",

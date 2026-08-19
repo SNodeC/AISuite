@@ -33,24 +33,6 @@
 
 namespace ai::openai::codex::typed {
 
-    struct ModeKind {
-        std::string value;
-
-        static ModeKind plan() {
-            return {"plan"};
-        }
-
-        static ModeKind defaultMode() {
-            return {"default"};
-        }
-
-        [[nodiscard]] bool isKnown() const noexcept {
-            return value == "plan" || value == "default";
-        }
-
-        auto operator<=>(const ModeKind&) const = default;
-    };
-
     struct RealtimeConversationVersion {
         std::string value;
 
@@ -91,28 +73,6 @@ namespace ai::openai::codex::typed {
         auto operator<=>(const TurnPlanStepStatus&) const = default;
     };
 
-    struct ActivePermissionProfile {
-        OptionalNullable<std::string> extends;
-        std::string id;
-        Json raw = Json::object();
-        std::vector<DecodeDiagnostic> diagnostics;
-    };
-
-    struct Settings {
-        OptionalNullable<std::string> developerInstructions;
-        ModelId model;
-        OptionalNullable<ReasoningEffort> reasoningEffort;
-        Json raw = Json::object();
-        std::vector<DecodeDiagnostic> diagnostics;
-    };
-
-    struct CollaborationMode {
-        ModeKind mode;
-        Settings settings;
-        Json raw = Json::object();
-        std::vector<DecodeDiagnostic> diagnostics;
-    };
-
     struct ThreadSettings {
         OptionalNullable<ActivePermissionProfile> activePermissionProfile;
         AskForApproval approvalPolicy;
@@ -128,6 +88,8 @@ namespace ai::openai::codex::typed {
         OptionalNullable<std::string> serviceTier;
         Json raw = Json::object();
         std::vector<DecodeDiagnostic> diagnostics;
+
+        bool operator==(const ThreadSettings&) const = default;
     };
 
     struct TokenUsageBreakdown {

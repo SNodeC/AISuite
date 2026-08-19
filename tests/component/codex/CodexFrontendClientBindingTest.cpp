@@ -499,6 +499,14 @@ namespace {
         typed::TextInput input;
         input.text = "begin";
         startTurn.input.emplace_back(std::move(input));
+        typed::CollaborationMode collaboration;
+        collaboration.mode = typed::ModeKind::plan();
+        collaboration.settings.developerInstructions =
+            typed::OptionalNullable<std::string>::withValue("coordinate the turn");
+        collaboration.settings.model = typed::ModelId{"gpt-collaboration"};
+        collaboration.settings.reasoningEffort =
+            typed::OptionalNullable<typed::ReasoningEffort>::withValue(typed::ReasoningEffort::xhigh());
+        startTurn.collaborationMode = typed::OptionalNullable<typed::CollaborationMode>::withValue(std::move(collaboration));
         std::optional<client::OperationResult<client::TurnStartResult>> turnResult;
         const client::Submission turnSubmission =
             sdk.turns().start(std::move(startTurn), [&turnResult](const client::OperationResult<client::TurnStartResult>& value) {
@@ -514,13 +522,19 @@ namespace {
                 frontend::ServerMessage{frontend::Response::success(turnCommand->requestId, frontend::Json{{"turn", std::move(turn)}})});
         }
         result.expectTrue(
-            turnSubmission && turnCommand &&
+            turnSubmission && turnCommand && turnCommand->parameterExtensions.contains("collaborationMode") &&
+                turnCommand->parameterExtensions.at("collaborationMode").value("mode", "") == "plan" &&
+                turnCommand->parameterExtensions.at("collaborationMode").at("settings").value("model", "") ==
+                    "gpt-collaboration" &&
+                turnCommand->parameterExtensions.at("collaborationMode").at("settings").value("developer_instructions", "") ==
+                    "coordinate the turn" &&
+                turnCommand->parameterExtensions.at("collaborationMode").at("settings").value("reasoning_effort", "") == "xhigh" &&
                 frontend::generated::commandMethod(turnCommand->parameters) == frontend::generated::MethodId::TurnStart && turnResult &&
                 *turnResult && turnResult->value && turnResult->value->turn && turnResult->value->turnId == typed::TurnId{"turn-start"} &&
                 turnResult->value->turn->state.threadId == typed::ThreadId{"thread-read"} &&
                 turnResult->value->turn->state.orderedItems == std::vector{typed::ItemId{"item-turn-1"}, typed::ItemId{"item-turn-2"}} &&
                 turnResult->value->turn->items.size() == 2 && turnResult->value->turn->item(typed::ItemId{"item-turn-2"}) != nullptr,
-            "turn.start preserves the complete ordered typed turn and item projection");
+            "turn.start preserves the complete ordered typed turn and item projection, including the experimental collaboration override");
     }
 
     void testMalformedTypedResultFailsOnce(tests::support::TestResult& result) {

@@ -8,6 +8,7 @@
 #include "ai/openai/codex/frontend/client/detail/OperationCodecs.h"
 #include "ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
+#include "ai/openai/codex/detail/ConversationCodec.h"
 
 #include <algorithm>
 #include <array>
@@ -530,6 +531,202 @@ namespace ai::openai::codex::frontend::client {
             return true;
         }
 
+        template <typename T, typename Decode>
+        bool decodeOptionalNullable(const frontend::Json& object,
+                                    std::string_view key,
+                                    typed::OptionalNullable<T>& result,
+                                    Decode&& decode,
+                                    std::string& error) {
+            const auto member = object.find(std::string(key));
+            if (member == object.end()) {
+                result = typed::OptionalNullable<T>::omitted();
+                return true;
+            }
+            if (member->is_null()) {
+                result = typed::OptionalNullable<T>::explicitNull();
+                return true;
+            }
+            T decoded;
+            if (!decode(*member, decoded, error)) {
+                return false;
+            }
+            result = typed::OptionalNullable<T>::withValue(std::move(decoded));
+            return true;
+        }
+
+        bool decodeExecutionConfiguration(const frontend::Json& value,
+                                          ExecutionConfiguration& result,
+                                          std::string& error) {
+            if (!requireObject(value, "execution configuration", error)) {
+                return false;
+            }
+            const auto approval = value.find("approvalPolicy");
+            const auto reviewer = stringMember(value, "approvalsReviewer");
+            const auto collaboration = value.find("collaborationMode");
+            const auto model = stringMember(value, "model");
+            const auto modelProvider = stringMember(value, "modelProvider");
+            const auto sandbox = value.find("sandboxPolicy");
+            if (approval == value.end() || !reviewer || collaboration == value.end() || !model || !modelProvider ||
+                sandbox == value.end()) {
+                error = "execution configuration lacks required fields";
+                return false;
+            }
+
+            const auto decodedApproval = ai::openai::codex::detail::decodeAskForApproval(*approval);
+            const auto decodedSandbox = ai::openai::codex::detail::decodeSandboxPolicy(*sandbox);
+            if (!decodedApproval.value || !decodedSandbox.value) {
+                error = "execution configuration contains an invalid approval or sandbox policy";
+                return false;
+            }
+            result.approvalPolicy = *decodedApproval.value;
+            result.sandboxPolicy = *decodedSandbox.value;
+            result.approvalsReviewer = typed::ApprovalsReviewer{*reviewer};
+            result.model = typed::ModelId{*model};
+            result.modelProvider = *modelProvider;
+            if (const auto cwd = stringMember(value, "cwd")) {
+                result.cwd = typed::AbsolutePath{*cwd};
+            }
+
+            if (!decodeOptionalNullable(
+                    value,
+                    "activePermissionProfile",
+                    result.activePermissionProfile,
+                    [](const frontend::Json& profile, typed::ActivePermissionProfile& decoded, std::string& nestedError) {
+                        if (!profile.is_object()) {
+                            nestedError = "active permission profile must be an object";
+                            return false;
+                        }
+                        const auto id = stringMember(profile, "id");
+                        if (!id || id->empty()) {
+                            nestedError = "active permission profile lacks an id";
+                            return false;
+                        }
+                        decoded.id = *id;
+                        return decodeOptionalNullable(
+                            profile,
+                            "extends",
+                            decoded.extends,
+                            [](const frontend::Json& item, std::string& output, std::string& itemError) {
+                                if (!item.is_string()) {
+                                    itemError = "active permission profile extends must be a string";
+                                    return false;
+                                }
+                                output = item.get<std::string>();
+                                return true;
+                            },
+                            nestedError);
+                    },
+                    error) ||
+                !decodeOptionalNullable(
+                    value,
+                    "effort",
+                    result.effort,
+                    [](const frontend::Json& item, typed::ReasoningEffort& output, std::string& nestedError) {
+                        if (!item.is_string()) {
+                            nestedError = "execution configuration effort must be a string";
+                            return false;
+                        }
+                        output.value = item.get<std::string>();
+                        return true;
+                    },
+                    error) ||
+                !decodeOptionalNullable(
+                    value,
+                    "summary",
+                    result.summary,
+                    [](const frontend::Json& item, typed::ReasoningSummary& output, std::string& nestedError) {
+                        if (!item.is_string()) {
+                            nestedError = "execution configuration summary must be a string";
+                            return false;
+                        }
+                        output.value = item.get<std::string>();
+                        return true;
+                    },
+                    error) ||
+                !decodeOptionalNullable(
+                    value,
+                    "personality",
+                    result.personality,
+                    [](const frontend::Json& item, typed::Personality& output, std::string& nestedError) {
+                        if (!item.is_string()) {
+                            nestedError = "execution configuration personality must be a string";
+                            return false;
+                        }
+                        output.value = item.get<std::string>();
+                        return true;
+                    },
+                    error) ||
+                !decodeOptionalNullable(
+                    value,
+                    "serviceTier",
+                    result.serviceTier,
+                    [](const frontend::Json& item, std::string& output, std::string& nestedError) {
+                        if (!item.is_string()) {
+                            nestedError = "execution configuration service tier must be a string";
+                            return false;
+                        }
+                        output = item.get<std::string>();
+                        return true;
+                    },
+                    error)) {
+                return false;
+            }
+
+            if (!collaboration->is_object()) {
+                error = "execution configuration collaboration mode must be an object";
+                return false;
+            }
+            const auto mode = stringMember(*collaboration, "mode");
+            const auto settings = collaboration->find("settings");
+            if (!mode || settings == collaboration->end() || !settings->is_object()) {
+                error = "execution configuration collaboration mode lacks required fields";
+                return false;
+            }
+            const auto collaborationModel = stringMember(*settings, "model");
+            if (!collaborationModel) {
+                error = "execution configuration collaboration settings lack a model";
+                return false;
+            }
+            result.collaborationMode.mode = typed::ModeKind{*mode};
+            result.collaborationMode.settings.model = typed::ModelId{*collaborationModel};
+            return decodeOptionalNullable(
+                       *settings,
+                       "developerInstructions",
+                       result.collaborationMode.settings.developerInstructions,
+                       [](const frontend::Json& item, std::string& output, std::string& nestedError) {
+                           if (!item.is_string()) {
+                               nestedError = "collaboration developer instructions must be a string";
+                               return false;
+                           }
+                           output = item.get<std::string>();
+                           return true;
+                       },
+                       error) &&
+                   decodeOptionalNullable(
+                       *settings,
+                       "reasoningEffort",
+                       result.collaborationMode.settings.reasoningEffort,
+                       [](const frontend::Json& item, typed::ReasoningEffort& output, std::string& nestedError) {
+                           if (!item.is_string()) {
+                               nestedError = "collaboration reasoning effort must be a string";
+                               return false;
+                           }
+                           output.value = item.get<std::string>();
+                           return true;
+                       },
+                       error);
+        }
+
+        std::optional<EffectiveExecutionConfigurationProvenance> effectiveConfigurationProvenance(std::string_view value) {
+            if (value == "turn_start_accepted") {
+                return EffectiveExecutionConfigurationProvenance::TurnStartAccepted;
+            }
+            if (value == "thread_settings_updated") {
+                return EffectiveExecutionConfigurationProvenance::ThreadSettingsUpdated;
+            }
+            return std::nullopt;
+        }
+
         bool decodeThread(const frontend::Json& value, ThreadState& result, std::string& error) {
             if (!requireObject(value, "thread", error))
                 return false;
@@ -549,6 +746,15 @@ namespace ai::openai::codex::frontend::client {
                 result.model = typed::ModelId{*model};
             result.modelProvider = stringMember(value, "modelProvider");
             result.status = stringMember(value, "status");
+            result.ephemeral = optionalBool(value, "ephemeral");
+            result.archived = optionalBool(value, "archived");
+            if (const auto configuration = value.find("executionConfiguration"); configuration != value.end()) {
+                ExecutionConfiguration decoded;
+                if (!decodeExecutionConfiguration(*configuration, decoded, error)) {
+                    return false;
+                }
+                result.executionConfiguration = std::move(decoded);
+            }
             result.fullyLoaded = optionalBool(value, "fullyLoaded").value_or(false);
             if (const auto realtime = value.find("realtime"); realtime != value.end()) {
                 ThreadRealtimeState decoded;
@@ -596,6 +802,9 @@ namespace ai::openai::codex::frontend::client {
                                      "model",
                                      "modelProvider",
                                      "status",
+                                     "ephemeral",
+                                     "archived",
+                                     "executionConfiguration",
                                      "fullyLoaded",
                                      "realtime",
                                      "stamp",
@@ -661,6 +870,20 @@ namespace ai::openai::codex::frontend::client {
                 result.failure = *failure;
             if (const auto usage = value.find("tokenUsage"); usage != value.end())
                 result.tokenUsage = *usage;
+            if (const auto configuration = value.find("effectiveExecutionConfiguration"); configuration != value.end()) {
+                ExecutionConfiguration decoded;
+                if (!decodeExecutionConfiguration(*configuration, decoded, error)) {
+                    return false;
+                }
+                result.effectiveExecutionConfiguration = std::move(decoded);
+            }
+            if (const auto provenance = stringMember(value, "effectiveExecutionConfigurationProvenance")) {
+                result.effectiveExecutionConfigurationProvenance = effectiveConfigurationProvenance(*provenance);
+                if (!result.effectiveExecutionConfigurationProvenance) {
+                    error = "turn state contains an unknown execution-configuration provenance";
+                    return false;
+                }
+            }
             return decodeExtensions(value,
                                     {"id",
                                      "threadId",
@@ -672,6 +895,8 @@ namespace ai::openai::codex::frontend::client {
                                      "items",
                                      "failure",
                                      "tokenUsage",
+                                     "effectiveExecutionConfiguration",
+                                     "effectiveExecutionConfigurationProvenance",
                                      "extensions"},
                                     result.extensions,
                                     "turn",
@@ -1462,6 +1687,81 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+        template <typename T, typename Encode>
+        void encodeOptionalNullable(frontend::Json& object,
+                                    std::string_view key,
+                                    const typed::OptionalNullable<T>& value,
+                                    Encode&& encode) {
+            if (value.isOmitted()) {
+                return;
+            }
+            object[std::string(key)] = value.isNull() ? frontend::Json(nullptr) : encode(*value.value);
+        }
+
+        frontend::Json encodeExecutionConfiguration(const ExecutionConfiguration& value) {
+            std::string error;
+            const auto approval = ai::openai::codex::detail::encodeAskForApproval(value.approvalPolicy, error);
+            const auto sandbox = ai::openai::codex::detail::encodeSandboxPolicy(value.sandboxPolicy, error);
+            assert(approval.has_value() && sandbox.has_value());
+            frontend::Json collaborationSettings{{"model", value.collaborationMode.settings.model.value}};
+            encodeOptionalNullable(
+                collaborationSettings,
+                "developerInstructions",
+                value.collaborationMode.settings.developerInstructions,
+                [](const std::string& item) { return frontend::Json(item); });
+            encodeOptionalNullable(collaborationSettings,
+                                   "reasoningEffort",
+                                   value.collaborationMode.settings.reasoningEffort,
+                                   [](const typed::ReasoningEffort& item) { return frontend::Json(item.value); });
+            frontend::Json result{{"approvalPolicy", approval.value_or(frontend::Json(nullptr))},
+                                  {"approvalsReviewer", value.approvalsReviewer.value},
+                                  {"collaborationMode",
+                                   frontend::Json{{"mode", value.collaborationMode.mode.value},
+                                                  {"settings", std::move(collaborationSettings)}}},
+                                  {"model", value.model.value},
+                                  {"modelProvider", value.modelProvider},
+                                  {"sandboxPolicy", sandbox.value_or(frontend::Json(nullptr))}};
+            if (value.cwd) {
+                result["cwd"] = value.cwd->value;
+            }
+            encodeOptionalNullable(result,
+                                   "activePermissionProfile",
+                                   value.activePermissionProfile,
+                                   [](const typed::ActivePermissionProfile& profile) {
+                                       frontend::Json encoded{{"id", profile.id}};
+                                       encodeOptionalNullable(encoded,
+                                                              "extends",
+                                                              profile.extends,
+                                                              [](const std::string& item) { return frontend::Json(item); });
+                                       return encoded;
+                                   });
+            encodeOptionalNullable(result,
+                                   "effort",
+                                   value.effort,
+                                   [](const typed::ReasoningEffort& item) { return frontend::Json(item.value); });
+            encodeOptionalNullable(result,
+                                   "summary",
+                                   value.summary,
+                                   [](const typed::ReasoningSummary& item) { return frontend::Json(item.value); });
+            encodeOptionalNullable(result,
+                                   "personality",
+                                   value.personality,
+                                   [](const typed::Personality& item) { return frontend::Json(item.value); });
+            encodeOptionalNullable(
+                result, "serviceTier", value.serviceTier, [](const std::string& item) { return frontend::Json(item); });
+            return result;
+        }
+
+        std::string_view effectiveConfigurationProvenanceName(EffectiveExecutionConfigurationProvenance value) noexcept {
+            switch (value) {
+                case EffectiveExecutionConfigurationProvenance::TurnStartAccepted:
+                    return "turn_start_accepted";
+                case EffectiveExecutionConfigurationProvenance::ThreadSettingsUpdated:
+                    return "thread_settings_updated";
+            }
+            return {};
+        }
+
         frontend::Json encodeThreadState(const ThreadState& value) {
             frontend::Json result = value.extensions;
             if (!result.is_object())
@@ -1475,6 +1775,11 @@ namespace ai::openai::codex::frontend::client {
                 result["model"] = value.model->value;
             addOptional(result, "modelProvider", value.modelProvider);
             addOptional(result, "status", value.status);
+            addOptional(result, "ephemeral", value.ephemeral);
+            addOptional(result, "archived", value.archived);
+            if (value.executionConfiguration) {
+                result["executionConfiguration"] = encodeExecutionConfiguration(*value.executionConfiguration);
+            }
             result["fullyLoaded"] = value.fullyLoaded;
             if (value.realtime) {
                 frontend::Json realtime = value.realtime->extensions;
@@ -1522,6 +1827,14 @@ namespace ai::openai::codex::frontend::client {
                 result["failure"] = *value.failure;
             if (value.tokenUsage)
                 result["tokenUsage"] = *value.tokenUsage;
+            if (value.effectiveExecutionConfiguration) {
+                result["effectiveExecutionConfiguration"] =
+                    encodeExecutionConfiguration(*value.effectiveExecutionConfiguration);
+            }
+            if (value.effectiveExecutionConfigurationProvenance) {
+                result["effectiveExecutionConfigurationProvenance"] =
+                    effectiveConfigurationProvenanceName(*value.effectiveExecutionConfigurationProvenance);
+            }
             return result;
         }
 
@@ -3279,6 +3592,15 @@ namespace ai::openai::codex::frontend::client {
                     }
                     decoded.modelProvider = stringMember(details, "modelProvider");
                     decoded.status = stringMember(details, "status");
+                    decoded.ephemeral = optionalBool(details, "ephemeral");
+                    decoded.archived = optionalBool(details, "archived");
+                    if (const auto configuration = details.find("executionConfiguration"); configuration != details.end()) {
+                        ExecutionConfiguration value;
+                        if (!decodeExecutionConfiguration(*configuration, value, error)) {
+                            return std::nullopt;
+                        }
+                        decoded.executionConfiguration = std::move(value);
+                    }
                     if (const auto realtime = details.find("realtime"); realtime != details.end()) {
                         ThreadRealtimeState value;
                         if (!decodeThreadRealtime(*realtime, value, error)) {
@@ -3288,7 +3610,17 @@ namespace ai::openai::codex::frontend::client {
                     }
                     frontend::Json canonicalExtensions;
                     if (!decodeExtensions(details,
-                                          {"name", "preview", "cwd", "model", "modelProvider", "status", "realtime", "extensions"},
+                                          {"name",
+                                           "preview",
+                                           "cwd",
+                                           "model",
+                                           "modelProvider",
+                                           "status",
+                                           "ephemeral",
+                                           "archived",
+                                           "executionConfiguration",
+                                           "realtime",
+                                           "extensions"},
                                           canonicalExtensions,
                                           "canonical thread",
                                           error)) {
@@ -3324,8 +3656,31 @@ namespace ai::openai::codex::frontend::client {
                     if (const auto usage = details.find("tokenUsage"); usage != details.end()) {
                         decoded.tokenUsage = *usage;
                     }
+                    if (const auto configuration = details.find("effectiveExecutionConfiguration");
+                        configuration != details.end()) {
+                        ExecutionConfiguration value;
+                        if (!decodeExecutionConfiguration(*configuration, value, error)) {
+                            return std::nullopt;
+                        }
+                        decoded.effectiveExecutionConfiguration = std::move(value);
+                    }
+                    if (const auto provenance = stringMember(details, "effectiveExecutionConfigurationProvenance")) {
+                        decoded.effectiveExecutionConfigurationProvenance = effectiveConfigurationProvenance(*provenance);
+                        if (!decoded.effectiveExecutionConfigurationProvenance) {
+                            error = "canonical turn contains an unknown execution-configuration provenance";
+                            return std::nullopt;
+                        }
+                    }
                     frontend::Json canonicalExtensions;
-                    if (!decodeExtensions(details, {"failure", "tokenUsage", "extensions"}, canonicalExtensions, "canonical turn", error)) {
+                    if (!decodeExtensions(details,
+                                          {"failure",
+                                           "tokenUsage",
+                                           "effectiveExecutionConfiguration",
+                                           "effectiveExecutionConfigurationProvenance",
+                                           "extensions"},
+                                          canonicalExtensions,
+                                          "canonical turn",
+                                          error)) {
                         return std::nullopt;
                     }
                     decoded.extensions = turn.legacyExtensions.json();

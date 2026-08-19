@@ -478,6 +478,183 @@
         }
       ]
     },
+    "ActivePermissionProfile": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "extends": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "AskForApproval": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "ProjectedCollaborationSettings": {
+      "type": "object",
+      "required": [
+        "model"
+      ],
+      "properties": {
+        "developerInstructions": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "reasoningEffort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "ProjectedCollaborationMode": {
+      "type": "object",
+      "required": [
+        "mode",
+        "settings"
+      ],
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "settings": {
+          "$ref": "#/$defs/ProjectedCollaborationSettings"
+        }
+      },
+      "additionalProperties": true
+    },
+    "TurnStartCollaborationSettings": {
+      "type": "object",
+      "required": [
+        "model"
+      ],
+      "properties": {
+        "developer_instructions": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "reasoning_effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "TurnStartCollaborationMode": {
+      "type": "object",
+      "required": [
+        "mode",
+        "settings"
+      ],
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "settings": {
+          "$ref": "#/$defs/TurnStartCollaborationSettings"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ExecutionConfiguration": {
+      "type": "object",
+      "required": [
+        "approvalPolicy",
+        "approvalsReviewer",
+        "collaborationMode",
+        "model",
+        "modelProvider",
+        "sandboxPolicy"
+      ],
+      "properties": {
+        "activePermissionProfile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActivePermissionProfile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approvalPolicy": {
+          "$ref": "#/$defs/AskForApproval"
+        },
+        "approvalsReviewer": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "collaborationMode": {
+          "$ref": "#/$defs/ProjectedCollaborationMode"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "modelProvider": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "personality": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sandboxPolicy": {
+          "$ref": "#/$defs/SandboxPolicy"
+        },
+        "serviceTier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "TurnStartParams": {
       "type": "object",
       "required": [
@@ -496,19 +673,77 @@
           }
         },
         "cwd": {
-          "$ref": "#/$defs/NonEmptyString"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "model": {
-          "$ref": "#/$defs/NonEmptyString"
+          "type": [
+            "string",
+            "null"
+          ]
         },
-        "reasoningEffort": {
-          "$ref": "#/$defs/NonEmptyString"
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "approvalPolicy": {
-          "$ref": "#/$defs/NonEmptyString"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AskForApproval"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
+        "approvalsReviewer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "personality": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "serviceTier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outputSchema": true,
         "sandboxPolicy": {
-          "$ref": "#/$defs/SandboxPolicy"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SandboxPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "collaborationMode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnStartCollaborationMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -2014,6 +2249,15 @@
         },
         "failure": true,
         "tokenUsage": true,
+        "effectiveExecutionConfiguration": {
+          "$ref": "#/$defs/ExecutionConfiguration"
+        },
+        "effectiveExecutionConfigurationProvenance": {
+          "enum": [
+            "turn_start_accepted",
+            "thread_settings_updated"
+          ]
+        },
         "items": {
           "type": "array",
           "items": {
@@ -2055,6 +2299,15 @@
         },
         "status": {
           "type": "string"
+        },
+        "ephemeral": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "executionConfiguration": {
+          "$ref": "#/$defs/ExecutionConfiguration"
         },
         "createdAt": {
           "$ref": "#/$defs/Int64"
@@ -33477,6 +33730,15 @@
         },
         "tokenUsage": {
           "$ref": "#/$defs/SafeDetailObject"
+        },
+        "effectiveExecutionConfiguration": {
+          "$ref": "#/$defs/ExecutionConfiguration"
+        },
+        "effectiveExecutionConfigurationProvenance": {
+          "enum": [
+            "turn_start_accepted",
+            "thread_settings_updated"
+          ]
         }
       },
       "additionalProperties": {
@@ -33521,6 +33783,15 @@
         "status": {
           "type": "string",
           "maxLength": 256
+        },
+        "ephemeral": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "executionConfiguration": {
+          "$ref": "#/$defs/ExecutionConfiguration"
         },
         "fullyLoaded": {
           "type": "boolean"

@@ -137,6 +137,28 @@ namespace ai::openai::codex::detail {
             return std::optional<Json>{std::in_place, value.value};
         }
 
+        std::optional<Json> encodeCollaborationMode(const typed::CollaborationMode& value, std::string& error) {
+            if (value.mode.value.empty() || value.settings.model.value.empty()) {
+                error = "turn/start collaboration mode and model must not be empty";
+                return std::nullopt;
+            }
+            Json settings{{"model", value.settings.model.value}};
+            if (!encodeOptionalNullable(settings,
+                                        "developer_instructions",
+                                        value.settings.developerInstructions,
+                                        scalar<std::string>,
+                                        error) ||
+                !encodeOptionalNullable(settings,
+                                        "reasoning_effort",
+                                        value.settings.reasoningEffort,
+                                        openValue<typed::ReasoningEffort>,
+                                        error)) {
+                return std::nullopt;
+            }
+            return std::optional<Json>{std::in_place,
+                                       Json{{"mode", value.mode.value}, {"settings", std::move(settings)}}};
+        }
+
         std::optional<std::size_t> unicodeScalarCount(std::string_view value) noexcept {
             std::size_t offset = 0;
             std::size_t count = 0;
@@ -291,7 +313,8 @@ namespace ai::openai::codex::detail {
                 !encodeOptionalNullable(result, "model", params.model, openValue<typed::ModelId>, error) ||
                 !encodeOptionalNullable(result, "summary", params.summary, openValue<typed::ReasoningSummary>, error) ||
                 !encodeOptionalNullable(result, "outputSchema", params.outputSchema, encodeOpaque, error) ||
-                !encodeOptionalNullable(result, "sandboxPolicy", params.sandboxPolicy, encodeSandboxPolicy, error)) {
+                !encodeOptionalNullable(result, "sandboxPolicy", params.sandboxPolicy, encodeSandboxPolicy, error) ||
+                !encodeOptionalNullable(result, "collaborationMode", params.collaborationMode, encodeCollaborationMode, error)) {
                 return std::nullopt;
             }
             return std::optional<Json>{std::in_place, std::move(result)};

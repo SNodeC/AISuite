@@ -274,6 +274,14 @@ if(NOT EXISTS "${installed_aisuite_targets}")
         "installed AISuite target export is missing: ${installed_aisuite_targets}"
     )
 endif()
+set(installed_aisuite_abi_targets
+    "${aisuite_install}/lib/cmake/AISuite/AISuiteTargets-v3.cmake"
+)
+if(NOT EXISTS "${installed_aisuite_abi_targets}")
+    fail_installed(
+        "installed AISuite package is missing its ABI-qualified imported targets"
+    )
+endif()
 file(READ "${installed_aisuite_targets}" installed_aisuite_targets_text)
 string(FIND "${installed_aisuite_targets_text}"
        "add_library(AISuite::OpenAICodexFrontend SHARED IMPORTED)"
@@ -320,20 +328,20 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
 endif()
 foreach(codex_library IN LISTS codex_libraries)
     set(codex_soversion_library
-        "${aisuite_install}/lib/lib${codex_library}.so.2"
+        "${aisuite_install}/lib/lib${codex_library}.so.3"
     )
     set(codex_legacy_soversion_library
-        "${aisuite_install}/lib/lib${codex_library}.so.1"
+        "${aisuite_install}/lib/lib${codex_library}.so.2"
     )
     if(NOT EXISTS "${codex_soversion_library}")
         fail_installed(
-            "installed SOVERSION-2 library is missing: ${codex_soversion_library}"
+            "installed SOVERSION-3 library is missing: ${codex_soversion_library}"
         )
     endif()
     if(EXISTS "${codex_legacy_soversion_library}" OR
        IS_SYMLINK "${codex_legacy_soversion_library}")
         fail_installed(
-            "obsolete SOVERSION-1 compatibility library is installed: ${codex_legacy_soversion_library}"
+            "obsolete SOVERSION-2 compatibility library is installed: ${codex_legacy_soversion_library}"
         )
     endif()
     execute_process(
@@ -350,12 +358,12 @@ foreach(codex_library IN LISTS codex_libraries)
     )
     string(
         FIND "${codex_dynamic_metadata}"
-        "Library soname: [lib${codex_library}.so.2]"
+        "Library soname: [lib${codex_library}.so.3]"
         codex_soname_index
     )
     if(codex_soname_index EQUAL -1)
         fail_installed(
-            "${codex_library} does not declare the required .so.2 SONAME"
+            "${codex_library} does not declare the required .so.3 SONAME"
         )
     endif()
     if(codex_library STREQUAL "aisuite-openai-codex-frontend")
@@ -365,14 +373,14 @@ foreach(codex_library IN LISTS codex_libraries)
         )
         foreach(codex_dynamic_line IN LISTS codex_dynamic_lines)
             if(codex_dynamic_line MATCHES
-               "\\(NEEDED\\).*Shared library: \\[libaisuite-openai-codex-frontend-protocol\\.so\\.2\\][ \t]*$"
+               "\\(NEEDED\\).*Shared library: \\[libaisuite-openai-codex-frontend-protocol\\.so\\.3\\][ \t]*$"
             )
                 set(frontend_protocol_needed TRUE)
             endif()
         endforeach()
         if(NOT frontend_protocol_needed)
             fail_installed(
-                "installed frontend DSO does not directly need libaisuite-openai-codex-frontend-protocol.so.2"
+                "installed frontend DSO does not directly need libaisuite-openai-codex-frontend-protocol.so.3"
             )
         endif()
     endif()
@@ -401,7 +409,7 @@ if(AISUITE_BUILD_APPS AND AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     )
     string(
         FIND "${frontend_client_dynamic_metadata}"
-        "Shared library: [libaisuite-openai-codex-frontend-client.so.2]"
+        "Shared library: [libaisuite-openai-codex-frontend-client.so.3]"
         frontend_client_sdk_needed
     )
     if(frontend_client_sdk_needed EQUAL -1)
@@ -670,27 +678,46 @@ foreach(consumer IN LISTS installed_consumers)
                "libaisuite-openai-codex-frontend-client.so.1"
                linked_legacy_frontend_client
         )
-        if(NOT linked_legacy_main EQUAL -1 OR
-           NOT linked_legacy_backend EQUAL -1 OR
-           NOT linked_legacy_frontend EQUAL -1 OR
-           NOT linked_legacy_frontend_client EQUAL -1)
-            fail_installed(
-                "${consumer} resolved an obsolete AISuite Codex .so.1 runtime"
-            )
-        endif()
         string(FIND "${linked_libraries}" "libaisuite-openai-codex.so.2"
-               linked_main
+               linked_previous_main
         )
         string(FIND "${linked_libraries}"
                "libaisuite-openai-codex-backend.so.2"
-               linked_backend
+               linked_previous_backend
         )
         string(FIND "${linked_libraries}"
                "libaisuite-openai-codex-frontend.so.2"
-               linked_frontend
+               linked_previous_frontend
         )
         string(FIND "${linked_libraries}"
                "libaisuite-openai-codex-frontend-client.so.2"
+               linked_previous_frontend_client
+        )
+        if(NOT linked_legacy_main EQUAL -1 OR
+           NOT linked_legacy_backend EQUAL -1 OR
+           NOT linked_legacy_frontend EQUAL -1 OR
+           NOT linked_legacy_frontend_client EQUAL -1 OR
+           NOT linked_previous_main EQUAL -1 OR
+           NOT linked_previous_backend EQUAL -1 OR
+           NOT linked_previous_frontend EQUAL -1 OR
+           NOT linked_previous_frontend_client EQUAL -1)
+            fail_installed(
+                "${consumer} resolved an obsolete AISuite Codex .so.1/.so.2 runtime"
+            )
+        endif()
+        string(FIND "${linked_libraries}" "libaisuite-openai-codex.so.3"
+               linked_main
+        )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-backend.so.3"
+               linked_backend
+        )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend.so.3"
+               linked_frontend
+        )
+        string(FIND "${linked_libraries}"
+               "libaisuite-openai-codex-frontend-client.so.3"
                linked_frontend_client
         )
         if(NOT linked_main EQUAL -1)
@@ -755,10 +782,10 @@ foreach(consumer IN LISTS installed_consumers)
         foreach(
             forbidden_protocol_runtime
             IN ITEMS
-               libaisuite-openai-codex.so.2
-               libaisuite-openai-codex-backend.so.2
-               libaisuite-openai-codex-frontend.so.2
-               libaisuite-openai-codex-frontend-client.so.2
+               libaisuite-openai-codex.so.3
+               libaisuite-openai-codex-backend.so.3
+               libaisuite-openai-codex-frontend.so.3
+               libaisuite-openai-codex-frontend-client.so.3
                libsnodec-
                libssl
                libcrypto
@@ -774,7 +801,7 @@ foreach(consumer IN LISTS installed_consumers)
             endif()
         endforeach()
         string(FIND "${linked_libraries}"
-               "libaisuite-openai-codex-frontend-protocol.so.2"
+               "libaisuite-openai-codex-frontend-protocol.so.3"
                protocol_runtime_index
         )
         if(protocol_runtime_index EQUAL -1)
@@ -828,9 +855,9 @@ reject_forbidden_references(
 foreach(
     required_library
     IN ITEMS
-       libaisuite-openai-codex.so.2
-       libaisuite-openai-codex-backend.so.2
-       libaisuite-openai-codex-frontend.so.2
+       libaisuite-openai-codex.so.3
+       libaisuite-openai-codex-backend.so.3
+       libaisuite-openai-codex-frontend.so.3
        libsnodec-core
        libsnodec-net-un-stream-legacy
 )
@@ -864,7 +891,7 @@ if(NOT saw_aisuite_main_runtime_library OR
     NOT saw_aisuite_frontend_client_runtime_library) OR
    NOT saw_snodec_runtime_library)
     fail_cross_repo(
-        "consumer runtime proof did not observe every configured AISuite Codex .so.2 library and SNode.C from their isolated install prefixes"
+        "consumer runtime proof did not observe every configured AISuite Codex .so.3 library and SNode.C from their isolated install prefixes"
     )
 endif()
 

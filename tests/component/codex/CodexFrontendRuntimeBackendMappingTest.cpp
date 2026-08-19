@@ -107,6 +107,9 @@ namespace {
             command.parameterExtensions.contains("reasoningEffort")) {
             expected["effort"] = command.parameterExtensions.at("reasoningEffort");
         }
+        if (metadata.id == generated::MethodId::TurnStart && command.parameterExtensions.contains("collaborationMode")) {
+            expected["collaborationMode"] = command.parameterExtensions.at("collaborationMode");
+        }
         if (metadata.id == generated::MethodId::TurnStart && expected.contains("input") && expected["input"].is_array()) {
             for (Json& input : expected["input"]) {
                 if (input.is_object() && input.value("type", std::string{}) == "text" && !input.contains("text_elements")) {
@@ -696,6 +699,14 @@ namespace {
         turnParams.input.emplace_back(std::move(input));
         turnParams.effort = typed::OptionalNullable<typed::ReasoningEffort>::withValue(typed::ReasoningEffort::high());
         turnParams.personality = typed::OptionalNullable<typed::Personality>::withValue(typed::Personality::friendly());
+        typed::CollaborationMode collaboration;
+        collaboration.mode = typed::ModeKind::plan();
+        collaboration.settings.developerInstructions =
+            typed::OptionalNullable<std::string>::withValue("coordinate the turn");
+        collaboration.settings.model = typed::ModelId{"gpt-collaboration"};
+        collaboration.settings.reasoningEffort =
+            typed::OptionalNullable<typed::ReasoningEffort>::withValue(typed::ReasoningEffort::xhigh());
+        turnParams.collaborationMode = typed::OptionalNullable<typed::CollaborationMode>::withValue(std::move(collaboration));
         const std::optional<Json> encodedTurn = ai::openai::codex::detail::encodeTurnStartParams(turnParams, error);
         const auto decodedTurn = decode("turn.start", encodedTurn.value_or(Json::array()));
         const auto mappedTurn = decodedTurn ? mapping::mapDefinedCommand(decodedTurn.value())
@@ -704,11 +715,17 @@ namespace {
         const auto* turn = turnCommand ? std::get_if<backend::TurnStart>(turnCommand) : nullptr;
         const bool modernTurnFieldsAreDefined = decodedTurn && parameterValue(decodedTurn.value()).contains("effort") &&
                                                 parameterValue(decodedTurn.value()).contains("personality") &&
-                                                decodedTurn.value().parameterExtensions.empty();
+                                                decodedTurn.value().parameterExtensions.contains("collaborationMode");
         result.expectTrue(modernTurnFieldsAreDefined && turn != nullptr && turn->params.effort.hasValue() &&
                               turn->params.effort->value == "high" && turn->params.personality.hasValue() &&
-                              turn->params.personality->value == "friendly",
-                          "typed turn.start effort and other modern fields remain defined parameters and reach the exact backend command");
+                              turn->params.personality->value == "friendly" && turn->params.collaborationMode.hasValue() &&
+                              turn->params.collaborationMode->mode == typed::ModeKind::plan() &&
+                              turn->params.collaborationMode->settings.model == typed::ModelId{"gpt-collaboration"} &&
+                              turn->params.collaborationMode->settings.developerInstructions.hasValue() &&
+                              *turn->params.collaborationMode->settings.developerInstructions == "coordinate the turn" &&
+                              turn->params.collaborationMode->settings.reasoningEffort.hasValue() &&
+                              turn->params.collaborationMode->settings.reasoningEffort->value == "xhigh",
+                          "typed turn.start execution overrides reach the exact backend command");
 
         const auto legacyStart = decode("thread.start", Json{{"sandboxMode", "workspace-write"}});
         const auto legacyTurn = decode("turn.start",
@@ -748,7 +765,7 @@ namespace {
         Json threadResume = fixtureFor(fixtures, "thread.resume")->at("completeParams");
         threadResume["sandbox"] = "canonical-sandbox";
         Json turnStart = fixtureFor(fixtures, "turn.start")->at("completeParams");
-        turnStart["effort"] = "canonical-effort";
+        turnStart["reasoningEffort"] = "legacy-effort";
 
         const auto startConflict = decode("thread.start", threadStart);
         const auto resumeConflict = decode("thread.resume", threadResume);

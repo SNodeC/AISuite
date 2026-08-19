@@ -210,6 +210,22 @@ namespace ai::openai::codex::frontend::detail {
             return decodedConversation(ai::openai::codex::detail::decodeSandboxPolicy(value));
         }
 
+        typed::CollaborationMode collaborationMode(const Json& value) {
+            if (!value.is_object()) {
+                fail("collaborationMode");
+            }
+            const Json& settings = required(value, "settings");
+            if (!settings.is_object()) {
+                fail("collaborationMode.settings");
+            }
+            typed::CollaborationMode result;
+            result.mode = requiredStrong<typed::ModeKind>(value, "mode");
+            result.settings.model = requiredStrong<typed::ModelId>(settings, "model");
+            result.settings.developerInstructions = optionalNullableString(settings, "developer_instructions");
+            result.settings.reasoningEffort = optionalStrong<typed::ReasoningEffort>(settings, "reasoning_effort");
+            return result;
+        }
+
         typed::TurnInput turnInput(const Json& value) {
             typed::TurnInput result = decodedConversation(ai::openai::codex::detail::decodeUserInput(value));
             if (auto* text = std::get_if<typed::TextInput>(&result); text != nullptr && !text->textElements.has_value()) {
@@ -333,6 +349,9 @@ namespace ai::openai::codex::frontend::detail {
                 }
                 if (command.parameterExtensions.contains("reasoningEffort")) {
                     params["effort"] = command.parameterExtensions.at("reasoningEffort");
+                }
+                if (command.parameterExtensions.contains("collaborationMode")) {
+                    params["collaborationMode"] = command.parameterExtensions.at("collaborationMode");
                 }
             }
             return params;
@@ -474,6 +493,8 @@ namespace ai::openai::codex::frontend::detail {
                         return item;
                     });
                     value.sandboxPolicy = optionalNullable<typed::SandboxPolicy>(params, "sandboxPolicy", sandboxPolicy);
+                    value.collaborationMode =
+                        optionalNullable<typed::CollaborationMode>(params, "collaborationMode", collaborationMode);
                     return backend::TurnStart{std::move(value)};
                 }
                 case MethodId::TurnInterrupt:

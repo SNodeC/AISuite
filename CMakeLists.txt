@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 
 project(
     AISuite
-    VERSION 0.1.1
+    VERSION 0.2.0
     DESCRIPTION "Reusable C++ AI integrations based on SNode.C"
     LANGUAGES CXX
 )
@@ -23,7 +23,7 @@ option(AISUITE_ENABLE_ASAN "Build AISuite with AddressSanitizer" OFF)
 option(AISUITE_DISABLE_LOGLEVEL_LOGGING "Disable SNode.C LOG/PLOG logging" OFF)
 option(AISUITE_DISABLE_VERBOSE_LOGGING "Disable SNode.C VLOG logging" OFF)
 
-set(AISUITE_CODEX_SOVERSION 2)
+set(AISUITE_CODEX_SOVERSION 3)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -209,6 +209,12 @@ write_basic_package_version_file(
 install(
     EXPORT AISuiteTargets
     FILE AISuiteTargets.cmake
+    NAMESPACE AISuite::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
+)
+install(
+    EXPORT AISuiteTargets
+    FILE "AISuiteTargets-v${AISUITE_CODEX_SOVERSION}.cmake"
     NAMESPACE AISuite::
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
 )

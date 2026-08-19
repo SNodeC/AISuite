@@ -673,7 +673,7 @@ namespace {
 
     void testGeneratedCorpusAndProductionLimits(tests::support::TestResult& result) {
         // These reviewed ceilings retain generous headroom over the measured
-        // 3,323/16/1,806/38 maxima while still detecting an unexpected
+        // 3,596/23/1,908/66 maxima while still detecting an unexpected
         // multiplication of ordinary validation work far below the broad
         // four-million-visit emergency bound.
         constexpr std::size_t CorpusVisitCeiling = 10'000;
@@ -739,11 +739,11 @@ namespace {
             corpus.observe(statistics);
         }
         result.expectTrue(
-            valid && corpus.validations == 559 && corpus.maximumVisits <= CorpusVisitCeiling && corpus.maximumDepth <= CorpusDepthCeiling &&
+            valid && corpus.validations == 570 && corpus.maximumVisits <= CorpusVisitCeiling && corpus.maximumDepth <= CorpusDepthCeiling &&
                 corpus.maximumReferences <= CorpusReferenceCeiling && corpus.maximumAlternatives <= CorpusAlternativeCeiling &&
                 corpus.maximumDiscriminatorFastPaths <= CorpusDiscriminatorCeiling &&
                 corpus.maximumRegularExpressions <= CorpusRegexCeiling && corpus.maximumUniqueComparisons == 0,
-            "all 559 generated minimal, complete, nullable, snapshot, and event fixtures stay within fixed production ceilings");
+            "all 570 generated minimal, complete, nullable, snapshot, and event fixtures stay within fixed production ceilings");
 
         Statistics generatedDepthStatistics;
         const frontend::Json& generatedSnapshot = fixtures.at("expandedSnapshot");
@@ -771,6 +771,44 @@ namespace {
                 belowGeneratedDepthStatistics.complexityRejected && publicGeneratedSnapshot.hasValue() &&
                 exactGeneratedDepthStatistics.maximumDepthObserved == generatedDepthStatistics.maximumDepthObserved,
             "a real generated snapshot passes at its measured exact depth, fails one below, and passes public default wiring");
+
+        const frontend::Json executionConfiguration{
+            {"approvalPolicy", "on-request"},
+            {"approvalsReviewer", "user"},
+            {"collaborationMode",
+             {{"mode", "plan"},
+              {"settings",
+               {{"developerInstructions", "coordinate the turn"}, {"model", "gpt-test"}, {"reasoningEffort", "high"}}}}},
+            {"cwd", "/workspace"},
+            {"effort", "high"},
+            {"model", "gpt-test"},
+            {"modelProvider", "openai"},
+            {"sandboxPolicy",
+             {{"type", "workspaceWrite"},
+              {"networkAccess", false},
+              {"writableRoots", frontend::Json::array({"/workspace"})}}},
+        };
+        const frontend::Json configuredThread{
+            {"id", "thread-config"},
+            {"ephemeral", true},
+            {"archived", false},
+            {"executionConfiguration", executionConfiguration},
+        };
+        const frontend::Json configuredTurn{
+            {"id", "turn-config"},
+            {"threadId", "thread-config"},
+            {"status", "completed"},
+            {"active", false},
+            {"terminal", true},
+            {"effectiveExecutionConfiguration", executionConfiguration},
+            {"effectiveExecutionConfigurationProvenance", "thread_settings_updated"},
+        };
+        const Validation configuredThreadValidation = validator::validateGeneratedSchema(
+            root, "#/$defs/ExpandedThreadState", configuredThread, "thread", Limits{}, nullptr);
+        const Validation configuredTurnValidation = validator::validateGeneratedSchema(
+            root, "#/$defs/ExpandedTurnState", configuredTurn, "turn", Limits{}, nullptr);
+        result.expectTrue(configuredThreadValidation.valid && configuredTurnValidation.valid,
+                          "canonical thread and turn schemas accept typed execution configuration and lifecycle fields");
 
         const std::optional<generated::MethodId> accountLoginCancel = generated::definedMethodFromString("account.login.cancel");
         bool publicDepthWiring = false;
