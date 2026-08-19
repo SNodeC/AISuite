@@ -146,6 +146,7 @@ set(required_package_entries
     "lib/libaisuite-openai-codex-frontend.so.3"
     "lib/cmake/AISuite/AISuiteConfig.cmake"
     "lib/cmake/AISuite/AISuiteTargets.cmake"
+    "lib/cmake/AISuite/AISuiteTargets-v3.cmake"
 )
 if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     list(

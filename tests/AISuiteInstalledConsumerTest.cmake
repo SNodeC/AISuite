@@ -274,6 +274,14 @@ if(NOT EXISTS "${installed_aisuite_targets}")
         "installed AISuite target export is missing: ${installed_aisuite_targets}"
     )
 endif()
+set(installed_aisuite_abi_targets
+    "${aisuite_install}/lib/cmake/AISuite/AISuiteTargets-v3.cmake"
+)
+if(NOT EXISTS "${installed_aisuite_abi_targets}")
+    fail_installed(
+        "installed AISuite package is missing its ABI-qualified imported targets"
+    )
+endif()
 file(READ "${installed_aisuite_targets}" installed_aisuite_targets_text)
 string(FIND "${installed_aisuite_targets_text}"
        "add_library(AISuite::OpenAICodexFrontend SHARED IMPORTED)"

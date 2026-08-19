@@ -213,6 +213,12 @@ install(
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
 )
 install(
+    EXPORT AISuiteTargets
+    FILE "AISuiteTargets-v${AISUITE_CODEX_SOVERSION}.cmake"
+    NAMESPACE AISuite::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
+)
+install(
     FILES
         "${CMAKE_CURRENT_BINARY_DIR}/AISuiteConfig.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/AISuiteConfigVersion.cmake"

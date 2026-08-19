@@ -13,5 +13,7 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
 endif()
 find_dependency(snodec 2.0 CONFIG COMPONENTS core)
 
-include("${CMAKE_CURRENT_LIST_DIR}/AISuiteTargets.cmake")
+include(
+    "${CMAKE_CURRENT_LIST_DIR}/AISuiteTargets-v@AISUITE_CODEX_SOVERSION@.cmake"
+)
 check_required_components(AISuite)
