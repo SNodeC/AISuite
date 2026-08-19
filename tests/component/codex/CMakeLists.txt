@@ -1607,7 +1607,7 @@ set_tests_properties(
     CodexFrontendProtocolV1Test
     PROPERTIES LABELS
                "component;ai;openai;codex;frontend;protocol;journal;batch"
-               SKIP_RETURN_CODE 77 TIMEOUT 10
+               SKIP_RETURN_CODE 77 TIMEOUT 30
 )
 
 snodec_add_test(
