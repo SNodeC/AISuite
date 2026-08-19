@@ -5741,10 +5741,10 @@
     "protocol": {
       "authorityCanonicalSha256": {
         "cppClientBindings": "bad7b4fa514df2c035ab3fb558546ebe97743ab82a8feb83cac36d0031f59bc2",
-        "generatedFixture": "45d232efb10a5684c70bc0662131b3be3a5fe1eca9125e783c0bcbed49979d27",
+        "generatedFixture": "734f1c2145018a5bc67c2b0a29dddc7cfb859758a436c013582d0900706f966d",
         "ownerReviewedRegistry": "455c892ad7f6c351ed4f2e7125acd3831082dbd23cc8b79784ac4d8438adb405",
         "protocolManifest": "6195387f2f67229067ffa2ae4ac99bf7dfa99d0a8d9c991d15da91a340c12db3",
-        "protocolSchema": "a14d72a7152175863e9a4a1767a69e20ab391e14cc538a4c8c05f376a4ea1742",
+        "protocolSchema": "f3220fbfc68d19d7e1e3a20ed7547a488e558d4a726d8638432dca58d1ec9f2b",
         "reducerConformanceFixture": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7"
       },
       "authorityPaths": {
@@ -7049,7 +7049,7 @@
       "serverComparisonBorder": "equivalent BackendCore typed inputs/state/occurrences -> old and greenfield server cores -> canonical Frontend Protocol v1 output",
       "startingCorpus": {
         "canonicalSha256": {
-          "generatedProtocolFixture": "45d232efb10a5684c70bc0662131b3be3a5fe1eca9125e783c0bcbed49979d27",
+          "generatedProtocolFixture": "734f1c2145018a5bc67c2b0a29dddc7cfb859758a436c013582d0900706f966d",
           "reducerConformanceFixture": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7"
         },
         "generatedProtocolFixture": "tests/component/codex/fixtures/frontend-protocol-v1.generated.json",
