@@ -187,6 +187,31 @@ namespace {
         return result;
     }
 
+    typed::ThreadSettings executionSettings(std::string model = "gpt-current") {
+        typed::ThreadSettings result;
+        typed::ActivePermissionProfile profile;
+        profile.id = "profile-a";
+        profile.extends = typed::OptionalNullable<std::string>::withValue("profile-base");
+        result.activePermissionProfile = typed::OptionalNullable<typed::ActivePermissionProfile>::withValue(std::move(profile));
+        result.approvalPolicy = typed::AskForApproval{typed::ApprovalPolicy::onRequest()};
+        result.approvalsReviewer = typed::ApprovalsReviewer::user();
+        result.collaborationMode.mode = typed::ModeKind::plan();
+        result.collaborationMode.settings.developerInstructions =
+            typed::OptionalNullable<std::string>::withValue("coordinate carefully");
+        result.collaborationMode.settings.model = typed::ModelId{model};
+        result.collaborationMode.settings.reasoningEffort =
+            typed::OptionalNullable<typed::ReasoningEffort>::withValue(typed::ReasoningEffort::high());
+        result.cwd = typed::AbsolutePath{"/workspace/current"};
+        result.effort = typed::OptionalNullable<typed::ReasoningEffort>::withValue(typed::ReasoningEffort::high());
+        result.model = typed::ModelId{std::move(model)};
+        result.modelProvider = "openai";
+        result.summary = typed::OptionalNullable<typed::ReasoningSummary>::withValue(typed::ReasoningSummary::detailed());
+        result.personality = typed::OptionalNullable<typed::Personality>::withValue(typed::Personality::pragmatic());
+        result.sandboxPolicy = typed::ReadOnlySandboxPolicy{true, Json::object(), {}};
+        result.serviceTier = typed::OptionalNullable<std::string>::withValue("flex");
+        return result;
+    }
+
     const backend::TurnState* findTurn(const backend::BackendState& state, const std::string& threadId, const std::string& turnId) {
         return backend::findTurn(state, typed::ThreadId{threadId}, typed::TurnId{turnId});
     }
@@ -337,6 +362,117 @@ namespace {
                           "snapshot preserves first-seen thread, turn, and item ordering instead of map key ordering");
     }
 
+    void testExecutionConfigurationRetention(tests::support::TestResult& result) {
+        backend::BackendState state;
+        backend::Reducer reducer;
+        typed::Thread configuredThread = thread("thread-config");
+        configuredThread.ephemeral = true;
+        reducer.apply(state, backend::ThreadUpserted{std::move(configuredThread), backend::EntityLoad::Full});
+
+        const typed::ThreadSettings current = executionSettings();
+        typed::ThreadSettingsUpdatedNotification settingsUpdated;
+        settingsUpdated.threadId = typed::ThreadId{"thread-config"};
+        settingsUpdated.threadSettings = current;
+        settingsUpdated.threadSettings.raw = Json{{"unknownProviderDetail", "not canonical"}};
+        settingsUpdated.threadSettings.collaborationMode.raw = Json{{"unknownModeDetail", true}};
+        settingsUpdated.threadSettings.collaborationMode.settings.raw = Json{{"unknownSettingsDetail", true}};
+        settingsUpdated.raw = Json{{"params", Json::object()}};
+        for (const backend::BackendEvent& event : reducer.translate(typed::Event{std::move(settingsUpdated)})) {
+            reducer.apply(state, event);
+        }
+
+        typed::TurnStartParams start;
+        start.threadId = typed::ThreadId{"thread-config"};
+        start.cwd = typed::OptionalNullable<std::string>::withValue("/workspace/turn");
+        start.personality = typed::OptionalNullable<typed::Personality>::withValue(typed::Personality::friendly());
+        start.serviceTier = typed::OptionalNullable<std::string>::withValue("priority");
+        typed::CollaborationMode collaboration;
+        collaboration.mode = typed::ModeKind::defaultMode();
+        collaboration.settings.developerInstructions =
+            typed::OptionalNullable<std::string>::withValue("turn-specific instructions");
+        collaboration.settings.model = typed::ModelId{"gpt-turn"};
+        collaboration.settings.reasoningEffort =
+            typed::OptionalNullable<typed::ReasoningEffort>::withValue(typed::ReasoningEffort::xhigh());
+        start.collaborationMode = typed::OptionalNullable<typed::CollaborationMode>::withValue(std::move(collaboration));
+
+        typed::TurnStartResponse started;
+        started.turn = turn("thread-config", "turn-config");
+        reducer.apply(state,
+                      backend::ProviderOperationCompleted{"turn/start",
+                                                          backend::BackendCommand{backend::TurnStart{start}},
+                                                          backend::ProviderOperationValue{std::move(started)},
+                                                          std::nullopt});
+
+        typed::ThreadArchivedNotification archived;
+        archived.threadId = typed::ThreadId{"thread-config"};
+        archived.raw = Json{{"params", Json::object()}};
+        for (const backend::BackendEvent& event : reducer.translate(typed::Event{std::move(archived)})) {
+            reducer.apply(state, event);
+        }
+
+        const backend::ThreadState& retainedThread = state.threads.at("thread-config");
+        const backend::TurnState& retainedTurn = retainedThread.turns.at("turn-config");
+        const backend::Snapshot snapshot = backend::makeSnapshot(state);
+        const backend::ThreadSnapshot& projectedThread = snapshot.threads.front();
+        const backend::TurnSnapshot& projectedTurn = projectedThread.turns.front();
+        result.expectTrue(retainedThread.executionConfiguration == current && retainedThread.archived == true &&
+                              retainedTurn.effectiveExecutionConfiguration &&
+                              retainedTurn.effectiveExecutionConfiguration->cwd == typed::AbsolutePath{"/workspace/turn"} &&
+                              retainedTurn.effectiveExecutionConfiguration->model == typed::ModelId{"gpt-turn"} &&
+                              retainedTurn.effectiveExecutionConfiguration->personality.hasValue() &&
+                              retainedTurn.effectiveExecutionConfiguration->personality.value == typed::Personality::friendly() &&
+                              retainedTurn.effectiveExecutionConfiguration->serviceTier.hasValue() &&
+                              retainedTurn.effectiveExecutionConfiguration->serviceTier.value == std::optional<std::string>{"priority"} &&
+                              retainedTurn.effectiveExecutionConfigurationProvenance == "turn_start_accepted",
+                          "thread settings remain authoritative and turn/start captures the accepted effective configuration");
+        result.expectTrue(projectedThread.ephemeral == true && projectedThread.archived == true &&
+                              projectedThread.cwd == "/workspace/current",
+                          "snapshots retain authoritative thread lifecycle and cwd before authority projection");
+        result.expectTrue(projectedThread.executionConfiguration &&
+                              projectedThread.executionConfiguration->value("model", "") == "gpt-current",
+                          "snapshots retain the complete current thread execution configuration");
+        result.expectTrue(projectedTurn.effectiveExecutionConfiguration &&
+                              projectedTurn.effectiveExecutionConfiguration->value("model", "") == "gpt-turn" &&
+                              projectedTurn.effectiveExecutionConfiguration->value("cwd", "") == "/workspace/turn" &&
+                              projectedTurn.effectiveExecutionConfigurationProvenance == "turn_start_accepted",
+                          "snapshots retain historical effective turn settings and their provenance: " +
+                              (projectedTurn.effectiveExecutionConfiguration
+                                   ? projectedTurn.effectiveExecutionConfiguration->dump()
+                                   : std::string{"missing"}) +
+                              " / " + projectedTurn.effectiveExecutionConfigurationProvenance.value_or("missing"));
+
+        typed::TurnStartParams resetStart;
+        resetStart.threadId = typed::ThreadId{"thread-config"};
+        resetStart.effort = typed::OptionalNullable<typed::ReasoningEffort>::explicitNull();
+        typed::TurnStartResponse resetStarted;
+        resetStarted.turn = turn("thread-config", "turn-reset");
+        reducer.apply(state,
+                      backend::ProviderOperationCompleted{"turn/start",
+                                                          backend::BackendCommand{backend::TurnStart{resetStart}},
+                                                          backend::ProviderOperationValue{std::move(resetStarted)},
+                                                          std::nullopt});
+        const backend::TurnState& resetTurn = state.threads.at("thread-config").turns.at("turn-reset");
+        result.expectTrue(!resetTurn.effectiveExecutionConfiguration &&
+                              !resetTurn.effectiveExecutionConfigurationProvenance,
+                          "an explicit-null override waits for authoritative thread settings instead of reusing a stale value");
+
+        backend::BackendState malformedState;
+        reducer.apply(malformedState, backend::ThreadUpserted{thread("thread-malformed"), backend::EntityLoad::Full});
+        typed::ThreadSettings malformed = executionSettings();
+        malformed.model.value.clear();
+        typed::ThreadSettingsUpdatedNotification malformedUpdate;
+        malformedUpdate.threadId = typed::ThreadId{"thread-malformed"};
+        malformedUpdate.threadSettings = std::move(malformed);
+        malformedUpdate.raw = Json{{"params", Json::object()}};
+        for (const backend::BackendEvent& event : reducer.translate(typed::Event{std::move(malformedUpdate)})) {
+            reducer.apply(malformedState, event);
+        }
+        const backend::Snapshot malformedSnapshot = backend::makeSnapshot(malformedState);
+        result.expectTrue(malformedSnapshot.threads.size() == 1 &&
+                              !malformedSnapshot.threads.front().executionConfiguration,
+                          "a malformed configuration is omitted fail-soft instead of producing an invalid frontend snapshot");
+    }
+
     void testStatusOnlyPlaceholderParity(tests::support::TestResult& result) {
         backend::BackendState state;
         backend::Reducer reducer;
@@ -379,10 +515,11 @@ namespace {
                          [](const backend::ThreadSnapshot& candidate) {
                              return candidate.id == "thread-marker-collision";
                          });
-        result.expectTrue(collisionThread != collisionSnapshot.threads.end() && collisionThread->cwd == "[redacted]" &&
+        result.expectTrue(collisionThread != collisionSnapshot.threads.end() && collisionThread->cwd == "/tmp/project" &&
                               collisionThread->modelProvider == "openai" && collisionThread->preview == "preview thread-marker-collision" &&
                               collisionThread->status == "idle" && collisionThread->createdAt == 1 && collisionThread->updatedAt == 2,
-                          "an unknown wire field named backendPlaceholder cannot collide with the exact internal sentinel");
+                          "an unknown wire field named backendPlaceholder cannot collide with the exact internal sentinel; cwd redaction "
+                          "is deferred to authority projection");
     }
 
     void testItemsAndHighVolumeDeltas(tests::support::TestResult& result) {
@@ -2223,6 +2360,7 @@ int main() {
 
     testInitialStateAndLifecycle(result);
     testThreadAndTurnHydration(result);
+    testExecutionConfigurationRetention(result);
     testStatusOnlyPlaceholderParity(result);
     testItemsAndHighVolumeDeltas(result);
     testCompletionFailureAndAuxiliaryUpdates(result);

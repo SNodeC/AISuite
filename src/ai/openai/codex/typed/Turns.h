@@ -61,6 +61,10 @@ namespace ai::openai::codex::typed {
         // an arbitrary JSON Schema annotation here.
         OptionalNullable<Json> outputSchema;
         OptionalNullable<SandboxPolicy> sandboxPolicy;
+        // EXPERIMENTAL app-server surface. Omission preserves stable behavior;
+        // callers should set this only for an app-server version that supports
+        // the experimental TurnStartParams.collaborationMode field.
+        OptionalNullable<CollaborationMode> collaborationMode;
     };
 
     struct TurnSteerParams {

@@ -240,6 +240,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 omitNested("/**/stderr", FrontendScope::CommandExecution),
                 omitNested("/**/stdout", FrontendScope::CommandExecution),
                 omitNested("/**/cwd", FrontendScope::FilesystemRead),
+                omitNested("/**/developerInstructions", FrontendScope::SensitiveResponse),
                 omitNested("/**/path", FrontendScope::FilesystemRead),
                 omitNested("/**/diff", FrontendScope::FilesystemWrite),
                 omitNested("/**/patch", FrontendScope::FilesystemWrite),

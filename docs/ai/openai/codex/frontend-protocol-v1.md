@@ -96,8 +96,17 @@ inventory is 29 main, seven backend, and nine frontend headers, or 45 total.
 A1.7b replaces `frontend/BackendAdapter.h` with
 `frontend/FrontendService.h` and installs no compatibility alias, so that
 inventory does not change.
-Project version is `0.1.1`; all Codex libraries retain SOVERSION 2, and the
+Project version is `0.2.0`; all Codex libraries use SOVERSION 3, and the
 protocol identity and protocol version remain unchanged.
+
+Canonical client `ThreadState` now carries the authoritative current
+`ExecutionConfiguration` and typed ephemeral/archive lifecycle when available.
+`TurnState` carries the effective configuration captured while an accepted turn
+is known to this backend process. Filesystem paths and collaboration developer
+instructions remain authority-projected, so they are absent for clients without
+the corresponding scopes. Historical effective settings are deliberately not
+invented after a complete backend restart when the app-server cannot supply
+them.
 
 Complete upstream inventory registration, typed implementation, BackendCore
 support, canonical-state support, frontend definition, runtime availability,

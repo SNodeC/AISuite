@@ -125,6 +125,70 @@ namespace ai::openai::codex::backend {
             return {state.provider.generation, Freshness::Current};
         }
 
+        template <typename T>
+        void applyTurnOverride(T& destination, const typed::OptionalNullable<T>& overrideValue) {
+            if (overrideValue.hasValue()) {
+                destination = *overrideValue.value;
+            }
+        }
+
+        template <typename T>
+        void applyTurnOverride(typed::OptionalNullable<T>& destination, const typed::OptionalNullable<T>& overrideValue) {
+            if (overrideValue.hasValue()) {
+                destination = overrideValue;
+            }
+        }
+
+        typed::ThreadSettings retainedExecutionConfiguration(typed::ThreadSettings value) {
+            value.raw = Json::object();
+            value.diagnostics.clear();
+            if (value.activePermissionProfile.hasValue()) {
+                value.activePermissionProfile->raw = Json::object();
+                value.activePermissionProfile->diagnostics.clear();
+            }
+            value.collaborationMode.raw = Json::object();
+            value.collaborationMode.diagnostics.clear();
+            value.collaborationMode.settings.raw = Json::object();
+            value.collaborationMode.settings.diagnostics.clear();
+            return value;
+        }
+
+        std::optional<typed::ThreadSettings> effectiveExecutionConfiguration(const ThreadState& thread,
+                                                                              const typed::TurnStartParams& params) {
+            if (!thread.executionConfiguration) {
+                return std::nullopt;
+            }
+            // An explicit null asks the app-server to resolve a default/reset.
+            // The prior ThreadSettings value is not authoritative for that
+            // result, so wait for thread/settings/updated instead of guessing.
+            if (params.approvalPolicy.isNull() || params.approvalsReviewer.isNull() || params.cwd.isNull() ||
+                params.effort.isNull() || params.model.isNull() || params.personality.isNull() ||
+                params.sandboxPolicy.isNull() || params.serviceTier.isNull() || params.summary.isNull() ||
+                params.collaborationMode.isNull()) {
+                return std::nullopt;
+            }
+            typed::ThreadSettings result = *thread.executionConfiguration;
+            applyTurnOverride(result.approvalPolicy, params.approvalPolicy);
+            applyTurnOverride(result.approvalsReviewer, params.approvalsReviewer);
+            if (params.cwd.hasValue()) {
+                result.cwd = typed::AbsolutePath{*params.cwd.value};
+            }
+            applyTurnOverride(result.effort, params.effort);
+            applyTurnOverride(result.model, params.model);
+            applyTurnOverride(result.personality, params.personality);
+            applyTurnOverride(result.sandboxPolicy, params.sandboxPolicy);
+            applyTurnOverride(result.serviceTier, params.serviceTier);
+            applyTurnOverride(result.summary, params.summary);
+            if (params.collaborationMode.hasValue()) {
+                result.collaborationMode = *params.collaborationMode.value;
+                result.model = result.collaborationMode.settings.model;
+                if (!result.collaborationMode.settings.reasoningEffort.isOmitted()) {
+                    result.effort = result.collaborationMode.settings.reasoningEffort;
+                }
+            }
+            return retainedExecutionConfiguration(std::move(result));
+        }
+
         constexpr std::size_t MaxRetainedFilesystemChangePaths = 256;
         constexpr std::size_t MaxRetainedFuzzyResultsPerSession = 512;
         constexpr std::size_t MaxRetainedFuzzyIndicesPerResult = 256;
@@ -2261,7 +2325,7 @@ namespace ai::openai::codex::backend {
                         }
                     } else if constexpr (std::is_same_v<Value, typed::ThreadArchivedNotification>) {
                         ThreadState& thread = ensureThread(state, value.threadId, &insertions);
-                        thread.extensions["archived"] = true;
+                        thread.archived = true;
                         thread.stamp = currentStamp(state);
                         markOperationStale(state, "thread/list");
                     } else if constexpr (std::is_same_v<Value, typed::ThreadClosedNotification>) {
@@ -2298,13 +2362,21 @@ namespace ai::openai::codex::backend {
                         thread.thread.cwd = value.threadSettings.cwd;
                         thread.thread.model = value.threadSettings.model;
                         thread.thread.modelProvider = value.threadSettings.modelProvider;
-                        thread.extensions["settings"] = Json::object({{"cwd", value.threadSettings.cwd.value},
-                                                                      {"model", value.threadSettings.model.value},
-                                                                      {"modelProvider", value.threadSettings.modelProvider}});
+                        const typed::ThreadSettings retained = retainedExecutionConfiguration(value.threadSettings);
+                        thread.executionConfiguration = retained;
+                        for (auto turnId = thread.turnOrder.rbegin(); turnId != thread.turnOrder.rend(); ++turnId) {
+                            const auto turn = thread.turns.find(turnId->value);
+                            if (turn != thread.turns.end() && turn->second.active) {
+                                turn->second.effectiveExecutionConfiguration = retained;
+                                turn->second.effectiveExecutionConfigurationProvenance = "thread_settings_updated";
+                                break;
+                            }
+                        }
+                        thread.extensions.erase("settings");
                         thread.stamp = currentStamp(state);
                     } else if constexpr (std::is_same_v<Value, typed::ThreadUnarchivedNotification>) {
                         ThreadState& thread = ensureThread(state, value.threadId, &insertions);
-                        thread.extensions["archived"] = false;
+                        thread.archived = false;
                         thread.stamp = currentStamp(state);
                         markOperationStale(state, "thread/list");
                     } else if constexpr (std::is_same_v<Value, typed::TurnDiffUpdatedNotification>) {
@@ -3321,6 +3393,17 @@ namespace ai::openai::codex::backend {
                                        markThreadStale(state, command.params.threadId);
                                        markOperationStale(state, "thread/list");
                                    },
+                                   [&state, &value](const ThreadList& command) {
+                                       if (const auto* result = std::get_if<typed::ThreadListResponse>(&value.value)) {
+                                           const bool archived = command.params.archived.hasValue() && *command.params.archived.value;
+                                           for (const typed::Thread& listed : result->data) {
+                                               const auto thread = state.threads.find(listed.id.value);
+                                               if (thread != state.threads.end()) {
+                                                   thread->second.archived = archived;
+                                               }
+                                           }
+                                       }
+                                   },
                                    [&state](const ThreadCompactStart& command) {
                                        markThreadStale(state, command.params.threadId);
                                    },
@@ -3359,6 +3442,25 @@ namespace ai::openai::codex::backend {
                                    },
                                    [&state](const TurnSteer& command) {
                                        markTurnStale(state, command.params.threadId, command.params.expectedTurnId);
+                                   },
+                                   [&state, &value](const TurnStart& command) {
+                                       const auto thread = state.threads.find(command.params.threadId.value);
+                                       if (thread == state.threads.end()) {
+                                           return;
+                                       }
+                                       const auto* result = std::get_if<typed::TurnStartResponse>(&value.value);
+                                       if (result == nullptr) {
+                                           return;
+                                       }
+                                       const auto turn = thread->second.turns.find(result->turn.id.value);
+                                       if (turn == thread->second.turns.end()) {
+                                           return;
+                                       }
+                                       turn->second.effectiveExecutionConfiguration =
+                                           effectiveExecutionConfiguration(thread->second, command.params);
+                                       if (turn->second.effectiveExecutionConfiguration) {
+                                           turn->second.effectiveExecutionConfigurationProvenance = "turn_start_accepted";
+                                       }
                                    },
                                    [&state, &value, this](const ReviewStart& command) {
                                        if (const auto* result = std::get_if<typed::ReviewStartResponse>(&value.value)) {

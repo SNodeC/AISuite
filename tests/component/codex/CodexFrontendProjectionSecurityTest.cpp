@@ -123,6 +123,55 @@ namespace {
                               mismatchedProjected.error().code == model::ProjectionErrorCode::MissingGeneratedAuthority,
                           "only structural backend-event identities or exact generated source/family mappings bypass authority rejection");
     }
+
+    void testExecutionConfigurationAuthority(tests::support::TestResult& result) {
+        model::CanonicalSnapshot snapshot;
+        model::ThreadState thread{model::ThreadIdentity{"thread-config"}};
+        thread.safeDetails = *model::SafeDetail::fromJson(frontend::Json{
+            {"cwd", "/workspace/private"},
+            {"executionConfiguration",
+             {{"approvalPolicy", "on-request"},
+              {"approvalsReviewer", "user"},
+              {"collaborationMode",
+               {{"mode", "plan"},
+                {"settings",
+                 {{"developerInstructions", "private developer instructions"}, {"model", "gpt-5.6"}}}}},
+              {"cwd", "/workspace/private"},
+              {"model", "gpt-5.6"},
+              {"modelProvider", "openai"},
+              {"sandboxPolicy", {{"type", "readOnly"}}}}}});
+        snapshot.threads.push_back(std::move(thread));
+
+        model::ProjectionAuthority authority;
+        const auto controller = projectionContext({frontend::FrontendScope::Observe,
+                                                   frontend::FrontendScope::Control,
+                                                   frontend::FrontendScope::FilesystemRead,
+                                                   frontend::FrontendScope::SensitiveResponse},
+                                                  true);
+        const auto observer = projectionContext({frontend::FrontendScope::Observe});
+        const auto controlled = authority.projectSnapshot(snapshot, controller);
+        const auto observed = authority.projectSnapshot(snapshot, observer);
+        const frontend::Json controlledDetails =
+            controlled ? controlled.value().threads.front().safeDetails.json() : frontend::Json::object();
+        const frontend::Json observedDetails =
+            observed ? observed.value().threads.front().safeDetails.json() : frontend::Json::object();
+        const frontend::Json observedConfiguration =
+            observedDetails.value("executionConfiguration", frontend::Json::object());
+        const frontend::Json observedCollaboration =
+            observedConfiguration.value("collaborationMode", frontend::Json::object());
+        const frontend::Json observedCollaborationSettings =
+            observedCollaboration.value("settings", frontend::Json::object());
+        result.expectTrue(controlled &&
+                              controlledDetails.at("executionConfiguration").value("cwd", "") == "/workspace/private" &&
+                              controlledDetails.at("executionConfiguration")
+                                      .at("collaborationMode")
+                                      .at("settings")
+                                      .value("developerInstructions", "") == "private developer instructions" &&
+                              observed && !observedDetails.contains("cwd") && !observedConfiguration.contains("cwd") &&
+                              !observedCollaborationSettings.contains("developerInstructions") &&
+                              observedConfiguration.value("model", "") == "gpt-5.6",
+                          "execution settings retain cwd and instructions only for frontends with the corresponding authority");
+    }
 }
 
 int main() {
@@ -130,5 +179,6 @@ int main() {
     testGeneratedMethodPolicy(result);
     testItemInformationCeilings(result);
     testGeneratedOccurrenceAuthority(result);
+    testExecutionConfigurationAuthority(result);
     return result.processResult();
 }

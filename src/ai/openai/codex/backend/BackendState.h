@@ -301,6 +301,8 @@ namespace ai::openai::codex::backend {
         bool terminal = false;
         std::optional<Json> failure;
         std::optional<Json> tokenUsage;
+        std::optional<typed::ThreadSettings> effectiveExecutionConfiguration;
+        std::optional<std::string> effectiveExecutionConfigurationProvenance;
         std::vector<ModelRerouteRecord> modelReroutes;
         Json extensions = Json::object();
         SourceStamp stamp;
@@ -309,6 +311,8 @@ namespace ai::openai::codex::backend {
 
     struct ThreadState {
         typed::Thread thread;
+        std::optional<typed::ThreadSettings> executionConfiguration;
+        std::optional<bool> archived;
         std::map<std::string, TurnState> turns;
         std::vector<typed::TurnId> turnOrder;
         bool fullyLoaded = false;

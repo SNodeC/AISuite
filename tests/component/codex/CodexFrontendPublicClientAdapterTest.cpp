@@ -675,6 +675,63 @@ namespace {
                           "public capacity preparation rejects before exposing a candidate and preserves the prior immutable State");
     }
 
+    void testExecutionConfigurationPublicState(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState publication;
+        publication.revision = 1;
+        publication.freshness = core::PublishedFreshness::Current;
+        publication.representation = core::RepresentationMode::ExpandedV1;
+        publication.visibleSequence = model::FrontendSequence{1};
+
+        const frontend::Json configuration{
+            {"activePermissionProfile", {{"id", "profile-a"}, {"extends", "profile-base"}}},
+            {"approvalPolicy", "on-request"},
+            {"approvalsReviewer", "user"},
+            {"collaborationMode",
+             {{"mode", "plan"},
+              {"settings",
+               {{"developerInstructions", "coordinate carefully"}, {"model", "gpt-5.6"}, {"reasoningEffort", "high"}}}}},
+            {"cwd", "/workspace/current"},
+            {"effort", "high"},
+            {"model", "gpt-5.6"},
+            {"modelProvider", "openai"},
+            {"summary", "detailed"},
+            {"personality", "pragmatic"},
+            {"sandboxPolicy", {{"type", "readOnly"}, {"networkAccess", true}}},
+            {"serviceTier", "flex"}};
+
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(1, 1, "configured thread");
+        snapshot.threads.front().safeDetails = *model::SafeDetail::fromJson(
+            frontend::Json{{"ephemeral", true}, {"archived", false}, {"executionConfiguration", configuration}});
+        model::TurnState turn{model::TurnIdentity{"configured-turn"}, model::ThreadIdentity{"adapter-thread"}};
+        turn.safeDetails = *model::SafeDetail::fromJson(
+            frontend::Json{{"effectiveExecutionConfiguration", configuration},
+                           {"effectiveExecutionConfigurationProvenance", "turn_start_accepted"}});
+        snapshot.turns.push_back(std::move(turn));
+        publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
+
+        std::string error;
+        const auto state = buildCanonicalState(
+            adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const client::ThreadState* thread = state ? state->thread("adapter-thread") : nullptr;
+        const client::TurnState* publicTurn = state ? state->turn("configured-turn") : nullptr;
+        result.expectTrue(state && error.empty() && thread && thread->ephemeral == true && thread->archived == false &&
+                              thread->executionConfiguration &&
+                              thread->executionConfiguration->model == typed::ModelId{"gpt-5.6"} &&
+                              thread->executionConfiguration->cwd ==
+                                  std::optional<typed::AbsolutePath>{typed::AbsolutePath{"/workspace/current"}} &&
+                              thread->executionConfiguration->activePermissionProfile.hasValue() &&
+                              thread->executionConfiguration->activePermissionProfile.value->id == "profile-a" &&
+                              thread->executionConfiguration->collaborationMode.settings.developerInstructions.hasValue() &&
+                              thread->executionConfiguration->collaborationMode.settings.developerInstructions.value ==
+                                  std::optional<std::string>{"coordinate carefully"} &&
+                              publicTurn && publicTurn->effectiveExecutionConfiguration &&
+                              publicTurn->effectiveExecutionConfiguration->serviceTier.value == std::optional<std::string>{"flex"} &&
+                              publicTurn->effectiveExecutionConfigurationProvenance ==
+                                  client::EffectiveExecutionConfigurationProvenance::TurnStartAccepted,
+                          "public immutable State exposes typed current and historical effective execution configuration");
+    }
+
     void testCanonicalLookupIdentityPreflight(tests::support::TestResult& result) {
         client::Client adopter(publicOptions());
         core::PublishedState publication;
@@ -1215,6 +1272,7 @@ namespace {
 int main() {
     tests::support::TestResult result;
     testDirectCanonicalStateBuilder(result);
+    testExecutionConfigurationPublicState(result);
     testCanonicalLookupIdentityPreflight(result);
     testScopedItemIdentities(result);
     testIndexedStateLookupsAndGroupedOrdering(result);

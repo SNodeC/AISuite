@@ -2269,6 +2269,15 @@ namespace ai::openai::codex::frontend::internal::server {
                     threadDetails["status"] =
                         boundedFrontendString(*thread.status, 256, &projected.truncation, "/threads/status");
                 }
+                if (thread.ephemeral) {
+                    threadDetails["ephemeral"] = *thread.ephemeral;
+                }
+                if (thread.archived) {
+                    threadDetails["archived"] = *thread.archived;
+                }
+                if (thread.executionConfiguration) {
+                    threadDetails["executionConfiguration"] = *thread.executionConfiguration;
+                }
                 Json realtime{{"lifecycle",
                                boundedFrontendString(thread.realtime.lifecycle,
                                                      16'384,
@@ -2330,6 +2339,13 @@ namespace ai::openai::codex::frontend::internal::server {
                     }
                     if (turn.tokenUsage) {
                         addTurnTokenUsageSemanticDetails(turnDetails, *turn.tokenUsage, projected.truncation);
+                    }
+                    if (turn.effectiveExecutionConfiguration) {
+                        turnDetails["effectiveExecutionConfiguration"] = *turn.effectiveExecutionConfiguration;
+                    }
+                    if (turn.effectiveExecutionConfigurationProvenance) {
+                        turnDetails["effectiveExecutionConfigurationProvenance"] =
+                            *turn.effectiveExecutionConfigurationProvenance;
                     }
                     turnState.safeDetails = boundedDetail(std::move(turnDetails), projected.truncation, "/turns/details");
                     turnState.legacyExtensions = boundedDetail(turn.extensions, projected.truncation, "/turns/extensions");
