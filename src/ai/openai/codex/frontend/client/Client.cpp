@@ -436,7 +436,14 @@ namespace ai::openai::codex::frontend::client {
                             } else if constexpr (std::is_same_v<Value, model::ThreadRemovedOccurrence>) {
                                 publicUpdate.changes.emplace_back(ThreadRemovedChange{typed::ThreadId{value.threadId.value()}});
                             } else if constexpr (std::is_same_v<Value, model::TurnUpsertedOccurrence>) {
-                                publicUpdate.changes.emplace_back(TurnUpsertedChange{typed::TurnId{value.turn.id.value()}});
+                                const typed::TurnId turnId{value.turn.id.value()};
+                                const typed::ThreadId threadId{value.turn.threadId.value()};
+                                const TurnState* resolved = currentState.turn(turnId);
+                                if (resolved != nullptr && resolved->threadId == threadId) {
+                                    publicUpdate.changes.emplace_back(TurnUpsertedChange{std::move(turnId)});
+                                } else {
+                                    publicUpdate.changes.emplace_back(StateReplacedChange{});
+                                }
                             } else if constexpr (std::is_same_v<Value, model::ItemUpsertedOccurrence>) {
                                 const model::ItemData& item = model::itemData(value.item);
                                 publicUpdate.changes.emplace_back(

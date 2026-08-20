@@ -47,8 +47,12 @@ namespace ai::openai::codex::frontend::client {
         [[nodiscard]] const ThreadState* thread(std::string_view id) const noexcept;
         [[nodiscard]] bool hasTurnProjection() const noexcept;
         [[nodiscard]] std::span<const TurnState> turns() const noexcept;
+        // Provider turn IDs are scoped to their parent thread. The legacy
+        // unscoped overloads fail closed when the ID is present in more than
+        // one retained thread.
         [[nodiscard]] const TurnState* turn(const typed::TurnId& id) const noexcept;
         [[nodiscard]] const TurnState* turn(std::string_view id) const noexcept;
+        [[nodiscard]] const TurnState* turn(const typed::ThreadId& threadId, const typed::TurnId& turnId) const noexcept;
         [[nodiscard]] bool hasItemProjection() const noexcept;
         [[nodiscard]] std::span<const ItemState> items() const noexcept;
         [[nodiscard]] const ItemState* item(const typed::ItemId& id) const noexcept;

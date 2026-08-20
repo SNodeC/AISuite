@@ -566,14 +566,33 @@ namespace ai::openai::codex::frontend::internal::client {
             result["orderedItems"] = Json::array();
             std::vector<std::pair<std::size_t, std::string>> orderedItems;
             std::size_t fallbackIndex = 0;
+            const bool unscopedItemsBelongToTurn =
+                std::ranges::none_of(snapshot.turns, [&](const model::TurnState& turn) {
+                    return turn.id == value.id && turn.threadId != value.threadId;
+                }) &&
+                std::ranges::none_of(snapshot.items, [&](const model::ThreadItem& item) {
+                    const model::ItemData& data = model::itemData(item);
+                    return data.turnId == std::optional<model::TurnIdentity>{value.id} && data.threadId.has_value() &&
+                           data.threadId != std::optional<model::ThreadIdentity>{value.threadId};
+                }) &&
+                std::ranges::none_of(snapshot.legacyItems, [&](const model::LegacyItemCompatibility& item) {
+                    const model::ItemData& data = item.value;
+                    return data.turnId == std::optional<model::TurnIdentity>{value.id} && data.threadId.has_value() &&
+                           data.threadId != std::optional<model::ThreadIdentity>{value.threadId};
+                });
+            const auto belongsToTurn = [&](const model::ItemData& data) {
+                return data.turnId == std::optional<model::TurnIdentity>{value.id} &&
+                       (data.threadId == std::optional<model::ThreadIdentity>{value.threadId} ||
+                        (!data.threadId.has_value() && unscopedItemsBelongToTurn));
+            };
             for (const model::ThreadItem& item : snapshot.items) {
                 const model::ItemData& data = model::itemData(item);
-                if (data.turnId.has_value() && *data.turnId == value.id) {
+                if (belongsToTurn(data)) {
                     orderedItems.emplace_back(data.sourceIndex.value_or(fallbackIndex++), data.id.value());
                 }
             }
             for (const model::LegacyItemCompatibility& item : snapshot.legacyItems) {
-                if (item.value.turnId.has_value() && *item.value.turnId == value.id) {
+                if (belongsToTurn(item.value)) {
                     orderedItems.emplace_back(item.sourceIndex, item.value.id.value());
                 }
             }
@@ -1345,10 +1364,17 @@ namespace ai::openai::codex::frontend::internal::client {
         if (!snapshot) {
             return nullptr;
         }
-        const auto found = std::find_if(snapshot->turns.begin(), snapshot->turns.end(), [id](const model::TurnState& value) {
-            return value.id.value() == id;
-        });
-        return found == snapshot->turns.end() ? nullptr : &*found;
+        const model::TurnState* found = nullptr;
+        for (const model::TurnState& value : snapshot->turns) {
+            if (value.id.value() != id) {
+                continue;
+            }
+            if (found != nullptr) {
+                return nullptr;
+            }
+            found = &value;
+        }
+        return found;
     }
 
     const model::ThreadItem* PublishedState::item(std::string_view id) const noexcept {

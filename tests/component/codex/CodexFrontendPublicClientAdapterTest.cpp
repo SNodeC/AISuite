@@ -151,15 +151,15 @@ namespace {
     frontend::Snapshot expandedScopedItemsSnapshot(std::uint64_t sequence) {
         model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, 3, "scoped items");
         snapshot.threads.emplace_back(model::ThreadIdentity{"second-thread"});
-        snapshot.turns.emplace_back(model::TurnIdentity{"first-turn"}, model::ThreadIdentity{"adapter-thread"});
-        snapshot.turns.emplace_back(model::TurnIdentity{"second-turn"}, model::ThreadIdentity{"second-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"adapter-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"second-thread"});
 
         model::ItemData first{
-            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"first-turn"}};
+            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"shared-turn"}};
         first.agentText = "first scoped item";
         snapshot.items.push_back(model::AgentMessageItem{std::move(first)});
         model::ItemData second{
-            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"second-thread"}, model::TurnIdentity{"second-turn"}};
+            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"second-thread"}, model::TurnIdentity{"shared-turn"}};
         second.agentText = "second scoped item";
         snapshot.items.push_back(model::AgentMessageItem{std::move(second)});
 
@@ -187,7 +187,7 @@ namespace {
 
     frontend::FrontendEvent scopedItemUpsertEvent(std::uint64_t sequence) {
         model::ItemData replacement{
-            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"second-thread"}, model::TurnIdentity{"second-turn"}};
+            model::ItemIdentity{"item-1"}, model::ThreadIdentity{"second-thread"}, model::TurnIdentity{"shared-turn"}};
         replacement.agentText = "second upserted item";
         model::OccurrenceIdentity identity{model::FrontendSequence(sequence),
                                            model::OccurrenceGroupIdentity{"scoped-upsert"},
@@ -201,10 +201,36 @@ namespace {
             std::move(identity), model::ItemUpsertedOccurrence{model::AgentMessageItem{std::move(replacement)}});
     }
 
+    frontend::FrontendEvent scopedTurnUpsertEvent(std::uint64_t sequence,
+                                                   std::string turnId = "shared-turn",
+                                                   std::string threadId = "second-thread") {
+        model::TurnState replacement{model::TurnIdentity{std::move(turnId)}, model::ThreadIdentity{std::move(threadId)}};
+        replacement.status = "completed";
+        model::OccurrenceIdentity identity{model::FrontendSequence(sequence),
+                                           model::OccurrenceGroupIdentity{"scoped-turn-upsert"},
+                                           0,
+                                           1,
+                                           model::SourceStamp{"adapter-source"}};
+        identity.threadId = replacement.threadId;
+        identity.turnId = replacement.id;
+        return occurrenceEvent(std::move(identity), model::TurnUpsertedOccurrence{std::move(replacement)});
+    }
+
+    frontend::FrontendEvent threadRemovedEvent(std::uint64_t sequence, std::string threadId) {
+        model::ThreadIdentity removed{std::move(threadId)};
+        model::OccurrenceIdentity identity{model::FrontendSequence(sequence),
+                                           model::OccurrenceGroupIdentity{"thread-removed"},
+                                           0,
+                                           1,
+                                           model::SourceStamp{"adapter-source"}};
+        identity.threadId = removed;
+        return occurrenceEvent(std::move(identity), model::ThreadRemovedOccurrence{std::move(removed)});
+    }
+
     frontend::FrontendEvent scopedItemContentEvent(std::uint64_t sequence) {
         model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-1"}};
         update.threadId = model::ThreadIdentity{"second-thread"};
-        update.turnId = model::TurnIdentity{"second-turn"};
+        update.turnId = model::TurnIdentity{"shared-turn"};
         update.channel = "agentText";
         update.content = "second streamed item";
         model::OccurrenceIdentity identity{model::FrontendSequence(sequence),
@@ -850,35 +876,46 @@ namespace {
 
         model::CanonicalSnapshot snapshot = canonicalSnapshot(1, 1, "first thread");
         snapshot.threads.emplace_back(model::ThreadIdentity{"second-thread"});
-        snapshot.turns.emplace_back(model::TurnIdentity{"first-turn"}, model::ThreadIdentity{"adapter-thread"});
-        snapshot.turns.emplace_back(model::TurnIdentity{"second-turn"}, model::ThreadIdentity{"second-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"adapter-thread"});
+        snapshot.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"second-thread"});
 
         model::ItemData first{model::ItemIdentity{"item-1"},
                               model::ThreadIdentity{"adapter-thread"},
-                              model::TurnIdentity{"first-turn"}};
+                              model::TurnIdentity{"shared-turn"}};
         first.summary = "first scoped item";
         snapshot.items.push_back(model::UserMessageItem{std::move(first)});
         model::ItemData second{model::ItemIdentity{"item-1"},
                                model::ThreadIdentity{"second-thread"},
-                               model::TurnIdentity{"second-turn"}};
+                               model::TurnIdentity{"shared-turn"}};
         second.summary = "second scoped item";
         snapshot.items.push_back(model::AgentMessageItem{std::move(second)});
         publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
 
         std::string error;
         const auto state = buildCanonicalState(adopter, publication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const client::TurnState* firstTurn =
+            state ? state->turn(typed::ThreadId{"adapter-thread"}, typed::TurnId{"shared-turn"}) : nullptr;
+        const client::TurnState* secondTurn =
+            state ? state->turn(typed::ThreadId{"second-thread"}, typed::TurnId{"shared-turn"}) : nullptr;
         const client::ItemState* firstItem = state ? state->item(typed::ThreadId{"adapter-thread"},
-                                                                 typed::TurnId{"first-turn"},
+                                                                 typed::TurnId{"shared-turn"},
                                                                  typed::ItemId{"item-1"})
                                                    : nullptr;
         const client::ItemState* secondItem = state ? state->item(typed::ThreadId{"second-thread"},
-                                                                  typed::TurnId{"second-turn"},
+                                                                  typed::TurnId{"shared-turn"},
                                                                   typed::ItemId{"item-1"})
                                                     : nullptr;
-        result.expectTrue(state.has_value() && error.empty() && state->items().size() == 2 && firstItem != nullptr &&
-                              secondItem != nullptr && firstItem->summary == std::optional<std::string>{"first scoped item"} &&
+        result.expectTrue(state.has_value() && error.empty() && state->turns().size() == 2 && state->items().size() == 2 &&
+                              firstTurn != nullptr && secondTurn != nullptr && firstTurn != secondTurn &&
+                              firstTurn->threadId == typed::ThreadId{"adapter-thread"} &&
+                              secondTurn->threadId == typed::ThreadId{"second-thread"} &&
+                              firstTurn->orderedItems == std::vector<typed::ItemId>{typed::ItemId{"item-1"}} &&
+                              secondTurn->orderedItems == std::vector<typed::ItemId>{typed::ItemId{"item-1"}} &&
+                              state->turn("shared-turn") == nullptr && firstItem != nullptr && secondItem != nullptr &&
+                              firstItem->summary == std::optional<std::string>{"first scoped item"} &&
                               secondItem->summary == std::optional<std::string>{"second scoped item"},
-                          "CanonicalStateBuilder retains repeated provider item IDs under distinct thread and turn parents");
+                          "CanonicalStateBuilder retains repeated provider turn and item IDs under distinct thread parents while bare "
+                          "ambiguous turn lookup fails closed");
     }
 
     void testIndexedStateLookupsAndGroupedOrdering(tests::support::TestResult& result) {
@@ -973,43 +1010,81 @@ namespace {
                                       .accepted;
 
         harness.changes.clear();
-        const frontend::FrontendEvent upsert = scopedItemUpsertEvent(8);
+        const frontend::FrontendEvent turnUpsert = scopedTurnUpsertEvent(8);
+        const bool turnUpserted = connection
+                                      .receive(frontend::ServerMessage{frontend::EventBatch{
+                                          frontend::SequenceNumber(8), frontend::SequenceNumber(8), {turnUpsert}}})
+                                      .accepted;
+        const auto* turnChange = findChange<client::TurnUpsertedChange>(harness.changes);
+        const auto* replacementChange = findChange<client::StateReplacedChange>(harness.changes);
+        result.expectTrue(turnUpserted && !turnChange && replacementChange,
+                          "an upsert for an ambiguous provider turn identity invalidates the complete public State view");
+
+        harness.changes.clear();
+        const frontend::FrontendEvent upsert = scopedItemUpsertEvent(9);
         const bool upserted = connection
                                   .receive(frontend::ServerMessage{frontend::EventBatch{
-                                      frontend::SequenceNumber(8), frontend::SequenceNumber(8), {upsert}}})
+                                      frontend::SequenceNumber(9), frontend::SequenceNumber(9), {upsert}}})
                                   .accepted;
         const auto* upsertChange = findChange<client::ItemUpsertedChange>(harness.changes);
         const client::ItemState* firstAfterUpsert = sdk.state().item(
-            typed::ThreadId{"adapter-thread"}, typed::TurnId{"first-turn"}, typed::ItemId{"item-1"});
+            typed::ThreadId{"adapter-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
         const client::ItemState* secondAfterUpsert = sdk.state().item(
-            typed::ThreadId{"second-thread"}, typed::TurnId{"second-turn"}, typed::ItemId{"item-1"});
+            typed::ThreadId{"second-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
         result.expectTrue(
             synchronized && upserted && upsertChange && upsertChange->itemId == typed::ItemId{"item-1"} &&
                 upsertChange->threadId == std::optional<typed::ThreadId>{typed::ThreadId{"second-thread"}} &&
-                upsertChange->turnId == std::optional<typed::TurnId>{typed::TurnId{"second-turn"}} && firstAfterUpsert &&
+                upsertChange->turnId == std::optional<typed::TurnId>{typed::TurnId{"shared-turn"}} && firstAfterUpsert &&
                 firstAfterUpsert->agentText == std::optional<std::string>{"first scoped item"} && secondAfterUpsert &&
                 secondAfterUpsert->agentText == std::optional<std::string>{"second upserted item"},
             "public item-upsert changes retain canonical thread/turn scope when bare item IDs repeat");
 
         harness.changes.clear();
-        const frontend::FrontendEvent content = scopedItemContentEvent(9);
+        const frontend::FrontendEvent content = scopedItemContentEvent(10);
         const bool replaced = connection
                                   .receive(frontend::ServerMessage{frontend::EventBatch{
-                                      frontend::SequenceNumber(9), frontend::SequenceNumber(9), {content}}})
+                                      frontend::SequenceNumber(10), frontend::SequenceNumber(10), {content}}})
                                   .accepted;
         const auto* contentChange = findChange<client::ItemContentReplacedChange>(harness.changes);
         const client::ItemState* firstAfterContent = sdk.state().item(
-            typed::ThreadId{"adapter-thread"}, typed::TurnId{"first-turn"}, typed::ItemId{"item-1"});
+            typed::ThreadId{"adapter-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
         const client::ItemState* secondAfterContent = sdk.state().item(
-            typed::ThreadId{"second-thread"}, typed::TurnId{"second-turn"}, typed::ItemId{"item-1"});
+            typed::ThreadId{"second-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
         result.expectTrue(
             replaced && contentChange && contentChange->itemId == typed::ItemId{"item-1"} &&
                 contentChange->channel == client::ItemContentChannel::AgentText &&
                 contentChange->threadId == std::optional<typed::ThreadId>{typed::ThreadId{"second-thread"}} &&
-                contentChange->turnId == std::optional<typed::TurnId>{typed::TurnId{"second-turn"}} && firstAfterContent &&
+                contentChange->turnId == std::optional<typed::TurnId>{typed::TurnId{"shared-turn"}} && firstAfterContent &&
                 firstAfterContent->agentText == std::optional<std::string>{"first scoped item"} && secondAfterContent &&
                 secondAfterContent->agentText == std::optional<std::string>{"second streamed item"},
             "public item-content changes retain canonical thread/turn scope when bare item IDs repeat");
+    }
+
+    void testTurnChangeDoesNotResolveToSiblingAfterSameBatchRemoval(tests::support::TestResult& result) {
+        PublicHarness harness;
+        client::Client sdk(publicOptions(), harness.callbacks());
+        harness.sdk = &sdk;
+        client::Connection connection = sdk.openConnection(harness.transport());
+        connection.transportConnected();
+        const bool synchronized = connection.receive(frontend::ServerMessage{welcome(7)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{expandedScopedItemsSnapshot(7)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{
+                                      frontend::SyncComplete{frontend::SequenceNumber(7)}})
+                                      .accepted;
+
+        harness.changes.clear();
+        const frontend::FrontendEvent upsert = scopedTurnUpsertEvent(8, "shared-turn", "adapter-thread");
+        const frontend::FrontendEvent removed = threadRemovedEvent(9, "adapter-thread");
+        const bool accepted = connection
+                                  .receive(frontend::ServerMessage{frontend::EventBatch{
+                                      frontend::SequenceNumber(8), frontend::SequenceNumber(9), {upsert, removed}}})
+                                  .accepted;
+        const auto* turnChange = findChange<client::TurnUpsertedChange>(harness.changes);
+        const auto* replacementChange = findChange<client::StateReplacedChange>(harness.changes);
+        const client::TurnState* surviving = sdk.state().turn("shared-turn");
+        result.expectTrue(synchronized && accepted && !turnChange && replacementChange && surviving &&
+                              surviving->threadId == typed::ThreadId{"second-thread"},
+                          "a turn change never resolves to a same-ID sibling that survives a later change in the batch");
     }
 
     void testHybridExpandedPublicationRetainsLegacyItems(tests::support::TestResult& result) {
@@ -1300,6 +1375,7 @@ int main() {
     testScopedItemIdentities(result);
     testIndexedStateLookupsAndGroupedOrdering(result);
     testScopedItemChanges(result);
+    testTurnChangeDoesNotResolveToSiblingAfterSameBatchRemoval(result);
     testHybridExpandedPublicationRetainsLegacyItems(result);
     testPublicClientCoreAdapter(result);
     testClosingProtocolErrorReceiveResult(result);

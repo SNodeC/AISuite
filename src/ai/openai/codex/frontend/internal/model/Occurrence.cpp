@@ -294,7 +294,9 @@ namespace ai::openai::codex::frontend::internal::model {
             Json encoded = legacyTurn(update.turn);
             encoded["items"] = Json::array();
             for (const ThreadItem& item : update.items) {
-                if (itemData(item).turnId == std::optional<TurnIdentity>{update.turn.id}) {
+                const ItemData& data = itemData(item);
+                if (data.turnId == std::optional<TurnIdentity>{update.turn.id} &&
+                    (data.threadId == std::optional<ThreadIdentity>{update.turn.threadId} || !data.threadId.has_value())) {
                     encoded["items"].push_back(legacyItem(item));
                 }
             }
@@ -308,9 +310,21 @@ namespace ai::openai::codex::frontend::internal::model {
                 if (turn.threadId != update.thread.id) {
                     continue;
                 }
+                const bool unscopedItemsBelongToTurn =
+                    std::none_of(update.turns.begin(), update.turns.end(), [&](const TurnState& candidate) {
+                        return candidate.id == turn.id && candidate.threadId != turn.threadId;
+                    }) &&
+                    std::none_of(update.items.begin(), update.items.end(), [&](const ThreadItem& candidate) {
+                        const ItemData& data = itemData(candidate);
+                        return data.turnId == std::optional<TurnIdentity>{turn.id} && data.threadId.has_value() &&
+                               data.threadId != std::optional<ThreadIdentity>{turn.threadId};
+                    });
                 TurnUpsertedOccurrence turnUpdate{turn};
                 for (const ThreadItem& item : update.items) {
-                    if (itemData(item).turnId == std::optional<TurnIdentity>{turn.id}) {
+                    const ItemData& data = itemData(item);
+                    if (data.turnId == std::optional<TurnIdentity>{turn.id} &&
+                        (data.threadId == std::optional<ThreadIdentity>{turn.threadId} ||
+                         (!data.threadId.has_value() && unscopedItemsBelongToTurn))) {
                         turnUpdate.items.push_back(item);
                     }
                 }
@@ -1065,6 +1079,43 @@ namespace ai::openai::codex::frontend::internal::model {
 
         bool sameItemIdentity(const ItemData& left, const ItemData& right) noexcept {
             return left.id == right.id && left.threadId == right.threadId && left.turnId == right.turnId;
+        }
+
+        bool turnIdentityIsUniqueToThread(std::span<const TurnState> retained,
+                                          std::span<const TurnState> replacements,
+                                          std::span<const ThreadItem> retainedItems,
+                                          std::span<const ThreadItem> replacementItems,
+                                          std::span<const LegacyItemCompatibility> retainedLegacyItems,
+                                          const ThreadIdentity& threadId,
+                                          const TurnIdentity& turnId) noexcept {
+            bool belongsToThread = false;
+            const auto inspect = [&](std::span<const TurnState> turns) {
+                for (const TurnState& turn : turns) {
+                    if (turn.id != turnId) {
+                        continue;
+                    }
+                    if (turn.threadId != threadId) {
+                        return false;
+                    }
+                    belongsToThread = true;
+                }
+                return true;
+            };
+            const auto inspectItems = [&](std::span<const ThreadItem> items) {
+                return std::none_of(items.begin(), items.end(), [&](const ThreadItem& item) {
+                    const ItemData& data = itemData(item);
+                    return data.turnId == std::optional<TurnIdentity>{turnId} && data.threadId.has_value() &&
+                           data.threadId != std::optional<ThreadIdentity>{threadId};
+                });
+            };
+            const bool legacyItemsAgree =
+                std::none_of(retainedLegacyItems.begin(), retainedLegacyItems.end(), [&](const LegacyItemCompatibility& item) {
+                    const ItemData& data = item.value;
+                    return data.turnId == std::optional<TurnIdentity>{turnId} && data.threadId.has_value() &&
+                           data.threadId != std::optional<ThreadIdentity>{threadId};
+                });
+            return inspect(retained) && inspect(replacements) && inspectItems(retainedItems) &&
+                   inspectItems(replacementItems) && legacyItemsAgree && belongsToThread;
         }
 
         std::optional<std::size_t> itemSourceIndex(const CanonicalSnapshot& snapshot, const ItemData& identity) {
@@ -2347,22 +2398,17 @@ namespace ai::openai::codex::frontend::internal::model {
                             if (update.replaceDescendants) {
                                 reduced.turnsPresent = true;
                                 reduced.itemsPresent = true;
-                                std::vector<TurnIdentity> affectedTurns;
-                                affectedTurns.reserve(reduced.turns.size() + update.turns.size());
-                                for (const TurnState& turn : reduced.turns) {
-                                    if (turn.threadId == update.thread.id) {
-                                        affectedTurns.push_back(turn.id);
-                                    }
-                                }
-                                for (const TurnState& turn : update.turns) {
-                                    if (std::find(affectedTurns.begin(), affectedTurns.end(), turn.id) == affectedTurns.end()) {
-                                        affectedTurns.push_back(turn.id);
-                                    }
-                                }
                                 replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
                                     return item.threadId == std::optional<ThreadIdentity>{update.thread.id} ||
                                            (!item.threadId.has_value() && item.turnId.has_value() &&
-                                            std::find(affectedTurns.begin(), affectedTurns.end(), *item.turnId) != affectedTurns.end());
+                                            turnIdentityIsUniqueToThread(
+                                                reduced.turns,
+                                                update.turns,
+                                                reduced.items,
+                                                update.items,
+                                                reduced.legacyItems,
+                                                update.thread.id,
+                                                *item.turnId));
                                 });
                                 replaceOrderedSubset(reduced.turns, update.turns, [&](const TurnState& turn) {
                                     return turn.threadId == update.thread.id;
@@ -2372,22 +2418,22 @@ namespace ai::openai::codex::frontend::internal::model {
                             reduced.threadsPresent = true;
                             reduced.turnsPresent = true;
                             reduced.itemsPresent = true;
-                            std::vector<TurnIdentity> removedTurns;
-                            for (const TurnState& turn : reduced.turns) {
-                                if (turn.threadId == update.threadId) {
-                                    removedTurns.push_back(turn.id);
-                                }
-                            }
+                            replaceOrderedItems(reduced, {}, [&](const ItemData& item) {
+                                return item.threadId == std::optional<ThreadIdentity>{update.threadId} ||
+                                       (!item.threadId.has_value() && item.turnId.has_value() &&
+                                        turnIdentityIsUniqueToThread(reduced.turns,
+                                                                     {},
+                                                                     reduced.items,
+                                                                     {},
+                                                                     reduced.legacyItems,
+                                                                     update.threadId,
+                                                                     *item.turnId));
+                            });
                             std::erase_if(reduced.threads, [&](const ThreadState& value) {
                                 return value.id == update.threadId;
                             });
                             std::erase_if(reduced.turns, [&](const TurnState& value) {
                                 return value.threadId == update.threadId;
-                            });
-                            replaceOrderedItems(reduced, {}, [&](const ItemData& item) {
-                                return item.threadId == std::optional<ThreadIdentity>{update.threadId} ||
-                                       (item.turnId.has_value() &&
-                                        std::find(removedTurns.begin(), removedTurns.end(), *item.turnId) != removedTurns.end());
                             });
                         } else if constexpr (std::is_same_v<Update, TurnUpsertedOccurrence>) {
                             reduced.turnsPresent = true;
@@ -2397,9 +2443,17 @@ namespace ai::openai::codex::frontend::internal::model {
                             if (update.replaceItems) {
                                 reduced.itemsPresent = true;
                                 replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
-                                    return item.turnId == std::optional<TurnIdentity>{update.turn.id} &&
-                                           (!item.threadId.has_value() ||
-                                            item.threadId == std::optional<ThreadIdentity>{update.turn.threadId});
+                                    return (item.threadId == std::optional<ThreadIdentity>{update.turn.threadId} &&
+                                            item.turnId == std::optional<TurnIdentity>{update.turn.id}) ||
+                                           (!item.threadId.has_value() && item.turnId == std::optional<TurnIdentity>{update.turn.id} &&
+                                            turnIdentityIsUniqueToThread(
+                                                reduced.turns,
+                                                {},
+                                                reduced.items,
+                                                update.items,
+                                                reduced.legacyItems,
+                                                update.turn.threadId,
+                                                update.turn.id));
                                 });
                             }
                         } else if constexpr (std::is_same_v<Update, ItemUpsertedOccurrence>) {

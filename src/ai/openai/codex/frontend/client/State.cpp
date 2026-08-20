@@ -108,6 +108,22 @@ namespace ai::openai::codex::frontend::client {
             bool operator==(const ScopedItemLookupView&) const = default;
         };
 
+        struct ScopedTurnLookupView {
+            std::string_view threadId;
+            std::string_view turnId;
+
+            bool operator==(const ScopedTurnLookupView&) const = default;
+        };
+
+        struct ScopedTurnLookupHash {
+            [[nodiscard]] std::size_t operator()(const ScopedTurnLookupView& value) const noexcept {
+                constexpr std::size_t HashMixConstant = 0x9e3779b97f4a7c15ULL;
+                std::size_t result = std::hash<std::string_view>{}(value.threadId);
+                result ^= std::hash<std::string_view>{}(value.turnId) + HashMixConstant + (result << 6U) + (result >> 2U);
+                return result;
+            }
+        };
+
         struct ScopedItemLookupHash {
             [[nodiscard]] std::size_t operator()(const ScopedItemLookupView& value) const noexcept {
                 return hash(value.threadId, value.turnId, value.itemId);
@@ -128,6 +144,7 @@ namespace ai::openai::codex::frontend::client {
         };
 
         using StringLookupIndex = std::unordered_map<std::string_view, std::size_t>;
+        using ScopedTurnLookupIndex = std::unordered_map<ScopedTurnLookupView, std::size_t, ScopedTurnLookupHash>;
         using ScopedItemLookupIndex = std::unordered_map<ScopedItemLookupView, std::size_t, ScopedItemLookupHash>;
     } // namespace detail
 
@@ -163,7 +180,8 @@ namespace ai::openai::codex::frontend::client {
         // form; the non-owning keys therefore remain valid for this storage's
         // complete lifetime without duplicating every retained identity.
         StringLookupIndex threadById;
-        StringLookupIndex turnById;
+        StringLookupIndex uniqueTurnById;
+        ScopedTurnLookupIndex turnByScope;
         StringLookupIndex firstItemById;
         ScopedItemLookupIndex itemByScope;
         StringLookupIndex pendingRequestById;
@@ -203,9 +221,20 @@ namespace ai::openai::codex::frontend::client {
                 state.threadById.emplace(state.threads[index].id.value, index);
             }
 
-            state.turnById.reserve(state.turns.size());
+            state.uniqueTurnById.reserve(state.turns.size());
+            state.turnByScope.reserve(state.turns.size());
+            std::set<std::string_view> ambiguousTurnIds;
             for (std::size_t index = 0; index < state.turns.size(); ++index) {
-                state.turnById.emplace(state.turns[index].id.value, index);
+                const TurnState& turn = state.turns[index];
+                state.turnByScope.emplace(detail::ScopedTurnLookupView{turn.threadId.value, turn.id.value}, index);
+                if (ambiguousTurnIds.contains(turn.id.value)) {
+                    continue;
+                }
+                const auto [existing, inserted] = state.uniqueTurnById.emplace(turn.id.value, index);
+                if (!inserted) {
+                    state.uniqueTurnById.erase(existing);
+                    ambiguousTurnIds.emplace(turn.id.value);
+                }
             }
 
             state.firstItemById.reserve(state.items.size());
@@ -2906,8 +2935,12 @@ namespace ai::openai::codex::frontend::client {
         return turn(id.value);
     }
     const TurnState* State::turn(std::string_view id) const noexcept {
-        const auto found = impl->turnById.find(id);
-        return found == impl->turnById.end() ? nullptr : &impl->turns[found->second];
+        const auto found = impl->uniqueTurnById.find(id);
+        return found == impl->uniqueTurnById.end() ? nullptr : &impl->turns[found->second];
+    }
+    const TurnState* State::turn(const typed::ThreadId& threadId, const typed::TurnId& turnId) const noexcept {
+        const auto found = impl->turnByScope.find(detail::ScopedTurnLookupView{threadId.value, turnId.value});
+        return found == impl->turnByScope.end() ? nullptr : &impl->turns[found->second];
     }
     const ItemState* State::item(const typed::ItemId& id) const noexcept {
         return item(id.value);
@@ -3383,6 +3416,25 @@ namespace ai::openai::codex::frontend::client {
 
         using CanonicalItemIdentity =
             std::tuple<std::optional<std::string>, std::optional<std::string>, std::string>;
+        using CanonicalTurnIdentity = std::pair<std::string, std::string>;
+
+        bool insertCanonicalTurnIdentity(std::set<CanonicalTurnIdentity>& identities,
+                                         const canonical::TurnState& turn,
+                                         std::string& error) {
+            if (turn.id.value().empty()) {
+                error = "canonical state contains an empty turn identity";
+                return false;
+            }
+            if (turn.threadId.value().empty()) {
+                error = "canonical state contains an empty turn parent identity";
+                return false;
+            }
+            if (identities.emplace(turn.threadId.value(), turn.id.value()).second) {
+                return true;
+            }
+            error = "canonical state contains a duplicate turn identity";
+            return false;
+        }
 
         bool insertCanonicalItemIdentity(std::set<CanonicalItemIdentity>& identities,
                                          const canonical::ItemData& item,
@@ -3418,9 +3470,9 @@ namespace ai::openai::codex::frontend::client {
                 }
             }
 
-            identities.clear();
+            std::set<CanonicalTurnIdentity> turnIdentities;
             for (const canonical::TurnState& turn : source.turns) {
-                if (!insertCanonicalIdentity(identities, turn.id.value(), "turn", error)) {
+                if (!insertCanonicalTurnIdentity(turnIdentities, turn, error)) {
                     return false;
                 }
             }
@@ -3596,18 +3648,16 @@ namespace ai::openai::codex::frontend::client {
                     source.pendingRequestsPresent && !rootUnrepresented(source.projection, "/pendingRequests");
 
                 struct TurnBuildGroup {
-                    std::string_view threadId;
                     std::size_t nextFallbackItemIndex = 0;
                     std::vector<std::pair<std::size_t, typed::ItemId>> orderedItems;
                 };
                 std::unordered_map<std::string_view, std::vector<typed::TurnId>> orderedTurnsByThread;
-                std::unordered_map<std::string_view, TurnBuildGroup> turnBuildGroups;
+                std::unordered_map<detail::ScopedTurnLookupView, TurnBuildGroup, detail::ScopedTurnLookupHash> turnBuildGroups;
                 orderedTurnsByThread.reserve(source.threads.size());
                 turnBuildGroups.reserve(source.turns.size());
                 for (const canonical::TurnState& turn : source.turns) {
                     orderedTurnsByThread[turn.threadId.value()].push_back(typed::TurnId{turn.id.value()});
-                    turnBuildGroups.emplace(
-                        turn.id.value(), TurnBuildGroup{turn.threadId.value(), 0, {}});
+                    turnBuildGroups.emplace(detail::ScopedTurnLookupView{turn.threadId.value(), turn.id.value()}, TurnBuildGroup{});
                 }
 
                 std::vector<std::pair<std::size_t, ItemState>> orderedItems;
@@ -3619,8 +3669,9 @@ namespace ai::openai::codex::frontend::client {
                     orderedItems.emplace_back(data.sourceIndex.value_or(itemFallbackIndex),
                                               publicItem(data, ItemKind{canonical::threadItemKind(item)}));
                     if (data.threadId && data.turnId) {
-                        const auto group = turnBuildGroups.find(data.turnId->value());
-                        if (group != turnBuildGroups.end() && group->second.threadId == data.threadId->value()) {
+                        const auto group = turnBuildGroups.find(
+                            detail::ScopedTurnLookupView{data.threadId->value(), data.turnId->value()});
+                        if (group != turnBuildGroups.end()) {
                             const std::size_t turnFallbackIndex = group->second.nextFallbackItemIndex++;
                             group->second.orderedItems.emplace_back(data.sourceIndex.value_or(turnFallbackIndex),
                                                                     typed::ItemId{data.id.value()});
@@ -3631,8 +3682,9 @@ namespace ai::openai::codex::frontend::client {
                     const auto known = frontend::threadItemKindFromString(item.discriminator);
                     orderedItems.emplace_back(item.sourceIndex, publicItem(item.value, ItemKind{item.discriminator, known}));
                     if (item.value.threadId && item.value.turnId) {
-                        const auto group = turnBuildGroups.find(item.value.turnId->value());
-                        if (group != turnBuildGroups.end() && group->second.threadId == item.value.threadId->value()) {
+                        const auto group = turnBuildGroups.find(
+                            detail::ScopedTurnLookupView{item.value.threadId->value(), item.value.turnId->value()});
+                        if (group != turnBuildGroups.end()) {
                             group->second.orderedItems.emplace_back(item.sourceIndex, typed::ItemId{item.value.id.value()});
                         }
                     }
@@ -3777,7 +3829,8 @@ namespace ai::openai::codex::frontend::client {
                     for (auto member = canonicalExtensions.begin(); member != canonicalExtensions.end(); ++member) {
                         decoded.extensions[member.key()] = member.value();
                     }
-                    const auto group = turnBuildGroups.find(turn.id.value());
+                    const auto group = turnBuildGroups.find(
+                        detail::ScopedTurnLookupView{turn.threadId.value(), turn.id.value()});
                     if (group != turnBuildGroups.end()) {
                         decoded.orderedItems.reserve(group->second.orderedItems.size());
                         for (auto& [index, item] : group->second.orderedItems) {
