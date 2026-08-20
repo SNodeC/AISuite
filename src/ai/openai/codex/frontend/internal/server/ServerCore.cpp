@@ -1076,7 +1076,8 @@ namespace ai::openai::codex::frontend::internal::server {
 
     void ServerCore::Impl::closeWithProtocolError(ConnectionIdentity identity, ConnectionClose close) noexcept {
         try {
-            if (!findConnection(identity)) {
+            Connection* connection = findConnection(identity);
+            if (!connection) {
                 return;
             }
             ProtocolErrorMessage message;
@@ -1084,10 +1085,44 @@ namespace ai::openai::codex::frontend::internal::server {
             message.message = close.reason.empty() ? "frontend connection failed" : close.reason;
             message.supportedVersions.assign(SupportedProtocolVersions.begin(), SupportedProtocolVersions.end());
             message.closeConnection = true;
-            if (!enqueue(identity, ServerMessage{std::move(message)})) {
+
+            ServerMessage serverMessage{std::move(message)};
+            const auto encoded = Codec::serializeServer(serverMessage);
+            if (!encoded) {
+                closeNow(identity, std::move(close));
                 return;
             }
-            closeAfterQueuedMessages(identity, close);
+            std::string compactJson = std::move(encoded).value();
+            const std::size_t bytes = compactJson.size();
+            if (options.maxOutboundMessagesPerConnection == 0 || bytes > options.maxOutboundBytesPerConnection) {
+                closeNow(identity, std::move(close));
+                return;
+            }
+
+            for (const SerializedServerMessage& deferred : connection->deferredSnapshotOutbound) {
+                connection->outboundBytes -= deferred.compactJson.size();
+            }
+            connection->deferredSnapshotOutbound.clear();
+            const auto removeTail = [&connection] {
+                connection->outboundBytes -= connection->outbound.back().compactJson.size();
+                connection->outbound.pop_back();
+            };
+            const auto messageCount = [&connection] {
+                return connection->outbound.size();
+            };
+            while (messageCount() >= options.maxOutboundMessagesPerConnection ||
+                   connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
+                if (messageCount() == 0) {
+                    closeNow(identity, std::move(close));
+                    return;
+                }
+                removeTail();
+            }
+
+            connection->outbound.push_back(SerializedServerMessage{std::move(serverMessage), std::move(compactJson)});
+            connection->outboundBytes += bytes;
+            connection->closing = true;
+            connection->closeAfterDrain = close;
             requestFlush();
         } catch (...) {
             closeNow(identity, std::move(close));
@@ -1102,7 +1137,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         const auto encoded = Codec::serializeServer(message);
         if (!encoded) {
-            closeNow(identity, ConnectionClose{"frontend protocol encoding failed", ErrorCode::InternalError, false});
+            closeWithProtocolError(identity, ConnectionClose{"frontend protocol encoding failed", ErrorCode::InternalError, false});
             return false;
         }
         std::string compactJson = std::move(encoded).value();
@@ -1112,7 +1147,8 @@ namespace ai::openai::codex::frontend::internal::server {
             connection->deferredSnapshotOutbound.size() >= options.maxOutboundMessagesPerConnection - connection->outbound.size();
         if (messageCapacityExceeded || bytes > options.maxOutboundBytesPerConnection ||
             connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
-            closeNow(identity, ConnectionClose{"frontend outbound backpressure limit exceeded", ErrorCode::CapacityExceeded, false});
+            closeWithProtocolError(
+                identity, ConnectionClose{"frontend outbound backpressure limit exceeded", ErrorCode::CapacityExceeded, false});
             return false;
         }
 
@@ -1123,7 +1159,7 @@ namespace ai::openai::codex::frontend::internal::server {
             connection->outboundBytes += bytes;
             return true;
         } catch (...) {
-            closeNow(identity, ConnectionClose{"frontend outbound queue allocation failed", ErrorCode::InternalError, false});
+            closeWithProtocolError(identity, ConnectionClose{"frontend outbound queue allocation failed", ErrorCode::InternalError, false});
             return false;
         }
     }
@@ -1163,7 +1199,8 @@ namespace ai::openai::codex::frontend::internal::server {
                 released = true;
             } catch (...) {
                 connection = nullptr;
-                closeNow(token.identity, ConnectionClose{"frontend deferred Snapshot queueing failed", ErrorCode::InternalError, false});
+                closeWithProtocolError(
+                    token.identity, ConnectionClose{"frontend deferred Snapshot queueing failed", ErrorCode::InternalError, false});
             }
         }
         return released;

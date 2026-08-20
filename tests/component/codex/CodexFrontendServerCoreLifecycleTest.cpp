@@ -960,6 +960,9 @@ namespace {
         const std::size_t firstQueuedBeforeSnapshot = first ? core.queuedMessages(*first) : 0;
 
         const server::SnapshotPublishResult published = core.publishSnapshot(backend.state);
+        if (first) {
+            core.flushConnection(*first);
+        }
         if (second) {
             core.flushConnection(*second);
         }

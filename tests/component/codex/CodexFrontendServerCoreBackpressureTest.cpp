@@ -82,23 +82,35 @@ namespace {
         server::ServerCoreOptions boundedOptions;
         boundedOptions.authenticator = authenticate;
         boundedOptions.maxOutboundMessagesPerConnection = 2;
-        boundedOptions.scheduler = [](std::function<void()>) {
+        std::vector<std::function<void()>> boundedScheduled;
+        boundedOptions.scheduler = [&boundedScheduled](std::function<void()> callback) {
+            boundedScheduled.push_back(std::move(callback));
         };
         server::ServerCore bounded(boundedBackend, std::move(boundedOptions));
         bounded.start();
+        std::vector<frontend::ServerMessage> boundedMessages;
         std::vector<server::ConnectionClose> boundedCloses;
         const auto boundedConnection = bounded.openConnection({},
-                                                              {[](server::SerializedServerMessage) {
+                                                              {[&boundedMessages](server::SerializedServerMessage outbound) {
+                                                                   boundedMessages.push_back(std::move(outbound.message));
                                                                    return true;
                                                                },
                                                                [&boundedCloses](const server::ConnectionClose& close) {
                                                                    boundedCloses.push_back(close);
                                                                }});
         const auto boundedHello = bounded.receive(*boundedConnection, frontend::ClientMessage{frontend::Hello{}});
+        drainScheduled(boundedScheduled);
+        const auto* boundedError = boundedMessages.size() == 2
+                                       ? std::get_if<frontend::ProtocolErrorMessage>(&boundedMessages.back())
+                                       : nullptr;
         result.expectTrue(boundedHello.status == server::ReceiveStatus::Closing && bounded.connectionCount() == 0 &&
+                              boundedMessages.size() == 2 && std::holds_alternative<frontend::Welcome>(boundedMessages.front()) &&
+                              boundedError && boundedError->code == frontend::ErrorCode::CapacityExceeded &&
+                              boundedError->message == "frontend outbound backpressure limit exceeded" &&
+                              boundedError->closeConnection &&
                               boundedCloses.size() == 1 && boundedCloses.front().protocolCode == frontend::ErrorCode::CapacityExceeded &&
                               boundedCloses.front().reason == "frontend outbound backpressure limit exceeded",
-                          "Welcome, Snapshot, and SyncComplete cannot overrun the bounded per-connection outbound queue");
+                          "a synchronization queue boundary preserves Welcome, reports a typed terminal error, and then closes");
 
         Backend transportBackend;
         std::vector<std::function<void()>> scheduled;
