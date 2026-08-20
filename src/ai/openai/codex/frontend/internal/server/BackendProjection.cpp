@@ -689,24 +689,31 @@ namespace ai::openai::codex::frontend::internal::server {
                           {"mandatoryCoreExceedsLimit", snapshot.capacity.mandatoryCoreExceedsLimit}}}};
         }
 
-        std::optional<ThreadItemKind> backendItemKind(const backend::ItemSnapshot& item) noexcept {
-            if (const auto direct = threadItemKindFromString(item.type)) {
+        std::optional<ThreadItemKind> backendItemKind(std::string_view type) noexcept {
+            if (const auto direct = threadItemKindFromString(type)) {
                 return direct;
             }
-            if (item.type == "agent_message") {
+            if (type == "agent_message") {
                 return ThreadItemKind::AgentMessage;
             }
-            if (item.type == "user_message") {
+            if (type == "user_message") {
                 return ThreadItemKind::UserMessage;
             }
-            if (item.type == "command_execution") {
+            if (type == "command_execution") {
                 return ThreadItemKind::CommandExecution;
             }
-            if (item.type == "file_change") {
+            if (type == "file_change") {
                 return ThreadItemKind::FileChange;
             }
-            if (item.type == "web_search") {
+            if (type == "web_search") {
                 return ThreadItemKind::WebSearch;
+            }
+            return std::nullopt;
+        }
+
+        std::optional<ThreadItemKind> backendItemKind(const backend::ItemSnapshot& item) noexcept {
+            if (const auto direct = backendItemKind(item.type)) {
+                return direct;
             }
             if (item.type == "tool_call") {
                 return item.data.is_object() && item.data.contains("server") ? ThreadItemKind::McpToolCall
@@ -723,7 +730,8 @@ namespace ai::openai::codex::frontend::internal::server {
                                 std::optional<std::string>& destination,
                                 model::ItemData& data,
                                 std::string path,
-                                bool retainAgentTextOverflow = false) {
+                                bool retainAgentTextOverflow = false,
+                                bool retainCommandOutputOverflow = false) {
             if (source.empty()) {
                 return;
             }
@@ -739,6 +747,13 @@ namespace ai::openai::codex::frontend::internal::server {
                                                                            droppedBeforeProjection,
                                                                            contentTruncatedBeforeProjection,
                                                                            truncationBeforeProjection};
+                }
+                if (retainCommandOutputOverflow && source.size() <= model::MaximumCommandOutputOverflowV2Bytes && validUtf8(source)) {
+                    data.commandOutputOverflowV2 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(retained.size()),
+                                                                               std::string(source.substr(retained.size())),
+                                                                               droppedBeforeProjection,
+                                                                               contentTruncatedBeforeProjection,
+                                                                               truncationBeforeProjection};
                 }
                 const std::uint64_t dropped = static_cast<std::uint64_t>(source.size() - retained.size());
                 std::uint64_t droppedContent = data.droppedContentBytes.value_or(0);
@@ -766,9 +781,13 @@ namespace ai::openai::codex::frontend::internal::server {
             projectItemContent(item.agentText, data.agentText, data, "/agentText", true);
             projectItemContent(item.reasoningText, data.reasoningText, data, "/reasoningText");
             projectItemContent(item.reasoningSummary, data.reasoningSummary, data, "/reasoningSummary");
-            projectItemContent(item.commandOutput, data.commandOutput, data, "/commandOutput");
-            if (data.agentTextOverflowV1.has_value()) {
-                model::ItemContentOverflowV1& overflow = *data.agentTextOverflowV1;
+            projectItemContent(item.commandOutput, data.commandOutput, data, "/commandOutput", false, true);
+            const auto finalizeOverflow = [&data](std::optional<model::ItemContentOverflowV1>& projectedOverflow,
+                                                  std::string_view restoredPath) {
+                if (!projectedOverflow) {
+                    return;
+                }
+                model::ItemContentOverflowV1& overflow = *projectedOverflow;
                 const std::uint64_t suffixBytes = static_cast<std::uint64_t>(overflow.suffix.size());
                 if (data.droppedContentBytes.has_value() && *data.droppedContentBytes >= suffixBytes) {
                     overflow.droppedContentBytesBeforeProjection = *data.droppedContentBytes - suffixBytes;
@@ -778,10 +797,12 @@ namespace ai::openai::codex::frontend::internal::server {
                 overflow.truncationBeforeProjection =
                     overflow.truncationBeforeProjection || overflow.contentTruncatedBeforeProjection ||
                     data.truncation.omittedEntries.value_or(0) != 0 ||
-                    std::any_of(data.truncation.omittedPaths.begin(), data.truncation.omittedPaths.end(), [](const std::string& path) {
-                        return path != "/agentText";
+                    std::any_of(data.truncation.omittedPaths.begin(), data.truncation.omittedPaths.end(), [restoredPath](const std::string& path) {
+                        return path != restoredPath;
                     });
-            }
+            };
+            finalizeOverflow(data.agentTextOverflowV1, "/agentText");
+            finalizeOverflow(data.commandOutputOverflowV2, "/commandOutput");
             data.startedAtMs = item.startedAtMs;
             data.completedAtMs = item.completedAtMs;
             if (item.userMessage) {
@@ -1751,6 +1772,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     update.threadId = data.threadId;
                     update.turnId = data.turnId;
                     update.channel = *selection.channel;
+                    update.itemKind = model::threadItemKind(*item);
                     if (*update.channel == "agentText") {
                         update.content = data.agentText;
                         update.overflowV1 = data.agentTextOverflowV1;
@@ -1760,6 +1782,7 @@ namespace ai::openai::codex::frontend::internal::server {
                         update.content = data.reasoningSummary;
                     } else if (*update.channel == "commandOutput") {
                         update.content = data.commandOutput;
+                        update.overflowV1 = data.commandOutputOverflowV2;
                     } else {
                         return std::nullopt;
                     }
@@ -2112,6 +2135,14 @@ namespace ai::openai::codex::frontend::internal::server {
                                                                     contentTruncated,
                                                                     contentTruncated};
                 }
+                if (selectedChannel == backend::ItemContentSnapshotChannel::CommandOutput &&
+                    source.size() <= model::MaximumCommandOutputOverflowV2Bytes && validUtf8(source)) {
+                    update.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(retained.size()),
+                                                                    std::string(source.substr(retained.size())),
+                                                                    droppedContentBytes,
+                                                                    contentTruncated,
+                                                                    contentTruncated};
+                }
                 saturatingAdd(update.truncation.droppedBytes,
                               static_cast<std::uint64_t>(source.size() - retained.size()));
                 update.truncation.truncated = true;
@@ -2138,21 +2169,31 @@ namespace ai::openai::codex::frontend::internal::server {
                                          std::uint64_t currentBackendDroppedBytes,
                                          std::string_view fullContent) {
             if (!update.content.has_value() || !event.channelBytesBefore.has_value() ||
-                !event.droppedContentBytesBefore.has_value() || *event.droppedContentBytesBefore != 0 ||
-                currentBackendDroppedBytes != 0 || *event.channelBytesBefore > fullContent.size()) {
+                !event.droppedContentBytesBefore.has_value() ||
+                currentBackendDroppedBytes < *event.droppedContentBytesBefore || !validUtf8(fullContent)) {
                 return;
             }
 
             const std::size_t base = *event.channelBytesBefore;
-            const std::size_t retainedDeltaBytes = fullContent.size() - base;
+            const std::uint64_t newlyDropped = currentBackendDroppedBytes - *event.droppedContentBytesBefore;
+            const std::size_t discard = static_cast<std::size_t>(std::min<std::uint64_t>(newlyDropped, base));
+            const std::size_t retainedOldBytes = base - discard;
+            if (retainedOldBytes > fullContent.size()) {
+                return;
+            }
+            const std::size_t retainedDeltaBytes = fullContent.size() - retainedOldBytes;
             if (event.delta.size() < retainedDeltaBytes) {
                 return;
             }
-            if (fullContent.compare(base, retainedDeltaBytes, event.delta, 0, retainedDeltaBytes) != 0) {
+            const std::size_t retainedDeltaOffset = event.delta.size() - retainedDeltaBytes;
+            if (fullContent.compare(retainedOldBytes, retainedDeltaBytes, event.delta, retainedDeltaOffset, retainedDeltaBytes) != 0) {
                 return;
             }
             update.appendHint = model::ItemContentAppendHint{
-                static_cast<std::uint64_t>(base), std::string(fullContent.substr(base, retainedDeltaBytes)), true};
+                static_cast<std::uint64_t>(base),
+                std::string(fullContent.substr(retainedOldBytes, retainedDeltaBytes)),
+                static_cast<std::uint64_t>(discard),
+                true};
         }
 
         template <typename>
@@ -2339,6 +2380,17 @@ namespace ai::openai::codex::frontend::internal::server {
                     }
                     if (turn.tokenUsage) {
                         addTurnTokenUsageSemanticDetails(turnDetails, *turn.tokenUsage, projected.truncation);
+                    }
+                    if (turn.plan) {
+                        model::TurnPlanState plan;
+                        plan.explanation = turn.plan->explanation;
+                        plan.totalSteps = turn.plan->totalSteps;
+                        plan.truncated = turn.plan->truncated;
+                        plan.steps.reserve(turn.plan->steps.size());
+                        for (const backend::TurnPlanStepState& step : turn.plan->steps) {
+                            plan.steps.push_back({step.step, step.status.value});
+                        }
+                        turnState.plan = std::move(plan);
                     }
                     if (turn.effectiveExecutionConfiguration) {
                         turnDetails["effectiveExecutionConfiguration"] = *turn.effectiveExecutionConfiguration;
@@ -2659,6 +2711,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 update.threadId = threadId;
                 update.turnId = turnId;
                 update.channel = itemContentChannel(event->kind);
+                update.itemKind = backendItemKind(item.type);
                 projectSelectedItemContent(update,
                                            item.content,
                                            item.droppedContentBytes,
@@ -2799,14 +2852,27 @@ namespace ai::openai::codex::frontend::internal::server {
                                          OccurrenceFlushUrgency::Immediate,
                                          std::nullopt,
                                          "provider");
-                        } else if constexpr (std::is_same_v<Event, backend::CapacityConfigured> ||
-                                             std::is_same_v<Event, backend::CapacityChanged>) {
+                        } else if constexpr (std::is_same_v<Event, backend::CapacityConfigured>) {
                             appendFamily(sequenced.sequence,
                                          ExpandedEventType::CapacityUpdated,
                                          {},
                                          OccurrenceFlushUrgency::Immediate,
                                          std::nullopt,
                                          "capacity");
+                        } else if constexpr (std::is_same_v<Event, backend::CapacityChanged>) {
+                            if (event.canonicalStateRewritten) {
+                                // Retention enforcement changed entities outside
+                                // the nominal event. Rebase all clients from the
+                                // authoritative post-reduction snapshot.
+                                projected.snapshotRequired = true;
+                            } else {
+                                appendFamily(sequenced.sequence,
+                                             ExpandedEventType::CapacityUpdated,
+                                             {},
+                                             OccurrenceFlushUrgency::Immediate,
+                                             std::nullopt,
+                                             "capacity");
+                            }
                         } else if constexpr (std::is_same_v<Event, backend::DiagnosticReceived>) {
                             appendFamily(sequenced.sequence,
                                          ExpandedEventType::DiagnosticsUpdated,
@@ -2849,14 +2915,25 @@ namespace ai::openai::codex::frontend::internal::server {
                             // A removed entity has no typed upsert payload. A
                             // canonical snapshot is the frozen containment path.
                             projected.snapshotRequired = true;
-                        } else if constexpr (std::is_same_v<Event, backend::ThreadUpserted> ||
-                                             std::is_same_v<Event, backend::ThreadStatusUpdated>) {
-                            OccurrenceSelection selection;
-                            if constexpr (std::is_same_v<Event, backend::ThreadUpserted>) {
-                                selection.threadId = model::ThreadIdentity::parse(event.thread.id.value);
+                        } else if constexpr (std::is_same_v<Event, backend::ThreadUpserted>) {
+                            if (event.load == backend::EntityLoad::Full) {
+                                // A full thread read is authoritative for its
+                                // complete descendant set. Expanded thread
+                                // upserts cannot encode removal of turns/items
+                                // absent from that set, so rebase clients from
+                                // the post-reduction snapshot.
+                                projected.snapshotRequired = true;
                             } else {
-                                selection.threadId = model::ThreadIdentity::parse(event.threadId.value);
+                                OccurrenceSelection selection;
+                                selection.threadId = model::ThreadIdentity::parse(event.thread.id.value);
+                                appendFamily(sequenced.sequence,
+                                             ExpandedEventType::ThreadUpserted,
+                                             std::move(selection),
+                                             OccurrenceFlushUrgency::Deferred);
                             }
+                        } else if constexpr (std::is_same_v<Event, backend::ThreadStatusUpdated>) {
+                            OccurrenceSelection selection;
+                            selection.threadId = model::ThreadIdentity::parse(event.threadId.value);
                             appendFamily(sequenced.sequence,
                                          ExpandedEventType::ThreadUpserted,
                                          std::move(selection),
@@ -2956,9 +3033,22 @@ namespace ai::openai::codex::frontend::internal::server {
                                     }
                                     return {};
                                 }();
+                                const std::uint64_t channelDroppedContentBytes = [&]() {
+                                    switch (event.kind) {
+                                        case backend::ItemContentChanged::Kind::AgentText:
+                                            return backendItem->agentTextDroppedContentBytes;
+                                        case backend::ItemContentChanged::Kind::ReasoningText:
+                                            return backendItem->reasoningTextDroppedContentBytes;
+                                        case backend::ItemContentChanged::Kind::ReasoningSummary:
+                                            return backendItem->reasoningSummaryDroppedContentBytes;
+                                        case backend::ItemContentChanged::Kind::CommandOutput:
+                                            return backendItem->commandOutputDroppedContentBytes;
+                                    }
+                                    return std::uint64_t{0};
+                                }();
                                 retainItemContentAppendHint(std::get<model::ItemContentUpdatedOccurrence>(*payload),
                                                             event,
-                                                            backendItem->droppedContentBytes,
+                                                            channelDroppedContentBytes,
                                                             fullContent);
                                 append(sequenced.sequence,
                                        std::move(*payload),

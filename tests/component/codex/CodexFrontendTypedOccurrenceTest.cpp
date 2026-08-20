@@ -534,6 +534,48 @@ namespace {
                           "complete turn replacement inserts descendants at the first affected mixed item slot");
     }
 
+    void testTurnPlanOccurrenceRoundTrip(tests::support::TestResult& result) {
+        const model::ThreadIdentity threadId{"plan-thread"};
+        const model::TurnIdentity turnId{"plan-turn"};
+        model::TurnState turn{turnId, threadId};
+        turn.plan = model::TurnPlanState{"Dependency order",
+                                         {{"Inspect", "completed"}, {"Implement", "inProgress"}, {"Verify", "pending"}},
+                                         3,
+                                         false};
+        model::TurnUpsertedOccurrence update{std::move(turn)};
+        auto identity = occurrenceIdentity(42, "turn-plan-round-trip");
+        identity.threadId = threadId;
+        identity.turnId = turnId;
+        const auto occurrence = model::makeOccurrence(std::move(identity), std::move(update));
+        const auto encoded = occurrence
+                                 ? model::encodeExpandedOccurrence(occurrence.value())
+                                 : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{occurrence.error()};
+        const model::OccurrenceDecodeContext planContext{
+            model::OccurrenceGroupIdentity{"turn-plan-round-trip"},
+            0,
+            1,
+            model::SourceStamp{"server_notification:ServerNotification:method:turn/plan/updated"}};
+        const auto decoded = encoded
+                                 ? model::decodeExpandedOccurrence(encoded.value().front(), planContext)
+                                 : model::OccurrenceResult<model::CanonicalOccurrence>{encoded.error()};
+        model::CanonicalSnapshot initial;
+        initial.threads.emplace_back(threadId);
+        const auto reduced = decoded
+                                 ? model::reduceOccurrence(initial, decoded.value())
+                                 : model::ModelResult<model::CanonicalSnapshot>{
+                                       {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const std::optional<model::TurnPlanState> retainedPlan =
+            reduced && reduced.value().turns.size() == 1 ? reduced.value().turns.front().plan : std::nullopt;
+        const std::vector<model::TurnPlanStepState> expectedSteps{
+            {"Inspect", "completed"}, {"Implement", "inProgress"}, {"Verify", "pending"}};
+        result.expectTrue(encoded && encoded.value().size() == 1 &&
+                              encoded.value().front().type == frontend::ExpandedEventType::TurnUpserted && decoded && reduced &&
+                              retainedPlan && retainedPlan->explanation == std::optional<std::string>{"Dependency order"} &&
+                              retainedPlan->steps == expectedSteps &&
+                              retainedPlan->totalSteps == 3 && !retainedPlan->truncated,
+                          "turn.upserted preserves ordered typed-plan projection through wire decode and canonical reduction");
+    }
+
     void testItemContentPresence(tests::support::TestResult& result) {
         const frontend::ExpandedFrontendEvent omitted{frontend::SequenceNumber{9},
                                                       frontend::ExpandedEventType::ItemContentUpdated,
@@ -789,7 +831,7 @@ namespace {
                                                             false,
                                                             false};
         pastFrozen.appendHint = model::ItemContentAppendHint{
-            static_cast<std::uint64_t>(overflowPrefix.size() + overflowSuffix.size()), " next", true};
+            static_cast<std::uint64_t>(overflowPrefix.size() + overflowSuffix.size()), " next", 0, true};
         const auto pastFrozenOccurrence =
             model::makeOccurrence(occurrenceIdentity(15, "past-frozen-content"), std::move(pastFrozen));
         const auto pastFrozenWire =
@@ -843,6 +885,194 @@ namespace {
                               !snapshotOverflowItem->contentTruncated &&
                               snapshotOverflowItem->droppedContentBytes == std::optional<std::uint64_t>{0},
                           "append-v1 snapshot decoding restores the same bounded suffix used by live and terminal item replacements");
+
+        const std::string commandSuffix = std::string(20'000, 'o') + "\xE2\x82\xAC";
+        model::ItemContentUpdatedOccurrence commandOverflow{model::ItemIdentity{"command-overflow-item"}};
+        commandOverflow.threadId = model::ThreadIdentity{"command-overflow-thread"};
+        commandOverflow.turnId = model::TurnIdentity{"command-overflow-turn"};
+        commandOverflow.channel = "commandOutput";
+        commandOverflow.itemKind = frontend::ThreadItemKind::CommandExecution;
+        commandOverflow.content = overflowPrefix;
+        commandOverflow.truncation.truncated = true;
+        commandOverflow.truncation.droppedBytes = static_cast<std::uint64_t>(commandSuffix.size());
+        commandOverflow.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(overflowPrefix.size()),
+                                                                 commandSuffix,
+                                                                 0,
+                                                                 false,
+                                                                 false};
+        const auto commandOccurrence =
+            model::makeOccurrence(occurrenceIdentity(16, "command-overflow-content"), std::move(commandOverflow));
+        const auto commandV1Wire =
+            commandOccurrence
+                ? model::encodeExpandedOccurrence(commandOccurrence.value(), model::ItemContentWireMode::AppendV1)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{commandOccurrence.error()};
+        const auto commandV2Wire =
+            commandOccurrence
+                ? model::encodeExpandedOccurrence(commandOccurrence.value(), model::ItemContentWireMode::AppendV2)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{commandOccurrence.error()};
+        const auto commandDecoded =
+            commandV2Wire
+                ? model::decodeExpandedOccurrence(commandV2Wire.value().front(), context(), model::ItemContentWireMode::AppendV2)
+                : model::OccurrenceResult<model::CanonicalOccurrence>{commandV2Wire.error()};
+        model::CanonicalSnapshot commandInitial;
+        model::ItemData commandInitialData{model::ItemIdentity{"command-overflow-item"},
+                                           model::ThreadIdentity{"command-overflow-thread"},
+                                           model::TurnIdentity{"command-overflow-turn"}};
+        commandInitialData.commandOutput = "old";
+        commandInitial.items.emplace_back(model::CommandExecutionItem{std::move(commandInitialData)});
+        const auto commandReduced = commandDecoded
+                                        ? model::reduceOccurrence(commandInitial, commandDecoded.value())
+                                        : model::ModelResult<model::CanonicalSnapshot>{
+                                              {model::ModelErrorCode::InvalidShape, "/event", "decode failed"}};
+        const model::ItemData* commandReducedItem = commandReduced && !commandReduced.value().items.empty()
+                                                        ? &model::itemData(commandReduced.value().items.front())
+                                                        : nullptr;
+
+        model::CanonicalSnapshot commandSnapshot;
+        model::ItemData commandSnapshotData{model::ItemIdentity{"command-overflow-item"},
+                                            model::ThreadIdentity{"command-overflow-thread"},
+                                            model::TurnIdentity{"command-overflow-turn"}};
+        commandSnapshotData.commandOutput = overflowPrefix;
+        commandSnapshotData.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(overflowPrefix.size()), commandSuffix, 0, false, false};
+        commandSnapshotData.contentTruncated = true;
+        commandSnapshotData.droppedContentBytes = static_cast<std::uint64_t>(commandSuffix.size());
+        commandSnapshotData.truncation.truncated = true;
+        commandSnapshotData.truncation.droppedBytes = static_cast<std::uint64_t>(commandSuffix.size());
+        commandSnapshotData.truncation.omittedPaths = {"/commandOutput"};
+        commandSnapshot.items.emplace_back(model::CommandExecutionItem{std::move(commandSnapshotData)});
+        const auto encodedCommandV1Snapshot = model::encodeSnapshot(commandSnapshot, model::ItemContentWireMode::AppendV1);
+        const auto encodedCommandV2Snapshot = model::encodeSnapshot(commandSnapshot, model::ItemContentWireMode::AppendV2);
+        const auto decodedCommandV2Snapshot =
+            encodedCommandV2Snapshot
+                ? model::decodeSnapshot(encodedCommandV2Snapshot.value(), model::ItemContentWireMode::AppendV2)
+                : model::ModelResult<model::CanonicalSnapshot>{encodedCommandV2Snapshot.error()};
+        const model::ItemData* commandSnapshotItem =
+            decodedCommandV2Snapshot && !decodedCommandV2Snapshot.value().items.empty()
+                ? &model::itemData(decodedCommandV2Snapshot.value().items.front())
+                : nullptr;
+        const frontend::Json* commandOverflowWire =
+            commandV2Wire && commandV2Wire.value().front().data.contains(std::string(model::CommandOutputOverflowV2Property))
+                ? &commandV2Wire.value().front().data.at(std::string(model::CommandOutputOverflowV2Property))
+                : nullptr;
+        result.expectTrue(commandV1Wire &&
+                              !commandV1Wire.value().front().data.contains(
+                                  std::string(model::CommandOutputOverflowV2Property)) &&
+                              commandV2Wire && commandOverflowWire != nullptr && commandOverflowWire->is_object() &&
+                              commandOverflowWire->size() == 5 && commandOverflowWire->at("chunksBase64").is_array() &&
+                              commandOverflowWire->at("chunksBase64").size() >= 2,
+                          "append-v2 emits bounded multi-chunk command output while append-v1 retains the frozen prefix");
+        result.expectTrue(commandDecoded && commandReducedItem != nullptr &&
+                              commandReducedItem->commandOutput == std::optional<std::string>{overflowPrefix + commandSuffix} &&
+                              !commandReducedItem->contentTruncated &&
+                              commandReducedItem->droppedContentBytes == std::optional<std::uint64_t>{0} &&
+                              !model::decodeExpandedOccurrence(
+                                  commandV2Wire.value().front(), context(), model::ItemContentWireMode::AppendV1),
+                          "append-v2 command overflow decodes and applies at the retained 4 MiB channel bound only when negotiated");
+        result.expectTrue(encodedCommandV1Snapshot && encodedCommandV2Snapshot && decodedCommandV2Snapshot &&
+                              commandSnapshotItem != nullptr &&
+                              commandSnapshotItem->commandOutput == std::optional<std::string>{overflowPrefix + commandSuffix} &&
+                              !commandSnapshotItem->contentTruncated &&
+                              commandSnapshotItem->droppedContentBytes == std::optional<std::uint64_t>{0},
+                          "append-v2 snapshots restore complete backend-bounded command output");
+
+        model::CanonicalSnapshot dualOverflowSnapshot;
+        model::ItemData dualData{model::ItemIdentity{"dual-overflow-item"},
+                                 model::ThreadIdentity{"dual-overflow-thread"},
+                                 model::TurnIdentity{"dual-overflow-turn"}};
+        const std::string dualAgentSuffix = " agent tail";
+        const std::string dualCommandSuffix = " command tail";
+        constexpr std::uint64_t dualBaselineDropped = 7;
+        dualData.agentText = overflowPrefix;
+        dualData.commandOutput = overflowPrefix;
+        dualData.agentTextOverflowV1 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(overflowPrefix.size()), dualAgentSuffix, dualBaselineDropped, true, true};
+        dualData.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(overflowPrefix.size()), dualCommandSuffix, dualBaselineDropped, true, true};
+        dualData.droppedContentBytes = dualBaselineDropped + dualAgentSuffix.size() + dualCommandSuffix.size();
+        dualData.contentTruncated = true;
+        dualData.truncation.truncated = true;
+        dualData.truncation.droppedBytes = *dualData.droppedContentBytes;
+        dualData.truncation.omittedPaths = {"/agentText", "/commandOutput"};
+        dualOverflowSnapshot.items.emplace_back(model::CommandExecutionItem{std::move(dualData)});
+        const auto dualEncoded = model::encodeSnapshot(dualOverflowSnapshot, model::ItemContentWireMode::AppendV2);
+        const auto dualDecoded = dualEncoded
+                                     ? model::decodeSnapshot(dualEncoded.value(), model::ItemContentWireMode::AppendV2)
+                                     : model::ModelResult<model::CanonicalSnapshot>{dualEncoded.error()};
+        const model::ItemData* dualItem = dualDecoded && dualDecoded.value().items.size() == 1
+                                              ? &model::itemData(dualDecoded.value().items.front())
+                                              : nullptr;
+        result.expectTrue(dualItem &&
+                              dualItem->agentText == std::optional<std::string>{overflowPrefix + dualAgentSuffix} &&
+                              dualItem->commandOutput == std::optional<std::string>{overflowPrefix + dualCommandSuffix} &&
+                              dualItem->droppedContentBytes == std::optional<std::uint64_t>{dualBaselineDropped} &&
+                              dualItem->contentTruncated && dualItem->truncation.truncated,
+                          "append-v2 snapshots restore agent and command overflow atomically against one aggregate baseline");
+
+        model::CanonicalSnapshot escapingSnapshot;
+        model::ItemData escapingData{model::ItemIdentity{"escaping-overflow-item"},
+                                     model::ThreadIdentity{"escaping-overflow-thread"},
+                                     model::TurnIdentity{"escaping-overflow-turn"}};
+        const std::string escapingPrefix = "p";
+        const std::string escapingSuffix(model::MaximumCommandOutputOverflowV2Bytes - escapingPrefix.size(), '"');
+        escapingData.commandOutput = escapingPrefix;
+        escapingData.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(escapingPrefix.size()), escapingSuffix, 0, false, false};
+        escapingData.droppedContentBytes = escapingSuffix.size();
+        escapingData.contentTruncated = true;
+        escapingData.truncation.truncated = true;
+        escapingData.truncation.droppedBytes = escapingSuffix.size();
+        escapingData.truncation.omittedPaths = {"/commandOutput"};
+        escapingSnapshot.items.emplace_back(model::CommandExecutionItem{std::move(escapingData)});
+        const auto escapingEncoded = model::encodeSnapshot(escapingSnapshot, model::ItemContentWireMode::AppendV2);
+        const auto escapingDecoded = escapingEncoded
+                                         ? model::decodeSnapshot(escapingEncoded.value(), model::ItemContentWireMode::AppendV2)
+                                         : model::ModelResult<model::CanonicalSnapshot>{escapingEncoded.error()};
+        const model::ItemData* escapingItem = escapingDecoded && escapingDecoded.value().items.size() == 1
+                                                  ? &model::itemData(escapingDecoded.value().items.front())
+                                                  : nullptr;
+        const frontend::Json* escapingWireData =
+            escapingEncoded && escapingEncoded.value().state.items &&
+                    escapingEncoded.value().state.items->size() == 1 &&
+                    escapingEncoded.value().state.items->front().data
+                ? &*escapingEncoded.value().state.items->front().data
+                : nullptr;
+        result.expectTrue(escapingEncoded &&
+                              escapingWireData &&
+                              escapingWireData->contains(std::string(model::CommandOutputOverflowV2Property)) &&
+                              escapingWireData->at(std::string(model::CommandOutputOverflowV2Property)).dump().size() <=
+                                  model::MaximumCommandOutputOverflowV2EncodedBytes &&
+                              escapingItem &&
+                              escapingItem->commandOutput == std::optional<std::string>{escapingPrefix + escapingSuffix} &&
+                              !escapingItem->contentTruncated &&
+                              escapingItem->droppedContentBytes == std::optional<std::uint64_t>{0},
+                          "JSON-expansion-heavy command output uses bounded base64 chunks and restores completely");
+
+        const auto commandOverflowWireValue = [](frontend::Json chunks, std::uint64_t baseContentBytes = 0) {
+            return frontend::Json{{"baseContentBytes", baseContentBytes},
+                                  {"chunksBase64", std::move(chunks)},
+                                  {"droppedContentBytesBeforeProjection", 0},
+                                  {"contentTruncatedBeforeProjection", false},
+                                  {"truncationBeforeProjection", false}};
+        };
+        const auto nonCanonicalBase64 = model::decodeCommandOutputOverflowV2(
+            commandOverflowWireValue(frontend::Json::array({"AB=="})), "/commandOverflow");
+        const auto oversizedBase64Chunk = model::decodeCommandOutputOverflowV2(
+            commandOverflowWireValue(frontend::Json::array({std::string(16U * 1024U + 4U, 'A')})),
+            "/commandOverflow");
+        frontend::Json tooManyBase64Chunks = frontend::Json::array();
+        for (std::size_t index = 0; index < 343; ++index) {
+            tooManyBase64Chunks.push_back("AAAA");
+        }
+        const auto excessiveBase64ChunkCount = model::decodeCommandOutputOverflowV2(
+            commandOverflowWireValue(std::move(tooManyBase64Chunks)), "/commandOverflow");
+        const auto decodedCommandOutputOverCapacity = model::decodeCommandOutputOverflowV2(
+            commandOverflowWireValue(frontend::Json::array({"AAAA"}), model::MaximumCommandOutputOverflowV2Bytes),
+            "/commandOverflow");
+        result.expectTrue(!nonCanonicalBase64 && !oversizedBase64Chunk && !excessiveBase64ChunkCount &&
+                              !decodedCommandOutputOverCapacity,
+                          "append-v2 rejects non-canonical base64, over-capacity chunks, excessive chunk counts, and decoded output "
+                          "beyond the retained command-output bound");
 
         const auto snapshotWithDetails = [&](bool reservedCollision) {
             model::CanonicalSnapshot value = snapshotOverflow;
@@ -1266,6 +1496,7 @@ int main() {
     testUnicodeItemContentReduction(result);
     testPendingOrderingAndAuthorityMigration(result);
     testDescendantReplacementOrdering(result);
+    testTurnPlanOccurrenceRoundTrip(result);
     testDiagnosticOccurrenceShape(result);
     testSparseCollectionOccurrencePresence(result);
     testLegacyNestedOccurrenceRoundTrips(result);

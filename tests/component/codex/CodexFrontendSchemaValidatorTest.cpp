@@ -523,8 +523,8 @@ namespace {
                           "invalid UTF-8 is rejected as caller data before JSON serialization");
 
         const frontend::Json& root = validator::generatedProtocolSchema();
-        result.expectTrue(countGeneratedPatterns(root) == 2,
-                          "the runtime schema contains exactly the generated DecimalId and SafePropertyName patterns");
+        result.expectTrue(countGeneratedPatterns(root) == 3,
+                          "the runtime schema contains exactly the generated DecimalId, SafePropertyName, and base64 patterns");
         const auto decimalValid = [&root](std::string_view value) {
             Statistics statistics;
             const Validation validation =

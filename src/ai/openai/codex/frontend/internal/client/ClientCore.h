@@ -140,7 +140,7 @@ namespace ai::openai::codex::frontend::internal::client {
     struct ClientLimits {
         std::size_t maximumInboundMessageBytes = 16U * 1024U * 1024U;
         std::size_t maximumOutboundMessageBytes = DefaultFrontendMaximumInboundMessageBytes;
-        std::size_t maximumDecodedStateBytes = 64U * 1024U * 1024U;
+        std::size_t maximumDecodedStateBytes = 128U * 1024U * 1024U;
         std::size_t maximumRetainedEntities = 1U << 20U;
         std::size_t maximumPendingOperations = 256;
         std::size_t maximumRetainedDiagnostics = 64;
@@ -179,7 +179,7 @@ namespace ai::openai::codex::frontend::internal::client {
         std::optional<std::vector<generated::MethodId>> availableMethods;
         std::optional<std::vector<generated::MethodId>> permittedMethods;
         std::optional<std::vector<FrontendScope>> permittedScopes;
-        bool itemContentAppendV1 = false;
+        model::ItemContentWireMode itemContentWireMode = model::ItemContentWireMode::Replacement;
 
         explicit SessionInfo(model::SessionIdentity sessionId)
             : id(std::move(sessionId)) {

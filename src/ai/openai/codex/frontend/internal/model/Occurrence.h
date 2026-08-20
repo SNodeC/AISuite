@@ -135,6 +135,10 @@ namespace ai::openai::codex::frontend::internal::model {
     struct ItemContentAppendHint {
         std::uint64_t baseContentBytes = 0;
         std::string delta;
+        // append-v2 may advance a bounded rolling command-output window by
+        // discarding this UTF-8-aligned prefix before appending `delta`.
+        // append-v1 always leaves this at zero.
+        std::uint64_t discardPrefixBytes = 0;
         // Set only when projection verified this hint against the bounded
         // authoritative backend channel rather than the frozen v1 prefix.
         bool sourceVerified = false;
@@ -147,6 +151,9 @@ namespace ai::openai::codex::frontend::internal::model {
         std::optional<TurnIdentity> turnId;
         ItemIdentity itemId;
         std::optional<std::string> channel;
+        // Connection-neutral concrete kind used by the append-v2 encoder to
+        // prove that rolling command output targets a supported item family.
+        std::optional<ThreadItemKind> itemKind;
         std::optional<std::string> content;
         TruncationMetadata truncation;
         bool contentTruncatedKnown = true;
@@ -154,13 +161,17 @@ namespace ai::openai::codex::frontend::internal::model {
         std::optional<ItemContentOverflowV1> overflowV1;
         // The full replacement is authoritative in server/journal values.
         // This hint is connection-neutral until an encoder is explicitly
-        // asked to use append-v1 for one negotiated recipient.
+        // asked to use a negotiated append representation for one recipient.
         std::optional<ItemContentAppendHint> appendHint;
-        // True only for an append-v1 occurrence decoded from the wire.
+        // True only for an append-v1/v2 occurrence decoded from the wire.
         bool appendWireRepresentation = false;
-        // True only for a validated append-v1 overflow replacement decoded
-        // from the schema-neutral reserved detail member.
+        // True only for a validated negotiated overflow replacement decoded
+        // from the explicitly typed overflow wire member.
         bool overflowWireRepresentation = false;
+        // True only for a commandOutput append/overflow decoded under
+        // append-v2. It permits the retained command channel's 4 MiB bound
+        // without widening append-v1 replacement semantics.
+        bool extendedCommandOutputWireRepresentation = false;
         SafeDetail extensions;
         explicit ItemContentUpdatedOccurrence(ItemIdentity value)
             : itemId(std::move(value)) {

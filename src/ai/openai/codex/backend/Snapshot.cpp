@@ -35,6 +35,7 @@ namespace ai::openai::codex::backend {
         constexpr std::size_t MaxExtensionBytes = 64U * 1024U;
         constexpr std::size_t MaxExtensionNestingDepth = 32;
         constexpr std::size_t MaxExtensionJsonNodes = 4096;
+        constexpr std::size_t MaxFrontendItemContentCharacters = 16U * 1024U;
         template <typename... Visitors>
         struct Overloaded : Visitors... {
             using Visitors::operator()...;
@@ -182,19 +183,12 @@ namespace ai::openai::codex::backend {
                          : target + amount;
         }
 
-        std::string boundedSnapshotItemContent(std::string_view value, std::uint64_t& droppedContentBytes) {
-            const std::size_t retained = safeUtf8PrefixLength(value, MaxSnapshotExtensionPayloadBytes);
+        std::string boundedSnapshotItemContent(std::string_view value,
+                                               std::uint64_t& droppedContentBytes,
+                                               std::size_t maximumBytes = MaxSnapshotExtensionPayloadBytes) {
+            const std::size_t retained = safeUtf8PrefixLength(value, maximumBytes);
             accountOmittedBytes(droppedContentBytes, value.size() - retained);
             return std::string(value.substr(0, retained));
-        }
-
-        bool accountUnselectedProjectedItemContent(std::string_view value, std::uint64_t& droppedContentBytes) noexcept {
-            constexpr std::size_t MaximumFrontendContentCharacters = 16U * 1024U;
-            const std::size_t snapshotRetained = safeUtf8PrefixLength(value, MaxSnapshotExtensionPayloadBytes);
-            const std::size_t retained =
-                safeUtf8PrefixLength(value, MaxSnapshotExtensionPayloadBytes, MaximumFrontendContentCharacters);
-            accountOmittedBytes(droppedContentBytes, value.size() - retained);
-            return retained != snapshotRetained;
         }
 
         std::string normalizedKey(std::string_view key) {
@@ -533,10 +527,37 @@ namespace ai::openai::codex::backend {
             snapshot.type = safeUtf8Prefix(itemType(state.item), MaxSnapshotExtensionMethodBytes);
             snapshot.status = safeUtf8Prefix(lifecycleName(state.lifecycle), MaxSnapshotExtensionMethodBytes);
             snapshot.droppedContentBytes = state.droppedContentBytes;
-            snapshot.agentText = boundedSnapshotItemContent(state.agentText, snapshot.droppedContentBytes);
-            snapshot.reasoningText = boundedSnapshotItemContent(state.reasoningText, snapshot.droppedContentBytes);
-            snapshot.reasoningSummary = boundedSnapshotItemContent(state.reasoningSummary, snapshot.droppedContentBytes);
-            snapshot.commandOutput = boundedSnapshotItemContent(state.commandOutput, snapshot.droppedContentBytes);
+            const auto retainChannel = [&snapshot](std::string_view content,
+                                                   std::string& destination,
+                                                   std::uint64_t backendDropped,
+                                                   std::uint64_t& projectedDropped,
+                                                   std::size_t maximumBytes = MaxSnapshotExtensionPayloadBytes) {
+                projectedDropped = backendDropped;
+                destination = boundedSnapshotItemContent(content, projectedDropped, maximumBytes);
+                const std::uint64_t projectionDropped = projectedDropped - backendDropped;
+                snapshot.droppedContentBytes = projectionDropped >
+                                                       std::numeric_limits<std::uint64_t>::max() - snapshot.droppedContentBytes
+                                                   ? std::numeric_limits<std::uint64_t>::max()
+                                                   : snapshot.droppedContentBytes + projectionDropped;
+            };
+            retainChannel(state.agentText,
+                          snapshot.agentText,
+                          state.agentTextDroppedContentBytes,
+                          snapshot.agentTextDroppedContentBytes);
+            retainChannel(state.reasoningText,
+                          snapshot.reasoningText,
+                          state.reasoningTextDroppedContentBytes,
+                          snapshot.reasoningTextDroppedContentBytes);
+            retainChannel(state.reasoningSummary,
+                          snapshot.reasoningSummary,
+                          state.reasoningSummaryDroppedContentBytes,
+                          snapshot.reasoningSummaryDroppedContentBytes);
+            snapshot.commandOutputDroppedContentBytes = state.commandOutputDroppedContentBytes;
+            retainChannel(state.commandOutput,
+                          snapshot.commandOutput,
+                          state.commandOutputDroppedContentBytes,
+                          snapshot.commandOutputDroppedContentBytes,
+                          MaxSnapshotCommandOutputBytes);
             snapshot.contentTruncated = snapshot.droppedContentBytes != 0;
             snapshot.startedAtMs = state.startedAtMs;
             snapshot.completedAtMs = state.completedAtMs;
@@ -686,6 +707,7 @@ namespace ai::openai::codex::backend {
             if (state.tokenUsage) {
                 snapshot.tokenUsage = safeSnapshotJson(*state.tokenUsage);
             }
+            snapshot.plan = state.plan;
             if (state.effectiveExecutionConfiguration) {
                 snapshot.effectiveExecutionConfiguration = executionConfigurationSnapshot(*state.effectiveExecutionConfiguration);
                 if (snapshot.effectiveExecutionConfiguration) {
@@ -963,20 +985,44 @@ namespace ai::openai::codex::backend {
             return value ? Json(*value) : Json(nullptr);
         }
 
+        std::pair<std::string, Json> commandOutputAccountingValue(std::string_view value) {
+            constexpr std::size_t FrozenCharacters = 16U * 1024U;
+            constexpr std::size_t RawChunkBytes = 12U * 1024U;
+            const std::size_t prefixBytes = safeUtf8PrefixLength(value, value.size(), FrozenCharacters);
+            Json chunksBase64 = Json::array();
+            for (std::size_t offset = prefixBytes; offset < value.size();) {
+                const std::size_t chunkBytes = std::min(RawChunkBytes, value.size() - offset);
+                chunksBase64.push_back(std::string(((chunkBytes + 2U) / 3U) * 4U, 'A'));
+                offset += chunkBytes;
+            }
+            return {std::string(value.substr(0, prefixBytes)),
+                    chunksBase64.empty()
+                        ? Json(nullptr)
+                        : Json{{"baseContentBytes", prefixBytes},
+                               {"chunksBase64", std::move(chunksBase64)},
+                               {"droppedContentBytesBeforeProjection", 0},
+                               {"contentTruncatedBeforeProjection", false},
+                               {"truncationBeforeProjection", false}}};
+        }
+
         Json itemSnapshotJson(const ItemSnapshot& item) {
+            auto [commandOutput, commandOutputOverflow] = commandOutputAccountingValue(item.commandOutput);
             Json encoded{{"id", item.id},
                          {"type", item.type},
                          {"status", item.status},
                          {"agentText", item.agentText},
                          {"reasoningText", item.reasoningText},
                          {"reasoningSummary", item.reasoningSummary},
-                         {"commandOutput", item.commandOutput},
+                         {"commandOutput", std::move(commandOutput)},
                          {"droppedContentBytes", item.droppedContentBytes},
                          {"contentTruncated", item.contentTruncated},
                          {"data", item.data},
                          {"extensions", item.extensions},
                          {"stamp", sourceStampJson(item.stamp)},
                          {"connectionInvalidated", item.connectionInvalidated}};
+            if (!commandOutputOverflow.is_null()) {
+                encoded["aisuiteCommandOutputOverflowV2"] = std::move(commandOutputOverflow);
+            }
             if (item.startedAtMs) {
                 encoded["startedAtMs"] = *item.startedAtMs;
             }
@@ -1011,6 +1057,16 @@ namespace ai::openai::codex::backend {
             }
             if (turn.tokenUsage) {
                 encoded["tokenUsage"] = *turn.tokenUsage;
+            }
+            if (turn.plan) {
+                Json plan{{"steps", Json::array()}, {"totalSteps", turn.plan->totalSteps}, {"truncated", turn.plan->truncated}};
+                if (turn.plan->explanation) {
+                    plan["explanation"] = *turn.plan->explanation;
+                }
+                for (const TurnPlanStepState& step : turn.plan->steps) {
+                    plan["steps"].push_back({{"step", step.step}, {"status", step.status.value}});
+                }
+                encoded["plan"] = std::move(plan);
             }
             for (const ItemSnapshot& item : turn.items) {
                 encoded["items"].push_back(itemSnapshotJson(item));
@@ -2262,17 +2318,40 @@ namespace ai::openai::codex::backend {
 
             ItemContentSnapshot snapshot;
             snapshot.key = key;
+            snapshot.type = safeUtf8Prefix(itemType(stateItem.item), MaxSnapshotExtensionMethodBytes);
             snapshot.status = safeUtf8Prefix(lifecycleName(stateItem.lifecycle), MaxSnapshotExtensionMethodBytes);
             snapshot.droppedContentBytes = stateItem.droppedContentBytes;
-            snapshot.backendDroppedContentBytes = stateItem.droppedContentBytes;
+            switch (key.channel) {
+                case ItemContentSnapshotChannel::AgentText:
+                    snapshot.backendDroppedContentBytes = stateItem.agentTextDroppedContentBytes;
+                    break;
+                case ItemContentSnapshotChannel::ReasoningText:
+                    snapshot.backendDroppedContentBytes = stateItem.reasoningTextDroppedContentBytes;
+                    break;
+                case ItemContentSnapshotChannel::ReasoningSummary:
+                    snapshot.backendDroppedContentBytes = stateItem.reasoningSummaryDroppedContentBytes;
+                    break;
+                case ItemContentSnapshotChannel::CommandOutput:
+                    snapshot.backendDroppedContentBytes = stateItem.commandOutputDroppedContentBytes;
+                    break;
+            }
             const auto retainChannel = [&](std::string_view candidate, ItemContentSnapshotChannel channel) {
-                if (key.channel == channel) {
-                    snapshot.content = boundedSnapshotItemContent(candidate, snapshot.droppedContentBytes);
+                const std::size_t maximumBytes =
+                    channel == ItemContentSnapshotChannel::CommandOutput ? MaxSnapshotCommandOutputBytes : MaxSnapshotExtensionPayloadBytes;
+                const std::size_t snapshotBytes = safeUtf8PrefixLength(candidate, maximumBytes);
+                accountOmittedBytes(snapshot.droppedContentBytes, candidate.size() - snapshotBytes);
+
+                const bool selected = key.channel == channel;
+                const std::size_t frontendBytes =
+                    safeUtf8PrefixLength(candidate.substr(0, snapshotBytes), snapshotBytes, MaxFrontendItemContentCharacters);
+                if (!selected && frontendBytes != snapshotBytes) {
+                    snapshot.frontendOmittedContentChannels |=
+                        static_cast<std::uint8_t>(1U << static_cast<unsigned int>(channel));
+                }
+                if (selected) {
+                    snapshot.content.assign(candidate.substr(0, snapshotBytes));
                 } else {
-                    if (accountUnselectedProjectedItemContent(candidate, snapshot.droppedContentBytes)) {
-                        snapshot.frontendOmittedContentChannels |=
-                            static_cast<std::uint8_t>(1U << static_cast<unsigned int>(channel));
-                    }
+                    accountOmittedBytes(snapshot.droppedContentBytes, snapshotBytes - frontendBytes);
                 }
             };
             retainChannel(stateItem.agentText, ItemContentSnapshotChannel::AgentText);

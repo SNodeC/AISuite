@@ -723,6 +723,7 @@
         "terminal": { "type": "boolean" },
         "failure": true,
         "tokenUsage": true,
+        "plan": { "$ref": "#/$defs/TurnPlanState" },
         "effectiveExecutionConfiguration": { "$ref": "#/$defs/ExecutionConfiguration" },
         "effectiveExecutionConfigurationProvenance": {
           "enum": ["turn_start_accepted", "thread_settings_updated"]
@@ -956,8 +957,12 @@
           "enum": ["agentText", "reasoningText", "reasoningSummary", "commandOutput"]
         },
         "content": { "type": "string" },
+        "contentDelta": { "type": "string" },
+        "baseContentBytes": { "$ref": "#/$defs/UInt64" },
+        "discardPrefixBytes": { "$ref": "#/$defs/UInt64" },
         "contentTruncated": { "type": "boolean" },
-        "droppedContentBytes": { "$ref": "#/$defs/UInt64" }
+        "droppedContentBytes": { "$ref": "#/$defs/UInt64" },
+        "aisuiteCommandOutputOverflowV2": { "$ref": "#/$defs/CommandOutputOverflowV2" }
       },
       "additionalProperties": true
     },

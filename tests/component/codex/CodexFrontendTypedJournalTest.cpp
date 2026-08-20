@@ -40,6 +40,22 @@ namespace {
         return providerDraft("provider/journal-normal");
     }
 
+    model::OccurrenceDraft retainedCommandOverflowDraft() {
+        const std::string prefix(16U * 1024U, 'p');
+        const std::string suffix(512U * 1024U, 's');
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"command-item"}};
+        update.threadId = model::ThreadIdentity{"thread"};
+        update.turnId = model::TurnIdentity{"turn"};
+        update.channel = "commandOutput";
+        update.itemKind = ai::openai::codex::frontend::ThreadItemKind::CommandExecution;
+        update.content = prefix;
+        update.truncation.truncated = true;
+        update.truncation.droppedBytes = suffix.size();
+        update.overflowV1 = model::ItemContentOverflowV1{prefix.size(), suffix, 0, false, false};
+        update.appendHint = model::ItemContentAppendHint{prefix.size(), suffix, 0, true};
+        return {*model::SourceStamp::parse("backend-event:900"), std::move(update)};
+    }
+
     void testAccountingBoundary(tests::support::TestResult& result) {
         const std::size_t maximum = std::numeric_limits<std::size_t>::max();
         result.expectTrue(model::TypedOccurrenceJournal::checkedByteTotal(maximum - 1, 1) == maximum &&
@@ -140,6 +156,22 @@ namespace {
                               future.status == model::JournalReplayStatus::FutureSequence,
                           "the current cursor has no later records and a future cursor remains distinguishable from a replay gap");
     }
+
+    void testRetainedOverflowAccounting(tests::support::TestResult& result) {
+        model::TypedOccurrenceJournal measurement{
+            {4, std::numeric_limits<std::size_t>::max(), model::FrontendSequence{}}};
+        const auto measured = measurement.appendGroup(retainedCommandOverflowDraft());
+        const std::size_t maximumBytes = measured.accountedBytes > 1 ? measured.accountedBytes - 1 : 0;
+        model::TypedOccurrenceJournal bounded{{4, maximumBytes, model::FrontendSequence{}}};
+        const auto omitted = bounded.appendGroup(retainedCommandOverflowDraft());
+        const auto replay = bounded.replayAfter(model::FrontendSequence{});
+        result.expectTrue(measured.status == model::JournalAppendStatus::Appended &&
+                              measured.accountedBytes > 512U * 1024U &&
+                              omitted.status == model::JournalAppendStatus::NotRetained &&
+                              omitted.sequence == model::FrontendSequence{1} && bounded.retainedEntryCount() == 0 &&
+                              replay.status == model::JournalReplayStatus::Gap,
+                          "journal accounting includes retained append hints and overflow suffix memory before enforcing its byte bound");
+    }
 }
 
 int main() {
@@ -149,5 +181,6 @@ int main() {
     testExhaustionAndNonRetention(result);
     testSameSequenceReplayInvalidation(result);
     testOversizedGroupReplayHole(result);
+    testRetainedOverflowAccounting(result);
     return result.processResult();
 }

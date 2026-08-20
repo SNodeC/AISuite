@@ -58,6 +58,10 @@ namespace ai::openai::codex::backend {
     struct CapacityChanged {
         CapacityMetric metric = CapacityMetric::RejectedSessions;
         std::uint64_t amount = 1;
+        // True only when retention enforcement changed canonical entities
+        // outside the nominal event. Frontend bridges must rebase from a
+        // snapshot instead of treating this as a counter-only occurrence.
+        bool canonicalStateRewritten = false;
 
         bool operator==(const CapacityChanged&) const = default;
     };

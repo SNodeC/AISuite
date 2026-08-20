@@ -389,6 +389,13 @@
           "failure": null,
           "id": "x",
           "items": [],
+          "plan": {
+            "explanation": "x",
+            "statuses": [],
+            "steps": [],
+            "totalSteps": 0,
+            "truncated": false
+          },
           "status": "x",
           "terminal": false,
           "threadId": "x",
@@ -3622,7 +3629,17 @@
           "completedAtMs": 0,
           "connectionInvalidated": false,
           "contentTruncated": false,
-          "data": {},
+          "data": {
+            "aisuiteCommandOutputOverflowV2": {
+              "baseContentBytes": 0,
+              "chunksBase64": [
+                "xxxx"
+              ],
+              "contentTruncatedBeforeProjection": false,
+              "droppedContentBytesBeforeProjection": 0,
+              "truncationBeforeProjection": false
+            }
+          },
           "droppedContentBytes": 0,
           "freshness": "unknown",
           "generation": 0,
@@ -3732,7 +3749,17 @@
           "completedAtMs": 0,
           "connectionInvalidated": false,
           "contentTruncated": false,
-          "data": {},
+          "data": {
+            "aisuiteCommandOutputOverflowV2": {
+              "baseContentBytes": 0,
+              "chunksBase64": [
+                "xxxx"
+              ],
+              "contentTruncatedBeforeProjection": false,
+              "droppedContentBytesBeforeProjection": 0,
+              "truncationBeforeProjection": false
+            }
+          },
           "droppedContentBytes": 0,
           "freshness": "unknown",
           "generation": 0,

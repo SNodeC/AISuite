@@ -228,6 +228,22 @@ namespace ai::openai::codex::frontend::client {
 
     enum class EffectiveExecutionConfigurationProvenance { TurnStartAccepted, ThreadSettingsUpdated };
 
+    struct TurnPlanStepState {
+        std::string step;
+        typed::TurnPlanStepStatus status;
+
+        bool operator==(const TurnPlanStepState&) const = default;
+    };
+
+    struct TurnPlanState {
+        std::optional<std::string> explanation;
+        std::vector<TurnPlanStepState> steps;
+        std::size_t totalSteps = 0;
+        bool truncated = false;
+
+        bool operator==(const TurnPlanState&) const = default;
+    };
+
     struct ThreadState {
         typed::ThreadId id;
         std::optional<std::string> title;
@@ -264,6 +280,7 @@ namespace ai::openai::codex::frontend::client {
         // than as the provider's richer private wire types.
         std::optional<frontend::Json> failure;
         std::optional<frontend::Json> tokenUsage;
+        std::optional<TurnPlanState> plan;
         std::optional<ExecutionConfiguration> effectiveExecutionConfiguration;
         std::optional<EffectiveExecutionConfigurationProvenance> effectiveExecutionConfigurationProvenance;
         frontend::Json extensions = frontend::Json::object();

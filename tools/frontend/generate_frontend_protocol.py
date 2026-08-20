@@ -1881,6 +1881,71 @@ def generate_schema(
         "additionalProperties": True,
     }
 
+    # append-v2 carries the backend-bounded command-output suffix outside the
+    # frozen 16K scalar projection. Base64 keeps its encoded size independent
+    # of JSON escaping. This is an explicitly negotiated wire representation,
+    # so give it a typed schema instead of weakening the generic, deliberately
+    # non-recursive SafeDetail contract.
+    definitions["CommandOutputOverflowV2"] = {
+        "type": "object",
+        "required": [
+            "baseContentBytes",
+            "chunksBase64",
+            "droppedContentBytesBeforeProjection",
+            "contentTruncatedBeforeProjection",
+            "truncationBeforeProjection",
+        ],
+        "properties": {
+            "baseContentBytes": {"$ref": "#/$defs/UInt64"},
+            "chunksBase64": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 342,
+                "items": {
+                    "type": "string",
+                    "minLength": 4,
+                    "maxLength": 16384,
+                    "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+                },
+            },
+            "droppedContentBytesBeforeProjection": {"$ref": "#/$defs/UInt64"},
+            "contentTruncatedBeforeProjection": {"type": "boolean"},
+            "truncationBeforeProjection": {"type": "boolean"},
+        },
+        "additionalProperties": False,
+    }
+    definitions["CommandOrFileSemanticData"] = {
+        "type": "object",
+        "maxProperties": 64,
+        "propertyNames": copy_json(SAFE_PROPERTY_NAMES),
+        "properties": {
+            "aisuiteCommandOutputOverflowV2": {
+                "$ref": "#/$defs/CommandOutputOverflowV2"
+            }
+        },
+        "additionalProperties": {"$ref": "#/$defs/SafeDetailLeafValue"},
+    }
+    definitions["TurnPlanState"] = {
+        "type": "object",
+        "required": ["steps", "statuses", "totalSteps", "truncated"],
+        "properties": {
+            "explanation": {"type": "string", "maxLength": 8192},
+            "steps": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {"type": "string", "maxLength": 1024},
+            },
+            "statuses": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {"type": "string", "maxLength": 256},
+            },
+            "totalSteps": {"$ref": "#/$defs/UInt64"},
+            "truncated": {"type": "boolean"},
+        },
+            "additionalProperties": True,
+    }
+
     thread_item_names = [
         mapping["registryKey"].rsplit(":", 1)[1]
         for mapping in manifest["threadItemMappings"]
@@ -1935,6 +2000,8 @@ def generate_schema(
                                 "$ref": (
                                     "#/$defs/UserMessageSemanticData"
                                     if item_name == "userMessage"
+                                    else "#/$defs/CommandOrFileSemanticData"
+                                    if item_name in ("commandExecution", "fileChange")
                                     else "#/$defs/SafeDetailObject"
                                 )
                             },
@@ -2098,6 +2165,7 @@ def generate_schema(
             "connectionInvalidated": {"type": "boolean"},
             "failure": {"$ref": "#/$defs/SafeDetailObject"},
             "tokenUsage": {"$ref": "#/$defs/SafeDetailObject"},
+            "plan": {"$ref": "#/$defs/TurnPlanState"},
             "effectiveExecutionConfiguration": {"$ref": "#/$defs/ExecutionConfiguration"},
             "effectiveExecutionConfigurationProvenance": {
                 "enum": ["turn_start_accepted", "thread_settings_updated"]
@@ -2339,7 +2407,21 @@ def generate_schema(
                     "data": {
                         "type": "object",
                         "required": list(event_required_fields[event_type]),
-                        "properties": event_data_properties,
+                        "properties": {
+                            **event_data_properties,
+                            **(
+                                {
+                                    "aisuiteCommandOutputOverflowV2": {
+                                        "$ref": "#/$defs/CommandOutputOverflowV2"
+                                    },
+                                    "contentDelta": bounded_string,
+                                    "baseContentBytes": {"$ref": "#/$defs/UInt64"},
+                                    "discardPrefixBytes": {"$ref": "#/$defs/UInt64"},
+                                }
+                                if event_type == "item.content.updated"
+                                else {}
+                            ),
+                        },
                         "maxProperties": 32,
                         "additionalProperties": True,
                     },

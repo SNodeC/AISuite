@@ -41,6 +41,7 @@ namespace ai::openai::codex::backend {
         bool flushImmediately = false;
         std::vector<CapacityChanged> capacityChanges;
         std::vector<PendingRequestRemoved> pendingRequestRemovals;
+        bool canonicalStateRewritten = false;
         bool providerCapacityFailure = false;
         std::string providerCapacityFailureMessage;
         std::optional<bool> resourceAdmission;

@@ -23,6 +23,13 @@ namespace {
         auto id = model::ItemIdentity::parse("item-1");
         model::ItemData data{*id};
         data.commandOutput = "bounded output";
+        data.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(data.commandOutput->size()), " retained suffix", 0, false, false};
+        data.droppedContentBytes = data.commandOutputOverflowV2->suffix.size();
+        data.contentTruncated = true;
+        data.truncation.truncated = true;
+        data.truncation.droppedBytes = data.commandOutputOverflowV2->suffix.size();
+        data.truncation.omittedPaths = {"/commandOutput"};
         switch (kind) {
             case frontend::ThreadItemKind::CommandExecution:
                 snapshot.items.push_back(model::CommandExecutionItem{std::move(data)});
@@ -35,6 +42,55 @@ namespace {
                 break;
         }
         return snapshot;
+    }
+
+    model::CanonicalSnapshot legacyItemSnapshot() {
+        model::CanonicalSnapshot snapshot;
+        model::ItemData data{model::ItemIdentity{"legacy-item-1"}};
+        data.commandOutput = "legacy bounded output";
+        data.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(data.commandOutput->size()), " legacy retained suffix", 0, false, false};
+        data.droppedContentBytes = data.commandOutputOverflowV2->suffix.size();
+        data.contentTruncated = true;
+        data.truncation.truncated = true;
+        data.truncation.droppedBytes = data.commandOutputOverflowV2->suffix.size();
+        data.truncation.omittedPaths = {"/commandOutput"};
+        snapshot.legacyItems.push_back(
+            model::LegacyItemCompatibility{std::move(data), "future_item", 0, "/legacyItems/0"});
+        return snapshot;
+    }
+
+    model::OccurrenceResult<model::CanonicalOccurrence>
+    itemContentOccurrence(std::optional<frontend::ThreadItemKind> kind, std::uint64_t sequence) {
+        model::OccurrenceIdentity identity{
+            model::FrontendSequence{sequence},
+            *model::OccurrenceGroupIdentity::parse("scope-item-content-" + std::to_string(sequence)),
+            0,
+            1,
+            *model::SourceStamp::parse("backend-event:" + std::to_string(sequence))};
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"item-" + std::to_string(sequence)}};
+        update.channel = "commandOutput";
+        update.itemKind = kind;
+        update.content = "projected command output";
+        return model::makeOccurrence(std::move(identity), std::move(update));
+    }
+
+    model::OccurrenceResult<model::CanonicalOccurrence> legacyItemOccurrence(std::uint64_t sequence) {
+        model::OccurrenceIdentity identity{
+            model::FrontendSequence{sequence},
+            *model::OccurrenceGroupIdentity::parse("scope-legacy-item-" + std::to_string(sequence)),
+            0,
+            1,
+            *model::SourceStamp::parse("backend-event:scope-legacy-item")};
+        model::ItemData data{model::ItemIdentity{"legacy-item-" + std::to_string(sequence)}};
+        data.commandOutput = "legacy occurrence output";
+        data.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            static_cast<std::uint64_t>(data.commandOutput->size()), " legacy occurrence suffix", 0, false, false};
+        model::LegacyCompatibilityPayload legacy;
+        legacy.kind = model::LegacyCompatibilityKind::LegacyItem;
+        legacy.legacyItem =
+            model::LegacyItemCompatibility{std::move(data), "future_item", 0, "/legacy/item"};
+        return model::makeOccurrenceGroup(std::move(identity), std::move(legacy), {});
     }
 
     void testGeneratedMethodPolicy(tests::support::TestResult& result) {
@@ -64,11 +120,127 @@ namespace {
         const auto hiddenFile = authority.projectSnapshot(itemSnapshot(frontend::ThreadItemKind::FileChange), command);
         const auto projectedCommand = authority.projectSnapshot(itemSnapshot(frontend::ThreadItemKind::CommandExecution), command);
         const auto conservative = authority.projectSnapshot(itemSnapshot(frontend::ThreadItemKind::AgentMessage), both);
-        result.expectTrue(projectedFile && model::itemData(projectedFile.value().items.front()).commandOutput.has_value() && hiddenFile &&
-                              !model::itemData(hiddenFile.value().items.front()).commandOutput.has_value() && projectedCommand &&
-                              model::itemData(projectedCommand.value().items.front()).commandOutput.has_value() && conservative &&
+        const auto hiddenPathCount = hiddenFile
+                                         ? std::ranges::count(hiddenFile.value().projection.omittedPaths,
+                                                              "/items/0/commandOutput")
+                                         : std::ptrdiff_t{0};
+        result.expectTrue(projectedFile && model::itemData(projectedFile.value().items.front()).commandOutput.has_value() &&
+                              model::itemData(projectedFile.value().items.front()).commandOutputOverflowV2.has_value() && hiddenFile &&
+                              !model::itemData(hiddenFile.value().items.front()).commandOutput.has_value() &&
+                              !model::itemData(hiddenFile.value().items.front()).commandOutputOverflowV2.has_value() &&
+                              hiddenPathCount == 1 && projectedCommand &&
+                              model::itemData(projectedCommand.value().items.front()).commandOutput.has_value() &&
+                              model::itemData(projectedCommand.value().items.front()).commandOutputOverflowV2.has_value() && conservative &&
                               model::itemData(conservative.value().items.front()).commandOutput.has_value(),
                           "command output uses discriminator-specific command, filesystem-write, and conservative dual-scope ceilings");
+    }
+
+    void testCommandOutputOccurrenceScopeMatrix(tests::support::TestResult& result) {
+        model::ProjectionAuthority authority;
+        const auto command = projectionContext(
+            {frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution});
+        const auto filesystem = projectionContext(
+            {frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite});
+        const auto both = projectionContext({frontend::FrontendScope::Observe,
+                                             frontend::FrontendScope::CommandExecution,
+                                             frontend::FrontendScope::FilesystemWrite});
+
+        const auto commandOccurrence = itemContentOccurrence(frontend::ThreadItemKind::CommandExecution, 10);
+        const auto fileOccurrence = itemContentOccurrence(frontend::ThreadItemKind::FileChange, 11);
+        const auto unknownOccurrence = itemContentOccurrence(std::nullopt, 12);
+        const auto commandAllowed = commandOccurrence ? authority.projectOccurrence(commandOccurrence.value(), command)
+                                                      : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                            {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto commandDenied = commandOccurrence ? authority.projectOccurrence(commandOccurrence.value(), filesystem)
+                                                     : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                           {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto fileAllowed = fileOccurrence ? authority.projectOccurrence(fileOccurrence.value(), filesystem)
+                                                : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                      {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto fileDenied = fileOccurrence ? authority.projectOccurrence(fileOccurrence.value(), command)
+                                               : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                     {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto unknownCommand = unknownOccurrence ? authority.projectOccurrence(unknownOccurrence.value(), command)
+                                                      : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                            {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto unknownFilesystem = unknownOccurrence ? authority.projectOccurrence(unknownOccurrence.value(), filesystem)
+                                                         : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                               {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto unknownBoth = unknownOccurrence ? authority.projectOccurrence(unknownOccurrence.value(), both)
+                                                   : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                         {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+
+        const auto retainedCommandOutput = [](const auto& projected) {
+            if (!projected || !projected.value().has_value() || projected.value()->expandedPayloads().size() != 1) {
+                return false;
+            }
+            const auto* content =
+                std::get_if<model::ItemContentUpdatedOccurrence>(&projected.value()->expandedPayloads().front());
+            return content != nullptr && content->channel == std::optional<std::string>{"commandOutput"} &&
+                   content->content == std::optional<std::string>{"projected command output"};
+        };
+        result.expectTrue(commandOccurrence && retainedCommandOutput(commandAllowed) && commandDenied &&
+                              !commandDenied.value().has_value(),
+                          "typed command-output occurrences require command-execution scope");
+        result.expectTrue(fileOccurrence && retainedCommandOutput(fileAllowed) && fileDenied && !fileDenied.value().has_value(),
+                          "typed file-change output occurrences require filesystem-write scope");
+        result.expectTrue(unknownOccurrence && unknownCommand && !unknownCommand.value().has_value() && unknownFilesystem &&
+                              !unknownFilesystem.value().has_value() && retainedCommandOutput(unknownBoth),
+                          "typed command-output occurrences with unknown item kind conservatively require both scopes");
+    }
+
+    void testLegacyCommandOutputScopeMatrix(tests::support::TestResult& result) {
+        model::ProjectionAuthority authority;
+        const auto command = projectionContext(
+            {frontend::FrontendScope::Observe, frontend::FrontendScope::CommandExecution});
+        const auto filesystem = projectionContext(
+            {frontend::FrontendScope::Observe, frontend::FrontendScope::FilesystemWrite});
+        const auto both = projectionContext({frontend::FrontendScope::Observe,
+                                             frontend::FrontendScope::CommandExecution,
+                                             frontend::FrontendScope::FilesystemWrite});
+
+        const auto commandSnapshot = authority.projectSnapshot(legacyItemSnapshot(), command);
+        const auto filesystemSnapshot = authority.projectSnapshot(legacyItemSnapshot(), filesystem);
+        const auto bothSnapshot = authority.projectSnapshot(legacyItemSnapshot(), both);
+        const auto legacyOccurrence = legacyItemOccurrence(20);
+        const auto commandOccurrence = legacyOccurrence ? authority.projectOccurrence(legacyOccurrence.value(), command)
+                                                        : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                              {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto filesystemOccurrence = legacyOccurrence ? authority.projectOccurrence(legacyOccurrence.value(), filesystem)
+                                                           : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                                 {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+        const auto bothOccurrence = legacyOccurrence ? authority.projectOccurrence(legacyOccurrence.value(), both)
+                                                     : model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>>{
+                                                           {model::ProjectionErrorCode::InvalidValue, "/", "construction failed"}};
+
+        const auto snapshotOutputVisible = [](const auto& projected) {
+            return projected && projected.value().legacyItems.size() == 1 &&
+                   projected.value().legacyItems.front().value.commandOutput.has_value() &&
+                   projected.value().legacyItems.front().value.commandOutputOverflowV2.has_value();
+        };
+        const auto snapshotOutputHidden = [](const auto& projected) {
+            return projected && projected.value().legacyItems.size() == 1 &&
+                   !projected.value().legacyItems.front().value.commandOutput.has_value() &&
+                   !projected.value().legacyItems.front().value.commandOutputOverflowV2.has_value();
+        };
+        const auto occurrenceOutputVisible = [](const auto& projected) {
+            return projected && projected.value().has_value() &&
+                   projected.value()->legacyCompatibility().legacyItem.has_value() &&
+                   projected.value()->legacyCompatibility().legacyItem->value.commandOutput.has_value() &&
+                   projected.value()->legacyCompatibility().legacyItem->value.commandOutputOverflowV2.has_value();
+        };
+        const auto occurrenceOutputHidden = [](const auto& projected) {
+            return projected && projected.value().has_value() &&
+                   projected.value()->legacyCompatibility().legacyItem.has_value() &&
+                   !projected.value()->legacyCompatibility().legacyItem->value.commandOutput.has_value() &&
+                   !projected.value()->legacyCompatibility().legacyItem->value.commandOutputOverflowV2.has_value();
+        };
+        result.expectTrue(snapshotOutputHidden(commandSnapshot) && snapshotOutputHidden(filesystemSnapshot) &&
+                              snapshotOutputVisible(bothSnapshot),
+                          "legacy snapshot command output conservatively requires both scopes");
+        result.expectTrue(legacyOccurrence && occurrenceOutputHidden(commandOccurrence) &&
+                              occurrenceOutputHidden(filesystemOccurrence) && occurrenceOutputVisible(bothOccurrence),
+                          "legacy-only occurrence command output conservatively requires both scopes");
     }
 
     void testGeneratedOccurrenceAuthority(tests::support::TestResult& result) {
@@ -178,6 +350,8 @@ int main() {
     tests::support::TestResult result;
     testGeneratedMethodPolicy(result);
     testItemInformationCeilings(result);
+    testCommandOutputOccurrenceScopeMatrix(result);
+    testLegacyCommandOutputScopeMatrix(result);
     testGeneratedOccurrenceAuthority(result);
     testExecutionConfigurationAuthority(result);
     return result.processResult();

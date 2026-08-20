@@ -245,6 +245,15 @@ namespace {
         return result;
     }
 
+    void testDefaultDecodedStateCapacityParity(tests::support::TestResult& result) {
+        constexpr std::size_t ExpectedDecodedStateBytes = 128U * 1024U * 1024U;
+        const client::ClientOptions publicDefaults;
+        const core::ClientOptions internalDefaults;
+        result.expectTrue(publicDefaults.maximumDecodedStateBytes == ExpectedDecodedStateBytes &&
+                              internalDefaults.limits.maximumDecodedStateBytes == ExpectedDecodedStateBytes,
+                          "public and internal client defaults retain identical 128 MiB decoded-State headroom");
+    }
+
     struct PublicHarness {
         std::vector<client::OutboundMessage> outbound;
         std::vector<std::string> callbackOrder;
@@ -707,6 +716,10 @@ namespace {
         turn.safeDetails = *model::SafeDetail::fromJson(
             frontend::Json{{"effectiveExecutionConfiguration", configuration},
                            {"effectiveExecutionConfigurationProvenance", "turn_start_accepted"}});
+        turn.plan = model::TurnPlanState{"Work in dependency order",
+                                         {{"Inspect", "completed"}, {"Implement", "inProgress"}, {"Verify", "pending"}},
+                                         3,
+                                         false};
         snapshot.turns.push_back(std::move(turn));
         publication.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
 
@@ -728,8 +741,14 @@ namespace {
                               publicTurn && publicTurn->effectiveExecutionConfiguration &&
                               publicTurn->effectiveExecutionConfiguration->serviceTier.value == std::optional<std::string>{"flex"} &&
                               publicTurn->effectiveExecutionConfigurationProvenance ==
-                                  client::EffectiveExecutionConfigurationProvenance::TurnStartAccepted,
-                          "public immutable State exposes typed current and historical effective execution configuration");
+                                  client::EffectiveExecutionConfigurationProvenance::TurnStartAccepted && publicTurn->plan &&
+                              publicTurn->plan->explanation == std::optional<std::string>{"Work in dependency order"} &&
+                              publicTurn->plan->steps.size() == 3 && publicTurn->plan->totalSteps == 3 &&
+                              !publicTurn->plan->truncated && publicTurn->plan->steps[0].step == "Inspect" &&
+                              publicTurn->plan->steps[0].status == typed::TurnPlanStepStatus::completed() &&
+                              publicTurn->plan->steps[1].status == typed::TurnPlanStepStatus::inProgress() &&
+                              publicTurn->plan->steps[2].status == typed::TurnPlanStepStatus::pending(),
+                          "public immutable State exposes typed current/historical configuration and ordered plan semantics");
     }
 
     void testCanonicalLookupIdentityPreflight(tests::support::TestResult& result) {
@@ -1271,6 +1290,7 @@ namespace {
 
 int main() {
     tests::support::TestResult result;
+    testDefaultDecodedStateCapacityParity(result);
     testDirectCanonicalStateBuilder(result);
     testExecutionConfigurationPublicState(result);
     testCanonicalLookupIdentityPreflight(result);

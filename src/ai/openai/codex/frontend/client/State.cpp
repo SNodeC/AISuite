@@ -727,6 +727,62 @@ namespace ai::openai::codex::frontend::client {
             return std::nullopt;
         }
 
+        bool decodeTurnPlan(const frontend::Json& value, TurnPlanState& result, std::string& error) {
+            if (!requireObject(value, "turn plan", error)) {
+                return false;
+            }
+            const auto steps = value.find("steps");
+            const auto statuses = value.find("statuses");
+            const auto totalSteps = optionalSize(value, "totalSteps");
+            const auto truncated = optionalBool(value, "truncated");
+            if (steps == value.end() || !steps->is_array() || !totalSteps || !truncated) {
+                error = "turn plan lacks required fields";
+                return false;
+            }
+            if (const auto explanation = value.find("explanation"); explanation != value.end()) {
+                if (!explanation->is_string()) {
+                    error = "turn plan explanation must be a string";
+                    return false;
+                }
+                result.explanation = explanation->get<std::string>();
+            }
+            result.steps.reserve(steps->size());
+            if (statuses != value.end()) {
+                if (!statuses->is_array() || statuses->size() != steps->size()) {
+                    error = "turn plan statuses do not match its steps";
+                    return false;
+                }
+                for (std::size_t index = 0; index < steps->size(); ++index) {
+                    if (!steps->at(index).is_string() || !statuses->at(index).is_string()) {
+                        error = "turn plan step lacks required fields";
+                        return false;
+                    }
+                    result.steps.push_back(
+                        {steps->at(index).get<std::string>(), typed::TurnPlanStepStatus{statuses->at(index).get<std::string>()}});
+                }
+            } else {
+                // State's own persisted JSON predates the v1 wire-safe
+                // parallel arrays and used small step objects. Continue to
+                // accept that representation for source compatibility.
+                for (const frontend::Json& step : *steps) {
+                    const auto text = stringMember(step, "step");
+                    const auto status = stringMember(step, "status");
+                    if (!step.is_object() || !text || !status) {
+                        error = "turn plan step lacks required fields";
+                        return false;
+                    }
+                    result.steps.push_back({*text, typed::TurnPlanStepStatus{*status}});
+                }
+            }
+            if (*totalSteps < result.steps.size() || (*totalSteps > result.steps.size() && !*truncated)) {
+                error = "turn plan truncation metadata is inconsistent";
+                return false;
+            }
+            result.totalSteps = *totalSteps;
+            result.truncated = *truncated;
+            return true;
+        }
+
         bool decodeThread(const frontend::Json& value, ThreadState& result, std::string& error) {
             if (!requireObject(value, "thread", error))
                 return false;
@@ -870,6 +926,13 @@ namespace ai::openai::codex::frontend::client {
                 result.failure = *failure;
             if (const auto usage = value.find("tokenUsage"); usage != value.end())
                 result.tokenUsage = *usage;
+            if (const auto plan = value.find("plan"); plan != value.end()) {
+                TurnPlanState decoded;
+                if (!decodeTurnPlan(*plan, decoded, error)) {
+                    return false;
+                }
+                result.plan = std::move(decoded);
+            }
             if (const auto configuration = value.find("effectiveExecutionConfiguration"); configuration != value.end()) {
                 ExecutionConfiguration decoded;
                 if (!decodeExecutionConfiguration(*configuration, decoded, error)) {
@@ -895,6 +958,7 @@ namespace ai::openai::codex::frontend::client {
                                      "items",
                                      "failure",
                                      "tokenUsage",
+                                     "plan",
                                      "effectiveExecutionConfiguration",
                                      "effectiveExecutionConfigurationProvenance",
                                      "extensions"},
@@ -1752,6 +1816,19 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
+        frontend::Json encodeTurnPlan(const TurnPlanState& value) {
+            frontend::Json result{{"steps", frontend::Json::array()},
+                                  {"totalSteps", value.totalSteps},
+                                  {"truncated", value.truncated}};
+            if (value.explanation) {
+                result["explanation"] = *value.explanation;
+            }
+            for (const TurnPlanStepState& step : value.steps) {
+                result["steps"].push_back({{"step", step.step}, {"status", step.status.value}});
+            }
+            return result;
+        }
+
         std::string_view effectiveConfigurationProvenanceName(EffectiveExecutionConfigurationProvenance value) noexcept {
             switch (value) {
                 case EffectiveExecutionConfigurationProvenance::TurnStartAccepted:
@@ -1827,6 +1904,8 @@ namespace ai::openai::codex::frontend::client {
                 result["failure"] = *value.failure;
             if (value.tokenUsage)
                 result["tokenUsage"] = *value.tokenUsage;
+            if (value.plan)
+                result["plan"] = encodeTurnPlan(*value.plan);
             if (value.effectiveExecutionConfiguration) {
                 result["effectiveExecutionConfiguration"] =
                     encodeExecutionConfiguration(*value.effectiveExecutionConfiguration);
@@ -3655,6 +3734,17 @@ namespace ai::openai::codex::frontend::client {
                     }
                     if (const auto usage = details.find("tokenUsage"); usage != details.end()) {
                         decoded.tokenUsage = *usage;
+                    }
+                    if (turn.plan) {
+                        TurnPlanState value;
+                        value.explanation = turn.plan->explanation;
+                        value.totalSteps = turn.plan->totalSteps;
+                        value.truncated = turn.plan->truncated;
+                        value.steps.reserve(turn.plan->steps.size());
+                        for (const canonical::TurnPlanStepState& step : turn.plan->steps) {
+                            value.steps.push_back({step.step, typed::TurnPlanStepStatus{step.status}});
+                        }
+                        decoded.plan = std::move(value);
                     }
                     if (const auto configuration = details.find("effectiveExecutionConfiguration");
                         configuration != details.end()) {

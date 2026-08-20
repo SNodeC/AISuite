@@ -100,6 +100,59 @@ namespace ai::openai::codex::frontend::internal::server {
             return backend::ItemContentSnapshotChannel::AgentText;
         }
 
+        bool sameItemContentKey(const backend::ItemContentChanged& left,
+                                const backend::ItemContentChanged& right) noexcept {
+            return left.threadId == right.threadId && left.turnId == right.turnId && left.itemId == right.itemId &&
+                   left.kind == right.kind;
+        }
+
+        bool itemContentSnapshotIsAhead(backend::SequenceNumber eventSequence,
+                                        backend::SequenceNumber snapshotSequence) noexcept {
+            return snapshotSequence > eventSequence;
+        }
+
+        std::optional<std::vector<backend::SequencedBackendEvent>>
+        coalescedItemContentEvents(std::span<const backend::SequencedBackendEvent> events) noexcept {
+            try {
+                std::vector<backend::SequencedBackendEvent> coalesced;
+                coalesced.reserve(events.size());
+                for (const backend::SequencedBackendEvent& sequenced : events) {
+                    const auto* content = std::get_if<backend::ItemContentChanged>(&sequenced.event);
+                    if (content == nullptr) {
+                        return std::nullopt;
+                    }
+                    const auto existing = std::find_if(
+                        coalesced.begin(), coalesced.end(), [&](const backend::SequencedBackendEvent& retained) {
+                            const auto* prior = std::get_if<backend::ItemContentChanged>(&retained.event);
+                            return prior != nullptr && sameItemContentKey(*prior, *content);
+                        });
+                    if (existing == coalesced.end()) {
+                        coalesced.push_back(sequenced);
+                        continue;
+                    }
+                    backend::SequencedBackendEvent combined = std::move(*existing);
+                    coalesced.erase(existing);
+                    auto& prior = std::get<backend::ItemContentChanged>(combined.event);
+                    if (content->delta.size() > std::numeric_limits<std::size_t>::max() - prior.delta.size()) {
+                        return std::nullopt;
+                    }
+                    prior.delta.append(content->delta);
+                    // The combined occurrence starts from the first event's
+                    // authoritative before-counters and ends at the last
+                    // backend sequence. Moving it behind events whose latest
+                    // occurrence preceded this one preserves last-update
+                    // ordering across interleaved item streams. Missing first
+                    // counters deliberately retain conservative replacement
+                    // semantics.
+                    combined.sequence = sequenced.sequence;
+                    coalesced.push_back(std::move(combined));
+                }
+                return coalesced;
+            } catch (...) {
+                return std::nullopt;
+            }
+        }
+
         Json legacyUserMessageData(const backend::UserMessageSnapshot& message) {
             Json content = Json::array();
             for (const std::string& text : message.textParts) {
@@ -804,26 +857,42 @@ namespace ai::openai::codex::frontend::internal::server {
                         return ProjectedFlushResult::Staged;
                     }
                     std::optional<ProjectedBackendBatch> projectedBatch;
+                    const std::optional<std::vector<backend::SequencedBackendEvent>> contentEvents =
+                        coalescedItemContentEvents(projectedEvents);
                     std::vector<backend::ItemContentSnapshotKey> contentKeys;
-                    contentKeys.reserve(projectedEvents.size());
-                    bool contentOnly = true;
-                    for (const backend::SequencedBackendEvent& sequenced : projectedEvents) {
-                        const auto* content = std::get_if<backend::ItemContentChanged>(&sequenced.event);
-                        if (content == nullptr) {
-                            contentOnly = false;
-                            break;
+                    contentKeys.reserve(contentEvents ? contentEvents->size() : 0);
+                    if (contentEvents) {
+                        for (const backend::SequencedBackendEvent& sequenced : *contentEvents) {
+                            const auto& content = std::get<backend::ItemContentChanged>(sequenced.event);
+                            contentKeys.push_back(
+                                {content.threadId, content.turnId, content.itemId, contentSnapshotChannel(content.kind)});
                         }
-                        contentKeys.push_back(
-                            {content->threadId, content->turnId, content->itemId, contentSnapshotChannel(content->kind)});
-                    }
-                    if (contentOnly) {
                         std::optional<backend::ItemContentSnapshotBatch> contentItems = runtime.itemContentSnapshots(contentKeys);
-                        if (contentItems && !projectedEvents.empty() &&
-                            contentItems->sequence.value() >= projectedEvents.back().sequence.value()) {
-                            model::ModelResult<ProjectedBackendBatch> direct =
-                                projection.projectItemContentOccurrences(projectedEvents, contentItems->items);
-                            if (direct && !direct.value().snapshotRequired) {
-                                projectedBatch = std::move(direct).value();
+                        if (contentItems && !contentEvents->empty()) {
+                            const backend::SequenceNumber eventSequence = contentEvents->back().sequence;
+                            if (contentItems->sequence == eventSequence) {
+                                model::ModelResult<ProjectedBackendBatch> direct =
+                                    projection.projectItemContentOccurrences(*contentEvents, contentItems->items);
+                                if (direct && !direct.value().snapshotRequired) {
+                                    projectedBatch = std::move(direct).value();
+                                }
+                            } else if (itemContentSnapshotIsAhead(eventSequence, contentItems->sequence)) {
+                                // The item snapshot already covers a later
+                                // observer drain. Publishing it as an earlier
+                                // replacement would make the next append base
+                                // stale, so rebase once and skip the covered
+                                // queued suffix instead.
+                                const backend::Snapshot current = runtime.snapshot();
+                                projectedEvents.clear();
+                                if (current.sequence < contentItems->sequence || !applyResynchronization(current, *target)) {
+                                    return ProjectedFlushResult::Failed;
+                                }
+                                if (current.sequence.value() > observerProcessedThrough.value()) {
+                                    observerProcessedThrough = current.sequence;
+                                }
+                                drainDeferredControllerCompletion();
+                                drainDeferredSessionCloses();
+                                return ProjectedFlushResult::SnapshotPublished;
                             }
                         }
                     }
@@ -1300,6 +1369,17 @@ namespace ai::openai::codex::frontend::internal::server {
         result.role = reportedControllerRole ? backend::SessionRole::Controller : backend::SessionRole::Observer;
         return ::ai::openai::codex::frontend::internal::server::controllerResultValid(
             method, backend::SessionId{expectedBackendSession}, result);
+    }
+
+    std::optional<std::vector<backend::SequencedBackendEvent>>
+    BackendCoreBridgeTestAccess::coalesceItemContentEvents(
+        std::span<const backend::SequencedBackendEvent> events) noexcept {
+        return coalescedItemContentEvents(events);
+    }
+
+    bool BackendCoreBridgeTestAccess::itemContentSnapshotIsAhead(backend::SequenceNumber eventSequence,
+                                                                 backend::SequenceNumber snapshotSequence) noexcept {
+        return ::ai::openai::codex::frontend::internal::server::itemContentSnapshotIsAhead(eventSequence, snapshotSequence);
     }
 
 } // namespace ai::openai::codex::frontend::internal::server

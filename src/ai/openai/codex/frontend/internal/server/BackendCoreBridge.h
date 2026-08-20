@@ -9,11 +9,14 @@
 #define AI_OPENAI_CODEX_FRONTEND_INTERNAL_SERVER_BACKENDCOREBRIDGE_H
 
 #include "ai/openai/codex/frontend/internal/server/ServerCore.h"
+#include "ai/openai/codex/backend/BackendEvent.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
+#include <vector>
 
 namespace ai::openai::codex::backend::detail {
     class BackendCoreRuntime;
@@ -63,6 +66,10 @@ namespace ai::openai::codex::frontend::internal::server {
                                                         std::uint64_t expectedBackendSession,
                                                         std::optional<std::uint64_t> reportedBackendController,
                                                         bool reportedControllerRole) noexcept;
+        [[nodiscard]] static std::optional<std::vector<backend::SequencedBackendEvent>>
+        coalesceItemContentEvents(std::span<const backend::SequencedBackendEvent> events) noexcept;
+        [[nodiscard]] static bool itemContentSnapshotIsAhead(backend::SequenceNumber eventSequence,
+                                                             backend::SequenceNumber snapshotSequence) noexcept;
     };
 
 } // namespace ai::openai::codex::frontend::internal::server
