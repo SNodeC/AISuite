@@ -4,6 +4,7 @@
 
 #include "ai/openai/codex/frontend/client/Client.h"
 #include "apps/codex-backend-client/ClientConnection.h"
+#include "apps/codex-backend-client/Configuration.h"
 #include "apps/codex-backend-client/FrontendWebSocketClient.h"
 #include "support/TestResult.h"
 #include "web/websocket/SubProtocolFactory.h"
@@ -37,6 +38,11 @@ namespace {
 
 int main() {
     tests::support::TestResult result;
+
+    result.expectTrue(
+        app::DEFAULT_MAXIMUM_FRAME_SIZE == frontend::DefaultFrontendMaximumServerMessageBytes
+            && app::DEFAULT_MAXIMUM_SERVER_MESSAGE_BYTES == frontend::DefaultFrontendMaximumServerMessageBytes,
+        "native and WebSocket reference clients derive their receive boundary from the frontend server contract");
 
     sdk::Client firstClient(options());
     std::size_t webSocketFailures = 0;

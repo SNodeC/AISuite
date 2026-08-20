@@ -4,6 +4,8 @@
 
 #include "apps/codex-backend-client/FrontendWebSocketClient.h"
 
+#include "apps/codex-backend-client/Configuration.h"
+
 #include "core/socket/stream/SocketConnection.h"
 #include "web/http/client/SocketContext.h"
 #include "web/websocket/SubProtocolContext.h"
@@ -23,7 +25,6 @@ namespace apps::codex_backend_client {
 
     namespace {
 
-        constexpr std::size_t MaximumInboundMessageBytes = 16U * 1024U * 1024U;
         constexpr std::uint16_t CloseUnsupportedData = 1003;
         constexpr std::uint16_t ClosePolicyViolation = 1008;
         constexpr std::uint16_t CloseUnexpectedCondition = 1011;
@@ -131,7 +132,8 @@ namespace apps::codex_backend_client {
             if (closeStarted || receivedOpCode != web::websocket::SubProtocolContext::OpCode::TEXT) {
                 return;
             }
-            if (chunkLength > MaximumInboundMessageBytes || inbound.size() > MaximumInboundMessageBytes - chunkLength) {
+            if (chunkLength > DEFAULT_MAXIMUM_SERVER_MESSAGE_BYTES
+                || inbound.size() > DEFAULT_MAXIMUM_SERVER_MESSAGE_BYTES - chunkLength) {
                 failBounded(ClosePolicyViolation, "frontend message exceeds the configured limit");
                 return;
             }
