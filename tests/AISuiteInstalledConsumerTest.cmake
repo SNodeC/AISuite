@@ -386,7 +386,7 @@ foreach(codex_library IN LISTS codex_libraries)
         )
         foreach(codex_dynamic_line IN LISTS codex_dynamic_lines)
             if(codex_dynamic_line MATCHES
-               "\\(NEEDED\\).*Shared library: \\[libaisuite-openai-codex-frontend-protocol\\.so\\.3\\][ \t]*$"
+               "\\(NEEDED\\).*Shared library: \\[libaisuite-openai-codex-frontend-protocol\\.so\\.4\\][ \t]*$"
             )
                 set(frontend_protocol_needed TRUE)
             endif()

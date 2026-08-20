@@ -75,8 +75,8 @@
     },
     {
       "path": "src/ai/openai/codex/detail/TurnCodec.cpp",
-      "bytes": 20871,
-      "sha256": "5b12c70087026afe76884a1df249e23b6aa72c2ac7d21d5a1ba69ee862046f16"
+      "bytes": 22235,
+      "sha256": "42b8f7545dbb098b660ea6cd12b8d997a3b851242b7eca3128e1a4493c8c459a"
     },
     {
       "path": "src/ai/openai/codex/detail/TurnCodec.h",
@@ -105,13 +105,13 @@
     },
     {
       "path": "src/ai/openai/codex/typed/Turns.h",
-      "bytes": 3852,
-      "sha256": "105f54b3e71ab3fcd2c3a787aa2216b31ded97df5ad37dda6488a916c7af867d"
+      "bytes": 4144,
+      "sha256": "23a5b68a4cb4aa8ee2298d57905157c7f7cec89d16438879ec6e2cdb990c26b4"
     },
     {
       "path": "src/ai/openai/codex/typed/Types.h",
-      "bytes": 16246,
-      "sha256": "53385e2936ca5c65d9412053c0aae31ff14984411acc6b3796443de9fe76d95b"
+      "bytes": 17707,
+      "sha256": "a5a3c820e11a3be7f840dbf8c1a857e8495213de9fcd801eb16e883275f3e342"
     },
     {
       "path": "tests/component/codex/CMakeLists.txt",
