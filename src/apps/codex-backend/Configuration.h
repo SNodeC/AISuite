@@ -11,6 +11,7 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
 #include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/typed/Types.h"
 #include "apps/codex-backend/ReferenceAuthentication.h"
 
 #include <cstddef>
@@ -27,6 +28,8 @@ namespace CLI {
 }
 
 namespace apps::codex_backend {
+
+    [[nodiscard]] ai::openai::codex::typed::InitializeParams appServerInitializeParams();
 
     inline constexpr std::size_t DEFAULT_MAXIMUM_FRAME_SIZE =
         ai::openai::codex::frontend::DefaultFrontendMaximumInboundMessageBytes;

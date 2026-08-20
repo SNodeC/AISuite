@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
             std::move(backendOptions),
             "codex",
             std::vector<std::string>{"app-server"},
-            ai::openai::codex::ClientInfo{},
+            apps::codex_backend::appServerInitializeParams(),
             appServerProcessConfiguration.environmentOverrides());
         ai::openai::codex::frontend::FrontendService frontendService(backend, std::move(frontendOptions));
 

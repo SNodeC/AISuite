@@ -24,6 +24,16 @@
 
 namespace apps::codex_backend {
 
+    ai::openai::codex::typed::InitializeParams appServerInitializeParams() {
+        ai::openai::codex::typed::InitializeCapabilities capabilities;
+        capabilities.experimentalApi = true;
+
+        ai::openai::codex::typed::InitializeParams initializeParams{ai::openai::codex::ClientInfo{}};
+        initializeParams.capabilities = ai::openai::codex::typed::OptionalNullable<
+            ai::openai::codex::typed::InitializeCapabilities>::withValue(std::move(capabilities));
+        return initializeParams;
+    }
+
     namespace {
 
         CLI::Option* configurableBoolean(std::string name, std::string description, bool defaultValue) {
