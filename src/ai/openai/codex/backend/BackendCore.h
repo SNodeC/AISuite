@@ -43,7 +43,7 @@ namespace ai::openai::codex::backend {
     struct BackendCoreOptions {
         std::uint32_t initialThreadListLimit = 50;
         std::size_t maxSessionQueueEntries = 4096;
-        std::size_t maxSessionQueueBytes = 8U * 1024U * 1024U;
+        std::size_t maxSessionQueueBytes = MaximumDecodedAppServerCompletionBytes + DefaultMaximumBackendSnapshotBytes;
         std::size_t maxObserverQueueEntries = 4096;
         std::size_t maxObserverQueueBytes = 8U * 1024U * 1024U;
         std::size_t maxEventsPerCallback = 512;

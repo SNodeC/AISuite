@@ -55,8 +55,7 @@ extern char** environ;
 namespace ai::openai::codex::stdio::detail {
 
     namespace {
-        constexpr std::size_t MAX_APP_SERVER_FRAMED_LINE_BYTES = 16U * 1024U * 1024U;
-        constexpr std::size_t MAX_APP_SERVER_STDIN_QUEUED_BYTES = MAX_APP_SERVER_FRAMED_LINE_BYTES + 1U;
+        constexpr std::size_t MAX_APP_SERVER_STDIN_QUEUED_BYTES = MaximumAppServerFramedLineBytes + 1U;
         static_assert(MAX_APP_SERVER_STDIN_QUEUED_BYTES >= 6U * typed::MaximumTurnInputTextUnicodeScalars + 1U);
         const utils::Timeval CHILD_EXIT_POLL_INTERVAL = {0, 20000};
         const utils::Timeval STDIN_FLUSH_INTERVAL = {0, 250000};
@@ -80,7 +79,7 @@ namespace ai::openai::codex::stdio::detail {
                     if (newline == std::string::npos) {
                         break;
                     }
-                    if (newline - consumed > MAX_APP_SERVER_FRAMED_LINE_BYTES) {
+                    if (newline - consumed > MaximumAppServerFramedLineBytes) {
                         errorMessage = "framed line exceeds the input limit";
                         return false;
                     }
@@ -102,7 +101,7 @@ namespace ai::openai::codex::stdio::detail {
                 if (consumed > 0) {
                     buffer.erase(0, consumed);
                 }
-                if (buffer.size() > MAX_APP_SERVER_FRAMED_LINE_BYTES) {
+                if (buffer.size() > MaximumAppServerFramedLineBytes) {
                     errorMessage = "framed line exceeds the input limit";
                     return false;
                 }

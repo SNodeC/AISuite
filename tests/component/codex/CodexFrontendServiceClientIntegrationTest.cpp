@@ -11,6 +11,7 @@
 #include "ai/openai/codex/frontend/FrontendService.h"
 #include "ai/openai/codex/frontend/client/Client.h"
 #include "ai/openai/codex/frontend/client/Controller.h"
+#include "ai/openai/codex/frontend/client/Models.h"
 #include "ai/openai/codex/frontend/client/Threads.h"
 #include "ai/openai/codex/frontend/client/Turns.h"
 #include "core/EventReceiver.h"
@@ -28,6 +29,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -55,6 +57,54 @@ namespace {
     constexpr std::string_view LifecycleAgentItemId = "turn-lifecycle-agent-item";
     constexpr std::string_view LifecycleUserText = "Just answer with OK";
     constexpr std::string_view LifecycleAgentText = "OK";
+    constexpr std::size_t ReproducedCompletionBytes = 18'064'808;
+    constexpr std::size_t ReproducedModelCount = 9;
+    constexpr std::size_t MaximumProjectedModelDescriptionBytes = 1024U * 1024U;
+
+    struct ReproducedModelListFixture {
+        Json result;
+        std::size_t contentBytes = 0;
+        std::size_t completionBytes = 0;
+    };
+
+    ReproducedModelListFixture reproducedModelListFixture(std::size_t requestIdBytes) {
+        Json models = Json::array();
+        for (std::size_t index = 0; index < ReproducedModelCount; ++index) {
+            const std::string suffix = std::to_string(index);
+            models.push_back(Json{{"defaultReasoningEffort", "medium"},
+                                  {"description", ""},
+                                  {"displayName", "Capacity Model " + suffix},
+                                  {"hidden", false},
+                                  {"id", "capacity-model-" + suffix},
+                                  {"isDefault", index == 0},
+                                  {"model", "capacity-model-" + suffix},
+                                  {"supportedReasoningEfforts",
+                                   Json::array({Json{{"description", "Balanced"}, {"reasoningEffort", "medium"}}})}});
+        }
+        Json result{{"data", std::move(models)}};
+
+        const std::size_t fixedCompletionBytes = 512U + requestIdBytes + sizeof(typed::ModelListResponse);
+        const std::size_t targetWireBytes =
+            (ReproducedCompletionBytes - fixedCompletionBytes + 1U) / 2U;
+        const std::size_t emptyWireBytes = result.dump().size();
+        if (targetWireBytes < emptyWireBytes ||
+            targetWireBytes - emptyWireBytes > ReproducedModelCount * MaximumProjectedModelDescriptionBytes) {
+            throw std::logic_error("capacity regression fixture cannot distribute its projected content");
+        }
+
+        std::size_t remaining = targetWireBytes - emptyWireBytes;
+        for (Json& model : result["data"]) {
+            const std::size_t bytes = std::min(remaining, MaximumProjectedModelDescriptionBytes);
+            model["description"] = std::string(bytes, 'A');
+            remaining -= bytes;
+        }
+        if (remaining != 0 || result.dump().size() != targetWireBytes) {
+            throw std::logic_error("capacity regression fixture did not reach its exact wire size");
+        }
+        return {std::move(result),
+                targetWireBytes - emptyWireBytes,
+                fixedCompletionBytes + 2U * targetWireBytes};
+    }
 
     std::string threadTitle(std::string_view generation, std::size_t index) {
         return std::string(generation) + " integration thread " + std::to_string(index);
@@ -145,13 +195,21 @@ namespace {
                     return;
                 }
                 if (*method == "thread/read") {
-                    ++providerThreadReadCalls;
                     const std::string threadId = message.value("params", Json::object()).value("threadId", "");
+                    ++providerThreadReadCalls;
                     Json items = Json::array({lifecycleUserItem()});
                     Json turns = Json::array(
                         {tests::codex::turnValue(threadId, "turn-" + threadId, "completed", std::move(items))});
                     tests::codex::inject(
                         callbacks, Json{{"id", *id}, {"result", tests::codex::threadOperationResult(threadId, std::move(turns))}});
+                    return;
+                }
+                if (*method == "model/list") {
+                    ++providerLargeModelListCalls;
+                    ReproducedModelListFixture fixture = reproducedModelListFixture(largeFrontendRequestId.size());
+                    reproducedCompletionBytes = fixture.completionBytes;
+                    reproducedContentBytes = fixture.contentBytes;
+                    tests::codex::inject(callbacks, Json{{"id", *id}, {"result", std::move(fixture.result)}});
                     return;
                 }
                 if (!this->turnLifecycle) {
@@ -329,10 +387,9 @@ namespace {
             while (!clientOutbound.empty()) {
                 client::OutboundMessage outbound = std::move(clientOutbound.front());
                 clientOutbound.pop_front();
-                const auto decoded = frontend::Codec::decodeClient(std::string_view(outbound.compactJson));
-                result.expectTrue(decoded.hasValue(), "the SDK emits a decodable Frontend Protocol object");
-                if (decoded && frontendConnection) {
-                    const frontend::ConnectionReceiveResult received = frontendConnection->receive(decoded.value());
+                if (frontendConnection) {
+                    const frontend::ConnectionReceiveResult received = frontendConnection->receive(
+                        std::string_view(outbound.compactJson));
                     std::string failureDetail = outbound.kind == client::OutboundKind::Hello ? "hello" : "command";
                     failureDetail += ", status=" + std::to_string(static_cast<int>(received.status));
                     if (received.error) {
@@ -342,7 +399,7 @@ namespace {
                         failureDetail += ", close=" + serviceCloseReasons.back();
                     }
                     result.expectTrue(received.accepted(),
-                                      "FrontendService accepts the SDK's queued in-memory message (" + failureDetail + ")");
+                                      "FrontendService decodes and accepts the SDK's serialized message (" + failureDetail + ")");
                 }
             }
             if (service) {
@@ -688,6 +745,10 @@ namespace {
         std::optional<frontend::Snapshot> replaySnapshot;
         std::size_t providerListCalls = 0;
         std::size_t providerThreadReadCalls = 0;
+        std::size_t providerLargeModelListCalls = 0;
+        std::size_t reproducedCompletionBytes = 0;
+        std::size_t reproducedContentBytes = 0;
+        std::string largeFrontendRequestId;
         std::size_t providerThreadStartCalls = 0;
         std::size_t providerTurnStartCalls = 0;
         std::size_t lifecycleNotificationsInjected = 0;
@@ -818,9 +879,78 @@ namespace {
                         [this]() {
                             afterTicks(4, [this]() {
                                 expectInitialState();
-                                beginFirstThreadRead();
+                                beginLargeProviderResult();
                             });
                         });
+                });
+        }
+
+        void beginLargeProviderResult() {
+            largeProviderCompletions = 0;
+            largeProviderResultBytes = 0;
+            largeProviderResultItems = 0;
+            largeProviderResultPreserved = false;
+            largeProviderResultSucceeded = false;
+            largeProviderResultError.clear();
+            const client::Submission submission = harness->sdk->models().list(
+                {},
+                [this](const client::OperationResult<typed::ModelListResponse>& operation) {
+                    ++largeProviderCompletions;
+                    largeProviderResultSucceeded = operation.succeeded();
+                    largeProviderResultError = operation.error ? operation.error->message : std::string{};
+                    largeProviderResultPreserved = operation.succeeded() && operation.value.has_value();
+                    if (operation.value) {
+                        for (const typed::Model& model : operation.value->data) {
+                            ++largeProviderResultItems;
+                            largeProviderResultBytes += model.description.size();
+                            if (!model.description.empty()) {
+                                largeProviderResultPreserved = largeProviderResultPreserved &&
+                                                               model.description.front() == 'A' &&
+                                                               model.description.back() == 'A';
+                            }
+                        }
+                    }
+                });
+            if (submission.requestId) {
+                harness->largeFrontendRequestId = submission.requestId->value();
+            }
+            result.expectTrue(submission.accepted(),
+                              "the SDK accepts a provider command reproducing the former BackendCore queue overflow");
+            waitUntil(
+                "the reproduced large provider result crosses BackendCore and FrontendService",
+                [this]() {
+                    harness->settle();
+                    return largeProviderCompletions == 1;
+                },
+                [this]() {
+                    const bool accountingMatches = harness->reproducedCompletionBytes >= ReproducedCompletionBytes &&
+                                                   harness->reproducedCompletionBytes <= ReproducedCompletionBytes + 1U;
+                    const bool passed = accountingMatches && largeProviderResultPreserved &&
+                                        largeProviderResultItems == ReproducedModelCount &&
+                                        largeProviderResultBytes == harness->reproducedContentBytes &&
+                                        harness->providerLargeModelListCalls == 1 &&
+                                        harness->sdk->isReady() && harness->sdkConnection->isOpen() &&
+                                        harness->sdk->pendingOperationCount() == 0 && harness->sdkCloseReasons.empty() &&
+                                        harness->serviceCloseReasons.empty() && harness->sdkProtocolErrors == 0;
+                    std::string detail = "preserved=" + std::to_string(largeProviderResultPreserved) +
+                                         ", succeeded=" + std::to_string(largeProviderResultSucceeded) +
+                                         ", resultBytes=" + std::to_string(largeProviderResultBytes) +
+                                         ", expectedBytes=" + std::to_string(harness->reproducedContentBytes) +
+                                         ", items=" + std::to_string(largeProviderResultItems) +
+                                         ", completionBytes=" + std::to_string(harness->reproducedCompletionBytes) +
+                                         ", operationError=" + largeProviderResultError +
+                                         ", providerCalls=" + std::to_string(harness->providerLargeModelListCalls) +
+                                         ", ready=" + std::to_string(harness->sdk->isReady()) +
+                                         ", open=" + std::to_string(harness->sdkConnection->isOpen()) +
+                                         ", pending=" + std::to_string(harness->sdk->pendingOperationCount()) +
+                                         ", sdkCloses=" + std::to_string(harness->sdkCloseReasons.size()) +
+                                         ", serviceCloses=" + std::to_string(harness->serviceCloseReasons.size()) +
+                                         ", protocolErrors=" + std::to_string(harness->sdkProtocolErrors);
+                    result.expectTrue(
+                        passed,
+                        "the complete 18,064,808-byte-accounted provider result reaches the SDK without closing the session (" +
+                            detail + ")");
+                    beginFirstThreadRead();
                 });
         }
 
@@ -1407,6 +1537,9 @@ namespace {
         std::size_t completions = 0;
         std::size_t secondCompletions = 0;
         std::size_t readCompletions = 0;
+        std::size_t largeProviderCompletions = 0;
+        std::size_t largeProviderResultBytes = 0;
+        std::size_t largeProviderResultItems = 0;
         std::size_t controllerCompletions = 0;
         std::size_t threadStartCompletions = 0;
         std::size_t turnStartCompletions = 0;
@@ -1425,6 +1558,9 @@ namespace {
         bool finishing = false;
         bool firstReadSucceeded = false;
         bool secondReadSucceeded = false;
+        bool largeProviderResultPreserved = false;
+        bool largeProviderResultSucceeded = false;
+        std::string largeProviderResultError;
         bool finished = false;
         std::string waitingDescription = "not started";
     };

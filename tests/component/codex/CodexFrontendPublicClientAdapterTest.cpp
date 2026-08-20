@@ -249,9 +249,12 @@ namespace {
         constexpr std::size_t ExpectedDecodedStateBytes = 128U * 1024U * 1024U;
         const client::ClientOptions publicDefaults;
         const core::ClientOptions internalDefaults;
-        result.expectTrue(publicDefaults.maximumDecodedStateBytes == ExpectedDecodedStateBytes &&
+        result.expectTrue(publicDefaults.maximumInboundMessageBytes == frontend::DefaultFrontendMaximumServerMessageBytes &&
+                              internalDefaults.limits.maximumInboundMessageBytes ==
+                                  frontend::DefaultFrontendMaximumServerMessageBytes &&
+                              publicDefaults.maximumDecodedStateBytes == ExpectedDecodedStateBytes &&
                               internalDefaults.limits.maximumDecodedStateBytes == ExpectedDecodedStateBytes,
-                          "public and internal client defaults retain identical 128 MiB decoded-State headroom");
+                          "public and internal client defaults share the derived server-message and decoded-State capacities");
     }
 
     struct PublicHarness {

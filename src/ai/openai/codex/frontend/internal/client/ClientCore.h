@@ -138,7 +138,7 @@ namespace ai::openai::codex::frontend::internal::client {
     using CredentialProvider = std::function<AuthenticationContext()>;
 
     struct ClientLimits {
-        std::size_t maximumInboundMessageBytes = 16U * 1024U * 1024U;
+        std::size_t maximumInboundMessageBytes = DefaultFrontendMaximumServerMessageBytes;
         std::size_t maximumOutboundMessageBytes = DefaultFrontendMaximumInboundMessageBytes;
         std::size_t maximumDecodedStateBytes = 128U * 1024U * 1024U;
         std::size_t maximumRetainedEntities = 1U << 20U;

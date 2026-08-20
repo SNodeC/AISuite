@@ -44,6 +44,8 @@
 
 namespace ai::openai::codex::backend {
 
+    inline constexpr std::size_t DefaultMaximumBackendSnapshotBytes = 8U * 1024U * 1024U;
+
     inline constexpr std::size_t MaxRetainedTurnPlanSteps = 32;
     inline constexpr std::size_t MaxRetainedTurnPlanStepBytes = 1024;
     inline constexpr std::size_t MaxRetainedTurnPlanStatusBytes = 256;
@@ -215,7 +217,7 @@ namespace ai::openai::codex::backend {
         std::size_t maxRetainedTurns = 16384;
         std::size_t maxRetainedItems = 65536;
         std::size_t maxAccumulatedContentBytes = 64U * 1024U * 1024U;
-        std::size_t maxSnapshotBytes = 8U * 1024U * 1024U;
+        std::size_t maxSnapshotBytes = DefaultMaximumBackendSnapshotBytes;
         std::size_t maxRetainedNotices = 256;
         std::size_t maxRetainedProcesses = 256;
         std::size_t maxProcessOutputBytesPerProcess = 4U * 1024U * 1024U;
