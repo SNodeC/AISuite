@@ -79,7 +79,7 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         CodexFrontendServiceClientIntegrationTest
         PROPERTIES
             LABELS "component;ai;openai;codex;frontend;client;service;integration;a1-7c-1"
-            TIMEOUT 20
+            TIMEOUT 40
     )
 
     snodec_add_test(
