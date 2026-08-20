@@ -3,10 +3,12 @@
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 #include "support/TestResult.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -185,11 +187,80 @@ namespace {
                               !absentAccount.contains("stamp") && !absentAccount.contains("truncation"),
                           "published State preserves explicit default stamp/truncation presence and omits absent metadata");
     }
+
+    void testForkTurnSerializationScoping(tests::support::TestResult& result) {
+        model::CanonicalSnapshot snapshot;
+        const model::ThreadIdentity firstThread{"first-thread"};
+        const model::ThreadIdentity secondThread{"second-thread"};
+        const model::ThreadIdentity uniqueThread{"unique-thread"};
+        const model::TurnIdentity sharedTurn{"shared-turn"};
+        const model::TurnIdentity uniqueTurn{"unique-turn"};
+        snapshot.threads.emplace_back(firstThread);
+        snapshot.threads.emplace_back(secondThread);
+        snapshot.threads.emplace_back(uniqueThread);
+        snapshot.turns.emplace_back(sharedTurn, firstThread);
+        snapshot.turns.emplace_back(sharedTurn, secondThread);
+        snapshot.turns.emplace_back(uniqueTurn, uniqueThread);
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"first-item"}, firstThread, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"second-item"}, secondThread, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"ambiguous-unscoped"}, std::nullopt, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"unique-unscoped"}, std::nullopt, uniqueTurn}});
+
+        core::PublishedState published;
+        published.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
+        const frontend::Json serialized = published.serializeForTesting();
+        const frontend::Json& turns = serialized.at("turns");
+        const auto findTurn = [&turns](std::string_view threadId) -> const frontend::Json* {
+            const auto found = std::find_if(turns.begin(), turns.end(), [threadId](const frontend::Json& turn) {
+                return turn.value("threadId", "") == threadId;
+            });
+            return found == turns.end() ? nullptr : &*found;
+        };
+        const frontend::Json* first = findTurn("first-thread");
+        const frontend::Json* second = findTurn("second-thread");
+        const frontend::Json* unique = findTurn("unique-thread");
+        result.expectTrue(first != nullptr && second != nullptr && unique != nullptr &&
+                              first->at("orderedItems") == frontend::Json::array({"first-item"}) &&
+                              second->at("orderedItems") == frontend::Json::array({"second-item"}) &&
+                              unique->at("orderedItems") == frontend::Json::array({"unique-unscoped"}) &&
+                              published.turn("shared-turn") == nullptr,
+                          "published serialization preserves unique unscoped items, scopes fork descendants, and rejects bare ambiguity");
+    }
+
+    void testPartialForkTurnSerializationScoping(tests::support::TestResult& result) {
+        model::CanonicalSnapshot snapshot;
+        const model::ThreadIdentity retainedThread{"retained-thread"};
+        const model::ThreadIdentity omittedThread{"omitted-thread"};
+        const model::TurnIdentity sharedTurn{"partial-shared-turn"};
+        snapshot.threads.emplace_back(retainedThread);
+        snapshot.threads.emplace_back(omittedThread);
+        snapshot.turns.emplace_back(sharedTurn, retainedThread);
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"other-scoped-item"}, omittedThread, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"ambiguous-unscoped-item"}, std::nullopt, sharedTurn}});
+
+        core::PublishedState published;
+        published.snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
+        const frontend::Json serialized = published.serializeForTesting();
+        const frontend::Json& turns = serialized.at("turns");
+        const auto retained = std::find_if(turns.begin(), turns.end(), [](const frontend::Json& turn) {
+            return turn.value("threadId", "") == "retained-thread";
+        });
+        result.expectTrue(retained != turns.end() && retained->at("orderedItems").empty(),
+                          "published serialization rejects an unscoped item when a partial projection proves another parent");
+    }
 } // namespace
 
 int main() {
     tests::support::TestResult result;
     testImmutableIndexedState(result);
     testOptionalMetadataPresence(result);
+    testForkTurnSerializationScoping(result);
+    testPartialForkTurnSerializationScoping(result);
     return result.processResult();
 }

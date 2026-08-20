@@ -398,6 +398,225 @@ namespace {
                           "item upsert and content occurrences target the exact thread/turn/item identity when provider IDs repeat");
     }
 
+    model::CanonicalSnapshot forkedTurnSnapshot() {
+        model::CanonicalSnapshot snapshot;
+        const model::ThreadIdentity firstThread{"first-thread"};
+        const model::ThreadIdentity secondThread{"second-thread"};
+        const model::TurnIdentity sharedTurn{"shared-turn"};
+        snapshot.threads.emplace_back(firstThread);
+        snapshot.threads.emplace_back(secondThread);
+        snapshot.turns.emplace_back(sharedTurn, firstThread);
+        snapshot.turns.emplace_back(sharedTurn, secondThread);
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"first-item"}, firstThread, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"second-item"}, secondThread, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"ambiguous-unscoped"}, std::nullopt, sharedTurn}});
+        return snapshot;
+    }
+
+    model::CanonicalSnapshot partialForkTurnSnapshot(bool legacyScopeEvidence) {
+        model::CanonicalSnapshot snapshot;
+        const model::ThreadIdentity retainedThread{"retained-thread"};
+        const model::ThreadIdentity omittedThread{"omitted-thread"};
+        const model::TurnIdentity sharedTurn{"partial-shared-turn"};
+        snapshot.threads.emplace_back(retainedThread);
+        snapshot.threads.emplace_back(omittedThread);
+        snapshot.turns.emplace_back(sharedTurn, retainedThread);
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"retained-scoped"}, retainedThread, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"ambiguous-unscoped"}, std::nullopt, sharedTurn}});
+        if (legacyScopeEvidence) {
+            snapshot.legacyItems.push_back({model::ItemData{model::ItemIdentity{"omitted-scoped"}, omittedThread, sharedTurn},
+                                            "future_item",
+                                            2,
+                                            "/items/2"});
+        } else {
+            snapshot.items.emplace_back(model::AgentMessageItem{
+                model::ItemData{model::ItemIdentity{"omitted-scoped"}, omittedThread, sharedTurn}});
+        }
+        return snapshot;
+    }
+
+    bool containsItem(const model::CanonicalSnapshot& snapshot, std::string_view itemId) {
+        return std::ranges::any_of(snapshot.items, [itemId](const model::ThreadItem& item) {
+            return model::itemData(item).id.value() == itemId;
+        });
+    }
+
+    void testForkTurnDescendantScoping(tests::support::TestResult& result) {
+        const model::CanonicalSnapshot source = forkedTurnSnapshot();
+
+        auto removedIdentity = occurrenceIdentity(38, "remove-fork-parent");
+        removedIdentity.threadId = model::ThreadIdentity{"first-thread"};
+        const auto removedOccurrence = model::makeOccurrence(
+            std::move(removedIdentity), model::ThreadRemovedOccurrence{model::ThreadIdentity{"first-thread"}});
+        const auto removed = removedOccurrence
+                                 ? model::reduceOccurrence(source, removedOccurrence.value())
+                                 : model::ModelResult<model::CanonicalSnapshot>{
+                                       {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        result.expectTrue(removed && removed.value().turns.size() == 1 && removed.value().items.size() == 2 &&
+                              removed.value().turns.front().threadId.value() == "second-thread" &&
+                              containsItem(removed.value(), "second-item") &&
+                              containsItem(removed.value(), "ambiguous-unscoped"),
+                          "removing a fork parent preserves sibling and ambiguous unscoped descendants with the same turn ID");
+
+        model::ThreadUpsertedOccurrence threadUpdate{model::ThreadState{model::ThreadIdentity{"first-thread"}}};
+        threadUpdate.replaceDescendants = true;
+        threadUpdate.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"first-thread"});
+        threadUpdate.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"first-replacement"},
+                            model::ThreadIdentity{"first-thread"},
+                            model::TurnIdentity{"shared-turn"}}});
+        auto threadIdentity = occurrenceIdentity(39, "replace-fork-thread");
+        threadIdentity.threadId = model::ThreadIdentity{"first-thread"};
+        const auto threadOccurrence = model::makeOccurrence(std::move(threadIdentity), std::move(threadUpdate));
+        const auto threadReplaced = threadOccurrence
+                                        ? model::reduceOccurrence(source, threadOccurrence.value())
+                                        : model::ModelResult<model::CanonicalSnapshot>{
+                                              {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        const auto secondAfterThreadReplace = threadReplaced
+                                                  ? std::find_if(threadReplaced.value().items.begin(),
+                                                                 threadReplaced.value().items.end(),
+                                                                 [](const model::ThreadItem& item) {
+                                                                     return model::itemData(item).id.value() == "second-item";
+                                                                 })
+                                                  : source.items.end();
+        result.expectTrue(threadReplaced && threadReplaced.value().turns.size() == 2 &&
+                              threadReplaced.value().items.size() == 3 &&
+                              secondAfterThreadReplace != threadReplaced.value().items.end() &&
+                              model::itemData(*secondAfterThreadReplace).threadId ==
+                                  std::optional<model::ThreadIdentity>{model::ThreadIdentity{"second-thread"}} &&
+                              containsItem(threadReplaced.value(), "ambiguous-unscoped"),
+                          "replacing one thread's descendants preserves a fork sibling with the same turn ID");
+
+        model::TurnUpsertedOccurrence turnUpdate{
+            model::TurnState{model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"first-thread"}}};
+        turnUpdate.replaceItems = true;
+        turnUpdate.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"first-turn-replacement"},
+                            model::ThreadIdentity{"first-thread"},
+                            model::TurnIdentity{"shared-turn"}}});
+        auto turnIdentity = occurrenceIdentity(40, "replace-fork-turn");
+        turnIdentity.threadId = model::ThreadIdentity{"first-thread"};
+        turnIdentity.turnId = model::TurnIdentity{"shared-turn"};
+        const auto turnOccurrence = model::makeOccurrence(std::move(turnIdentity), std::move(turnUpdate));
+        const auto turnReplaced = turnOccurrence
+                                      ? model::reduceOccurrence(source, turnOccurrence.value())
+                                      : model::ModelResult<model::CanonicalSnapshot>{
+                                            {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        const auto secondAfterTurnReplace = turnReplaced
+                                                ? std::find_if(turnReplaced.value().items.begin(),
+                                                               turnReplaced.value().items.end(),
+                                                               [](const model::ThreadItem& item) {
+                                                                   return model::itemData(item).id.value() == "second-item";
+                                                               })
+                                                : source.items.end();
+        result.expectTrue(turnReplaced && turnReplaced.value().turns.size() == 2 && turnReplaced.value().items.size() == 3 &&
+                              secondAfterTurnReplace != turnReplaced.value().items.end() &&
+                              model::itemData(*secondAfterTurnReplace).threadId ==
+                                  std::optional<model::ThreadIdentity>{model::ThreadIdentity{"second-thread"}} &&
+                              containsItem(turnReplaced.value(), "ambiguous-unscoped"),
+                          "replacing one fork turn's items preserves a sibling thread's same-ID turn items");
+
+        const model::CanonicalSnapshot partialSource = partialForkTurnSnapshot(false);
+        auto partialRemovedIdentity = occurrenceIdentity(43, "remove-partial-fork-parent");
+        partialRemovedIdentity.threadId = model::ThreadIdentity{"retained-thread"};
+        const auto partialRemovedOccurrence = model::makeOccurrence(
+            std::move(partialRemovedIdentity), model::ThreadRemovedOccurrence{model::ThreadIdentity{"retained-thread"}});
+        const auto partialRemoved = partialRemovedOccurrence
+                                        ? model::reduceOccurrence(partialSource, partialRemovedOccurrence.value())
+                                        : model::ModelResult<model::CanonicalSnapshot>{
+                                              {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+
+        model::ThreadUpsertedOccurrence partialThreadUpdate{
+            model::ThreadState{model::ThreadIdentity{"retained-thread"}}};
+        partialThreadUpdate.replaceDescendants = true;
+        partialThreadUpdate.turns.emplace_back(model::TurnIdentity{"partial-shared-turn"},
+                                               model::ThreadIdentity{"retained-thread"});
+        partialThreadUpdate.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"thread-replacement"},
+                            model::ThreadIdentity{"retained-thread"},
+                            model::TurnIdentity{"partial-shared-turn"}}});
+        auto partialThreadIdentity = occurrenceIdentity(44, "replace-partial-fork-thread");
+        partialThreadIdentity.threadId = model::ThreadIdentity{"retained-thread"};
+        const auto partialThreadOccurrence =
+            model::makeOccurrence(std::move(partialThreadIdentity), std::move(partialThreadUpdate));
+        const auto partialThreadReplaced = partialThreadOccurrence
+                                               ? model::reduceOccurrence(partialSource, partialThreadOccurrence.value())
+                                               : model::ModelResult<model::CanonicalSnapshot>{
+                                                     {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+
+        model::TurnUpsertedOccurrence partialTurnUpdate{
+            model::TurnState{model::TurnIdentity{"partial-shared-turn"}, model::ThreadIdentity{"retained-thread"}}};
+        partialTurnUpdate.replaceItems = true;
+        partialTurnUpdate.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"turn-replacement"},
+                            model::ThreadIdentity{"retained-thread"},
+                            model::TurnIdentity{"partial-shared-turn"}}});
+        auto partialTurnIdentity = occurrenceIdentity(45, "replace-partial-fork-turn");
+        partialTurnIdentity.threadId = model::ThreadIdentity{"retained-thread"};
+        partialTurnIdentity.turnId = model::TurnIdentity{"partial-shared-turn"};
+        const auto partialTurnOccurrence =
+            model::makeOccurrence(std::move(partialTurnIdentity), std::move(partialTurnUpdate));
+        const auto partialTurnReplaced = partialTurnOccurrence
+                                             ? model::reduceOccurrence(partialSource, partialTurnOccurrence.value())
+                                             : model::ModelResult<model::CanonicalSnapshot>{
+                                                   {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        result.expectTrue(partialRemoved && containsItem(partialRemoved.value(), "ambiguous-unscoped") &&
+                              partialThreadReplaced && containsItem(partialThreadReplaced.value(), "ambiguous-unscoped") &&
+                              partialTurnReplaced && containsItem(partialTurnReplaced.value(), "ambiguous-unscoped"),
+                          "partial fork reductions preserve ambiguous unscoped descendants for every replacement path");
+
+        const model::CanonicalSnapshot partialLegacySource = partialForkTurnSnapshot(true);
+        auto legacyRemovedIdentity = occurrenceIdentity(46, "remove-partial-legacy-fork-parent");
+        legacyRemovedIdentity.threadId = model::ThreadIdentity{"retained-thread"};
+        const auto legacyRemovedOccurrence = model::makeOccurrence(
+            std::move(legacyRemovedIdentity), model::ThreadRemovedOccurrence{model::ThreadIdentity{"retained-thread"}});
+        const auto legacyRemoved = legacyRemovedOccurrence
+                                       ? model::reduceOccurrence(partialLegacySource, legacyRemovedOccurrence.value())
+                                       : model::ModelResult<model::CanonicalSnapshot>{
+                                             {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        result.expectTrue(legacyRemoved && containsItem(legacyRemoved.value(), "ambiguous-unscoped"),
+                          "partial fork reduction also treats scoped legacy items as ambiguity evidence");
+
+        model::ThreadUpsertedOccurrence wireUpdate{model::ThreadState{model::ThreadIdentity{"first-thread"}}};
+        wireUpdate.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"first-thread"});
+        wireUpdate.items = source.items;
+        auto wireIdentity = occurrenceIdentity(41, "encode-fork-thread");
+        wireIdentity.threadId = model::ThreadIdentity{"first-thread"};
+        const auto wireOccurrence = model::makeOccurrence(std::move(wireIdentity), std::move(wireUpdate));
+        const auto legacy = wireOccurrence ? model::encodeLegacyOccurrence(wireOccurrence.value())
+                                           : model::OccurrenceResult<frontend::FrontendEvent>{wireOccurrence.error()};
+        const frontend::Json nestedItems = legacy ? legacy.value().data.at("thread").at("turns").at(0).at("items")
+                                                  : frontend::Json::array();
+        result.expectTrue(legacy && nestedItems.size() == 1 && nestedItems.at(0).value("id", "") == "first-item",
+                          "legacy thread occurrences nest same-ID fork turns and items under the exact parent thread");
+
+        model::ThreadUpsertedOccurrence uniqueWireUpdate{
+            model::ThreadState{model::ThreadIdentity{"unique-thread"}}};
+        uniqueWireUpdate.turns.emplace_back(model::TurnIdentity{"unique-turn"}, model::ThreadIdentity{"unique-thread"});
+        uniqueWireUpdate.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"unique-unscoped"},
+                            std::nullopt,
+                            model::TurnIdentity{"unique-turn"}}});
+        auto uniqueWireIdentity = occurrenceIdentity(42, "encode-unique-unscoped-thread");
+        uniqueWireIdentity.threadId = model::ThreadIdentity{"unique-thread"};
+        const auto uniqueWireOccurrence =
+            model::makeOccurrence(std::move(uniqueWireIdentity), std::move(uniqueWireUpdate));
+        const auto uniqueLegacy = uniqueWireOccurrence
+                                      ? model::encodeLegacyOccurrence(uniqueWireOccurrence.value())
+                                      : model::OccurrenceResult<frontend::FrontendEvent>{uniqueWireOccurrence.error()};
+        const frontend::Json uniqueNestedItems = uniqueLegacy
+                                                     ? uniqueLegacy.value().data.at("thread").at("turns").at(0).at("items")
+                                                     : frontend::Json::array();
+        result.expectTrue(uniqueLegacy && uniqueNestedItems.size() == 1 &&
+                              uniqueNestedItems.at(0).value("id", "") == "unique-unscoped",
+                          "legacy thread occurrences preserve a turn-only item when its turn identity is unambiguous");
+    }
+
     void testUnicodeItemContentReduction(tests::support::TestResult& result) {
         const std::string content = std::string(16'383, 'x') + "\xE2\x82\xAC";
         const frontend::ExpandedFrontendEvent event{
@@ -1493,6 +1712,7 @@ int main() {
     testNegotiatedItemContentAppend(result);
     testItemOrderingAndAuthorityMigration(result);
     testScopedItemIdentityReduction(result);
+    testForkTurnDescendantScoping(result);
     testUnicodeItemContentReduction(result);
     testPendingOrderingAndAuthorityMigration(result);
     testDescendantReplacementOrdering(result);

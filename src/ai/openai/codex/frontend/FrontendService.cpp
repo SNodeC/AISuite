@@ -93,6 +93,15 @@ namespace ai::openai::codex::frontend {
             return result;
         }
 
+        std::size_t maximumProviderResultBytes(const FrontendServiceOptions& options) noexcept {
+            if (options.maxOutboundBytesPerConnection <= DefaultFrontendServerMessageEnvelopeHeadroomBytes) {
+                return 0;
+            }
+            const std::size_t available =
+                options.maxOutboundBytesPerConnection - DefaultFrontendServerMessageEnvelopeHeadroomBytes;
+            return available < MaximumAppServerFramedLineBytes ? available : MaximumAppServerFramedLineBytes;
+        }
+
         std::shared_ptr<server::ServerCore> makeServerCore(const std::shared_ptr<server::BackendCoreBridge>& bridge,
                                                            server::ServerCoreOptions options) {
             // ServerCore stores its BackendPort as a borrowed reference. Keep
@@ -136,7 +145,7 @@ namespace ai::openai::codex::frontend {
     public:
         Impl(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions configuredOptions)
             : options(normalizedOptions(std::move(configuredOptions)))
-            , bridge(std::make_shared<server::BackendCoreBridge>(backend, options.maxOutboundBytesPerConnection))
+            , bridge(std::make_shared<server::BackendCoreBridge>(backend, maximumProviderResultBytes(options)))
             , core(makeServerCore(bridge, coreOptions(options))) {
             bridge->bindLifetime(core);
             core->start();

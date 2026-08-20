@@ -3058,13 +3058,34 @@ namespace ai::openai::codex::frontend::internal::model {
                     encodedTurn["extensions"] = turn.legacyExtensions.json().is_object() ? turn.legacyExtensions.json() : Json::object();
                     std::vector<std::pair<std::size_t, Json>> orderedItems;
                     std::size_t fallbackIndex = 0;
+                    const bool unscopedItemsBelongToTurn =
+                        std::none_of(snapshot.turns.begin(), snapshot.turns.end(), [&](const TurnState& candidate) {
+                            return candidate.id == turn.id && candidate.threadId != thread.id;
+                        }) &&
+                        std::none_of(snapshot.items.begin(), snapshot.items.end(), [&](const ThreadItem& candidate) {
+                            const ItemData& data = itemData(candidate);
+                            return data.turnId == std::optional<TurnIdentity>{turn.id} && data.threadId.has_value() &&
+                                   data.threadId != std::optional<ThreadIdentity>{thread.id};
+                        }) &&
+                        std::none_of(
+                            snapshot.legacyItems.begin(), snapshot.legacyItems.end(), [&](const LegacyItemCompatibility& candidate) {
+                                const ItemData& data = candidate.value;
+                                return data.turnId == std::optional<TurnIdentity>{turn.id} && data.threadId.has_value() &&
+                                       data.threadId != std::optional<ThreadIdentity>{thread.id};
+                            });
+                    const auto belongsToTurn = [&](const ItemData& data) {
+                        return data.turnId == std::optional<TurnIdentity>{turn.id} &&
+                               (data.threadId == std::optional<ThreadIdentity>{thread.id} ||
+                                (!data.threadId.has_value() && unscopedItemsBelongToTurn));
+                    };
                     for (const ThreadItem& item : snapshot.items) {
-                        if (itemData(item).turnId == std::optional<TurnIdentity>{turn.id}) {
-                            orderedItems.emplace_back(itemData(item).sourceIndex.value_or(fallbackIndex++), legacyItem(item));
+                        const ItemData& data = itemData(item);
+                        if (belongsToTurn(data)) {
+                            orderedItems.emplace_back(data.sourceIndex.value_or(fallbackIndex++), legacyItem(item));
                         }
                     }
                     for (const LegacyItemCompatibility& item : snapshot.legacyItems) {
-                        if (item.value.turnId == std::optional<TurnIdentity>{turn.id}) {
+                        if (belongsToTurn(item.value)) {
                             orderedItems.emplace_back(item.sourceIndex, legacyItem(item));
                         }
                     }

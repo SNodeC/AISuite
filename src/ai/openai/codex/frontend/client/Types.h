@@ -39,7 +39,7 @@ namespace ai::openai::codex::frontend::client {
         };
         std::vector<frontend::FrontendCapability> requiredCapabilities;
         CredentialProvider credentialProvider;
-        std::size_t maximumInboundMessageBytes = 16U * 1024U * 1024U;
+        std::size_t maximumInboundMessageBytes = frontend::DefaultFrontendMaximumServerMessageBytes;
         std::size_t maximumOutboundMessageBytes = frontend::DefaultFrontendMaximumInboundMessageBytes;
         // Pragmatic headroom for the public JSON-shaped immutable State after
         // restoring backend-bounded item output. This is not a universal

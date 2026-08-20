@@ -896,6 +896,7 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] Connection* findConnection(ConnectionContinuation continuation) noexcept;
         [[nodiscard]] const Connection* findConnection(ConnectionContinuation continuation) const noexcept;
         [[nodiscard]] std::optional<ConnectionToken> connectionToken(ConnectionIdentity identity) const noexcept;
+        [[nodiscard]] ReceiveStatus receiveStatusAfterFailure(ConnectionIdentity identity) const noexcept;
         void closeNow(ConnectionIdentity identity, ConnectionClose close) noexcept;
         void closeAfterQueuedMessages(ConnectionIdentity identity, ConnectionClose close);
         void closeWithProtocolError(ConnectionIdentity identity, ConnectionClose close) noexcept;
@@ -1001,6 +1002,11 @@ namespace ai::openai::codex::frontend::internal::server {
         return ConnectionToken{identity, connection->generation};
     }
 
+    ReceiveStatus ServerCore::Impl::receiveStatusAfterFailure(ConnectionIdentity identity) const noexcept {
+        const Connection* connection = findConnection(identity);
+        return connection && connection->closing ? ReceiveStatus::Closing : ReceiveStatus::Closed;
+    }
+
     void ServerCore::Impl::closeNow(ConnectionIdentity identity, ConnectionClose close) noexcept {
         TimerCancellation cancellation;
         ConnectionCallbacks callbacks;
@@ -1076,7 +1082,8 @@ namespace ai::openai::codex::frontend::internal::server {
 
     void ServerCore::Impl::closeWithProtocolError(ConnectionIdentity identity, ConnectionClose close) noexcept {
         try {
-            if (!findConnection(identity)) {
+            Connection* connection = findConnection(identity);
+            if (!connection || connection->closing) {
                 return;
             }
             ProtocolErrorMessage message;
@@ -1084,10 +1091,44 @@ namespace ai::openai::codex::frontend::internal::server {
             message.message = close.reason.empty() ? "frontend connection failed" : close.reason;
             message.supportedVersions.assign(SupportedProtocolVersions.begin(), SupportedProtocolVersions.end());
             message.closeConnection = true;
-            if (!enqueue(identity, ServerMessage{std::move(message)})) {
+
+            ServerMessage serverMessage{std::move(message)};
+            const auto encoded = Codec::serializeServer(serverMessage);
+            if (!encoded) {
+                closeNow(identity, std::move(close));
                 return;
             }
-            closeAfterQueuedMessages(identity, close);
+            std::string compactJson = std::move(encoded).value();
+            const std::size_t bytes = compactJson.size();
+            if (options.maxOutboundMessagesPerConnection == 0 || bytes > options.maxOutboundBytesPerConnection) {
+                closeNow(identity, std::move(close));
+                return;
+            }
+
+            for (const SerializedServerMessage& deferred : connection->deferredSnapshotOutbound) {
+                connection->outboundBytes -= deferred.compactJson.size();
+            }
+            connection->deferredSnapshotOutbound.clear();
+            const auto removeTail = [&connection] {
+                connection->outboundBytes -= connection->outbound.back().compactJson.size();
+                connection->outbound.pop_back();
+            };
+            const auto messageCount = [&connection] {
+                return connection->outbound.size();
+            };
+            while (messageCount() >= options.maxOutboundMessagesPerConnection ||
+                   connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
+                if (messageCount() == 0) {
+                    closeNow(identity, std::move(close));
+                    return;
+                }
+                removeTail();
+            }
+
+            connection->outbound.push_back(SerializedServerMessage{std::move(serverMessage), std::move(compactJson)});
+            connection->outboundBytes += bytes;
+            connection->closing = true;
+            connection->closeAfterDrain = close;
             requestFlush();
         } catch (...) {
             closeNow(identity, std::move(close));
@@ -1102,7 +1143,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         const auto encoded = Codec::serializeServer(message);
         if (!encoded) {
-            closeNow(identity, ConnectionClose{"frontend protocol encoding failed", ErrorCode::InternalError, false});
+            closeWithProtocolError(identity, ConnectionClose{"frontend protocol encoding failed", ErrorCode::InternalError, false});
             return false;
         }
         std::string compactJson = std::move(encoded).value();
@@ -1112,7 +1153,8 @@ namespace ai::openai::codex::frontend::internal::server {
             connection->deferredSnapshotOutbound.size() >= options.maxOutboundMessagesPerConnection - connection->outbound.size();
         if (messageCapacityExceeded || bytes > options.maxOutboundBytesPerConnection ||
             connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
-            closeNow(identity, ConnectionClose{"frontend outbound backpressure limit exceeded", ErrorCode::CapacityExceeded, false});
+            closeWithProtocolError(
+                identity, ConnectionClose{"frontend outbound backpressure limit exceeded", ErrorCode::CapacityExceeded, false});
             return false;
         }
 
@@ -1123,7 +1165,7 @@ namespace ai::openai::codex::frontend::internal::server {
             connection->outboundBytes += bytes;
             return true;
         } catch (...) {
-            closeNow(identity, ConnectionClose{"frontend outbound queue allocation failed", ErrorCode::InternalError, false});
+            closeWithProtocolError(identity, ConnectionClose{"frontend outbound queue allocation failed", ErrorCode::InternalError, false});
             return false;
         }
     }
@@ -1163,7 +1205,8 @@ namespace ai::openai::codex::frontend::internal::server {
                 released = true;
             } catch (...) {
                 connection = nullptr;
-                closeNow(token.identity, ConnectionClose{"frontend deferred Snapshot queueing failed", ErrorCode::InternalError, false});
+                closeWithProtocolError(
+                    token.identity, ConnectionClose{"frontend deferred Snapshot queueing failed", ErrorCode::InternalError, false});
             }
         }
         return released;
@@ -1435,7 +1478,7 @@ namespace ai::openai::codex::frontend::internal::server {
         message.details = error.details;
         const bool queued = enqueue(identity, ServerMessage{std::move(message)});
         if (!queued) {
-            return {ReceiveStatus::Closed, std::move(error)};
+            return {receiveStatusAfterFailure(identity), std::move(error)};
         }
         if (error.closeConnection) {
             closeAfterQueuedMessages(identity, ConnectionClose{"frontend protocol requested connection close", error.code, false});
@@ -1457,7 +1500,7 @@ namespace ai::openai::codex::frontend::internal::server {
     ReceiveResult ServerCore::Impl::rejectCommand(ConnectionIdentity identity, std::string requestId, ErrorCode code, std::string message) {
         const std::string diagnostic = message;
         if (!respondFailure(identity, std::move(requestId), code, std::move(message))) {
-            return {ReceiveStatus::Closed, codecFailure(code, diagnostic, false)};
+            return {receiveStatusAfterFailure(identity), codecFailure(code, diagnostic, false)};
         }
         return {ReceiveStatus::Rejected, codecFailure(code, diagnostic, false)};
     }
@@ -1484,7 +1527,7 @@ namespace ai::openai::codex::frontend::internal::server {
         const std::uint64_t current = now();
         Connection* connection = findConnection(*continuation);
         if (!connection) {
-            failure = {ReceiveStatus::Closed, std::nullopt};
+            failure = {receiveStatusAfterFailure(identity), std::nullopt};
             return false;
         }
         if (!inboundAllowed(*connection, current)) {
@@ -1617,7 +1660,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         const bool rateLimited = authenticationRateLimitedLocked(peer);
         if (!findConnection(awaitingHello)) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
         if (rateLimited) {
             return protocolFailure(
@@ -1635,13 +1678,13 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
         if (!findConnection(awaitingHello)) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
 
         if (const auto* failure = std::get_if<AuthenticationFailure>(&authentication)) {
             const AuthenticationFailureCode failureCode = recordAuthenticationFailureLocked(peer, failure->code);
             if (!findConnection(awaitingHello)) {
-                return {ReceiveStatus::Closed, std::nullopt};
+                return {receiveStatusAfterFailure(identity), std::nullopt};
             }
             const ErrorCode errorCode = protocolCode(failureCode);
             return protocolFailure(identity, codecFailure(errorCode, authenticationErrorMessage(failureCode)));
@@ -1651,7 +1694,7 @@ namespace ai::openai::codex::frontend::internal::server {
         if (!validPrincipal(principal) || principal.id.size() > model::SessionIdentity::MaximumBytes) {
             static_cast<void>(recordAuthenticationFailureLocked(peer, AuthenticationFailureCode::AuthenticationFailed));
             if (!findConnection(awaitingHello)) {
-                return {ReceiveStatus::Closed, std::nullopt};
+                return {receiveStatusAfterFailure(identity), std::nullopt};
             }
             return protocolFailure(
                 identity,
@@ -1675,7 +1718,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         connection = findConnection(awaitingHello);
         if (!connection) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
         TimerCancellation cancellation = std::move(connection->handshakeTimer);
         connection->handshakeTimer = {};
@@ -1687,13 +1730,13 @@ namespace ai::openai::codex::frontend::internal::server {
             } catch (...) {
             }
             if (!findConnection(awaitingHello)) {
-                return {ReceiveStatus::Closed, std::nullopt};
+                return {receiveStatusAfterFailure(identity), std::nullopt};
             }
         }
 
         connection = findConnection(awaitingHello);
         if (!connection) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
         connection->principal = principal;
         connection->negotiatedCapabilities = std::move(negotiated);
@@ -1710,7 +1753,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         if (!backendSessionOpened) {
             if (!findConnection(openingSession)) {
-                return {ReceiveStatus::Closed, std::nullopt};
+                return {receiveStatusAfterFailure(identity), std::nullopt};
             }
             // Authentication has succeeded, so report this post-authentication
             // admission failure on the wire and close only after the bounded
@@ -1723,14 +1766,14 @@ namespace ai::openai::codex::frontend::internal::server {
                 backend.sessionClosed(backendSessionToken);
             } catch (...) {
             }
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
         connection->session = session;
         connection->helloComplete = true;
         const ConnectionContinuation active{*token, true, false};
         connection = findConnection(active);
         if (!connection) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
 
         const SyncMode syncMode = initialSyncMode(identity, *connection, hello.resumeAfter);
@@ -1766,10 +1809,10 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         if (!enqueue(identity, ServerMessage{std::move(welcome)})) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
         if (!findConnection(active)) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
 
         bool synchronized = false;
@@ -1784,7 +1827,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 closeWithProtocolError(
                     identity, ConnectionClose{"frontend initial synchronization failed", ErrorCode::InternalError, false});
             }
-            return {ReceiveStatus::Closing, codecFailure(ErrorCode::InternalError, "frontend synchronization failed")};
+            return {receiveStatusAfterFailure(identity), codecFailure(ErrorCode::InternalError, "frontend synchronization failed")};
         }
         connection = findConnection(active);
         if (connection && connection->session) {
@@ -1819,10 +1862,12 @@ namespace ai::openai::codex::frontend::internal::server {
         const ConnectionContinuation active{token, true, false};
         const std::string requestId = command.requestId;
         const auto rejectResponse = [&](ErrorCode code, std::string message) {
-            return respondFailure(identity, requestId, code, std::move(message)) ? ReceiveStatus::Rejected : ReceiveStatus::Closed;
+            return respondFailure(identity, requestId, code, std::move(message)) ? ReceiveStatus::Rejected
+                                                                                 : receiveStatusAfterFailure(identity);
         };
         const auto acceptResponse = [&](Json value) {
-            return respondSuccess(identity, requestId, metadata.id, std::move(value)) ? ReceiveStatus::Accepted : ReceiveStatus::Closed;
+            return respondSuccess(identity, requestId, metadata.id, std::move(value)) ? ReceiveStatus::Accepted
+                                                                                      : receiveStatusAfterFailure(identity);
         };
         switch (metadata.id) {
             case generated::MethodId::ControllerAcquire: {
@@ -1832,11 +1877,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (externalController || (controller && *controller != identity)) {
                     return respondFailure(identity, requestId, ErrorCode::Conflict, "frontend command conflicts with current state")
                                ? ReceiveStatus::Accepted
-                               : ReceiveStatus::Closed;
+                               : receiveStatusAfterFailure(identity);
                 }
                 Connection* connection = findConnection(token);
                 if (!connection || !connection->session || !connection->principal) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
                 const model::SessionIdentity session = *connection->session;
                 const FrontendPrincipal principal = *connection->principal;
@@ -1852,7 +1897,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 connection = findConnection(active);
                 if (!connection) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
                 if (status == BackendSubmitStatus::Accepted || !connection->outstanding.contains(requestId)) {
                     return ReceiveStatus::Accepted;
@@ -1875,11 +1920,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (externalController) {
                     return respondFailure(identity, requestId, ErrorCode::Conflict, "frontend command conflicts with current state")
                                ? ReceiveStatus::Accepted
-                               : ReceiveStatus::Closed;
+                               : receiveStatusAfterFailure(identity);
                 }
                 Connection* connection = findConnection(token);
                 if (!connection || !connection->session || !connection->principal || !controller || *controller != identity) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
                 const model::SessionIdentity session = *connection->session;
                 const FrontendPrincipal principal = *connection->principal;
@@ -1895,7 +1940,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 connection = findConnection(active);
                 if (!connection) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
                 if (status == BackendSubmitStatus::Accepted || !connection->outstanding.contains(requestId)) {
                     return ReceiveStatus::Accepted;
@@ -1914,9 +1959,14 @@ namespace ai::openai::codex::frontend::internal::server {
             case generated::MethodId::SnapshotGet: {
                 const SnapshotBarrier barrier = captureSnapshotBarrier();
                 if (!respondSuccess(identity, requestId, metadata.id, Json{{"sequence", barrier.sequence.value()}})) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
-                return findConnection(active) && synchronizeSnapshot(token, &barrier) ? ReceiveStatus::Accepted : ReceiveStatus::Closed;
+                if (findConnection(active) && synchronizeSnapshot(token, &barrier)) {
+                    return ReceiveStatus::Accepted;
+                }
+                closeWithProtocolError(
+                    identity, ConnectionClose{"frontend Snapshot synchronization failed", ErrorCode::InternalError, false});
+                return receiveStatusAfterFailure(identity);
             }
             case generated::MethodId::EventsReplay: {
                 const Json& parameters = commandParameters(command);
@@ -1931,7 +1981,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 Connection* connection = findConnection(active);
                 if (!connection) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
                 const SyncMode mode =
                     replay.status == model::JournalReplayStatus::Available &&
@@ -1944,12 +1994,15 @@ namespace ai::openai::codex::frontend::internal::server {
                                     requestId,
                                     metadata.id,
                                     Json{{"sequence", replay.currentSequence.value()}, {"syncMode", toString(mode)}})) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
-                return findConnection(active) &&
-                               (mode == SyncMode::Replay ? synchronizeReplay(token, replay) : synchronizeSnapshot(token, &snapshotBarrier))
-                           ? ReceiveStatus::Accepted
-                           : ReceiveStatus::Closed;
+                if (findConnection(active) &&
+                    (mode == SyncMode::Replay ? synchronizeReplay(token, replay) : synchronizeSnapshot(token, &snapshotBarrier))) {
+                    return ReceiveStatus::Accepted;
+                }
+                closeWithProtocolError(
+                    identity, ConnectionClose{"frontend replay synchronization failed", ErrorCode::InternalError, false});
+                return receiveStatusAfterFailure(identity);
             }
             case generated::MethodId::ProviderStart:
             case generated::MethodId::ProviderStop:
@@ -1967,12 +2020,12 @@ namespace ai::openai::codex::frontend::internal::server {
                     provider = backend.snapshot().provider;
                 } catch (...) {
                     if (!findConnection(active)) {
-                        return ReceiveStatus::Closed;
+                        return receiveStatusAfterFailure(identity);
                     }
                     return rejectResponse(ErrorCode::InternalError, "failed to dispatch frontend command");
                 }
                 if (!findConnection(active)) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
                 if (metadata.controllerRequired && (!controller || *controller != identity)) {
                     return rejectResponse(ErrorCode::PermissionDenied, "the current controller is required");
@@ -1996,7 +2049,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     backendAccepted = false;
                 }
                 if (!findConnection(active)) {
-                    return ReceiveStatus::Closed;
+                    return receiveStatusAfterFailure(identity);
                 }
                 if (!backendAccepted && providerLifecycleGeneration == submittedLifecycleGeneration && providerLifecycleAction &&
                     *providerLifecycleAction == action) {
@@ -2029,7 +2082,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     static_cast<void>(stageOccurrenceLocked(std::move(key), std::move(occurrence), OccurrenceFlushUrgency::Immediate));
                     materializePendingDeliveryLocked();
                     if (!findConnection(active)) {
-                        return ReceiveStatus::Closed;
+                        return receiveStatusAfterFailure(identity);
                     }
                 }
                 return acceptResponse(Json::object());
@@ -2085,7 +2138,7 @@ namespace ai::openai::codex::frontend::internal::server {
         const std::optional<bool> policyPermits = invocationPolicyPermits(active, principal, metadata, policyParameters);
         connection = findConnection(active);
         if (!connection || !policyPermits) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
         if (!*policyPermits) {
             return rejectCommand(identity, command.requestId, ErrorCode::PermissionDenied, "frontend deployment policy denied the command");
@@ -2101,7 +2154,7 @@ namespace ai::openai::codex::frontend::internal::server {
             const bool providerReady = backend.providerReady();
             connection = findConnection(active);
             if (!connection) {
-                return {ReceiveStatus::Closed, std::nullopt};
+                return {receiveStatusAfterFailure(identity), std::nullopt};
             }
             if (!providerReady) {
                 return rejectCommand(identity, command.requestId, ErrorCode::BackendUnavailable, "the Codex App Server is not ready");
@@ -2139,7 +2192,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         connection = findConnection(active);
         if (!connection) {
-            return {ReceiveStatus::Closed, std::nullopt};
+            return {receiveStatusAfterFailure(identity), std::nullopt};
         }
         if (status == BackendSubmitStatus::Accepted) {
             return {ReceiveStatus::Accepted, std::nullopt};

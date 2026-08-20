@@ -343,6 +343,16 @@ namespace {
         result.expectTrue(peer.isOpen() && peerCompletions == 1,
                           "snapshot queue backpressure remains isolated to the offending frontend session");
     }
+
+    void testDefaultCompletionCapacityTracksAppServerFraming(tests::support::TestResult& result) {
+        const backend::BackendCoreOptions defaults;
+        result.expectTrue(
+            defaults.maxSessionQueueBytes == ai::openai::codex::MaximumDecodedAppServerCompletionBytes +
+                                                backend::DefaultMaximumBackendSnapshotBytes &&
+                defaults.maxSessionQueueBytes >= 2U * ai::openai::codex::MaximumAppServerFramedLineBytes,
+            "the default frontend-session queue retains one maximum provider completion plus snapshot-sized backlog");
+    }
+
 } // namespace
 
 int main() {
@@ -350,5 +360,6 @@ int main() {
     testSessionPolicyAndSafety(result);
     testEventlessCommandSessionDoesNotMirrorBackendEvents(result);
     testSnapshotQueueByteIsolation(result);
+    testDefaultCompletionCapacityTracksAppServerFraming(result);
     return result.processResult();
 }

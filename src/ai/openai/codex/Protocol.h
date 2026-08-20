@@ -10,6 +10,7 @@
 #define AI_OPENAI_CODEX_PROTOCOL_H
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -20,6 +21,14 @@
 namespace ai::openai::codex {
 
     using Json = nlohmann::json;
+
+    inline constexpr std::size_t MaximumAppServerFramedLineBytes = 16U * 1024U * 1024U;
+    // Typed provider results retain both their exact raw JSON and their
+    // decoded projection. Reserve both copies plus fixed object/envelope
+    // overhead so an otherwise empty default completion queue can retain any
+    // single accepted app-server result.
+    inline constexpr std::size_t MaximumDecodedAppServerCompletionBytes =
+        2U * MaximumAppServerFramedLineBytes + 64U * 1024U;
 
     struct Error {
         enum class Category { Launch, Transport, Protocol, Initialization, Process, InvalidState, Capacity, Cancelled, Enqueue };

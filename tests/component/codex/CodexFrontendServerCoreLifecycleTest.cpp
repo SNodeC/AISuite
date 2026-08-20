@@ -452,7 +452,7 @@ namespace {
                 : server::ReceiveResult{server::ReceiveStatus::UnknownConnection, std::nullopt};
         const bool authenticatorStopped =
             authenticatorIdentity && nestedAuthenticatorResult.status == server::ReceiveStatus::Closing &&
-            authenticatorResult.status == server::ReceiveStatus::Closed && !authenticatorCore.helloComplete(*authenticatorIdentity) &&
+            authenticatorResult.status == server::ReceiveStatus::Closing && !authenticatorCore.helloComplete(*authenticatorIdentity) &&
             authenticatorBackend.openedSessions.empty() && authenticatorBackend.closedSessions.empty() && authenticatorCloses == 0;
         authenticatorCore.flush();
         result.expectTrue(authenticatorStopped && authenticatorCloses == 1 && authenticatorCore.connectionCount() == 0,
@@ -489,7 +489,7 @@ namespace {
                 : server::ReceiveResult{server::ReceiveStatus::UnknownConnection, std::nullopt};
         const bool cancellationStopped =
             cancellationIdentity && nestedCancellationResult.status == server::ReceiveStatus::Closing &&
-            cancellationResult.status == server::ReceiveStatus::Closed && !cancellationCore.helloComplete(*cancellationIdentity) &&
+            cancellationResult.status == server::ReceiveStatus::Closing && !cancellationCore.helloComplete(*cancellationIdentity) &&
             cancellationBackend.openedSessions.empty() && cancellationBackend.closedSessions.empty() && cancellationCloses == 0;
         cancellationCore.flush();
         result.expectTrue(cancellationStopped && cancellationCloses == 1 && cancellationCore.connectionCount() == 0,
@@ -710,7 +710,7 @@ namespace {
                 ? prematureCommandCore.receive(*prematureIdentity, frontend::ClientMessage{frontend::Hello{}})
                 : server::ReceiveResult{server::ReceiveStatus::UnknownConnection, std::nullopt};
         const bool noPrematureWelcome = prematureNested.status == server::ReceiveStatus::Closing &&
-                                        prematureOuter.status == server::ReceiveStatus::Closed &&
+                                        prematureOuter.status == server::ReceiveStatus::Closing &&
                                         !prematureCommandCore.helloComplete(*prematureIdentity) &&
                                         !prematureCommandCore.currentController() && prematureMessages.empty();
         prematureCommandCore.flush();
@@ -852,7 +852,7 @@ namespace {
             policyIdentity ? policyCore.receiveDefinedCommand(*policyIdentity, filesystemRead)
                            : server::ReceiveResult{server::ReceiveStatus::UnknownConnection, std::nullopt};
         const bool policyStopped = policyReady && nestedPolicyResult.status == server::ReceiveStatus::Closing &&
-                                   policyResult.status == server::ReceiveStatus::Closed && policyBackend.submissionCount == 0 &&
+                                   policyResult.status == server::ReceiveStatus::Closing && policyBackend.submissionCount == 0 &&
                                    policyCloses == 0;
         policyCore.flush();
         result.expectTrue(policyStopped && policyCloses == 1 && policyCore.connectionCount() == 0,
@@ -960,6 +960,9 @@ namespace {
         const std::size_t firstQueuedBeforeSnapshot = first ? core.queuedMessages(*first) : 0;
 
         const server::SnapshotPublishResult published = core.publishSnapshot(backend.state);
+        if (first) {
+            core.flushConnection(*first);
+        }
         if (second) {
             core.flushConnection(*second);
         }

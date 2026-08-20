@@ -48,6 +48,70 @@ namespace {
                           "legacy v1 uses its frozen nested shape and decodes into the shared typed snapshot authority");
     }
 
+    void testLegacyForkTurnScoping(tests::support::TestResult& result) {
+        model::CanonicalSnapshot snapshot;
+        snapshot.sequence = model::FrontendSequence{10};
+        const model::ThreadIdentity firstThread{"first-thread"};
+        const model::ThreadIdentity secondThread{"second-thread"};
+        const model::ThreadIdentity uniqueThread{"unique-thread"};
+        const model::TurnIdentity sharedTurn{"shared-turn"};
+        const model::TurnIdentity uniqueTurn{"unique-turn"};
+        snapshot.threads.emplace_back(firstThread);
+        snapshot.threads.emplace_back(secondThread);
+        snapshot.threads.emplace_back(uniqueThread);
+        snapshot.turns.emplace_back(sharedTurn, firstThread);
+        snapshot.turns.emplace_back(sharedTurn, secondThread);
+        snapshot.turns.emplace_back(uniqueTurn, uniqueThread);
+
+        model::ItemData firstItem{model::ItemIdentity{"first-item"}, firstThread, sharedTurn};
+        firstItem.agentText = "first";
+        snapshot.items.emplace_back(model::AgentMessageItem{std::move(firstItem)});
+        model::ItemData secondItem{model::ItemIdentity{"second-item"}, secondThread, sharedTurn};
+        secondItem.agentText = "second";
+        snapshot.items.emplace_back(model::AgentMessageItem{std::move(secondItem)});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"ambiguous-unscoped"}, std::nullopt, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"unique-unscoped"}, std::nullopt, uniqueTurn}});
+
+        const auto encoded = model::encodeLegacySnapshot(snapshot);
+        const frontend::Json firstItems = encoded ? encoded.value().state.at("threads").at(0).at("turns").at(0).at("items")
+                                                  : frontend::Json::array();
+        const frontend::Json secondItems = encoded ? encoded.value().state.at("threads").at(1).at("turns").at(0).at("items")
+                                                   : frontend::Json::array();
+        const frontend::Json uniqueItems = encoded ? encoded.value().state.at("threads").at(2).at("turns").at(0).at("items")
+                                                   : frontend::Json::array();
+        const auto decoded = encoded ? model::decodeLegacySnapshot(encoded.value())
+                                     : model::ModelResult<model::CanonicalSnapshot>{encoded.error()};
+        result.expectTrue(encoded && firstItems.size() == 1 && secondItems.size() == 1 && uniqueItems.size() == 1 &&
+                              firstItems.at(0).value("id", "") == "first-item" &&
+                              secondItems.at(0).value("id", "") == "second-item" &&
+                              uniqueItems.at(0).value("id", "") == "unique-unscoped" && decoded &&
+                              decoded.value().turns.size() == 3 && decoded.value().items.size() == 3,
+                          "legacy snapshot nesting preserves unique unscoped items while omitting ambiguous fork descendants");
+    }
+
+    void testPartialLegacyForkTurnScoping(tests::support::TestResult& result) {
+        model::CanonicalSnapshot snapshot;
+        snapshot.sequence = model::FrontendSequence{11};
+        const model::ThreadIdentity retainedThread{"retained-thread"};
+        const model::ThreadIdentity omittedThread{"omitted-thread"};
+        const model::TurnIdentity sharedTurn{"partial-shared-turn"};
+        snapshot.threads.emplace_back(retainedThread);
+        snapshot.threads.emplace_back(omittedThread);
+        snapshot.turns.emplace_back(sharedTurn, retainedThread);
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"other-scoped-item"}, omittedThread, sharedTurn}});
+        snapshot.items.emplace_back(model::AgentMessageItem{
+            model::ItemData{model::ItemIdentity{"ambiguous-unscoped-item"}, std::nullopt, sharedTurn}});
+
+        const auto encoded = model::encodeLegacySnapshot(snapshot);
+        const frontend::Json retainedItems =
+            encoded ? encoded.value().state.at("threads").at(0).at("turns").at(0).at("items") : frontend::Json::array();
+        result.expectTrue(encoded && retainedItems.empty(),
+                          "legacy snapshot nesting rejects an unscoped item when a partial projection proves another parent");
+    }
+
     void testExplicitControllerPresenceRoundTrip(tests::support::TestResult& result) {
         const auto encoded = model::encodeSnapshot(representativeSnapshot());
         if (!encoded) {
@@ -207,6 +271,8 @@ namespace {
 int main() {
     tests::support::TestResult result;
     testLegacyShapeAndRoundTrip(result);
+    testLegacyForkTurnScoping(result);
+    testPartialLegacyForkTurnScoping(result);
     testExplicitControllerPresenceRoundTrip(result);
     testIndependentRepresentationSelection(result);
     testDiagnosticsUseFrozenSnapshotShape(result);

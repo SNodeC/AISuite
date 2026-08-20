@@ -34,10 +34,13 @@ namespace apps::codex_backend {
     inline constexpr std::size_t DEFAULT_MAXIMUM_FRAME_SIZE =
         ai::openai::codex::frontend::DefaultFrontendMaximumInboundMessageBytes;
 
-    // Keep transport framing and already-delivered writer data outside the
-    // reusable service's bounded queue. This remains finite while ensuring a
-    // freshly connected Unix client can accept a maximum-sized default replay.
-    inline constexpr std::size_t DEFAULT_MAXIMUM_OUTBOUND_BYTES = 13 * 1024 * 1024;
+    // The service accounts compact JSON, while JSONL, WebSocket and TLS layers
+    // add framing bytes before the socket writer. Preserve the existing finite
+    // transport reserve, but derive the total writer bound from the service.
+    inline constexpr std::size_t DEFAULT_TRANSPORT_FRAMING_HEADROOM_BYTES = 2U * 1024U * 1024U;
+    inline constexpr std::size_t DEFAULT_MAXIMUM_OUTBOUND_BYTES =
+        ai::openai::codex::frontend::DefaultFrontendServiceMaxOutboundBytes +
+        DEFAULT_TRANSPORT_FRAMING_HEADROOM_BYTES;
 
     static_assert(DEFAULT_MAXIMUM_OUTBOUND_BYTES >= ai::openai::codex::frontend::DefaultFrontendServiceMaxOutboundBytes +
                                                         ai::openai::codex::frontend::DefaultFrontendServiceMaxOutboundMessages);
